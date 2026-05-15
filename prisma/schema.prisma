@@ -38,6 +38,8 @@ model Match {
   knockouts       Int
   assists         Int
   damageDealt     Float
+  headshotKills   Int
+  revives         Int
   
   placement       Int
   playersAlive    Int

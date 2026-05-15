@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model ClanMember {
+  id              Int     @id @default(autoincrement())
+  displayName     String
+  pubgPlayerName  String  @unique
+  pubgAccountId   String?
+  platformShard   String  @default("steam")
+  isActive        Boolean @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  matches         Match[]
+
+  @@map("ClanMember")
+}
+
+model Match {
+  id              String  @id
+  memberId        Int
+  member          ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  
+  pubgMatchId     String
+  gameMode        String
+  mapName         String
+  
+  kills           Int
+  knockouts       Int
+  assists         Int
+  damageDealt     Float
+  
+  placement       Int
+  playersAlive    Int
+  
+  duration        Int
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([memberId, pubgMatchId])
+  @@map("Match")
+}

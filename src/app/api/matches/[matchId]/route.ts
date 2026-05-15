@@ -4,6 +4,16 @@ import { NextResponse } from 'next/server'
 const PUBG_API_KEY = process.env.PUBG_API_KEY
 const PUBG_BASE_URL = 'https://api.pubg.com'
 
+type ParticipantStats = {
+  playerId?: string
+  kills: number
+  assists: number
+  damageDealt: number
+  headshotKills: number
+  revives: number
+  winPlace: number
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ matchId: string }> }
@@ -38,39 +48,107 @@ export async function GET(
     }
 
     const matchData = await matchRes.json()
-    const match = matchData.data
-    
-    // Récupère les rosters du match
-    const rosters = match.relationships.rosters.data
-    
-    // Trouve le roster du joueur
-    let playerParticipant: any = null
-    
-    for (const rosterRef of rosters) {
-      const roster = matchData.included.find((item: any) => item.id === rosterRef.id)
-      if (!roster) continue
-      
-      // Cherche le participant dans ce roster
-      const participantRef = roster.relationships.participants.data.find((p: any) => 
-        matchData.included.some((item: any) => 
-          item.id === p.id && item.attributes.stats.playerId === playerId
-        )
+    const match = matchData?.data
+    const included = Array.isArray(matchData?.included) ? matchData.included : []
+    const rosters = match?.relationships?.rosters?.data
+
+    if (!match || !Array.isArray(rosters)) {
+      console.error('Invalid PUBG match response: missing match or roster relationships', {
+        matchId,
+        shard,
+        hasMatch: Boolean(match),
+        hasRosters: Array.isArray(rosters),
+      })
+      return NextResponse.json(
+        { error: 'Invalid match data from PUBG API' },
+        { status: 502 }
       )
-      
-      if (participantRef) {
-        playerParticipant = matchData.included.find((item: any) => item.id === participantRef.id)
+    }
+
+    console.debug('Resolving player participant from PUBG match payload', {
+      matchId,
+      playerId,
+      shard,
+      rosterCount: rosters.length,
+      includedCount: included.length,
+    })
+
+    let playerParticipant: {
+      attributes?: { stats?: ParticipantStats }
+    } | null = null
+
+    for (const rosterRef of rosters) {
+      if (!rosterRef?.id) {
+        console.debug('Skipping roster reference without id', { matchId, rosterRef })
+        continue
+      }
+
+      const roster = included.find(
+        (item: { id?: string; type?: string }) => item.id === rosterRef.id && item.type === 'roster'
+      ) as { relationships?: { participants?: { data?: Array<{ id?: string }> } } } | undefined
+
+      if (!roster) {
+        console.debug('Roster reference not found in included payload', {
+          matchId,
+          rosterId: rosterRef.id,
+        })
+        continue
+      }
+
+      const rosterParticipants = roster?.relationships?.participants?.data
+      if (!Array.isArray(rosterParticipants)) {
+        console.debug('Roster missing participant relationships', {
+          matchId,
+          rosterId: rosterRef.id,
+        })
+        continue
+      }
+
+      for (const participantRef of rosterParticipants) {
+        if (!participantRef?.id) continue
+
+        const participant = included.find(
+          (item: { id?: string; type?: string; attributes?: { stats?: { playerId?: string } } }) =>
+            item.id === participantRef.id &&
+            item.type === 'participant' &&
+            item.attributes?.stats?.playerId === playerId
+        )
+
+        if (participant) {
+          playerParticipant = participant
+          break
+        }
+      }
+
+      if (playerParticipant) {
         break
       }
     }
 
     if (!playerParticipant) {
+      console.warn('Player not found in match rosters', { matchId, playerId, shard })
       return NextResponse.json(
         { error: 'Player not found in match' },
         { status: 404 }
       )
     }
 
-    const stats = playerParticipant.attributes.stats
+    const stats = playerParticipant.attributes?.stats
+    if (
+      !stats ||
+      typeof stats.kills !== 'number' ||
+      typeof stats.assists !== 'number' ||
+      typeof stats.damageDealt !== 'number' ||
+      typeof stats.headshotKills !== 'number' ||
+      typeof stats.revives !== 'number' ||
+      typeof stats.winPlace !== 'number'
+    ) {
+      console.error('Player participant found without stats payload', { matchId, playerId, shard })
+      return NextResponse.json(
+        { error: 'Invalid participant data from PUBG API' },
+        { status: 502 }
+      )
+    }
 
     // Sauvegarde en base si memberId fourni
     if (memberId) {

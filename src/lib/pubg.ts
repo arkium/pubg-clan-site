@@ -3,10 +3,6 @@ import axios from 'axios'
 const PUBG_API_KEY = process.env.PUBG_API_KEY
 const PUBG_BASE_URL = process.env.PUBG_BASE_URL || 'https://api.pubg.com'
 
-if (!PUBG_API_KEY) {
-  throw new Error('PUBG_API_KEY is missing')
-}
-
 export const pubgApi = axios.create({
   baseURL: PUBG_BASE_URL,
   headers: {
@@ -14,6 +10,12 @@ export const pubgApi = axios.create({
     Accept: 'application/vnd.api+json',
   },
 })
+
+function ensurePubgApiKey() {
+  if (!PUBG_API_KEY) {
+    throw new Error('PUBG_API_KEY is missing')
+  }
+}
 
 type PubgPlayerSearchResponse = {
   data?: Array<{
@@ -101,6 +103,7 @@ export type ResolvedPubgMatch = {
 
 export async function searchPlayerByName(playerName: string, shard: string = 'steam') {
   try {
+    ensurePubgApiKey()
     const response = await pubgApi.get<PubgPlayerSearchResponse>(`/shards/${shard}/players`, {
       params: {
         'filter[playerNames]': playerName,
@@ -113,8 +116,14 @@ export async function searchPlayerByName(playerName: string, shard: string = 'st
     }
 
     const player = players[0]
+    const resolvedPlayerName = player.attributes?.name
+
+    if (!player.id || !resolvedPlayerName) {
+      return null
+    }
+
     return {
-      playerName: player.attributes.name,
+      playerName: resolvedPlayerName,
       accountId: player.id,
     }
   } catch (error) {
@@ -124,6 +133,7 @@ export async function searchPlayerByName(playerName: string, shard: string = 'st
 }
 
 export async function fetchRecentMatchIds(playerId: string, shard: string = 'steam') {
+  ensurePubgApiKey()
   const response = await pubgApi.get<PubgLifetimeMatchesResponse>(
     `/shards/${shard}/players/${playerId}/seasons/lifetime`
   )
@@ -146,6 +156,7 @@ export async function fetchMatchDetails(
   playerId: string,
   shard: string = 'steam'
 ): Promise<ResolvedPubgMatch> {
+  ensurePubgApiKey()
   const response = await pubgApi.get<PubgMatchResponse>(`/shards/${shard}/matches/${matchId}`)
   const match = response.data.data
   const included = Array.isArray(response.data.included) ? response.data.included : []

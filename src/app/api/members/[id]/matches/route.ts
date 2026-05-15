@@ -1,8 +1,11 @@
 import { prisma } from '@/lib/prisma'
+import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
 
-const PUBG_API_KEY = process.env.PUBG_API_KEY
-const PUBG_BASE_URL = 'https://api.pubg.com'
+function parseMemberId(id: string) {
+  const memberId = Number(id)
+  return Number.isInteger(memberId) && memberId > 0 ? memberId : null
+}
 
 export async function GET(
   request: Request,
@@ -10,9 +13,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const memberId = parseInt(id)
+    const memberId = parseMemberId(id)
 
-    // Récupère le membre
+    if (!memberId) {
+      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+    }
+
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
     })
@@ -24,77 +30,45 @@ export async function GET(
       )
     }
 
+    const importedMatches = await prisma.match.findMany({
+      where: { memberId },
+      orderBy: { createdAt: 'desc' },
+    })
+
     const shard = member.platformShard
-    
-    // Récupère le joueur
-    const playerRes = await fetch(
-      `${PUBG_BASE_URL}/shards/${shard}/players?filter[playerNames]=${member.pubgPlayerName}`,
-      {
-        headers: { Authorization: `Bearer ${PUBG_API_KEY}`, Accept: 'application/vnd.api+json' },
+    let playerId = member.pubgAccountId
+
+    if (!playerId) {
+      const player = await searchPlayerByName(member.pubgPlayerName, shard)
+
+      if (!player) {
+        return NextResponse.json(
+          { error: 'Player not found in PUBG API' },
+          { status: 404 }
+        )
       }
-    )
 
-    if (!playerRes.ok) {
-      throw new Error('Failed to fetch player from PUBG API')
+      playerId = player.accountId
+
+      await prisma.clanMember.update({
+        where: { id: memberId },
+        data: { pubgAccountId: playerId },
+      })
     }
 
-    const playerData = await playerRes.json()
-    const player = playerData.data[0]
+    const allRecentMatchIds = await fetchRecentMatchIds(playerId, shard)
+    const importedMatchIds = new Set(importedMatches.map((match) => match.pubgMatchId))
+    const recentWindow = allRecentMatchIds.slice(0, 10)
+    const recentApiMatchIds = recentWindow.filter((matchId) => !importedMatchIds.has(matchId))
 
-    if (!player) {
-      return NextResponse.json(
-        { error: 'Player not found in PUBG API' },
-        { status: 404 }
-      )
-    }
-
-    // Sauvegarde l'ID du joueur PUBG
-    await prisma.clanMember.update({
-      where: { id: memberId },
-      data: { pubgAccountId: player.id },
-    })
-
-    // Récupère les stats et matchIds depuis /seasons/lifetime
-    const seasonRes = await fetch(
-      `${PUBG_BASE_URL}/shards/${shard}/players/${player.id}/seasons/lifetime`,
-      {
-        headers: { Authorization: `Bearer ${PUBG_API_KEY}`, Accept: 'application/vnd.api+json' },
-      }
-    )
-
-    if (!seasonRes.ok) {
-      throw new Error('Failed to fetch player seasons from PUBG API')
-    }
-
-    const seasonData = await seasonRes.json()
-    
-    // Récupère tous les matchIds
-    const allMatchIds: string[] = []
-    const matchesData = seasonData.data.relationships
-    
-    Object.values(matchesData).forEach((modeMatches: any) => {
-      if (modeMatches.data && Array.isArray(modeMatches.data)) {
-        modeMatches.data.forEach((match: any) => {
-          if (match.id && !allMatchIds.includes(match.id)) {
-            allMatchIds.push(match.id)
-          }
-        })
-      }
-    })
-
-    if (allMatchIds.length === 0) {
-      return NextResponse.json([])
-    }
-
-    // Retourne seulement les 10 derniers matchIds (sans attendre les détails)
-    const matchIdsToFetch = allMatchIds.slice(0, 10)
-    
     return NextResponse.json({
       memberId,
-      playerId: player.id,
+      playerId,
       shard,
-      matchIds: matchIdsToFetch,
-      totalMatches: allMatchIds.length,
+      importedMatches,
+      recentApiMatchIds,
+      recentMatchesConsidered: recentWindow.length,
+      totalMatches: allRecentMatchIds.length,
     })
   } catch (error) {
     console.error('Error fetching matches:', error)

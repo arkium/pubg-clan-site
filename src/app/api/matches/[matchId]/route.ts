@@ -27,6 +27,7 @@ function toImportedMatchData(memberId: number, match: Awaited<ReturnType<typeof 
     placement: match.stats.position,
     playersAlive: 0,
     duration: match.durationSeconds,
+    pubgCreatedAt: new Date(match.createdAt),
   }
 }
 
@@ -121,6 +122,7 @@ export async function POST(
         placement: importedMatchData.placement,
         playersAlive: importedMatchData.playersAlive,
         duration: importedMatchData.duration,
+        pubgCreatedAt: importedMatchData.pubgCreatedAt,
       },
       create: importedMatchData,
     })

@@ -21,6 +21,7 @@ model ClanMember {
   updatedAt       DateTime @updatedAt
 
   matches         Match[]
+  lifetimeStats   MemberLifetimeStats?
 
   @@map("ClanMember")
 }
@@ -38,14 +39,36 @@ model Match {
   knockouts       Int
   assists         Int
   damageDealt     Float
+  headshotKills   Int
+  revives         Int
   
   placement       Int
   playersAlive    Int
   
   duration        Int
+  pubgCreatedAt   DateTime
   
   createdAt       DateTime @default(now())
   
   @@unique([memberId, pubgMatchId])
   @@map("Match")
+}
+
+model MemberLifetimeStats {
+  id              Int      @id @default(autoincrement())
+  memberId        Int      @unique
+  member          ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  combat          Json
+  victory         Json
+  support         Json
+  vehicle         Json
+  movement        Json
+  other           Json
+
+  lastRefreshedAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("MemberLifetimeStats")
 }

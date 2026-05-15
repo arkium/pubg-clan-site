@@ -10,10 +10,14 @@ interface ImportedMatch {
   gameMode: string
   mapName: string
   kills: number
+  knockouts: number
   assists: number
   damageDealt: number
+  headshotKills: number
+  revives: number
   placement: number
   duration: number
+  pubgCreatedAt: string
   createdAt: string
 }
 
@@ -123,6 +127,7 @@ export default function MatchesPage() {
   const [importedMatches, setImportedMatches] = useState<ImportedMatch[]>([])
   const [apiMatches, setApiMatches] = useState<ApiMatch[]>([])
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null)
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingStats, setLoadingStats] = useState(true)
   const [loadingApiMatches, setLoadingApiMatches] = useState(false)
@@ -153,6 +158,7 @@ export default function MatchesPage() {
 
         if (!cancelled) {
           setLifetimeStats(data.stats)
+          setLastRefreshedAt(data.lastRefreshedAt ?? null)
         }
       } catch (statsLoadError) {
         if (!cancelled) {
@@ -321,7 +327,7 @@ export default function MatchesPage() {
     setStatsError('')
 
     try {
-      const res = await fetch(`/api/members/${memberId}/stats`)
+      const res = await fetch(`/api/members/${memberId}/stats`, { method: 'POST' })
       const data = await res.json()
 
       if (!res.ok) {
@@ -329,6 +335,7 @@ export default function MatchesPage() {
       }
 
       setLifetimeStats(data.stats)
+      setLastRefreshedAt(data.lastRefreshedAt ?? null)
     } catch (statsLoadError) {
       setStatsError(
         statsLoadError instanceof Error ? statsLoadError.message : 'Failed to load lifetime stats'
@@ -377,6 +384,11 @@ export default function MatchesPage() {
               <p className="text-sm text-gray-500">
                 Comprehensive PUBG all-time stats for this member.
               </p>
+              {lastRefreshedAt && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Last refreshed: {new Date(lastRefreshedAt).toLocaleString()}
+                </p>
+              )}
             </div>
             <button
               type="button"
@@ -492,10 +504,13 @@ export default function MatchesPage() {
                   <tr>
                     <th className="border border-gray-200 p-2 text-left">Mode</th>
                     <th className="border border-gray-200 p-2 text-left">Map</th>
-                    <th className="border border-gray-200 p-2 text-left">Import date</th>
+                    <th className="border border-gray-200 p-2 text-left">Played at</th>
                     <th className="border border-gray-200 p-2 text-center">Kills</th>
+                    <th className="border border-gray-200 p-2 text-center">Knockouts</th>
                     <th className="border border-gray-200 p-2 text-center">Assists</th>
                     <th className="border border-gray-200 p-2 text-center">Damage</th>
+                    <th className="border border-gray-200 p-2 text-center">Headshots</th>
+                    <th className="border border-gray-200 p-2 text-center">Revives</th>
                     <th className="border border-gray-200 p-2 text-center">Placement</th>
                     <th className="border border-gray-200 p-2 text-center">Duration</th>
                   </tr>
@@ -506,14 +521,17 @@ export default function MatchesPage() {
                       <td className="border border-gray-200 p-2">{match.gameMode}</td>
                       <td className="border border-gray-200 p-2">{match.mapName}</td>
                       <td className="border border-gray-200 p-2">
-                        <div>{new Date(match.createdAt).toLocaleString()}</div>
+                        <div>{new Date(match.pubgCreatedAt).toLocaleString()}</div>
                         <div className="text-xs text-gray-500">Match ID: {match.pubgMatchId}</div>
                       </td>
                       <td className="border border-gray-200 p-2 text-center">{match.kills}</td>
+                      <td className="border border-gray-200 p-2 text-center">{match.knockouts}</td>
                       <td className="border border-gray-200 p-2 text-center">{match.assists}</td>
                       <td className="border border-gray-200 p-2 text-center">
                         {match.damageDealt.toFixed(0)}
                       </td>
+                      <td className="border border-gray-200 p-2 text-center">{match.headshotKills}</td>
+                      <td className="border border-gray-200 p-2 text-center">{match.revives}</td>
                       <td className="border border-gray-200 p-2 text-center">{match.placement}</td>
                       <td className="border border-gray-200 p-2 text-center">
                         {formatDuration(match.duration)}

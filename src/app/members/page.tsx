@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 
 interface Member {
   id: number
@@ -140,8 +141,16 @@ export default function MembersPage() {
                       ID: {member.pubgAccountId}
                     </p>
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {member.platformShard}
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-gray-500">
+                      {member.platformShard}
+                    </div>
+                    <Link
+                      href={`/members/${member.id}/matches`}
+                      className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      View matches
+                    </Link>
                   </div>
                 </div>
               ))}

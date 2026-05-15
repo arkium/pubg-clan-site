@@ -32,6 +32,9 @@ type MatchReference = {
 
 type PubgLifetimeMatchesResponse = {
   data?: {
+    attributes?: {
+      gameModeStats?: Record<string, PubgGameModeStats>
+    }
     relationships?: Record<
       string,
       {
@@ -39,6 +42,30 @@ type PubgLifetimeMatchesResponse = {
       }
     >
   }
+}
+
+type PubgGameModeStats = {
+  assists?: number
+  boosts?: number
+  damageDealt?: number
+  dBNOs?: number
+  headshotKills?: number
+  heals?: number
+  kills?: number
+  longestKill?: number
+  losses?: number
+  maxKillStreaks?: number
+  mostSurvivalTime?: number
+  revives?: number
+  rideDistance?: number
+  roadKills?: number
+  suicides?: number
+  swimDistance?: number
+  teamKills?: number
+  vehicleDestroys?: number
+  walkDistance?: number
+  weaponsAcquired?: number
+  wins?: number
 }
 
 type ParticipantStats = {
@@ -101,6 +128,45 @@ export type ResolvedPubgMatch = {
   }
 }
 
+export type PubgLifetimeStats = {
+  combat: {
+    kills: number
+    deaths: number
+    kdRatio: number
+    headshots: number
+    assists: number
+    knockouts: number
+    highestKillstreak: number
+    longestKill: number
+    teamkills: number
+    suicides: number
+  }
+  victory: {
+    wins: number
+    losses: number
+    winLossRatio: number
+    longestTimeAlive: number
+  }
+  support: {
+    teammatesRevived: number
+    boostsUsed: number
+    healed: number
+  }
+  vehicle: {
+    vehiclesDestroyed: number
+    roadkills: number
+  }
+  movement: {
+    drivenDistance: number
+    walkedDistance: number
+    swamDistance: number
+  }
+  other: {
+    weaponsPicked: number
+    damageGiven: number
+  }
+}
+
 export async function searchPlayerByName(playerName: string, shard: string = 'steam') {
   try {
     ensurePubgApiKey()
@@ -149,6 +215,90 @@ export async function fetchRecentMatchIds(playerId: string, shard: string = 'ste
   })
 
   return matchIds
+}
+
+function toNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function toRatio(numerator: number, denominator: number) {
+  if (denominator <= 0) {
+    return numerator > 0 ? numerator : 0
+  }
+
+  return numerator / denominator
+}
+
+function aggregateGameModeStats(gameModeStats: Record<string, PubgGameModeStats>) {
+  return Object.values(gameModeStats).reduce<PubgGameModeStats>((acc, modeStats) => {
+    Object.entries(modeStats).forEach(([key, value]) => {
+      if (typeof value !== 'number') {
+        return
+      }
+
+      const statKey = key as keyof PubgGameModeStats
+      acc[statKey] = (acc[statKey] ?? 0) + value
+    })
+
+    return acc
+  }, {})
+}
+
+export async function fetchLifetimeStats(
+  playerId: string,
+  shard: string = 'steam'
+): Promise<PubgLifetimeStats> {
+  ensurePubgApiKey()
+  const response = await pubgApi.get<PubgLifetimeMatchesResponse>(
+    `/shards/${shard}/players/${playerId}/seasons/lifetime`
+  )
+  const gameModeStats = response.data.data?.attributes?.gameModeStats ?? {}
+  const sourceStats =
+    gameModeStats.all ?? (Object.keys(gameModeStats).length > 0 ? aggregateGameModeStats(gameModeStats) : {})
+
+  const kills = toNumber(sourceStats.kills)
+  const deaths = toNumber(sourceStats.losses)
+  const wins = toNumber(sourceStats.wins)
+  const losses = toNumber(sourceStats.losses)
+
+  return {
+    combat: {
+      kills,
+      deaths,
+      kdRatio: toRatio(kills, deaths),
+      headshots: toNumber(sourceStats.headshotKills),
+      assists: toNumber(sourceStats.assists),
+      knockouts: toNumber(sourceStats.dBNOs),
+      highestKillstreak: toNumber(sourceStats.maxKillStreaks),
+      longestKill: toNumber(sourceStats.longestKill),
+      teamkills: toNumber(sourceStats.teamKills),
+      suicides: toNumber(sourceStats.suicides),
+    },
+    victory: {
+      wins,
+      losses,
+      winLossRatio: toRatio(wins, losses),
+      longestTimeAlive: toNumber(sourceStats.mostSurvivalTime),
+    },
+    support: {
+      teammatesRevived: toNumber(sourceStats.revives),
+      boostsUsed: toNumber(sourceStats.boosts),
+      healed: toNumber(sourceStats.heals),
+    },
+    vehicle: {
+      vehiclesDestroyed: toNumber(sourceStats.vehicleDestroys),
+      roadkills: toNumber(sourceStats.roadKills),
+    },
+    movement: {
+      drivenDistance: toNumber(sourceStats.rideDistance),
+      walkedDistance: toNumber(sourceStats.walkDistance),
+      swamDistance: toNumber(sourceStats.swimDistance),
+    },
+    other: {
+      weaponsPicked: toNumber(sourceStats.weaponsAcquired),
+      damageGiven: toNumber(sourceStats.damageDealt),
+    },
+  }
 }
 
 export async function fetchMatchDetails(

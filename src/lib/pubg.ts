@@ -207,11 +207,13 @@ export async function fetchRecentMatchIds(playerId: string, shard: string = 'ste
   const matchIds: string[] = []
 
   Object.values(relationships).forEach((modeMatches) => {
-    modeMatches.data?.forEach((match) => {
-      if (match.id && !matchIds.includes(match.id)) {
-        matchIds.push(match.id)
-      }
-    })
+    if (Array.isArray(modeMatches.data)) {
+      modeMatches.data.forEach((match) => {
+        if (match.id && !matchIds.includes(match.id)) {
+          matchIds.push(match.id)
+        }
+      })
+    }
   })
 
   return matchIds

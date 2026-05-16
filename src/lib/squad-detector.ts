@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { ResolvedPubgMatch } from '@/lib/pubg'
+import { notifySquadDetected } from '@/lib/notification-service'
 
 export type SquadPeriod = 'week' | 'month'
 
@@ -313,7 +314,13 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
     },
   })
 
-  return calculateSquadStats(createdSquadMatch.id)
+  const calculated = await calculateSquadStats(createdSquadMatch.id)
+
+  if (calculated) {
+    await notifySquadDetected(calculated.id)
+  }
+
+  return calculated
 }
 
 export async function findBestPairs(clanId: number, period: SquadPeriod) {

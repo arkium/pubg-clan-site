@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 
+import NotificationBell from '@/components/NotificationBell'
+
 interface ImportedMatch {
   id: string
   pubgMatchId: string
@@ -123,6 +125,13 @@ export default function MatchesPage() {
     () => (Array.isArray(params.id) ? params.id[0] : params.id),
     [params.id]
   )
+  const parsedMemberId = useMemo(() => {
+    if (!memberId) {
+      return null
+    }
+    const parsed = Number(memberId)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+  }, [memberId])
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null)
   const [importedMatches, setImportedMatches] = useState<ImportedMatch[]>([])
   const [apiMatches, setApiMatches] = useState<ApiMatch[]>([])
@@ -362,12 +371,23 @@ export default function MatchesPage() {
               imported are listed below.
             </p>
           </div>
-          <Link
-            href="/members"
-            className="inline-flex items-center justify-center rounded bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow hover:bg-blue-50"
-          >
-            Back to members
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {parsedMemberId ? <NotificationBell memberId={parsedMemberId} /> : null}
+            {parsedMemberId ? (
+              <Link
+                href={`/members/${parsedMemberId}/notifications`}
+                className="inline-flex items-center justify-center rounded border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              >
+                Notifications
+              </Link>
+            ) : null}
+            <Link
+              href="/members"
+              className="inline-flex items-center justify-center rounded bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow hover:bg-blue-50"
+            >
+              Back to members
+            </Link>
+          </div>
         </div>
 
         {error && <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}

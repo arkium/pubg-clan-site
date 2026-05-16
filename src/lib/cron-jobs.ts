@@ -1,8 +1,9 @@
 import cron, { type ScheduledTask } from 'node-cron'
 
-import { prisma } from '@/lib/prisma'
+import { endChallenge } from '@/lib/challenge-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { notifyInviteReminder, notifyReportReady } from '@/lib/notification-service'
+import { prisma } from '@/lib/prisma'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
@@ -31,6 +32,8 @@ const globalForCron = globalThis as typeof globalThis & {
   weeklyReportCronTask?: ScheduledTask
   monthlyReportCronTask?: ScheduledTask
   reportGenerationInProgress?: boolean
+  challengeProcessingCronTask?: ScheduledTask
+  challengeProcessingInProgress?: boolean
 }
 
 function isCronWorkerEnabled() {
@@ -331,6 +334,64 @@ export async function sendNotificationsReminders(
   )
 }
 
+export async function processChallenges() {
+  if (globalForCron.challengeProcessingInProgress) {
+    console.warn('[Cron] Challenge processing skipped because a previous run is still in progress')
+    return
+  }
+
+  globalForCron.challengeProcessingInProgress = true
+  const now = new Date()
+  console.info(`[Cron] Challenge processing started at ${now.toISOString()}`)
+
+  try {
+    const expiredChallenges = await prisma.challenge.findMany({
+      where: {
+        status: 'active',
+        endDate: { lte: now },
+      },
+      select: { id: true, clanId: true },
+    })
+
+    for (const challenge of expiredChallenges) {
+      try {
+        await endChallenge(challenge.id)
+        console.info(`[Cron] Challenge ${challenge.id} (clan ${challenge.clanId}) ended`)
+      } catch (error) {
+        console.error(`[Cron] Failed to end challenge ${challenge.id}`, error)
+      }
+    }
+
+    const pendingToActivate = await prisma.challenge.findMany({
+      where: {
+        status: 'pending',
+        startDate: { lte: now },
+      },
+      select: { id: true, clanId: true },
+    })
+
+    for (const challenge of pendingToActivate) {
+      try {
+        await prisma.challenge.update({
+          where: { id: challenge.id },
+          data: { status: 'active' },
+        })
+        console.info(`[Cron] Challenge ${challenge.id} (clan ${challenge.clanId}) activated`)
+      } catch (error) {
+        console.error(`[Cron] Failed to activate challenge ${challenge.id}`, error)
+      }
+    }
+
+    console.info(
+      `[Cron] Challenge processing finished — ended: ${expiredChallenges.length}, activated: ${pendingToActivate.length}`
+    )
+  } catch (error) {
+    console.error('[Cron] Challenge processing failed', error)
+  } finally {
+    globalForCron.challengeProcessingInProgress = false
+  }
+}
+
 export function initCronJobs() {
   if (globalForCron.clanSyncCronInitialized) {
     return
@@ -403,6 +464,16 @@ export function initCronJobs() {
     }
   )
 
+  globalForCron.challengeProcessingCronTask = cron.schedule(
+    '0 0 * * *',
+    async () => {
+      await processChallenges()
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
   globalForCron.clanSyncCronInitialized = true
 
   console.info(
@@ -423,4 +494,5 @@ export function initCronJobs() {
   console.info(
     `[Cron] Monthly report generation scheduled with "${MONTHLY_REPORT_GENERATION_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
   )
+  console.info('[Cron] Challenge processing scheduled daily at midnight')
 }

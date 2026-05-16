@@ -146,8 +146,14 @@ export default function MembersPage() {
                       {member.platformShard}
                     </div>
                     <Link
-                      href={`/members/${member.id}/matches`}
+                      href={`/members/${member.id}/dashboard`}
                       className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      href={`/members/${member.id}/matches`}
+                      className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
                     >
                       View matches
                     </Link>

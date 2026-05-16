@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { listReportsForClan } from '@/lib/report-generator'
+import { requirePermission } from '@/middleware/auth-permission'
 import type { ReportFilterType } from '@/types/reports'
 
 function parseClanId(clanId: string) {
@@ -34,6 +35,14 @@ export async function GET(
 
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+    }
+
+    const permissionError = await requirePermission('view_reports')(request, {
+      clanId: parsedClanId,
+      allowMissingActor: true,
+    })
+    if (permissionError) {
+      return permissionError
     }
 
     const clan = await prisma.clan.findUnique({

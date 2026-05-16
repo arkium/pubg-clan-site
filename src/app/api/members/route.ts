@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
+import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
 import { z } from 'zod'
 
 /**
@@ -10,6 +11,7 @@ const AddMemberSchema = z.object({
   displayName: z.string().min(1, 'Display name is required'),
   pubgPlayerName: z.string().min(1, 'PUBG player name is required'),
   platformShard: z.string().default('steam'),
+  clanId: z.number().int().positive().optional(),
 })
 
 /**
@@ -43,8 +45,14 @@ export async function POST(request: NextRequest) {
         pubgPlayerName: pubgPlayer.playerName,
         pubgAccountId: pubgPlayer.accountId,
         platformShard: validated.platformShard,
+        ...(validated.clanId ? { clanId: validated.clanId } : {}),
       },
     })
+
+    if (validated.clanId) {
+      await initializeDefaultRoles(validated.clanId)
+      await assignDefaultMemberRole(member.id, validated.clanId)
+    }
 
     return NextResponse.json(member, { status: 201 })
   } catch (error) {

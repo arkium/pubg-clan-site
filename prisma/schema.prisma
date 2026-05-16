@@ -11,76 +11,113 @@ datasource db {
 }
 
 model Clan {
-  id              Int      @id @default(autoincrement())
-  name            String   @unique
-  tag             String
-  platformShard   String   @default("steam")
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  tag           String
+  platformShard String   @default("steam")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  members         ClanMember[]
+  members ClanMember[]
 
   @@map("Clan")
 }
 
 model ClanMember {
-  id              Int     @id @default(autoincrement())
-  displayName     String
-  pubgPlayerName  String  @unique
-  pubgAccountId   String?
-  platformShard   String  @default("steam")
-  isActive        Boolean @default(true)
-  clanId          Int?
-  clan            Clan?   @relation(fields: [clanId], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  displayName    String
+  pubgPlayerName String   @unique
+  pubgAccountId  String?
+  platformShard  String   @default("steam")
+  isActive       Boolean  @default(true)
+  clanId         Int?
+  clan           Clan?    @relation(fields: [clanId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  matches         Match[]
-  lifetimeStats   MemberLifetimeStats?
+  matches       Match[]
+  lifetimeStats MemberLifetimeStats?
+  squadMembers  SquadMember[]
 
   @@map("ClanMember")
 }
 
 model Match {
-  id              String  @id
-  memberId        Int
-  member          ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  
-  pubgMatchId     String
-  gameMode        String
-  mapName         String
-  
-  kills           Int
-  knockouts       Int
-  assists         Int
-  damageDealt     Float
-  headshotKills   Int
-  revives         Int
-  
-  placement       Int
-  playersAlive    Int
-  
-  duration        Int
-  pubgCreatedAt   DateTime
-  
-  createdAt       DateTime @default(now())
-  
+  id       String     @id
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  pubgMatchId String
+  gameMode    String
+  mapName     String
+
+  kills         Int
+  knockouts     Int
+  assists       Int
+  damageDealt   Float
+  headshotKills Int
+  revives       Int
+
+  placement    Int
+  playersAlive Int
+
+  duration      Int
+  pubgCreatedAt DateTime
+
+  createdAt DateTime @default(now())
+
   @@unique([memberId, pubgMatchId])
   @@map("Match")
 }
 
-model MemberLifetimeStats {
-  id              Int      @id @default(autoincrement())
-  memberId        Int      @unique
-  member          ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+model SquadMatch {
+  id          String   @id @default(cuid())
+  pubgMatchId String   @unique
+  gameMode    String
+  mapName     String
+  placement   Int
+  createdAt   DateTime
 
-  combat          Json
-  victory         Json
-  support         Json
-  vehicle         Json
-  movement        Json
-  other           Json
+  members SquadMember[]
+
+  totalKills   Int
+  totalDamage  Float
+  totalAssists Int
+  totalRevives Int
+
+  @@map("SquadMatch")
+}
+
+model SquadMember {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  kills     Int
+  damage    Float
+  assists   Int
+  revives   Int
+  placement Int
+
+  @@unique([squadMatchId, memberId])
+  @@map("SquadMember")
+}
+
+model MemberLifetimeStats {
+  id       Int        @id @default(autoincrement())
+  memberId Int        @unique
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  combat   Json
+  victory  Json
+  support  Json
+  vehicle  Json
+  movement Json
+  other    Json
 
   lastRefreshedAt DateTime
   createdAt       DateTime @default(now())

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { ApiQueue } from '@/lib/api-throttle'
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
+import { analyzeMatchForSquads } from '@/lib/squad-detector'
 
 function createMatchRecordId(memberId: number, matchId: string) {
   return `${memberId}-${matchId}`
@@ -162,6 +163,14 @@ export async function POST(
               },
               create: matchData,
             })
+
+            const detectedSquad = await analyzeMatchForSquads(clan.id, matchDetails)
+
+            if (detectedSquad) {
+              logs.push(
+                `Squad detected for match ${matchDetails.id}: ${detectedSquad.members.length} clan member(s)`
+              )
+            }
 
             importedCount += 1
           } catch (err) {

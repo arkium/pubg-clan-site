@@ -210,16 +210,25 @@ export async function notifyChallengeStarted(challengeId: string, clanId: number
   )
 }
 
-export async function notifyReportReady(reportId: string, memberId: number) {
+export async function notifyReportReady(
+  reportId: string,
+  memberId: number,
+  options?: {
+    clanId?: number
+    reportType?: 'weekly' | 'monthly'
+  }
+) {
+  const reportLabel = options?.reportType === 'monthly' ? 'monthly' : 'weekly'
   await createNotificationForMember({
     memberId,
     type: 'report_ready',
-    title: 'Your weekly report is ready',
+    title: `Your ${reportLabel} report is ready`,
     message: 'Open your report to review your latest PUBG progress.',
     data: {
       reportId,
       memberId,
-      link: `/reports/${reportId}`,
+      link: options?.clanId ? `/clans/${options.clanId}/reports/${reportId}` : `/reports/${reportId}`,
+      reportType: reportLabel,
     },
   })
 }

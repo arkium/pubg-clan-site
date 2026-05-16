@@ -78,6 +78,14 @@ export default function ClanNavigation() {
               Classement
             </Link>
           ) : null}
+          {clanId ? (
+            <Link
+              href={`/clans/${clanId}/reports`}
+              className="rounded border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              Rapports
+            </Link>
+          ) : null}
           <Link
             href="/clans"
             className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"

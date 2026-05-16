@@ -2,9 +2,11 @@ import cron, { type ScheduledTask } from 'node-cron'
 
 import { prisma } from '@/lib/prisma'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
+import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
 const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
+const STATS_RECALC_SCHEDULE = process.env.CLAN_STATS_RECALC_CRON ?? '0 3 * * *'
 const MAX_SYNC_ATTEMPTS = 3
 
 const globalForCron = globalThis as typeof globalThis & {
@@ -12,6 +14,8 @@ const globalForCron = globalThis as typeof globalThis & {
   clanSyncCronInitialized?: boolean
   clanSyncFailures?: Map<number, number>
   clanSyncInProgress?: boolean
+  statsRecalcCronTask?: ScheduledTask
+  statsRecalcInProgress?: boolean
 }
 
 function isCronWorkerEnabled() {
@@ -100,6 +104,52 @@ async function syncClanWithRetry(clanId: number, clanName: string) {
   }
 
   throw lastError instanceof Error ? lastError : new Error('Clan sync failed')
+}
+
+async function recalculateStatsDaily() {
+  if (globalForCron.statsRecalcInProgress) {
+    console.warn('[Cron] Stats recalculation skipped because a previous run is still in progress')
+    return
+  }
+
+  globalForCron.statsRecalcInProgress = true
+
+  const startedAt = new Date()
+  console.info(`[Cron] Daily stats recalculation started at ${startedAt.toISOString()}`)
+
+  try {
+    const activeClans = await prisma.clan.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { id: 'asc' },
+    })
+
+    if (activeClans.length === 0) {
+      console.info('[Cron] No active clans found for stats recalculation')
+      return
+    }
+
+    for (const clan of activeClans) {
+      try {
+        await recalculateStatsForClan(clan.id)
+        console.info(`[Cron] Stats recalculated for clan "${clan.name}" (${clan.id})`)
+      } catch (error) {
+        console.error(
+          `[Cron] Failed to recalculate stats for clan "${clan.name}" (${clan.id})`,
+          error
+        )
+      }
+    }
+
+    const finishedAt = new Date()
+    console.info(
+      `[Cron] Daily stats recalculation finished at ${finishedAt.toISOString()} - processed ${activeClans.length} clans`
+    )
+  } catch (error) {
+    console.error('[Cron] Daily stats recalculation failed before processing clans', error)
+  } finally {
+    globalForCron.statsRecalcInProgress = false
+  }
 }
 
 async function runDailyClanSync() {
@@ -193,9 +243,23 @@ export function initCronJobs() {
       timezone: DAILY_SYNC_TIMEZONE,
     }
   )
+
+  globalForCron.statsRecalcCronTask = cron.schedule(
+    STATS_RECALC_SCHEDULE,
+    async () => {
+      await recalculateStatsDaily()
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
   globalForCron.clanSyncCronInitialized = true
 
   console.info(
     `[Cron] Nightly clan sync scheduled with "${DAILY_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Daily stats recalculation scheduled with "${STATS_RECALC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
   )
 }

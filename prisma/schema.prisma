@@ -39,6 +39,7 @@ model ClanMember {
   matches       Match[]
   lifetimeStats MemberLifetimeStats?
   squadMembers  SquadMember[]
+  playerStats   PlayerStats[]
 
   @@map("ClanMember")
 }
@@ -105,6 +106,35 @@ model SquadMember {
 
   @@unique([squadMatchId, memberId])
   @@map("SquadMember")
+}
+
+model PlayerStats {
+  id         String     @id @default(cuid())
+  memberId   Int
+  member     ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  period     String // "week-2026-20", "month-2026-05", "all-time"
+  periodType String // "week" | "month" | "all"
+  startDate  DateTime
+  endDate    DateTime
+
+  totalKills       Int   @default(0)
+  totalDamage      Float @default(0)
+  totalAssists     Int   @default(0)
+  totalRevives     Int   @default(0)
+  matchesPlayed    Int   @default(0)
+  matchesWon       Int   @default(0)
+  winRate          Float @default(0)
+  avgKillsPerGame  Float @default(0)
+  avgDamagePerGame Float @default(0)
+
+  badgeType String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([memberId, period])
+  @@map("PlayerStats")
 }
 
 model MemberLifetimeStats {

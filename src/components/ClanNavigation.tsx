@@ -70,6 +70,14 @@ export default function ClanNavigation() {
               Matchs ensemble
             </Link>
           ) : null}
+          {clanId ? (
+            <Link
+              href={`/clans/${clanId}/leaderboard`}
+              className="rounded border border-purple-200 px-3 py-1.5 text-sm font-medium text-purple-700 hover:bg-purple-50"
+            >
+              Classement
+            </Link>
+          ) : null}
           <Link
             href="/clans"
             className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"

@@ -9,11 +9,11 @@ function parseMemberId(memberId: string) {
 
 export async function GET(
   _request: Request,
-  { params }: { params: Promise<{ memberId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { memberId } = await params
-    const parsedMemberId = parseMemberId(memberId)
+    const { id } = await params
+    const parsedMemberId = parseMemberId(id)
 
     if (!parsedMemberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })

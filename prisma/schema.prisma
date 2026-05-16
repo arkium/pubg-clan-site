@@ -40,8 +40,49 @@ model ClanMember {
   lifetimeStats MemberLifetimeStats?
   squadMembers  SquadMember[]
   playerStats   PlayerStats[]
+  notifications Notification[]
+  notificationPreference NotificationPreference?
 
   @@map("ClanMember")
+}
+
+model Notification {
+  id       String     @id @default(cuid())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  type    String
+  title   String
+  message String
+  data    Json?
+
+  read   Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([memberId, read, createdAt])
+  @@map("Notification")
+}
+
+model NotificationPreference {
+  id       String     @id @default(cuid())
+  memberId Int        @unique
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  squadDetected    Boolean @default(true)
+  topPerformance   Boolean @default(true)
+  challengeStarted Boolean @default(true)
+  reportReady      Boolean @default(true)
+  inviteReminder   Boolean @default(false)
+
+  emailNotifications Boolean @default(false)
+  pushNotifications  Boolean @default(true)
+  inAppNotifications Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("NotificationPreference")
 }
 
 model Match {

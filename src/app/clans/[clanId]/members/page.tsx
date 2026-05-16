@@ -114,20 +114,28 @@ export default function ClanMembersPage() {
                 key={member.id}
                 className="rounded border border-gray-200 bg-white p-4 shadow-sm"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-gray-900">{member.displayName}</p>
-                    <p className="text-sm text-gray-600">{member.pubgPlayerName}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{member.displayName}</p>
+                      <p className="text-sm text-gray-600">{member.pubgPlayerName}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/members/${member.id}/matches`}
+                        className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Voir les matchs
+                      </Link>
+                      <Link
+                        href={`/members/${member.id}/notifications`}
+                        className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      >
+                        Notifications
+                      </Link>
+                    </div>
                   </div>
-                  <Link
-                    href={`/members/${member.id}/matches`}
-                    className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                  >
-                    Voir les matchs
-                  </Link>
-                </div>
-              </li>
-            ))}
+                </li>
+              ))}
           </ul>
         )
       ) : null}

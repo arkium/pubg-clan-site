@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { notifyTopPerformance } from '@/lib/notification-service'
 
 export type StatsPeriod = 'week' | 'month' | 'all'
 
@@ -196,6 +197,27 @@ export async function assignBadges(clanId: number, period: StatsPeriod): Promise
       prisma.playerStats.update({ where: { id }, data: { badgeType } })
     )
   )
+
+  for (const update of updates) {
+    const stat = allStats.find((item) => item.id === update.id)
+    if (!stat) {
+      continue
+    }
+
+    if (update.badgeType === 'top_killer') {
+      await notifyTopPerformance(stat.memberId, 'kills', period)
+      continue
+    }
+
+    if (update.badgeType === 'top_damage') {
+      await notifyTopPerformance(stat.memberId, 'damage', period)
+      continue
+    }
+
+    if (update.badgeType === 'best_wr') {
+      await notifyTopPerformance(stat.memberId, 'wr', period)
+    }
+  }
 }
 
 export async function recalculateStatsForClan(clanId: number): Promise<void> {

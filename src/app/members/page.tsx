@@ -151,6 +151,12 @@ export default function MembersPage() {
                     >
                       View matches
                     </Link>
+                    <Link
+                      href={`/members/${member.id}/notifications`}
+                      className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                    >
+                      Notifications
+                    </Link>
                   </div>
                 </div>
               ))}

@@ -22,6 +22,7 @@ model Clan {
   members ClanMember[]
   roles   ClanRole[]
   reports Report[]
+  challenges Challenge[]
 
   @@map("Clan")
 }
@@ -38,13 +39,15 @@ model ClanMember {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  matches       Match[]
-  lifetimeStats MemberLifetimeStats?
-  squadMembers  SquadMember[]
-  playerStats   PlayerStats[]
-  notifications Notification[]
+  matches                Match[]
+  lifetimeStats          MemberLifetimeStats?
+  squadMembers           SquadMember[]
+  playerStats            PlayerStats[]
+  notifications          Notification[]
   notificationPreference NotificationPreference?
   roles                  ClanMemberRole[]
+  challengeParticipants  ChallengeParticipant[]
+  playerRewards          PlayerRewards?
 
   @@map("ClanMember")
 }
@@ -283,4 +286,78 @@ model MemberLifetimeStats {
   updatedAt       DateTime @updatedAt
 
   @@map("MemberLifetimeStats")
+}
+
+model Challenge {
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  type        String
+
+  startDate DateTime
+  endDate   DateTime
+  duration  String
+
+  target   Int?
+  criteria Json
+
+  rewards   Json
+  topReward Int?
+
+  status String
+
+  createdAt DateTime @default(now())
+
+  participants ChallengeParticipant[]
+
+  @@index([clanId, status, endDate])
+  @@map("Challenge")
+}
+
+model ChallengeParticipant {
+  id          String    @id @default(cuid())
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  progress   Int
+  rank       Int?
+  reward     Int?
+
+  joinedAt   DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@unique([challengeId, memberId])
+  @@map("ChallengeParticipant")
+}
+
+model ChallengeReward {
+  id String @id @default(cuid())
+
+  name        String
+  description String?
+  icon        String?
+
+  points Int
+  badge  String?
+
+  @@map("ChallengeReward")
+}
+
+model PlayerRewards {
+  id       String     @id @default(cuid())
+  memberId Int        @unique
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  totalPoints Int  @default(0)
+  badges      Json
+
+  updatedAt DateTime @updatedAt
+
+  @@map("PlayerRewards")
 }

@@ -1,7 +1,6 @@
 import { prisma } from './prisma'
+import { ApiQueue } from './api-throttle'
 import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from './pubg'
-
-const MATCHES_TO_CONSIDER = 10
 
 function createMatchRecordId(memberId: number, matchId: string) {
   return `${memberId}-${matchId}`
@@ -19,11 +18,15 @@ export type SyncAllResult = {
   synced: number
   totalImported: number
   errors: Array<{ memberId: number; error: string }>
+  logs: string[]
   startedAt: Date
   finishedAt: Date
 }
 
-export async function syncMemberMatches(memberId: number): Promise<SyncMemberResult> {
+export async function syncMemberMatches(
+  memberId: number,
+  queue: ApiQueue
+): Promise<SyncMemberResult> {
   const result: SyncMemberResult = {
     memberId,
     imported: 0,
@@ -40,11 +43,18 @@ export async function syncMemberMatches(memberId: number): Promise<SyncMemberRes
     return result
   }
 
-  const shard = member.platformShard
   let playerId = member.pubgAccountId
 
   if (!playerId) {
-    const player = await searchPlayerByName(member.pubgPlayerName, shard)
+    let player
+    try {
+      player = await queue.add(() =>
+        searchPlayerByName(member.pubgPlayerName, member.platformShard)
+      )
+    } catch (e) {
+      result.errors.push(`Failed to resolve player ID: ${e instanceof Error ? e.message : String(e)}`)
+      return result
+    }
     if (!player) {
       result.errors.push(`Player "${member.pubgPlayerName}" not found in PUBG API`)
       return result
@@ -56,58 +66,66 @@ export async function syncMemberMatches(memberId: number): Promise<SyncMemberRes
     })
   }
 
-  const allMatchIds = await fetchRecentMatchIds(playerId, shard)
-  const recentMatchIds = allMatchIds.slice(0, MATCHES_TO_CONSIDER)
+  let allMatchIds: string[]
+  try {
+    allMatchIds = await queue.add(() =>
+      fetchRecentMatchIds(playerId!, member.platformShard)
+    )
+  } catch (e) {
+    result.errors.push(`Failed to fetch match IDs: ${e instanceof Error ? e.message : String(e)}`)
+    return result
+  }
 
   const existing = await prisma.match.findMany({
-    where: {
-      memberId,
-      pubgMatchId: { in: recentMatchIds },
-    },
+    where: { memberId },
     select: { pubgMatchId: true },
   })
 
   const importedIds = new Set(existing.map((m) => m.pubgMatchId))
-  const toImport = recentMatchIds.filter((id) => !importedIds.has(id))
+  const toImport = allMatchIds.filter((id) => !importedIds.has(id))
+  result.skipped = allMatchIds.length - toImport.length
 
   for (const matchId of toImport) {
     try {
-      const match = await fetchMatchDetails(matchId, playerId, shard)
+      const match = await queue.add(() =>
+        fetchMatchDetails(matchId, playerId!, member.platformShard)
+      )
+      const matchData = {
+        id: createMatchRecordId(memberId, match.id),
+        memberId,
+        pubgMatchId: match.id,
+        gameMode: match.gameMode,
+        mapName: match.mapName,
+        kills: match.stats.kills,
+        knockouts: match.stats.knockouts,
+        assists: match.stats.assists,
+        damageDealt: match.stats.damageDealt,
+        headshotKills: match.stats.headshotKills,
+        revives: match.stats.revives,
+        placement: match.stats.position,
+        playersAlive: 0,
+        duration: match.durationSeconds,
+        pubgCreatedAt: new Date(match.createdAt),
+      }
       await prisma.match.upsert({
         where: {
           memberId_pubgMatchId: { memberId, pubgMatchId: match.id },
         },
         update: {
-          gameMode: match.gameMode,
-          mapName: match.mapName,
-          kills: match.stats.kills,
-          knockouts: match.stats.knockouts,
-          assists: match.stats.assists,
-          damageDealt: match.stats.damageDealt,
-          headshotKills: match.stats.headshotKills,
-          revives: match.stats.revives,
-          placement: match.stats.position,
-          playersAlive: 0,
-          duration: match.durationSeconds,
-          pubgCreatedAt: new Date(match.createdAt),
+          gameMode: matchData.gameMode,
+          mapName: matchData.mapName,
+          kills: matchData.kills,
+          knockouts: matchData.knockouts,
+          assists: matchData.assists,
+          damageDealt: matchData.damageDealt,
+          headshotKills: matchData.headshotKills,
+          revives: matchData.revives,
+          placement: matchData.placement,
+          playersAlive: matchData.playersAlive,
+          duration: matchData.duration,
+          pubgCreatedAt: matchData.pubgCreatedAt,
         },
-        create: {
-          id: createMatchRecordId(memberId, match.id),
-          memberId,
-          pubgMatchId: match.id,
-          gameMode: match.gameMode,
-          mapName: match.mapName,
-          kills: match.stats.kills,
-          knockouts: match.stats.knockouts,
-          assists: match.stats.assists,
-          damageDealt: match.stats.damageDealt,
-          headshotKills: match.stats.headshotKills,
-          revives: match.stats.revives,
-          placement: match.stats.position,
-          playersAlive: 0,
-          duration: match.durationSeconds,
-          pubgCreatedAt: new Date(match.createdAt),
-        },
+        create: matchData,
       })
       result.imported++
     } catch (e) {
@@ -116,13 +134,12 @@ export async function syncMemberMatches(memberId: number): Promise<SyncMemberRes
     }
   }
 
-  result.skipped = recentMatchIds.length - toImport.length
-
   return result
 }
 
 export async function syncAllActiveMembers(): Promise<SyncAllResult> {
   const startedAt = new Date()
+  const queue = new ApiQueue()
 
   const members = await prisma.clanMember.findMany({
     where: { isActive: true },
@@ -135,7 +152,7 @@ export async function syncAllActiveMembers(): Promise<SyncAllResult> {
 
   for (const member of members) {
     try {
-      const result = await syncMemberMatches(member.id)
+      const result = await syncMemberMatches(member.id, queue)
       totalImported += result.imported
       synced++
       if (result.errors.length > 0) {
@@ -152,6 +169,7 @@ export async function syncAllActiveMembers(): Promise<SyncAllResult> {
     synced,
     totalImported,
     errors,
+    logs: queue.getLogs(),
     startedAt,
     finishedAt: new Date(),
   }

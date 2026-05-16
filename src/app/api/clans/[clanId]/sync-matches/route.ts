@@ -76,13 +76,11 @@ export async function POST(
             const player = await queue.add(() =>
               searchPlayerByName(member.pubgPlayerName, member.platformShard)
             )
-
             if (!player) {
               const msg = `Member ${member.displayName}: player not found in PUBG API`
               errors.push(msg)
               continue
             }
-
             playerId = player.accountId
             await prisma.clanMember.update({
               where: { id: member.id },

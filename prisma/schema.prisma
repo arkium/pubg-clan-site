@@ -15,6 +15,7 @@ model Clan {
   name            String   @unique
   tag             String
   platformShard   String   @default("steam")
+  isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

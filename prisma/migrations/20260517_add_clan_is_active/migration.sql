@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Clan` ADD COLUMN `isActive` BOOLEAN NOT NULL DEFAULT true;

@@ -25,7 +25,7 @@ export default function MemberRewardsPage() {
   const params = useParams()
   const router = useRouter()
 
-  const memberId = useMemo(() => parseMemberId(params.memberId), [params.memberId])
+  const memberId = useMemo(() => parseMemberId(params.id), [params.id])
 
   const [rewards, setRewards] = useState<PlayerRewards | null>(null)
   const [memberName, setMemberName] = useState<string | null>(null)

@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "@types/node-cron": "^3.0.11",
     "axios": "^1.16.1",
     "dotenv": "^17.4.2",
     "next": "16.2.6",

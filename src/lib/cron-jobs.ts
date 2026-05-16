@@ -1,71 +1,201 @@
-import cron from 'node-cron'
-import { syncAllActiveMembers } from './sync-matches'
+import cron, { type ScheduledTask } from 'node-cron'
 
-const MAX_RETRIES = 3
-const RETRY_DELAY_MS = 60_000
+import { prisma } from '@/lib/prisma'
+import { getInternalApiBaseUrl } from '@/lib/internal-api'
 
-let consecutiveFailures = 0
+const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
+const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
+const MAX_SYNC_ATTEMPTS = 3
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+const globalForCron = globalThis as typeof globalThis & {
+  clanSyncCronTask?: ScheduledTask
+  clanSyncCronInitialized?: boolean
+  clanSyncFailures?: Map<number, number>
+  clanSyncInProgress?: boolean
 }
 
-async function runSyncWithRetry(attempt = 1): Promise<void> {
-  const startedAt = new Date()
-  console.log(
-    `[cron] [sync-matches] Starting sync (attempt ${attempt}/${MAX_RETRIES}) at ${startedAt.toISOString()}`
+function isCronWorkerEnabled() {
+  if (process.env.ENABLE_CRON_JOBS === 'true') {
+    return true
+  }
+
+  if (process.env.ENABLE_CRON_JOBS === 'false') {
+    return false
+  }
+
+  return process.env.NODE_ENV !== 'production'
+}
+
+function getFailureTracker() {
+  if (!globalForCron.clanSyncFailures) {
+    globalForCron.clanSyncFailures = new Map<number, number>()
+  }
+
+  return globalForCron.clanSyncFailures
+}
+
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function triggerClanSync(clanId: number) {
+  const response = await fetch(
+    `${getInternalApiBaseUrl()}/api/clans/${clanId}/sync-matches`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    }
   )
 
-  try {
-    const result = await syncAllActiveMembers()
-    const duration = Date.now() - startedAt.getTime()
-    consecutiveFailures = 0
+  const payload = await response.json().catch(() => null)
 
-    console.log(
-      `[cron] [sync-matches] Sync completed in ${duration}ms: ` +
-        `${result.synced}/${result.totalMembers} members synced, ` +
-        `${result.totalImported} matches imported`
-    )
+  if (!response.ok) {
+    const message =
+      typeof payload?.error === 'string'
+        ? payload.error
+        : typeof payload?.message === 'string'
+          ? payload.message
+          : `${response.status} ${response.statusText}`.trim()
+    throw new Error(message)
+  }
 
-    if (result.errors.length > 0) {
-      console.warn(
-        `[cron] [sync-matches] Sync finished with ${result.errors.length} non-fatal error(s):`,
-        result.errors
+  return payload as {
+    clanId: number
+    clanName: string
+    importedCount?: number
+    importedMatches?: number
+    membersProcessed: number
+    errors?: string[]
+    logs?: string[]
+    memberResults?: Array<{
+      memberId: number
+      memberName: string
+      importedMatches: number
+    }>
+  } | null
+}
+
+async function syncClanWithRetry(clanId: number, clanName: string) {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt += 1) {
+    try {
+      console.info(
+        `[Cron] Syncing clan "${clanName}" (${clanId}) - attempt ${attempt}/${MAX_SYNC_ATTEMPTS}`
       )
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.error(
-      `[cron] [sync-matches] Sync failed (attempt ${attempt}/${MAX_RETRIES}): ${message}`
-    )
+      const result = await triggerClanSync(clanId)
 
-    if (attempt < MAX_RETRIES) {
-      console.log(`[cron] [sync-matches] Retrying in ${RETRY_DELAY_MS / 1000}s...`)
-      await sleep(RETRY_DELAY_MS)
-      return runSyncWithRetry(attempt + 1)
-    }
-
-    consecutiveFailures++
-    console.error(
-      `[cron] [sync-matches] All ${MAX_RETRIES} attempts failed. ` +
-        `Consecutive failures: ${consecutiveFailures}`
-    )
-
-    if (consecutiveFailures >= MAX_RETRIES) {
+      return result
+    } catch (error) {
+      lastError = error
       console.error(
-        `[cron] [ALERT] sync-matches has failed ${consecutiveFailures} times in a row! ` +
-          `Manual intervention required.`
+        `[Cron] Clan sync attempt ${attempt}/${MAX_SYNC_ATTEMPTS} failed for "${clanName}" (${clanId})`,
+        error
       )
+
+      if (attempt < MAX_SYNC_ATTEMPTS) {
+        await wait(attempt * 1000)
+      }
     }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Clan sync failed')
+}
+
+async function runDailyClanSync() {
+  if (globalForCron.clanSyncInProgress) {
+    console.warn('[Cron] Daily clan sync skipped because a previous run is still in progress')
+    return
+  }
+
+  globalForCron.clanSyncInProgress = true
+
+  const startedAt = new Date()
+  console.info(`[Cron] Daily clan sync started at ${startedAt.toISOString()}`)
+
+  try {
+    const activeClans = await prisma.clan.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: { id: 'asc' },
+    })
+
+    if (activeClans.length === 0) {
+      console.info('[Cron] No active clans found for nightly sync')
+      return
+    }
+
+    const failureTracker = getFailureTracker()
+    let importedMatches = 0
+    let syncedClans = 0
+
+    for (const clan of activeClans) {
+      try {
+        const result = await syncClanWithRetry(clan.id, clan.name)
+        const clanImportedMatches = result?.importedMatches ?? result?.importedCount ?? 0
+        syncedClans += 1
+        importedMatches += clanImportedMatches
+        failureTracker.set(clan.id, 0)
+
+        console.info(
+          `[Cron] Clan "${clan.name}" (${clan.id}) synced: ${clanImportedMatches} imported matches`
+        )
+      } catch (error) {
+        const consecutiveFailures = (failureTracker.get(clan.id) ?? 0) + 1
+        failureTracker.set(clan.id, consecutiveFailures)
+
+        console.error(
+          `[Cron] Clan "${clan.name}" (${clan.id}) failed to sync. Consecutive failures: ${consecutiveFailures}`,
+          error
+        )
+
+        if (consecutiveFailures >= MAX_SYNC_ATTEMPTS) {
+          console.error(
+            `[Cron][ALERT] Clan "${clan.name}" (${clan.id}) sync failed ${consecutiveFailures} times in a row`
+          )
+        }
+      }
+    }
+
+    const finishedAt = new Date()
+
+    console.info(
+      `[Cron] Daily clan sync finished at ${finishedAt.toISOString()} - synced clans: ${syncedClans}/${activeClans.length}, imported matches: ${importedMatches}`
+    )
+  } catch (error) {
+    console.error('[Cron] Daily clan sync failed before processing clans', error)
+  } finally {
+    globalForCron.clanSyncInProgress = false
   }
 }
 
 export function initCronJobs() {
-  cron.schedule('0 2 * * *', () => {
-    runSyncWithRetry().catch((err) => {
-      console.error('[cron] Unexpected error in sync job:', err)
-    })
-  })
+  if (globalForCron.clanSyncCronInitialized) {
+    return
+  }
 
-  console.log('[cron] Cron jobs initialized. Daily sync scheduled at 02:00 AM.')
+  if (!isCronWorkerEnabled()) {
+    console.info(
+      '[Cron] Skipping cron initialization because this worker is not designated to run scheduled jobs'
+    )
+    return
+  }
+
+  globalForCron.clanSyncCronTask = cron.schedule(
+    DAILY_SYNC_SCHEDULE,
+    async () => {
+      await runDailyClanSync()
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+  globalForCron.clanSyncCronInitialized = true
+
+  console.info(
+    `[Cron] Nightly clan sync scheduled with "${DAILY_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
 }

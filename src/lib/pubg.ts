@@ -69,6 +69,7 @@ type PubgGameModeStats = {
 }
 
 type ParticipantStats = {
+  name?: string
   playerId?: string
   kills?: number
   DBNOs?: number
@@ -117,6 +118,20 @@ export type ResolvedPubgMatch = {
   mapName: string
   createdAt: string
   durationSeconds: number
+  rosters: Array<{
+    id: string
+    participants: Array<{
+      playerId: string
+      playerName: string
+      kills: number
+      knockouts: number
+      assists: number
+      damageDealt: number
+      headshotKills: number
+      revives: number
+      position: number
+    }>
+  }>
   stats: {
     kills: number
     knockouts: number
@@ -126,6 +141,40 @@ export type ResolvedPubgMatch = {
     revives: number
     position: number
   }
+}
+
+function resolveRosterParticipants(
+  included: PubgIncludedItem[],
+  participants: MatchReference[]
+) {
+  return participants
+    .map((participantRef) => {
+      if (!participantRef.id) {
+        return null
+      }
+
+      const participant = included.find(
+        (item) => item.id === participantRef.id && item.type === 'participant'
+      )
+      const stats = participant?.attributes?.stats
+
+      if (!participant?.id || !stats?.playerId) {
+        return null
+      }
+
+      return {
+        playerId: stats.playerId,
+        playerName: stats.name ?? stats.playerId,
+        kills: stats.kills ?? 0,
+        knockouts: stats.DBNOs ?? 0,
+        assists: stats.assists ?? 0,
+        damageDealt: stats.damageDealt ?? 0,
+        headshotKills: stats.headshotKills ?? 0,
+        revives: stats.revives ?? 0,
+        position: stats.winPlace ?? 0,
+      }
+    })
+    .filter((participant): participant is NonNullable<typeof participant> => participant !== null)
 }
 
 export type PubgLifetimeStats = {
@@ -319,6 +368,7 @@ export async function fetchMatchDetails(
   }
 
   let playerStats: ParticipantStats | undefined
+  const resolvedRosters: ResolvedPubgMatch['rosters'] = []
 
   for (const rosterRef of rosters) {
     if (!rosterRef.id) {
@@ -333,6 +383,11 @@ export async function fetchMatchDetails(
     if (!Array.isArray(participants)) {
       continue
     }
+
+    resolvedRosters.push({
+      id: rosterRef.id,
+      participants: resolveRosterParticipants(included, participants),
+    })
 
     for (const participantRef of participants) {
       if (!participantRef.id) {
@@ -352,9 +407,6 @@ export async function fetchMatchDetails(
       }
     }
 
-    if (playerStats) {
-      break
-    }
   }
 
   if (!playerStats) {
@@ -367,6 +419,7 @@ export async function fetchMatchDetails(
     mapName: match.attributes?.mapName ?? 'Unknown',
     createdAt: match.attributes?.createdAt ?? new Date().toISOString(),
     durationSeconds: match.attributes?.durationSeconds ?? match.attributes?.duration ?? 0,
+    rosters: resolvedRosters,
     stats: {
       kills: playerStats.kills ?? 0,
       knockouts: playerStats.DBNOs ?? 0,

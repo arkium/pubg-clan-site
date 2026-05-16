@@ -11,21 +11,21 @@ echo "🚀 Démarrage du déploiement Phase 2..."
 
 DEPLOY_PATH="/home/smk/public_html"
 
-if [ ! -d "$DEPLOY_PATH/.git" ]; then
-  echo "✅ Clonage du repository..."
-  rm -rf $DEPLOY_PATH/*
-  git clone https://github.com/arkium/pubg-clan-site.git $DEPLOY_PATH
-fi
-
-cd $DEPLOY_PATH
-
 echo "✅ Vérification des outils..."
 node -v
 npm -v
 mysql --version
 
-echo "✅ Git pull des merges Phase 2..."
-git pull origin main
+if [ ! -d "$DEPLOY_PATH/.git" ]; then
+  echo "✅ Clonage du repository..."
+  git clone https://github.com/arkium/pubg-clan-site.git $DEPLOY_PATH
+else
+  echo "✅ Git pull des merges Phase 2..."
+  cd $DEPLOY_PATH
+  git pull origin main
+fi
+
+cd $DEPLOY_PATH
 
 echo "✅ Installation des dépendances npm..."
 npm install
@@ -49,7 +49,7 @@ echo "✅ Changement des permissions à smk:smk..."
 chown -R smk:smk $DEPLOY_PATH
 
 echo "✅ Vérification des fichiers critiques..."
-ls -la $DEPLOY_PATH/.next || echo "⚠️ Dossier .next créé"
+ls -la $DEPLOY_PATH/.next | head -10 || echo "⚠️ Dossier .next"
 ls -la $DEPLOY_PATH/node_modules | head -5
 
 echo ""

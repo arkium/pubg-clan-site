@@ -62,8 +62,11 @@ async function triggerClanSync(clanId: number) {
   return payload as {
     clanId: number
     clanName: string
-    importedMatches: number
+    importedCount?: number
+    importedMatches?: number
     membersProcessed: number
+    errors?: string[]
+    logs?: string[]
     memberResults?: Array<{
       memberId: number
       memberName: string
@@ -132,12 +135,13 @@ async function runDailyClanSync() {
     for (const clan of activeClans) {
       try {
         const result = await syncClanWithRetry(clan.id, clan.name)
+        const clanImportedMatches = result?.importedMatches ?? result?.importedCount ?? 0
         syncedClans += 1
-        importedMatches += result?.importedMatches ?? 0
+        importedMatches += clanImportedMatches
         failureTracker.set(clan.id, 0)
 
         console.info(
-          `[Cron] Clan "${clan.name}" (${clan.id}) synced: ${result?.importedMatches ?? 0} imported matches`
+          `[Cron] Clan "${clan.name}" (${clan.id}) synced: ${clanImportedMatches} imported matches`
         )
       } catch (error) {
         const consecutiveFailures = (failureTracker.get(clan.id) ?? 0) + 1

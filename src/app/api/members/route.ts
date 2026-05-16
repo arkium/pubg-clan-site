@@ -66,11 +66,21 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/members
  * Récupère tous les membres du clan
+ * Query param: clanId (optional) — filtre par clan
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const clanIdParam = searchParams.get('clanId')
+    const clanId = clanIdParam ? Number(clanIdParam) : undefined
+
     const members = await prisma.clanMember.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(clanId !== undefined && Number.isInteger(clanId) && clanId > 0
+          ? { clanId }
+          : {}),
+      },
       orderBy: { createdAt: 'desc' },
     })
 

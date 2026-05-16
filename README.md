@@ -41,4 +41,6 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 - `ENABLE_CRON_JOBS=true` active le worker cron en production (laisser désactivé sur les autres workers).
 - `CLAN_MATCH_SYNC_CRON` permet de surcharger l'expression cron (`0 2 * * *` par défaut).
 - `CLAN_MATCH_SYNC_TIMEZONE` permet de choisir le fuseau horaire (`UTC` par défaut).
+- `WEEKLY_REPORT_GENERATION_CRON` permet de surcharger la génération des rapports hebdo (`0 8 * * 1` par défaut).
+- `MONTHLY_REPORT_GENERATION_CRON` permet de surcharger la génération des rapports mensuels (`0 8 1 * *` par défaut).
 - `INTERNAL_APP_URL` peut être utilisé pour forcer l'URL interne appelée par les jobs planifiés.

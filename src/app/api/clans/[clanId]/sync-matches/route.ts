@@ -1,19 +1,28 @@
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+
 import { ApiQueue } from '@/lib/api-throttle'
+import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
-import { NextRequest, NextResponse } from 'next/server'
 
 function createMatchRecordId(memberId: number, matchId: string) {
   return `${memberId}-${matchId}`
 }
 
+function parseClanId(clanId: string) {
+  const parsed = Number(clanId)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
 export async function POST(
-  _request: NextRequest,
+  _request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
-  // clanId is reserved for future use when a Clan model is added.
-  // Currently all active ClanMember records belong to a single clan.
-  await params
+  const { clanId } = await params
+  const parsedClanId = parseClanId(clanId)
+
+  if (!parsedClanId) {
+    return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+  }
 
   const queue = new ApiQueue()
   const logs: string[] = []
@@ -21,13 +30,36 @@ export async function POST(
   let importedCount = 0
 
   try {
-    const members = await prisma.clanMember.findMany({
-      where: { isActive: true },
+    const clan = await prisma.clan.findUnique({
+      where: { id: parsedClanId },
+      select: {
+        id: true,
+        name: true,
+        members: {
+          where: { isActive: true },
+          orderBy: { id: 'asc' },
+        },
+      },
     })
 
-    if (members.length === 0) {
+    if (!clan) {
+      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+    }
+
+    const startedAt = new Date()
+
+    console.info(
+      `[Clan Sync] Starting clan sync for "${clan.name}" (${clan.id}) at ${startedAt.toISOString()}`
+    )
+
+    if (clan.members.length === 0) {
       return NextResponse.json({
+        clanId: clan.id,
+        clanName: clan.name,
+        startedAt: startedAt.toISOString(),
+        finishedAt: startedAt.toISOString(),
         importedCount: 0,
+        importedMatches: 0,
         membersProcessed: 0,
         errors: [],
         logs: [],
@@ -35,7 +67,7 @@ export async function POST(
       })
     }
 
-    for (const member of members) {
+    for (const member of clan.members) {
       try {
         let playerId = member.pubgAccountId
 
@@ -64,7 +96,7 @@ export async function POST(
         let allMatchIds: string[]
         try {
           allMatchIds = await queue.add(() =>
-            fetchRecentMatchIds(playerId!, member.platformShard)
+            fetchRecentMatchIds(playerId, member.platformShard)
           )
         } catch (err) {
           const msg = `Member ${member.displayName}: failed to fetch match IDs — ${err instanceof Error ? err.message : String(err)}`
@@ -76,8 +108,8 @@ export async function POST(
           where: { memberId: member.id },
           select: { pubgMatchId: true },
         })
-        const importedMatchIds = new Set(importedMatches.map((m) => m.pubgMatchId))
-        const newMatchIds = allMatchIds.filter((id) => !importedMatchIds.has(id))
+        const importedMatchIds = new Set(importedMatches.map((match) => match.pubgMatchId))
+        const newMatchIds = allMatchIds.filter((matchId) => !importedMatchIds.has(matchId))
 
         logs.push(
           `Member ${member.displayName}: ${newMatchIds.length} new match(es) out of ${allMatchIds.length} total`
@@ -86,7 +118,7 @@ export async function POST(
         for (const matchId of newMatchIds) {
           try {
             const matchDetails = await queue.add(() =>
-              fetchMatchDetails(matchId, playerId!, member.platformShard)
+              fetchMatchDetails(matchId, playerId, member.platformShard)
             )
 
             const matchData = {
@@ -131,7 +163,7 @@ export async function POST(
               create: matchData,
             })
 
-            importedCount++
+            importedCount += 1
           } catch (err) {
             const msg = `Member ${member.displayName}, match ${matchId}: ${err instanceof Error ? err.message : String(err)}`
             errors.push(msg)
@@ -145,14 +177,39 @@ export async function POST(
 
     logs.push(...queue.getLogs())
 
-    return NextResponse.json({
+    const finishedAt = new Date()
+    const payload = {
+      clanId: clan.id,
+      clanName: clan.name,
+      startedAt: startedAt.toISOString(),
+      finishedAt: finishedAt.toISOString(),
       importedCount,
-      membersProcessed: members.length,
+      importedMatches: importedCount,
+      membersProcessed: clan.members.length,
       errors,
       logs,
-    })
+    }
+
+    console.info(
+      `[Clan Sync] Finished clan sync for "${clan.name}" (${clan.id}) at ${finishedAt.toISOString()} - members: ${clan.members.length}, imported matches: ${importedCount}, errors: ${errors.length}`
+    )
+
+    if (errors.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Clan sync encountered errors',
+          ...payload,
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(payload)
   } catch (err) {
     console.error('Error syncing matches:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to synchronize clan matches' },
+      { status: 500 }
+    )
   }
 }

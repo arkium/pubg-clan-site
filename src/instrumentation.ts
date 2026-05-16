@@ -1,6 +1,9 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { initCronJobs } = await import('./lib/cron-jobs')
-    initCronJobs()
+  if (process.env.NEXT_RUNTIME !== 'nodejs') {
+    return
   }
+
+  const { initCronJobs } = await import('@/lib/cron-jobs')
+
+  initCronJobs()
 }

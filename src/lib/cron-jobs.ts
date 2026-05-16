@@ -3,6 +3,7 @@ import cron, { type ScheduledTask } from 'node-cron'
 import { prisma } from '@/lib/prisma'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { notifyInviteReminder, notifyReportReady } from '@/lib/notification-service'
+import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
 const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
@@ -12,6 +13,10 @@ const CLAN_ONLINE_REMINDER_SCHEDULE =
   process.env.CLAN_ONLINE_REMINDER_CRON ?? '0 18 * * *'
 const WEEKLY_REPORT_REMINDER_SCHEDULE =
   process.env.WEEKLY_REPORT_REMINDER_CRON ?? '0 9 * * *'
+const WEEKLY_REPORT_GENERATION_SCHEDULE =
+  process.env.WEEKLY_REPORT_GENERATION_CRON ?? '0 8 * * 1'
+const MONTHLY_REPORT_GENERATION_SCHEDULE =
+  process.env.MONTHLY_REPORT_GENERATION_CRON ?? '0 8 1 * *'
 const MAX_SYNC_ATTEMPTS = 3
 
 const globalForCron = globalThis as typeof globalThis & {
@@ -23,6 +28,9 @@ const globalForCron = globalThis as typeof globalThis & {
   statsRecalcInProgress?: boolean
   clanReminderCronTask?: ScheduledTask
   reportReminderCronTask?: ScheduledTask
+  weeklyReportCronTask?: ScheduledTask
+  monthlyReportCronTask?: ScheduledTask
+  reportGenerationInProgress?: boolean
 }
 
 function isCronWorkerEnabled() {
@@ -229,6 +237,74 @@ async function runDailyClanSync() {
   }
 }
 
+function getLastCompletedWeekStart(referenceDate = new Date()) {
+  const currentWeekStart = new Date(referenceDate)
+  const day = currentWeekStart.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  currentWeekStart.setDate(currentWeekStart.getDate() + diff)
+  currentWeekStart.setHours(0, 0, 0, 0)
+
+  const previousWeekStart = new Date(currentWeekStart)
+  previousWeekStart.setDate(previousWeekStart.getDate() - 7)
+  return previousWeekStart
+}
+
+function getLastCompletedMonthStart(referenceDate = new Date()) {
+  return new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1, 1, 0, 0, 0, 0)
+}
+
+export async function generateReportsAutomatically(reportType: 'weekly' | 'monthly' | 'all' = 'all') {
+  if (globalForCron.reportGenerationInProgress) {
+    console.warn('[Cron] Report generation skipped because a previous run is still in progress')
+    return
+  }
+
+  globalForCron.reportGenerationInProgress = true
+  const startedAt = new Date()
+  console.info(
+    `[Cron] Automatic report generation started at ${startedAt.toISOString()} (${reportType})`
+  )
+
+  try {
+    const activeClans = await prisma.clan.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    })
+
+    if (activeClans.length === 0) {
+      console.info('[Cron] No active clans found for report generation')
+      return
+    }
+
+    const weeklyStart = getLastCompletedWeekStart(startedAt)
+    const monthlyStart = getLastCompletedMonthStart(startedAt)
+
+    for (const clan of activeClans) {
+      try {
+        if (reportType === 'weekly' || reportType === 'all') {
+          await generateWeeklyReport(clan.id, weeklyStart)
+        }
+
+        if (reportType === 'monthly' || reportType === 'all') {
+          await generateMonthlyReport(clan.id, monthlyStart)
+        }
+
+        console.info(`[Cron] Reports generated for clan "${clan.name}" (${clan.id})`)
+      } catch (error) {
+        console.error(`[Cron] Failed to generate reports for clan "${clan.name}" (${clan.id})`, error)
+      }
+    }
+  } finally {
+    globalForCron.reportGenerationInProgress = false
+  }
+}
+
 export async function sendNotificationsReminders(
   reminderType: 'clan_online' | 'weekly_report'
 ) {
@@ -307,6 +383,26 @@ export function initCronJobs() {
     }
   )
 
+  globalForCron.weeklyReportCronTask = cron.schedule(
+    WEEKLY_REPORT_GENERATION_SCHEDULE,
+    async () => {
+      await generateReportsAutomatically('weekly')
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
+  globalForCron.monthlyReportCronTask = cron.schedule(
+    MONTHLY_REPORT_GENERATION_SCHEDULE,
+    async () => {
+      await generateReportsAutomatically('monthly')
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
   globalForCron.clanSyncCronInitialized = true
 
   console.info(
@@ -320,5 +416,11 @@ export function initCronJobs() {
   )
   console.info(
     `[Cron] Weekly report reminders scheduled with "${WEEKLY_REPORT_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Weekly report generation scheduled with "${WEEKLY_REPORT_GENERATION_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Monthly report generation scheduled with "${MONTHLY_REPORT_GENERATION_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
   )
 }

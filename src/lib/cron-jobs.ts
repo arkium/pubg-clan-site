@@ -2,11 +2,16 @@ import cron, { type ScheduledTask } from 'node-cron'
 
 import { prisma } from '@/lib/prisma'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
+import { notifyInviteReminder, notifyReportReady } from '@/lib/notification-service'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
 const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
 const STATS_RECALC_SCHEDULE = process.env.CLAN_STATS_RECALC_CRON ?? '0 3 * * *'
+const CLAN_ONLINE_REMINDER_SCHEDULE =
+  process.env.CLAN_ONLINE_REMINDER_CRON ?? '0 18 * * *'
+const WEEKLY_REPORT_REMINDER_SCHEDULE =
+  process.env.WEEKLY_REPORT_REMINDER_CRON ?? '0 9 * * *'
 const MAX_SYNC_ATTEMPTS = 3
 
 const globalForCron = globalThis as typeof globalThis & {
@@ -16,6 +21,8 @@ const globalForCron = globalThis as typeof globalThis & {
   clanSyncInProgress?: boolean
   statsRecalcCronTask?: ScheduledTask
   statsRecalcInProgress?: boolean
+  clanReminderCronTask?: ScheduledTask
+  reportReminderCronTask?: ScheduledTask
 }
 
 function isCronWorkerEnabled() {
@@ -222,6 +229,32 @@ async function runDailyClanSync() {
   }
 }
 
+export async function sendNotificationsReminders(
+  reminderType: 'clan_online' | 'weekly_report'
+) {
+  const activeMembers = await prisma.clanMember.findMany({
+    where: { isActive: true },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+  })
+
+  if (activeMembers.length === 0) {
+    return
+  }
+
+  if (reminderType === 'clan_online') {
+    await Promise.all(
+      activeMembers.map((member) => notifyInviteReminder(member.id))
+    )
+    return
+  }
+
+  const reportId = `weekly-${new Date().toISOString().slice(0, 10)}`
+  await Promise.all(
+    activeMembers.map((member) => notifyReportReady(reportId, member.id))
+  )
+}
+
 export function initCronJobs() {
   if (globalForCron.clanSyncCronInitialized) {
     return
@@ -254,6 +287,26 @@ export function initCronJobs() {
     }
   )
 
+  globalForCron.clanReminderCronTask = cron.schedule(
+    CLAN_ONLINE_REMINDER_SCHEDULE,
+    async () => {
+      await sendNotificationsReminders('clan_online')
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
+  globalForCron.reportReminderCronTask = cron.schedule(
+    WEEKLY_REPORT_REMINDER_SCHEDULE,
+    async () => {
+      await sendNotificationsReminders('weekly_report')
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
   globalForCron.clanSyncCronInitialized = true
 
   console.info(
@@ -261,5 +314,11 @@ export function initCronJobs() {
   )
   console.info(
     `[Cron] Daily stats recalculation scheduled with "${STATS_RECALC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Clan online reminders scheduled with "${CLAN_ONLINE_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Weekly report reminders scheduled with "${WEEKLY_REPORT_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
   )
 }

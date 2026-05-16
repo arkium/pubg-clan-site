@@ -20,6 +20,7 @@ model Clan {
   updatedAt     DateTime @updatedAt
 
   members ClanMember[]
+  roles   ClanRole[]
   reports Report[]
 
   @@map("Clan")
@@ -43,8 +44,52 @@ model ClanMember {
   playerStats   PlayerStats[]
   notifications Notification[]
   notificationPreference NotificationPreference?
+  roles                  ClanMemberRole[]
 
   @@map("ClanMember")
+}
+
+model ClanRole {
+  id          Int    @id @default(autoincrement())
+  clanId      Int
+  clan        Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  permissions Json
+
+  createdAt DateTime @default(now())
+
+  members ClanMemberRole[]
+
+  @@unique([clanId, name])
+  @@map("ClanRole")
+}
+
+model ClanMemberRole {
+  id       String     @id @default(cuid())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  roleId Int
+  role   ClanRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+  assignedBy Int?
+
+  @@unique([memberId, roleId])
+  @@map("ClanMemberRole")
+}
+
+model Permission {
+  id String @id @default(cuid())
+
+  key         String  @unique
+  name        String
+  description String?
+  category    String
+
+  @@map("Permission")
 }
 
 model Notification {

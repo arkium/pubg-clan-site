@@ -8,7 +8,16 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "🚀 Démarrage du déploiement Phase 2..."
-cd /home/smk/public_html
+
+DEPLOY_PATH="/home/smk/public_html"
+
+if [ ! -d "$DEPLOY_PATH/.git" ]; then
+  echo "✅ Clonage du repository..."
+  rm -rf $DEPLOY_PATH/*
+  git clone https://github.com/arkium/pubg-clan-site.git $DEPLOY_PATH
+fi
+
+cd $DEPLOY_PATH
 
 echo "✅ Vérification des outils..."
 node -v
@@ -37,11 +46,11 @@ echo "✅ Build du projet Next.js..."
 npm run build
 
 echo "✅ Changement des permissions à smk:smk..."
-chown -R smk:smk /home/smk/public_html
+chown -R smk:smk $DEPLOY_PATH
 
 echo "✅ Vérification des fichiers critiques..."
-ls -la /home/smk/public_html/.next || echo "⚠️ Dossier .next créé"
-ls -la /home/smk/public_html/node_modules | head -5
+ls -la $DEPLOY_PATH/.next || echo "⚠️ Dossier .next créé"
+ls -la $DEPLOY_PATH/node_modules | head -5
 
 echo ""
 echo "🎉 Déploiement Phase 2 TERMINÉ !"

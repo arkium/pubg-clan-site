@@ -62,6 +62,14 @@ export default function ClanNavigation() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {clanId ? (
+            <Link
+              href={`/clans/${clanId}/matches`}
+              className="rounded border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
+            >
+              Matchs ensemble
+            </Link>
+          ) : null}
           <Link
             href="/clans"
             className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"

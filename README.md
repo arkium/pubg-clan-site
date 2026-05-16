@@ -34,3 +34,11 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Cron de synchronisation des matchs
+
+- `src/instrumentation.ts` initialise les crons côté serveur au démarrage de l'application.
+- `ENABLE_CRON_JOBS=true` active le worker cron en production (laisser désactivé sur les autres workers).
+- `CLAN_MATCH_SYNC_CRON` permet de surcharger l'expression cron (`0 2 * * *` par défaut).
+- `CLAN_MATCH_SYNC_TIMEZONE` permet de choisir le fuseau horaire (`UTC` par défaut).
+- `INTERNAL_APP_URL` peut être utilisé pour forcer l'URL interne appelée par les jobs planifiés.

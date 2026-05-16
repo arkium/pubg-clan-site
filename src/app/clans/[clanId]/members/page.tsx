@@ -97,6 +97,12 @@ export default function ClanMembersPage() {
         >
           Changer de clan
         </Link>
+        <Link
+          href={`/clans/${clanId}/settings/members`}
+          className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+        >
+          Gérer les rôles
+        </Link>
       </div>
 
       {loading ? <p className="text-sm text-gray-600">Chargement des membres...</p> : null}

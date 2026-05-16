@@ -28,10 +28,10 @@ export async function POST(
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
-      select: { clanId: true, isActive: true },
+      select: { clan: { select: { id: true } }, isActive: true },
     })
 
-    if (!member || !member.isActive || member.clanId !== parsedClanId) {
+    if (!member || !member.isActive || member.clan?.id !== parsedClanId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

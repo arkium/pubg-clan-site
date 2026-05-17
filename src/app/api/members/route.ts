@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
+
 import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
+import { ensureTrackedClanForPlayer, syncTrackedClanStats } from '@/lib/clan-service'
 import { z } from 'zod'
 
 /**
@@ -38,6 +41,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const detectedClan = await ensureTrackedClanForPlayer(
+      pubgPlayer.accountId,
+      validated.platformShard
+    )
+
+    const resolvedClanId = detectedClan?.clan.id ?? validated.clanId
+
     // Créer le membre du clan en base
     const member = await prisma.clanMember.create({
       data: {
@@ -45,17 +55,41 @@ export async function POST(request: NextRequest) {
         pubgPlayerName: pubgPlayer.playerName,
         pubgAccountId: pubgPlayer.accountId,
         platformShard: validated.platformShard,
-        ...(validated.clanId ? { clanId: validated.clanId } : {}),
+        ...(resolvedClanId ? { clanId: resolvedClanId } : {}),
+      },
+      include: {
+        clan: {
+          select: {
+            id: true,
+            name: true,
+            tag: true,
+            pubgClanId: true,
+            platformShard: true,
+          },
+        },
       },
     })
 
-    if (validated.clanId) {
-      await initializeDefaultRoles(validated.clanId)
-      await assignDefaultMemberRole(member.id, validated.clanId)
+    if (resolvedClanId) {
+      await initializeDefaultRoles(resolvedClanId)
+      await assignDefaultMemberRole(member.id, resolvedClanId)
+
+      try {
+        await syncTrackedClanStats(resolvedClanId)
+      } catch (syncError) {
+        console.warn('Unable to synchronize clan stats after member creation:', syncError)
+      }
     }
 
     return NextResponse.json(member, { status: 201 })
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Member already exists for this PUBG name and platform' },
+        { status: 409 }
+      )
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Validation error', details: error.issues },
@@ -90,6 +124,16 @@ export async function GET(request: NextRequest) {
           : {}),
       },
       orderBy: { createdAt: 'desc' },
+      include: {
+        clan: {
+          select: {
+            id: true,
+            name: true,
+            tag: true,
+            pubgClanId: true,
+          },
+        },
+      },
     })
 
     return NextResponse.json(members)

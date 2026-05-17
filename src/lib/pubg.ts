@@ -26,6 +26,34 @@ type PubgPlayerSearchResponse = {
   }>
 }
 
+type JsonApiRelationship = {
+  id?: string
+  type?: string
+}
+
+type PubgClanResource = {
+  id?: string
+  type?: string
+  attributes?: Record<string, unknown>
+  relationships?: Record<string, unknown>
+}
+
+type PubgPlayerDetailResponse = {
+  data?: {
+    id?: string
+    relationships?: {
+      clan?: {
+        data?: JsonApiRelationship | null
+      }
+    }
+  }
+  included?: PubgClanResource[]
+}
+
+type PubgClanLookupResponse = {
+  data?: PubgClanResource[] | PubgClanResource
+}
+
 type MatchReference = {
   id?: string
 }
@@ -216,6 +244,67 @@ export type PubgLifetimeStats = {
   }
 }
 
+export type PubgClan = {
+  id: string
+  name: string
+  tag: string
+  memberCount: number | null
+  raw: Record<string, unknown>
+}
+
+function pickString(...values: Array<unknown>) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+
+  return null
+}
+
+function pickNumber(...values: Array<unknown>) {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+  }
+
+  return null
+}
+
+function normalizePubgClanResource(resource: PubgClanResource): PubgClan | null {
+  if (!resource.id) {
+    return null
+  }
+
+  const attributes = resource.attributes ?? {}
+  const name =
+    pickString(attributes.name, attributes.clanName, attributes.title) ?? `Clan ${resource.id}`
+  const tag = pickString(attributes.tag, attributes.clanTag, name) ?? name
+  const memberCount = pickNumber(attributes.memberCount, attributes.membersCount, attributes.member_count)
+
+  return {
+    id: resource.id,
+    name,
+    tag,
+    memberCount,
+    raw: {
+      id: resource.id,
+      type: resource.type ?? 'clan',
+      attributes,
+      relationships: resource.relationships ?? null,
+    },
+  }
+}
+
+function extractClanResource(payload: PubgClanLookupResponse): PubgClanResource | null {
+  if (Array.isArray(payload.data)) {
+    return payload.data[0] ?? null
+  }
+
+  return payload.data ?? null
+}
+
 export async function searchPlayerByName(playerName: string, shard: string = 'steam') {
   try {
     ensurePubgApiKey()
@@ -245,6 +334,51 @@ export async function searchPlayerByName(playerName: string, shard: string = 'st
     console.error('Error searching player:', error)
     throw error
   }
+}
+
+export async function fetchPubgClanById(clanId: string, shard: string = 'steam') {
+  ensurePubgApiKey()
+
+  try {
+    const response = await pubgApi.get<PubgClanLookupResponse>(`/shards/${shard}/clans`, {
+      params: {
+        'filter[clanIds]': clanId,
+      },
+    })
+
+    const clan = extractClanResource(response.data)
+    return clan ? normalizePubgClanResource(clan) : null
+  } catch {
+    const response = await pubgApi.get<PubgClanLookupResponse>(`/shards/${shard}/clans/${clanId}`)
+    const clan = extractClanResource(response.data)
+    return clan ? normalizePubgClanResource(clan) : null
+  }
+}
+
+export async function fetchPlayerClan(playerId: string, shard: string = 'steam') {
+  ensurePubgApiKey()
+
+  const response = await pubgApi.get<PubgPlayerDetailResponse>(`/shards/${shard}/players/${playerId}`, {
+    params: {
+      include: 'clan',
+    },
+  })
+
+  const relatedClanId = response.data.data?.relationships?.clan?.data?.id
+
+  if (!relatedClanId) {
+    return null
+  }
+
+  const includedClan = Array.isArray(response.data.included)
+    ? response.data.included.find((item) => item.type === 'clan' && item.id === relatedClanId)
+    : null
+
+  if (includedClan) {
+    return normalizePubgClanResource(includedClan)
+  }
+
+  return fetchPubgClanById(relatedClanId, shard)
 }
 
 export async function fetchRecentMatchIds(playerId: string, shard: string = 'steam') {

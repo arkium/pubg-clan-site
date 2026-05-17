@@ -12,9 +12,11 @@ datasource db {
 
 model Clan {
   id            Int      @id @default(autoincrement())
-  name          String   @unique
+  name          String
   tag           String
   platformShard String   @default("steam")
+  pubgClanId    String?
+  clanStats     Json?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -24,13 +26,15 @@ model Clan {
   reports Report[]
   challenges Challenge[]
 
+  @@unique([name, platformShard])
+  @@unique([pubgClanId, platformShard])
   @@map("Clan")
 }
 
 model ClanMember {
   id             Int      @id @default(autoincrement())
   displayName    String
-  pubgPlayerName String   @unique
+  pubgPlayerName String
   pubgAccountId  String?
   platformShard  String   @default("steam")
   isActive       Boolean  @default(true)
@@ -49,6 +53,7 @@ model ClanMember {
   challengeParticipants  ChallengeParticipant[]
   playerRewards          PlayerRewards?
 
+  @@unique([pubgPlayerName, platformShard])
   @@map("ClanMember")
 }
 

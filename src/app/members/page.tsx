@@ -10,13 +10,27 @@ interface Member {
   pubgAccountId: string | null
   platformShard: string
   createdAt: string
+  clan: {
+    id: number
+    name: string
+    tag: string
+    pubgClanId: string | null
+  } | null
 }
+
+const PLATFORM_OPTIONS = [
+  { value: 'steam', label: 'Steam' },
+  { value: 'console', label: 'Console' },
+  { value: 'kakao', label: 'Kakao' },
+]
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(false)
+  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [pubgPlayerName, setPubgPlayerName] = useState('')
+  const [platformShard, setPlatformShard] = useState('steam')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -50,7 +64,7 @@ export default function MembersPage() {
         body: JSON.stringify({
           displayName,
           pubgPlayerName,
-          platformShard: 'steam',
+          platformShard,
         }),
       })
 
@@ -62,11 +76,44 @@ export default function MembersPage() {
       setSuccess('Member added successfully!')
       setDisplayName('')
       setPubgPlayerName('')
+      setPlatformShard('steam')
       await fetchMembers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleDeleteMember(member: Member) {
+    const confirmed = window.confirm(
+      `Stop tracking ${member.displayName} (${member.pubgPlayerName})?`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setError('')
+    setSuccess('')
+    setDeletingMemberId(member.id)
+
+    try {
+      const res = await fetch(`/api/members/${member.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to delete member')
+      }
+
+      setSuccess('Member removed from tracking successfully!')
+      await fetchMembers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setDeletingMemberId(null)
     }
   }
 
@@ -105,6 +152,23 @@ export default function MembersPage() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Platform
+              </label>
+              <select
+                value={platformShard}
+                onChange={(e) => setPlatformShard(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+              >
+                {PLATFORM_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {error && <div className="text-red-600 text-sm">{error}</div>}
             {success && <div className="text-green-600 text-sm">{success}</div>}
 
@@ -140,6 +204,13 @@ export default function MembersPage() {
                     <p className="text-xs text-gray-500">
                       ID: {member.pubgAccountId}
                     </p>
+                    {member.clan ? (
+                      <p className="text-xs text-gray-500">
+                        Clan: {member.clan.name} [{member.clan.tag}]
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500">Clan: no PUBG clan detected</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-sm text-gray-500">
@@ -163,6 +234,14 @@ export default function MembersPage() {
                     >
                       Notifications
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteMember(member)}
+                      disabled={deletingMemberId === member.id}
+                      className="rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {deletingMemberId === member.id ? 'Removing...' : 'Stop tracking'}
+                    </button>
                   </div>
                 </div>
               ))}

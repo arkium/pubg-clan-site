@@ -102,15 +102,42 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
 }
 
 export async function ensureTrackedClanForPlayer(playerId: string, platformShard: string) {
-  const pubgClan = await fetchPlayerClan(playerId, platformShard)
+  try {
+    const pubgClan = await fetchPlayerClan(playerId, platformShard)
 
-  if (!pubgClan) {
+    if (!pubgClan) {
+      return null
+    }
+
+    const clan = await upsertTrackedClanFromPubg(pubgClan, platformShard)
+
+    return { clan, pubgClan }
+  } catch (error) {
+    console.error('Error ensuring tracked clan for player:', error)
     return null
   }
+}
 
-  const clan = await upsertTrackedClanFromPubg(pubgClan, platformShard)
+export async function getOrCreateUngroupedClan(platformShard: string) {
+  const existing = await prisma.clan.findFirst({
+    where: {
+      platformShard,
+      name: 'Ungrouped',
+      pubgClanId: null,
+    },
+  })
 
-  return { clan, pubgClan }
+  if (existing) {
+    return existing
+  }
+
+  return prisma.clan.create({
+    data: {
+      name: 'Ungrouped',
+      tag: 'UNG',
+      platformShard,
+    },
+  })
 }
 
 async function resolvePubgClanForLocalClan(clanId: number) {

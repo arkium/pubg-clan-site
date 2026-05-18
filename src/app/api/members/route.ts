@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
-import { ensureTrackedClanForPlayer, syncTrackedClanStats } from '@/lib/clan-service'
+import { ensureTrackedClanForPlayer, getOrCreateUngroupedClan, syncTrackedClanStats } from '@/lib/clan-service'
 import { z } from 'zod'
 
 /**
@@ -46,7 +46,10 @@ export async function POST(request: NextRequest) {
       validated.platformShard
     )
 
-    const resolvedClanId = detectedClan?.clan.id ?? validated.clanId
+    const resolvedClanId =
+      detectedClan?.clan.id ??
+      validated.clanId ??
+      (await getOrCreateUngroupedClan(validated.platformShard)).id
 
     // Créer le membre du clan en base
     const member = await prisma.clanMember.create({
@@ -55,7 +58,7 @@ export async function POST(request: NextRequest) {
         pubgPlayerName: pubgPlayer.playerName,
         pubgAccountId: pubgPlayer.accountId,
         platformShard: validated.platformShard,
-        ...(resolvedClanId ? { clanId: resolvedClanId } : {}),
+        clanId: resolvedClanId,
       },
       include: {
         clan: {
@@ -70,15 +73,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    if (resolvedClanId) {
-      await initializeDefaultRoles(resolvedClanId)
-      await assignDefaultMemberRole(member.id, resolvedClanId)
+    await initializeDefaultRoles(resolvedClanId)
+    await assignDefaultMemberRole(member.id, resolvedClanId)
 
-      try {
-        await syncTrackedClanStats(resolvedClanId)
-      } catch (syncError) {
-        console.warn('Unable to synchronize clan stats after member creation:', syncError)
-      }
+    try {
+      await syncTrackedClanStats(resolvedClanId)
+    } catch (syncError) {
+      console.warn('Unable to synchronize clan stats after member creation:', syncError)
     }
 
     return NextResponse.json(member, { status: 201 })

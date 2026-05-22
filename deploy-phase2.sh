@@ -33,10 +33,15 @@ npm install
 echo "✅ Création de la base de données..."
 mysql -u smk -p'oc6iPBwmBT3vb4sekDDvu1npb' -e "CREATE DATABASE IF NOT EXISTS pubg_clan_site;"
 
-echo "✅ Création du fichier .env.local..."
-cat > .env.local << 'EOF'
+echo "✅ Création du fichier .env..."
+cat > .env << 'EOF'
 DATABASE_URL="mysql://smk:oc6iPBwmBT3vb4sekDDvu1npb@localhost:3306/pubg_clan_site"
-NEXT_PUBLIC_API_URL="https://smk.arkium.group"
+PUBG_API_KEY=""
+PUBG_BASE_URL="https://api.pubg.com"
+APP_URL="https://smk.arkium.group"
+NEXT_PUBLIC_APP_URL="https://smk.arkium.group"
+INTERNAL_APP_URL="https://smk.arkium.group"
+ENABLE_CRON_JOBS="true"
 EOF
 
 echo "✅ Exécution des migrations Prisma..."

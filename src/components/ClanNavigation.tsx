@@ -62,6 +62,20 @@ export default function ClanNavigation() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/members"
+            className="rounded border border-indigo-200 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+          >
+            Ajouter / voir joueurs
+          </Link>
+          {clanId ? (
+            <Link
+              href={`/clans/${clanId}/members`}
+              className="rounded border border-sky-200 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50"
+            >
+              Joueurs du clan
+            </Link>
+          ) : null}
           {clanId ? (
             <Link
               href={`/clans/${clanId}/matches`}

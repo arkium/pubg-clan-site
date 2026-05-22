@@ -31,6 +31,8 @@ type JsonApiRelationship = {
   type?: string
 }
 
+type JsonApiRelationshipData = JsonApiRelationship | JsonApiRelationship[] | null
+
 type PubgClanResource = {
   id?: string
   type?: string
@@ -41,9 +43,17 @@ type PubgClanResource = {
 type PubgPlayerDetailResponse = {
   data?: {
     id?: string
+    attributes?: {
+      clanId?: string
+      clanID?: string
+      clan_id?: string
+    }
     relationships?: {
       clan?: {
-        data?: JsonApiRelationship | null
+        data?: JsonApiRelationshipData
+      }
+      clans?: {
+        data?: JsonApiRelationshipData
       }
     }
   }
@@ -281,7 +291,12 @@ function normalizePubgClanResource(resource: PubgClanResource): PubgClan | null 
   const name =
     pickString(attributes.name, attributes.clanName, attributes.title) ?? `Clan ${resource.id}`
   const tag = pickString(attributes.tag, attributes.clanTag, name) ?? name
-  const memberCount = pickNumber(attributes.memberCount, attributes.membersCount, attributes.member_count)
+  const memberCount = pickNumber(
+    attributes.memberCount,
+    attributes.membersCount,
+    attributes.member_count,
+    attributes.clanMemberCount
+  )
 
   return {
     id: resource.id,
@@ -303,6 +318,52 @@ function extractClanResource(payload: PubgClanLookupResponse): PubgClanResource 
   }
 
   return payload.data ?? null
+}
+
+function resolveClanRelationshipId(relationships?: PubgPlayerDetailResponse['data'] extends infer T
+  ? T extends { relationships?: infer R }
+    ? R
+    : never
+  : never) {
+  const candidates: JsonApiRelationshipData[] = []
+
+  if (relationships?.clan?.data !== undefined) {
+    candidates.push(relationships.clan.data)
+  }
+
+  if (relationships?.clans?.data !== undefined) {
+    candidates.push(relationships.clans.data)
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue
+    }
+
+    if (Array.isArray(candidate)) {
+      const firstClan = candidate.find((item) => typeof item?.id === 'string')
+      if (firstClan?.id) {
+        return firstClan.id
+      }
+      continue
+    }
+
+    if (typeof candidate.id === 'string' && candidate.id.length > 0) {
+      return candidate.id
+    }
+  }
+
+  return null
+}
+
+function resolveClanIdFromPlayerAttributes(
+  attributes?: PubgPlayerDetailResponse['data'] extends infer T
+    ? T extends { attributes?: infer A }
+      ? A
+      : never
+    : never
+) {
+  return pickString(attributes?.clanId, attributes?.clanID, attributes?.clan_id)
 }
 
 export async function searchPlayerByName(playerName: string, shard: string = 'steam') {
@@ -358,25 +419,49 @@ export async function fetchPubgClanById(clanId: string, shard: string = 'steam')
 export async function fetchPlayerClan(playerId: string, shard: string = 'steam') {
   ensurePubgApiKey()
 
-  const response = await pubgApi.get<PubgPlayerDetailResponse>(`/shards/${shard}/players/${playerId}`, {
-    params: {
-      include: 'clan',
-    },
+  console.info('[PUBG] Fetching clan for player', { playerId, shard })
+
+  const response = await pubgApi.get<PubgPlayerDetailResponse>(`/shards/${shard}/players/${playerId}`)
+
+  const attributeClanId = resolveClanIdFromPlayerAttributes(response.data.data?.attributes)
+
+  const relatedClanId = attributeClanId ?? resolveClanRelationshipId(response.data.data?.relationships)
+
+  console.info('[PUBG] Player clan relationship resolved', {
+    playerId,
+    shard,
+    attributeClanId,
+    relatedClanId,
+    hasIncludedClan: Array.isArray(response.data.included),
   })
 
-  const relatedClanId = response.data.data?.relationships?.clan?.data?.id
-
   if (!relatedClanId) {
+    console.warn('[PUBG] No clan relationship found for player', { playerId, shard })
     return null
   }
 
   const includedClan = Array.isArray(response.data.included)
-    ? response.data.included.find((item) => item.type === 'clan' && item.id === relatedClanId)
+    ? response.data.included.find(
+        (item) =>
+          item.id === relatedClanId &&
+          (item.type === 'clan' || item.type === 'clans')
+      )
     : null
 
   if (includedClan) {
+        console.info('[PUBG] Clan found in included payload', {
+          playerId,
+          shard,
+          clanId: includedClan.id,
+        })
     return normalizePubgClanResource(includedClan)
   }
+
+      console.info('[PUBG] Clan not included, fetching clan by id', {
+        playerId,
+        shard,
+        relatedClanId,
+      })
 
   return fetchPubgClanById(relatedClanId, shard)
 }

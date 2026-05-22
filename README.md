@@ -1,46 +1,159 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Demarrage local
 
-## Getting Started
+Prerequis :
 
-First, run the development server:
+- Node.js installe localement
+- MariaDB ou MySQL disponible localement
+- une base creee pour le projet
+
+### 1. Installer les dependances
+
+```bash
+npm install
+```
+
+### 2. Creer les variables d'environnement
+
+Copier `.env.example` vers `.env` puis adapter les valeurs locales.
+
+Exemple minimal :
+
+```env
+DATABASE_URL="mysql://user:password@localhost:3306/pubg_clan_site"
+PUBG_API_KEY="your-pubg-api-key"
+PUBG_BASE_URL="https://api.pubg.com"
+APP_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+INTERNAL_APP_URL="http://127.0.0.1:3000"
+ENABLE_CRON_JOBS="false"
+```
+
+### 3. Initialiser Prisma
+
+Si les migrations doivent etre appliquees :
+
+```bash
+npx prisma migrate deploy
+```
+
+Si tu veux seulement aligner la base locale sur le schema pendant le dev :
+
+```bash
+npx prisma db push
+```
+
+### 4. Lancer le projet
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+L'application sera disponible sur http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Separation local / serveur
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Le projet utilise des variables d'environnement pour separer les contextes local et serveur.
 
-## Learn More
+- Prisma lit `DATABASE_URL` depuis `.env`
+- Next.js lit automatiquement `.env` et `.env.local`
+- les scripts de deploiement serveur peuvent injecter les variables d'environnement systeme puis generer un `.env`
 
-To learn more about Next.js, take a look at the following resources:
+Recommendation pratique :
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- local : utiliser `.env` pour toutes les variables backend, en particulier `DATABASE_URL`
+- local optionnel : utiliser `.env.local` uniquement pour des overrides de confort non necessaires a Prisma
+- serveur : utiliser des variables d'environnement systeme ou un `.env` genere au deploiement
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Pourquoi : les commandes Prisma chargent naturellement `.env`, alors qu'un `DATABASE_URL` present uniquement dans `.env.local` peut ne pas etre vu par `prisma migrate` ou `prisma generate`.
 
 ## Cron de synchronisation des matchs
 
-- `src/instrumentation.ts` initialise les crons côté serveur au démarrage de l'application.
-- `ENABLE_CRON_JOBS=true` active le worker cron en production (laisser désactivé sur les autres workers).
-- `CLAN_MATCH_SYNC_CRON` permet de surcharger l'expression cron (`0 2 * * *` par défaut).
-- `CLAN_MATCH_SYNC_TIMEZONE` permet de choisir le fuseau horaire (`UTC` par défaut).
-- `WEEKLY_REPORT_GENERATION_CRON` permet de surcharger la génération des rapports hebdo (`0 8 * * 1` par défaut).
-- `MONTHLY_REPORT_GENERATION_CRON` permet de surcharger la génération des rapports mensuels (`0 8 1 * *` par défaut).
-- `INTERNAL_APP_URL` peut être utilisé pour forcer l'URL interne appelée par les jobs planifiés.
+- `src/instrumentation.ts` initialise les crons cote serveur au demarrage de l'application.
+- `ENABLE_CRON_JOBS=true` active le worker cron en production (laisser desactive sur les autres workers).
+- `CLAN_MATCH_SYNC_CRON` permet de surcharger l'expression cron (`0 2 * * *` par defaut).
+- `CLAN_MATCH_SYNC_TIMEZONE` permet de choisir le fuseau horaire (`UTC` par defaut).
+- `WEEKLY_REPORT_GENERATION_CRON` permet de surcharger la generation des rapports hebdo (`0 8 * * 1` par defaut).
+- `MONTHLY_REPORT_GENERATION_CRON` permet de surcharger la generation des rapports mensuels (`0 8 1 * *` par defaut).
+- `INTERNAL_APP_URL` peut etre utilise pour forcer l'URL interne appelee par les jobs planifies.
+
+### Verification rapide du cron (PowerShell)
+
+Verifier si le cron est initialise :
+
+```powershell
+Select-String -Path .\local.log -Encoding Unicode -Pattern "\[Cron\]" | Select-Object -Last 30
+```
+
+Messages attendus :
+
+- actif : lignes `scheduled with ...` (ex: `Nightly clan sync scheduled with ...`)
+- inactif : `Skipping cron initialization because this worker is not designated to run scheduled jobs`
+
+Verifier une execution de sync (cron ou manuel) :
+
+```powershell
+Select-String -Path .\local.log -Encoding Unicode -Pattern "\[Clan Sync\]|\[ApiQueue" | Select-Object -Last 80
+```
+
+Tester manuellement les endpoints (utile en local) :
+
+```powershell
+Invoke-WebRequest -Uri http://localhost:3000/api/clans/2/sync-matches -Method POST
+Invoke-WebRequest -Uri http://localhost:3000/api/clans/2/sync-stats -Method POST
+```
+
+Note : sous PowerShell, eviter `curl -X POST ...` car `curl` est un alias de `Invoke-WebRequest`.
+
+## Configuration serveur (production)
+
+### Checklist de base
+
+- Configurer les variables d'environnement de l'application :
+	- `DATABASE_URL`
+	- `PUBG_API_KEY`
+	- `APP_URL`
+	- `NEXT_PUBLIC_APP_URL`
+	- `INTERNAL_APP_URL`
+	- `ENABLE_CRON_JOBS`
+- Appliquer les migrations Prisma :
+
+```bash
+npx prisma migrate deploy
+```
+
+- Builder puis lancer l'application :
+
+```bash
+npm run build
+npm start
+```
+
+### Worker cron dedie (important)
+
+- Sur une architecture multi-instances, activer `ENABLE_CRON_JOBS=true` sur un seul worker.
+- Sur tous les autres workers, forcer `ENABLE_CRON_JOBS=false` pour eviter les executions en double.
+
+### Verifier le cron en serveur Linux
+
+Verifier les logs d'initialisation et d'execution :
+
+```bash
+grep -E "\[Cron\]|\[Clan Sync\]|\[ApiQueue" -n /home/smk/public_html/local.log | tail -n 120
+```
+
+Messages attendus :
+
+- actif : lignes `scheduled with ...`
+- inactif : `Skipping cron initialization because this worker is not designated to run scheduled jobs`
+
+Tester manuellement les endpoints de sync sur l'instance locale :
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/clans/2/sync-matches
+curl -X POST http://127.0.0.1:3000/api/clans/2/sync-stats
+```
+
+### Recommendation INTERNAL_APP_URL
+
+- En production, preferer une URL interne locale (ex: `http://127.0.0.1:3000`) pour `INTERNAL_APP_URL`.
+- Cela evite de faire sortir puis rerentrer les appels cron via le proxy public.

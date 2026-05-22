@@ -32,8 +32,13 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
   const { redirectIfMissing = false, redirectPath = '/clans' } = options ?? {}
   const router = useRouter()
   const pathname = usePathname()
-  const [clanId, setClanIdState] = useState<number | null>(() => getStoredClanId())
-  const hydrated = true
+  const [clanId, setClanIdState] = useState<number | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    setClanIdState(getStoredClanId())
+    setHydrated(true)
+  }, [])
 
   useEffect(() => {
     function onStorage(event: StorageEvent) {

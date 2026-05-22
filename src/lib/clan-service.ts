@@ -103,13 +103,23 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
 
 export async function ensureTrackedClanForPlayer(playerId: string, platformShard: string) {
   try {
+    console.info('[Clan Service] Ensuring tracked clan for player', { playerId, platformShard })
     const pubgClan = await fetchPlayerClan(playerId, platformShard)
 
     if (!pubgClan) {
+      console.warn('[Clan Service] No PUBG clan resolved for player', { playerId, platformShard })
       return null
     }
 
     const clan = await upsertTrackedClanFromPubg(pubgClan, platformShard)
+
+    console.info('[Clan Service] PUBG clan resolved and tracked', {
+      playerId,
+      platformShard,
+      clanId: clan.id,
+      pubgClanId: pubgClan.id,
+      clanName: clan.name,
+    })
 
     return { clan, pubgClan }
   } catch (error) {

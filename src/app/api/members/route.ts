@@ -46,10 +46,24 @@ export async function POST(request: NextRequest) {
       validated.platformShard
     )
 
+    console.info('[Members API] Clan detection result', {
+      pubgPlayerName: pubgPlayer.playerName,
+      platformShard: validated.platformShard,
+      detectedClanId: detectedClan?.clan.id ?? null,
+      detectedPubgClanId: detectedClan?.pubgClan.id ?? null,
+    })
+
     const resolvedClanId =
       detectedClan?.clan.id ??
       validated.clanId ??
       (await getOrCreateUngroupedClan(validated.platformShard)).id
+
+    console.info('[Members API] Final clan resolution', {
+      pubgPlayerName: pubgPlayer.playerName,
+      platformShard: validated.platformShard,
+      resolvedClanId,
+      usedFallbackUngrouped: !detectedClan?.clan.id && !validated.clanId,
+    })
 
     // Créer le membre du clan en base
     const member = await prisma.clanMember.create({

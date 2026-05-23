@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 
 import { getSetupState } from '@/lib/setup-service'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const setupState = await getSetupState()

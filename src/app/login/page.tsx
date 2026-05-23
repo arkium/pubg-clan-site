@@ -3,6 +3,7 @@
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
+import FirstRunSetup from '@/components/FirstRunSetup'
 import PendingActivation from '@/components/PendingActivation'
 
 type WelcomeSettings = {
@@ -73,6 +74,10 @@ function LoginPageContent() {
       cancelled = true
     }
   }, [])
+
+  if (setupState === 'first_run') {
+    return <FirstRunSetup />
+  }
 
   if (setupState === 'pending_activation') {
     return <PendingActivation />
@@ -150,8 +155,8 @@ function LoginPageContent() {
         <div className="p-7 sm:p-10">
           <h2 className="text-2xl font-black text-slate-900">Se connecter</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Entrez vos identifiants. Si l'initialisation est en attente, activez d'abord le compte
-            Owner via le lien d'activation.
+            Entrez vos identifiants. Si l&apos;initialisation est en attente, activez d&apos;abord le compte
+            Owner via le lien d&apos;activation.
           </p>
 
           <form className="mt-7 space-y-4" onSubmit={(event) => void handleSubmit(event)}>

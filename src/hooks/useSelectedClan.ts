@@ -36,8 +36,14 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    setClanIdState(getStoredClanId())
-    setHydrated(true)
+    const timeoutId = window.setTimeout(() => {
+      setClanIdState(getStoredClanId())
+      setHydrated(true)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
   }, [])
 
   useEffect(() => {

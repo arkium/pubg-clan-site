@@ -100,7 +100,25 @@ export default function Leaderboard({ entries, sortBy, onSortChange }: Leaderboa
                       {medal ?? rank}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {entry.displayName}
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-gray-200">
+                          {entry.avatarUrl ? (
+                            <img
+                              src={entry.avatarUrl}
+                              alt={entry.displayName + ' avatar'}
+                              className="h-8 w-8 rounded-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-700">
+                              {entry.displayName.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </span>
+                        <span>{entry.displayName}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right text-gray-700">{entry.totalKills}</td>
                     <td className="px-4 py-3 text-right text-gray-700">

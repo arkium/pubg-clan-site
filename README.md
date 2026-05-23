@@ -26,6 +26,8 @@ APP_URL="http://localhost:3000"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 INTERNAL_APP_URL="http://127.0.0.1:3000"
 ENABLE_CRON_JOBS="false"
+AUTH_ALLOW_LEGACY_ACTOR_ID="false"
+AUTH_BOOTSTRAP_SECRET="change-me-long-random-string"
 ```
 
 ### 3. Initialiser Prisma
@@ -50,6 +52,46 @@ npm run dev
 
 L'application sera disponible sur http://localhost:3000.
 
+## Authentification par invitation joueur
+
+Le flux d'acces est desormais base sur une invitation envoyee par Owner/Admin:
+
+1. Owner/Admin ouvre la page `clans/[clanId]/settings/members`.
+2. Sur un joueur sans compte, cliquer `Inviter` puis saisir l'email.
+3. Le backend cree un token d'activation et envoie un email (stub logue dans la console pour l'instant).
+4. Le joueur ouvre le lien `/activate?token=...`, choisit son mot de passe, active son compte.
+5. Ensuite connexion via `/login` (email + mot de passe).
+
+### Variables auth utiles
+
+- `AUTH_ALLOW_LEGACY_ACTOR_ID=false` (recommande): desactive le fallback `actorMemberId`/headers.
+- `AUTH_ALLOW_LEGACY_ACTOR_ID=true` (transition): autorise temporairement l'ancien mecanisme d'acteur.
+- `AUTH_BOOTSTRAP_SECRET`: secret requis pour initialiser l'invitation Owner sans session.
+
+### Bootstrap Owner (premiere activation)
+
+Quand aucun compte n'existe encore, l'Owner est resolu depuis les donnees joueurs du clan:
+
+1. Le backend cherche un joueur actif avec role `Owner` dans le clan.
+2. Si aucun n'est trouve, il prend le premier joueur actif du clan (ordre d'arrivee).
+3. Il cree ensuite une invitation d'activation pour ce joueur.
+
+Mode recommande: bootstrap par pseudo Owner (pas besoin de clanId).
+
+Exemple (PowerShell):
+
+```powershell
+Invoke-RestMethod -Method POST `
+	-Uri "http://localhost:3000/api/auth/bootstrap-owner-invite" `
+	-Headers @{ "x-bootstrap-secret" = "change-me-long-random-string" } `
+	-ContentType "application/json" `
+	-Body '{"ownerPlayerName":"MonPseudoPUBG","platformShard":"steam","email":"owner@example.com"}'
+```
+
+Le endpoint retourne `activationUrl` a transmettre a l'Owner.
+
+Compatibilite: l'ancien payload avec `clanId` reste accepte pour les scripts existants.
+
 ## Separation local / serveur
 
 Le projet utilise des variables d'environnement pour separer les contextes local et serveur.
@@ -63,6 +105,12 @@ Recommendation pratique :
 - local : utiliser `.env` pour toutes les variables backend, en particulier `DATABASE_URL`
 - local optionnel : utiliser `.env.local` uniquement pour des overrides de confort non necessaires a Prisma
 - serveur : utiliser des variables d'environnement systeme ou un `.env` genere au deploiement
+
+Variables d'URL et role de chaque variable :
+
+- `APP_URL` sert pour les URLs serveur/public.
+- `NEXT_PUBLIC_APP_URL` sert au client navigateur, donc doit pointer vers le domaine public HTTPS.
+- `INTERNAL_APP_URL` sert aux appels internes (cron vers API locale), donc loopback en HTTP est ideal pour eviter un aller-retour via le proxy.
 
 Pourquoi : les commandes Prisma chargent naturellement `.env`, alors qu'un `DATABASE_URL` present uniquement dans `.env.local` peut ne pas etre vu par `prisma migrate` ou `prisma generate`.
 

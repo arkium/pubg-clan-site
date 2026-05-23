@@ -29,7 +29,7 @@ export async function PATCH(
       return permissionError
     }
 
-    const actorMemberId = getActorMemberId(request)
+    const actorMemberId = await getActorMemberId(request)
     if (!actorMemberId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

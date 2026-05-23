@@ -1,0 +1,84 @@
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+import { createMemberInvite } from '@/lib/auth-service'
+import { getSessionFromRequest } from '@/lib/auth-session'
+import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
+
+const InviteSchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
+function parsePositiveInt(value: string) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string; memberId: string }> }
+) {
+  try {
+    const { clanId, memberId } = await params
+    const parsedClanId = parsePositiveInt(clanId)
+    const parsedMemberId = parsePositiveInt(memberId)
+
+    if (!parsedClanId || !parsedMemberId) {
+      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+    }
+
+    const permissionError = await requirePermission('manage_members')(request, {
+      clanId: parsedClanId,
+    })
+    if (permissionError) {
+      return permissionError
+    }
+
+    const body = (await request.json().catch(() => null)) as unknown
+    const validated = InviteSchema.safeParse(body)
+    if (!validated.success) {
+      return NextResponse.json(
+        { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
+        { status: 400 }
+      )
+    }
+
+    const [session, actorMemberId] = await Promise.all([
+      getSessionFromRequest(request),
+      getActorMemberId(request),
+    ])
+
+    const invite = await createMemberInvite({
+      clanId: parsedClanId,
+      memberId: parsedMemberId,
+      email: validated.data.email,
+      invitedByUserId: session?.userId ?? null,
+      invitedByMemberId: actorMemberId,
+    })
+
+    return NextResponse.json(
+      {
+        success: true,
+        inviteId: invite.inviteId,
+        expiresAt: invite.expiresAt,
+        activationUrl: invite.activationUrl,
+      },
+      { status: 201 }
+    )
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Member not found in clan') {
+        return NextResponse.json({ error: error.message }, { status: 404 })
+      }
+
+      if (error.message === 'This player already has an account') {
+        return NextResponse.json({ error: error.message }, { status: 409 })
+      }
+
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    console.error('Error creating member invite:', error)
+    return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
+  }
+}

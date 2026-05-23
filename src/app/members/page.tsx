@@ -10,6 +10,7 @@ interface Member {
   pubgAccountId: string | null
   platformShard: string
   createdAt: string
+  avatarUrl?: string | null
   clan: {
     id: number
     name: string
@@ -182,7 +183,7 @@ export default function MembersPage() {
           </form>
         </div>
 
-        {/* Liste des membres */}
+        {/* Liste des membres - version responsive et moderne */}
         <div className="bg-white rounded shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
             Members ({members.length})
@@ -190,47 +191,63 @@ export default function MembersPage() {
           {members.length === 0 ? (
             <p className="text-gray-500">No members yet</p>
           ) : (
-            <div className="space-y-3">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="border rounded p-4 flex justify-between items-center"
+                  className="flex flex-col h-full border rounded-lg bg-gray-50 p-4 shadow-sm"
                 >
-                  <div>
-                    <p className="font-semibold">{member.displayName}</p>
-                    <p className="text-sm text-gray-600">
-                      {member.pubgPlayerName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      ID: {member.pubgAccountId}
-                    </p>
-                    {member.clan ? (
-                      <p className="text-xs text-gray-500">
-                        Clan: {member.clan.name} [{member.clan.tag}]
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-500">Clan: no PUBG clan detected</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm text-gray-500">
-                      {member.platformShard}
+                  <div className="flex items-center gap-4 mb-3">
+                    {/* Avatar (avatarUrl si dispo, sinon fallback SVG) */}
+                    <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border">
+                      {member.avatarUrl ? (
+                        <img
+                          src={member.avatarUrl}
+                          alt={member.displayName + ' avatar'}
+                          className="w-14 h-14 object-cover rounded-full"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                        />
+                      ) : (
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="20" cy="20" r="20" fill="#CBD5E1" />
+                          <text x="50%" y="55%" textAnchor="middle" fill="#64748B" fontSize="18" fontFamily="Arial" dy=".3em">
+                            {member.displayName.charAt(0).toUpperCase()}
+                          </text>
+                        </svg>
+                      )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{member.displayName}</p>
+                      <p className="text-sm text-gray-600 truncate">{member.pubgPlayerName}</p>
+                      <p className="text-xs text-gray-500 truncate">ID: {member.pubgAccountId}</p>
+                      {member.clan ? (
+                        <p className="text-xs text-gray-500 truncate">
+                          Clan: {member.clan.name} [{member.clan.tag}]
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-400 truncate">Clan: no PUBG clan detected</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-auto">
+                    <span className="inline-block text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-medium">
+                      {member.platformShard}
+                    </span>
                     <Link
                       href={`/members/${member.id}/dashboard`}
-                      className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      className="flex-1 min-w-[120px] rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 text-center"
                     >
                       Dashboard
                     </Link>
                     <Link
                       href={`/members/${member.id}/matches`}
-                      className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      className="flex-1 min-w-[120px] rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 text-center"
                     >
                       View matches
                     </Link>
                     <Link
                       href={`/members/${member.id}/notifications`}
-                      className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      className="flex-1 min-w-[120px] rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 text-center"
                     >
                       Notifications
                     </Link>
@@ -238,7 +255,7 @@ export default function MembersPage() {
                       type="button"
                       onClick={() => void handleDeleteMember(member)}
                       disabled={deletingMemberId === member.id}
-                      className="rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      className="flex-1 min-w-[120px] rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 text-center"
                     >
                       {deletingMemberId === member.id ? 'Removing...' : 'Stop tracking'}
                     </button>

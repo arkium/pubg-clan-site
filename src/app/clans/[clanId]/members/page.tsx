@@ -13,6 +13,7 @@ interface Member {
   pubgAccountId: string | null
   platformShard: string
   createdAt: string
+  avatarUrl?: string | null
 }
 
 function parseClanId(value: string | string[] | undefined) {
@@ -121,9 +122,28 @@ export default function ClanMembersPage() {
                 className="rounded border border-gray-200 bg-white p-4 shadow-sm"
               >
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-gray-900">{member.displayName}</p>
-                      <p className="text-sm text-gray-600">{member.pubgPlayerName}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border">
+                        {member.avatarUrl ? (
+                          <img
+                            src={member.avatarUrl}
+                            alt={member.displayName + ' avatar'}
+                            className="w-12 h-12 object-cover rounded-full"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="20" cy="20" r="20" fill="#CBD5E1" />
+                            <text x="50%" y="55%" textAnchor="middle" fill="#64748B" fontSize="16" fontFamily="Arial" dy=".3em">
+                              {member.displayName.charAt(0).toUpperCase()}
+                            </text>
+                          </svg>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">{member.displayName}</p>
+                        <p className="text-sm text-gray-600">{member.pubgPlayerName}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Link

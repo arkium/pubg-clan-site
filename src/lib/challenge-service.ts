@@ -233,7 +233,22 @@ export async function getLeaderboard(challengeId: string) {
     include: {
       participants: {
         include: {
-          member: { select: { id: true, displayName: true } },
+          member: {
+            select: {
+              id: true,
+              displayName: true,
+              identities: {
+                select: {
+                  user: {
+                    select: {
+                      avatarUrl: true,
+                    },
+                  },
+                },
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: { progress: 'desc' },
       },
@@ -256,6 +271,7 @@ export async function getLeaderboard(challengeId: string) {
       rank,
       memberId: participant.memberId,
       displayName: participant.member.displayName,
+      avatarUrl: participant.member.identities[0]?.user.avatarUrl ?? null,
       progress: participant.progress,
       reward: participant.reward ?? potentialReward,
       joinedAt: participant.joinedAt,

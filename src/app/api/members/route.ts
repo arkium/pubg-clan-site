@@ -139,7 +139,23 @@ export async function GET(request: NextRequest) {
           : {}),
       },
       orderBy: { createdAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        displayName: true,
+        pubgPlayerName: true,
+        pubgAccountId: true,
+        platformShard: true,
+        createdAt: true,
+        identities: {
+          select: {
+            user: {
+              select: {
+                avatarUrl: true,
+              },
+            },
+          },
+          take: 1,
+        },
         clan: {
           select: {
             id: true,
@@ -151,7 +167,13 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    return NextResponse.json(members)
+    const membersWithAvatar = members.map((member) => ({
+      ...member,
+      avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
+      identities: undefined,
+    }))
+
+    return NextResponse.json(membersWithAvatar)
   } catch (error) {
     console.error('Error fetching members:', error)
     return NextResponse.json(

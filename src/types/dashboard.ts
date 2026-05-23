@@ -3,6 +3,7 @@ export type DashboardPeriod = 'week' | 'month' | 'all'
 export interface DashboardMember {
   id: number
   displayName: string
+  avatarUrl?: string | null
   pubgPlayerName: string
   platformShard: string
   createdAt: string
@@ -54,6 +55,7 @@ export interface TopPerformance {
 export interface SquadFrequencyEntry {
   memberId: number
   displayName: string
+  avatarUrl?: string | null
   matchCount: number
   totalKills: number
   totalDamage: number

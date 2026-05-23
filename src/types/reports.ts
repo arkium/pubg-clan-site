@@ -13,6 +13,7 @@ export interface ReportProgressDelta {
 export interface ReportPlayerStats {
   memberId: number
   displayName: string
+  avatarUrl?: string | null
   matches: number
   kills: number
   damage: number

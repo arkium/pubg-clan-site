@@ -40,7 +40,6 @@ export async function GET(
 
     const permissionError = await requirePermission('manage_members')(request, {
       clanId: parsedClanId,
-      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError
@@ -65,6 +64,29 @@ export async function GET(
             role: true,
           },
         },
+        identities: {
+          select: {
+            id: true,
+          },
+        },
+        invites: {
+          where: {
+            acceptedAt: null,
+            revokedAt: null,
+            expiresAt: {
+              gt: new Date(),
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+          select: {
+            id: true,
+            email: true,
+            expiresAt: true,
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
     })
@@ -84,6 +106,29 @@ export async function GET(
           },
           orderBy: {
             assignedAt: 'desc',
+          },
+        },
+        identities: {
+          select: {
+            id: true,
+          },
+        },
+        invites: {
+          where: {
+            acceptedAt: null,
+            revokedAt: null,
+            expiresAt: {
+              gt: new Date(),
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+          select: {
+            id: true,
+            email: true,
+            expiresAt: true,
           },
         },
       },
@@ -115,6 +160,14 @@ export async function GET(
         })),
         permissions: Array.from(permissionKeys),
         joinedAt: member.createdAt,
+        hasAccount: member.identities.length > 0,
+        pendingInvite: member.invites[0]
+          ? {
+              id: member.invites[0].id,
+              email: member.invites[0].email,
+              expiresAt: member.invites[0].expiresAt,
+            }
+          : null,
       }
     })
 

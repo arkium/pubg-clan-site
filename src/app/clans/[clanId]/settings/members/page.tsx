@@ -24,6 +24,12 @@ type ClanMemberWithRole = {
   roles: MemberRole[]
   permissions: string[]
   joinedAt: string
+  hasAccount: boolean
+  pendingInvite: {
+    id: string
+    email: string
+    expiresAt: string
+  } | null
 }
 
 function parseClanId(value: string | string[] | undefined) {
@@ -42,11 +48,7 @@ export default function ClanMembersSettingsPage() {
   const [roles, setRoles] = useState<ClanRole[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-
-  const actingMemberId = useMemo(() => {
-    const owner = members.find((member) => member.role === 'Owner')
-    return owner?.id ?? members[0]?.id ?? null
-  }, [members])
+  const [invitingMemberId, setInvitingMemberId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -71,10 +73,16 @@ export default function ClanMembersSettingsPage() {
       | { error?: string }
 
     if (!membersResponse.ok) {
+      if (membersResponse.status === 401 || membersResponse.status === 403) {
+        throw new Error('AUTH_REQUIRED')
+      }
       throw new Error('error' in membersData ? membersData.error : 'Failed to fetch members')
     }
 
     if (!rolesResponse.ok) {
+      if (rolesResponse.status === 401 || rolesResponse.status === 403) {
+        throw new Error('AUTH_REQUIRED')
+      }
       throw new Error('error' in rolesData ? rolesData.error : 'Failed to fetch roles')
     }
 
@@ -102,6 +110,11 @@ export default function ClanMembersSettingsPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
+          if (loadError instanceof Error && loadError.message === 'AUTH_REQUIRED') {
+            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/settings/members`)}`)
+            return
+          }
+
           setError(loadError instanceof Error ? loadError.message : 'Failed to load members settings')
         }
       } finally {
@@ -116,32 +129,75 @@ export default function ClanMembersSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId])
+  }, [clanId, router])
 
   async function handleAssign(memberId: number, roleId: number) {
-    if (!clanId || !actingMemberId) {
-      throw new Error('No acting member available')
+    if (!clanId) {
+      throw new Error('Clan introuvable')
     }
 
-    const response = await fetch(
-      `/api/clans/${clanId}/members/${memberId}/role?actorMemberId=${actingMemberId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ roleId }),
-      }
-    )
+    const response = await fetch(`/api/clans/${clanId}/members/${memberId}/role`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ roleId }),
+    })
 
     const payload = (await response.json()) as { error?: string }
     if (!response.ok) {
+      if (response.status === 401) {
+        router.replace(`/login?redirect=${encodeURIComponent(`/clans/${clanId}/settings/members`)}`)
+        return
+      }
+
       throw new Error(payload.error ?? 'Failed to assign role')
     }
 
     const data = await fetchMembersAndRoles(clanId)
     setMembers(data.members)
     setRoles(data.roles)
+  }
+
+  async function handleInvite(member: ClanMemberWithRole) {
+    if (!clanId) {
+      return
+    }
+
+    const email = window.prompt(`Adresse email pour inviter ${member.name} ?`, member.pendingInvite?.email ?? '')
+
+    if (!email) {
+      return
+    }
+
+    try {
+      setInvitingMemberId(member.id)
+      const response = await fetch(`/api/clans/${clanId}/members/${member.id}/invite`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const payload = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.replace(`/login?redirect=${encodeURIComponent(`/clans/${clanId}/settings/members`)}`)
+          return
+        }
+
+        throw new Error(payload.error ?? 'Failed to send invite')
+      }
+
+      const data = await fetchMembersAndRoles(clanId)
+      setMembers(data.members)
+      setRoles(data.roles)
+    } catch (inviteError) {
+      setError(inviteError instanceof Error ? inviteError.message : 'Failed to send invite')
+    } finally {
+      setInvitingMemberId(null)
+    }
   }
 
   if (!clanId) {
@@ -183,6 +239,7 @@ export default function ClanMembersSettingsPage() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Avatar</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Nom</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Rôle</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Accès</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -212,16 +269,48 @@ export default function ClanMembersSettingsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {currentRoleOption ? (
-                          <RoleAssignment
-                            member={{ id: member.id, name: member.name }}
-                            currentRole={currentRoleOption}
-                            availableRoles={roles}
-                            onAssign={(roleId) => handleAssign(member.id, roleId)}
-                          />
+                        {member.hasAccount ? (
+                          <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                            Actif
+                          </span>
+                        ) : member.pendingInvite ? (
+                          <div className="space-y-1 text-xs text-amber-700">
+                            <p>Invitation: {member.pendingInvite.email}</p>
+                            <p>
+                              Expire le{' '}
+                              {new Date(member.pendingInvite.expiresAt).toLocaleDateString()}
+                            </p>
+                          </div>
                         ) : (
-                          <span className="text-xs text-gray-500">Aucun rôle</span>
+                          <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                            Aucun accès
+                          </span>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {currentRoleOption ? (
+                            <RoleAssignment
+                              member={{ id: member.id, name: member.name }}
+                              currentRole={currentRoleOption}
+                              availableRoles={roles}
+                              onAssign={(roleId) => handleAssign(member.id, roleId)}
+                            />
+                          ) : (
+                            <span className="text-xs text-gray-500">Aucun rôle</span>
+                          )}
+
+                          {!member.hasAccount ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleInvite(member)}
+                              disabled={invitingMemberId === member.id}
+                              className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {invitingMemberId === member.id ? 'Envoi...' : 'Inviter'}
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   )

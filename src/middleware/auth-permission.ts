@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 
+import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import { hasAnyRole, hasPermission } from '@/lib/role-service'
+
+const ALLOW_LEGACY_ACTOR_RESOLUTION = process.env.AUTH_ALLOW_LEGACY_ACTOR_ID === 'true'
 
 function parseMemberId(value: string | null) {
   if (!value) return null
@@ -9,7 +12,16 @@ function parseMemberId(value: string | null) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export function getActorMemberId(request: Request) {
+export async function getActorMemberId(request: Request) {
+  const session = await getSessionFromRequest(request)
+  if (session?.activeMemberId) {
+    return session.activeMemberId
+  }
+
+  if (!ALLOW_LEGACY_ACTOR_RESOLUTION) {
+    return null
+  }
+
   const fromHeader = parseMemberId(
     request.headers.get('x-member-id') ?? request.headers.get('x-clan-member-id')
   )
@@ -35,7 +47,7 @@ async function ensureMemberInClan(memberId: number, clanId: number) {
 
 export function requirePermission(permission: string) {
   return async function checkPermission(request: Request, options?: PermissionGuardOptions) {
-    const actorMemberId = getActorMemberId(request)
+    const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
       if (options?.allowMissingActor) {
@@ -63,7 +75,7 @@ export function requirePermission(permission: string) {
 
 export function requireRole(roleNames: string[]) {
   return async function checkRole(request: Request, options?: PermissionGuardOptions) {
-    const actorMemberId = getActorMemberId(request)
+    const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
       if (options?.allowMissingActor) {

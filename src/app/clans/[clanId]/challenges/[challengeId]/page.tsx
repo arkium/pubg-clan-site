@@ -11,6 +11,7 @@ type LeaderboardEntry = {
   rank: number
   memberId: number
   displayName: string
+  avatarUrl?: string | null
   progress: number
   reward: number
 }

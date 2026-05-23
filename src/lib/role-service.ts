@@ -213,10 +213,10 @@ export async function hasAnyRole(memberId: number, roleNames: string[]) {
   return count > 0
 }
 
-export async function hasPermission(memberId: number, permission: string) {
+async function resolveMemberPermissionState(memberId: number) {
   const cached = permissionCache.get(memberId)
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.wildcard || cached.permissions.has(permission)
+    return cached
   }
 
   const memberRoles = await prisma.clanMemberRole.findMany({
@@ -244,13 +244,30 @@ export async function hasPermission(memberId: number, permission: string) {
     }
   }
 
-  permissionCache.set(memberId, {
+  const computed = {
     expiresAt: Date.now() + PERMISSION_TTL_MS,
     permissions,
     wildcard,
-  })
+  }
 
-  return wildcard || permissions.has(permission)
+  permissionCache.set(memberId, computed)
+  return computed
+}
+
+export async function getMemberPermissionKeys(memberId: number) {
+  const state = await resolveMemberPermissionState(memberId)
+  const keys = Array.from(state.permissions).sort((a, b) => a.localeCompare(b))
+
+  if (state.wildcard) {
+    return ['*', ...keys]
+  }
+
+  return keys
+}
+
+export async function hasPermission(memberId: number, permission: string) {
+  const state = await resolveMemberPermissionState(memberId)
+  return state.wildcard || state.permissions.has(permission)
 }
 
 export async function assignRole(memberId: number, roleId: number, assignedBy: number) {

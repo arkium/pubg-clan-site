@@ -104,8 +104,19 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             {/* Player info */}
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
-                {member.displayName.charAt(0).toUpperCase() || '?'}
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-blue-600 text-xl font-bold text-white">
+                {member.avatarUrl ? (
+                  <img
+                    src={member.avatarUrl}
+                    alt={member.displayName + ' avatar'}
+                    className="h-14 w-14 rounded-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <span>{member.displayName.charAt(0).toUpperCase() || '?'}</span>
+                )}
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">{member.displayName}</h1>

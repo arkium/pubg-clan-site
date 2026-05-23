@@ -85,35 +85,36 @@ export async function initializeFirstRun(params: {
   const resolvedClanId =
     detectedClan?.clan.id ?? (await getOrCreateUngroupedClan(params.platformShard)).id
 
-  let member: Awaited<ReturnType<typeof prisma.clanMember.create>>
-  try {
-    member = await prisma.clanMember.create({
-      data: {
-        displayName: params.displayName,
-        pubgPlayerName: pubgPlayer.playerName,
-        pubgAccountId: pubgPlayer.accountId,
-        platformShard: params.platformShard,
-        clanId: resolvedClanId,
-      },
-      include: {
-        clan: {
-          select: {
-            id: true,
-            name: true,
-            tag: true,
-            pubgClanId: true,
-            platformShard: true,
+  const member = await (async () => {
+    try {
+      return await prisma.clanMember.create({
+        data: {
+          displayName: params.displayName,
+          pubgPlayerName: pubgPlayer.playerName,
+          pubgAccountId: pubgPlayer.accountId,
+          platformShard: params.platformShard,
+          clanId: resolvedClanId,
+        },
+        include: {
+          clan: {
+            select: {
+              id: true,
+              name: true,
+              tag: true,
+              pubgClanId: true,
+              platformShard: true,
+            },
           },
         },
-      },
-    })
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new Error('Member already exists for this PUBG name and platform')
-    }
+      })
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new Error('Member already exists for this PUBG name and platform')
+      }
 
-    throw error
-  }
+      throw error
+    }
+  })()
 
   await initializeDefaultRoles(resolvedClanId)
   await assignDefaultMemberRole(member.id, resolvedClanId)

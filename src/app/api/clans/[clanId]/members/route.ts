@@ -67,6 +67,11 @@ export async function GET(
         identities: {
           select: {
             id: true,
+            user: {
+              select: {
+                avatarUrl: true,
+              },
+            },
           },
         },
         invites: {
@@ -111,6 +116,11 @@ export async function GET(
         identities: {
           select: {
             id: true,
+            user: {
+              select: {
+                avatarUrl: true,
+              },
+            },
           },
         },
         invites: {
@@ -161,6 +171,7 @@ export async function GET(
         permissions: Array.from(permissionKeys),
         joinedAt: member.createdAt,
         hasAccount: member.identities.length > 0,
+        avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
         pendingInvite: member.invites[0]
           ? {
               id: member.invites[0].id,

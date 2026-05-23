@@ -7,7 +7,7 @@ function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const redirectTo = useMemo(() => searchParams.get('redirect') ?? '/', [searchParams])
+  const redirectTo = useMemo(() => searchParams.get('redirect'), [searchParams])
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -29,12 +29,22 @@ function LoginPageContent() {
         body: JSON.stringify({ email, password }),
       })
 
-      const payload = (await response.json()) as { error?: string }
+      const payload = (await response.json()) as {
+        error?: string
+        activeMemberId?: number | null
+      }
       if (!response.ok) {
         throw new Error(payload.error ?? 'Login failed')
       }
 
-      router.replace(redirectTo)
+      // Si pas de redirect explicite, on va sur le dashboard du membre actif
+      if (redirectTo) {
+        router.replace(redirectTo)
+      } else {
+        // On récupère l'ID du membre actif depuis la réponse ou on fallback sur /members
+        const memberId = payload.activeMemberId
+        router.replace(memberId ? `/members/${memberId}/dashboard` : '/members')
+      }
       router.refresh()
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Login failed')

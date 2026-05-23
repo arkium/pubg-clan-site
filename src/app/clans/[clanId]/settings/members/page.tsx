@@ -25,6 +25,7 @@ type ClanMemberWithRole = {
   permissions: string[]
   joinedAt: string
   hasAccount: boolean
+  avatarUrl?: string | null
   pendingInvite: {
     id: string
     email: string
@@ -251,8 +252,17 @@ export default function ClanMembersSettingsPage() {
                   return (
                     <tr key={member.id}>
                       <td className="px-4 py-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700">
-                          {member.name.slice(0, 2).toUpperCase()}
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 overflow-hidden border">
+                          {member.avatarUrl ? (
+                            <img
+                              src={member.avatarUrl}
+                              alt={member.name + ' avatar'}
+                              className="w-9 h-9 object-cover rounded-full"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-700">{member.name.slice(0, 2).toUpperCase()}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">

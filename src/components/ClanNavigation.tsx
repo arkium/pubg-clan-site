@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -12,10 +13,126 @@ type ClanSummary = {
   tag: string
 }
 
+type NavItem = {
+  label: string
+  href: string
+  tone: 'neutral' | 'brand' | 'sky' | 'blue' | 'emerald'
+}
+
+type CronAction = 'sync_matches' | 'sync_stats' | 'generate_weekly_report' | 'generate_monthly_report'
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ')
+}
+
+function getToneClasses(tone: NavItem['tone'], active: boolean) {
+  if (tone === 'brand') {
+    return active
+      ? 'border-indigo-300 bg-indigo-100 text-indigo-800'
+      : 'border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50'
+  }
+
+  if (tone === 'sky') {
+    return active
+      ? 'border-sky-300 bg-sky-100 text-sky-800'
+      : 'border-sky-200 bg-white text-sky-700 hover:bg-sky-50'
+  }
+
+  if (tone === 'blue') {
+    return active
+      ? 'border-blue-300 bg-blue-100 text-blue-800'
+      : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
+  }
+
+  if (tone === 'emerald') {
+    return active
+      ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+      : 'border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50'
+  }
+
+  return active
+    ? 'border-slate-300 bg-slate-100 text-slate-900'
+    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+}
+
 export default function ClanNavigation() {
+  const pathname = usePathname()
   const { clanId, clearClanId, setClanId } = useSelectedClan()
-  const { loading, authenticated, email, activeMemberId, members, refresh } = useAuthSession()
+  const { loading, authenticated, activeMemberId, permissions, members, refresh } = useAuthSession()
   const [clan, setClan] = useState<ClanSummary | null>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [cronPending, setCronPending] = useState<CronAction | null>(null)
+  const [cronMessage, setCronMessage] = useState<string | null>(null)
+
+  const permissionSet = useMemo(() => new Set(permissions), [permissions])
+  const hasWildcard = permissionSet.has('*')
+
+  const canManageMembers = hasWildcard || permissionSet.has('manage_members')
+  const canViewLeaderboard =
+    hasWildcard || permissionSet.has('view_leaderboard') || permissionSet.has('view_reports')
+  const canViewReports = hasWildcard || permissionSet.has('view_reports')
+  const canManageRoles = hasWildcard || permissionSet.has('manage_roles')
+  const canClearClan = hasWildcard || permissionSet.has('manage_settings') || permissionSet.has('manage_roles')
+  const isOwner = hasWildcard
+
+  const baseLinks: NavItem[] = [
+    { label: 'Ajouter / voir joueurs', href: '/members', tone: 'brand' },
+    ...(authenticated
+      ? [
+          { label: 'Dashboard', href: '/members/' + (activeMemberId ?? '' ) + '/dashboard', tone: 'blue' as const },
+          { label: 'Mon compte', href: '/account', tone: 'neutral' as const },
+        ]
+      : []),
+    { label: 'Changer de clan', href: '/clans', tone: 'neutral' },
+  ]
+
+  const clanLinks: NavItem[] = clanId
+    ? [
+        ...(canManageMembers
+          ? [
+              {
+                label: 'Joueurs du clan',
+                href: `/clans/${clanId}/members`,
+                tone: 'sky' as const,
+              },
+            ]
+          : []),
+        {
+          label: 'Matchs ensemble',
+          href: `/clans/${clanId}/matches`,
+          tone: 'blue',
+        },
+        ...(canViewLeaderboard
+          ? [
+              {
+                label: 'Classement',
+                href: `/clans/${clanId}/leaderboard`,
+                tone: 'blue' as const,
+              },
+            ]
+          : []),
+        ...(canViewReports
+          ? [
+              {
+                label: 'Rapports',
+                href: `/clans/${clanId}/reports`,
+                tone: 'emerald' as const,
+              },
+            ]
+          : []),
+        ...(canManageRoles
+          ? [
+              {
+                label: 'Paramètres rôles',
+                href: `/clans/${clanId}/settings/members`,
+                tone: 'neutral' as const,
+              },
+            ]
+          : []),
+      ]
+    : []
+
+  const navLinks = [...baseLinks, ...clanLinks]
 
   useEffect(() => {
     let cancelled = false
@@ -51,6 +168,14 @@ export default function ClanNavigation() {
     }
   }, [clanId])
 
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    setCronMessage(null)
+  }, [activeMemberId, clanId])
+
   async function handleLogout() {
     const response = await fetch('/api/auth/logout', {
       method: 'POST',
@@ -84,119 +209,233 @@ export default function ClanNavigation() {
     await refresh()
   }
 
+  async function handleCronAction(action: CronAction) {
+    if (!clanId || cronPending) {
+      return
+    }
+
+    setCronPending(action)
+    setCronMessage(null)
+
+    try {
+      const response = await fetch(`/api/clans/${clanId}/cron-control`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ action }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; message?: string; error?: string }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        setCronMessage(payload?.error ?? payload?.message ?? 'Action cron impossible')
+        return
+      }
+
+      setCronMessage(payload.message ?? 'Action cron lancée')
+    } catch {
+      setCronMessage('Action cron impossible')
+    } finally {
+      setCronPending(null)
+    }
+  }
+
+  function isActiveLink(href: string) {
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
+
+  function renderLink(item: NavItem, mobile = false) {
+    const active = isActiveLink(item.href)
+
+    return (
+      <Link
+        key={`${mobile ? 'm' : 'd'}-${item.href}`}
+        href={item.href}
+        className={cx(
+          'rounded-xl border px-3 py-2 text-sm font-semibold transition',
+          mobile && 'block w-full text-center',
+          getToneClasses(item.tone, active)
+        )}
+      >
+        {item.label}
+      </Link>
+    )
+  }
+
   return (
-    <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <div className="space-y-1 text-sm text-gray-700" aria-live="polite">
-          {clanId && clan ? (
-            <span>
-              Clan sélectionné: <strong>{clan.name}</strong> [{clan.tag}]
-            </span>
-          ) : (
-            <span>Aucun clan sélectionné</span>
-          )}
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur">
+      <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1" aria-live="polite">
+            <div className="truncate text-sm font-semibold text-slate-800">
+              {clanId && clan ? (
+                <span>
+                  <strong>{clan.name}</strong> [{clan.tag}]
+                </span>
+              ) : (
+                <span>Aucun clan sélectionné</span>
+              )}
+            </div>
 
-          {loading ? (
-            <p className="text-xs text-gray-500">Vérification de session...</p>
-          ) : authenticated ? (
-            <p className="text-xs text-emerald-700">Connecté: {email}</p>
-          ) : (
-            <p className="text-xs text-amber-700">Session non connectée</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {authenticated ? (
-            <select
-              value={activeMemberId ?? ''}
-              onChange={(event) => {
-                const memberId = Number(event.target.value)
-                if (Number.isInteger(memberId) && memberId > 0) {
-                  void handleSwitchMember(memberId)
-                }
-              }}
-              className="rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700"
-            >
-              <option value="" disabled>
-                Membre actif
-              </option>
-              {members.map((member) => (
-                <option key={member.memberId} value={member.memberId}>
-                  {member.displayName}
+            {loading ? (
+              <p className="text-xs text-slate-500">Vérification de session...</p>
+            ) : authenticated ? (
+              <p className="text-xs text-emerald-700">Connecté</p>
+            ) : (
+              <p className="text-xs text-amber-700">Session non connectée</p>
+            )}
+          </div>
+
+          <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+            {authenticated ? (
+              <select
+                value={activeMemberId ?? ''}
+                onChange={(event) => {
+                  const memberId = Number(event.target.value)
+                  if (Number.isInteger(memberId) && memberId > 0) {
+                    void handleSwitchMember(memberId)
+                  }
+                }}
+                className="min-w-36 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700"
+              >
+                <option value="" disabled>
+                  Membre actif
                 </option>
-              ))}
-            </select>
-          ) : null}
+                {members.map((member) => (
+                  <option key={member.memberId} value={member.memberId}>
+                    {member.displayName}
+                  </option>
+                ))}
+              </select>
+            ) : null}
 
-          <Link
-            href="/members"
-            className="rounded border border-indigo-200 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
-          >
-            Ajouter / voir joueurs
-          </Link>
-          {clanId ? (
-            <Link
-              href={`/clans/${clanId}/members`}
-              className="rounded border border-sky-200 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-50"
-            >
-              Joueurs du clan
-            </Link>
-          ) : null}
-          {clanId ? (
-            <Link
-              href={`/clans/${clanId}/matches`}
-              className="rounded border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
-            >
-              Matchs ensemble
-            </Link>
-          ) : null}
-          {clanId ? (
-            <Link
-              href={`/clans/${clanId}/leaderboard`}
-              className="rounded border border-purple-200 px-3 py-1.5 text-sm font-medium text-purple-700 hover:bg-purple-50"
-            >
-              Classement
-            </Link>
-          ) : null}
-          {clanId ? (
-            <Link
-              href={`/clans/${clanId}/reports`}
-              className="rounded border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
-            >
-              Rapports
-            </Link>
-          ) : null}
-          <Link
-            href="/clans"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Changer de clan
-          </Link>
-          {clanId ? (
+            {clanId && canClearClan ? (
+              <button
+                type="button"
+                onClick={clearClanId}
+                className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+              >
+                Effacer clan
+              </button>
+            ) : null}
+
+            {authenticated ? (
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Se déconnecter
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Connexion
+              </Link>
+            )}
+
             <button
               type="button"
-              onClick={clearClanId}
-              className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+              onClick={() => setMobileOpen((current) => !current)}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 md:hidden"
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-clan-nav"
             >
-              Effacer
+              Menu
             </button>
-          ) : null}
+          </div>
+        </div>
 
-          {authenticated ? (
+        <nav className="mt-3 hidden flex-wrap items-center gap-2 md:flex">{navLinks.map((item) => renderLink(item))}</nav>
+
+        {isOwner && clanId ? (
+          <div className="mt-3 hidden items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 md:flex">
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Owner · Cron</span>
             <button
               type="button"
-              onClick={() => void handleLogout()}
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => void handleCronAction('sync_matches')}
+              disabled={cronPending !== null}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Se déconnecter
+              Sync matchs
             </button>
-          ) : (
-            <Link
-              href="/login"
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            <button
+              type="button"
+              onClick={() => void handleCronAction('sync_stats')}
+              disabled={cronPending !== null}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Connexion
-            </Link>
-          )}
+              Sync stats
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCronAction('generate_weekly_report')}
+              disabled={cronPending !== null}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Rapport hebdo
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCronAction('generate_monthly_report')}
+              disabled={cronPending !== null}
+              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Rapport mensuel
+            </button>
+            {cronMessage ? <p className="text-xs text-slate-600">{cronMessage}</p> : null}
+          </div>
+        ) : null}
+
+        <div id="mobile-clan-nav" className={cx('mt-3 md:hidden', !mobileOpen && 'hidden')}>
+          <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 shadow-sm">
+            <nav className="grid grid-cols-1 gap-2">{navLinks.map((item) => renderLink(item, true))}</nav>
+            {isOwner && clanId ? (
+              <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Owner · Cron</p>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleCronAction('sync_matches')}
+                    disabled={cronPending !== null}
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Sync matchs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCronAction('sync_stats')}
+                    disabled={cronPending !== null}
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Sync stats
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCronAction('generate_weekly_report')}
+                    disabled={cronPending !== null}
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Rapport hebdo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCronAction('generate_monthly_report')}
+                    disabled={cronPending !== null}
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Rapport mensuel
+                  </button>
+                </div>
+                {cronMessage ? <p className="text-xs text-slate-600">{cronMessage}</p> : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>

@@ -67,6 +67,7 @@ model UserAccount {
   email           String    @unique
   passwordHash    String
   displayName     String?
+  avatarUrl       String?
   status          String    @default("active")
   emailVerifiedAt DateTime?
   createdAt       DateTime  @default(now())

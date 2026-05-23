@@ -68,6 +68,51 @@ Le flux d'acces est desormais base sur une invitation envoyee par Owner/Admin:
 - `AUTH_ALLOW_LEGACY_ACTOR_ID=true` (transition): autorise temporairement l'ancien mecanisme d'acteur.
 - `AUTH_BOOTSTRAP_SECRET`: secret requis pour initialiser l'invitation Owner sans session.
 
+### Emails (Ubuntu / production)
+
+Par defaut, l'application journalise les emails (mode fallback) si SMTP n'est pas configure.
+
+Pour envoyer de vrais emails, definir ces variables:
+
+- `SMTP_HOST`
+- `SMTP_PORT` (souvent `587`)
+- `SMTP_SECURE` (`false` pour STARTTLS sur 587, `true` pour SMTPS sur 465)
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM` (ex: `PUBG Clan <no-reply@votre-domaine.com>`)
+
+Exemple rapide:
+
+```env
+SMTP_HOST="smtp.sendgrid.net"
+SMTP_PORT="587"
+SMTP_SECURE="false"
+SMTP_USER="apikey"
+SMTP_PASS="<secret>"
+SMTP_FROM="PUBG Clan <no-reply@votre-domaine.com>"
+```
+
+Si SMTP n'est pas configure, recuperer le lien d'activation dans les logs:
+
+```bash
+grep -E "\[EmailService\]|Lien d'activation" -n /chemin/vers/logs/app.log | tail -n 120
+```
+
+Si tu utilises PM2:
+
+```bash
+pm2 logs <app-name> --lines 200 | grep -E "\[EmailService\]|Lien d'activation"
+```
+
+Si tu utilises systemd:
+
+```bash
+journalctl -u <service-name> -n 400 --no-pager | grep -E "\[EmailService\]|Lien d'activation"
+```
+
+Note: les endpoints d'invitation retournent aussi `activationUrl` dans la reponse JSON
+(bootstrap owner et invitation membre), utile si l'email provider est indisponible.
+
 ### Bootstrap Owner (premiere activation)
 
 Quand aucun compte n'existe encore, l'Owner est resolu depuis les donnees joueurs du clan:

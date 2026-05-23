@@ -18,6 +18,7 @@ type AuthSessionState = {
   authenticated: boolean
   email: string | null
   activeMemberId: number | null
+  permissions: string[]
   members: SessionMember[]
 }
 
@@ -26,6 +27,7 @@ const INITIAL_STATE: AuthSessionState = {
   authenticated: false,
   email: null,
   activeMemberId: null,
+  permissions: [],
   members: [],
 }
 
@@ -47,6 +49,7 @@ export function useAuthSession() {
         authenticated: boolean
         user: { email: string }
         activeMemberId: number | null
+        permissions?: string[]
         members: SessionMember[]
       }
 
@@ -55,6 +58,7 @@ export function useAuthSession() {
         authenticated: data.authenticated,
         email: data.user.email,
         activeMemberId: data.activeMemberId,
+        permissions: Array.isArray(data.permissions) ? data.permissions : [],
         members: data.members,
       })
     } catch {

@@ -19,25 +19,25 @@ function isSetupState(value: string): value is SetupState {
 }
 
 export async function getSetupState(): Promise<SetupState> {
-  const setupFlag = await prisma.appConfig.findUnique({
-    where: { key: SETUP_STATE_KEY },
-    select: { value: true },
-  })
-
-  if (setupFlag && isSetupState(setupFlag.value)) {
-    return setupFlag.value
-  }
-
-  const [userCount, memberCount] = await Promise.all([
+  const [setupFlag, userCount, memberCount] = await Promise.all([
+    prisma.appConfig.findUnique({
+      where: { key: SETUP_STATE_KEY },
+      select: { value: true },
+    }),
     prisma.userAccount.count(),
     prisma.clanMember.count(),
   ])
 
-  if (userCount === 0 && memberCount === 0) {
-    return 'first_run'
-  }
+  const inferredState: SetupState =
+    userCount === 0 && memberCount === 0
+      ? 'first_run'
+      : userCount === 0
+        ? 'pending_activation'
+        : 'completed'
 
-  const inferredState: SetupState = userCount === 0 ? 'pending_activation' : 'completed'
+  if (setupFlag && isSetupState(setupFlag.value) && setupFlag.value === inferredState) {
+    return setupFlag.value
+  }
 
   await prisma.appConfig.upsert({
     where: { key: SETUP_STATE_KEY },

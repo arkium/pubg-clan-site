@@ -115,6 +115,11 @@ Note : sous PowerShell, eviter `curl -X POST ...` car `curl` est un alias de `In
 	- `NEXT_PUBLIC_APP_URL`
 	- `INTERNAL_APP_URL`
 	- `ENABLE_CRON_JOBS`
+	- `MYSQL_ROOT_PASSWORD` (si utilisation de `deploy-phase2.sh`)
+- Variables optionnelles pour `deploy-phase2.sh` :
+	- `MYSQL_ROOT_USER` (defaut: `root`)
+	- `DB_NAME` (defaut: `pubg_clan_site`)
+	- `PUBG_BASE_URL` (defaut: `https://api.pubg.com`)
 - Appliquer les migrations Prisma :
 
 ```bash
@@ -157,3 +162,22 @@ curl -X POST http://127.0.0.1:3000/api/clans/2/sync-stats
 
 - En production, preferer une URL interne locale (ex: `http://127.0.0.1:3000`) pour `INTERNAL_APP_URL`.
 - Cela evite de faire sortir puis rerentrer les appels cron via le proxy public.
+
+## Remediation en cas de fuite de secret
+
+Si un token est detecte par GitGuardian ou GitHub Secret Scanning :
+
+1. Revoquer immediatement le token chez le provider (ici PUBG) puis en generer un nouveau.
+2. Remplacer la valeur sur toutes les plateformes (CI/CD, App Service, serveur, local).
+3. Verifier que les secrets ne sont plus presents dans l'etat courant du repo.
+4. Si le secret a ete pousse, purger l'historique Git puis forcer la mise a jour distante.
+
+Commande de purge historique (exemple pour `.env`) :
+
+```bash
+git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch .env' --prune-empty --tag-name-filter cat -- --all
+git push origin --force --all
+git push origin --force --tags
+```
+
+Note: apres reecriture d'historique, chaque collaborateur doit resynchroniser son clone proprement.

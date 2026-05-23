@@ -75,6 +75,13 @@ export class ApiQueue {
   }
 
   private isRateLimitError(err: unknown): boolean {
+    if (err && typeof err === 'object' && 'status' in err) {
+      const status = (err as { status?: number }).status
+      if (status === 429) {
+        return true
+      }
+    }
+
     if (err && typeof err === 'object' && 'response' in err) {
       const response = (err as { response?: { status?: number } }).response
       return response?.status === 429

@@ -1,5 +1,9 @@
 import axios from 'axios'
 
+type PubgApiError = Error & {
+  status?: number
+}
+
 const PUBG_API_KEY = process.env.PUBG_API_KEY
 const PUBG_BASE_URL = process.env.PUBG_BASE_URL || 'https://api.pubg.com'
 
@@ -10,6 +14,25 @@ export const pubgApi = axios.create({
     Accept: 'application/vnd.api+json',
   },
 })
+
+pubgApi.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (!axios.isAxiosError(error)) {
+      return Promise.reject(error)
+    }
+
+    const status = error.response?.status
+    const method = (error.config?.method || 'get').toUpperCase()
+    const url = error.config?.url || 'unknown-url'
+    const safeError: PubgApiError = new Error(
+      `[PUBG] API request failed (${status ?? 'no-status'}) ${method} ${url}`
+    )
+    safeError.status = status
+
+    return Promise.reject(safeError)
+  }
+)
 
 function ensurePubgApiKey() {
   if (!PUBG_API_KEY) {

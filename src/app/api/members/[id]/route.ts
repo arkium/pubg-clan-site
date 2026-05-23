@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
+import { requirePermission } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
   const parsed = Number(id)
@@ -25,11 +26,23 @@ export async function DELETE(
         id: true,
         displayName: true,
         isActive: true,
+        clanId: true,
       },
     })
 
     if (!existingMember || !existingMember.isActive) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+    }
+
+    if (!existingMember.clanId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const permissionError = await requirePermission('manage_members')(request, {
+      clanId: existingMember.clanId,
+    })
+    if (permissionError) {
+      return permissionError
     }
 
     const hardDelete = request.nextUrl.searchParams.get('hard') === 'true'

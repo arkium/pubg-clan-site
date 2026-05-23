@@ -24,6 +24,7 @@ export async function PATCH(
 
     const permissionError = await requirePermission('assign_roles')(request, {
       clanId: parsedClanId,
+      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError

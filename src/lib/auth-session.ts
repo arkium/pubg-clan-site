@@ -93,8 +93,11 @@ export function getSessionTokenFromRequest(request: Request) {
   return parseCookie(cookieHeader, SESSION_COOKIE_NAME)
 }
 
-export async function getSessionFromRequest(request: Request): Promise<AuthSessionContext | null> {
-  const token = getSessionTokenFromRequest(request)
+export function getSessionTokenFromCookieHeader(cookieHeader: string | null) {
+  return parseCookie(cookieHeader, SESSION_COOKIE_NAME)
+}
+
+export async function getSessionFromToken(token: string | null): Promise<AuthSessionContext | null> {
   if (!token) {
     return null
   }
@@ -149,6 +152,10 @@ export async function getSessionFromRequest(request: Request): Promise<AuthSessi
     email: session.user.email,
     activeMemberId: session.activeMemberId,
   }
+}
+
+export async function getSessionFromRequest(request: Request): Promise<AuthSessionContext | null> {
+  return getSessionFromToken(getSessionTokenFromRequest(request))
 }
 
 export async function revokeSessionFromRequest(request: Request) {

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { PREDEFINED_ROLES, initializeDefaultRoles } from '@/lib/role-service'
+import { setSetupState } from '@/lib/setup-service'
 import { sendEmail } from '@/lib/email-service'
 import {
   generateToken,
@@ -312,6 +313,8 @@ export async function activateMemberInvite(params: {
       },
     }),
   ])
+
+  await setSetupState('completed')
 
   return {
     userId: user.id,

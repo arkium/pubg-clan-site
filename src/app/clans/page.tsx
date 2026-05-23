@@ -51,7 +51,7 @@ export default function ClansPage() {
 
   function handleSelect(clanId: number) {
     setClanId(clanId)
-    router.push(`/clans/${clanId}/members`)
+    router.push('/members')
   }
 
   return (

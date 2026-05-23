@@ -1,30 +1,18 @@
-'use client'
+import FirstRunSetup from '@/components/FirstRunSetup'
+import HomeRedirect from '@/components/HomeRedirect'
+import PendingActivation from '@/components/PendingActivation'
+import { getSetupState } from '@/lib/setup-service'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+export default async function Home() {
+  const setupState = await getSetupState()
 
-import { useSelectedClan } from '@/hooks/useSelectedClan'
+  if (setupState === 'first_run') {
+    return <FirstRunSetup />
+  }
 
-export default function Home() {
-  const router = useRouter()
-  const { clanId, hydrated } = useSelectedClan()
+  if (setupState === 'pending_activation') {
+    return <PendingActivation />
+  }
 
-  useEffect(() => {
-    if (!hydrated) {
-      return
-    }
-
-    if (clanId) {
-      router.replace(`/clans/${clanId}/members`)
-      return
-    }
-
-    router.replace('/clans')
-  }, [clanId, hydrated, router])
-
-  return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <p className="text-sm text-gray-600">Redirection...</p>
-    </main>
-  )
+  return <HomeRedirect />
 }

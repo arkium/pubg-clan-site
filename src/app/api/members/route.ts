@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
 import { ensureTrackedClanForPlayer, getOrCreateUngroupedClan, syncTrackedClanStats } from '@/lib/clan-service'
+import { requirePermission } from '@/middleware/auth-permission'
 import { z } from 'zod'
 
 /**
@@ -23,6 +24,11 @@ const AddMemberSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
+    const permissionError = await requirePermission('manage_members')(request)
+    if (permissionError) {
+      return permissionError
+    }
+
     const body = await request.json()
 
     // Valider l'entrée

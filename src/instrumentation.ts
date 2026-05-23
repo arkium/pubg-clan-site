@@ -3,7 +3,17 @@ export async function register() {
     return
   }
 
-  const { initCronJobs } = await import('@/lib/cron-jobs')
+  // Explicit opt-in to avoid loading cron dependencies during normal local dev boot.
+  if (process.env.ENABLE_CRON_BOOTSTRAP !== 'true') {
+    return
+  }
 
-  initCronJobs()
+  const dynamicImport = new Function(
+    'modulePath',
+    'return import(modulePath)'
+  ) as (modulePath: string) => Promise<{ initCronJobs: () => Promise<void> | void }>
+
+  const { initCronJobs } = await dynamicImport('./lib/cron-jobs')
+
+  await initCronJobs()
 }

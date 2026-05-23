@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 interface Member {
   id: number
@@ -19,66 +21,28 @@ interface Member {
   } | null
 }
 
-const PLATFORM_OPTIONS = [
-  { value: 'steam', label: 'Steam' },
-  { value: 'console', label: 'Console' },
-  { value: 'kakao', label: 'Kakao' },
-]
-
 export default function MembersPage() {
+  const { permissions } = useAuthSession()
   const [members, setMembers] = useState<Member[]>([])
-  const [loading, setLoading] = useState(false)
-  const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null)
-  const [displayName, setDisplayName] = useState('')
-  const [pubgPlayerName, setPubgPlayerName] = useState('')
-  const [platformShard, setPlatformShard] = useState('steam')
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-
-  // Charger les membres au démarrage
-  useEffect(() => {
-    fetchMembers()
-  }, [])
+  const canManageMembers = useMemo(
+    () => permissions.includes('*') || permissions.includes('manage_members'),
+    [permissions]
+  )
 
   // Récupérer la liste des membres
   async function fetchMembers() {
+    setLoading(true)
     try {
       const res = await fetch('/api/members')
-      const data = await res.json()
-      setMembers(data)
-    } catch (err) {
-      console.error('Error fetching members:', err)
-    }
-  }
-
-  // Ajouter un membre
-  async function handleAddMember(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
-    setLoading(true)
-
-    try {
-      const res = await fetch('/api/members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          displayName,
-          pubgPlayerName,
-          platformShard,
-        }),
-      })
+      const data = (await res.json()) as Member[] | { error?: string }
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to add member')
+        throw new Error('error' in data ? data.error : 'Failed to fetch members')
       }
 
-      setSuccess('Member added successfully!')
-      setDisplayName('')
-      setPubgPlayerName('')
-      setPlatformShard('steam')
-      await fetchMembers()
+      setMembers(data as Member[])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -86,109 +50,48 @@ export default function MembersPage() {
     }
   }
 
-  async function handleDeleteMember(member: Member) {
-    const confirmed = window.confirm(
-      `Stop tracking ${member.displayName} (${member.pubgPlayerName})?`
-    )
+  // Charger les membres au démarrage
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void fetchMembers()
+    }, 0)
 
-    if (!confirmed) {
-      return
+    return () => {
+      window.clearTimeout(timeoutId)
     }
-
-    setError('')
-    setSuccess('')
-    setDeletingMemberId(member.id)
-
-    try {
-      const res = await fetch(`/api/members/${member.id}`, {
-        method: 'DELETE',
-      })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to delete member')
-      }
-
-      setSuccess('Member removed from tracking successfully!')
-      await fetchMembers()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setDeletingMemberId(null)
-    }
-  }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Clan Members</h1>
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold">Clan Members</h1>
 
-        {/* Formulaire d'ajout */}
-        <div className="bg-white rounded shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4">Add Member</h2>
-          <form onSubmit={handleAddMember} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Display Name
-              </label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g., John"
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                PUBG Player Name
-              </label>
-              <input
-                type="text"
-                value={pubgPlayerName}
-                onChange={(e) => setPubgPlayerName(e.target.value)}
-                placeholder="e.g., ProGamer123"
-                className="w-full px-3 py-2 border rounded"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Platform
-              </label>
-              <select
-                value={platformShard}
-                onChange={(e) => setPlatformShard(e.target.value)}
-                className="w-full px-3 py-2 border rounded"
+          {canManageMembers ? (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/members/add"
+                className="rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
               >
-                {PLATFORM_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                Ajouter un joueur
+              </Link>
+              <Link
+                href="/members/manage"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Gérer les joueurs
+              </Link>
             </div>
-
-            {error && <div className="text-red-600 text-sm">{error}</div>}
-            {success && <div className="text-green-600 text-sm">{success}</div>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {loading ? 'Adding...' : 'Add Member'}
-            </button>
-          </form>
+          ) : null}
         </div>
 
-        {/* Liste des membres - version responsive et moderne */}
         <div className="bg-white rounded shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
             Members ({members.length})
           </h2>
-          {members.length === 0 ? (
+          {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+          {loading ? <p className="text-sm text-gray-500">Chargement des membres...</p> : null}
+          {!loading && members.length === 0 ? (
             <p className="text-gray-500">No members yet</p>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -251,14 +154,6 @@ export default function MembersPage() {
                     >
                       Notifications
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteMember(member)}
-                      disabled={deletingMemberId === member.id}
-                      className="flex-1 min-w-[120px] rounded border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 text-center"
-                    >
-                      {deletingMemberId === member.id ? 'Removing...' : 'Stop tracking'}
-                    </button>
                   </div>
                 </div>
               ))}

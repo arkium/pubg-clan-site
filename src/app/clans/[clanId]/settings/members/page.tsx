@@ -214,7 +214,7 @@ export default function ClanMembersSettingsPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/clans/${clanId}/members`}
+            href="/members/manage"
             className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Membres

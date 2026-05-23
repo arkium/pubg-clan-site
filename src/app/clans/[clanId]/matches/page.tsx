@@ -71,7 +71,7 @@ export default function ClanMatchesPage() {
           </p>
         </div>
         <Link
-          href={`/clans/${clanId}/members`}
+          href="/members"
           className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Voir les membres

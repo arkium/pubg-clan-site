@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { authenticateUser } from '@/lib/auth-service'
 import { createSession, setSessionCookie } from '@/lib/auth-session'
+import { getSetupState } from '@/lib/setup-service'
 
 const LoginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -11,6 +12,14 @@ const LoginSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const setupState = await getSetupState()
+    if (setupState === 'pending_activation') {
+      return NextResponse.json(
+        { error: "Initialisation en attente: activez d'abord le compte Owner." },
+        { status: 403 }
+      )
+    }
+
     const body = (await request.json().catch(() => null)) as unknown
     const validated = LoginSchema.safeParse(body)
 

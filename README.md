@@ -139,6 +139,21 @@ Compatibilite: l'ancien payload avec `clanId` reste accepte pour les scripts exi
 
 ## Separation local / serveur
 
+## Version Node recommandee
+
+Utiliser Node LTS (22.x) pour le developpement local.
+
+- Recommande: `22.22.3`
+- Eviter Node 24.x sur Windows pour `next dev` (crashs natifs V8 observes)
+
+Si vous utilisez nvm:
+
+```bash
+nvm install 22.22.3
+nvm use 22.22.3
+node -v
+```
+
 Le projet utilise des variables d'environnement pour separer les contextes local et serveur.
 
 - Prisma lit `DATABASE_URL` depuis `.env`
@@ -158,6 +173,25 @@ Variables d'URL et role de chaque variable :
 - `INTERNAL_APP_URL` sert aux appels internes (cron vers API locale), donc loopback en HTTP est ideal pour eviter un aller-retour via le proxy.
 
 Pourquoi : les commandes Prisma chargent naturellement `.env`, alors qu'un `DATABASE_URL` present uniquement dans `.env.local` peut ne pas etre vu par `prisma migrate` ou `prisma generate`.
+
+## Initialisation first-run (UI)
+
+Au premier demarrage (base vide: aucun compte et aucun membre), la racine `/` affiche un assistant d'initialisation:
+
+1. Saisir le nom affiche, pseudo PUBG, plateforme et email Owner.
+2. L'application cree le premier membre, detecte/cree le clan, puis genere l'invitation Owner.
+3. Redirection automatique vers `activationUrl` pour definir le mot de passe.
+
+Cette page d'initialisation est automatiquement desactivee apres creation du premier membre.
+
+L'etat est persiste en base via la table `AppConfig` (cle `setup_completed=true`).
+La verification first-run est faite cote serveur avant rendu de la page d'accueil,
+pour eviter l'affichage transitoire d'une autre page.
+
+Pendant le first-run, un proxy Next force la navigation vers `/`:
+
+- toutes les pages UI (ex: `/members`, `/clans`, `/login`) sont redirigees vers `/`
+- les routes API restent accessibles pour que l'initialisation fonctionne
 
 ## Cron de synchronisation des matchs
 

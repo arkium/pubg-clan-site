@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
-import { requirePermission } from '@/middleware/auth-permission'
+import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
 type PermissionMap = Record<string, boolean>
 
@@ -40,9 +40,15 @@ export async function GET(
 
     const permissionError = await requirePermission('manage_members')(request, {
       clanId: parsedClanId,
+      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError
+    }
+
+    const actorMemberId = await getActorMemberId(request)
+    if (!actorMemberId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const clan = await prisma.clan.findUnique({

@@ -29,6 +29,7 @@ export async function POST(
 
     const permissionError = await requirePermission('manage_members')(request, {
       clanId: parsedClanId,
+      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError
@@ -47,6 +48,10 @@ export async function POST(
       getSessionFromRequest(request),
       getActorMemberId(request),
     ])
+
+    if (!actorMemberId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const invite = await createMemberInvite({
       clanId: parsedClanId,

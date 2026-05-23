@@ -1,18 +1,82 @@
 'use client'
 
-import { Suspense, type FormEvent, useMemo, useState } from 'react'
+import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+
+import PendingActivation from '@/components/PendingActivation'
+
+type WelcomeSettings = {
+  badge: string
+  title: string
+  message: string
+  imageUrl: string | null
+}
+
+const DEFAULT_WELCOME: WelcomeSettings = {
+  badge: 'Bienvenue au clan',
+  title: 'Connexion escouade',
+  message:
+    'Connectez-vous pour retrouver vos statistiques, votre progression et les outils de coordination du clan.',
+  imageUrl: null,
+}
 
 function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const redirectTo = useMemo(() => searchParams.get('redirect'), [searchParams])
+  const [setupState, setSetupState] = useState<
+    'completed' | 'pending_activation' | 'first_run' | 'loading'
+  >('loading')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_WELCOME)
+  const [clanLabel, setClanLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSetupState() {
+      try {
+        const [setupResponse, welcomeResponse] = await Promise.all([
+          fetch('/api/setup/status', { cache: 'no-store' }),
+          fetch('/api/settings/login-welcome', { cache: 'no-store' }),
+        ])
+
+        const setupPayload = (await setupResponse.json().catch(() => null)) as
+          | { setupState?: 'completed' | 'pending_activation' | 'first_run' }
+          | null
+        const welcomePayload = (await welcomeResponse.json().catch(() => null)) as
+          | { settings?: WelcomeSettings; clanLabel?: string | null }
+          | null
+
+        if (!cancelled) {
+          setSetupState(setupResponse.ok ? (setupPayload?.setupState ?? 'completed') : 'completed')
+          if (welcomeResponse.ok) {
+            setWelcome(welcomePayload?.settings ?? DEFAULT_WELCOME)
+            setClanLabel(welcomePayload?.clanLabel ?? null)
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setSetupState('completed')
+        }
+      }
+    }
+
+    void loadSetupState()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (setupState === 'pending_activation') {
+    return <PendingActivation />
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -54,49 +118,79 @@ function LoginPageContent() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 items-center px-4 py-10">
-      <section className="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-900">Connexion</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Utilisez l&apos;email invite et votre mot de passe.
-        </p>
+    <main className="relative flex flex-1 items-center overflow-hidden px-4 py-10 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_44%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.14),_transparent_40%)]" />
 
-        <form className="mt-6 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
-          <label className="block text-sm text-gray-700">
-            Email
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              autoComplete="email"
+      <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="relative bg-slate-900 p-7 text-white sm:p-10">
+          {welcome.imageUrl ? (
+            <img
+              src={welcome.imageUrl}
+              alt="Visuel du clan"
+              className="absolute inset-0 h-full w-full object-cover opacity-35"
             />
-          </label>
+          ) : null}
+          <div className="absolute inset-0 bg-slate-900/72" />
+          <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
+          <div className="pointer-events-none absolute -right-14 bottom-8 h-52 w-52 rounded-full bg-sky-500/30 blur-2xl" />
 
-          <label className="block text-sm text-gray-700">
-            Mot de passe
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              autoComplete="current-password"
-            />
-          </label>
+          <p className="relative z-10 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
+            {welcome.badge}
+          </p>
+          <h1 className="relative z-10 mt-4 text-3xl font-black leading-tight sm:text-4xl">{welcome.title}</h1>
+          <p className="relative z-10 mt-4 max-w-md text-sm text-slate-200">{welcome.message}</p>
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {clanLabel ? (
+            <p className="relative z-10 mt-6 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">
+              {clanLabel}
+            </p>
+          ) : null}
+        </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
-          >
-            {submitting ? 'Connexion...' : 'Se connecter'}
-          </button>
-        </form>
+        <div className="p-7 sm:p-10">
+          <h2 className="text-2xl font-black text-slate-900">Se connecter</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Entrez vos identifiants. Si l'initialisation est en attente, activez d'abord le compte
+            Owner via le lien d'activation.
+          </p>
+
+          <form className="mt-7 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+            <label className="block text-sm font-medium text-slate-700">
+              Email
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                autoComplete="email"
+              />
+            </label>
+
+            <label className="block text-sm font-medium text-slate-700">
+              Mot de passe
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                autoComplete="current-password"
+              />
+            </label>
+
+            {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            >
+              {submitting ? 'Connexion...' : 'Se connecter'}
+            </button>
+          </form>
+        </div>
       </section>
     </main>
   )

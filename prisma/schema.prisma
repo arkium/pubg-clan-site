@@ -182,6 +182,15 @@ model Permission {
   @@map("Permission")
 }
 
+model AppConfig {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("AppConfig")
+}
+
 model Notification {
   id       String     @id @default(cuid())
   memberId Int

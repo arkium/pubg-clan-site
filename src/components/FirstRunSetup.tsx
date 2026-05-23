@@ -59,13 +59,8 @@ export default function FirstRunSetup() {
         return
       }
 
-      const activationUrl = payload?.invite?.activationUrl
-      if (activationUrl) {
-        window.location.href = activationUrl
-        return
-      }
-
-      router.replace('/login')
+      router.replace('/')
+      router.refresh()
     } catch {
       setError('Erreur reseau pendant l\'initialisation')
     } finally {

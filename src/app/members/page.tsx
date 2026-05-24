@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 
@@ -22,14 +23,26 @@ interface Member {
 }
 
 export default function MembersPage() {
-  const { permissions } = useAuthSession()
+  const router = useRouter()
+  const { loading: authLoading, authenticated, permissions } = useAuthSession()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [sortOrder, setSortOrder] = useState<'az' | 'za'>('az')
+  const [expandedMemberId, setExpandedMemberId] = useState<number | null>(null)
   const canManageMembers = useMemo(
     () => permissions.includes('*') || permissions.includes('manage_members'),
     [permissions]
   )
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((left, right) => {
+      const comparison = left.displayName.localeCompare(right.displayName, 'fr', {
+        sensitivity: 'base',
+      })
+
+      return sortOrder === 'az' ? comparison : comparison * -1
+    })
+  }, [members, sortOrder])
 
   // Récupérer la liste des membres
   async function fetchMembers() {
@@ -52,6 +65,15 @@ export default function MembersPage() {
 
   // Charger les membres au démarrage
   useEffect(() => {
+    if (authLoading) {
+      return
+    }
+
+    if (!authenticated) {
+      router.replace('/login')
+      return
+    }
+
     const timeoutId = window.setTimeout(() => {
       void fetchMembers()
     }, 0)
@@ -59,25 +81,64 @@ export default function MembersPage() {
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [])
+  }, [authLoading, authenticated, router])
+
+  if (authLoading) {
+    return (
+      <main className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
+        <p className="text-sm text-gray-600">Verification de la session...</p>
+      </main>
+    )
+  }
+
+  if (!authenticated) {
+    return (
+      <main className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
+        <p className="text-sm text-gray-600">Redirection vers la connexion...</p>
+      </main>
+    )
+  }
+
+  function toggleMemberCard(memberId: number) {
+    setExpandedMemberId((current) => (current === memberId ? null : memberId))
+  }
+
+  function renderChevron(expanded: boolean) {
+    return (
+      <span
+        className={`mt-3 inline-flex h-9 w-9 items-center justify-center self-center rounded-full border border-slate-200 bg-white text-slate-500 transition ${expanded ? 'rotate-180' : ''}`}
+        aria-hidden="true"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M3.5 6L8 10.5L12.5 6"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-100 px-3 py-6 sm:px-4 sm:py-8">
+      <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Clan Members</h1>
+          <h1 className="text-3xl font-bold">Membres du clan</h1>
 
           {canManageMembers ? (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
               <Link
                 href="/members/add"
-                className="rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-indigo-200 bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 sm:min-h-11 sm:rounded-lg sm:px-4"
               >
                 Ajouter un joueur
               </Link>
               <Link
                 href="/members/manage"
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11 sm:rounded-lg sm:px-4"
               >
                 Gérer les joueurs
               </Link>
@@ -85,78 +146,105 @@ export default function MembersPage() {
           ) : null}
         </div>
 
-        <div className="bg-white rounded shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Members ({members.length})
-          </h2>
+        <div className="rounded bg-white p-4 shadow sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="text-xl font-semibold">
+              Joueurs ({members.length})
+            </h2>
+            <label className="flex w-full max-w-xs flex-col gap-1 text-sm font-medium text-slate-700 sm:w-auto">
+              Trier les joueurs
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value as 'az' | 'za')}
+                className="min-h-10 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm sm:min-h-11 sm:rounded-lg"
+              >
+                <option value="az">Nom A-Z</option>
+                <option value="za">Nom Z-A</option>
+              </select>
+            </label>
+          </div>
           {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
           {loading ? <p className="text-sm text-gray-500">Chargement des membres...</p> : null}
           {!loading && members.length === 0 ? (
             <p className="text-gray-500">No members yet</p>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {members.map((member) => (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
+              {sortedMembers.map((member) => {
+                const isExpanded = expandedMemberId === member.id
+
+                return (
                 <div
                   key={member.id}
-                  className="flex flex-col h-full border rounded-lg bg-gray-50 p-4 shadow-sm"
+                  className={`mx-auto flex h-full w-full max-w-[19rem] flex-col rounded-lg border bg-gray-50 p-3 shadow-sm transition sm:max-w-none sm:p-4 ${isExpanded ? 'border-slate-300 shadow-md' : ''}`}
                 >
-                  <div className="flex items-center gap-4 mb-3">
-                    {/* Avatar (avatarUrl si dispo, sinon fallback SVG) */}
-                    <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border">
-                      {member.avatarUrl ? (
-                        <img
-                          src={member.avatarUrl}
-                          alt={member.displayName + ' avatar'}
-                          className="w-14 h-14 object-cover rounded-full"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                        />
-                      ) : (
-                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="20" cy="20" r="20" fill="#CBD5E1" />
-                          <text x="50%" y="55%" textAnchor="middle" fill="#64748B" fontSize="18" fontFamily="Arial" dy=".3em">
-                            {member.displayName.charAt(0).toUpperCase()}
-                          </text>
-                        </svg>
-                      )}
+                  <button
+                    type="button"
+                    onClick={() => toggleMemberCard(member.id)}
+                    className="mb-3 flex w-full flex-col text-left"
+                    aria-expanded={isExpanded}
+                  >
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gray-200 sm:h-14 sm:w-14">
+                        {member.avatarUrl ? (
+                          <img
+                            src={member.avatarUrl}
+                            alt={member.displayName + ' avatar'}
+                            className="h-12 w-12 rounded-full object-cover sm:h-14 sm:w-14"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="20" cy="20" r="20" fill="#CBD5E1" />
+                            <text x="50%" y="55%" textAnchor="middle" fill="#64748B" fontSize="18" fontFamily="Arial" dy=".3em">
+                              {member.displayName.charAt(0).toUpperCase()}
+                            </text>
+                          </svg>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-base font-semibold sm:text-lg">{member.displayName}</p>
+                        <p className="truncate text-sm text-gray-600">{member.pubgPlayerName}</p>
+                        <p className="truncate text-xs text-gray-500">ID: {member.pubgAccountId}</p>
+                        {member.clan ? (
+                          <p className="truncate text-xs text-gray-500">
+                            Clan: {member.clan.name} [{member.clan.tag}]
+                          </p>
+                        ) : (
+                          <p className="truncate text-xs text-gray-400">Clan: no PUBG clan detected</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{member.displayName}</p>
-                      <p className="text-sm text-gray-600 truncate">{member.pubgPlayerName}</p>
-                      <p className="text-xs text-gray-500 truncate">ID: {member.pubgAccountId}</p>
-                      {member.clan ? (
-                        <p className="text-xs text-gray-500 truncate">
-                          Clan: {member.clan.name} [{member.clan.tag}]
-                        </p>
-                      ) : (
-                        <p className="text-xs text-gray-400 truncate">Clan: no PUBG clan detected</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-auto">
-                    <span className="inline-block text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 font-medium">
+                    {renderChevron(isExpanded)}
+                    <span className="sr-only">
+                      {isExpanded ? 'Masquer les actions' : 'Afficher les actions'}
+                    </span>
+                  </button>
+                  <div className={`${isExpanded ? 'flex' : 'hidden'} mt-auto flex-col gap-2`}>
+                    <span className="inline-block rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
                       {member.platformShard}
                     </span>
                     <Link
                       href={`/members/${member.id}/dashboard`}
-                      className="flex-1 min-w-[120px] rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 text-center"
+                      className="w-full rounded bg-blue-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700 sm:min-w-[120px] sm:flex-1"
                     >
-                      Dashboard
+                      Tableau de bord
                     </Link>
                     <Link
                       href={`/members/${member.id}/matches`}
-                      className="flex-1 min-w-[120px] rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 text-center"
+                      className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50 sm:min-w-[120px] sm:flex-1"
                     >
-                      View matches
+                      Voir les matchs
                     </Link>
                     <Link
                       href={`/members/${member.id}/notifications`}
-                      className="flex-1 min-w-[120px] rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 text-center"
+                      className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50 sm:min-w-[120px] sm:flex-1"
                     >
                       Notifications
                     </Link>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

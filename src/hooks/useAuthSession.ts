@@ -35,13 +35,23 @@ export function useAuthSession() {
   const [state, setState] = useState<AuthSessionState>(INITIAL_STATE)
 
   const refresh = useCallback(async () => {
+    async function resetToLoggedOut(clearCookie: boolean) {
+      if (clearCookie) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+        }).catch(() => undefined)
+      }
+
+      setState({ ...INITIAL_STATE, loading: false })
+    }
+
     try {
       const response = await fetch('/api/auth/session', {
         cache: 'no-store',
       })
 
       if (!response.ok) {
-        setState({ ...INITIAL_STATE, loading: false })
+        await resetToLoggedOut(response.status === 401)
         return
       }
 
@@ -62,7 +72,7 @@ export function useAuthSession() {
         members: data.members,
       })
     } catch {
-      setState({ ...INITIAL_STATE, loading: false })
+      await resetToLoggedOut(false)
     }
   }, [])
 

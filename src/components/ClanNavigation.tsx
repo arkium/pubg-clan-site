@@ -337,8 +337,9 @@ export default function ClanNavigation() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur">
       <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1" aria-live="polite">
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+          <div className="flex items-start justify-between gap-3 md:min-w-0 md:flex-1">
+            <div className="min-w-0 flex-1 space-y-1" aria-live="polite">
             <div className="truncate text-sm font-semibold text-slate-800">
               {clanId && clan ? (
                 <span>
@@ -356,9 +357,20 @@ export default function ClanNavigation() {
             ) : (
               <p className="text-xs text-amber-700">Session non connectée</p>
             )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMobileOpen((current) => !current)}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 md:hidden"
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-clan-nav"
+            >
+              Menu
+            </button>
           </div>
 
-          <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+          <div className="flex w-full items-center gap-2 md:w-auto md:justify-end">
             {authenticated ? (
               <select
                 value={activeMemberId ?? ''}
@@ -368,7 +380,7 @@ export default function ClanNavigation() {
                     void handleSwitchMember(memberId)
                   }
                 }}
-                className="min-w-36 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700"
+                className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 md:min-w-36 md:flex-none"
               >
                 <option value="" disabled>
                   Membre actif
@@ -385,28 +397,18 @@ export default function ClanNavigation() {
               <button
                 type="button"
                 onClick={() => void handleLogout()}
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Se déconnecter
               </button>
             ) : (
               <Link
                 href="/login"
-                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Connexion
               </Link>
             )}
-
-            <button
-              type="button"
-              onClick={() => setMobileOpen((current) => !current)}
-              className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 md:hidden"
-              aria-expanded={mobileOpen}
-              aria-controls="mobile-clan-nav"
-            >
-              Menu
-            </button>
           </div>
         </div>
 

@@ -3,14 +3,21 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function HomeRedirect() {
   const router = useRouter()
+  const { loading: authLoading, authenticated } = useAuthSession()
   const { clanId, hydrated } = useSelectedClan()
 
   useEffect(() => {
-    if (!hydrated) {
+    if (!hydrated || authLoading) {
+      return
+    }
+
+    if (!authenticated) {
+      router.replace('/login')
       return
     }
 
@@ -20,11 +27,13 @@ export default function HomeRedirect() {
     }
 
     router.replace('/clans')
-  }, [clanId, hydrated, router])
+  }, [authenticated, authLoading, clanId, hydrated, router])
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <p className="text-sm text-gray-600">Redirection...</p>
+      <p className="text-sm text-gray-600">
+        {authLoading ? 'Verification de la session...' : 'Redirection...'}
+      </p>
     </main>
   )
 }

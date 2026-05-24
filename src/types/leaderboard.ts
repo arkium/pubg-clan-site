@@ -5,6 +5,7 @@ export interface PlayerStatsEntry {
   id: string
   memberId: number
   displayName: string
+  avatarUrl?: string | null
   period: string
   periodType: string
 

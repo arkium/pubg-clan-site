@@ -1,159 +1,145 @@
-## Demarrage local
+# PUBG Clan Site
 
-Prerequis :
+Application Next.js pour gestion de clan PUBG: membres, roles, invitations par email, stats et rapports.
 
-- Node.js installe localement
-- MariaDB ou MySQL disponible localement
-- une base creee pour le projet
+## DEV (essentiel)
 
-### 1. Installer les dependances
+### Prerequis
+
+- Node.js 22 LTS (recommande: 22.22.3)
+- MySQL/MariaDB accessible
+- Base de donnees creee
+
+Le projet bloque Node 24 en `npm run dev`.
+
+### Installation
 
 ```bash
 npm install
 ```
 
-### 2. Creer les variables d'environnement
-
-Copier `.env.example` vers `.env` puis adapter les valeurs locales.
-
-Exemple minimal :
+### Variables `.env` (minimum)
 
 ```env
 DATABASE_URL="mysql://user:password@localhost:3306/pubg_clan_site"
 PUBG_API_KEY="your-pubg-api-key"
 PUBG_BASE_URL="https://api.pubg.com"
+
 APP_URL="http://localhost:3000"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 INTERNAL_APP_URL="http://127.0.0.1:3000"
+
 ENABLE_CRON_JOBS="false"
+AUTH_ALLOW_LEGACY_ACTOR_ID="false"
+AUTH_BOOTSTRAP_SECRET="change-me-long-random-string"
 ```
 
-### 3. Initialiser Prisma
+Important:
 
-Si les migrations doivent etre appliquees :
+- Prisma lit `DATABASE_URL` depuis `.env`.
+- Eviter de mettre `DATABASE_URL` uniquement dans `.env.local`.
+
+### Base de donnees
+
+Appliquer les migrations:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-Si tu veux seulement aligner la base locale sur le schema pendant le dev :
+Alternative dev (sans migrations):
 
 ```bash
 npx prisma db push
 ```
 
-### 4. Lancer le projet
+### Lancement
 
 ```bash
 npm run dev
 ```
 
-L'application sera disponible sur http://localhost:3000.
+Application: http://localhost:3000
 
-## Separation local / serveur
+## Invitations email
 
-Le projet utilise des variables d'environnement pour separer les contextes local et serveur.
+### Variables SMTP requises
 
-- Prisma lit `DATABASE_URL` depuis `.env`
-- Next.js lit automatiquement `.env` et `.env.local`
-- les scripts de deploiement serveur peuvent injecter les variables d'environnement systeme puis generer un `.env`
+Le test email et l'affichage du bouton `Inviter` dependent de ces variables:
 
-Recommendation pratique :
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
 
-- local : utiliser `.env` pour toutes les variables backend, en particulier `DATABASE_URL`
-- local optionnel : utiliser `.env.local` uniquement pour des overrides de confort non necessaires a Prisma
-- serveur : utiliser des variables d'environnement systeme ou un `.env` genere au deploiement
+Exemple:
 
-Pourquoi : les commandes Prisma chargent naturellement `.env`, alors qu'un `DATABASE_URL` present uniquement dans `.env.local` peut ne pas etre vu par `prisma migrate` ou `prisma generate`.
-
-## Cron de synchronisation des matchs
-
-- `src/instrumentation.ts` initialise les crons cote serveur au demarrage de l'application.
-- `ENABLE_CRON_JOBS=true` active le worker cron en production (laisser desactive sur les autres workers).
-- `CLAN_MATCH_SYNC_CRON` permet de surcharger l'expression cron (`0 2 * * *` par defaut).
-- `CLAN_MATCH_SYNC_TIMEZONE` permet de choisir le fuseau horaire (`UTC` par defaut).
-- `WEEKLY_REPORT_GENERATION_CRON` permet de surcharger la generation des rapports hebdo (`0 8 * * 1` par defaut).
-- `MONTHLY_REPORT_GENERATION_CRON` permet de surcharger la generation des rapports mensuels (`0 8 1 * *` par defaut).
-- `INTERNAL_APP_URL` peut etre utilise pour forcer l'URL interne appelee par les jobs planifies.
-
-### Verification rapide du cron (PowerShell)
-
-Verifier si le cron est initialise :
-
-```powershell
-Select-String -Path .\local.log -Encoding Unicode -Pattern "\[Cron\]" | Select-Object -Last 30
+```env
+SMTP_HOST="smtp.sendgrid.net"
+SMTP_PORT="587"
+SMTP_USER="apikey"
+SMTP_PASS="your-secret"
+SMTP_FROM="PUBG Clan <no-reply@example.com>"
 ```
 
-Messages attendus :
+### Validation dans l'UI
 
-- actif : lignes `scheduled with ...` (ex: `Nightly clan sync scheduled with ...`)
-- inactif : `Skipping cron initialization because this worker is not designated to run scheduled jobs`
+1. Ouvrir `/settings/email-delivery` (Owner/Admin `manage_settings`).
+2. Verifier l'etat des variables `.env` affichees.
+3. Si complet, lancer `Envoyer un email test`.
+4. En cas de besoin, utiliser `Revoquer la validation`.
+5. Bouton `Recharger le statut` disponible pour relire la config sans recharger la page.
 
-Verifier une execution de sync (cron ou manuel) :
+Si la config SMTP est incomplete:
 
-```powershell
-Select-String -Path .\local.log -Encoding Unicode -Pattern "\[Clan Sync\]|\[ApiQueue" | Select-Object -Last 80
-```
+- le bouton de test est masque
+- un exemple `.env` est affiche
+- les boutons `Inviter` sont masques dans `/clans/[clanId]/settings/members`
 
-Tester manuellement les endpoints (utile en local) :
+## Auth et first-run
 
-```powershell
-Invoke-WebRequest -Uri http://localhost:3000/api/clans/2/sync-matches -Method POST
-Invoke-WebRequest -Uri http://localhost:3000/api/clans/2/sync-stats -Method POST
-```
+- Au premier lancement (base vide), l'accueil guide la creation du premier membre.
+- Le flux d'activation passe par `/activate?token=...`.
+- Le bootstrap Owner peut aussi etre fait via `/api/auth/bootstrap-owner-invite` avec `x-bootstrap-secret`.
 
-Note : sous PowerShell, eviter `curl -X POST ...` car `curl` est un alias de `Invoke-WebRequest`.
+## PROD (essentiel)
 
-## Configuration serveur (production)
+### Checklist
 
-### Checklist de base
-
-- Configurer les variables d'environnement de l'application :
-	- `DATABASE_URL`
-	- `PUBG_API_KEY`
-	- `APP_URL`
-	- `NEXT_PUBLIC_APP_URL`
-	- `INTERNAL_APP_URL`
-	- `ENABLE_CRON_JOBS`
-- Appliquer les migrations Prisma :
+1. Definir toutes les variables critiques (`DATABASE_URL`, `PUBG_API_KEY`, URLs, SMTP, auth secret).
+2. Appliquer les migrations:
 
 ```bash
 npx prisma migrate deploy
 ```
 
-- Builder puis lancer l'application :
+3. Build + start:
 
 ```bash
 npm run build
 npm start
 ```
 
-### Worker cron dedie (important)
+### Recommandations URLs
 
-- Sur une architecture multi-instances, activer `ENABLE_CRON_JOBS=true` sur un seul worker.
-- Sur tous les autres workers, forcer `ENABLE_CRON_JOBS=false` pour eviter les executions en double.
+- `APP_URL`: URL publique serveur (ex: `https://app.mondomaine.com`)
+- `NEXT_PUBLIC_APP_URL`: meme domaine public cote navigateur
+- `INTERNAL_APP_URL`: URL interne locale pour les appels cron (ex: `http://127.0.0.1:3000`)
 
-### Verifier le cron en serveur Linux
+### Cron en production
 
-Verifier les logs d'initialisation et d'execution :
+- Activer `ENABLE_CRON_JOBS=true` sur un seul worker
+- Garder `ENABLE_CRON_JOBS=false` sur les autres workers
 
-```bash
-grep -E "\[Cron\]|\[Clan Sync\]|\[ApiQueue" -n /home/smk/public_html/local.log | tail -n 120
-```
-
-Messages attendus :
-
-- actif : lignes `scheduled with ...`
-- inactif : `Skipping cron initialization because this worker is not designated to run scheduled jobs`
-
-Tester manuellement les endpoints de sync sur l'instance locale :
+Verification logs (exemple Linux):
 
 ```bash
-curl -X POST http://127.0.0.1:3000/api/clans/2/sync-matches
-curl -X POST http://127.0.0.1:3000/api/clans/2/sync-stats
+grep -E "\[Cron\]|\[Clan Sync\]|\[ApiQueue" -n /path/to/app.log | tail -n 120
 ```
 
-### Recommendation INTERNAL_APP_URL
+## Securite
 
-- En production, preferer une URL interne locale (ex: `http://127.0.0.1:3000`) pour `INTERNAL_APP_URL`.
-- Cela evite de faire sortir puis rerentrer les appels cron via le proxy public.
+- Ne jamais versionner `.env` ni des logs contenant des secrets.
+- Tourner les secrets immediatement en cas d'exposition.
+- Eviter de laisser des tokens API dans les historiques Git.

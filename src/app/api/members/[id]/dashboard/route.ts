@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getMapLabels } from '@/lib/map-label-service'
 import { NextResponse } from 'next/server'
 
 import type { DashboardPeriod } from '@/types/dashboard'
@@ -71,6 +72,16 @@ export async function GET(
         platformShard: true,
         createdAt: true,
         clanId: true,
+        identities: {
+          select: {
+            user: {
+              select: {
+                avatarUrl: true,
+              },
+            },
+          },
+          take: 1,
+        },
       },
     })
 
@@ -157,6 +168,7 @@ export async function GET(
     let squads: Array<{
       memberId: number
       displayName: string
+      avatarUrl: string | null
       matchCount: number
       totalKills: number
       totalDamage: number
@@ -170,19 +182,42 @@ export async function GET(
           memberId: { not: memberId },
         },
         include: {
-          member: { select: { id: true, displayName: true } },
+          member: {
+            select: {
+              id: true,
+              displayName: true,
+              identities: {
+                select: {
+                  user: {
+                    select: {
+                      avatarUrl: true,
+                    },
+                  },
+                },
+                take: 1,
+              },
+            },
+          },
           squadMatch: { select: { placement: true } },
         },
       })
 
       const playerMap = new Map<
         number,
-        { displayName: string; matchCount: number; kills: number; damage: number; wins: number }
+        {
+          displayName: string
+          avatarUrl: string | null
+          matchCount: number
+          kills: number
+          damage: number
+          wins: number
+        }
       >()
 
       for (const cp of coPlayers) {
         const existing = playerMap.get(cp.memberId) ?? {
           displayName: cp.member.displayName,
+          avatarUrl: cp.member.identities[0]?.user.avatarUrl ?? null,
           matchCount: 0,
           kills: 0,
           damage: 0,
@@ -199,6 +234,7 @@ export async function GET(
         .map(([pid, data]) => ({
           memberId: pid,
           displayName: data.displayName,
+          avatarUrl: data.avatarUrl,
           matchCount: data.matchCount,
           totalKills: data.kills,
           totalDamage: data.damage,
@@ -212,6 +248,7 @@ export async function GET(
       member: {
         id: member.id,
         displayName: member.displayName,
+        avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
         pubgPlayerName: member.pubgPlayerName,
         platformShard: member.platformShard,
         createdAt: member.createdAt.toISOString(),
@@ -237,6 +274,7 @@ export async function GET(
         pubgCreatedAt: m.pubgCreatedAt.toISOString(),
       })),
       squads,
+      mapLabels: await getMapLabels(),
       period,
     })
   } catch (error) {

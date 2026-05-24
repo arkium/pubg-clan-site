@@ -119,7 +119,6 @@ function LoginPageContent() {
 
         window.localStorage.setItem('canSwitchClan', payload.canSwitchClan ? '1' : '0')
       }
-
       // Si pas de redirect explicite, on va sur le dashboard du membre actif
       if (redirectTo) {
         router.replace(redirectTo)

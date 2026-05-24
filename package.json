@@ -2,8 +2,13 @@
   "name": "pubg-clan-site",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20 <24"
+  },
   "scripts": {
-    "dev": "next dev",
+    "predev": "node -e \"const major=parseInt(process.versions.node.split('.')[0],10); if(major>=24){console.error('Node 24 detecte. Utilise Node 22.22.3 (voir .nvmrc).'); process.exit(1)}\"",
+    "dev": "next dev --webpack",
+    "dev:turbopack": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -11,9 +16,11 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "axios": "^1.16.1",
+    "bcryptjs": "^2.4.3",
     "dotenv": "^17.4.2",
     "next": "16.2.6",
-    "node-cron": "^4.2.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^8.0.8",
     "prisma": "^6.19.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -21,7 +28,10 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^8.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

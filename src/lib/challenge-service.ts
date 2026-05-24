@@ -1,45 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import { CHALLENGE_TYPES, type ChallengeType } from '@/lib/challenge-types'
 import { notifyChallengeStarted } from '@/lib/notification-service'
-
-export const CHALLENGE_TYPES = {
-  KILL_RACE: {
-    key: 'kill_race',
-    name: 'Kill Race',
-    description: 'Who can get the most kills?',
-    metric: 'kills',
-    icon: '🔫',
-  },
-  DAMAGE_RACE: {
-    key: 'damage_race',
-    name: 'Damage Race',
-    description: 'Highest damage dealer wins!',
-    metric: 'damage',
-    icon: '💥',
-  },
-  WIN_STREAK: {
-    key: 'win_streak',
-    name: 'Win Streak',
-    description: 'Most squad wins',
-    metric: 'squadWins',
-    icon: '🏆',
-  },
-  SQUAD_SYNERGY: {
-    key: 'squad_synergy',
-    name: 'Squad Synergy',
-    description: 'Best 3-member squad performance',
-    metric: 'squadStats',
-    icon: '👥',
-  },
-  SURVIVAL_EXPERT: {
-    key: 'survival_expert',
-    name: 'Survival Expert',
-    description: 'Best placement average',
-    metric: 'placementAverage',
-    icon: '🎖️',
-  },
-} as const
-
-export type ChallengeType = (typeof CHALLENGE_TYPES)[keyof typeof CHALLENGE_TYPES]['key']
+export { CHALLENGE_TYPES }
+export type { ChallengeType }
 export type ChallengeDuration = 'daily' | 'weekly' | 'monthly'
 export type ChallengeStatus = 'pending' | 'active' | 'ended'
 
@@ -233,7 +196,22 @@ export async function getLeaderboard(challengeId: string) {
     include: {
       participants: {
         include: {
-          member: { select: { id: true, displayName: true } },
+          member: {
+            select: {
+              id: true,
+              displayName: true,
+              identities: {
+                select: {
+                  user: {
+                    select: {
+                      avatarUrl: true,
+                    },
+                  },
+                },
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: { progress: 'desc' },
       },
@@ -256,6 +234,7 @@ export async function getLeaderboard(challengeId: string) {
       rank,
       memberId: participant.memberId,
       displayName: participant.member.displayName,
+      avatarUrl: participant.member.identities[0]?.user.avatarUrl ?? null,
       progress: participant.progress,
       reward: participant.reward ?? potentialReward,
       joinedAt: participant.joinedAt,

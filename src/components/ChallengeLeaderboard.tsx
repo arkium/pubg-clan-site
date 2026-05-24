@@ -1,9 +1,12 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 type LeaderboardEntry = {
   rank: number
   memberId: number
   displayName: string
+  avatarUrl?: string | null
   progress: number
   reward: number
 }
@@ -54,8 +57,28 @@ export default function ChallengeLeaderboard({ leaderboard, currentMemberId, met
                   {MEDAL[entry.rank] ?? `#${entry.rank}`}
                 </td>
                 <td className="px-4 py-2 text-gray-800">
-                  {entry.displayName}
-                  {isMe ? <span className="ml-1 text-xs text-blue-600">(vous)</span> : null}
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-gray-200">
+                      {entry.avatarUrl ? (
+                        <img
+                          src={entry.avatarUrl}
+                          alt={entry.displayName + ' avatar'}
+                          className="h-8 w-8 rounded-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-700">
+                          {entry.displayName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </span>
+                    <span>
+                      {entry.displayName}
+                      {isMe ? <span className="ml-1 text-xs text-blue-600">(vous)</span> : null}
+                    </span>
+                  </div>
                 </td>
                 <td className="px-4 py-2 text-right font-medium text-gray-900">
                   {entry.progress.toLocaleString()}

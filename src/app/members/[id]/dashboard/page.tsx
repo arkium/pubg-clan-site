@@ -10,39 +10,15 @@ import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
 import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
+import MemberSectionNav from '@/components/MemberSectionNav'
+import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { DashboardPeriod } from '@/types/dashboard'
-
-const PERIOD_LABELS: Record<DashboardPeriod, string> = {
-  week: 'Cette semaine',
-  month: 'Ce mois',
-  all: 'Tout le temps',
-}
-
-const MAP_LABELS: Record<string, string> = {
-  Baltic_Main: 'Erangel',
-  Savage_Main: 'Sanhok',
-  Desert_Main: 'Miramar',
-  DihorOtok_Main: 'Vikendi',
-  Range_Main: 'Camp Jackal',
-  Summerland_Main: 'Karakin',
-  Tiger_Main: 'Taego',
-  Kiki_Main: 'Deston',
-  Chimera_Main: 'Paramo',
-  Heaven_Main: 'Haven',
-}
-
-function formatMap(name: string) {
-  return MAP_LABELS[name] ?? name
-}
-
-function daysSince(iso: string): number {
-  const diff = Date.now() - new Date(iso).getTime()
-  return Math.floor(diff / 86400000)
-}
 
 export default function DashboardPage() {
   const params = useParams()
   const memberId = params?.id ? Number(params.id) : null
+  const { clanId } = useSelectedClan()
 
   const [period, setPeriod] = useState<DashboardPeriod>('week')
   const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
@@ -82,67 +58,37 @@ export default function DashboardPage() {
     )
   }
 
-  const { member, stats, clanAverage, progression, topPerformances, squads } = data
+  const { stats, clanAverage, progression, topPerformances, squads, mapLabels } = data
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-4 py-4 shadow-sm">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-3 flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/members" className="hover:text-blue-600 hover:underline">
-              Membres
-            </Link>
-            <span>/</span>
-            <span className="font-medium text-gray-700">
-              {member.displayName || '—'}
-            </span>
-            <span>/</span>
-            <span>Dashboard</span>
-          </div>
-
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            {/* Player info */}
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white">
-                {member.displayName.charAt(0).toUpperCase() || '?'}
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{member.displayName}</h1>
-                <p className="text-sm text-gray-500">
-                  {member.pubgPlayerName} · {member.platformShard}
-                </p>
-                {member.createdAt && (
-                  <p className="text-xs text-gray-400">
-                    Membre depuis {daysSince(member.createdAt)} jours
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Period selector */}
-            <div className="flex rounded border border-gray-200 p-0.5">
-              {(['week', 'month', 'all'] as DashboardPeriod[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPeriod(p)}
-                  className={`rounded px-4 py-1.5 text-sm font-medium transition-colors ${
-                    p === period ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {PERIOD_LABELS[p]}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Content */}
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
+        <MemberPageHeader
+          title="Tableau de bord"
+          subtitle="Vue synthese des performances du joueur."
+          backLabel="Joueurs"
+          actions={
+            clanId ? (
+              <Link
+                href={`/clans/${clanId}/matches`}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Matchs
+              </Link>
+            ) : null
+          }
+        />
+
+        <MemberSectionNav memberId={memberId} />
+
         {/* Stats principales */}
-        <PlayerStats stats={stats} clanAverage={clanAverage} />
+        <PlayerStats
+          stats={stats}
+          clanAverage={clanAverage}
+          period={period}
+          onPeriodChange={setPeriod}
+        />
 
         {/* Progression + Radar */}
         <div className="grid gap-6 md:grid-cols-2">
@@ -154,6 +100,7 @@ export default function DashboardPage() {
         <MatchHistory
           matches={matchData.matches}
           totalCount={matchData.totalCount}
+          mapLabels={matchData.mapLabels}
           period={matchPeriod}
           onPeriodChange={(p) => {
             setMatchPeriod(p)
@@ -192,7 +139,7 @@ export default function DashboardPage() {
                         {m.kills} kills · {Math.round(m.damageDealt)} dmg
                       </p>
                       <p className="text-xs text-gray-500">
-                        #{m.placement} · {formatMap(m.mapName)} ·{' '}
+                        #{m.placement} · {mapLabels[m.mapName] ?? m.mapName} ·{' '}
                         {new Date(m.pubgCreatedAt).toLocaleDateString('fr-FR')}
                       </p>
                     </div>

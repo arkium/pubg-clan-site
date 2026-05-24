@@ -2,9 +2,33 @@ import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
-import { requirePermission } from '@/middleware/auth-permission'
+import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
 type PermissionMap = Record<string, boolean>
+
+const ROLE_PRIORITY: Record<string, number> = {
+  Owner: 4,
+  Admin: 3,
+  Moderator: 2,
+  Member: 1,
+}
+
+function resolvePrimaryRoleName(roleNames: string[]) {
+  if (roleNames.length === 0) {
+    return 'Member'
+  }
+
+  return [...roleNames].sort((left, right) => {
+    const leftPriority = ROLE_PRIORITY[left] ?? 0
+    const rightPriority = ROLE_PRIORITY[right] ?? 0
+
+    if (leftPriority !== rightPriority) {
+      return rightPriority - leftPriority
+    }
+
+    return left.localeCompare(right)
+  })[0]
+}
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -46,6 +70,11 @@ export async function GET(
       return permissionError
     }
 
+    const actorMemberId = await getActorMemberId(request)
+    if (!actorMemberId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const clan = await prisma.clan.findUnique({
       where: { id: parsedClanId },
       select: { id: true },
@@ -63,6 +92,30 @@ export async function GET(
         roles: {
           include: {
             role: true,
+          },
+        },
+        identities: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+        invites: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 5,
+          select: {
+            id: true,
+            email: true,
+            expiresAt: true,
+            acceptedAt: true,
+            revokedAt: true,
+            createdAt: true,
           },
         },
       },
@@ -86,12 +139,37 @@ export async function GET(
             assignedAt: 'desc',
           },
         },
+        identities: {
+          select: {
+            id: true,
+            user: {
+              select: {
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+        invites: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 5,
+          select: {
+            id: true,
+            email: true,
+            expiresAt: true,
+            acceptedAt: true,
+            revokedAt: true,
+            createdAt: true,
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
     })
 
     const payload = refreshedMembers.map((member) => {
       const roleNames = member.roles.map((entry) => entry.role.name)
+      const primaryRole = resolvePrimaryRoleName(roleNames)
       const permissionKeys = new Set<string>()
 
       for (const memberRole of member.roles) {
@@ -106,7 +184,7 @@ export async function GET(
       return {
         id: member.id,
         name: member.displayName,
-        role: roleNames[0] ?? 'Member',
+        role: primaryRole,
         roles: member.roles.map((entry) => ({
           id: entry.id,
           roleId: entry.roleId,
@@ -115,6 +193,20 @@ export async function GET(
         })),
         permissions: Array.from(permissionKeys),
         joinedAt: member.createdAt,
+        hasAccount: member.identities.length > 0,
+        avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
+        pendingInvite:
+          member.invites.find(
+            (invite) => !invite.acceptedAt && !invite.revokedAt && invite.expiresAt > new Date()
+          ) ?? null,
+        recentInvites: member.invites.map((invite) => ({
+          id: invite.id,
+          email: invite.email,
+          createdAt: invite.createdAt,
+          expiresAt: invite.expiresAt,
+          acceptedAt: invite.acceptedAt,
+          revokedAt: invite.revokedAt,
+        })),
       }
     })
 

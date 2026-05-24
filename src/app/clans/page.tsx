@@ -4,16 +4,44 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import ClanSelector, { type Clan } from '@/components/ClanSelector'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function ClansPage() {
   const router = useRouter()
-  const { setClanId, canSwitchClan, hydrated } = useSelectedClan()
+  const { setClanId } = useSelectedClan()
+  const { loading: authLoading, authenticated, permissions } = useAuthSession()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const hasWildcard = permissions.includes('*')
+  const canSwitchClan =
+    hasWildcard ||
+    permissions.includes('manage_members') ||
+    permissions.includes('manage_roles') ||
+    permissions.includes('manage_settings')
+
   useEffect(() => {
+    if (authLoading) {
+      return
+    }
+
+    if (!authenticated) {
+      router.replace('/login')
+      return
+    }
+
+    if (!canSwitchClan) {
+      router.replace('/members')
+    }
+  }, [authLoading, authenticated, canSwitchClan, router])
+
+  useEffect(() => {
+    if (authLoading || !authenticated || !canSwitchClan) {
+      return
+    }
+
     let cancelled = false
 
     async function fetchClans() {
@@ -47,30 +75,30 @@ export default function ClansPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authLoading, authenticated, canSwitchClan])
 
   function handleSelect(clanId: number) {
-    if (!canSwitchClan) {
-      setError('Seuls les Owner/Admin peuvent changer de clan.')
-      return
-    }
-
     const changed = setClanId(clanId)
     if (!changed) {
       setError('Seuls les Owner/Admin peuvent changer de clan.')
       return
     }
 
-    router.push(`/clans/${clanId}/members`)
+    router.push('/members')
   }
 
-  if (hydrated && !canSwitchClan) {
+  if (authLoading) {
     return (
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        <h1 className="mb-2 text-3xl font-bold text-gray-900">Sélection de clan verrouillée</h1>
-        <p className="mb-6 text-sm text-gray-600">
-          Le clan actif est défini automatiquement depuis votre profil en base de données.
-        </p>
+        <p className="text-sm text-gray-600">Verification de la session...</p>
+      </main>
+    )
+  }
+
+  if (!authenticated || !canSwitchClan) {
+    return (
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+        <p className="text-sm text-gray-600">Redirection...</p>
       </main>
     )
   }

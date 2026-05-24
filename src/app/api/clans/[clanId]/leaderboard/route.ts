@@ -148,7 +148,22 @@ export async function GET(
         member: { clanId: parsedClanId, isActive: true },
       },
       include: {
-        member: { select: { id: true, displayName: true } },
+        member: {
+          select: {
+            id: true,
+            displayName: true,
+            identities: {
+              select: {
+                user: {
+                  select: {
+                    avatarUrl: true,
+                  },
+                },
+              },
+              take: 1,
+            },
+          },
+        },
       },
     })
 
@@ -156,6 +171,7 @@ export async function GET(
       id: row.id,
       memberId: row.member.id,
       displayName: row.member.displayName,
+      avatarUrl: row.member.identities[0]?.user.avatarUrl ?? null,
       period: row.period,
       periodType: row.periodType,
       totalKills: row.totalKills,

@@ -21,7 +21,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const memberId = getActorMemberId(request)
+    const memberId = await getActorMemberId(request)
     if (!memberId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

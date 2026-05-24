@@ -433,7 +433,6 @@ export async function authenticateUser(params: {
       return roleName === 'owner' || roleName === 'admin'
     })
   })
-
   return {
     userId: user.id,
     email: user.email,

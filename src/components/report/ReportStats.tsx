@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 
 import type { ReportPlayerStats } from '@/types/reports'
+/* eslint-disable @next/next/no-img-element */
 
 type SortKey = 'kills' | 'damage' | 'matches' | 'assists' | 'winRate'
 
@@ -85,7 +86,23 @@ export default function ReportStats({ players }: { players: ReportPlayerStats[] 
             <tbody className="divide-y divide-gray-100">
               {sortedPlayers.map((player) => (
                 <tr key={player.memberId} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{player.displayName}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border">
+                        {player.avatarUrl ? (
+                          <img
+                            src={player.avatarUrl}
+                            alt={player.displayName + ' avatar'}
+                            className="w-8 h-8 object-cover rounded-full"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <span className="text-xs font-semibold text-gray-700">{player.displayName.charAt(0).toUpperCase()}</span>
+                        )}
+                      </span>
+                      <span>{player.displayName}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-right text-gray-700">{player.matches}</td>
                   <td className="px-4 py-3 text-right text-gray-700">{player.kills}</td>
                   <td className="px-4 py-3 text-right text-gray-700">{Math.round(player.damage)}</td>

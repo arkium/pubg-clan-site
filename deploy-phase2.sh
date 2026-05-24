@@ -10,6 +10,20 @@ fi
 echo "🚀 Démarrage du déploiement Phase 2..."
 
 DEPLOY_PATH="/home/smk/public_html"
+DB_NAME="${DB_NAME:-pubg_clan_site}"
+MYSQL_ROOT_USER="${MYSQL_ROOT_USER:-root}"
+
+required_vars=(DATABASE_URL APP_URL NEXT_PUBLIC_APP_URL INTERNAL_APP_URL MYSQL_ROOT_PASSWORD)
+for var_name in "${required_vars[@]}"; do
+  if [ -z "${!var_name}" ]; then
+    echo "❌ Variable d'environnement manquante: $var_name"
+    exit 1
+  fi
+done
+
+PUBG_API_KEY="${PUBG_API_KEY:-}"
+PUBG_BASE_URL="${PUBG_BASE_URL:-https://api.pubg.com}"
+ENABLE_CRON_JOBS="${ENABLE_CRON_JOBS:-true}"
 
 echo "✅ Vérification des outils..."
 node -v
@@ -31,17 +45,17 @@ echo "✅ Installation des dépendances npm..."
 npm install
 
 echo "✅ Création de la base de données..."
-mysql -u smk -p'oc6iPBwmBT3vb4sekDDvu1npb' -e "CREATE DATABASE IF NOT EXISTS pubg_clan_site;"
+mysql -u "$MYSQL_ROOT_USER" -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS $DB_NAME;"
 
 echo "✅ Création du fichier .env..."
-cat > .env << 'EOF'
-DATABASE_URL="mysql://smk:oc6iPBwmBT3vb4sekDDvu1npb@localhost:3306/pubg_clan_site"
-PUBG_API_KEY=""
-PUBG_BASE_URL="https://api.pubg.com"
-APP_URL="https://smk.arkium.group"
-NEXT_PUBLIC_APP_URL="https://smk.arkium.group"
-INTERNAL_APP_URL="https://smk.arkium.group"
-ENABLE_CRON_JOBS="true"
+cat > .env << EOF
+DATABASE_URL="$DATABASE_URL"
+PUBG_API_KEY="$PUBG_API_KEY"
+PUBG_BASE_URL="$PUBG_BASE_URL"
+APP_URL="$APP_URL"
+NEXT_PUBLIC_APP_URL="$NEXT_PUBLIC_APP_URL"
+INTERNAL_APP_URL="$INTERNAL_APP_URL"
+ENABLE_CRON_JOBS="$ENABLE_CRON_JOBS"
 EOF
 
 echo "✅ Exécution des migrations Prisma..."

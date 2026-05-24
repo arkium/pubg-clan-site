@@ -9,6 +9,7 @@ const defaultData: ClanMatchesResponse = {
   clanName: '',
   period: 'week',
   availableModes: [],
+  mapLabels: {},
   squads: [],
   stats: {
     totalKills: 0,
@@ -110,6 +111,7 @@ export function useSquadMatches(clanId: number | null, period: SquadPeriod, game
   return {
     clanName: clanId ? data.clanName : '',
     availableModes: clanId ? data.availableModes : [],
+    mapLabels: clanId ? data.mapLabels : {},
     squads: clanId ? data.squads : [],
     stats: clanId ? data.stats : defaultData.stats,
     sessions: clanId ? data.sessions : [],

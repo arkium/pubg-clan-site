@@ -5,12 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import ChallengeLeaderboard from '@/components/ChallengeLeaderboard'
-import { CHALLENGE_TYPES } from '@/lib/challenge-service'
+import { CHALLENGE_TYPES } from '@/lib/challenge-types'
 
 type LeaderboardEntry = {
   rank: number
   memberId: number
   displayName: string
+  avatarUrl?: string | null
   progress: number
   reward: number
 }

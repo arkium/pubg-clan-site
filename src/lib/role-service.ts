@@ -177,13 +177,31 @@ export async function initializeDefaultRoles(clanId: number) {
 export async function assignDefaultMemberRole(memberId: number, clanId: number) {
   await initializeDefaultRoles(clanId)
 
-  const memberRole = await prisma.clanRole.findUnique({
-    where: { clanId_name: { clanId, name: PREDEFINED_ROLES.MEMBER.name } },
-    select: { id: true },
-  })
+  const [memberRole, ownerRole] = await Promise.all([
+    prisma.clanRole.findUnique({
+      where: { clanId_name: { clanId, name: PREDEFINED_ROLES.MEMBER.name } },
+      select: { id: true },
+    }),
+    prisma.clanRole.findUnique({
+      where: { clanId_name: { clanId, name: PREDEFINED_ROLES.OWNER.name } },
+      select: { id: true },
+    }),
+  ])
 
   if (!memberRole) {
     return null
+  }
+
+  // The clan owner should not receive the default Member role.
+  if (ownerRole) {
+    const hasOwnerRole = await prisma.clanMemberRole.findUnique({
+      where: { memberId_roleId: { memberId, roleId: ownerRole.id } },
+      select: { memberId: true },
+    })
+
+    if (hasOwnerRole) {
+      return null
+    }
   }
 
   const result = await prisma.clanMemberRole.upsert({
@@ -213,10 +231,10 @@ export async function hasAnyRole(memberId: number, roleNames: string[]) {
   return count > 0
 }
 
-export async function hasPermission(memberId: number, permission: string) {
+async function resolveMemberPermissionState(memberId: number) {
   const cached = permissionCache.get(memberId)
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.wildcard || cached.permissions.has(permission)
+    return cached
   }
 
   const memberRoles = await prisma.clanMemberRole.findMany({
@@ -244,13 +262,30 @@ export async function hasPermission(memberId: number, permission: string) {
     }
   }
 
-  permissionCache.set(memberId, {
+  const computed = {
     expiresAt: Date.now() + PERMISSION_TTL_MS,
     permissions,
     wildcard,
-  })
+  }
 
-  return wildcard || permissions.has(permission)
+  permissionCache.set(memberId, computed)
+  return computed
+}
+
+export async function getMemberPermissionKeys(memberId: number) {
+  const state = await resolveMemberPermissionState(memberId)
+  const keys = Array.from(state.permissions).sort((a, b) => a.localeCompare(b))
+
+  if (state.wildcard) {
+    return ['*', ...keys]
+  }
+
+  return keys
+}
+
+export async function hasPermission(memberId: number, permission: string) {
+  const state = await resolveMemberPermissionState(memberId)
+  return state.wildcard || state.permissions.has(permission)
 }
 
 export async function assignRole(memberId: number, roleId: number, assignedBy: number) {

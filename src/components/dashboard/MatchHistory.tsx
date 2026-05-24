@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 import type { DashboardMatch, DashboardPeriod } from '@/types/dashboard'
 
@@ -35,9 +36,35 @@ function formatMode(mode: string): string {
   return MODE_LABELS[mode] ?? mode
 }
 
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds))
+  const minutes = Math.floor(total / 60)
+  const remaining = total % 60
+  return `${minutes}m ${remaining.toString().padStart(2, '0')}s`
+}
+
+function getModeIcon(mode: string): { src: string; alt: string } | null {
+  const normalized = mode.toLowerCase()
+
+  if (normalized.includes('squad')) {
+    return { src: '/icons/squads/squad.svg', alt: 'Mode squad' }
+  }
+
+  if (normalized.includes('duo')) {
+    return { src: '/icons/squads/duo.svg', alt: 'Mode duo' }
+  }
+
+  return null
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
 function PlacementBadge({ placement }: { placement: number }) {
@@ -66,6 +93,7 @@ const SORT_KEYS: SortKey[] = [
 interface MatchHistoryProps {
   matches: DashboardMatch[]
   totalCount: number
+  mapLabels?: Record<string, string>
   period: DashboardPeriod
   onPeriodChange: (p: DashboardPeriod) => void
   limit: number
@@ -73,11 +101,15 @@ interface MatchHistoryProps {
   onOffsetChange: (o: number) => void
   loading?: boolean
   memberId: number
+  showViewAllLink?: boolean
+  title?: string
+  subtitle?: string
 }
 
 export default function MatchHistory({
   matches,
   totalCount,
+  mapLabels,
   period,
   onPeriodChange,
   limit,
@@ -85,6 +117,9 @@ export default function MatchHistory({
   onOffsetChange,
   loading,
   memberId,
+  showViewAllLink = true,
+  title = 'Historique des matchs',
+  subtitle,
 }: MatchHistoryProps) {
   const [sortKey, setSortKey] = useState<keyof DashboardMatch>('pubgCreatedAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
@@ -119,7 +154,10 @@ export default function MatchHistory({
   return (
     <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-        <h2 className="text-lg font-semibold text-gray-900">Historique des matchs</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          {subtitle ? <p className="text-xs text-gray-500">{subtitle}</p> : null}
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded border border-gray-200 p-0.5">
             {periods.map((p) => (
@@ -138,12 +176,14 @@ export default function MatchHistory({
               </button>
             ))}
           </div>
-          <Link
-            href={`/members/${memberId}/matches`}
-            className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Voir tout →
-          </Link>
+          {showViewAllLink ? (
+            <Link
+              href={`/members/${memberId}/matches`}
+              className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Voir tout →
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -174,24 +214,44 @@ export default function MatchHistory({
                     </th>
                   ))}
                   <th className="px-4 py-2 text-left">Carte</th>
-                  <th className="px-4 py-2 text-left">Mode</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {sorted.map((m) => (
+                {sorted.map((m) => {
+                  const modeIcon = getModeIcon(m.gameMode)
+
+                  return (
                   <tr key={m.id} className="hover:bg-gray-50">
                     <td className="whitespace-nowrap px-4 py-2 text-gray-700">
-                      {formatDate(m.pubgCreatedAt)}
+                      <div>{formatDate(m.pubgCreatedAt)}</div>
+                      <div className="text-xs text-gray-500">{formatTime(m.pubgCreatedAt)}</div>
                     </td>
                     <td className="px-4 py-2 font-semibold text-gray-900">{m.kills}</td>
                     <td className="px-4 py-2 text-gray-700">{Math.round(m.damageDealt)}</td>
                     <td className="px-4 py-2">
                       <PlacementBadge placement={m.placement} />
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{formatMapName(m.mapName)}</td>
-                    <td className="px-4 py-2 text-gray-600">{formatMode(m.gameMode)}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      <div>{mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}</div>
+                      <div className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-gray-500">
+                        {modeIcon ? (
+                          <Image
+                            src={modeIcon.src}
+                            alt={modeIcon.alt}
+                            width={12}
+                            height={12}
+                          />
+                        ) : (
+                          <span className="inline-block h-2 w-2 rounded-full bg-gray-400" aria-hidden="true" />
+                        )}
+                        <span>{formatMode(m.gameMode)}</span>
+                        <span>•</span>
+                        <span>{formatDuration(m.duration)}</span>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -208,7 +268,7 @@ export default function MatchHistory({
                   onClick={() => onOffsetChange(Math.max(0, offset - limit))}
                   className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                 >
-                  ‹ Précédent
+                  Aller a la page precedente
                 </button>
                 <span className="px-2 py-1 text-xs text-gray-500">
                   {currentPage}/{pages}
@@ -219,7 +279,7 @@ export default function MatchHistory({
                   onClick={() => onOffsetChange(offset + limit)}
                   className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                 >
-                  Suivant ›
+                  Aller a la page suivante
                 </button>
               </div>
             </div>

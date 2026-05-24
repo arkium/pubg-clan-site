@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 
-import { CHALLENGE_TYPES, type ChallengeDuration, type ChallengeRewards } from '@/lib/challenge-service'
+import { CHALLENGE_TYPES } from '@/lib/challenge-types'
+import { type ChallengeDuration, type ChallengeRewards } from '@/lib/challenge-service'
 
 type Props = {
   onSubmit: (data: {

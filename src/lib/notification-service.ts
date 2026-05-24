@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { sendEmail } from '@/lib/email-service'
 import { prisma } from '@/lib/prisma'
 import type { NotificationType } from '@/types/notifications'
 
@@ -60,7 +61,36 @@ function isTypeEnabled(
 }
 
 async function sendEmailNotification(memberId: number, title: string) {
-  console.info(`[Notification] Email queued for member ${memberId}: ${title}`)
+  const identity = await prisma.memberIdentity.findUnique({
+    where: {
+      memberId,
+    },
+    include: {
+      user: {
+        select: {
+          email: true,
+          emailVerifiedAt: true,
+          status: true,
+        },
+      },
+      member: {
+        select: {
+          displayName: true,
+        },
+      },
+    },
+  })
+
+  if (!identity || !identity.user.emailVerifiedAt || identity.user.status !== 'active') {
+    console.info(`[Notification] Email skipped for member ${memberId}: no verified account`)
+    return
+  }
+
+  await sendEmail({
+    to: identity.user.email,
+    subject: title,
+    text: `Bonjour ${identity.member.displayName},\n\n${title}`,
+  })
 }
 
 async function sendPushNotification(memberId: number, title: string) {

@@ -23,7 +23,6 @@ export async function GET(
 
     const permissionError = await requirePermission('manage_roles')(request, {
       clanId: parsedClanId,
-      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError

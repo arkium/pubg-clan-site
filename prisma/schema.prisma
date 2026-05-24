@@ -25,6 +25,7 @@ model Clan {
   roles   ClanRole[]
   reports Report[]
   challenges Challenge[]
+  invites MemberInvite[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -52,9 +53,90 @@ model ClanMember {
   roles                  ClanMemberRole[]
   challengeParticipants  ChallengeParticipant[]
   playerRewards          PlayerRewards?
+  invites                MemberInvite[]
+  identities             MemberIdentity[]
+  sentInvites            MemberInvite[]        @relation("InviteSender")
+  activeSessions         UserSession[]         @relation("SessionActiveMember")
 
   @@unique([pubgPlayerName, platformShard])
   @@map("ClanMember")
+}
+
+model UserAccount {
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  passwordHash    String
+  displayName     String?
+  avatarUrl       String?
+  status          String    @default("active")
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  identities MemberIdentity[]
+  sessions   UserSession[]
+  invites    MemberInvite[]
+
+  @@map("UserAccount")
+}
+
+model MemberIdentity {
+  id       Int         @id @default(autoincrement())
+  userId   Int
+  user     UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  memberId Int        @unique
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, memberId])
+  @@map("MemberIdentity")
+}
+
+model MemberInvite {
+  id          String   @id @default(cuid())
+  clanId      Int
+  clan        Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  memberId    Int
+  member      ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  email       String
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+
+  invitedByUserId   Int?
+  invitedByUser     UserAccount? @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  invitedByMemberId Int?
+  invitedByMember   ClanMember?  @relation("InviteSender", fields: [invitedByMemberId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([memberId, acceptedAt, revokedAt, expiresAt])
+  @@index([email, acceptedAt, revokedAt, expiresAt])
+  @@map("MemberInvite")
+}
+
+model UserSession {
+  id             String     @id @default(cuid())
+  userId         Int
+  user           UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash      String     @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime   @default(now())
+
+  activeMemberId Int?
+  activeMember   ClanMember? @relation("SessionActiveMember", fields: [activeMemberId], references: [id], onDelete: SetNull)
+
+  @@index([userId, expiresAt, revokedAt])
+  @@map("UserSession")
 }
 
 model ClanRole {
@@ -98,6 +180,15 @@ model Permission {
   category    String
 
   @@map("Permission")
+}
+
+model AppConfig {
+  key       String   @id
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("AppConfig")
 }
 
 model Notification {

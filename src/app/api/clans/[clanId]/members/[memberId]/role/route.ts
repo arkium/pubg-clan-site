@@ -24,12 +24,13 @@ export async function PATCH(
 
     const permissionError = await requirePermission('assign_roles')(request, {
       clanId: parsedClanId,
+      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError
     }
 
-    const actorMemberId = getActorMemberId(request)
+    const actorMemberId = await getActorMemberId(request)
     if (!actorMemberId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }

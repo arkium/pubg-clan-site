@@ -12,7 +12,7 @@ type ClanSummary = {
 }
 
 export default function ClanNavigation() {
-  const { clanId, clearClanId } = useSelectedClan()
+  const { clanId, clearClanId, canSwitchClan } = useSelectedClan()
   const [clan, setClan] = useState<ClanSummary | null>(null)
 
   useEffect(() => {
@@ -100,13 +100,15 @@ export default function ClanNavigation() {
               Rapports
             </Link>
           ) : null}
-          <Link
-            href="/clans"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Changer de clan
-          </Link>
-          {clanId ? (
+          {canSwitchClan ? (
+            <Link
+              href="/clans"
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Changer de clan
+            </Link>
+          ) : null}
+          {clanId && canSwitchClan ? (
             <button
               type="button"
               onClick={clearClanId}

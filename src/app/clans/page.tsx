@@ -8,7 +8,7 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function ClansPage() {
   const router = useRouter()
-  const { setClanId } = useSelectedClan()
+  const { setClanId, canSwitchClan, hydrated } = useSelectedClan()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -50,8 +50,29 @@ export default function ClansPage() {
   }, [])
 
   function handleSelect(clanId: number) {
-    setClanId(clanId)
+    if (!canSwitchClan) {
+      setError('Seuls les Owner/Admin peuvent changer de clan.')
+      return
+    }
+
+    const changed = setClanId(clanId)
+    if (!changed) {
+      setError('Seuls les Owner/Admin peuvent changer de clan.')
+      return
+    }
+
     router.push(`/clans/${clanId}/members`)
+  }
+
+  if (hydrated && !canSwitchClan) {
+    return (
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">Sélection de clan verrouillée</h1>
+        <p className="mb-6 text-sm text-gray-600">
+          Le clan actif est défini automatiquement depuis votre profil en base de données.
+        </p>
+      </main>
+    )
   }
 
   return (

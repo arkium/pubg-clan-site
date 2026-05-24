@@ -127,7 +127,7 @@ function compactScopeLabel(label: string) {
     .replace(/^Stats cartes du\s+/i, '')
 }
 
-function readInitialSortPreference() {
+function readInitialSortPreference(): { key: SortKey; dir: 'asc' | 'desc' } {
   if (typeof window === 'undefined') {
     return { key: 'matches' as SortKey, dir: 'desc' as 'asc' | 'desc' }
   }
@@ -143,9 +143,11 @@ function readInitialSortPreference() {
       dir?: 'asc' | 'desc'
     }
 
+    const dir: 'asc' | 'desc' = parsed.dir === 'asc' ? 'asc' : 'desc'
+
     return {
       key: parsed.key ?? 'matches',
-      dir: parsed.dir === 'asc' ? 'asc' : 'desc',
+      dir,
     }
   } catch {
     return { key: 'matches' as SortKey, dir: 'desc' as 'asc' | 'desc' }

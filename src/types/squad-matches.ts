@@ -81,6 +81,7 @@ export interface ClanMatchesResponse {
   period: SquadPeriod
   gameMode?: string
   availableModes: string[]
+  mapLabels: Record<string, string>
   squads: SquadMatch[]
   stats: ClanMatchStats
   sessions: SessionRecapItem[]

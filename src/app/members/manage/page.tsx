@@ -11,6 +11,7 @@ type Member = {
   pubgPlayerName: string
   pubgAccountId: string | null
   platformShard: string
+  isOwner?: boolean
   avatarUrl?: string | null
   clan: {
     id: number
@@ -19,11 +20,20 @@ type Member = {
   } | null
 }
 
+type ClanOption = {
+  id: number
+  name: string
+  tag: string
+  platformShard: string
+}
+
 export default function ManageMembersPage() {
   const { loading: authLoading, permissions } = useAuthSession()
   const [members, setMembers] = useState<Member[]>([])
+  const [clans, setClans] = useState<ClanOption[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingMemberId, setDeletingMemberId] = useState<number | null>(null)
+  const [movingMemberId, setMovingMemberId] = useState<number | null>(null)
   const [expandedMemberId, setExpandedMemberId] = useState<number | null>(null)
   const [nameFilter, setNameFilter] = useState('')
   const [clanFilter, setClanFilter] = useState('')
@@ -79,9 +89,25 @@ export default function ManageMembersPage() {
     }
   }
 
+  async function fetchClans() {
+    try {
+      const response = await fetch('/api/clans')
+      const payload = (await response.json()) as ClanOption[] | { error?: string }
+
+      if (!response.ok) {
+        throw new Error('error' in payload ? payload.error : 'Failed to fetch clans')
+      }
+
+      setClans(payload as ClanOption[])
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : 'Unknown error')
+    }
+  }
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       void fetchMembers()
+      void fetchClans()
     }, 0)
 
     return () => {
@@ -116,6 +142,68 @@ export default function ManageMembersPage() {
     } finally {
       setDeletingMemberId(null)
     }
+  }
+
+  async function handleMoveMemberToClan(member: Member, targetClanId: number) {
+    const isLockedOwner = !!member.isOwner && member.clan?.name !== 'Ungrouped'
+    if (isLockedOwner) {
+      setError('Un membre Owner ne peut etre deplace que depuis le clan Ungrouped.')
+      return
+    }
+
+    if (member.clan?.id === targetClanId) {
+      return
+    }
+
+    const targetClan = clans.find((clan) => clan.id === targetClanId)
+    if (!targetClan) {
+      setError('Clan cible introuvable.')
+      return
+    }
+
+    if (targetClan.platformShard !== member.platformShard) {
+      setError('Le clan cible doit etre sur la meme plateforme que le joueur.')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Deplacer ${member.displayName} vers ${targetClan.name} [${targetClan.tag}] ?`
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setError('')
+    setSuccess('')
+    setMovingMemberId(member.id)
+
+    try {
+      const response = await fetch(`/api/members/${member.id}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ clanId: targetClanId }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to move member to clan')
+      }
+
+      setSuccess(`Joueur deplace vers ${targetClan.name} [${targetClan.tag}].`)
+      await fetchMembers()
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : 'Unknown error')
+    } finally {
+      setMovingMemberId(null)
+    }
+  }
+
+  function clansForMember(member: Member) {
+    return clans
+      .filter((clan) => clan.platformShard === member.platformShard)
+      .sort((left, right) => left.name.localeCompare(right.name, 'fr', { sensitivity: 'base' }))
   }
 
   function toggleMemberActions(memberId: number) {
@@ -265,11 +353,46 @@ export default function ManageMembersPage() {
                       <p className="text-xs text-gray-600">{member.pubgPlayerName}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {member.clan ? `${member.clan.name} [${member.clan.tag}]` : 'Sans clan detecte'}
+                      <div className="inline-flex items-center gap-2">
+                        <span>{member.clan ? `${member.clan.name} [${member.clan.tag}]` : 'Sans clan detecte'}</span>
+                        {member.clan?.name === 'Ungrouped' ? (
+                          <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                            Ungrouped
+                          </span>
+                        ) : null}
+                        {member.isOwner ? (
+                          <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-800">
+                            Owner
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{member.platformShard}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-wrap justify-end gap-2">
+                        <select
+                          value={member.clan?.id ?? ''}
+                          onChange={(event) => {
+                            const selected = Number(event.target.value)
+                            if (Number.isInteger(selected) && selected > 0) {
+                              void handleMoveMemberToClan(member, selected)
+                            }
+                          }}
+                          disabled={movingMemberId === member.id || (!!member.isOwner && member.clan?.name !== 'Ungrouped')}
+                          className="min-w-[190px] rounded border border-indigo-200 bg-white px-2 py-2 text-sm text-gray-700 disabled:opacity-60"
+                          title={member.isOwner && member.clan?.name !== 'Ungrouped' ? 'Un owner ne peut etre deplace que depuis Ungrouped.' : undefined}
+                        >
+                          {!member.clan ? (
+                            <option value="" disabled>
+                              Choisir un clan
+                            </option>
+                          ) : null}
+                          {clansForMember(member).map((clan) => (
+                            <option key={clan.id} value={clan.id}>
+                              {clan.name} [{clan.tag}]
+                            </option>
+                          ))}
+                        </select>
                         <Link
                           href={`/members/${member.id}/dashboard`}
                           className="rounded border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
@@ -349,6 +472,18 @@ export default function ManageMembersPage() {
                       <p className="mt-1 text-xs text-gray-500">
                         {member.clan ? `${member.clan.name} [${member.clan.tag}]` : 'Sans clan detecte'}
                       </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {member.clan?.name === 'Ungrouped' ? (
+                          <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                            Ungrouped
+                          </span>
+                        ) : null}
+                        {member.isOwner ? (
+                          <span className="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-800">
+                            Owner
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-xs text-gray-500">Plateforme: {member.platformShard}</p>
                     </div>
                     <button
@@ -371,6 +506,29 @@ export default function ManageMembersPage() {
                     >
                       Dashboard
                     </Link>
+                    <select
+                      value={member.clan?.id ?? ''}
+                      onChange={(event) => {
+                        const selected = Number(event.target.value)
+                        if (Number.isInteger(selected) && selected > 0) {
+                          void handleMoveMemberToClan(member, selected)
+                        }
+                      }}
+                      disabled={movingMemberId === member.id || (!!member.isOwner && member.clan?.name !== 'Ungrouped')}
+                      className="w-full rounded border border-indigo-200 bg-white px-3 py-2 text-sm text-gray-700 disabled:opacity-60"
+                      title={member.isOwner && member.clan?.name !== 'Ungrouped' ? 'Un owner ne peut etre deplace que depuis Ungrouped.' : undefined}
+                    >
+                      {!member.clan ? (
+                        <option value="" disabled>
+                          Choisir un clan
+                        </option>
+                      ) : null}
+                      {clansForMember(member).map((clan) => (
+                        <option key={clan.id} value={clan.id}>
+                          {clan.name} [{clan.tag}]
+                        </option>
+                      ))}
+                    </select>
                     <Link
                       href={`/members/${member.id}/matches`}
                       className="rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"

@@ -1,34 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 
+import MatchHistory from '@/components/dashboard/MatchHistory'
+import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MemberSectionNav from '@/components/MemberSectionNav'
 import NotificationBell from '@/components/NotificationBell'
-
-interface ImportedMatch {
-  id: string
-  pubgMatchId: string
-  gameMode: string
-  mapName: string
-  kills: number
-  knockouts: number
-  assists: number
-  damageDealt: number
-  headshotKills: number
-  revives: number
-  placement: number
-  duration: number
-  pubgCreatedAt: string
-  createdAt: string
-}
+import type { DashboardPeriod, MatchesResponse } from '@/types/dashboard'
 
 interface MatchInfo {
   memberId: number
   playerId: string
   shard: string
-  importedMatches: ImportedMatch[]
   recentApiMatchIds: string[]
   recentMatchesConsidered: number
   totalMatches: number
@@ -68,15 +52,68 @@ function formatDuration(seconds: number) {
 export default function MatchesPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
+  const HISTORY_LIMIT = 10
 
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null)
-  const [importedMatches, setImportedMatches] = useState<ImportedMatch[]>([])
   const [apiMatches, setApiMatches] = useState<ApiMatch[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingApiMatches, setLoadingApiMatches] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const [error, setError] = useState('')
   const [importingAll, setImportingAll] = useState(false)
   const [importingMatchIds, setImportingMatchIds] = useState<string[]>([])
+  const [historyPeriod, setHistoryPeriod] = useState<DashboardPeriod>('all')
+  const [historyOffset, setHistoryOffset] = useState(0)
+  const [historyReloadKey, setHistoryReloadKey] = useState(0)
+  const [historyData, setHistoryData] = useState<MatchesResponse>({
+    matches: [],
+    totalCount: 0,
+    mapLabels: {},
+  })
+
+  useEffect(() => {
+    if (!memberId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadImportedHistory() {
+      try {
+        setLoadingHistory(true)
+
+        const params = new URLSearchParams({
+          period: historyPeriod,
+          limit: String(HISTORY_LIMIT),
+          offset: String(historyOffset),
+        })
+        const response = await fetch(`/api/members/${memberId}/matches?${params.toString()}`)
+        const payload = (await response.json()) as MatchesResponse | { error?: string }
+
+        if (!response.ok) {
+          throw new Error('error' in payload ? payload.error : 'Impossible de charger les matchs importes')
+        }
+
+        if (!cancelled) {
+          setHistoryData(payload as MatchesResponse)
+        }
+      } catch (historyError) {
+        if (!cancelled) {
+          setError(historyError instanceof Error ? historyError.message : 'Impossible de charger les matchs importes')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingHistory(false)
+        }
+      }
+    }
+
+    void loadImportedHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [HISTORY_LIMIT, historyOffset, historyPeriod, historyReloadKey, memberId])
 
   useEffect(() => {
     if (!memberId) {
@@ -103,7 +140,6 @@ export default function MatchesPage() {
 
         const data = payload as MatchInfo
         setMatchInfo(data)
-        setImportedMatches(data.importedMatches)
         setApiMatches([])
 
         if (data.recentApiMatchIds.length === 0) {
@@ -186,12 +222,8 @@ export default function MatchesPage() {
         throw new Error('error' in payload ? payload.error : 'Impossible d\'importer le match')
       }
 
-      const importedMatch = payload as ImportedMatch
-      setImportedMatches((current) => [
-        importedMatch,
-        ...current.filter((match) => match.id !== importedMatch.id),
-      ])
       setApiMatches((current) => current.filter((match) => match.id !== matchId))
+      setHistoryReloadKey((current) => current + 1)
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : 'Impossible d\'importer le match')
       throw importError
@@ -236,22 +268,12 @@ export default function MatchesPage() {
   return (
     <main className="min-h-screen bg-gray-100 px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Matchs du joueur</h1>
-            <p className="text-sm text-gray-600">
-              Matchs importes deja stockes et recuperation manuelle des derniers matchs PUBG.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <NotificationBell memberId={memberId} />
-            <Link
-              href="/members"
-              className="inline-flex items-center justify-center rounded border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-            >
-              Retour aux membres
-            </Link>
-          </div>
+        <div>
+          <MemberPageHeader
+            title="Matchs du joueur"
+            subtitle="Matchs importes deja stockes et recuperation manuelle des derniers matchs PUBG."
+            actions={<NotificationBell memberId={memberId} />}
+          />
         </div>
 
         <MemberSectionNav memberId={memberId} />
@@ -268,63 +290,24 @@ export default function MatchesPage() {
           </section>
         ) : (
           <>
-            <section className="rounded bg-white p-6 shadow">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Matchs importes</h2>
-                  <p className="text-sm text-gray-500">
-                    {importedMatches.length} match{importedMatches.length === 1 ? '' : 's'} importe{importedMatches.length === 1 ? '' : 's'}
-                  </p>
-                </div>
-                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                  Importes
-                </span>
-              </div>
-
-              {importedMatches.length === 0 ? (
-                <p className="text-sm text-gray-500">Aucun match importe pour l&apos;instant.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-200 text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="border border-gray-200 p-2 text-left">Mode</th>
-                        <th className="border border-gray-200 p-2 text-left">Carte</th>
-                        <th className="border border-gray-200 p-2 text-left">Joue le</th>
-                        <th className="border border-gray-200 p-2 text-center">Kills</th>
-                        <th className="border border-gray-200 p-2 text-center">KO</th>
-                        <th className="border border-gray-200 p-2 text-center">Assists</th>
-                        <th className="border border-gray-200 p-2 text-center">Degats</th>
-                        <th className="border border-gray-200 p-2 text-center">Headshots</th>
-                        <th className="border border-gray-200 p-2 text-center">Revives</th>
-                        <th className="border border-gray-200 p-2 text-center">Place</th>
-                        <th className="border border-gray-200 p-2 text-center">Duree</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importedMatches.map((match) => (
-                        <tr key={match.id} className="hover:bg-gray-50">
-                          <td className="border border-gray-200 p-2">{match.gameMode}</td>
-                          <td className="border border-gray-200 p-2">{match.mapName}</td>
-                          <td className="border border-gray-200 p-2">
-                            <div>{new Date(match.pubgCreatedAt).toLocaleString('fr-FR')}</div>
-                            <div className="text-xs text-gray-500">Match ID : {match.pubgMatchId}</div>
-                          </td>
-                          <td className="border border-gray-200 p-2 text-center">{match.kills}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.knockouts}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.assists}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.damageDealt.toFixed(0)}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.headshotKills}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.revives}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.placement}</td>
-                          <td className="border border-gray-200 p-2 text-center">{formatDuration(match.duration)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            <MatchHistory
+              matches={historyData.matches}
+              totalCount={historyData.totalCount}
+              mapLabels={historyData.mapLabels}
+              title="Matchs importes"
+              subtitle="Disponibles dans la DB"
+              period={historyPeriod}
+              onPeriodChange={(value) => {
+                setHistoryPeriod(value)
+                setHistoryOffset(0)
+              }}
+              limit={HISTORY_LIMIT}
+              offset={historyOffset}
+              onOffsetChange={setHistoryOffset}
+              loading={loadingHistory}
+              memberId={memberId}
+              showViewAllLink={false}
+            />
 
             <section className="rounded bg-white p-6 shadow">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -379,7 +362,9 @@ export default function MatchesPage() {
                         return (
                           <tr key={match.id} className="hover:bg-gray-50">
                             <td className="border border-gray-200 p-2">{match.mode}</td>
-                            <td className="border border-gray-200 p-2">{match.mapName}</td>
+                            <td className="border border-gray-200 p-2">
+                              {historyData.mapLabels[match.mapName] ?? match.mapName}
+                            </td>
                             <td className="border border-gray-200 p-2">
                               <div>{new Date(match.createdAt).toLocaleString('fr-FR')}</div>
                               <div className="text-xs text-gray-500">

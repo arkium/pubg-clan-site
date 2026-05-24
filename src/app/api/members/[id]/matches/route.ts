@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getMapLabels } from '@/lib/map-label-service'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
 
@@ -66,6 +67,7 @@ export async function GET(
           pubgMatchId: m.pubgMatchId,
           mapName: m.mapName,
           gameMode: m.gameMode,
+          duration: m.duration,
           placement: m.placement,
           kills: m.kills,
           damageDealt: m.damageDealt,
@@ -75,6 +77,7 @@ export async function GET(
           squad: [],
         })),
         totalCount,
+        mapLabels: await getMapLabels(),
       })
     }
 
@@ -91,7 +94,7 @@ export async function GET(
 
     const importedMatches = await prisma.match.findMany({
       where: { memberId },
-      orderBy: { createdAt: 'desc' },
+      select: { pubgMatchId: true },
     })
 
     const shard = member.platformShard
@@ -124,7 +127,6 @@ export async function GET(
       memberId,
       playerId,
       shard,
-      importedMatches,
       recentApiMatchIds,
       recentMatchesConsidered: recentWindow.length,
       totalMatches: allRecentMatchIds.length,

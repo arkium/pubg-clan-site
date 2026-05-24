@@ -195,6 +195,9 @@ export async function POST(
       importedCount,
       importedMatches: importedCount,
       membersProcessed: clan.members.length,
+      status: errors.length > 0 ? 'partial' : 'success',
+      errorsCount: errors.length,
+      errorsPreview: errors.slice(0, 5),
       errors,
       logs,
     }
@@ -204,13 +207,14 @@ export async function POST(
     )
 
     if (errors.length > 0) {
-      return NextResponse.json(
-        {
-          error: 'Clan sync encountered errors',
-          ...payload,
-        },
-        { status: 500 }
+      console.warn(
+        `[Clan Sync] Partial result for "${clan.name}" (${clan.id}): imported=${importedCount}, errors=${errors.length}, firstError=${errors[0]}`
       )
+      logs.push(
+        `[Summary] Partial sync: imported=${importedCount}, errors=${errors.length}`
+      )
+    } else {
+      logs.push(`[Summary] Successful sync: imported=${importedCount}, errors=0`)
     }
 
     return NextResponse.json(payload)

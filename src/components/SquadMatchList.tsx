@@ -6,6 +6,7 @@ interface SquadMatchListProps {
   clanId: number
   period: SquadPeriod
   matches: SquadMatch[]
+  mapLabels: Record<string, string>
 }
 
 function formatMatchDate(value: string) {
@@ -56,7 +57,7 @@ function placementTone(placement: number) {
   return 'bg-gray-100 text-gray-700'
 }
 
-export default function SquadMatchList({ clanId, period, matches }: SquadMatchListProps) {
+export default function SquadMatchList({ clanId, period, matches, mapLabels }: SquadMatchListProps) {
   const latestMatches = matches.slice(0, 10)
 
   if (latestMatches.length === 0) {
@@ -83,7 +84,7 @@ export default function SquadMatchList({ clanId, period, matches }: SquadMatchLi
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{formatMatchDate(match.createdAt)}</p>
                   <p className="text-xs text-gray-600">
-                    {match.mapName} · {match.gameMode}
+                    {mapLabels[match.mapName] ?? match.mapName} · {match.gameMode}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

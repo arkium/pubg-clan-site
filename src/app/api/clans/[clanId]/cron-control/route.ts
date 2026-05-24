@@ -77,21 +77,48 @@ export async function POST(
         headers: { 'content-type': 'application/json' },
       })
 
-      const payload = await response.json().catch(() => null)
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string
+            status?: 'success' | 'partial'
+            importedCount?: number
+            importedMatches?: number
+            errorsCount?: number
+            errorsPreview?: string[]
+          }
+        | null
 
       if (!response.ok) {
         return NextResponse.json(
           {
-            error: (payload as { error?: string } | null)?.error ?? 'Failed to synchronize clan matches',
+            error: payload?.error ?? 'Failed to synchronize clan matches',
           },
           { status: response.status }
         )
       }
 
+      const importedMatches = payload?.importedMatches ?? payload?.importedCount ?? 0
+      const errorsCount = payload?.errorsCount ?? 0
+      const isPartial = payload?.status === 'partial'
+      const firstError = payload?.errorsPreview?.[0]
+
+      if (isPartial) {
+        return NextResponse.json({
+          ok: true,
+          partial: true,
+          action,
+          importedMatches,
+          errorsCount,
+          message: `Sync partielle: ${importedMatches} match(s) importé(s), ${errorsCount} erreur(s).`,
+          warning: firstError ? `Exemple d'erreur: ${firstError}` : undefined,
+        })
+      }
+
       return NextResponse.json({
         ok: true,
         action,
-        message: 'Synchronisation des matchs lancee',
+        importedMatches,
+        message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s).`,
       })
     }
 

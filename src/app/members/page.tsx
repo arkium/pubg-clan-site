@@ -14,6 +14,11 @@ interface Member {
   platformShard: string
   createdAt: string
   avatarUrl?: string | null
+  medalCounts?: {
+    gold: number
+    silver: number
+    bronze: number
+  }
   clan: {
     id: number
     name: string
@@ -48,7 +53,7 @@ export default function MembersPage() {
   async function fetchMembers() {
     setLoading(true)
     try {
-      const res = await fetch('/api/members')
+      const res = await fetch('/api/members', { cache: 'no-store' })
       const data = (await res.json()) as Member[] | { error?: string }
 
       if (!res.ok) {
@@ -202,7 +207,23 @@ export default function MembersPage() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-base font-semibold sm:text-lg">{member.displayName}</p>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-base font-semibold sm:text-lg">{member.displayName}</p>
+                          <Link
+                            href={`/members/${member.id}/dashboard`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100"
+                            title="Tableau de bord"
+                            aria-label="Ouvrir le tableau de bord"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <path d="M2 2.75C2 2.33579 2.33579 2 2.75 2H6.25C6.66421 2 7 2.33579 7 2.75V6.25C7 6.66421 6.66421 7 6.25 7H2.75C2.33579 7 2 6.66421 2 6.25V2.75Z" fill="currentColor" />
+                              <path d="M9 2.75C9 2.33579 9.33579 2 9.75 2H13.25C13.6642 2 14 2.33579 14 2.75V4.75C14 5.16421 13.6642 5.5 13.25 5.5H9.75C9.33579 5.5 9 5.16421 9 4.75V2.75Z" fill="currentColor" />
+                              <path d="M9 8.75C9 8.33579 9.33579 8 9.75 8H13.25C13.6642 8 14 8.33579 14 8.75V13.25C14 13.6642 13.6642 14 13.25 14H9.75C9.33579 14 9 13.6642 9 13.25V8.75Z" fill="currentColor" />
+                              <path d="M2 10.75C2 10.3358 2.33579 10 2.75 10H6.25C6.66421 10 7 10.3358 7 10.75V13.25C7 13.6642 6.66421 14 6.25 14H2.75C2.33579 14 2 13.6642 2 13.25V10.75Z" fill="currentColor" />
+                            </svg>
+                          </Link>
+                        </div>
                         <p className="truncate text-sm text-gray-600">{member.pubgPlayerName}</p>
                         <p className="truncate text-xs text-gray-500">ID: {member.pubgAccountId}</p>
                         {member.clan ? (
@@ -212,6 +233,20 @@ export default function MembersPage() {
                         ) : (
                           <p className="truncate text-xs text-gray-400">Clan: no PUBG clan detected</p>
                         )}
+                        <div className="mt-2 flex items-center gap-3 text-xs text-gray-600">
+                          <span className="inline-flex items-center gap-1">
+                            <img src="/icons/medal-gold.svg" alt="Medaille or" className="h-4 w-4" />
+                            <strong className="text-sm text-gray-900">{member.medalCounts?.gold ?? 0}</strong>
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <img src="/icons/medal-silver.svg" alt="Medaille argent" className="h-4 w-4" />
+                            <strong className="text-sm text-gray-900">{member.medalCounts?.silver ?? 0}</strong>
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <img src="/icons/medal-bronze.svg" alt="Medaille bronze" className="h-4 w-4" />
+                            <strong className="text-sm text-gray-900">{member.medalCounts?.bronze ?? 0}</strong>
+                          </span>
+                        </div>
                       </div>
                     </div>
                     {renderChevron(isExpanded)}
@@ -220,27 +255,20 @@ export default function MembersPage() {
                     </span>
                   </button>
                   <div className={`${isExpanded ? 'flex' : 'hidden'} mt-auto flex-col gap-2`}>
-                    <span className="inline-block rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-                      {member.platformShard}
-                    </span>
-                    <Link
-                      href={`/members/${member.id}/dashboard`}
-                      className="w-full rounded bg-blue-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700 sm:min-w-[120px] sm:flex-1"
-                    >
-                      Tableau de bord
-                    </Link>
-                    <Link
-                      href={`/members/${member.id}/matches`}
-                      className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50 sm:min-w-[120px] sm:flex-1"
-                    >
-                      Voir les matchs
-                    </Link>
-                    <Link
-                      href={`/members/${member.id}/notifications`}
-                      className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50 sm:min-w-[120px] sm:flex-1"
-                    >
-                      Notifications
-                    </Link>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link
+                        href={`/members/${member.id}/matches`}
+                        className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      >
+                        Matchs
+                      </Link>
+                      <Link
+                        href={`/members/${member.id}/notifications`}
+                        className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"
+                      >
+                        Notifications
+                      </Link>
+                    </div>
                   </div>
                 </div>
                 )

@@ -175,6 +175,11 @@ export default function ClanNavigation() {
     ...(canManageSettings
       ? [
           {
+            label: 'Alias cartes PUBG',
+            href: '/settings/map-labels',
+            tone: 'neutral' as const,
+          },
+          {
             label: 'Accueil login',
             href: '/settings/login-welcome',
             tone: 'neutral' as const,
@@ -282,7 +287,13 @@ export default function ClanNavigation() {
       })
 
       const payload = (await response.json().catch(() => null)) as
-        | { ok?: boolean; message?: string; error?: string }
+        | {
+            ok?: boolean
+            partial?: boolean
+            message?: string
+            warning?: string
+            error?: string
+          }
         | null
 
       if (!response.ok || !payload?.ok) {
@@ -290,7 +301,12 @@ export default function ClanNavigation() {
         return
       }
 
-      setCronMessage(payload.message ?? 'Action cron lancée')
+      const parts = [payload.message ?? 'Action cron lancée']
+      if (payload.warning) {
+        parts.push(payload.warning)
+      }
+
+      setCronMessage(parts.join(' '))
     } catch {
       setCronMessage('Action cron impossible')
     } finally {

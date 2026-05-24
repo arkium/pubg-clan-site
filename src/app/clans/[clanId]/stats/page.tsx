@@ -260,6 +260,9 @@ export default function ClanStatsPage() {
   const [data, setData] = useState<ClanStatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(METRIC_GROUPS.map((group) => [group.title, group.title === 'Combat']))
+  )
 
   useEffect(() => {
     if (!clanId) {
@@ -324,6 +327,13 @@ export default function ClanStatsPage() {
     return null
   }
 
+  function toggleGroup(groupTitle: string) {
+    setExpandedGroups((current) => ({
+      ...current,
+      [groupTitle]: !current[groupTitle],
+    }))
+  }
+
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -357,18 +367,37 @@ export default function ClanStatsPage() {
           <div className="space-y-6">
             {groupedMetrics.map((group) => (
               <section key={group.title} className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">{group.title}</h2>
-                <div className="space-y-3">
-                  {group.rows.map((row) => (
-                    <article key={row.metric.key} className="rounded border border-gray-200 p-3">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-gray-900">{row.metric.label}</p>
-                        <p className="text-sm font-bold text-blue-700">Clan: {row.metric.format(row.clanValue)}</p>
-                      </div>
-                      <TopThreeList metric={row.metric} topThree={row.topThree} />
-                    </article>
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  className="mb-4 flex w-full items-center justify-between gap-3 rounded px-1 py-1 text-left hover:bg-gray-50"
+                  aria-expanded={expandedGroups[group.title]}
+                  aria-controls={`group-${group.title}`}
+                >
+                  <h2 className="text-lg font-semibold text-gray-900">{group.title}</h2>
+                  <span
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition-transform ${
+                      expandedGroups[group.title] ? 'rotate-180' : 'rotate-0'
+                    }`}
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true" focusable="false">
+                      <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.12l3.71-3.9a.75.75 0 1 1 1.08 1.04l-4.25 4.46a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" fill="currentColor" />
+                    </svg>
+                  </span>
+                </button>
+                {expandedGroups[group.title] ? (
+                  <div id={`group-${group.title}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {group.rows.map((row) => (
+                      <article key={row.metric.key} className="rounded border border-gray-200 p-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-900">{row.metric.label}</p>
+                          <p className="text-sm font-bold text-blue-700">Clan: {row.metric.format(row.clanValue)}</p>
+                        </div>
+                        <TopThreeList metric={row.metric} topThree={row.topThree} />
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
               </section>
             ))}
           </div>

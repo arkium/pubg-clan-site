@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
 import type {
   ClanMatchesResponse,
@@ -389,6 +390,7 @@ export async function GET(
       period,
       ...(gameModeFilter ? { gameMode: gameModeFilter } : {}),
       availableModes: Array.from(new Set(squads.map((match) => match.gameMode))).sort(),
+      mapLabels: await getMapLabels(),
       squads,
       stats: {
         totalKills: stats.totalKills,

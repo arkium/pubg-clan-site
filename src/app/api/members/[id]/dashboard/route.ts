@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getMapLabels } from '@/lib/map-label-service'
 import { NextResponse } from 'next/server'
 
 import type { DashboardPeriod } from '@/types/dashboard'
@@ -273,6 +274,7 @@ export async function GET(
         pubgCreatedAt: m.pubgCreatedAt.toISOString(),
       })),
       squads,
+      mapLabels: await getMapLabels(),
       period,
     })
   } catch (error) {

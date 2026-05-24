@@ -11,12 +11,14 @@ const defaultDashboard: DashboardResponse = {
   progression: [],
   topPerformances: [],
   squads: [],
+  mapLabels: {},
   period: 'week',
 }
 
 const defaultMatches: MatchesResponse = {
   matches: [],
   totalCount: 0,
+  mapLabels: {},
 }
 
 export function usePlayerDashboard(memberId: number | null, period: DashboardPeriod) {

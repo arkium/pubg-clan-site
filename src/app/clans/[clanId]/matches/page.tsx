@@ -61,6 +61,7 @@ export default function ClanMatchesPage() {
   const {
     clanName,
     availableModes,
+    mapLabels,
     squads,
     stats,
     sessions,
@@ -262,7 +263,7 @@ export default function ClanMatchesPage() {
           </section>
 
           <div className="space-y-6">
-            <SquadMatchList clanId={clanId} period={period} matches={squads} />
+            <SquadMatchList clanId={clanId} period={period} matches={squads} mapLabels={mapLabels} />
             <SquadSynergies synergies={synergies} />
             <SessionRecap sessions={sessions} />
             <TopPerformers performers={topPerformers} />

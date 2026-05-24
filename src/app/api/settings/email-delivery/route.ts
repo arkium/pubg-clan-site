@@ -137,7 +137,7 @@ export async function POST(request: Request) {
   const recipient = validated.data.to.trim().toLowerCase()
 
   try {
-    await sendEmail({
+    const delivery = await sendEmail({
       to: recipient,
       subject: 'Test de configuration email - PUBG Clan Site',
       text: [
@@ -159,6 +159,7 @@ export async function POST(request: Request) {
       lastSuccessAt: status.lastSuccessAt,
       lastTestRecipient: status.lastTestRecipient,
       lastError: status.lastError,
+      delivery,
       env: currentEnv,
     })
   } catch (error) {

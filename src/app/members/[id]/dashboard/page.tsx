@@ -12,11 +12,13 @@ import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { DashboardPeriod } from '@/types/dashboard'
 
 export default function DashboardPage() {
   const params = useParams()
   const memberId = params?.id ? Number(params.id) : null
+  const { clanId } = useSelectedClan()
 
   const [period, setPeriod] = useState<DashboardPeriod>('week')
   const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
@@ -65,6 +67,17 @@ export default function DashboardPage() {
         <MemberPageHeader
           title="Tableau de bord"
           subtitle="Vue synthese des performances du joueur."
+          backLabel="Joueurs"
+          actions={
+            clanId ? (
+              <Link
+                href={`/clans/${clanId}/matches`}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Matchs
+              </Link>
+            ) : null
+          }
         />
 
         <MemberSectionNav memberId={memberId} />

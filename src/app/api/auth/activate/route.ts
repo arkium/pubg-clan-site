@@ -8,6 +8,7 @@ const ActivationSchema = z.object({
   token: z.string().min(1, 'Activation token is required'),
   password: z.string().min(8, 'Password must contain at least 8 characters'),
   displayName: z.string().trim().min(1).max(60).optional(),
+  loginEmail: z.string().trim().email('Invalid email address').optional(),
 })
 
 export async function POST(request: Request) {
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
       token: validated.data.token,
       password: validated.data.password,
       displayName: validated.data.displayName,
+      loginEmail: validated.data.loginEmail,
     })
 
     const { token, expiresAt } = await createSession({

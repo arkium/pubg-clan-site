@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 interface Member {
   id: number
@@ -29,6 +30,7 @@ interface Member {
 
 export default function MembersPage() {
   const router = useRouter()
+  const { clanId } = useSelectedClan()
   const { loading: authLoading, authenticated, permissions } = useAuthSession()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -130,26 +132,62 @@ export default function MembersPage() {
   return (
     <div className="min-h-screen bg-gray-100 px-3 py-6 sm:px-4 sm:py-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Membres du clan</h1>
-
-          {canManageMembers ? (
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
-              <Link
-                href="/members/add"
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-indigo-200 bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 sm:min-h-11 sm:rounded-lg sm:px-4"
-              >
-                Ajouter un joueur
-              </Link>
-              <Link
-                href="/members/manage"
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11 sm:rounded-lg sm:px-4"
-              >
-                Gérer les joueurs
-              </Link>
+        <header className="mb-8 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Membres du clan</h1>
+              <p className="text-sm text-gray-600">Consulte les joueurs et ouvre leurs sections principales.</p>
             </div>
-          ) : null}
-        </div>
+
+            {canManageMembers ? (
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
+                {clanId ? (
+                  <>
+                    <Link
+                      href={`/clans/${clanId}/leaderboard`}
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11"
+                    >
+                      Classement
+                    </Link>
+                    <Link
+                      href={`/clans/${clanId}/reports`}
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11"
+                    >
+                      Rapports
+                    </Link>
+                  </>
+                ) : null}
+                <Link
+                  href="/members/add"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 sm:min-h-11"
+                >
+                  Ajouter un joueur
+                </Link>
+                <Link
+                  href="/members/manage"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11"
+                >
+                  Gérer les joueurs
+                </Link>
+              </div>
+            ) : clanId ? (
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
+                <Link
+                  href={`/clans/${clanId}/leaderboard`}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11"
+                >
+                  Classement
+                </Link>
+                <Link
+                  href={`/clans/${clanId}/reports`}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:min-h-11"
+                >
+                  Rapports
+                </Link>
+              </div>
+            ) : null}
+          </div>
+        </header>
 
         <div className="rounded bg-white p-4 shadow sm:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -258,13 +296,13 @@ export default function MembersPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/members/${member.id}/matches`}
-                        className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"
+                        className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         Matchs
                       </Link>
                       <Link
                         href={`/members/${member.id}/notifications`}
-                        className="w-full rounded border border-blue-200 px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"
+                        className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         Notifications
                       </Link>

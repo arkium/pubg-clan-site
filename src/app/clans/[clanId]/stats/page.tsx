@@ -336,28 +336,30 @@ export default function ClanStatsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {data?.clan?.name ?? `Clan #${clanId}`} | Statistiques globales
-          </h1>
-          <p className="text-sm text-gray-600">Vue clan complete avec top 3 pour chaque statistique.</p>
+      <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {data?.clan?.name ?? `Clan #${clanId}`} | Clan
+            </h1>
+            <p className="text-sm text-gray-600">Vue clan complete avec top 3 pour chaque statistique.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/clans/${clanId}/matches`}
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Matchs
+            </Link>
+            <Link
+              href={`/clans/${clanId}/leaderboard`}
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Classement
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/clans/${clanId}/leaderboard`}
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Classement
-          </Link>
-          <Link
-            href={`/clans/${clanId}/matches`}
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Matchs ensemble
-          </Link>
-        </div>
-      </div>
+      </header>
 
       {loading ? <p className="mb-6 text-sm text-gray-600">Chargement des statistiques du clan...</p> : null}
       {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}

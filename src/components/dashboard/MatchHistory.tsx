@@ -268,7 +268,7 @@ export default function MatchHistory({
                   onClick={() => onOffsetChange(Math.max(0, offset - limit))}
                   className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                 >
-                  ‹ Précédent
+                  Aller a la page precedente
                 </button>
                 <span className="px-2 py-1 text-xs text-gray-500">
                   {currentPage}/{pages}
@@ -279,7 +279,7 @@ export default function MatchHistory({
                   onClick={() => onOffsetChange(offset + limit)}
                   className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                 >
-                  Suivant ›
+                  Aller a la page suivante
                 </button>
               </div>
             </div>

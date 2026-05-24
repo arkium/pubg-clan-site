@@ -105,21 +105,17 @@ export async function GET(
           },
         },
         invites: {
-          where: {
-            acceptedAt: null,
-            revokedAt: null,
-            expiresAt: {
-              gt: new Date(),
-            },
-          },
           orderBy: {
             createdAt: 'desc',
           },
-          take: 1,
+          take: 5,
           select: {
             id: true,
             email: true,
             expiresAt: true,
+            acceptedAt: true,
+            revokedAt: true,
+            createdAt: true,
           },
         },
       },
@@ -154,21 +150,17 @@ export async function GET(
           },
         },
         invites: {
-          where: {
-            acceptedAt: null,
-            revokedAt: null,
-            expiresAt: {
-              gt: new Date(),
-            },
-          },
           orderBy: {
             createdAt: 'desc',
           },
-          take: 1,
+          take: 5,
           select: {
             id: true,
             email: true,
             expiresAt: true,
+            acceptedAt: true,
+            revokedAt: true,
+            createdAt: true,
           },
         },
       },
@@ -203,13 +195,18 @@ export async function GET(
         joinedAt: member.createdAt,
         hasAccount: member.identities.length > 0,
         avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
-        pendingInvite: member.invites[0]
-          ? {
-              id: member.invites[0].id,
-              email: member.invites[0].email,
-              expiresAt: member.invites[0].expiresAt,
-            }
-          : null,
+        pendingInvite:
+          member.invites.find(
+            (invite) => !invite.acceptedAt && !invite.revokedAt && invite.expiresAt > new Date()
+          ) ?? null,
+        recentInvites: member.invites.map((invite) => ({
+          id: invite.id,
+          email: invite.email,
+          createdAt: invite.createdAt,
+          expiresAt: invite.expiresAt,
+          acceptedAt: invite.acceptedAt,
+          revokedAt: invite.revokedAt,
+        })),
       }
     })
 

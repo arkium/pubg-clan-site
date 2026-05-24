@@ -9,6 +9,7 @@ import SessionRecap from '@/components/SessionRecap'
 import SquadMatchList from '@/components/SquadMatchList'
 import SquadSynergies from '@/components/SquadSynergies'
 import TopPerformers from '@/components/TopPerformers'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { SquadPeriod } from '@/types/squad-matches'
@@ -53,8 +54,10 @@ export default function ClanMatchesPage() {
   const params = useParams()
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
+  const { activeMemberId } = useAuthSession()
 
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
+  const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
   const [period, setPeriod] = useState<SquadPeriod>('week')
   const [gameMode, setGameMode] = useState('')
 
@@ -147,30 +150,32 @@ export default function ClanMatchesPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {clanName || `Clan #${clanId}`} | Matchs ensemble
-          </h1>
-          <p className="text-sm text-gray-600">
-            Performance collective du clan sur la période sélectionnée.
-          </p>
+      <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {clanName || `Clan #${clanId}`} | Matchs
+            </h1>
+            <p className="text-sm text-gray-600">
+              Performance collective du clan sur la période sélectionnée.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={dashboardHref}
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Dashboard
+            </Link>
+            <Link
+              href={`/clans/${clanId}/stats`}
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Clan
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/clans/${clanId}/stats`}
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Stats clan
-          </Link>
-          <Link
-            href="/members"
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Voir les membres
-          </Link>
-        </div>
-      </div>
+      </header>
 
       <div className="mb-6 flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-white p-4">
         <div>

@@ -67,6 +67,7 @@ export async function POST(
         inviteId: invite.inviteId,
         expiresAt: invite.expiresAt,
         activationUrl: invite.activationUrl,
+        delivery: invite.delivery,
       },
       { status: 201 }
     )

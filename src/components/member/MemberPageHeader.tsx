@@ -7,9 +7,10 @@ type MemberPageHeaderProps = {
   title: string
   subtitle?: string
   actions?: ReactNode
+  backLabel?: string
 }
 
-export default function MemberPageHeader({ title, subtitle, actions }: MemberPageHeaderProps) {
+export default function MemberPageHeader({ title, subtitle, actions, backLabel = 'Retour aux membres' }: MemberPageHeaderProps) {
   return (
     <header className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -22,9 +23,9 @@ export default function MemberPageHeader({ title, subtitle, actions }: MemberPag
           {actions}
           <Link
             href="/members"
-            className="inline-flex items-center justify-center rounded border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
-            Retour aux membres
+            {backLabel}
           </Link>
         </div>
       </div>

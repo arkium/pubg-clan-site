@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
+import { useAuthSession } from '@/hooks/useAuthSession'
+
 type ProfileMember = {
   memberId: number
   displayName: string
@@ -50,11 +52,18 @@ function generateSeriesSeed() {
 
 export default function AccountPage() {
   const router = useRouter()
+  const { activeMemberId } = useAuthSession()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -64,6 +73,7 @@ export default function AccountPage() {
   const [failedAvatarIds, setFailedAvatarIds] = useState<Record<string, boolean>>({})
 
   const activeMembers = useMemo(() => members.filter((member) => member.isActive), [members])
+  const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
   const avatarSuggestions = useMemo<AvatarSuggestion[]>(() => {
     const source = displayName.trim() || email.trim() || 'player'
 
@@ -171,20 +181,70 @@ export default function AccountPage() {
     }
   }
 
+  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (newPassword.length < 8) {
+      setPasswordError('Le nouveau mot de passe doit contenir au moins 8 caracteres')
+      setPasswordSuccess('')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Les nouveaux mots de passe ne correspondent pas')
+      setPasswordSuccess('')
+      return
+    }
+
+    try {
+      setPasswordSaving(true)
+      setPasswordError('')
+      setPasswordSuccess('')
+
+      const response = await fetch('/api/auth/password', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      })
+
+      const payload = (await response.json()) as { success?: boolean; message?: string; error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Failed to update password')
+      }
+
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordSuccess(payload.message ?? 'Mot de passe mis a jour')
+    } catch (submitError) {
+      setPasswordError(submitError instanceof Error ? submitError.message : 'Failed to update password')
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mon compte</h1>
-          <p className="text-sm text-gray-600">Modifie ton email, ton pseudo d&apos;affichage et ton avatar.</p>
+      <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Mon compte</h1>
+            <p className="text-sm text-gray-600">Modifie ton email, ton pseudo d&apos;affichage et ton avatar.</p>
+          </div>
+          <Link
+            href={dashboardHref}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Dashboard
+          </Link>
         </div>
-        <Link
-          href="/clans"
-          className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Retour
-        </Link>
-      </div>
+      </header>
 
       {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
       {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
@@ -312,7 +372,7 @@ export default function AccountPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
             >
               {saving ? 'Enregistrement...' : 'Enregistrer'}
             </button>
@@ -337,6 +397,64 @@ export default function AccountPage() {
                 <li className="text-sm text-gray-600">Aucun membre actif lie.</li>
               ) : null}
             </ul>
+          </section>
+
+          <section className="mt-6 rounded border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">Changer le mot de passe</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Renseigne ton mot de passe actuel puis choisis un nouveau mot de passe (8 caracteres minimum).
+            </p>
+
+            <form onSubmit={(event) => void handlePasswordSubmit(event)} className="mt-4 space-y-4">
+              <label className="block text-sm text-gray-700">
+                Mot de passe actuel
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  autoComplete="current-password"
+                />
+              </label>
+
+              <label className="block text-sm text-gray-700">
+                Nouveau mot de passe
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  autoComplete="new-password"
+                />
+              </label>
+
+              <label className="block text-sm text-gray-700">
+                Confirmer le nouveau mot de passe
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  autoComplete="new-password"
+                />
+              </label>
+
+              {passwordError ? <p className="text-sm text-red-600">{passwordError}</p> : null}
+              {passwordSuccess ? <p className="text-sm text-green-600">{passwordSuccess}</p> : null}
+
+              <button
+                type="submit"
+                disabled={passwordSaving}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {passwordSaving ? 'Mise a jour...' : 'Mettre a jour le mot de passe'}
+              </button>
+            </form>
           </section>
         </>
       ) : null}

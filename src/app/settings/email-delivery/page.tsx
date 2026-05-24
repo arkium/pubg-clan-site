@@ -24,6 +24,18 @@ type EmailDeliveryStatus = {
   }
 }
 
+type EmailDeliveryMeta = {
+  delivered: boolean
+  mode: 'smtp' | 'stub'
+  to: string
+  subject: string
+  from: string | null
+  messageId?: string
+  accepted?: string[]
+  rejected?: string[]
+  reason?: string
+}
+
 const INITIAL_STATUS: EmailDeliveryStatus = {
   ready: false,
   lastSuccessAt: null,
@@ -49,6 +61,7 @@ export default function EmailDeliverySettingsPage() {
   const [testEmail, setTestEmail] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [lastDelivery, setLastDelivery] = useState<EmailDeliveryMeta | null>(null)
 
   const canManageSettings = permissions.includes('*') || permissions.includes('manage_settings')
 
@@ -150,7 +163,7 @@ export default function EmailDeliverySettingsPage() {
       })
 
       const payload = (await response.json().catch(() => null)) as
-        | (EmailDeliveryStatus & { message?: string; error?: string })
+        | (EmailDeliveryStatus & { message?: string; error?: string; delivery?: EmailDeliveryMeta })
         | null
 
       if (!response.ok) {
@@ -164,6 +177,7 @@ export default function EmailDeliverySettingsPage() {
         lastError: payload?.lastError ?? null,
         env: payload?.env ?? INITIAL_STATUS.env,
       })
+      setLastDelivery(payload?.delivery ?? null)
       setSuccess(payload?.message ?? 'Email de test envoye avec succes.')
     } catch (testError) {
       setError(testError instanceof Error ? testError.message : 'Echec du test email')
@@ -308,6 +322,22 @@ export default function EmailDeliverySettingsPage() {
 
           {error ? <p className="text-sm text-rose-700">{error}</p> : null}
           {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
+          {lastDelivery ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              <p>
+                Mode d'envoi: {lastDelivery.mode === 'smtp' ? 'SMTP reel' : 'Simulation locale (pas d\'email sortant)'}
+              </p>
+              <p>Destinataire: {lastDelivery.to}</p>
+              {lastDelivery.messageId ? <p>Message ID: {lastDelivery.messageId}</p> : null}
+              {lastDelivery.accepted && lastDelivery.accepted.length > 0 ? (
+                <p>Acceptes SMTP: {lastDelivery.accepted.join(', ')}</p>
+              ) : null}
+              {lastDelivery.rejected && lastDelivery.rejected.length > 0 ? (
+                <p className="text-rose-700">Rejectes SMTP: {lastDelivery.rejected.join(', ')}</p>
+              ) : null}
+              {lastDelivery.reason ? <p>Detail: {lastDelivery.reason}</p> : null}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-3">
             {status.env.allRequiredSet ? (

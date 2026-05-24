@@ -13,6 +13,12 @@ type ClanSummary = {
   tag: string
 }
 
+type WelcomeSettingsPayload = {
+  settings?: {
+    imageUrl?: string | null
+  }
+}
+
 type NavItem = {
   label: string
   href: string
@@ -65,6 +71,7 @@ export default function ClanNavigation() {
   const [cronPending, setCronPending] = useState<CronAction | null>(null)
   const [cronMessage, setCronMessage] = useState<string | null>(null)
   const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('completed')
+  const [clanImageUrl, setClanImageUrl] = useState('/pubg.png')
   const navRootRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -95,6 +102,32 @@ export default function ClanNavigation() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadClanImage() {
+      try {
+        const response = await fetch('/api/settings/login-welcome', { cache: 'no-store' })
+        const payload = (await response.json().catch(() => null)) as WelcomeSettingsPayload | null
+        const nextImage = payload?.settings?.imageUrl?.trim() || '/pubg.png'
+
+        if (!cancelled) {
+          setClanImageUrl(nextImage)
+        }
+      } catch {
+        if (!cancelled) {
+          setClanImageUrl('/pubg.png')
+        }
+      }
+    }
+
+    void loadClanImage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const permissionSet = useMemo(() => new Set(permissions), [permissions])
   const hasWildcard = permissionSet.has('*')
 
@@ -115,12 +148,12 @@ export default function ClanNavigation() {
     ...(clanId
       ? [
           {
-            label: 'Matchs ensemble',
+            label: 'Matchs',
             href: `/clans/${clanId}/matches`,
             tone: 'brand' as const,
           },
           {
-            label: 'Stats clan',
+            label: 'Clan',
             href: `/clans/${clanId}/stats`,
             tone: 'sky' as const,
           },
@@ -133,6 +166,7 @@ export default function ClanNavigation() {
                 },
               ]
             : []),
+          { label: 'Joueurs', href: '/members', tone: 'sky' as const },
           ...(canViewReports
             ? [
                 {
@@ -144,7 +178,7 @@ export default function ClanNavigation() {
             : []),
         ]
       : []),
-    { label: 'Joueurs', href: '/members', tone: 'sky' },
+    ...(!clanId ? [{ label: 'Joueurs', href: '/members', tone: 'sky' as const }] : []),
     { label: 'Mon compte', href: '/account', tone: 'neutral' },
   ]
 
@@ -391,29 +425,48 @@ export default function ClanNavigation() {
     return null
   }
 
+  if (pathname.startsWith('/activate') || pathname.startsWith('/login')) {
+    return null
+  }
+
   return (
     <header ref={navRootRef} className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur">
       <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
         <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
           <div className="flex items-start justify-between gap-3 md:min-w-0 md:flex-1">
-            <div className="min-w-0 flex-1 space-y-1" aria-live="polite">
-            <div className="truncate text-sm font-semibold text-slate-800">
-              {clanId && clan ? (
-                <span>
-                  <strong>{clan.name}</strong> [{clan.tag}]
-                </span>
-              ) : (
-                <span>Aucun clan sélectionné</span>
-              )}
-            </div>
+            <div className="flex min-w-0 flex-1 items-center gap-3" aria-live="polite">
+              <img
+                src={clanImageUrl}
+                alt="Image du clan"
+                className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 object-cover sm:h-11 sm:w-11 md:h-12 md:w-12"
+                onError={(event) => {
+                  const target = event.currentTarget
+                  if (target.src.endsWith('/pubg.png')) {
+                    return
+                  }
+                  target.src = '/pubg.png'
+                }}
+              />
 
-            {loading ? (
-              <p className="text-xs text-slate-500">Vérification de session...</p>
-            ) : authenticated ? (
-              <p className="text-xs text-emerald-700">Connecté</p>
-            ) : (
-              <p className="text-xs text-amber-700">Session non connectée</p>
-            )}
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="truncate text-sm font-semibold text-slate-800">
+                  {clanId && clan ? (
+                    <span>
+                      <strong>{clan.name}</strong> [{clan.tag}]
+                    </span>
+                  ) : (
+                    <span>Aucun clan sélectionné</span>
+                  )}
+                </div>
+
+                {loading ? (
+                  <p className="text-xs text-slate-500">Vérification de session...</p>
+                ) : authenticated ? (
+                  <p className="text-xs text-emerald-700">Connecté</p>
+                ) : (
+                  <p className="text-xs text-amber-700">Session non connectée</p>
+                )}
+              </div>
             </div>
 
             <button

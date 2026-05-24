@@ -77,25 +77,25 @@ export default function ReportDetailPage() {
         <div className="flex flex-wrap gap-2">
           <a
             href={`/api/clans/${clanId}/reports/${reportId}/export?format=pdf`}
-            className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Export PDF
           </a>
           <a
             href={`/api/clans/${clanId}/reports/${reportId}/export?format=html`}
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Export HTML
           </a>
           <a
             href={`mailto:?subject=Rapport PUBG clan&body=/clans/${clanId}/reports/${reportId}`}
-            className="rounded border border-purple-300 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-50"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Partager
           </a>
           <Link
             href={`/clans/${clanId}/reports`}
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Retour liste
           </Link>

@@ -215,23 +215,39 @@ export async function createMemberInvite(params: {
 
   const activationUrl = `${getPublicBaseUrl()}/activate?token=${encodeURIComponent(token)}`
 
-  await sendEmail({
-    to: email,
-    subject: `Invitation PUBG Clan ${invite.clan.tag}`,
-    text: [
-      `Bonjour ${invite.member.displayName},`,
-      '',
-      `Vous avez ete invite a activer votre compte pour le clan ${invite.clan.name} [${invite.clan.tag}].`,
-      `Lien d'activation (valide 48h): ${activationUrl}`,
-      '',
-      'Si vous n\'etes pas concerne, ignorez cet email.',
-    ].join('\n'),
-  })
+  const delivery = await (async () => {
+    try {
+      return await sendEmail({
+        to: email,
+        subject: `Invitation PUBG Clan ${invite.clan.tag}`,
+        text: [
+          `Bonjour ${invite.member.displayName},`,
+          '',
+          `Vous avez ete invite a activer votre compte pour le clan ${invite.clan.name} [${invite.clan.tag}].`,
+          `Lien d'activation (valide 48h): ${activationUrl}`,
+          '',
+          'Si vous n\'etes pas concerne, ignorez cet email.',
+        ].join('\n'),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Email send failed'
+
+      return {
+        delivered: false,
+        mode: 'smtp' as const,
+        to: email,
+        subject: `Invitation PUBG Clan ${invite.clan.tag}`,
+        from: process.env.SMTP_FROM?.trim() || null,
+        reason: message,
+      }
+    }
+  })()
 
   return {
     inviteId: invite.id,
     expiresAt,
     activationUrl,
+    delivery,
   }
 }
 
@@ -239,6 +255,7 @@ export async function activateMemberInvite(params: {
   token: string
   password: string
   displayName?: string
+  loginEmail?: string
 }) {
   const tokenHash = hashToken(params.token)
   const now = new Date()
@@ -264,7 +281,14 @@ export async function activateMemberInvite(params: {
     throw new Error('Member is no longer active')
   }
 
-  const email = normalizeEmail(invite.email)
+  const inviteEmail = invite.email.trim()
+  const providedLoginEmail = params.loginEmail?.trim() ?? ''
+
+  if (!inviteEmail && !providedLoginEmail) {
+    throw new Error('Aucun email trouve sur l\'invitation. Saisissez votre email de connexion.')
+  }
+
+  const email = normalizeEmail(inviteEmail || providedLoginEmail)
   const passwordHash = await hashPassword(params.password)
 
   const user = await prisma.userAccount.upsert({
@@ -320,6 +344,37 @@ export async function activateMemberInvite(params: {
     userId: user.id,
     memberId: invite.memberId,
     email: user.email,
+  }
+}
+
+export async function getActivationInviteContext(token: string) {
+  const normalizedToken = token.trim()
+  if (!normalizedToken) {
+    return null
+  }
+
+  const tokenHash = hashToken(normalizedToken)
+  const invite = await prisma.memberInvite.findUnique({
+    where: { tokenHash },
+    include: {
+      member: {
+        select: {
+          isActive: true,
+        },
+      },
+    },
+  })
+
+  if (!invite || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date()) {
+    return null
+  }
+
+  if (!invite.member.isActive) {
+    return null
+  }
+
+  return {
+    requiresLoginEmail: invite.email.trim().length === 0,
   }
 }
 
@@ -389,6 +444,45 @@ export async function listLinkedMembers(userId: number) {
     },
     orderBy: {
       createdAt: 'asc',
+    },
+  })
+}
+
+export async function changeUserPassword(params: {
+  userId: number
+  currentPassword: string
+  newPassword: string
+}) {
+  const user = await prisma.userAccount.findUnique({
+    where: { id: params.userId },
+    select: {
+      id: true,
+      passwordHash: true,
+      status: true,
+      emailVerifiedAt: true,
+    },
+  })
+
+  if (!user || user.status !== 'active' || !user.emailVerifiedAt) {
+    throw new Error('Account is not active')
+  }
+
+  const validCurrentPassword = await verifyPassword(params.currentPassword, user.passwordHash)
+  if (!validCurrentPassword) {
+    throw new Error('Mot de passe actuel incorrect')
+  }
+
+  const sameAsCurrentPassword = await verifyPassword(params.newPassword, user.passwordHash)
+  if (sameAsCurrentPassword) {
+    throw new Error('Le nouveau mot de passe doit etre different')
+  }
+
+  const nextPasswordHash = await hashPassword(params.newPassword)
+
+  await prisma.userAccount.update({
+    where: { id: params.userId },
+    data: {
+      passwordHash: nextPasswordHash,
     },
   })
 }

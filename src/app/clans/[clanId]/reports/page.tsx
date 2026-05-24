@@ -47,18 +47,28 @@ export default function ClanReportsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Rapports du clan</h1>
-          <p className="text-sm text-gray-600">Historique hebdomadaire et mensuel des performances.</p>
+      <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Rapports du clan</h1>
+            <p className="text-sm text-gray-600">Historique hebdomadaire et mensuel des performances.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/members"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Joueurs
+            </Link>
+            <Link
+              href="/account"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Mon compte
+            </Link>
+          </div>
         </div>
-        <Link
-          href={`/clans/${clanId}/leaderboard`}
-          className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Voir le classement
-        </Link>
-      </div>
+      </header>
 
       <section className="mb-6 rounded border border-gray-200 bg-white p-4">
         <label className="text-sm text-gray-700">
@@ -97,13 +107,13 @@ export default function ClanReportsPage() {
             <div className="flex gap-2">
               <Link
                 href={`/clans/${clanId}/reports/${latestReport.id}`}
-                className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
               >
                 Voir détail
               </Link>
               <a
                 href={`/api/clans/${clanId}/reports/${latestReport.id}/export?format=html`}
-                className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 Exporter
               </a>
@@ -145,13 +155,13 @@ export default function ClanReportsPage() {
                   <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/clans/${clanId}/reports/${report.id}`}
-                      className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
                     >
                       Voir détail
                     </Link>
                     <a
                       href={`/api/clans/${clanId}/reports/${report.id}/export?format=html`}
-                      className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
                       Exporter
                     </a>
@@ -159,7 +169,7 @@ export default function ClanReportsPage() {
                       href={`mailto:?subject=Rapport PUBG clan&body=${encodeURIComponent(
                         `/clans/${clanId}/reports/${report.id}`
                       )}`}
-                      className="rounded border border-purple-300 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-50"
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
                       Partager
                     </a>

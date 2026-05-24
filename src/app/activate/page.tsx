@@ -1,8 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense, type FormEvent, useMemo, useState } from 'react'
+import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+
+type WelcomeSettings = {
+  badge: string
+  title: string
+  message: string
+  imageUrl: string | null
+}
+
+const DEFAULT_WELCOME: WelcomeSettings = {
+  badge: 'Bienvenue au clan',
+  title: 'Activation du compte',
+  message:
+    'Finalisez votre activation pour acceder aux statistiques, rapports et outils de coordination du clan.',
+  imageUrl: null,
+}
 
 function ActivatePageContent() {
   const router = useRouter()
@@ -10,14 +25,96 @@ function ActivatePageContent() {
   const tokenFromUrl = useMemo(() => searchParams.get('token') ?? '', [searchParams])
 
   const [token, setToken] = useState(tokenFromUrl)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [requiresLoginEmail, setRequiresLoginEmail] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_WELCOME)
+  const [clanLabel, setClanLabel] = useState<string | null>(null)
+  const heroImageUrl = welcome.imageUrl?.trim() ? welcome.imageUrl : '/pubg.png'
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadWelcome() {
+      try {
+        const response = await fetch('/api/settings/login-welcome', { cache: 'no-store' })
+        const payload = (await response.json().catch(() => null)) as
+          | { settings?: WelcomeSettings; clanLabel?: string | null }
+          | null
+
+        if (!cancelled && response.ok) {
+          setWelcome(payload?.settings ?? DEFAULT_WELCOME)
+          setClanLabel(payload?.clanLabel ?? null)
+        }
+      } catch {
+        // Keep default welcome content silently.
+      }
+    }
+
+    void loadWelcome()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const trimmedToken = token.trim()
+    if (!trimmedToken) {
+      setRequiresLoginEmail(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadActivationContext() {
+      try {
+        const response = await fetch(
+          `/api/auth/activate/context?token=${encodeURIComponent(trimmedToken)}`,
+          {
+            cache: 'no-store',
+          }
+        )
+
+        const payload = (await response.json().catch(() => null)) as
+          | { requiresLoginEmail?: boolean }
+          | null
+
+        if (cancelled) {
+          return
+        }
+
+        if (!response.ok) {
+          setRequiresLoginEmail(false)
+          return
+        }
+
+        setRequiresLoginEmail(Boolean(payload?.requiresLoginEmail))
+      } catch {
+        if (!cancelled) {
+          setRequiresLoginEmail(false)
+        }
+      }
+    }
+
+    void loadActivationContext()
+
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (requiresLoginEmail && !loginEmail.trim()) {
+      setError('Saisissez votre email de connexion')
+      return
+    }
 
     if (password !== confirmPassword) {
       setError('Les mots de passe ne correspondent pas')
@@ -35,6 +132,7 @@ function ActivatePageContent() {
         },
         body: JSON.stringify({
           token,
+          loginEmail: requiresLoginEmail ? loginEmail.trim() || undefined : undefined,
           password,
           displayName: displayName.trim() || undefined,
         }),
@@ -55,77 +153,137 @@ function ActivatePageContent() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 items-center px-4 py-10">
-      <section className="w-full rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-bold text-gray-900">Activation du compte</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Définissez votre mot de passe pour activer votre accès joueur.
-        </p>
+    <main className="relative flex flex-1 items-center overflow-hidden px-4 py-10 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_44%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.14),_transparent_40%)]" />
 
-        <form className="mt-6 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
-          <label className="block text-sm text-gray-700">
-            Token d&apos;activation
-            <input
-              type="text"
-              required
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              autoComplete="off"
-            />
-          </label>
+      <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="relative bg-slate-900 p-7 text-white sm:p-10">
+          <img
+            src={heroImageUrl}
+            alt="Visuel du clan"
+            className="absolute inset-0 hidden h-full w-full object-cover opacity-35 lg:block"
+          />
+          <div className="absolute inset-0 bg-slate-900/72" />
+          <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
+          <div className="pointer-events-none absolute -right-14 bottom-8 h-52 w-52 rounded-full bg-sky-500/30 blur-2xl" />
 
-          <label className="block text-sm text-gray-700">
-            Nom affiché (optionnel)
-            <input
-              type="text"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              autoComplete="nickname"
-            />
-          </label>
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div>
+              <p className="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
+                {welcome.badge}
+              </p>
+              <h1 className="mt-4 text-3xl font-black leading-tight sm:text-4xl">{welcome.title}</h1>
+              <p className="mt-4 max-w-md text-sm text-slate-200">{welcome.message}</p>
 
-          <label className="block text-sm text-gray-700">
-            Mot de passe
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              autoComplete="new-password"
-            />
-          </label>
+              {clanLabel ? (
+                <p className="mt-6 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">
+                  {clanLabel}
+                </p>
+              ) : null}
+            </div>
 
-          <label className="block text-sm text-gray-700">
-            Confirmer le mot de passe
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-              autoComplete="new-password"
-            />
-          </label>
+            <div className="shrink-0 lg:hidden">
+              <img
+                src={heroImageUrl}
+                alt="Logo du clan"
+                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow"
+              />
+            </div>
+          </div>
+        </div>
 
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <div className="p-7 sm:p-10">
+          <h2 className="text-2xl font-black text-slate-900">Activation du compte</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Definissez votre mot de passe pour activer votre acces joueur.
+          </p>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
-          >
-            {submitting ? 'Activation...' : 'Activer mon compte'}
-          </button>
-        </form>
+          <form className="mt-6 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+            <label className="block text-sm text-slate-700">
+              Token d&apos;activation
+              <input
+                type="text"
+                required
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                autoComplete="off"
+              />
+            </label>
 
-        <p className="mt-4 text-xs text-gray-500">
-          Déjà activé ? <Link href="/login" className="underline">Se connecter</Link>
-        </p>
+            {requiresLoginEmail ? (
+              <label className="block text-sm text-slate-700">
+                Email de connexion
+                <input
+                  type="email"
+                  required
+                  value={loginEmail}
+                  onChange={(event) => setLoginEmail(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  autoComplete="email"
+                  placeholder="joueur@exemple.com"
+                />
+                <span className="mt-1 block text-xs text-slate-500">
+                  Cette invitation ne contient pas d&apos;email, merci de saisir votre login.
+                </span>
+              </label>
+            ) : null}
+
+            <label className="block text-sm text-slate-700">
+              Nom affiche (optionnel)
+              <input
+                type="text"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                autoComplete="nickname"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-700">
+              Mot de passe
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                autoComplete="new-password"
+              />
+            </label>
+
+            <label className="block text-sm text-slate-700">
+              Confirmer le mot de passe
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                autoComplete="new-password"
+              />
+            </label>
+
+            {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+            >
+              {submitting ? 'Activation...' : 'Activer mon compte'}
+            </button>
+          </form>
+
+          <p className="mt-4 text-xs text-slate-500">
+            Deja active ?{' '}
+            <Link href="/login" className="underline">
+              Se connecter
+            </Link>
+          </p>
+        </div>
       </section>
     </main>
   )

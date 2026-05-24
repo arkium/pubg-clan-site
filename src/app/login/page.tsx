@@ -36,6 +36,7 @@ function LoginPageContent() {
   const [submitting, setSubmitting] = useState(false)
   const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_WELCOME)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
+  const heroImageUrl = welcome.imageUrl?.trim() ? welcome.imageUrl : '/pubg.png'
 
   useEffect(() => {
     let cancelled = false
@@ -128,28 +129,38 @@ function LoginPageContent() {
 
       <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[1.1fr_0.9fr]">
         <div className="relative bg-slate-900 p-7 text-white sm:p-10">
-          {welcome.imageUrl ? (
-            <img
-              src={welcome.imageUrl}
-              alt="Visuel du clan"
-              className="absolute inset-0 h-full w-full object-cover opacity-35"
-            />
-          ) : null}
+          <img
+            src={heroImageUrl}
+            alt="Visuel du clan"
+            className="absolute inset-0 hidden h-full w-full object-cover opacity-35 lg:block"
+          />
           <div className="absolute inset-0 bg-slate-900/72" />
           <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
           <div className="pointer-events-none absolute -right-14 bottom-8 h-52 w-52 rounded-full bg-sky-500/30 blur-2xl" />
 
-          <p className="relative z-10 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
-            {welcome.badge}
-          </p>
-          <h1 className="relative z-10 mt-4 text-3xl font-black leading-tight sm:text-4xl">{welcome.title}</h1>
-          <p className="relative z-10 mt-4 max-w-md text-sm text-slate-200">{welcome.message}</p>
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div>
+              <p className="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
+                {welcome.badge}
+              </p>
+              <h1 className="mt-4 text-3xl font-black leading-tight sm:text-4xl">{welcome.title}</h1>
+              <p className="mt-4 max-w-md text-sm text-slate-200">{welcome.message}</p>
 
-          {clanLabel ? (
-            <p className="relative z-10 mt-6 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">
-              {clanLabel}
-            </p>
-          ) : null}
+              {clanLabel ? (
+                <p className="mt-6 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">
+                  {clanLabel}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="shrink-0 lg:hidden">
+              <img
+                src={heroImageUrl}
+                alt="Logo du clan"
+                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="p-7 sm:p-10">

@@ -278,7 +278,7 @@ export default function NotificationsPage() {
           disabled={offset === 0}
           className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
         >
-          Précédent
+          Aller a la page precedente
         </button>
         <button
           type="button"
@@ -286,7 +286,7 @@ export default function NotificationsPage() {
           disabled={notifications.length < limit}
           className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
         >
-          Suivant
+          Aller a la page suivante
         </button>
       </div>
     </main>

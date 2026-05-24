@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
+import MemberSectionNav from '@/components/MemberSectionNav'
 import type { NotificationItem, NotificationType } from '@/types/notifications'
 import { NOTIFICATION_TYPES } from '@/types/notifications'
 
@@ -181,6 +182,8 @@ export default function NotificationsPage() {
           </button>
         </div>
       </div>
+
+      <MemberSectionNav memberId={memberId} />
 
       <div className="mb-4 grid gap-3 rounded border border-gray-200 bg-white p-4 md:grid-cols-2">
         <label className="text-sm text-gray-700">

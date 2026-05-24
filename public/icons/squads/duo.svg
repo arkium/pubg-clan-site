@@ -1,0 +1,14 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="duo_bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#0369A1"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#duo_bg)"/>
+  <path d="M20 42C20 35.373 25.373 30 32 30C38.627 30 44 35.373 44 42V44H20V42Z" fill="white" fill-opacity="0.22"/>
+  <circle cx="26" cy="24" r="6" fill="white"/>
+  <circle cx="38" cy="24" r="6" fill="#DBF4FF"/>
+  <path d="M17 17L23 15L21 21" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 47L41 49L43 43" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

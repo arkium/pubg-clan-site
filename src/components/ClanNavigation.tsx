@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -65,6 +65,7 @@ export default function ClanNavigation() {
   const [cronPending, setCronPending] = useState<CronAction | null>(null)
   const [cronMessage, setCronMessage] = useState<string | null>(null)
   const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('completed')
+  const navRootRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -220,6 +221,10 @@ export default function ClanNavigation() {
     }
   }, [authenticated, loading, router, setupState])
 
+  useEffect(() => {
+    closeDropdownMenus()
+  }, [pathname])
+
   async function handleLogout() {
     const response = await fetch('/api/auth/logout', {
       method: 'POST',
@@ -292,6 +297,17 @@ export default function ClanNavigation() {
     return pathname === href || pathname.startsWith(`${href}/`)
   }
 
+  function closeDropdownMenus() {
+    const root = navRootRef.current
+    if (!root) {
+      return
+    }
+
+    root.querySelectorAll('details[open]').forEach((detailsElement) => {
+      detailsElement.removeAttribute('open')
+    })
+  }
+
   function renderLink(item: NavItem, mobile = false) {
     const active = isActiveLink(item.href)
 
@@ -311,13 +327,19 @@ export default function ClanNavigation() {
     )
   }
 
-  function renderSubmenuLink(item: NavItem) {
+  function renderSubmenuLink(item: NavItem, mobile = false) {
     const active = isActiveLink(item.href)
 
     return (
       <Link
         key={`submenu-${item.href}`}
         href={item.href}
+        onClick={() => {
+          closeDropdownMenus()
+          if (mobile) {
+            setMobileOpen(false)
+          }
+        }}
         className={cx(
           'rounded-lg border px-3 py-2 text-sm font-medium transition',
           active
@@ -335,7 +357,7 @@ export default function ClanNavigation() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur">
+    <header ref={navRootRef} className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur">
       <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6">
         <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
           <div className="flex items-start justify-between gap-3 md:min-w-0 md:flex-1">
@@ -425,7 +447,10 @@ export default function ClanNavigation() {
                 {clanId && canClearClan ? (
                   <button
                     type="button"
-                    onClick={clearClanId}
+                      onClick={() => {
+                        closeDropdownMenus()
+                        clearClanId()
+                      }}
                     className="mt-2 w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
                   >
                     Effacer clan
@@ -491,11 +516,14 @@ export default function ClanNavigation() {
               <details className="mt-3 rounded-xl border border-slate-200 bg-white p-2">
                 <summary className="cursor-pointer list-none px-2 py-1 text-sm font-semibold text-slate-700">Admin</summary>
                 <div className="mt-2 grid grid-cols-1 gap-2">
-                  {adminLinks.map((item) => renderSubmenuLink(item))}
+                  {adminLinks.map((item) => renderSubmenuLink(item, true))}
                   {clanId && canClearClan ? (
                     <button
                       type="button"
-                      onClick={clearClanId}
+                      onClick={() => {
+                        clearClanId()
+                        setMobileOpen(false)
+                      }}
                       className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
                     >
                       Effacer clan

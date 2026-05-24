@@ -10,6 +10,7 @@ import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
 import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
+import MemberSectionNav from '@/components/MemberSectionNav'
 import type { DashboardPeriod } from '@/types/dashboard'
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
@@ -152,6 +153,8 @@ export default function DashboardPage() {
 
       {/* Content */}
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
+        <MemberSectionNav memberId={memberId} />
+
         {/* Stats principales */}
         <PlayerStats stats={stats} clanAverage={clanAverage} />
 

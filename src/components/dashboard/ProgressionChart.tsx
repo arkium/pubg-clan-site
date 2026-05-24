@@ -49,11 +49,10 @@ function Sparkline({ values, min, max, width, height }: SparklineProps) {
 
   return (
     <svg
-      width={width}
-      height={height}
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
-      className="overflow-visible"
+      preserveAspectRatio="none"
+      className="h-24 w-full overflow-visible"
     >
       <path d={areaD} fill={METRIC_COLOR} fillOpacity="0.1" />
       <path d={pathD} fill="none" stroke={METRIC_COLOR} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -94,10 +93,10 @@ export default function ProgressionChart({ progression }: ProgressionChartProps)
     trend === '↑' ? 'text-green-600' : trend === '↓' ? 'text-red-500' : 'text-gray-400'
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-900">Progression (4 semaines)</h2>
-        <div className="flex rounded border border-gray-200 p-0.5">
+        <div className="flex flex-wrap rounded border border-gray-200 p-0.5">
           {metrics.map((m) => (
             <button
               key={m}
@@ -113,11 +112,11 @@ export default function ProgressionChart({ progression }: ProgressionChartProps)
         </div>
       </div>
 
-      <div className="flex items-end gap-4">
-        <div className="flex-1">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <Sparkline values={values} min={min} max={max} width={400} height={100} />
         </div>
-        <div className="text-right">
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-left sm:text-right">
           <p className={`text-2xl font-bold ${trendColor}`}>
             {trend} {formatValue(latest, metric)}
           </p>

@@ -246,7 +246,8 @@ export default function ClanMembersSettingsPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {members.map((member) => {
-                  const currentRole = member.roles[0]
+                  const currentRole =
+                    member.roles.find((role) => role.name === member.role) ?? member.roles[0]
                   const currentRoleOption = roles.find((role) => role.id === currentRole?.roleId)
 
                   return (

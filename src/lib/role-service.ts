@@ -177,13 +177,31 @@ export async function initializeDefaultRoles(clanId: number) {
 export async function assignDefaultMemberRole(memberId: number, clanId: number) {
   await initializeDefaultRoles(clanId)
 
-  const memberRole = await prisma.clanRole.findUnique({
-    where: { clanId_name: { clanId, name: PREDEFINED_ROLES.MEMBER.name } },
-    select: { id: true },
-  })
+  const [memberRole, ownerRole] = await Promise.all([
+    prisma.clanRole.findUnique({
+      where: { clanId_name: { clanId, name: PREDEFINED_ROLES.MEMBER.name } },
+      select: { id: true },
+    }),
+    prisma.clanRole.findUnique({
+      where: { clanId_name: { clanId, name: PREDEFINED_ROLES.OWNER.name } },
+      select: { id: true },
+    }),
+  ])
 
   if (!memberRole) {
     return null
+  }
+
+  // The clan owner should not receive the default Member role.
+  if (ownerRole) {
+    const hasOwnerRole = await prisma.clanMemberRole.findUnique({
+      where: { memberId_roleId: { memberId, roleId: ownerRole.id } },
+      select: { memberId: true },
+    })
+
+    if (hasOwnerRole) {
+      return null
+    }
   }
 
   const result = await prisma.clanMemberRole.upsert({

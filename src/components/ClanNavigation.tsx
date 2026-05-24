@@ -106,6 +106,7 @@ export default function ClanNavigation() {
   const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
   const canClearClan = hasWildcard || permissionSet.has('manage_settings') || permissionSet.has('manage_roles')
   const isOwner = hasWildcard
+  const canSwitchClan = canManageMembers || canManageRoles || canManageSettings || isOwner
 
   const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
 
@@ -145,7 +146,6 @@ export default function ClanNavigation() {
       : []),
     { label: 'Joueurs', href: '/members', tone: 'sky' },
     { label: 'Mon compte', href: '/account', tone: 'neutral' },
-    { label: 'Changer de clan', href: '/clans', tone: 'neutral' },
   ]
 
   const adminLinks: NavItem[] = [
@@ -182,6 +182,15 @@ export default function ClanNavigation() {
           {
             label: 'Accueil login',
             href: '/settings/login-welcome',
+            tone: 'neutral' as const,
+          },
+        ]
+      : []),
+    ...(canSwitchClan
+      ? [
+          {
+            label: 'Changer de clan',
+            href: '/clans',
             tone: 'neutral' as const,
           },
         ]

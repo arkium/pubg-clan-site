@@ -6,6 +6,30 @@ import { getActorMemberId, requirePermission } from '@/middleware/auth-permissio
 
 type PermissionMap = Record<string, boolean>
 
+const ROLE_PRIORITY: Record<string, number> = {
+  Owner: 4,
+  Admin: 3,
+  Moderator: 2,
+  Member: 1,
+}
+
+function resolvePrimaryRoleName(roleNames: string[]) {
+  if (roleNames.length === 0) {
+    return 'Member'
+  }
+
+  return [...roleNames].sort((left, right) => {
+    const leftPriority = ROLE_PRIORITY[left] ?? 0
+    const rightPriority = ROLE_PRIORITY[right] ?? 0
+
+    if (leftPriority !== rightPriority) {
+      return rightPriority - leftPriority
+    }
+
+    return left.localeCompare(right)
+  })[0]
+}
+
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
@@ -153,6 +177,7 @@ export async function GET(
 
     const payload = refreshedMembers.map((member) => {
       const roleNames = member.roles.map((entry) => entry.role.name)
+      const primaryRole = resolvePrimaryRoleName(roleNames)
       const permissionKeys = new Set<string>()
 
       for (const memberRole of member.roles) {
@@ -167,7 +192,7 @@ export async function GET(
       return {
         id: member.id,
         name: member.displayName,
-        role: roleNames[0] ?? 'Member',
+        role: primaryRole,
         roles: member.roles.map((entry) => ({
           id: entry.id,
           roleId: entry.roleId,

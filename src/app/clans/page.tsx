@@ -4,16 +4,44 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import ClanSelector, { type Clan } from '@/components/ClanSelector'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function ClansPage() {
   const router = useRouter()
   const { setClanId } = useSelectedClan()
+  const { loading: authLoading, authenticated, permissions } = useAuthSession()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const hasWildcard = permissions.includes('*')
+  const canSwitchClan =
+    hasWildcard ||
+    permissions.includes('manage_members') ||
+    permissions.includes('manage_roles') ||
+    permissions.includes('manage_settings')
+
   useEffect(() => {
+    if (authLoading) {
+      return
+    }
+
+    if (!authenticated) {
+      router.replace('/login')
+      return
+    }
+
+    if (!canSwitchClan) {
+      router.replace('/members')
+    }
+  }, [authLoading, authenticated, canSwitchClan, router])
+
+  useEffect(() => {
+    if (authLoading || !authenticated || !canSwitchClan) {
+      return
+    }
+
     let cancelled = false
 
     async function fetchClans() {
@@ -47,11 +75,27 @@ export default function ClansPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [authLoading, authenticated, canSwitchClan])
 
   function handleSelect(clanId: number) {
     setClanId(clanId)
     router.push('/members')
+  }
+
+  if (authLoading) {
+    return (
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+        <p className="text-sm text-gray-600">Verification de la session...</p>
+      </main>
+    )
+  }
+
+  if (!authenticated || !canSwitchClan) {
+    return (
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+        <p className="text-sm text-gray-600">Redirection...</p>
+      </main>
+    )
   }
 
   return (

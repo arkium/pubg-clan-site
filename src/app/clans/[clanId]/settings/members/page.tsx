@@ -33,10 +33,31 @@ type ClanMemberWithRole = {
   } | null
 }
 
+type EmailDeliveryStatus = {
+  ready?: boolean
+}
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function getRoleBadgeClass(roleName: string) {
+  const normalizedRole = roleName.trim().toLowerCase()
+
+  switch (normalizedRole) {
+    case 'owner':
+      return 'bg-rose-100 text-rose-700'
+    case 'admin':
+      return 'bg-sky-100 text-sky-700'
+    case 'moderator':
+      return 'bg-amber-100 text-amber-700'
+    case 'member':
+      return 'bg-emerald-100 text-emerald-700'
+    default:
+      return 'bg-gray-100 text-gray-700'
+  }
 }
 
 export default function ClanMembersSettingsPage() {
@@ -50,6 +71,10 @@ export default function ClanMembersSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [invitingMemberId, setInvitingMemberId] = useState<number | null>(null)
+  const [inviteDraftMemberId, setInviteDraftMemberId] = useState<number | null>(null)
+  const [inviteEmailDraft, setInviteEmailDraft] = useState('')
+  const [isEmailDeliveryReady, setIsEmailDeliveryReady] = useState(false)
+  const [emailStatusLoaded, setEmailStatusLoaded] = useState(false)
 
   useEffect(() => {
     if (!clanId) {
@@ -93,6 +118,21 @@ export default function ClanMembersSettingsPage() {
     }
   }
 
+  async function fetchEmailDeliveryStatus() {
+    const response = await fetch('/api/settings/email-delivery', { cache: 'no-store' })
+    const payload = (await response.json().catch(() => null)) as EmailDeliveryStatus | null
+
+    if (response.status === 401) {
+      throw new Error('AUTH_REQUIRED')
+    }
+
+    if (!response.ok) {
+      return false
+    }
+
+    return Boolean(payload?.ready)
+  }
+
   useEffect(() => {
     if (!clanId) {
       return
@@ -104,10 +144,15 @@ export default function ClanMembersSettingsPage() {
     async function loadMembersSettings() {
       try {
         setError('')
-        const data = await fetchMembersAndRoles(currentClanId)
+        const [data, emailReady] = await Promise.all([
+          fetchMembersAndRoles(currentClanId),
+          fetchEmailDeliveryStatus(),
+        ])
         if (!cancelled) {
           setMembers(data.members)
           setRoles(data.roles)
+          setIsEmailDeliveryReady(emailReady)
+          setEmailStatusLoaded(true)
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -121,6 +166,7 @@ export default function ClanMembersSettingsPage() {
       } finally {
         if (!cancelled) {
           setLoading(false)
+          setEmailStatusLoaded(true)
         }
       }
     }
@@ -160,25 +206,26 @@ export default function ClanMembersSettingsPage() {
     setRoles(data.roles)
   }
 
-  async function handleInvite(member: ClanMemberWithRole) {
+  async function handleInvite(member: ClanMemberWithRole, email: string) {
     if (!clanId) {
       return
     }
 
-    const email = window.prompt(`Adresse email pour inviter ${member.name} ?`, member.pendingInvite?.email ?? '')
-
-    if (!email) {
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail) {
+      setError('Veuillez renseigner une adresse email valide.')
       return
     }
 
     try {
+      setError('')
       setInvitingMemberId(member.id)
       const response = await fetch(`/api/clans/${clanId}/members/${member.id}/invite`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: normalizedEmail }),
       })
 
       const payload = (await response.json()) as { error?: string }
@@ -194,6 +241,8 @@ export default function ClanMembersSettingsPage() {
       const data = await fetchMembersAndRoles(clanId)
       setMembers(data.members)
       setRoles(data.roles)
+      setInviteDraftMemberId(null)
+      setInviteEmailDraft('')
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : 'Failed to send invite')
     } finally {
@@ -230,6 +279,15 @@ export default function ClanMembersSettingsPage() {
 
       {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {!loading && emailStatusLoaded && !isEmailDeliveryReady ? (
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Invitations email desactivees. Effectuez d'abord un test reussi dans{' '}
+          <Link href="/settings/email-delivery" className="font-semibold underline">
+            Configuration email
+          </Link>
+          .
+        </div>
+      ) : null}
 
       {!loading && !error ? (
         <section className="overflow-hidden rounded border border-gray-200 bg-white">
@@ -275,7 +333,9 @@ export default function ClanMembersSettingsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                        <span
+                          className={`rounded px-2 py-1 text-xs font-medium ${getRoleBadgeClass(member.role)}`}
+                        >
                           {member.role}
                         </span>
                       </td>
@@ -311,15 +371,50 @@ export default function ClanMembersSettingsPage() {
                             <span className="text-xs text-gray-500">Aucun rôle</span>
                           )}
 
-                          {!member.hasAccount ? (
-                            <button
-                              type="button"
-                              onClick={() => void handleInvite(member)}
-                              disabled={invitingMemberId === member.id}
-                              className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {invitingMemberId === member.id ? 'Envoi...' : 'Inviter'}
-                            </button>
+                          {!member.hasAccount && isEmailDeliveryReady ? (
+                            inviteDraftMemberId === member.id ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                  type="email"
+                                  value={inviteEmailDraft}
+                                  onChange={(event) => setInviteEmailDraft(event.target.value)}
+                                  placeholder="email@exemple.com"
+                                  className="rounded border border-gray-300 px-2 py-1 text-xs"
+                                  disabled={invitingMemberId === member.id}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => void handleInvite(member, inviteEmailDraft)}
+                                  disabled={invitingMemberId === member.id}
+                                  className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {invitingMemberId === member.id ? 'Envoi...' : 'Envoyer'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInviteDraftMemberId(null)
+                                    setInviteEmailDraft('')
+                                  }}
+                                  disabled={invitingMemberId === member.id}
+                                  className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Annuler
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInviteDraftMemberId(member.id)
+                                  setInviteEmailDraft(member.pendingInvite?.email ?? '')
+                                }}
+                                disabled={invitingMemberId === member.id}
+                                className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Inviter
+                              </button>
+                            )
                           ) : null}
                         </div>
                       </td>

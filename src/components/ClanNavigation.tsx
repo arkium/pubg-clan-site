@@ -184,6 +184,11 @@ export default function ClanNavigation() {
             href: '/settings/login-welcome',
             tone: 'neutral' as const,
           },
+          {
+            label: 'Test email',
+            href: '/settings/email-delivery',
+            tone: 'neutral' as const,
+          },
         ]
       : []),
     ...(canSwitchClan

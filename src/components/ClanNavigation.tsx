@@ -336,7 +336,7 @@ export default function ClanNavigation() {
         body: JSON.stringify({ action }),
       })
 
-      const payload = (await response.json().catch(() => null)) as
+      let payload = null as
         | {
             ok?: boolean
             partial?: boolean
@@ -345,9 +345,29 @@ export default function ClanNavigation() {
             error?: string
           }
         | null
+      let rawResponseText = ''
+
+      try {
+        payload = (await response.clone().json()) as {
+          ok?: boolean
+          partial?: boolean
+          message?: string
+          warning?: string
+          error?: string
+        }
+      } catch {
+        rawResponseText = (await response.text().catch(() => '')).trim()
+      }
 
       if (!response.ok || !payload?.ok) {
-        setCronMessage(payload?.error ?? payload?.message ?? 'Action cron impossible')
+        const fallback = rawResponseText
+          ? `HTTP ${response.status}: ${rawResponseText.slice(0, 140)}`
+          : `HTTP ${response.status}: reponse invalide du serveur`
+        setCronMessage(
+          payload?.error ??
+            payload?.message ??
+            `${fallback}. L action a peut-etre ete lancee, verifie la page Ops Cron.`
+        )
         return
       }
 
@@ -358,7 +378,7 @@ export default function ClanNavigation() {
 
       setCronMessage(parts.join(' '))
     } catch {
-      setCronMessage('Action cron impossible')
+      setCronMessage('Reponse non recue. L action a peut-etre ete lancee, verifie Ops Cron.')
     } finally {
       setCronPending(null)
     }

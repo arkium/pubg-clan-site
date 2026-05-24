@@ -54,6 +54,13 @@ type CronStatusPayload = {
   history: CronHistoryEntry[]
 }
 
+type CronActionResponse = {
+  ok?: boolean
+  message?: string
+  warning?: string
+  error?: string
+}
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
   const parsed = Number(value)
@@ -187,12 +194,25 @@ export default function CronSettingsPage() {
         body: JSON.stringify({ action }),
       })
 
-      const result = (await response.json().catch(() => null)) as
-        | { ok?: boolean; message?: string; warning?: string; error?: string }
-        | null
+      let result: CronActionResponse | null = null
+      let rawResponseText = ''
+
+      try {
+        result = (await response.clone().json()) as CronActionResponse
+      } catch {
+        rawResponseText = (await response.text().catch(() => '')).trim()
+      }
 
       if (!response.ok || !result?.ok) {
-        setError(result?.error ?? result?.message ?? 'Action cron impossible')
+        const fallback = rawResponseText
+          ? `HTTP ${response.status}: ${rawResponseText.slice(0, 180)}`
+          : `HTTP ${response.status}: reponse invalide du serveur`
+        setError(
+          result?.error ??
+            result?.message ??
+            `${fallback}. L'action a peut-etre ete lancee; verifie l'historique ci-dessous.`
+        )
+        await loadStatus(clanId, true)
         return
       }
 
@@ -204,7 +224,8 @@ export default function CronSettingsPage() {
       setInfo(details.join(' '))
       await loadStatus(clanId, true)
     } catch {
-      setError('Action cron impossible')
+      setError('Reponse non recue. L action a peut-etre ete lancee; verifie l historique.')
+      await loadStatus(clanId, true)
     } finally {
       setPendingAction(null)
     }

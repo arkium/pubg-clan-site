@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 type LifetimeStats = {
   combat: {
     kills: number
@@ -41,11 +43,18 @@ type LifetimeStats = {
 
 type MemberLifetimeStatsPanelProps = {
   lifetimeStats: LifetimeStats | null
+  clanRanks: Record<string, 1 | 2 | 3 | null>
   loadingStats: boolean
   statsError: string
   lastRefreshedAt: string | null
   refreshingStats: boolean
   onRefresh: () => void
+}
+
+const MEDAL_BY_RANK: Record<1 | 2 | 3, { iconPath: string; alt: string }> = {
+  1: { iconPath: '/icons/medal-gold.svg', alt: 'Medaille or' },
+  2: { iconPath: '/icons/medal-silver.svg', alt: 'Medaille argent' },
+  3: { iconPath: '/icons/medal-bronze.svg', alt: 'Medaille bronze' },
 }
 
 function formatDurationLong(seconds: number) {
@@ -73,8 +82,34 @@ function formatDistanceMetersToKm(value: number) {
   return `${(value / 1000).toFixed(2)} km`
 }
 
+function StatRow({
+  label,
+  value,
+  metricKey,
+  clanRanks,
+}: {
+  label: string
+  value: string
+  metricKey?: string
+  clanRanks: Record<string, 1 | 2 | 3 | null>
+}) {
+  const rank = metricKey ? clanRanks[metricKey] : null
+  const medal = rank ? MEDAL_BY_RANK[rank] : null
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt>{label}</dt>
+      <dd className="flex items-center gap-1 text-lg font-semibold text-gray-900 sm:text-xl">
+        {medal ? <Image src={medal.iconPath} alt={medal.alt} width={16} height={16} /> : null}
+        <span>{value}</span>
+      </dd>
+    </div>
+  )
+}
+
 export default function MemberLifetimeStatsPanel({
   lifetimeStats,
+  clanRanks,
   loadingStats,
   statsError,
   lastRefreshedAt,
@@ -116,60 +151,60 @@ export default function MemberLifetimeStatsPanel({
           <article className="rounded border border-gray-200 p-4">
             <h3 className="mb-3 text-lg font-semibold">Combat</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt>Kills</dt><dd>{formatNumber(lifetimeStats.combat.kills)}</dd></div>
-              <div className="flex justify-between"><dt>Morts</dt><dd>{formatNumber(lifetimeStats.combat.deaths)}</dd></div>
-              <div className="flex justify-between"><dt>Ratio K/D</dt><dd>{formatRatio(lifetimeStats.combat.kdRatio)}</dd></div>
-              <div className="flex justify-between"><dt>Headshots</dt><dd>{formatNumber(lifetimeStats.combat.headshots)}</dd></div>
-              <div className="flex justify-between"><dt>Assists</dt><dd>{formatNumber(lifetimeStats.combat.assists)}</dd></div>
-              <div className="flex justify-between"><dt>KO</dt><dd>{formatNumber(lifetimeStats.combat.knockouts)}</dd></div>
-              <div className="flex justify-between"><dt>Serie max</dt><dd>{formatNumber(lifetimeStats.combat.highestKillstreak)}</dd></div>
-              <div className="flex justify-between"><dt>Distance max</dt><dd>{lifetimeStats.combat.longestKill.toFixed(2)} m</dd></div>
-              <div className="flex justify-between"><dt>Teamkills</dt><dd>{formatNumber(lifetimeStats.combat.teamkills)}</dd></div>
-              <div className="flex justify-between"><dt>Suicides</dt><dd>{formatNumber(lifetimeStats.combat.suicides)}</dd></div>
+              <StatRow label="Kills" value={formatNumber(lifetimeStats.combat.kills)} metricKey="combat.kills" clanRanks={clanRanks} />
+              <StatRow label="Morts" value={formatNumber(lifetimeStats.combat.deaths)} clanRanks={clanRanks} />
+              <StatRow label="Ratio K/D" value={formatRatio(lifetimeStats.combat.kdRatio)} metricKey="combat.kdRatio" clanRanks={clanRanks} />
+              <StatRow label="Headshots" value={formatNumber(lifetimeStats.combat.headshots)} metricKey="combat.headshots" clanRanks={clanRanks} />
+              <StatRow label="Assists" value={formatNumber(lifetimeStats.combat.assists)} metricKey="combat.assists" clanRanks={clanRanks} />
+              <StatRow label="KO" value={formatNumber(lifetimeStats.combat.knockouts)} metricKey="combat.knockouts" clanRanks={clanRanks} />
+              <StatRow label="Serie max" value={formatNumber(lifetimeStats.combat.highestKillstreak)} metricKey="combat.highestKillstreak" clanRanks={clanRanks} />
+              <StatRow label="Distance max" value={`${lifetimeStats.combat.longestKill.toFixed(2)} m`} metricKey="combat.longestKill" clanRanks={clanRanks} />
+              <StatRow label="Teamkills" value={formatNumber(lifetimeStats.combat.teamkills)} clanRanks={clanRanks} />
+              <StatRow label="Suicides" value={formatNumber(lifetimeStats.combat.suicides)} clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
             <h3 className="mb-3 text-lg font-semibold">Victoires</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt>Victoires</dt><dd>{formatNumber(lifetimeStats.victory.wins)}</dd></div>
-              <div className="flex justify-between"><dt>Defaites</dt><dd>{formatNumber(lifetimeStats.victory.losses)}</dd></div>
-              <div className="flex justify-between"><dt>Ratio V/D</dt><dd>{formatRatio(lifetimeStats.victory.winLossRatio)}</dd></div>
-              <div className="flex justify-between"><dt>Temps max en vie</dt><dd>{formatDurationLong(lifetimeStats.victory.longestTimeAlive)}</dd></div>
+              <StatRow label="Victoires" value={formatNumber(lifetimeStats.victory.wins)} metricKey="victory.wins" clanRanks={clanRanks} />
+              <StatRow label="Defaites" value={formatNumber(lifetimeStats.victory.losses)} clanRanks={clanRanks} />
+              <StatRow label="Ratio V/D" value={formatRatio(lifetimeStats.victory.winLossRatio)} metricKey="victory.winLossRatio" clanRanks={clanRanks} />
+              <StatRow label="Temps max en vie" value={formatDurationLong(lifetimeStats.victory.longestTimeAlive)} metricKey="victory.longestTimeAlive" clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
             <h3 className="mb-3 text-lg font-semibold">Support</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt>Coequipiers releves</dt><dd>{formatNumber(lifetimeStats.support.teammatesRevived)}</dd></div>
-              <div className="flex justify-between"><dt>Boosts utilises</dt><dd>{formatNumber(lifetimeStats.support.boostsUsed)}</dd></div>
-              <div className="flex justify-between"><dt>Soin</dt><dd>{formatNumber(lifetimeStats.support.healed)}</dd></div>
+              <StatRow label="Coequipiers releves" value={formatNumber(lifetimeStats.support.teammatesRevived)} metricKey="support.teammatesRevived" clanRanks={clanRanks} />
+              <StatRow label="Boosts utilises" value={formatNumber(lifetimeStats.support.boostsUsed)} metricKey="support.boostsUsed" clanRanks={clanRanks} />
+              <StatRow label="Soin" value={formatNumber(lifetimeStats.support.healed)} metricKey="support.healed" clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
             <h3 className="mb-3 text-lg font-semibold">Vehicules</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt>Vehicules detruits</dt><dd>{formatNumber(lifetimeStats.vehicle.vehiclesDestroyed)}</dd></div>
-              <div className="flex justify-between"><dt>Roadkills</dt><dd>{formatNumber(lifetimeStats.vehicle.roadkills)}</dd></div>
+              <StatRow label="Vehicules detruits" value={formatNumber(lifetimeStats.vehicle.vehiclesDestroyed)} metricKey="vehicle.vehiclesDestroyed" clanRanks={clanRanks} />
+              <StatRow label="Roadkills" value={formatNumber(lifetimeStats.vehicle.roadkills)} metricKey="vehicle.roadkills" clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
             <h3 className="mb-3 text-lg font-semibold">Deplacements</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt>Distance en vehicule</dt><dd>{formatDistanceMetersToKm(lifetimeStats.movement.drivenDistance)}</dd></div>
-              <div className="flex justify-between"><dt>Distance a pied</dt><dd>{formatDistanceMetersToKm(lifetimeStats.movement.walkedDistance)}</dd></div>
-              <div className="flex justify-between"><dt>Distance a la nage</dt><dd>{formatDistanceMetersToKm(lifetimeStats.movement.swamDistance)}</dd></div>
+              <StatRow label="Distance en vehicule" value={formatDistanceMetersToKm(lifetimeStats.movement.drivenDistance)} metricKey="movement.drivenDistance" clanRanks={clanRanks} />
+              <StatRow label="Distance a pied" value={formatDistanceMetersToKm(lifetimeStats.movement.walkedDistance)} metricKey="movement.walkedDistance" clanRanks={clanRanks} />
+              <StatRow label="Distance a la nage" value={formatDistanceMetersToKm(lifetimeStats.movement.swamDistance)} metricKey="movement.swamDistance" clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
             <h3 className="mb-3 text-lg font-semibold">Autres</h3>
             <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt>Armes ramassees</dt><dd>{formatNumber(lifetimeStats.other.weaponsPicked)}</dd></div>
-              <div className="flex justify-between"><dt>Degats infliges</dt><dd>{formatNumber(lifetimeStats.other.damageGiven)}</dd></div>
+              <StatRow label="Armes ramassees" value={formatNumber(lifetimeStats.other.weaponsPicked)} metricKey="other.weaponsPicked" clanRanks={clanRanks} />
+              <StatRow label="Degats infliges" value={formatNumber(lifetimeStats.other.damageGiven)} metricKey="other.damageGiven" clanRanks={clanRanks} />
             </dl>
           </article>
         </div>

@@ -118,6 +118,11 @@ export default function ClanNavigation() {
             href: `/clans/${clanId}/matches`,
             tone: 'brand' as const,
           },
+          {
+            label: 'Stats clan',
+            href: `/clans/${clanId}/stats`,
+            tone: 'sky' as const,
+          },
           ...(canViewLeaderboard
             ? [
                 {

@@ -47,6 +47,8 @@ type LifetimeStats = {
   }
 }
 
+type ClanMetricRanks = Record<string, 1 | 2 | 3 | null>
+
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -62,6 +64,7 @@ export default function MemberStatsPage() {
 
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null)
+  const [clanRanks, setClanRanks] = useState<ClanMetricRanks>({})
   const [loadingStats, setLoadingStats] = useState(true)
   const [statsError, setStatsError] = useState('')
   const [refreshingStats, setRefreshingStats] = useState(false)
@@ -81,6 +84,7 @@ export default function MemberStatsPage() {
         const response = await fetch(`/api/members/${memberId}/stats`)
         const payload = (await response.json()) as {
           stats?: LifetimeStats
+          clanRanks?: ClanMetricRanks
           lastRefreshedAt?: string | null
           error?: string
         }
@@ -91,6 +95,7 @@ export default function MemberStatsPage() {
 
         if (!cancelled) {
           setLifetimeStats(payload.stats ?? null)
+          setClanRanks(payload.clanRanks ?? {})
           setLastRefreshedAt(payload.lastRefreshedAt ?? null)
         }
       } catch (loadError) {
@@ -127,6 +132,7 @@ export default function MemberStatsPage() {
       const response = await fetch(`/api/members/${memberId}/stats`, { method: 'POST' })
       const payload = (await response.json()) as {
         stats?: LifetimeStats
+        clanRanks?: ClanMetricRanks
         lastRefreshedAt?: string | null
         error?: string
       }
@@ -136,6 +142,7 @@ export default function MemberStatsPage() {
       }
 
       setLifetimeStats(payload.stats ?? null)
+      setClanRanks(payload.clanRanks ?? {})
       setLastRefreshedAt(payload.lastRefreshedAt ?? null)
     } catch (refreshError) {
       setStatsError(
@@ -186,6 +193,7 @@ export default function MemberStatsPage() {
 
       <MemberLifetimeStatsPanel
         lifetimeStats={lifetimeStats}
+        clanRanks={clanRanks}
         loadingStats={loadingStats}
         statsError={statsError}
         lastRefreshedAt={lastRefreshedAt}

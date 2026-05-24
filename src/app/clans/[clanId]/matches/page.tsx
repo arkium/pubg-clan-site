@@ -155,12 +155,20 @@ export default function ClanMatchesPage() {
             Performance collective du clan sur la période sélectionnée.
           </p>
         </div>
-        <Link
-          href="/members"
-          className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Voir les membres
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/clans/${clanId}/stats`}
+            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Stats clan
+          </Link>
+          <Link
+            href="/members"
+            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Voir les membres
+          </Link>
+        </div>
       </div>
 
       <div className="mb-6 flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-white p-4">

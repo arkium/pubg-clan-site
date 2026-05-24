@@ -58,12 +58,20 @@ export default function LeaderboardPage() {
             Performances individuelles par période.
           </p>
         </div>
-        <Link
-          href={`/clans/${clanId}/matches`}
-          className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Matchs ensemble
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/clans/${clanId}/stats`}
+            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Stats clan
+          </Link>
+          <Link
+            href={`/clans/${clanId}/matches`}
+            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Matchs ensemble
+          </Link>
+        </div>
       </div>
 
       {/* Period selector */}

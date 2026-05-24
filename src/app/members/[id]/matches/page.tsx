@@ -34,6 +34,10 @@ interface ApiMatch {
   }
 }
 
+interface ImportedMatchResponse {
+  id: string
+}
+
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -216,7 +220,7 @@ export default function MatchesPage() {
           shard: matchInfo.shard,
         }),
       })
-      const payload = (await response.json()) as ImportedMatch | { error?: string }
+      const payload = (await response.json()) as ImportedMatchResponse | { error?: string }
 
       if (!response.ok) {
         throw new Error('error' in payload ? payload.error : 'Impossible d\'importer le match')

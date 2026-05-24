@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron'
 
 import { endChallenge } from '@/lib/challenge-service'
+import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { notifyInviteReminder, notifyReportReady } from '@/lib/notification-service'
 import { prisma } from '@/lib/prisma'
@@ -148,14 +149,34 @@ async function recalculateStatsDaily() {
     }
 
     for (const clan of activeClans) {
+      const execution = await startCronExecution({
+        clanId: clan.id,
+        action: 'daily_stats_recalc',
+        source: 'scheduler',
+      })
+
       try {
         await recalculateStatsForClan(clan.id)
         console.info(`[Cron] Stats recalculated for clan "${clan.name}" (${clan.id})`)
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'success',
+          message: `Stats recalculated for clan "${clan.name}"`,
+        })
       } catch (error) {
         console.error(
           `[Cron] Failed to recalculate stats for clan "${clan.name}" (${clan.id})`,
           error
         )
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Stats recalculation failed',
+        }).catch(() => undefined)
       }
     }
 
@@ -201,6 +222,12 @@ async function runDailyClanSync() {
     let syncedClans = 0
 
     for (const clan of activeClans) {
+      const execution = await startCronExecution({
+        clanId: clan.id,
+        action: 'daily_sync',
+        source: 'scheduler',
+      })
+
       try {
         const result = await syncClanWithRetry(clan.id, clan.name)
         const clanImportedMatches = result?.importedMatches ?? result?.importedCount ?? 0
@@ -211,6 +238,17 @@ async function runDailyClanSync() {
         console.info(
           `[Cron] Clan "${clan.name}" (${clan.id}) synced: ${clanImportedMatches} imported matches`
         )
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'success',
+          message: `Daily sync completed: ${clanImportedMatches} imported match(es)`,
+          details: {
+            importedMatches: clanImportedMatches,
+            result,
+          },
+        })
       } catch (error) {
         const consecutiveFailures = (failureTracker.get(clan.id) ?? 0) + 1
         failureTracker.set(clan.id, consecutiveFailures)
@@ -225,6 +263,16 @@ async function runDailyClanSync() {
             `[Cron][ALERT] Clan "${clan.name}" (${clan.id}) sync failed ${consecutiveFailures} times in a row`
           )
         }
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Daily sync failed',
+          details: {
+            consecutiveFailures,
+          },
+        }).catch(() => undefined)
       }
     }
 
@@ -289,6 +337,12 @@ export async function generateReportsAutomatically(reportType: 'weekly' | 'month
     const monthlyStart = getLastCompletedMonthStart(startedAt)
 
     for (const clan of activeClans) {
+      const execution = await startCronExecution({
+        clanId: clan.id,
+        action: reportType === 'weekly' ? 'weekly_report_auto' : 'monthly_report_auto',
+        source: 'scheduler',
+      })
+
       try {
         if (reportType === 'weekly' || reportType === 'all') {
           await generateWeeklyReport(clan.id, weeklyStart)
@@ -299,8 +353,30 @@ export async function generateReportsAutomatically(reportType: 'weekly' | 'month
         }
 
         console.info(`[Cron] Reports generated for clan "${clan.name}" (${clan.id})`)
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'success',
+          message: `Automatic report generation completed (${reportType})`,
+          details: {
+            reportType,
+            weeklyStart: weeklyStart.toISOString(),
+            monthlyStart: monthlyStart.toISOString(),
+          },
+        })
       } catch (error) {
         console.error(`[Cron] Failed to generate reports for clan "${clan.name}" (${clan.id})`, error)
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Automatic report generation failed',
+          details: {
+            reportType,
+          },
+        }).catch(() => undefined)
       }
     }
   } finally {

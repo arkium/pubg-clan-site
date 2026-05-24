@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
 
+import {
+  CRON_ACTION_LABELS,
+  finishCronExecution,
+  getCronConfigurationChecks,
+  getCronOverview,
+  startCronExecution,
+  type CronActionKey,
+} from '@/lib/cron-observability'
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
-import { requireRole } from '@/middleware/auth-permission'
+import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
 
 type CronAction =
   | 'sync_matches'
@@ -45,10 +53,69 @@ function parseAction(value: unknown): CronAction | null {
   return null
 }
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string }> }
+) {
+  try {
+    const { clanId } = await params
+    const parsedClanId = parseClanId(clanId)
+
+    if (!parsedClanId) {
+      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+    }
+
+    const roleError = await requireRole(['Owner'])(request, {
+      clanId: parsedClanId,
+    })
+    if (roleError) {
+      return roleError
+    }
+
+    const [overview, configChecks] = await Promise.all([
+      getCronOverview(parsedClanId),
+      Promise.resolve(getCronConfigurationChecks()),
+    ])
+
+    const criticalChecks = configChecks.filter((entry) => entry.status === 'error').length
+    const warningChecks = configChecks.filter((entry) => entry.status === 'warning').length
+
+    return NextResponse.json({
+      ok: true,
+      clanId: parsedClanId,
+      actionLabels: CRON_ACTION_LABELS,
+      health: {
+        successRate: overview.stats.successRate,
+        runningCount: overview.stats.runningCount,
+        failedCount: overview.stats.failedCount,
+        completedRecent: overview.stats.completedRecent,
+        totalRecent: overview.stats.totalRecent,
+      },
+      checks: {
+        total: configChecks.length,
+        errors: criticalChecks,
+        warnings: warningChecks,
+        items: configChecks,
+      },
+      latestByAction: overview.latestByAction,
+      history: overview.recent,
+    })
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    console.error('Cron control status failed:', error)
+    return NextResponse.json({ error: 'Failed to load cron status' }, { status: 500 })
+  }
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
+  let execution: { id: string; startedAt: Date } | null = null
+
   try {
     const { clanId } = await params
     const parsedClanId = parseClanId(clanId)
@@ -71,6 +138,20 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
 
+    const actorMemberId = await getActorMemberId(request)
+    execution = await startCronExecution({
+      clanId: parsedClanId,
+      action: action as CronActionKey,
+      triggeredBy: actorMemberId,
+      source: 'manual',
+    })
+
+    if (!execution) {
+      throw new Error('Failed to initialize execution log')
+    }
+
+    const executionLog = execution
+
     if (action === 'sync_matches') {
       const response = await fetch(`${getInternalApiBaseUrl()}/api/clans/${parsedClanId}/sync-matches`, {
         method: 'POST',
@@ -89,6 +170,14 @@ export async function POST(
         | null
 
       if (!response.ok) {
+        await finishCronExecution({
+          id: executionLog.id,
+          startedAt: executionLog.startedAt,
+          status: 'failed',
+          message: payload?.error ?? 'Failed to synchronize clan matches',
+          details: payload,
+        })
+
         return NextResponse.json(
           {
             error: payload?.error ?? 'Failed to synchronize clan matches',
@@ -103,6 +192,14 @@ export async function POST(
       const firstError = payload?.errorsPreview?.[0]
 
       if (isPartial) {
+        await finishCronExecution({
+          id: executionLog.id,
+          startedAt: executionLog.startedAt,
+          status: 'partial',
+          message: `Sync partielle: ${importedMatches} match(s) importé(s), ${errorsCount} erreur(s).`,
+          details: payload,
+        })
+
         return NextResponse.json({
           ok: true,
           partial: true,
@@ -113,6 +210,14 @@ export async function POST(
           warning: firstError ? `Exemple d'erreur: ${firstError}` : undefined,
         })
       }
+
+      await finishCronExecution({
+        id: executionLog.id,
+        startedAt: executionLog.startedAt,
+        status: 'success',
+        message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s).`,
+        details: payload,
+      })
 
       return NextResponse.json({
         ok: true,
@@ -125,6 +230,13 @@ export async function POST(
     if (action === 'sync_stats') {
       await syncTrackedClanStats(parsedClanId)
 
+      await finishCronExecution({
+        id: executionLog.id,
+        startedAt: executionLog.startedAt,
+        status: 'success',
+        message: 'Synchronisation des stats terminee',
+      })
+
       return NextResponse.json({
         ok: true,
         action,
@@ -136,6 +248,16 @@ export async function POST(
       const weekStart = getLastCompletedWeekStart()
       await generateWeeklyReport(parsedClanId, weekStart)
 
+      await finishCronExecution({
+        id: executionLog.id,
+        startedAt: executionLog.startedAt,
+        status: 'success',
+        message: `Rapport hebdomadaire genere (${weekStart.toISOString().slice(0, 10)})`,
+        details: {
+          weekStart: weekStart.toISOString(),
+        },
+      })
+
       return NextResponse.json({
         ok: true,
         action,
@@ -146,12 +268,31 @@ export async function POST(
     const monthStart = getLastCompletedMonthStart()
     await generateMonthlyReport(parsedClanId, monthStart)
 
+    await finishCronExecution({
+      id: executionLog.id,
+      startedAt: executionLog.startedAt,
+      status: 'success',
+      message: `Rapport mensuel genere (${monthStart.toISOString().slice(0, 10)})`,
+      details: {
+        monthStart: monthStart.toISOString(),
+      },
+    })
+
     return NextResponse.json({
       ok: true,
       action,
       message: `Rapport mensuel genere (${monthStart.toISOString().slice(0, 10)})`,
     })
   } catch (error) {
+    if (execution) {
+      await finishCronExecution({
+        id: execution.id,
+        startedAt: execution.startedAt,
+        status: 'failed',
+        message: error instanceof Error ? error.message : 'Cron action failed',
+      }).catch(() => undefined)
+    }
+
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }

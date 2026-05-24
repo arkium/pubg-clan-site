@@ -556,6 +556,13 @@ export default function ClanNavigation() {
               </summary>
               <div className="absolute left-0 top-11 z-50 w-64 rounded-2xl border border-amber-200 bg-white p-3 shadow-lg">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Cron</p>
+                <Link
+                  href={`/clans/${clanId}/settings/cron`}
+                  onClick={closeDropdownMenus}
+                  className="mb-2 block rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+                >
+                  Ouvrir Ops Cron
+                </Link>
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
@@ -625,6 +632,13 @@ export default function ClanNavigation() {
             {showOwnerMenu ? (
               <details className="mt-3 rounded-xl border border-amber-200 bg-amber-50/50 p-2">
                 <summary className="cursor-pointer list-none px-2 py-1 text-sm font-semibold text-amber-800">Owner</summary>
+                <Link
+                  href={`/clans/${clanId}/settings/cron`}
+                  onClick={() => setMobileOpen(false)}
+                  className="mt-2 block rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+                >
+                  Ouvrir Ops Cron
+                </Link>
                 <div className="mt-2 grid grid-cols-1 gap-2">
                   <button
                     type="button"

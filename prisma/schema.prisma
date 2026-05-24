@@ -26,6 +26,7 @@ model Clan {
   reports Report[]
   challenges Challenge[]
   invites MemberInvite[]
+  cronExecutions CronExecution[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -456,4 +457,30 @@ model PlayerRewards {
   updatedAt DateTime @updatedAt
 
   @@map("PlayerRewards")
+}
+
+model CronExecution {
+  id String @id @default(cuid())
+
+  clanId Int
+  clan   Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  action      String
+  status      String
+  triggeredBy Int?
+  source      String @default("manual")
+
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  message String?
+  details Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clanId, startedAt])
+  @@index([clanId, action, status])
+  @@map("CronExecution")
 }

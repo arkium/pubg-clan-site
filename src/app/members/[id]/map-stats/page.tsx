@@ -127,6 +127,31 @@ function compactScopeLabel(label: string) {
     .replace(/^Stats cartes du\s+/i, '')
 }
 
+function readInitialSortPreference() {
+  if (typeof window === 'undefined') {
+    return { key: 'matches' as SortKey, dir: 'desc' as 'asc' | 'desc' }
+  }
+
+  const raw = window.localStorage.getItem('member-map-stats-sort')
+  if (!raw) {
+    return { key: 'matches' as SortKey, dir: 'desc' as 'asc' | 'desc' }
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      key?: SortKey
+      dir?: 'asc' | 'desc'
+    }
+
+    return {
+      key: parsed.key ?? 'matches',
+      dir: parsed.dir === 'asc' ? 'asc' : 'desc',
+    }
+  } catch {
+    return { key: 'matches' as SortKey, dir: 'desc' as 'asc' | 'desc' }
+  }
+}
+
 export default function MemberMapStatsPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
@@ -138,32 +163,8 @@ export default function MemberMapStatsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MapStatsPayload | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('matches')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-
-  useEffect(() => {
-    const raw = localStorage.getItem('member-map-stats-sort')
-    if (!raw) {
-      return
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as {
-        key?: SortKey
-        dir?: 'asc' | 'desc'
-      }
-
-      if (parsed.key) {
-        setSortKey(parsed.key)
-      }
-
-      if (parsed.dir === 'asc' || parsed.dir === 'desc') {
-        setSortDir(parsed.dir)
-      }
-    } catch {
-      // Ignore malformed local preference
-    }
-  }, [])
+  const [sortKey, setSortKey] = useState<SortKey>(() => readInitialSortPreference().key)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => readInitialSortPreference().dir)
 
   useEffect(() => {
     localStorage.setItem(

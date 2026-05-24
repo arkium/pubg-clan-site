@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import Link from 'next/link'
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -65,7 +67,6 @@ function ActivatePageContent() {
   useEffect(() => {
     const trimmedToken = token.trim()
     if (!trimmedToken) {
-      setRequiresLoginEmail(false)
       return
     }
 
@@ -205,7 +206,13 @@ function ActivatePageContent() {
                 type="text"
                 required
                 value={token}
-                onChange={(event) => setToken(event.target.value)}
+                onChange={(event) => {
+                  const nextToken = event.target.value
+                  setToken(nextToken)
+                  if (!nextToken.trim()) {
+                    setRequiresLoginEmail(false)
+                  }
+                }}
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 autoComplete="off"
               />

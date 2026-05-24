@@ -79,9 +79,14 @@ export async function sendEmail(payload: EmailPayload) {
     } satisfies EmailSendResult
   }
 
+  const fromAddress = config.from
+  if (!fromAddress) {
+    throw new Error('SMTP_FROM is required when SMTP is enabled')
+  }
+
   const transporter = getSmtpTransport(config)
   const result = await transporter.sendMail({
-    from: config.from,
+    from: fromAddress,
     to: payload.to,
     subject: payload.subject,
     text: payload.text,
@@ -92,9 +97,9 @@ export async function sendEmail(payload: EmailPayload) {
     mode: 'smtp',
     to: payload.to,
     subject: payload.subject,
-    from: config.from,
+    from: fromAddress,
     messageId: result.messageId,
-    accepted: result.accepted.map((value) => String(value)),
-    rejected: result.rejected.map((value) => String(value)),
+    accepted: result.accepted.map((value: unknown) => String(value)),
+    rejected: result.rejected.map((value: unknown) => String(value)),
   } satisfies EmailSendResult
 }

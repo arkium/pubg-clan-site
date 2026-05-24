@@ -58,7 +58,7 @@ export default function DashboardPage() {
     )
   }
 
-  const { member, stats, clanAverage, progression, topPerformances, squads, mapLabels } = data
+  const { stats, clanAverage, progression, topPerformances, squads, mapLabels } = data
 
   return (
     <div className="min-h-screen bg-gray-50">

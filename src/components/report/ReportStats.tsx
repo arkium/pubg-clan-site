@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 
 import type { ReportPlayerStats } from '@/types/reports'
+/* eslint-disable @next/next/no-img-element */
 
 type SortKey = 'kills' | 'damage' | 'matches' | 'assists' | 'winRate'
 

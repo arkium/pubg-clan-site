@@ -54,7 +54,7 @@ export default function EmailDeliverySettingsPage() {
   const { loading, authenticated, permissions, email } = useAuthSession()
 
   const [status, setStatus] = useState<EmailDeliveryStatus>(INITIAL_STATUS)
-  const [loadingData, setLoadingData] = useState(true)
+  const [statusLoaded, setStatusLoaded] = useState(false)
   const [testing, setTesting] = useState(false)
   const [revoking, setRevoking] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -70,14 +70,6 @@ export default function EmailDeliverySettingsPage() {
       router.replace('/login?redirect=/settings/email-delivery')
     }
   }, [authenticated, loading, router])
-
-  useEffect(() => {
-    if (!email) {
-      return
-    }
-
-    setTestEmail((current) => (current.trim().length > 0 ? current : email))
-  }, [email])
 
   async function loadStatus() {
     const response = await fetch('/api/settings/email-delivery', { cache: 'no-store' })
@@ -96,7 +88,6 @@ export default function EmailDeliverySettingsPage() {
     }
 
     if (!authenticated || !canManageSettings) {
-      setLoadingData(false)
       return
     }
 
@@ -114,7 +105,7 @@ export default function EmailDeliverySettingsPage() {
         }
       } finally {
         if (!cancelled) {
-          setLoadingData(false)
+          setStatusLoaded(true)
         }
       }
     }
@@ -125,6 +116,8 @@ export default function EmailDeliverySettingsPage() {
       cancelled = true
     }
   }, [authenticated, canManageSettings, loading])
+
+  const loadingData = authenticated && canManageSettings && !statusLoaded
 
   async function handleRefreshStatus() {
     try {
@@ -143,7 +136,7 @@ export default function EmailDeliverySettingsPage() {
   async function handleRunTest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const recipient = testEmail.trim()
+    const recipient = (testEmail || email || '').trim()
     if (!recipient) {
       setError('Veuillez renseigner une adresse email de test.')
       return
@@ -248,7 +241,7 @@ export default function EmailDeliverySettingsPage() {
             href="/"
             className="mt-5 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900"
           >
-            Retour a l'accueil
+            Retour a l&apos;accueil
           </Link>
         </section>
       </main>
@@ -261,7 +254,7 @@ export default function EmailDeliverySettingsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Configuration email</p>
         <h1 className="mt-2 text-2xl font-black text-slate-900">Test de livraison email</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Lancez un email de test. Une fois le test reussi, les boutons d'invitation sont affiches
+          Lancez un email de test. Une fois le test reussi, les boutons d&apos;invitation sont affiches
           dans la gestion des membres.
         </p>
 
@@ -325,7 +318,7 @@ export default function EmailDeliverySettingsPage() {
           {lastDelivery ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
               <p>
-                Mode d'envoi: {lastDelivery.mode === 'smtp' ? 'SMTP reel' : 'Simulation locale (pas d\'email sortant)'}
+                Mode d&apos;envoi: {lastDelivery.mode === 'smtp' ? 'SMTP reel' : 'Simulation locale (pas d\'email sortant)'}
               </p>
               <p>Destinataire: {lastDelivery.to}</p>
               {lastDelivery.messageId ? <p>Message ID: {lastDelivery.messageId}</p> : null}

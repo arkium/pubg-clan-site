@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -89,6 +91,70 @@ function getRoleBadgeClass(roleName: string) {
   }
 }
 
+function getInviteStorageKey(currentClanId: number) {
+  return `clan_member_invite_links_${currentClanId}`
+}
+
+function readStoredInviteResults(currentClanId: number) {
+  try {
+    const raw = window.localStorage.getItem(getInviteStorageKey(currentClanId))
+    if (!raw) {
+      return {}
+    }
+
+    const parsed = JSON.parse(raw) as Record<
+      string,
+      {
+        activationUrl?: string
+        expiresAt?: string | null
+        delivery?: EmailDeliveryMeta | null
+      }
+    >
+
+    const normalized: Record<
+      number,
+      {
+        activationUrl: string
+        expiresAt: string | null
+        delivery: EmailDeliveryMeta | null
+      }
+    > = {}
+
+    for (const [memberId, value] of Object.entries(parsed)) {
+      if (!value?.activationUrl) {
+        continue
+      }
+
+      const parsedMemberId = Number(memberId)
+      if (!Number.isInteger(parsedMemberId) || parsedMemberId <= 0) {
+        continue
+      }
+
+      normalized[parsedMemberId] = {
+        activationUrl: value.activationUrl,
+        expiresAt: value.expiresAt ?? null,
+        delivery: value.delivery ?? null,
+      }
+    }
+
+    return normalized
+  } catch {
+    return {}
+  }
+}
+
+function persistInviteResults(currentClanId: number, value: Record<number, {
+  activationUrl: string
+  expiresAt: string | null
+  delivery: EmailDeliveryMeta | null
+}>) {
+  try {
+    window.localStorage.setItem(getInviteStorageKey(currentClanId), JSON.stringify(value))
+  } catch {
+    // Ignore storage errors silently.
+  }
+}
+
 export default function ClanMembersSettingsPage() {
   const params = useParams()
   const router = useRouter()
@@ -130,70 +196,6 @@ export default function ClanMembersSettingsPage() {
       setCopyToast(null)
       copyToastTimeoutRef.current = null
     }, 3200)
-  }
-
-  function getInviteStorageKey(currentClanId: number) {
-    return `clan_member_invite_links_${currentClanId}`
-  }
-
-  function readStoredInviteResults(currentClanId: number) {
-    try {
-      const raw = window.localStorage.getItem(getInviteStorageKey(currentClanId))
-      if (!raw) {
-        return {}
-      }
-
-      const parsed = JSON.parse(raw) as Record<
-        string,
-        {
-          activationUrl?: string
-          expiresAt?: string | null
-          delivery?: EmailDeliveryMeta | null
-        }
-      >
-
-      const normalized: Record<
-        number,
-        {
-          activationUrl: string
-          expiresAt: string | null
-          delivery: EmailDeliveryMeta | null
-        }
-      > = {}
-
-      for (const [memberId, value] of Object.entries(parsed)) {
-        if (!value?.activationUrl) {
-          continue
-        }
-
-        const parsedMemberId = Number(memberId)
-        if (!Number.isInteger(parsedMemberId) || parsedMemberId <= 0) {
-          continue
-        }
-
-        normalized[parsedMemberId] = {
-          activationUrl: value.activationUrl,
-          expiresAt: value.expiresAt ?? null,
-          delivery: value.delivery ?? null,
-        }
-      }
-
-      return normalized
-    } catch {
-      return {}
-    }
-  }
-
-  function persistInviteResults(currentClanId: number, value: Record<number, {
-    activationUrl: string
-    expiresAt: string | null
-    delivery: EmailDeliveryMeta | null
-  }>) {
-    try {
-      window.localStorage.setItem(getInviteStorageKey(currentClanId), JSON.stringify(value))
-    } catch {
-      // Ignore storage errors silently.
-    }
   }
 
   useEffect(() => {
@@ -269,6 +271,7 @@ export default function ClanMembersSettingsPage() {
           fetchEmailDeliveryStatus(),
         ])
         if (!cancelled) {
+          setInviteResultByMemberId(readStoredInviteResults(currentClanId))
           setMembers(data.members)
           setRoles(data.roles)
           setIsEmailDeliveryReady(emailReady)
@@ -297,15 +300,6 @@ export default function ClanMembersSettingsPage() {
       cancelled = true
     }
   }, [clanId, router])
-
-  useEffect(() => {
-    if (!clanId) {
-      return
-    }
-
-    const stored = readStoredInviteResults(clanId)
-    setInviteResultByMemberId(stored)
-  }, [clanId])
 
   useEffect(() => {
     if (!clanId) {
@@ -524,7 +518,7 @@ export default function ClanMembersSettingsPage() {
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {!loading && emailStatusLoaded && !isEmailDeliveryReady ? (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Invitations email desactivees. Effectuez d'abord un test reussi dans{' '}
+          Invitations email desactivees. Effectuez d&apos;abord un test reussi dans{' '}
           <Link href="/settings/email-delivery" className="font-semibold underline">
             Configuration email
           </Link>

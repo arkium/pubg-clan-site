@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 type LeaderboardEntry = {
   rank: number
   memberId: number

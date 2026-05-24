@@ -28,7 +28,7 @@ export default function MapLabelsSettingsPage() {
 
   const [labels, setLabels] = useState<MapLabels>({})
   const [saving, setSaving] = useState(false)
-  const [loadingData, setLoadingData] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -46,7 +46,6 @@ export default function MapLabelsSettingsPage() {
     }
 
     if (!authenticated || !canManageSettings) {
-      setLoadingData(false)
       return
     }
 
@@ -72,7 +71,7 @@ export default function MapLabelsSettingsPage() {
         }
       } finally {
         if (!cancelled) {
-          setLoadingData(false)
+          setDataLoaded(true)
         }
       }
     }
@@ -83,6 +82,8 @@ export default function MapLabelsSettingsPage() {
       cancelled = true
     }
   }, [authenticated, canManageSettings, loading])
+
+  const loadingData = authenticated && canManageSettings && !dataLoaded
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -142,7 +143,7 @@ export default function MapLabelsSettingsPage() {
             href="/"
             className="mt-5 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900"
           >
-            Retour a l'accueil
+            Retour a l&apos;accueil
           </Link>
         </section>
       </main>
@@ -158,7 +159,7 @@ export default function MapLabelsSettingsPage() {
         <h1 className="mt-2 text-2xl font-black text-slate-900">Alias des cartes PUBG</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
           Personnalisez les libelles affiches dans le filtre Carte PUBG de la page calendrier
-          d'activite.
+          d&apos;activite.
         </p>
 
         <form className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-white p-5" onSubmit={handleSave}>
@@ -195,7 +196,7 @@ export default function MapLabelsSettingsPage() {
               {saving ? 'Enregistrement...' : 'Enregistrer'}
             </button>
             <Link href="/settings/login-welcome" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-              Aller au message d'accueil
+              Aller au message d&apos;accueil
             </Link>
           </div>
         </form>

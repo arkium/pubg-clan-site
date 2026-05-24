@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+
 import Link from 'next/link'
 
 import type { SquadFrequencyEntry } from '@/types/dashboard'

@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -28,7 +30,7 @@ export default function LoginWelcomeSettingsPage() {
   const [settings, setSettings] = useState<WelcomeSettings>(DEFAULT_SETTINGS)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [loadingData, setLoadingData] = useState(true)
+  const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -46,7 +48,6 @@ export default function LoginWelcomeSettingsPage() {
     }
 
     if (!authenticated || !canManageSettings) {
-      setLoadingData(false)
       return
     }
 
@@ -80,7 +81,7 @@ export default function LoginWelcomeSettingsPage() {
         }
       } finally {
         if (!cancelled) {
-          setLoadingData(false)
+          setDataLoaded(true)
         }
       }
     }
@@ -91,6 +92,8 @@ export default function LoginWelcomeSettingsPage() {
       cancelled = true
     }
   }, [authenticated, canManageSettings, loading])
+
+  const loadingData = authenticated && canManageSettings && !dataLoaded
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -150,7 +153,7 @@ export default function LoginWelcomeSettingsPage() {
             href="/"
             className="mt-5 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900"
           >
-            Retour à l'accueil
+            Retour à l&apos;accueil
           </Link>
         </section>
       </main>
@@ -166,7 +169,7 @@ export default function LoginWelcomeSettingsPage() {
         <h1 className="mt-2 text-2xl font-black text-slate-900">Message de bienvenue login</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
           Personnalisez le texte affiché sur la page de connexion, sans image de clan. Ce contenu
-          aide à poser l'identité du clan dès l'arrivée.
+          aide à poser l&apos;identité du clan dès l&apos;arrivée.
         </p>
 
         {clanLabel ? (

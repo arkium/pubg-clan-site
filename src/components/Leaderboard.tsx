@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+
 import type { LeaderboardSortBy, PlayerStatsEntry } from '@/types/leaderboard'
 
 const RANK_MEDALS: Record<number, string> = {

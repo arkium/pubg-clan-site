@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 
-import { CHALLENGE_TYPES } from '@/lib/challenge-service'
+import { CHALLENGE_TYPES } from '@/lib/challenge-types'
 
 type Participant = {
   memberId: number

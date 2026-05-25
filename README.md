@@ -129,14 +129,36 @@ npm start
 
 ### Cron en production
 
-- Activer `ENABLE_CRON_JOBS=true` sur un seul worker
-- Garder `ENABLE_CRON_JOBS=false` sur les autres workers
+Variables recommandees sur le worker cron principal:
 
-Verification logs (exemple Linux):
+```env
+ENABLE_CRON_BOOTSTRAP="true"
+ENABLE_CRON_JOBS="true"
+CLAN_MATCH_SYNC_CRON="0 2 * * *"
+CLAN_MATCH_SYNC_TIMEZONE="Europe/Paris"
+INTERNAL_APP_URL="http://127.0.0.1:3000"
+```
+
+Important:
+
+- `ENABLE_CRON_BOOTSTRAP=true` est obligatoire en production pour initialiser `initCronJobs()` au boot.
+- Activer `ENABLE_CRON_JOBS=true` sur un seul worker.
+- Mettre `ENABLE_CRON_JOBS=false` sur les autres workers.
+- Si `CLAN_MATCH_SYNC_TIMEZONE` est absent, la timezone par defaut est `UTC`.
+
+Verification rapide (systemd):
 
 ```bash
-grep -E "\[Cron\]|\[Clan Sync\]|\[ApiQueue" -n /path/to/app.log | tail -n 120
+sudo systemctl restart pubg-clan-site
+sudo systemctl status pubg-clan-site --no-pager -l
+journalctl -u pubg-clan-site -n 200 --no-pager | grep -E "\[Cron\]|scheduled|Skipping cron initialization"
 ```
+
+Verification applicative:
+
+- Ouvrir `/clans/[clanId]/settings/cron`
+- Les checks de configuration doivent etre sans erreur.
+- L'historique doit afficher des entrees avec `source=scheduler` (et pas uniquement `manual`).
 
 ## Securite
 

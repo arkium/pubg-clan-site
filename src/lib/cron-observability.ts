@@ -63,6 +63,8 @@ function looksLocalUrl(value: string) {
 function getCronEnvChecks(): CronConfigCheck[] {
   const nodeEnv = process.env.NODE_ENV ?? 'development'
   const enableCron = process.env.ENABLE_CRON_JOBS
+  const enableCronBootstrap = process.env.ENABLE_CRON_BOOTSTRAP
+  const syncTimezone = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
   const internalAppUrl = process.env.INTERNAL_APP_URL ?? ''
   const appUrl = process.env.APP_URL ?? ''
   const nextPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
@@ -90,6 +92,31 @@ function getCronEnvChecks(): CronConfigCheck[] {
         enableCron === 'true'
           ? undefined
           : 'Active uniquement sur le worker qui execute les cron: ENABLE_CRON_JOBS=true.',
+    },
+    {
+      key: 'enable_cron_bootstrap',
+      label: 'ENABLE_CRON_BOOTSTRAP',
+      status:
+        enableCronBootstrap === 'true'
+          ? 'ok'
+          : nodeEnv === 'production'
+            ? 'error'
+            : 'warning',
+      value: enableCronBootstrap || '(non defini)',
+      hint:
+        enableCronBootstrap === 'true'
+          ? undefined
+          : 'Obligatoire en production: sans cette valeur, initCronJobs() ne demarre jamais.',
+    },
+    {
+      key: 'clan_match_sync_timezone',
+      label: 'CLAN_MATCH_SYNC_TIMEZONE',
+      status: syncTimezone === 'UTC' ? 'warning' : 'ok',
+      value: syncTimezone,
+      hint:
+        syncTimezone === 'UTC'
+          ? 'Si tu veux 2h heure locale serveur (ex: France), definir Europe/Paris.'
+          : undefined,
     },
     {
       key: 'database_url',

@@ -693,3 +693,7 @@ export function initCronJobs() {
   )
   console.info('[Cron] Challenge processing scheduled daily at midnight')
 }
+
+export function isCronJobsInitialized() {
+  return globalForCron.clanSyncCronInitialized === true
+}

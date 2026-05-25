@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import {
+  fetchLifetimeStats,
   fetchPlayerClan,
   fetchPubgClanById,
   searchPlayerByName,
@@ -314,4 +315,96 @@ export async function syncTrackedClanStats(clanId: number) {
   })
 
   return updatedClan
+}
+
+export async function syncClanLifetimeStats(clanId: number) {
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { id: true },
+  })
+
+  if (!clan) {
+    throw new Error('Clan not found')
+  }
+
+  const members = await prisma.clanMember.findMany({
+    where: {
+      clanId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      pubgPlayerName: true,
+      pubgAccountId: true,
+      platformShard: true,
+    },
+    orderBy: { id: 'asc' },
+  })
+
+  let refreshedCount = 0
+  let skippedCount = 0
+  const errors: string[] = []
+
+  for (const member of members) {
+    try {
+      let accountId = member.pubgAccountId
+
+      if (!accountId) {
+        const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard)
+
+        if (!player?.accountId) {
+          skippedCount += 1
+          errors.push(`Member ${member.id}: compte PUBG introuvable pour ${member.pubgPlayerName}`)
+          continue
+        }
+
+        accountId = player.accountId
+
+        await prisma.clanMember.update({
+          where: { id: member.id },
+          data: { pubgAccountId: accountId },
+        })
+      }
+
+      const stats = await fetchLifetimeStats(accountId, member.platformShard)
+      const now = new Date()
+
+      await prisma.memberLifetimeStats.upsert({
+        where: { memberId: member.id },
+        update: {
+          combat: stats.combat,
+          victory: stats.victory,
+          support: stats.support,
+          vehicle: stats.vehicle,
+          movement: stats.movement,
+          other: stats.other,
+          lastRefreshedAt: now,
+        },
+        create: {
+          memberId: member.id,
+          combat: stats.combat,
+          victory: stats.victory,
+          support: stats.support,
+          vehicle: stats.vehicle,
+          movement: stats.movement,
+          other: stats.other,
+          lastRefreshedAt: now,
+        },
+      })
+
+      refreshedCount += 1
+    } catch (error) {
+      skippedCount += 1
+      const reason = error instanceof Error ? error.message : 'Erreur inconnue'
+      errors.push(`Member ${member.id}: ${reason}`)
+    }
+  }
+
+  return {
+    clanId,
+    membersTotal: members.length,
+    refreshedCount,
+    skippedCount,
+    errors,
+  }
 }

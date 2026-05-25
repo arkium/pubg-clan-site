@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type CronAction =
   | 'sync_matches'
   | 'sync_stats'
+  | 'sync_lifetime_stats'
   | 'generate_weekly_report'
   | 'generate_monthly_report'
 
@@ -107,6 +108,15 @@ function getDurationLabel(durationMs: number | null) {
   return `${(durationMs / 1000).toFixed(1)} s`
 }
 
+function getLatestLifetimeSyncEntry(entries: CronHistoryEntry[]) {
+  const daily = entries.find((entry) => entry.action === 'daily_lifetime_stats_sync')
+  if (daily) {
+    return daily
+  }
+
+  return entries.find((entry) => entry.action === 'sync_lifetime_stats') ?? null
+}
+
 export default function CronSettingsPage() {
   const params = useParams()
   const router = useRouter()
@@ -129,13 +139,7 @@ export default function CronSettingsPage() {
     setClanId(clanId)
   }, [clanId, router, setClanId])
 
-  async function loadStatus(currentClanId: number, silent = false) {
-    if (silent) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-
+  const loadStatus = useCallback(async (currentClanId: number) => {
     try {
       const response = await fetch(`/api/clans/${currentClanId}/cron-control`, {
         cache: 'no-store',
@@ -166,15 +170,16 @@ export default function CronSettingsPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [router])
 
   useEffect(() => {
     if (!clanId) {
       return
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadStatus(clanId)
-  }, [clanId])
+  }, [clanId, loadStatus])
 
   async function runAction(action: CronAction) {
     if (!clanId || pendingAction) {
@@ -210,9 +215,10 @@ export default function CronSettingsPage() {
         setError(
           result?.error ??
             result?.message ??
-            `${fallback}. L'action a peut-etre ete lancee; verifie l'historique ci-dessous.`
+            `${fallback}. L action a peut-etre ete lancee; verifie l historique ci-dessous.`
         )
-        await loadStatus(clanId, true)
+        setRefreshing(true)
+        await loadStatus(clanId)
         return
       }
 
@@ -222,10 +228,12 @@ export default function CronSettingsPage() {
       }
 
       setInfo(details.join(' '))
-      await loadStatus(clanId, true)
+      setRefreshing(true)
+      await loadStatus(clanId)
     } catch {
       setError('Reponse non recue. L action a peut-etre ete lancee; verifie l historique.')
-      await loadStatus(clanId, true)
+      setRefreshing(true)
+      await loadStatus(clanId)
     } finally {
       setPendingAction(null)
     }
@@ -251,7 +259,14 @@ export default function CronSettingsPage() {
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => clanId && void loadStatus(clanId, true)}
+            onClick={() => {
+              if (!clanId) {
+                return
+              }
+
+              setRefreshing(true)
+              void loadStatus(clanId)
+            }}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             disabled={refreshing}
           >
@@ -276,7 +291,7 @@ export default function CronSettingsPage() {
 
       {payload ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-wide text-slate-500">Succes recent</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
@@ -296,15 +311,34 @@ export default function CronSettingsPage() {
               <p className="text-xs uppercase tracking-wide text-slate-500">Echecs recents</p>
               <p className="mt-2 text-2xl font-bold text-rose-700">{payload.health.failedCount}</p>
             </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Dernier sync lifetime</p>
+              {(() => {
+                const latestLifetimeSync = getLatestLifetimeSyncEntry(payload.latestByAction)
+
+                if (!latestLifetimeSync) {
+                  return <p className="mt-2 text-sm font-semibold text-slate-600">Aucune execution</p>
+                }
+
+                return (
+                  <>
+                    <p className="mt-2 text-sm font-semibold text-slate-900">{formatDate(latestLifetimeSync.startedAt)}</p>
+                    <span className={`mt-2 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(latestLifetimeSync.status)}`}>
+                      {latestLifetimeSync.status}
+                    </span>
+                  </>
+                )
+              })()}
+            </article>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">Actions manuelles</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Lance une action et controle le resultat immediatement dans l'historique.
+              Lance une action et controle le resultat immediatement dans l historique.
             </p>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <button
                 type="button"
                 onClick={() => void runAction('sync_matches')}
@@ -320,6 +354,14 @@ export default function CronSettingsPage() {
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pendingAction === 'sync_stats' ? 'Execution...' : 'Sync stats'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void runAction('sync_lifetime_stats')}
+                disabled={pendingAction !== null}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {pendingAction === 'sync_lifetime_stats' ? 'Execution...' : 'Sync stats lifetime'}
               </button>
               <button
                 type="button"
@@ -440,7 +482,8 @@ export default function CronSettingsPage() {
               <li>Executer les cron automatiques sur un seul worker avec ENABLE_CRON_JOBS=true.</li>
               <li>Garder INTERNAL_APP_URL en local (127.0.0.1) pour eviter les soucis de proxy.</li>
               <li>Surveiller les erreurs recurrentes et traiter les causes (API PUBG, permissions, DB).</li>
-              <li>Verifier regulierement les delais d'execution pour detecter une degradation.</li>
+              <li>Verifier regulierement les delais d execution pour detecter une degradation.</li>
+              <li>Format cron: minute heure jour-du-mois mois jour-semaine (exemple: 0 2,17 * * * = tous les jours a 02h00 et 17h00).</li>
             </ul>
           </section>
         </>

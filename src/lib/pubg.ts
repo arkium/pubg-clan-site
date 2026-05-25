@@ -1,4 +1,6 @@
-import axios from 'axios'
+import axios, { type AxiosRequestConfig } from 'axios'
+
+import { enqueuePubgApiRequestWithMetadata } from '@/lib/api-throttle'
 
 type PubgApiError = Error & {
   status?: number
@@ -14,6 +16,20 @@ export const pubgApi = axios.create({
     Accept: 'application/vnd.api+json',
   },
 })
+
+async function queuedPubgGet<T>(url: string, config?: AxiosRequestConfig) {
+  return enqueuePubgApiRequestWithMetadata(() => pubgApi.get<T>(url, config), {
+    source: 'pubg-lib',
+    method: 'GET',
+    endpoint: url,
+    shard: extractShardFromEndpoint(url),
+  })
+}
+
+function extractShardFromEndpoint(url: string) {
+  const match = url.match(/\/shards\/([^/]+)/i)
+  return match?.[1] ?? null
+}
 
 pubgApi.interceptors.response.use(
   (response) => response,
@@ -392,7 +408,7 @@ function resolveClanIdFromPlayerAttributes(
 export async function searchPlayerByName(playerName: string, shard: string = 'steam') {
   try {
     ensurePubgApiKey()
-    const response = await pubgApi.get<PubgPlayerSearchResponse>(`/shards/${shard}/players`, {
+    const response = await queuedPubgGet<PubgPlayerSearchResponse>(`/shards/${shard}/players`, {
       params: {
         'filter[playerNames]': playerName,
       },
@@ -424,7 +440,7 @@ export async function fetchPubgClanById(clanId: string, shard: string = 'steam')
   ensurePubgApiKey()
 
   try {
-    const response = await pubgApi.get<PubgClanLookupResponse>(`/shards/${shard}/clans`, {
+    const response = await queuedPubgGet<PubgClanLookupResponse>(`/shards/${shard}/clans`, {
       params: {
         'filter[clanIds]': clanId,
       },
@@ -433,7 +449,7 @@ export async function fetchPubgClanById(clanId: string, shard: string = 'steam')
     const clan = extractClanResource(response.data)
     return clan ? normalizePubgClanResource(clan) : null
   } catch {
-    const response = await pubgApi.get<PubgClanLookupResponse>(`/shards/${shard}/clans/${clanId}`)
+    const response = await queuedPubgGet<PubgClanLookupResponse>(`/shards/${shard}/clans/${clanId}`)
     const clan = extractClanResource(response.data)
     return clan ? normalizePubgClanResource(clan) : null
   }
@@ -444,7 +460,7 @@ export async function fetchPlayerClan(playerId: string, shard: string = 'steam')
 
   console.info('[PUBG] Fetching clan for player', { playerId, shard })
 
-  const response = await pubgApi.get<PubgPlayerDetailResponse>(`/shards/${shard}/players/${playerId}`)
+  const response = await queuedPubgGet<PubgPlayerDetailResponse>(`/shards/${shard}/players/${playerId}`)
 
   const attributeClanId = resolveClanIdFromPlayerAttributes(response.data.data?.attributes)
 
@@ -491,7 +507,7 @@ export async function fetchPlayerClan(playerId: string, shard: string = 'steam')
 
 export async function fetchRecentMatchIds(playerId: string, shard: string = 'steam') {
   ensurePubgApiKey()
-  const response = await pubgApi.get<PubgLifetimeMatchesResponse>(
+  const response = await queuedPubgGet<PubgLifetimeMatchesResponse>(
     `/shards/${shard}/players/${playerId}/seasons/lifetime`
   )
   const relationships = response.data.data?.relationships ?? {}
@@ -542,7 +558,7 @@ export async function fetchLifetimeStats(
   shard: string = 'steam'
 ): Promise<PubgLifetimeStats> {
   ensurePubgApiKey()
-  const response = await pubgApi.get<PubgLifetimeMatchesResponse>(
+  const response = await queuedPubgGet<PubgLifetimeMatchesResponse>(
     `/shards/${shard}/players/${playerId}/seasons/lifetime`
   )
   const gameModeStats = response.data.data?.attributes?.gameModeStats ?? {}
@@ -600,7 +616,7 @@ export async function fetchMatchDetails(
   shard: string = 'steam'
 ): Promise<ResolvedPubgMatch> {
   ensurePubgApiKey()
-  const response = await pubgApi.get<PubgMatchResponse>(`/shards/${shard}/matches/${matchId}`)
+  const response = await queuedPubgGet<PubgMatchResponse>(`/shards/${shard}/matches/${matchId}`)
   const match = response.data.data
   const included = Array.isArray(response.data.included) ? response.data.included : []
   const rosters = match?.relationships?.rosters?.data

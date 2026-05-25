@@ -484,3 +484,33 @@ model CronExecution {
   @@index([clanId, action, status])
   @@map("CronExecution")
 }
+
+model PubgApiCallLog {
+  id String @id @default(cuid())
+
+  source String @default("gateway")
+
+  method   String
+  endpoint String
+  shard    String?
+
+  statusCode Int?
+  success    Boolean @default(false)
+  retryCount Int     @default(0)
+
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  clanId   Int?
+  memberId Int?
+
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+
+  @@index([startedAt])
+  @@index([statusCode, startedAt])
+  @@index([source, startedAt])
+  @@map("PubgApiCallLog")
+}

@@ -8,7 +8,7 @@ import {
   startCronExecution,
   type CronActionKey,
 } from '@/lib/cron-observability'
-import { syncTrackedClanStats } from '@/lib/clan-service'
+import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
@@ -16,6 +16,7 @@ import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
 type CronAction =
   | 'sync_matches'
   | 'sync_stats'
+  | 'sync_lifetime_stats'
   | 'generate_weekly_report'
   | 'generate_monthly_report'
 
@@ -44,6 +45,7 @@ function parseAction(value: unknown): CronAction | null {
   if (
     value === 'sync_matches' ||
     value === 'sync_stats' ||
+    value === 'sync_lifetime_stats' ||
     value === 'generate_weekly_report' ||
     value === 'generate_monthly_report'
   ) {
@@ -74,7 +76,7 @@ export async function GET(
 
     const [overview, configChecks] = await Promise.all([
       getCronOverview(parsedClanId),
-      Promise.resolve(getCronConfigurationChecks()),
+      getCronConfigurationChecks(),
     ])
 
     const criticalChecks = configChecks.filter((entry) => entry.status === 'error').length
@@ -241,6 +243,40 @@ export async function POST(
         ok: true,
         action,
         message: 'Synchronisation des stats terminee',
+      })
+    }
+
+    if (action === 'sync_lifetime_stats') {
+      const result = await syncClanLifetimeStats(parsedClanId)
+
+      const status = result.errors.length > 0 ? 'partial' : 'success'
+      const message =
+        result.errors.length > 0
+          ? `Sync lifetime partielle: ${result.refreshedCount}/${result.membersTotal} membre(s) rafraichi(s), ${result.skippedCount} ignore(s).`
+          : `Sync lifetime terminee: ${result.refreshedCount}/${result.membersTotal} membre(s) rafraichi(s).`
+
+      await finishCronExecution({
+        id: executionLog.id,
+        startedAt: executionLog.startedAt,
+        status,
+        message,
+        details: {
+          refreshedCount: result.refreshedCount,
+          skippedCount: result.skippedCount,
+          membersTotal: result.membersTotal,
+          errorsPreview: result.errors.slice(0, 10),
+        },
+      })
+
+      return NextResponse.json({
+        ok: true,
+        action,
+        partial: result.errors.length > 0,
+        refreshedCount: result.refreshedCount,
+        skippedCount: result.skippedCount,
+        membersTotal: result.membersTotal,
+        message,
+        warning: result.errors[0],
       })
     }
 

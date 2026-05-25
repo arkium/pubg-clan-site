@@ -1,4 +1,5 @@
-import nodemailer from 'nodemailer'
+import 'server-only'
+import type { Transporter } from 'nodemailer'
 
 type EmailPayload = {
   to: string
@@ -18,7 +19,7 @@ export type EmailSendResult = {
   reason?: string
 }
 
-let smtpTransport: nodemailer.Transporter | null = null
+let smtpTransport: Transporter | null = null
 
 function readSmtpConfig() {
   const host = process.env.SMTP_HOST?.trim() ?? ''
@@ -41,12 +42,14 @@ function readSmtpConfig() {
   }
 }
 
-function getSmtpTransport(config: ReturnType<typeof readSmtpConfig>) {
+async function getSmtpTransport(config: ReturnType<typeof readSmtpConfig>) {
   if (smtpTransport) {
     return smtpTransport
   }
 
-  smtpTransport = nodemailer.createTransport({
+  const nodemailer = await import('nodemailer')
+
+  smtpTransport = nodemailer.default.createTransport({
     host: config.host,
     port: config.port,
     secure: config.secure,
@@ -84,7 +87,7 @@ export async function sendEmail(payload: EmailPayload) {
     throw new Error('SMTP_FROM is required when SMTP is enabled')
   }
 
-  const transporter = getSmtpTransport(config)
+  const transporter = await getSmtpTransport(config)
   const result = await transporter.sendMail({
     from: fromAddress,
     to: payload.to,

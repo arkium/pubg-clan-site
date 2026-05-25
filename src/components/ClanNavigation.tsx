@@ -211,6 +211,11 @@ export default function ClanNavigation() {
     ...(canManageSettings
       ? [
           {
+            label: 'Monitoring PUBG API',
+            href: '/settings/pubg-api',
+            tone: 'neutral' as const,
+          },
+          {
             label: 'Alias cartes PUBG',
             href: '/settings/map-labels',
             tone: 'neutral' as const,

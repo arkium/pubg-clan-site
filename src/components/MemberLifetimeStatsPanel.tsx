@@ -47,14 +47,41 @@ type MemberLifetimeStatsPanelProps = {
   loadingStats: boolean
   statsError: string
   lastRefreshedAt: string | null
-  refreshingStats: boolean
-  onRefresh: () => void
 }
 
 const MEDAL_BY_RANK: Record<1 | 2 | 3, { iconPath: string; alt: string }> = {
   1: { iconPath: '/icons/medal-gold.svg', alt: 'Medaille or' },
   2: { iconPath: '/icons/medal-silver.svg', alt: 'Medaille argent' },
   3: { iconPath: '/icons/medal-bronze.svg', alt: 'Medaille bronze' },
+}
+
+const SECTION_ICON_BY_KEY: Record<
+  'combat' | 'victory' | 'support' | 'vehicle' | 'movement' | 'other',
+  { iconPath: string; alt: string }
+> = {
+  combat: { iconPath: '/icons/stats/combat.svg', alt: 'Icone combat' },
+  victory: { iconPath: '/icons/stats/victory.svg', alt: 'Icone victoire' },
+  support: { iconPath: '/icons/stats/support.svg', alt: 'Icone support' },
+  vehicle: { iconPath: '/icons/stats/vehicle.svg', alt: 'Icone vehicule' },
+  movement: { iconPath: '/icons/stats/movement.svg', alt: 'Icone deplacement' },
+  other: { iconPath: '/icons/stats/other.svg', alt: 'Icone autres stats' },
+}
+
+function SectionTitle({
+  section,
+  title,
+}: {
+  section: 'combat' | 'victory' | 'support' | 'vehicle' | 'movement' | 'other'
+  title: string
+}) {
+  const icon = SECTION_ICON_BY_KEY[section]
+
+  return (
+    <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+      <Image src={icon.iconPath} alt={icon.alt} width={18} height={18} />
+      <span>{title}</span>
+    </h3>
+  )
 }
 
 function formatDurationLong(seconds: number) {
@@ -113,12 +140,10 @@ export default function MemberLifetimeStatsPanel({
   loadingStats,
   statsError,
   lastRefreshedAt,
-  refreshingStats,
-  onRefresh,
 }: MemberLifetimeStatsPanelProps) {
   return (
     <section className="rounded bg-white p-6 shadow">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4">
         <div>
           <h2 className="text-xl font-semibold">Statistiques globales</h2>
           <p className="text-sm text-gray-500">
@@ -130,14 +155,6 @@ export default function MemberLifetimeStatsPanel({
             </p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshingStats || loadingStats}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {refreshingStats ? 'Actualisation...' : 'Actualiser les stats'}
-        </button>
       </div>
 
       {loadingStats && !lifetimeStats ? (
@@ -149,33 +166,33 @@ export default function MemberLifetimeStatsPanel({
       ) : lifetimeStats ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <article className="rounded border border-gray-200 p-4">
-            <h3 className="mb-3 text-lg font-semibold">Combat</h3>
+            <SectionTitle section="combat" title="Combat" />
             <dl className="space-y-2 text-sm">
               <StatRow label="Kills" value={formatNumber(lifetimeStats.combat.kills)} metricKey="combat.kills" clanRanks={clanRanks} />
-              <StatRow label="Morts" value={formatNumber(lifetimeStats.combat.deaths)} clanRanks={clanRanks} />
+              <StatRow label="Morts" value={formatNumber(lifetimeStats.combat.deaths)} metricKey="combat.deaths" clanRanks={clanRanks} />
               <StatRow label="Ratio K/D" value={formatRatio(lifetimeStats.combat.kdRatio)} metricKey="combat.kdRatio" clanRanks={clanRanks} />
               <StatRow label="Headshots" value={formatNumber(lifetimeStats.combat.headshots)} metricKey="combat.headshots" clanRanks={clanRanks} />
               <StatRow label="Assists" value={formatNumber(lifetimeStats.combat.assists)} metricKey="combat.assists" clanRanks={clanRanks} />
               <StatRow label="KO" value={formatNumber(lifetimeStats.combat.knockouts)} metricKey="combat.knockouts" clanRanks={clanRanks} />
               <StatRow label="Serie max" value={formatNumber(lifetimeStats.combat.highestKillstreak)} metricKey="combat.highestKillstreak" clanRanks={clanRanks} />
               <StatRow label="Distance max" value={`${lifetimeStats.combat.longestKill.toFixed(2)} m`} metricKey="combat.longestKill" clanRanks={clanRanks} />
-              <StatRow label="Teamkills" value={formatNumber(lifetimeStats.combat.teamkills)} clanRanks={clanRanks} />
-              <StatRow label="Suicides" value={formatNumber(lifetimeStats.combat.suicides)} clanRanks={clanRanks} />
+              <StatRow label="Teamkills" value={formatNumber(lifetimeStats.combat.teamkills)} metricKey="combat.teamkills" clanRanks={clanRanks} />
+              <StatRow label="Suicides" value={formatNumber(lifetimeStats.combat.suicides)} metricKey="combat.suicides" clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
-            <h3 className="mb-3 text-lg font-semibold">Victoires</h3>
+            <SectionTitle section="victory" title="Victoires" />
             <dl className="space-y-2 text-sm">
               <StatRow label="Victoires" value={formatNumber(lifetimeStats.victory.wins)} metricKey="victory.wins" clanRanks={clanRanks} />
-              <StatRow label="Defaites" value={formatNumber(lifetimeStats.victory.losses)} clanRanks={clanRanks} />
+              <StatRow label="Defaites" value={formatNumber(lifetimeStats.victory.losses)} metricKey="victory.losses" clanRanks={clanRanks} />
               <StatRow label="Ratio V/D" value={formatRatio(lifetimeStats.victory.winLossRatio)} metricKey="victory.winLossRatio" clanRanks={clanRanks} />
               <StatRow label="Temps max en vie" value={formatDurationLong(lifetimeStats.victory.longestTimeAlive)} metricKey="victory.longestTimeAlive" clanRanks={clanRanks} />
             </dl>
           </article>
 
           <article className="rounded border border-gray-200 p-4">
-            <h3 className="mb-3 text-lg font-semibold">Support</h3>
+            <SectionTitle section="support" title="Support" />
             <dl className="space-y-2 text-sm">
               <StatRow label="Coequipiers releves" value={formatNumber(lifetimeStats.support.teammatesRevived)} metricKey="support.teammatesRevived" clanRanks={clanRanks} />
               <StatRow label="Boosts utilises" value={formatNumber(lifetimeStats.support.boostsUsed)} metricKey="support.boostsUsed" clanRanks={clanRanks} />
@@ -184,7 +201,7 @@ export default function MemberLifetimeStatsPanel({
           </article>
 
           <article className="rounded border border-gray-200 p-4">
-            <h3 className="mb-3 text-lg font-semibold">Vehicules</h3>
+            <SectionTitle section="vehicle" title="Vehicules" />
             <dl className="space-y-2 text-sm">
               <StatRow label="Vehicules detruits" value={formatNumber(lifetimeStats.vehicle.vehiclesDestroyed)} metricKey="vehicle.vehiclesDestroyed" clanRanks={clanRanks} />
               <StatRow label="Roadkills" value={formatNumber(lifetimeStats.vehicle.roadkills)} metricKey="vehicle.roadkills" clanRanks={clanRanks} />
@@ -192,7 +209,7 @@ export default function MemberLifetimeStatsPanel({
           </article>
 
           <article className="rounded border border-gray-200 p-4">
-            <h3 className="mb-3 text-lg font-semibold">Deplacements</h3>
+            <SectionTitle section="movement" title="Deplacements" />
             <dl className="space-y-2 text-sm">
               <StatRow label="Distance en vehicule" value={formatDistanceMetersToKm(lifetimeStats.movement.drivenDistance)} metricKey="movement.drivenDistance" clanRanks={clanRanks} />
               <StatRow label="Distance a pied" value={formatDistanceMetersToKm(lifetimeStats.movement.walkedDistance)} metricKey="movement.walkedDistance" clanRanks={clanRanks} />
@@ -201,7 +218,7 @@ export default function MemberLifetimeStatsPanel({
           </article>
 
           <article className="rounded border border-gray-200 p-4">
-            <h3 className="mb-3 text-lg font-semibold">Autres</h3>
+            <SectionTitle section="other" title="Autres" />
             <dl className="space-y-2 text-sm">
               <StatRow label="Armes ramassees" value={formatNumber(lifetimeStats.other.weaponsPicked)} metricKey="other.weaponsPicked" clanRanks={clanRanks} />
               <StatRow label="Degats infliges" value={formatNumber(lifetimeStats.other.damageGiven)} metricKey="other.damageGiven" clanRanks={clanRanks} />

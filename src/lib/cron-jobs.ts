@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron'
 
 import { endChallenge } from '@/lib/challenge-service'
+import { syncClanLifetimeStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { notifyInviteReminder, notifyReportReady } from '@/lib/notification-service'
@@ -11,6 +12,7 @@ import { recalculateStatsForClan } from '@/lib/stats-calculator'
 const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
 const STATS_RECALC_SCHEDULE = process.env.CLAN_STATS_RECALC_CRON ?? '0 3 * * *'
+const LIFETIME_STATS_SYNC_SCHEDULE = process.env.CLAN_LIFETIME_STATS_SYNC_CRON ?? '0 4 * * *'
 const CLAN_ONLINE_REMINDER_SCHEDULE =
   process.env.CLAN_ONLINE_REMINDER_CRON ?? '0 18 * * *'
 const WEEKLY_REPORT_REMINDER_SCHEDULE =
@@ -28,6 +30,8 @@ const globalForCron = globalThis as typeof globalThis & {
   clanSyncInProgress?: boolean
   statsRecalcCronTask?: ScheduledTask
   statsRecalcInProgress?: boolean
+  lifetimeStatsSyncCronTask?: ScheduledTask
+  lifetimeStatsSyncInProgress?: boolean
   clanReminderCronTask?: ScheduledTask
   reportReminderCronTask?: ScheduledTask
   weeklyReportCronTask?: ScheduledTask
@@ -188,6 +192,84 @@ async function recalculateStatsDaily() {
     console.error('[Cron] Daily stats recalculation failed before processing clans', error)
   } finally {
     globalForCron.statsRecalcInProgress = false
+  }
+}
+
+async function syncLifetimeStatsDaily() {
+  if (globalForCron.lifetimeStatsSyncInProgress) {
+    console.warn('[Cron] Lifetime stats sync skipped because a previous run is still in progress')
+    return
+  }
+
+  globalForCron.lifetimeStatsSyncInProgress = true
+
+  const startedAt = new Date()
+  console.info(`[Cron] Daily lifetime stats sync started at ${startedAt.toISOString()}`)
+
+  try {
+    const activeClans = await prisma.clan.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { id: 'asc' },
+    })
+
+    if (activeClans.length === 0) {
+      console.info('[Cron] No active clans found for lifetime stats sync')
+      return
+    }
+
+    for (const clan of activeClans) {
+      const execution = await startCronExecution({
+        clanId: clan.id,
+        action: 'daily_lifetime_stats_sync',
+        source: 'scheduler',
+      })
+
+      try {
+        const result = await syncClanLifetimeStats(clan.id)
+        const hasErrors = result.errors.length > 0
+
+        console.info(
+          `[Cron] Lifetime stats sync for clan "${clan.name}" (${clan.id}): ${result.refreshedCount}/${result.membersTotal} refreshed`
+        )
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: hasErrors ? 'partial' : 'success',
+          message: hasErrors
+            ? `Lifetime sync partial: ${result.refreshedCount}/${result.membersTotal} refreshed, ${result.skippedCount} skipped`
+            : `Lifetime sync completed: ${result.refreshedCount}/${result.membersTotal} refreshed`,
+          details: {
+            refreshedCount: result.refreshedCount,
+            skippedCount: result.skippedCount,
+            membersTotal: result.membersTotal,
+            errorsPreview: result.errors.slice(0, 10),
+          },
+        })
+      } catch (error) {
+        console.error(
+          `[Cron] Failed to sync lifetime stats for clan "${clan.name}" (${clan.id})`,
+          error
+        )
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Lifetime stats sync failed',
+        }).catch(() => undefined)
+      }
+    }
+
+    const finishedAt = new Date()
+    console.info(
+      `[Cron] Daily lifetime stats sync finished at ${finishedAt.toISOString()} - processed ${activeClans.length} clans`
+    )
+  } catch (error) {
+    console.error('[Cron] Daily lifetime stats sync failed before processing clans', error)
+  } finally {
+    globalForCron.lifetimeStatsSyncInProgress = false
   }
 }
 
@@ -500,6 +582,16 @@ export function initCronJobs() {
     }
   )
 
+  globalForCron.lifetimeStatsSyncCronTask = cron.schedule(
+    LIFETIME_STATS_SYNC_SCHEDULE,
+    async () => {
+      await syncLifetimeStatsDaily()
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
   globalForCron.clanReminderCronTask = cron.schedule(
     CLAN_ONLINE_REMINDER_SCHEDULE,
     async () => {
@@ -557,6 +649,9 @@ export function initCronJobs() {
   )
   console.info(
     `[Cron] Daily stats recalculation scheduled with "${STATS_RECALC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Daily lifetime stats sync scheduled with "${LIFETIME_STATS_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
   )
   console.info(
     `[Cron] Clan online reminders scheduled with "${CLAN_ONLINE_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`

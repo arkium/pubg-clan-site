@@ -1,14 +1,17 @@
 import { Prisma } from '@prisma/client'
 
+import { getPubgApiRateLimitRpm } from '@/lib/pubg-rate-limit-config-service'
 import { prisma } from '@/lib/prisma'
 
 export type CronActionKey =
   | 'sync_matches'
   | 'sync_stats'
+  | 'sync_lifetime_stats'
   | 'generate_weekly_report'
   | 'generate_monthly_report'
   | 'daily_sync'
   | 'daily_stats_recalc'
+  | 'daily_lifetime_stats_sync'
   | 'weekly_report_auto'
   | 'monthly_report_auto'
   | 'challenge_processing'
@@ -20,10 +23,12 @@ export type CronSource = 'manual' | 'scheduler' | 'system'
 export const CRON_ACTION_LABELS: Record<CronActionKey, string> = {
   sync_matches: 'Sync matchs',
   sync_stats: 'Sync stats',
+  sync_lifetime_stats: 'Sync stats lifetime',
   generate_weekly_report: 'Rapport hebdo',
   generate_monthly_report: 'Rapport mensuel',
   daily_sync: 'Sync quotidien clans',
   daily_stats_recalc: 'Recalcul stats quotidien',
+  daily_lifetime_stats_sync: 'Sync lifetime quotidienne',
   weekly_report_auto: 'Generation auto rapport hebdo',
   monthly_report_auto: 'Generation auto rapport mensuel',
   challenge_processing: 'Traitement des challenges',
@@ -51,6 +56,123 @@ function isValidCron(expression: string) {
   return parts.every((segment) => /^[\d*/,\-]+$/.test(segment))
 }
 
+function describeCronExpression(expression: string) {
+  const parts = expression.trim().split(/\s+/)
+  if (parts.length !== 5) {
+    return `Format cron invalide.`
+  }
+
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
+
+  function getFrenchWeekdayLabel(value: string) {
+    const mapping: Record<string, string> = {
+      '0': 'dimanche',
+      '1': 'lundi',
+      '2': 'mardi',
+      '3': 'mercredi',
+      '4': 'jeudi',
+      '5': 'vendredi',
+      '6': 'samedi',
+      '7': 'dimanche',
+    }
+
+    return mapping[value] ?? `jour ${value}`
+  }
+
+  function parseNumericList(value: string) {
+    if (!/^\d+(,\d+)*$/.test(value)) {
+      return null
+    }
+
+    return value
+      .split(',')
+      .map((entry) => Number(entry))
+      .filter((entry) => Number.isInteger(entry))
+  }
+
+  function joinFrench(values: string[]) {
+    if (values.length === 0) {
+      return ''
+    }
+
+    if (values.length === 1) {
+      return values[0]
+    }
+
+    if (values.length === 2) {
+      return `${values[0]} et ${values[1]}`
+    }
+
+    return `${values.slice(0, -1).join(', ')} et ${values[values.length - 1]}`
+  }
+
+  function formatHours(hours: number[]) {
+    const labels = hours
+      .sort((left, right) => left - right)
+      .map((value) => `${String(value).padStart(2, '0')}h`)
+    return joinFrench(labels)
+  }
+
+  function formatMinutes(minutes: number[]) {
+    const labels = minutes
+      .sort((left, right) => left - right)
+      .map((value) => `${String(value).padStart(2, '0')}m`)
+    return joinFrench(labels)
+  }
+
+  const parsedHours = parseNumericList(hour)
+  const parsedMinutes = parseNumericList(minute)
+
+  const isDaily = dayOfMonth === '*' && month === '*' && dayOfWeek === '*'
+  if (isDaily && parsedHours && parsedMinutes) {
+    if (parsedMinutes.length === 1 && parsedHours.length >= 1) {
+      const minuteLabel = String(parsedMinutes[0]).padStart(2, '0')
+      return `Tous les jours a ${formatHours(parsedHours)}:${minuteLabel}.`
+    }
+
+    if (parsedHours.length === 1 && parsedMinutes.length >= 1) {
+      const hourLabel = String(parsedHours[0]).padStart(2, '0')
+      return `Tous les jours a ${hourLabel} avec minutes ${formatMinutes(parsedMinutes)}.`
+    }
+
+    return `Tous les jours avec heures ${formatHours(parsedHours)} et minutes ${formatMinutes(parsedMinutes)}.`
+  }
+
+  const isWeekly = dayOfMonth === '*' && month === '*' && /^\d+$/.test(dayOfWeek)
+  if (isWeekly && parsedHours && parsedMinutes) {
+    const weekdayLabel = getFrenchWeekdayLabel(dayOfWeek)
+
+    if (parsedMinutes.length === 1 && parsedHours.length >= 1) {
+      const minuteLabel = String(parsedMinutes[0]).padStart(2, '0')
+      return `Chaque semaine (${weekdayLabel}) a ${formatHours(parsedHours)}:${minuteLabel}.`
+    }
+
+    if (parsedHours.length === 1 && parsedMinutes.length >= 1) {
+      const hourLabel = String(parsedHours[0]).padStart(2, '0')
+      return `Chaque semaine (${weekdayLabel}) a ${hourLabel} avec minutes ${formatMinutes(parsedMinutes)}.`
+    }
+
+    return `Chaque semaine (${weekdayLabel}) avec heures ${formatHours(parsedHours)} et minutes ${formatMinutes(parsedMinutes)}.`
+  }
+
+  const isMonthly = /^\d+$/.test(dayOfMonth) && month === '*' && dayOfWeek === '*'
+  if (isMonthly && parsedHours && parsedMinutes) {
+    if (parsedMinutes.length === 1 && parsedHours.length >= 1) {
+      const minuteLabel = String(parsedMinutes[0]).padStart(2, '0')
+      return `Chaque mois le jour ${dayOfMonth} a ${formatHours(parsedHours)}:${minuteLabel}.`
+    }
+
+    if (parsedHours.length === 1 && parsedMinutes.length >= 1) {
+      const hourLabel = String(parsedHours[0]).padStart(2, '0')
+      return `Chaque mois le jour ${dayOfMonth} a ${hourLabel} avec minutes ${formatMinutes(parsedMinutes)}.`
+    }
+
+    return `Chaque mois le jour ${dayOfMonth} avec heures ${formatHours(parsedHours)} et minutes ${formatMinutes(parsedMinutes)}.`
+  }
+
+  return `Expression cron personnalisee.`
+}
+
 function looksLocalUrl(value: string) {
   try {
     const parsed = new URL(value)
@@ -60,7 +182,7 @@ function looksLocalUrl(value: string) {
   }
 }
 
-function getCronEnvChecks(): CronConfigCheck[] {
+async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
   const nodeEnv = process.env.NODE_ENV ?? 'development'
   const enableCron = process.env.ENABLE_CRON_JOBS
   const enableCronBootstrap = process.env.ENABLE_CRON_BOOTSTRAP
@@ -69,6 +191,7 @@ function getCronEnvChecks(): CronConfigCheck[] {
   const appUrl = process.env.APP_URL ?? ''
   const nextPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const pubgApiKey = process.env.PUBG_API_KEY ?? ''
+  const pubgApiRateLimitRpm = await getPubgApiRateLimitRpm()
   const databaseUrl = process.env.DATABASE_URL ?? ''
 
   const checks: CronConfigCheck[] = [
@@ -133,7 +256,14 @@ function getCronEnvChecks(): CronConfigCheck[] {
       hint:
         pubgApiKey
           ? undefined
-          : 'Requis pour les actions Sync matchs et Sync stats.',
+          : 'Requis pour les actions Sync matchs, Sync stats et Sync stats lifetime.',
+    },
+    {
+      key: 'pubg_api_rate_limit_rpm',
+      label: 'PUBG_API_RATE_LIMIT_RPM (effectif)',
+      status: 'ok',
+      value: String(pubgApiRateLimitRpm),
+      hint: 'Limite effective appliquee par la gateway PUBG centralisee.',
     },
     {
       key: 'internal_app_url',
@@ -176,6 +306,11 @@ function getScheduleChecks(): CronConfigCheck[] {
       value: process.env.CLAN_STATS_RECALC_CRON ?? '0 3 * * *',
     },
     {
+      key: 'clan_lifetime_stats_sync_cron',
+      label: 'CLAN_LIFETIME_STATS_SYNC_CRON',
+      value: process.env.CLAN_LIFETIME_STATS_SYNC_CRON ?? '0 4 * * *',
+    },
+    {
       key: 'weekly_report_generation_cron',
       label: 'WEEKLY_REPORT_GENERATION_CRON',
       value: process.env.WEEKLY_REPORT_GENERATION_CRON ?? '0 8 * * 1',
@@ -192,12 +327,15 @@ function getScheduleChecks(): CronConfigCheck[] {
     label: entry.label,
     value: entry.value,
     status: isValidCron(entry.value) ? 'ok' : 'error',
-    hint: isValidCron(entry.value) ? undefined : 'Expression cron invalide.',
+    hint: isValidCron(entry.value)
+      ? describeCronExpression(entry.value)
+      : `Expression cron invalide.`,
   }))
 }
 
-export function getCronConfigurationChecks() {
-  return [...getCronEnvChecks(), ...getScheduleChecks()]
+export async function getCronConfigurationChecks() {
+  const envChecks = await getCronEnvChecks()
+  return [...envChecks, ...getScheduleChecks()]
 }
 
 export async function startCronExecution(params: {

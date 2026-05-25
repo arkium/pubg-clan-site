@@ -99,7 +99,6 @@ export default function MemberStatsPage() {
   const [clanRanks, setClanRanks] = useState<ClanMetricRanks>({})
   const [loadingStats, setLoadingStats] = useState(true)
   const [statsError, setStatsError] = useState('')
-  const [refreshingStats, setRefreshingStats] = useState(false)
 
   const medalsByRank = useMemo(() => {
     const grouped: Record<1 | 2 | 3, string[]> = { 1: [], 2: [], 3: [] }
@@ -170,41 +169,6 @@ export default function MemberStatsPage() {
       cancelled = true
     }
   }, [memberId])
-
-  async function handleRefreshStats() {
-    if (!memberId) {
-      return
-    }
-
-    setRefreshingStats(true)
-    setStatsError('')
-
-    try {
-      const response = await fetch(`/api/members/${memberId}/stats`, { method: 'POST' })
-      const payload = (await response.json()) as {
-        stats?: LifetimeStats
-        clanRanks?: ClanMetricRanks
-        lastRefreshedAt?: string | null
-        error?: string
-      }
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Impossible d\'actualiser les statistiques globales')
-      }
-
-      setLifetimeStats(payload.stats ?? null)
-      setClanRanks(payload.clanRanks ?? {})
-      setLastRefreshedAt(payload.lastRefreshedAt ?? null)
-    } catch (refreshError) {
-      setStatsError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : 'Impossible d\'actualiser les statistiques globales'
-      )
-    } finally {
-      setRefreshingStats(false)
-    }
-  }
 
   if (!memberId) {
     return (
@@ -294,8 +258,6 @@ export default function MemberStatsPage() {
         loadingStats={loadingStats}
         statsError={statsError}
         lastRefreshedAt={lastRefreshedAt}
-        refreshingStats={refreshingStats}
-        onRefresh={() => void handleRefreshStats()}
       />
     </main>
   )

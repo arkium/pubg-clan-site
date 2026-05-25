@@ -1,5 +1,3 @@
-import { initCronJobs } from '@/lib/cron-jobs'
-
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') {
     return
@@ -10,5 +8,10 @@ export async function register() {
     return
   }
 
+  // Keep cron bootstrap Node-only without exposing a static import edge can traverse.
+  const loadCronJobs = new Function(
+    'return import("@/lib/cron-jobs")'
+  ) as () => Promise<{ initCronJobs: () => Promise<void> }>
+  const { initCronJobs } = await loadCronJobs()
   await initCronJobs()
 }

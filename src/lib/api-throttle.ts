@@ -1,10 +1,23 @@
-// PUBG API rate limit: 10 requests per minute
+import { getPubgApiRateLimitRpm } from '@/lib/pubg-rate-limit-config-service'
+import { createPubgApiCallLog } from '@/lib/pubg-api-call-log-service'
+
+// Fallback used only if no configuration is provided.
 const PUBG_API_RATE_LIMIT_RPM = 10
 
 type QueueItem<T> = {
   fn: () => Promise<T>
+  metadata?: PubgApiRequestMetadata
   resolve: (value: T) => void
   reject: (reason: unknown) => void
+}
+
+export type PubgApiRequestMetadata = {
+  source?: string
+  method?: string
+  endpoint?: string
+  shard?: string | null
+  clanId?: number | null
+  memberId?: number | null
 }
 
 export class ApiQueue {
@@ -20,9 +33,9 @@ export class ApiQueue {
     this.maxRetries = maxRetries
   }
 
-  add<T>(fn: () => Promise<T>): Promise<T> {
+  add<T>(fn: () => Promise<T>, metadata?: PubgApiRequestMetadata): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      this.queue.push({ fn, resolve, reject })
+      this.queue.push({ fn, metadata, resolve, reject })
       if (!this.running) {
         this.running = true
         void this.drain()
@@ -34,15 +47,46 @@ export class ApiQueue {
     while (this.queue.length > 0) {
       const item = this.queue.shift()!
       const startTime = Date.now()
+      const startedAt = new Date(startTime)
       this.log('API call started')
       try {
-        const result = await this.callWithRetry(item.fn)
+        const { result, retryCount } = await this.callWithRetry(item.fn)
         this.log(`API call succeeded in ${Date.now() - startTime}ms`)
+        void createPubgApiCallLog({
+          source: item.metadata?.source ?? 'gateway',
+          method: item.metadata?.method ?? 'GET',
+          endpoint: item.metadata?.endpoint ?? 'unknown-endpoint',
+          shard: item.metadata?.shard ?? null,
+          statusCode: extractStatusCodeFromValue(result),
+          success: true,
+          retryCount,
+          startedAt,
+          finishedAt: new Date(),
+          durationMs: Date.now() - startTime,
+          clanId: item.metadata?.clanId ?? null,
+          memberId: item.metadata?.memberId ?? null,
+          errorMessage: null,
+        }).catch(() => undefined)
         item.resolve(result)
       } catch (err) {
         this.log(
           `API call failed after ${Date.now() - startTime}ms: ${err instanceof Error ? err.message : String(err)}`
         )
+        void createPubgApiCallLog({
+          source: item.metadata?.source ?? 'gateway',
+          method: item.metadata?.method ?? 'GET',
+          endpoint: item.metadata?.endpoint ?? 'unknown-endpoint',
+          shard: item.metadata?.shard ?? null,
+          statusCode: extractStatusCodeFromError(err),
+          success: false,
+          retryCount: extractRetryCountFromError(err),
+          startedAt,
+          finishedAt: new Date(),
+          durationMs: Date.now() - startTime,
+          clanId: item.metadata?.clanId ?? null,
+          memberId: item.metadata?.memberId ?? null,
+          errorMessage: err instanceof Error ? err.message : String(err),
+        }).catch(() => undefined)
         item.reject(err)
       }
 
@@ -53,11 +97,12 @@ export class ApiQueue {
     this.running = false
   }
 
-  private async callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  private async callWithRetry<T>(fn: () => Promise<T>): Promise<{ result: T; retryCount: number }> {
     let lastError: unknown
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        return await fn()
+        const result = await fn()
+        return { result, retryCount: attempt - 1 }
       } catch (err) {
         lastError = err
         if (this.isRateLimitError(err) && attempt < this.maxRetries) {
@@ -71,6 +116,10 @@ export class ApiQueue {
         }
       }
     }
+    if (lastError instanceof Error) {
+      ;(lastError as Error & { retryCount?: number }).retryCount = this.maxRetries - 1
+    }
+
     throw lastError
   }
 
@@ -102,4 +151,79 @@ export class ApiQueue {
   getLogs(): string[] {
     return [...this.logs]
   }
+}
+
+const globalForPubgThrottle = globalThis as typeof globalThis & {
+  pubgApiQueue?: ApiQueue
+  pubgApiQueueRpm?: number
+}
+
+async function getOrCreatePubgApiQueue() {
+  const configuredRpm = await getPubgApiRateLimitRpm()
+
+  if (!globalForPubgThrottle.pubgApiQueue || globalForPubgThrottle.pubgApiQueueRpm !== configuredRpm) {
+    globalForPubgThrottle.pubgApiQueue = new ApiQueue(configuredRpm)
+    globalForPubgThrottle.pubgApiQueueRpm = configuredRpm
+  }
+
+  return globalForPubgThrottle.pubgApiQueue
+}
+
+export async function enqueuePubgApiRequest<T>(fn: () => Promise<T>) {
+  const queue = await getOrCreatePubgApiQueue()
+  return queue.add(fn)
+}
+
+export async function enqueuePubgApiRequestWithMetadata<T>(
+  fn: () => Promise<T>,
+  metadata?: PubgApiRequestMetadata
+) {
+  const queue = await getOrCreatePubgApiQueue()
+  return queue.add(fn, metadata)
+}
+
+export function getPubgApiQueueLogs() {
+  return globalForPubgThrottle.pubgApiQueue?.getLogs() ?? []
+}
+
+function extractStatusCodeFromError(err: unknown) {
+  if (err && typeof err === 'object') {
+    if ('status' in err) {
+      const status = (err as { status?: unknown }).status
+      if (typeof status === 'number') {
+        return status
+      }
+    }
+
+    if ('response' in err) {
+      const response = (err as { response?: { status?: unknown } }).response
+      if (typeof response?.status === 'number') {
+        return response.status
+      }
+    }
+  }
+
+  return null
+}
+
+function extractStatusCodeFromValue(value: unknown) {
+  if (value && typeof value === 'object' && 'status' in value) {
+    const status = (value as { status?: unknown }).status
+    if (typeof status === 'number') {
+      return status
+    }
+  }
+
+  return 200
+}
+
+function extractRetryCountFromError(err: unknown) {
+  if (err && typeof err === 'object' && 'retryCount' in err) {
+    const retryCount = (err as { retryCount?: unknown }).retryCount
+    if (typeof retryCount === 'number' && Number.isFinite(retryCount)) {
+      return retryCount
+    }
+  }
+
+  return 0
 }

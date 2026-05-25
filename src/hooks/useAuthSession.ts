@@ -63,6 +63,11 @@ export function useAuthSession() {
         members: SessionMember[]
       }
 
+      if (!data.authenticated) {
+        await resetToLoggedOut(true)
+        return
+      }
+
       setState({
         loading: false,
         authenticated: data.authenticated,

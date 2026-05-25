@@ -57,6 +57,7 @@ type CronStatusPayload = {
       cronBootstrapEnabled: boolean
     }
     cronWorker: {
+      probeEnabled?: boolean
       available: boolean
       initialized?: boolean
       cronJobsEnabled?: boolean
@@ -151,6 +152,13 @@ export default function CronSettingsPage() {
     }
 
     if (!payload.runtime.cronWorker.available) {
+      if (payload.runtime.cronWorker.probeEnabled === false) {
+        return {
+          label: 'Cron worker: verification runtime non configuree',
+          status: 'warning' as const,
+        }
+      }
+
       return {
         label: 'Cron worker: inaccessible',
         status: 'error' as const,
@@ -459,8 +467,16 @@ export default function CronSettingsPage() {
                     </p>
                   </>
                 ) : (
-                  <p className="mt-2 text-sm text-amber-700">
-                    Indisponible: {payload.runtime.cronWorker.reason ?? 'etat inconnu'}
+                  <p
+                    className={`mt-2 text-sm ${
+                      payload.runtime.cronWorker.probeEnabled === false
+                        ? 'text-slate-700'
+                        : 'text-amber-700'
+                    }`}
+                  >
+                    {payload.runtime.cronWorker.probeEnabled === false
+                      ? `Non configure: ${payload.runtime.cronWorker.reason ?? 'verification runtime non configuree'}`
+                      : `Indisponible: ${payload.runtime.cronWorker.reason ?? 'etat inconnu'}`}
                   </p>
                 )}
               </article>

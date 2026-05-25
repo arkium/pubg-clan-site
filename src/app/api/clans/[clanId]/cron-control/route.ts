@@ -59,8 +59,9 @@ async function getCronWorkerRuntimeStatus() {
   const secret = process.env.CRON_BOOTSTRAP_SECRET?.trim()
   if (!secret) {
     return {
+      probeEnabled: false,
       available: false,
-      reason: 'CRON_BOOTSTRAP_SECRET manquant',
+      reason: 'Verification distante non configuree (CRON_BOOTSTRAP_SECRET manquant sur le web worker)',
     }
   }
 
@@ -87,18 +88,21 @@ async function getCronWorkerRuntimeStatus() {
 
     if (!response.ok || !payload?.ok) {
       return {
+        probeEnabled: true,
         available: false,
         reason: payload?.error ?? `HTTP ${response.status}`,
       }
     }
 
     return {
+      probeEnabled: true,
       available: true,
       initialized: payload.initialized === true,
       cronJobsEnabled: payload.cronJobsEnabled === true,
     }
   } catch {
     return {
+      probeEnabled: true,
       available: false,
       reason: 'Cron worker injoignable',
     }

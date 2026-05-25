@@ -211,8 +211,7 @@ async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
     {
       key: 'enable_cron_jobs',
       label: 'ENABLE_CRON_JOBS',
-      status:
-        cronJobsEnabled ? 'ok' : nodeEnv === 'production' ? 'warning' : 'ok',
+      status: 'ok',
       value: enableCron || '(non defini)',
       hint:
         cronJobsEnabled

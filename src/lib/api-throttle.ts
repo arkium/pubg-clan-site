@@ -20,6 +20,12 @@ export type PubgApiRequestMetadata = {
   memberId?: number | null
 }
 
+type ExtractedRateLimit = {
+  limit: number | null
+  remaining: number | null
+  resetAt: Date | null
+}
+
 export class ApiQueue {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private queue: QueueItem<any>[] = []
@@ -51,6 +57,7 @@ export class ApiQueue {
       this.log('API call started')
       try {
         const { result, retryCount } = await this.callWithRetry(item.fn)
+        const rateLimit = extractRateLimitFromSuccessValue(result)
         this.log(`API call succeeded in ${Date.now() - startTime}ms`)
         void createPubgApiCallLog({
           source: item.metadata?.source ?? 'gateway',
@@ -66,9 +73,13 @@ export class ApiQueue {
           clanId: item.metadata?.clanId ?? null,
           memberId: item.metadata?.memberId ?? null,
           errorMessage: null,
+          rateLimitLimit: rateLimit.limit,
+          rateLimitRemaining: rateLimit.remaining,
+          rateLimitResetAt: rateLimit.resetAt,
         }).catch(() => undefined)
         item.resolve(result)
       } catch (err) {
+        const rateLimit = extractRateLimitFromError(err)
         this.log(
           `API call failed after ${Date.now() - startTime}ms: ${err instanceof Error ? err.message : String(err)}`
         )
@@ -86,6 +97,9 @@ export class ApiQueue {
           clanId: item.metadata?.clanId ?? null,
           memberId: item.metadata?.memberId ?? null,
           errorMessage: err instanceof Error ? err.message : String(err),
+          rateLimitLimit: rateLimit.limit,
+          rateLimitRemaining: rateLimit.remaining,
+          rateLimitResetAt: rateLimit.resetAt,
         }).catch(() => undefined)
         item.reject(err)
       }
@@ -226,4 +240,75 @@ function extractRetryCountFromError(err: unknown) {
   }
 
   return 0
+}
+
+function extractRateLimitFromSuccessValue(value: unknown): ExtractedRateLimit {
+  if (!value || typeof value !== 'object') {
+    return { limit: null, remaining: null, resetAt: null }
+  }
+
+  const headers = (value as { headers?: unknown }).headers
+  return parseRateLimitHeaders(headers)
+}
+
+function extractRateLimitFromError(err: unknown): ExtractedRateLimit {
+  if (!err || typeof err !== 'object') {
+    return { limit: null, remaining: null, resetAt: null }
+  }
+
+  const rateLimit = parseRateLimitHeaders((err as { responseHeaders?: unknown }).responseHeaders)
+  if (rateLimit.limit !== null || rateLimit.remaining !== null || rateLimit.resetAt !== null) {
+    return rateLimit
+  }
+
+  return parseRateLimitHeaders((err as { response?: { headers?: unknown } }).response?.headers)
+}
+
+function parseRateLimitHeaders(headers: unknown): ExtractedRateLimit {
+  if (!headers || typeof headers !== 'object') {
+    return { limit: null, remaining: null, resetAt: null }
+  }
+
+  const normalized = Object.entries(headers as Record<string, unknown>).reduce<Record<string, string>>(
+    (acc, [key, value]) => {
+      if (typeof value === 'string') {
+        acc[key.toLowerCase()] = value
+      }
+      return acc
+    },
+    {}
+  )
+
+  const limit = parseRateLimitNumber(
+    normalized['x-ratelimit-limit'] ?? normalized['x-ratelimit-limit-minute']
+  )
+  const remaining = parseRateLimitNumber(normalized['x-ratelimit-remaining'])
+  const resetAt = parseRateLimitResetDate(normalized['x-ratelimit-reset'])
+
+  return { limit, remaining, resetAt }
+}
+
+function parseRateLimitNumber(value: string | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const firstSegment = value.split('/')[0]?.trim()
+  const parsed = Number(firstSegment)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseRateLimitResetDate(value: string | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+
+  const ms = parsed > 9999999999 ? parsed : parsed * 1000
+  const asDate = new Date(ms)
+  return Number.isNaN(asDate.getTime()) ? null : asDate
 }

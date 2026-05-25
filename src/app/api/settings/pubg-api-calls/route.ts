@@ -26,11 +26,15 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const windowMinutesRaw = Number(url.searchParams.get('windowMinutes'))
-  const historyLimitRaw = Number(url.searchParams.get('historyLimit'))
+  const historyPageRaw = Number(url.searchParams.get('page'))
+  const historyPageSizeRaw = Number(url.searchParams.get('pageSize'))
+  const errorsOnlyRaw = (url.searchParams.get('errorsOnly') ?? '').toLowerCase()
 
   const overview = await getPubgApiCallsOverview({
     windowMinutes: Number.isFinite(windowMinutesRaw) ? windowMinutesRaw : undefined,
-    historyLimit: Number.isFinite(historyLimitRaw) ? historyLimitRaw : undefined,
+    historyPage: Number.isFinite(historyPageRaw) ? historyPageRaw : undefined,
+    historyPageSize: Number.isFinite(historyPageSizeRaw) ? historyPageSizeRaw : undefined,
+    errorsOnly: errorsOnlyRaw === '1' || errorsOnlyRaw === 'true',
   })
 
   const [rpm, bounds] = await Promise.all([

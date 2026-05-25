@@ -4,6 +4,7 @@ import { enqueuePubgApiRequestWithMetadata } from '@/lib/api-throttle'
 
 type PubgApiError = Error & {
   status?: number
+  responseHeaders?: Record<string, unknown>
 }
 
 const PUBG_API_KEY = process.env.PUBG_API_KEY
@@ -45,6 +46,7 @@ pubgApi.interceptors.response.use(
       `[PUBG] API request failed (${status ?? 'no-status'}) ${method} ${url}`
     )
     safeError.status = status
+    safeError.responseHeaders = (error.response?.headers as Record<string, unknown> | undefined) ?? undefined
 
     return Promise.reject(safeError)
   }

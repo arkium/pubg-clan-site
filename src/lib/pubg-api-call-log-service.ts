@@ -14,6 +14,9 @@ export type PubgApiCallLogInput = {
   clanId?: number | null
   memberId?: number | null
   errorMessage?: string | null
+  rateLimitLimit?: number | null
+  rateLimitRemaining?: number | null
+  rateLimitResetAt?: Date | null
 }
 
 export async function createPubgApiCallLog(input: PubgApiCallLogInput) {
@@ -32,20 +35,36 @@ export async function createPubgApiCallLog(input: PubgApiCallLogInput) {
       clanId: input.clanId ?? null,
       memberId: input.memberId ?? null,
       errorMessage: input.errorMessage ? input.errorMessage.slice(0, 191) : null,
+      rateLimitLimit: input.rateLimitLimit ?? null,
+      rateLimitRemaining: input.rateLimitRemaining ?? null,
+      rateLimitResetAt: input.rateLimitResetAt ?? null,
     },
   })
 }
 
 export async function getPubgApiCallsOverview(params?: {
   windowMinutes?: number
-  historyLimit?: number
+  historyPage?: number
+  historyPageSize?: number
+  errorsOnly?: boolean
 }) {
   const windowMinutes = Math.max(5, Math.min(24 * 60, params?.windowMinutes ?? 60))
-  const historyLimit = Math.max(20, Math.min(500, params?.historyLimit ?? 120))
+  const historyPage = Math.max(1, params?.historyPage ?? 1)
+  const historyPageSize = Math.max(10, Math.min(100, params?.historyPageSize ?? 25))
+  const errorsOnly = params?.errorsOnly === true
 
   const from = new Date(Date.now() - windowMinutes * 60_000)
+  const historyWhere = errorsOnly
+    ? {
+        OR: [
+          { success: false },
+          { statusCode: 429 },
+          { errorMessage: { not: null } },
+        ],
+      }
+    : undefined
 
-  const [windowRows, historyRows] = await Promise.all([
+  const [windowRows, historyRows, historyTotal, latestRateLimitRow] = await Promise.all([
     prisma.pubgApiCallLog.findMany({
       where: { startedAt: { gte: from } },
       orderBy: { startedAt: 'asc' },
@@ -57,8 +76,10 @@ export async function getPubgApiCallsOverview(params?: {
       },
     }),
     prisma.pubgApiCallLog.findMany({
+      where: historyWhere,
       orderBy: { startedAt: 'desc' },
-      take: historyLimit,
+      skip: (historyPage - 1) * historyPageSize,
+      take: historyPageSize,
       select: {
         id: true,
         source: true,
@@ -74,9 +95,63 @@ export async function getPubgApiCallsOverview(params?: {
         clanId: true,
         memberId: true,
         errorMessage: true,
+        rateLimitLimit: true,
+        rateLimitRemaining: true,
+        rateLimitResetAt: true,
+      },
+    }),
+    prisma.pubgApiCallLog.count({ where: historyWhere }),
+    prisma.pubgApiCallLog.findFirst({
+      where: {
+        OR: [
+          { rateLimitRemaining: { not: null } },
+          { rateLimitLimit: { not: null } },
+          { rateLimitResetAt: { not: null } },
+        ],
+      },
+      orderBy: { startedAt: 'desc' },
+      select: {
+        startedAt: true,
+        rateLimitLimit: true,
+        rateLimitRemaining: true,
+        rateLimitResetAt: true,
       },
     }),
   ])
+
+  const memberIds = Array.from(
+    new Set(
+      historyRows
+        .map((row) => row.memberId)
+        .filter((value): value is number => typeof value === 'number')
+    )
+  )
+
+  const members =
+    memberIds.length > 0
+      ? await prisma.clanMember.findMany({
+          where: { id: { in: memberIds } },
+          select: {
+            id: true,
+            displayName: true,
+            pubgPlayerName: true,
+          },
+        })
+      : []
+
+  const memberMap = new Map(
+    members.map((member) => [member.id, member.displayName || member.pubgPlayerName || `Member #${member.id}`])
+  )
+
+  const historyWithActor = historyRows.map((row) => {
+    const memberName = typeof row.memberId === 'number' ? memberMap.get(row.memberId) : null
+    const actorLabel = memberName ? `${memberName} (membre #${row.memberId})` : `Source: ${row.source}`
+
+    return {
+      ...row,
+      actorLabel,
+    }
+  })
 
   const minuteBuckets = new Map<string, {
     minute: string
@@ -152,6 +227,21 @@ export async function getPubgApiCallsOverview(params?: {
       avgDurationMs: total > 0 ? Math.round(durationTotal / total) : null,
     },
     series: Array.from(minuteBuckets.values()),
-    history: historyRows,
+    history: historyWithActor,
+    historyPagination: {
+      page: historyPage,
+      pageSize: historyPageSize,
+      total: historyTotal,
+      totalPages: Math.max(1, Math.ceil(historyTotal / historyPageSize)),
+      errorsOnly,
+    },
+    latestRateLimit: latestRateLimitRow
+      ? {
+          limit: latestRateLimitRow.rateLimitLimit,
+          remaining: latestRateLimitRow.rateLimitRemaining,
+          resetAt: latestRateLimitRow.rateLimitResetAt,
+          observedAt: latestRateLimitRow.startedAt,
+        }
+      : null,
   }
 }

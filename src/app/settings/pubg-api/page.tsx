@@ -21,6 +21,10 @@ type ApiCallRow = {
   clanId: number | null
   memberId: number | null
   errorMessage: string | null
+  actorLabel: string
+  rateLimitLimit?: number | null
+  rateLimitRemaining?: number | null
+  rateLimitResetAt?: string | null
 }
 
 type MinutePoint = {
@@ -46,11 +50,25 @@ type CallsPayload = {
     errors: number
     avgDurationMs: number | null
   }
+  latestRateLimit: {
+    limit: number | null
+    remaining: number | null
+    resetAt: string | null
+    observedAt: string
+  } | null
+  historyPagination: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+    errorsOnly: boolean
+  }
   series: MinutePoint[]
   history: ApiCallRow[]
 }
 
 const WINDOW_OPTIONS = [15, 60, 180] as const
+const HISTORY_PAGE_SIZE_OPTIONS = [10, 25, 50] as const
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('fr-FR')
@@ -69,6 +87,9 @@ export default function PubgApiSettingsPage() {
   const [rpmInput, setRpmInput] = useState('')
   const [savingRpm, setSavingRpm] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
+  const [errorsOnly, setErrorsOnly] = useState(false)
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize, setHistoryPageSize] = useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(25)
 
   const canReadSettings =
     permissions.includes('*') || permissions.includes('manage_settings') || permissions.includes('manage_members')
@@ -93,7 +114,7 @@ export default function PubgApiSettingsPage() {
         setError('')
 
         const response = await fetch(
-          `/api/settings/pubg-api-calls?windowMinutes=${windowMinutes}&historyLimit=150`,
+          `/api/settings/pubg-api-calls?windowMinutes=${windowMinutes}&page=${historyPage}&pageSize=${historyPageSize}&errorsOnly=${errorsOnly ? 1 : 0}`,
           {
             cache: 'no-store',
           }
@@ -125,7 +146,7 @@ export default function PubgApiSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [authenticated, canReadSettings, loading, reloadToken, windowMinutes])
+  }, [authenticated, canReadSettings, errorsOnly, historyPage, historyPageSize, loading, reloadToken, windowMinutes])
 
   const chartMax = useMemo(() => {
     const values = payload?.series.map((item) => item.total) ?? []
@@ -211,7 +232,7 @@ export default function PubgApiSettingsPage() {
           Suivi en temps reel des appels API, des erreurs 429 et de la latence moyenne.
         </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-5">
           <MetricCard label="Appels fenetre" value={String(payload?.totals.total ?? 0)} />
           <MetricCard label="Succes" value={String(payload?.totals.success ?? 0)} tone="emerald" />
           <MetricCard label="429" value={String(payload?.totals.rateLimited ?? 0)} tone="amber" />
@@ -248,28 +269,46 @@ export default function PubgApiSettingsPage() {
           </div>
 
           <div className="mt-6 overflow-x-auto">
-            <div className="flex min-w-[720px] items-end gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              {(payload?.series ?? []).map((point) => {
-                const barHeight = Math.max(8, Math.round((point.total / chartMax) * 160))
-                return (
-                  <div key={point.minute} className="flex min-w-[10px] flex-1 flex-col items-center gap-1">
+            <div className="min-w-[720px] rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div
+                className="grid gap-1"
+                style={{
+                  gridTemplateColumns: `repeat(${Math.min(payload?.series.length ?? 0, 30) || 15}, minmax(0, 1fr))`,
+                }}
+              >
+                {(payload?.series ?? []).map((point) => {
+                  const level = getIntensityLevel(point.total, chartMax)
+                  const hasError = point.errors > 0
+                  const hasRateLimit = point.rateLimited > 0
+                  const cellTone = hasError
+                    ? ERROR_LEVEL_CLASSES[level]
+                    : hasRateLimit
+                      ? RATE_LIMIT_LEVEL_CLASSES[level]
+                      : SUCCESS_LEVEL_CLASSES[level]
+
+                  return (
                     <div
+                      key={point.minute}
                       title={`${new Date(point.minute).toLocaleTimeString('fr-FR', {
                         hour: '2-digit',
                         minute: '2-digit',
-                      })} • ${point.total} appels`}
-                      className="w-full rounded-t bg-slate-900"
-                      style={{ height: `${barHeight}px` }}
-                    />
-                    <span className="text-[10px] text-slate-500">
-                      {new Date(point.minute).toLocaleTimeString('fr-FR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                )
-              })}
+                      })} • ${point.total} appels • ${point.errors} erreurs • ${point.rateLimited} x 429`}
+                      className={`group relative aspect-square rounded-md border ${cellTone}`}
+                    >
+                      {hasError ? (
+                        <span className="absolute right-0.5 top-0.5 text-[10px] leading-none text-rose-700">!</span>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+                <LegendPill label="Normal" className="border-emerald-200 bg-emerald-200" />
+                <LegendPill label="429" className="border-amber-200 bg-amber-200" />
+                <LegendPill label="Erreur" className="border-rose-200 bg-rose-200" />
+                <span className="text-slate-500">Plus la couleur est soutenue, plus le volume est eleve.</span>
+              </div>
             </div>
           </div>
         </div>
@@ -280,6 +319,26 @@ export default function PubgApiSettingsPage() {
             Valeur actuelle: {payload?.rpm ?? '-'} RPM (min {payload?.bounds.min ?? '-'} / max{' '}
             {payload?.bounds.max ?? '-'})
           </p>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">X-RateLimit-Limit</p>
+              <p className="mt-1 text-lg font-black text-slate-900">{payload?.latestRateLimit?.limit ?? '-'}</p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">X-RateLimit-Remaining</p>
+              <p className="mt-1 text-lg font-black text-slate-900">{payload?.latestRateLimit?.remaining ?? '-'}</p>
+            </article>
+            <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">X-RateLimit-Reset</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {payload?.latestRateLimit?.resetAt ? formatDateTime(payload.latestRateLimit.resetAt) : '-'}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Observe: {payload?.latestRateLimit?.observedAt ? formatDateTime(payload.latestRateLimit.observedAt) : '-'}
+              </p>
+            </article>
+          </div>
 
           <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={handleSaveRpm}>
             <label className="text-sm font-medium text-slate-700">
@@ -308,19 +367,88 @@ export default function PubgApiSettingsPage() {
         </div>
 
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-bold text-slate-900">Historique recent</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-slate-900">Historique recent</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryPage(1)
+                setErrorsOnly((current) => !current)
+              }}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                errorsOnly
+                  ? 'border-rose-300 bg-rose-100 text-rose-800'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {errorsOnly ? 'Afficher tout l historique' : 'Voir uniquement les erreurs'}
+            </button>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              Lignes
+              <select
+                value={historyPageSize}
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value) as (typeof HISTORY_PAGE_SIZE_OPTIONS)[number]
+                  setHistoryPage(1)
+                  setHistoryPageSize(nextValue)
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+              >
+                {HISTORY_PAGE_SIZE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Page {payload?.historyPagination.page ?? 1} / {payload?.historyPagination.totalPages ?? 1} •{' '}
+            {payload?.historyPagination.total ?? 0} ligne(s) au total
+          </p>
           {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
 
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-left text-xs text-slate-700">
+          <div className="mt-4 space-y-2 md:hidden">
+            {(payload?.history.length ?? 0) === 0 ? (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                Aucune ligne pour ce filtre.
+              </p>
+            ) : (
+              (payload?.history ?? []).map((row) => (
+                <article key={row.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="break-all font-semibold text-slate-900">{row.method} {row.endpoint}</p>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        row.success ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                      }`}
+                    >
+                      {row.statusCode ?? 'n/a'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">{formatDateTime(row.startedAt)}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                    <p>Duree: {row.durationMs ?? '-'} ms</p>
+                    <p>Retries: {row.retryCount}</p>
+                    <p>Acteur: {row.actorLabel}</p>
+                    <p>Shard: {row.shard ?? '-'}</p>
+                  </div>
+                  {row.errorMessage ? <p className="mt-2 text-[11px] text-rose-700">{row.errorMessage}</p> : null}
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="mt-4 hidden overflow-x-auto md:block">
+            <table className="min-w-full table-fixed text-left text-xs text-slate-700">
               <thead>
                 <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="px-2 py-2">Date</th>
-                  <th className="px-2 py-2">Endpoint</th>
-                  <th className="px-2 py-2">Statut</th>
-                  <th className="px-2 py-2">Duree</th>
-                  <th className="px-2 py-2">Retries</th>
-                  <th className="px-2 py-2">Source</th>
+                  <th className="w-[145px] px-2 py-2">Date</th>
+                  <th className="w-[320px] px-2 py-2">Endpoint</th>
+                  <th className="w-[90px] px-2 py-2">Statut</th>
+                  <th className="w-[85px] px-2 py-2">Duree</th>
+                  <th className="w-[75px] px-2 py-2">Retries</th>
+                  <th className="w-[180px] px-2 py-2">Acteur</th>
                   <th className="px-2 py-2">Erreur</th>
                 </tr>
               </thead>
@@ -329,7 +457,7 @@ export default function PubgApiSettingsPage() {
                   <tr key={row.id} className="border-b border-slate-100 align-top">
                     <td className="px-2 py-2 whitespace-nowrap">{formatDateTime(row.startedAt)}</td>
                     <td className="px-2 py-2">
-                      <p className="font-semibold text-slate-900">{row.method} {row.endpoint}</p>
+                      <p className="break-all font-semibold text-slate-900">{row.method} {row.endpoint}</p>
                       {row.shard ? <p className="text-[11px] text-slate-500">Shard: {row.shard}</p> : null}
                     </td>
                     <td className="px-2 py-2">
@@ -343,16 +471,96 @@ export default function PubgApiSettingsPage() {
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">{row.durationMs ?? '-'} ms</td>
                     <td className="px-2 py-2 whitespace-nowrap">{row.retryCount}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{row.source}</td>
-                    <td className="px-2 py-2 text-rose-700">{row.errorMessage ?? '-'}</td>
+                    <td className="px-2 py-2 break-words text-slate-700">{row.actorLabel}</td>
+                    <td className="px-2 py-2 break-words text-rose-700">{row.errorMessage ?? '-'}</td>
                   </tr>
                 ))}
+                {(payload?.history.length ?? 0) === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-2 py-4 text-center text-slate-500">
+                      Aucune ligne pour ce filtre.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <p className="text-slate-500">
+              Page {payload?.historyPagination.page ?? 1} sur {payload?.historyPagination.totalPages ?? 1}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={(payload?.historyPagination.page ?? 1) <= 1}
+                onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Precedent
+              </button>
+              <button
+                type="button"
+                disabled={(payload?.historyPagination.page ?? 1) >= (payload?.historyPagination.totalPages ?? 1)}
+                onClick={() =>
+                  setHistoryPage((current) =>
+                    Math.min(payload?.historyPagination.totalPages ?? 1, current + 1)
+                  )
+                }
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Suivant
+              </button>
+            </div>
           </div>
         </div>
       </section>
     </main>
+  )
+}
+
+function getIntensityLevel(value: number, max: number) {
+  if (value <= 0 || max <= 0) {
+    return 0
+  }
+
+  const ratio = value / max
+  if (ratio <= 0.25) return 1
+  if (ratio <= 0.5) return 2
+  if (ratio <= 0.75) return 3
+  return 4
+}
+
+const SUCCESS_LEVEL_CLASSES = [
+  'border-slate-200 bg-slate-100',
+  'border-emerald-200 bg-emerald-100',
+  'border-emerald-300 bg-emerald-200',
+  'border-emerald-400 bg-emerald-300',
+  'border-emerald-600 bg-emerald-500',
+]
+
+const RATE_LIMIT_LEVEL_CLASSES = [
+  'border-slate-200 bg-slate-100',
+  'border-amber-200 bg-amber-100',
+  'border-amber-300 bg-amber-200',
+  'border-amber-400 bg-amber-300',
+  'border-amber-600 bg-amber-500',
+]
+
+const ERROR_LEVEL_CLASSES = [
+  'border-slate-200 bg-slate-100',
+  'border-rose-200 bg-rose-100',
+  'border-rose-300 bg-rose-200',
+  'border-rose-400 bg-rose-300',
+  'border-rose-600 bg-rose-500',
+]
+
+function LegendPill({ label, className }: { label: string; className: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className={`inline-block h-3 w-3 rounded-sm border ${className}`} />
+      {label}
+    </span>
   )
 }
 

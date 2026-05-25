@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -310,29 +309,6 @@ export default function CronSettingsPage() {
           </span>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (!clanId) {
-                return
-              }
-
-              setRefreshing(true)
-              void loadStatus(clanId)
-            }}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            disabled={refreshing}
-          >
-            {refreshing ? 'Actualisation...' : 'Actualiser'}
-          </button>
-          <Link
-            href={clanId ? `/clans/${clanId}/reports` : '/clans'}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Voir les rapports
-          </Link>
-        </div>
       </header>
 
       {error ? (

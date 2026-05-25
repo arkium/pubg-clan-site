@@ -498,6 +498,10 @@ model PubgApiCallLog {
   success    Boolean @default(false)
   retryCount Int     @default(0)
 
+  rateLimitLimit     Int?
+  rateLimitRemaining Int?
+  rateLimitResetAt   DateTime?
+
   startedAt  DateTime @default(now())
   finishedAt DateTime?
   durationMs Int?
@@ -511,6 +515,7 @@ model PubgApiCallLog {
 
   @@index([startedAt])
   @@index([statusCode, startedAt])
+  @@index([rateLimitResetAt])
   @@index([source, startedAt])
   @@map("PubgApiCallLog")
 }

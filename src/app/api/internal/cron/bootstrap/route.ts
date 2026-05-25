@@ -1,0 +1,27 @@
+import { NextResponse } from 'next/server'
+
+import { initCronJobs, isCronJobsInitialized } from '@/lib/cron-jobs'
+
+function isAuthorized(request: Request) {
+  const expected = process.env.CRON_BOOTSTRAP_SECRET?.trim()
+  if (!expected) {
+    return false
+  }
+
+  const received = request.headers.get('x-cron-bootstrap-secret')?.trim()
+  return received === expected
+}
+
+export async function POST(request: Request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  initCronJobs()
+
+  return NextResponse.json({
+    ok: true,
+    initialized: isCronJobsInitialized(),
+    cronJobsEnabled: process.env.ENABLE_CRON_JOBS === 'true',
+  })
+}

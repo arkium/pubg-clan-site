@@ -51,6 +51,18 @@ type CronStatusPayload = {
     warnings: number
     items: CronCheck[]
   }
+  runtime: {
+    webWorker: {
+      cronJobsEnabled: boolean
+      cronBootstrapEnabled: boolean
+    }
+    cronWorker: {
+      available: boolean
+      initialized?: boolean
+      cronJobsEnabled?: boolean
+      reason?: string
+    }
+  }
   latestByAction: CronHistoryEntry[]
   history: CronHistoryEntry[]
 }
@@ -129,6 +141,34 @@ export default function CronSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [payload, setPayload] = useState<CronStatusPayload | null>(null)
+
+  const cronWorkerHealth = useMemo(() => {
+    if (!payload) {
+      return {
+        label: 'Cron worker: inconnu',
+        status: 'warning' as const,
+      }
+    }
+
+    if (!payload.runtime.cronWorker.available) {
+      return {
+        label: 'Cron worker: inaccessible',
+        status: 'error' as const,
+      }
+    }
+
+    if (!payload.runtime.cronWorker.initialized || !payload.runtime.cronWorker.cronJobsEnabled) {
+      return {
+        label: 'Cron worker: non initialise',
+        status: 'warning' as const,
+      }
+    }
+
+    return {
+      label: 'Cron worker: OK',
+      status: 'ok' as const,
+    }
+  }, [payload])
 
   useEffect(() => {
     if (!clanId) {
@@ -255,6 +295,12 @@ export default function CronSettingsPage() {
         <p className="mt-2 text-sm text-slate-600">
           Controle de sante, verification de la configuration, lancement manuel et historique des executions.
         </p>
+
+        <div className="mt-3">
+          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(cronWorkerHealth.status)}`}>
+            {cronWorkerHealth.label}
+          </span>
+        </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -387,6 +433,38 @@ export default function CronSettingsPage() {
             <p className="mt-1 text-sm text-slate-600">
               Controle des variables critiques, expressions cron et points de configuration sensibles.
             </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contexte web worker</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  ENABLE_CRON_JOBS: <strong>{payload.runtime.webWorker.cronJobsEnabled ? 'true' : 'false'}</strong>
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  ENABLE_CRON_BOOTSTRAP:{' '}
+                  <strong>{payload.runtime.webWorker.cronBootstrapEnabled ? 'true' : 'false'}</strong>
+                </p>
+              </article>
+
+              <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Etat cron worker (runtime)</p>
+                {payload.runtime.cronWorker.available ? (
+                  <>
+                    <p className="mt-2 text-sm text-slate-700">
+                      initialized: <strong>{payload.runtime.cronWorker.initialized ? 'true' : 'false'}</strong>
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      ENABLE_CRON_JOBS:{' '}
+                      <strong>{payload.runtime.cronWorker.cronJobsEnabled ? 'true' : 'false'}</strong>
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm text-amber-700">
+                    Indisponible: {payload.runtime.cronWorker.reason ?? 'etat inconnu'}
+                  </p>
+                )}
+              </article>
+            </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(payload.checks.errors > 0 ? 'error' : 'ok')}`}>

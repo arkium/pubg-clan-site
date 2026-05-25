@@ -3,11 +3,11 @@ export async function register() {
     return
   }
 
-  // Explicit opt-in to avoid loading cron dependencies during normal local dev boot.
-  if (process.env.ENABLE_CRON_BOOTSTRAP !== 'true') {
-    return
+  // Cron bootstrap is handled by the internal endpoint /api/internal/cron/bootstrap
+  // from the dedicated cron worker service.
+  if (process.env.ENABLE_CRON_BOOTSTRAP === 'true') {
+    console.warn(
+      '[Cron] ENABLE_CRON_BOOTSTRAP=true is legacy. Use internal cron bootstrap endpoint instead.'
+    )
   }
-
-  const { initCronJobs } = await import('./lib/cron-jobs')
-  await initCronJobs()
 }

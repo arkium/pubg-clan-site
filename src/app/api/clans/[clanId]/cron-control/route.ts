@@ -55,6 +55,56 @@ function parseAction(value: unknown): CronAction | null {
   return null
 }
 
+async function getCronWorkerRuntimeStatus() {
+  const secret = process.env.CRON_BOOTSTRAP_SECRET?.trim()
+  if (!secret) {
+    return {
+      available: false,
+      reason: 'CRON_BOOTSTRAP_SECRET manquant',
+    }
+  }
+
+  const cronStatusUrl =
+    process.env.INTERNAL_CRON_STATUS_URL?.trim() ||
+    'http://127.0.0.1:3001/api/internal/cron/status'
+
+  try {
+    const response = await fetch(cronStatusUrl, {
+      cache: 'no-store',
+      headers: {
+        'x-cron-bootstrap-secret': secret,
+      },
+    })
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          ok?: boolean
+          initialized?: boolean
+          cronJobsEnabled?: boolean
+          error?: string
+        }
+      | null
+
+    if (!response.ok || !payload?.ok) {
+      return {
+        available: false,
+        reason: payload?.error ?? `HTTP ${response.status}`,
+      }
+    }
+
+    return {
+      available: true,
+      initialized: payload.initialized === true,
+      cronJobsEnabled: payload.cronJobsEnabled === true,
+    }
+  } catch {
+    return {
+      available: false,
+      reason: 'Cron worker injoignable',
+    }
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -74,9 +124,10 @@ export async function GET(
       return roleError
     }
 
-    const [overview, configChecks] = await Promise.all([
+    const [overview, configChecks, cronWorkerRuntime] = await Promise.all([
       getCronOverview(parsedClanId),
       getCronConfigurationChecks(),
+      getCronWorkerRuntimeStatus(),
     ])
 
     const criticalChecks = configChecks.filter((entry) => entry.status === 'error').length
@@ -98,6 +149,13 @@ export async function GET(
         errors: criticalChecks,
         warnings: warningChecks,
         items: configChecks,
+      },
+      runtime: {
+        webWorker: {
+          cronJobsEnabled: process.env.ENABLE_CRON_JOBS === 'true',
+          cronBootstrapEnabled: process.env.ENABLE_CRON_BOOTSTRAP === 'true',
+        },
+        cronWorker: cronWorkerRuntime,
       },
       latestByAction: overview.latestByAction,
       history: overview.recent,

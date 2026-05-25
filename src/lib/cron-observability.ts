@@ -194,6 +194,9 @@ async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
   const pubgApiRateLimitRpm = await getPubgApiRateLimitRpm()
   const databaseUrl = process.env.DATABASE_URL ?? ''
 
+  const cronJobsEnabled = enableCron === 'true'
+  const cronBootstrapEnabled = enableCronBootstrap === 'true'
+
   const checks: CronConfigCheck[] = [
     {
       key: 'node_env',
@@ -209,27 +212,24 @@ async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
       key: 'enable_cron_jobs',
       label: 'ENABLE_CRON_JOBS',
       status:
-        enableCron === 'true' ? 'ok' : nodeEnv === 'production' ? 'warning' : 'ok',
+        cronJobsEnabled ? 'ok' : nodeEnv === 'production' ? 'warning' : 'ok',
       value: enableCron || '(non defini)',
       hint:
-        enableCron === 'true'
-          ? undefined
-          : 'Active uniquement sur le worker qui execute les cron: ENABLE_CRON_JOBS=true.',
+        cronJobsEnabled
+          ? 'Worker cron detecte (execution des taches planifiees).'
+          : 'Worker web detecte (normal en mode 2 workers): activer ENABLE_CRON_JOBS=true uniquement sur le worker cron.',
     },
     {
       key: 'enable_cron_bootstrap',
       label: 'ENABLE_CRON_BOOTSTRAP',
-      status:
-        enableCronBootstrap === 'true'
-          ? 'ok'
-          : nodeEnv === 'production'
-            ? 'error'
-            : 'warning',
+      status: cronBootstrapEnabled ? 'warning' : 'ok',
       value: enableCronBootstrap || '(non defini)',
       hint:
-        enableCronBootstrap === 'true'
-          ? undefined
-          : 'Obligatoire en production: sans cette valeur, initCronJobs() ne demarre jamais.',
+        cronBootstrapEnabled
+          ? 'Mode legacy active: en mode 2 workers recommande, laisser false et utiliser l endpoint bootstrap interne.'
+          : cronJobsEnabled
+            ? 'Normal en mode 2 workers: bootstrap declenche par l endpoint interne securise.'
+            : 'Normal sur le worker web en mode 2 workers.',
     },
     {
       key: 'clan_match_sync_timezone',

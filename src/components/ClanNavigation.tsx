@@ -291,16 +291,21 @@ export default function ClanNavigation() {
   }, [pathname])
 
   async function handleLogout() {
-    const response = await fetch('/api/auth/logout', {
-      method: 'POST',
-    })
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      })
 
-    if (!response.ok) {
-      return
+      if (!response.ok) {
+        return
+      }
+
+      await refresh()
+      router.replace('/login')
+    } catch {
+      // If the request fails, force navigation to login to avoid UI lock state.
+      router.replace('/login')
     }
-
-    await refresh()
-    router.replace('/login')
   }
 
   async function handleSwitchMember(memberId: number) {

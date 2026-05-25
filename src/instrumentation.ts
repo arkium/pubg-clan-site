@@ -8,7 +8,11 @@ export async function register() {
     return
   }
 
-  // Use a local dynamic import so standalone output can resolve it without @ alias at runtime.
-  const { initCronJobs } = await import('./lib/cron-jobs')
+  // Keep runtime-only loading so webpack/turbopack does not try to bundle node-only deps
+  // (nodemailer/stream) into instrumentation in dev.
+  const loadCronJobs = new Function(
+    'return import("./lib/cron-jobs")'
+  ) as () => Promise<{ initCronJobs: () => Promise<void> }>
+  const { initCronJobs } = await loadCronJobs()
   await initCronJobs()
 }

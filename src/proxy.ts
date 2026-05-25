@@ -71,12 +71,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  // Keep /login reachable even with a stale/invalid cookie.
+  // The client-side session check decides whether to keep the user logged in.
   if (pathname === '/login') {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/'
-    redirectUrl.search = ''
-
-    return NextResponse.redirect(redirectUrl)
+    return NextResponse.next()
   }
 
   return NextResponse.next()

@@ -8,10 +8,7 @@ export async function register() {
     return
   }
 
-  // Keep cron bootstrap Node-only without exposing a static import edge can traverse.
-  const loadCronJobs = new Function(
-    'return import("@/lib/cron-jobs")'
-  ) as () => Promise<{ initCronJobs: () => Promise<void> }>
-  const { initCronJobs } = await loadCronJobs()
+  // Use a local dynamic import so standalone output can resolve it without @ alias at runtime.
+  const { initCronJobs } = await import('./lib/cron-jobs')
   await initCronJobs()
 }

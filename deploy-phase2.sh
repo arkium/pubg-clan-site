@@ -64,6 +64,11 @@ npx prisma migrate deploy
 echo "✅ Build du projet Next.js..."
 npm run build
 
+echo "✅ Copie des assets standalone..."
+mkdir -p .next/standalone/.next
+cp -r .next/static .next/standalone/.next/static
+cp -r public .next/standalone/public
+
 echo "✅ Changement des permissions à smk:smk..."
 chown -R smk:smk $DEPLOY_PATH
 
@@ -76,7 +81,7 @@ echo "🎉 Déploiement Phase 2 TERMINÉ !"
 echo ""
 echo "📝 Prochaines étapes :"
 echo "1. Se connecter en tant que smk: su - smk"
-echo "2. Lancer le serveur: cd /home/smk/public_html && npm start"
+echo "2. Lancer le serveur: cd /home/smk/public_html && node .next/standalone/server.js"
 echo "3. Ou avec PM2: pm2 start 'npm start' --name pubg-clan-site"
 echo ""
 echo "✅ Vérifier: https://smk.arkium.group"

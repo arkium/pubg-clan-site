@@ -145,6 +145,12 @@ npx prisma migrate deploy
 npm run build
 ```
 
+Important pour le mode standalone:
+
+- le build copie automatiquement les assets statiques dans `.next/standalone`
+- si vous deploiement est manuel, reutiliser le dossier `.next/standalone` complet
+- ne pas oublier que `public/` et `.next/static/` doivent etre presents a cote de `server.js`
+
 4. Choisir le mode de demarrage (voir section ci-dessous):
 
 - Manuel ponctuel: `npm start`
@@ -167,6 +173,7 @@ Note:
 
 - En mode standalone Next.js, le service `systemd` doit pointer vers
 	`/home/smk/apps/pubg-clan-site/.next/standalone/server.js`.
+- Les chunks CSS/JS sont servis depuis `.next/standalone/.next/static` et `public/`; un deploiement sans ces dossiers provoque des 404 et laisse l'UI bloquee sur l'etat de chargement.
 
 ### Recommandations URLs
 

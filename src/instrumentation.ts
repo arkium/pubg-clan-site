@@ -8,11 +8,23 @@ export async function register() {
     return
   }
 
-  // Keep runtime-only loading so webpack/turbopack does not try to bundle node-only deps
-  // (nodemailer/stream) into instrumentation in dev.
-  const loadCronJobs = new Function(
-    'return import("./lib/cron-jobs")'
-  ) as () => Promise<{ initCronJobs: () => Promise<void> }>
-  const { initCronJobs } = await loadCronJobs()
-  await initCronJobs()
+  const candidates = ['./lib/cron-jobs', '../lib/cron-jobs', '@/lib/cron-jobs']
+
+  for (const modulePath of candidates) {
+    try {
+      const loadCronJobs = new Function(
+        `return import(${JSON.stringify(modulePath)})`
+      ) as () => Promise<{ initCronJobs: () => Promise<void> }>
+
+      const { initCronJobs } = await loadCronJobs()
+      await initCronJobs()
+      return
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  console.error(
+    '[Cron] Bootstrap skipped: cron module could not be resolved from instrumentation runtime.'
+  )
 }

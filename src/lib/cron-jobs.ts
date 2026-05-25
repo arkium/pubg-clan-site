@@ -4,7 +4,6 @@ import { endChallenge } from '@/lib/challenge-service'
 import { syncClanLifetimeStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
-import { notifyInviteReminder, notifyReportReady } from '@/lib/notification-service'
 import { prisma } from '@/lib/prisma'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
@@ -22,6 +21,11 @@ const WEEKLY_REPORT_GENERATION_SCHEDULE =
 const MONTHLY_REPORT_GENERATION_SCHEDULE =
   process.env.MONTHLY_REPORT_GENERATION_CRON ?? '0 8 1 * *'
 const MAX_SYNC_ATTEMPTS = 3
+
+type NotificationService = {
+  notifyInviteReminder: (memberId: number) => Promise<void>
+  notifyReportReady: (reportId: string, memberId: number) => Promise<void>
+}
 
 const globalForCron = globalThis as typeof globalThis & {
   clanSyncCronTask?: ScheduledTask
@@ -63,6 +67,10 @@ function getFailureTracker() {
 
 async function wait(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function loadNotificationService(): Promise<NotificationService> {
+  return import('@/lib/notification-service')
 }
 
 async function triggerClanSync(clanId: number) {
@@ -469,6 +477,8 @@ export async function generateReportsAutomatically(reportType: 'weekly' | 'month
 export async function sendNotificationsReminders(
   reminderType: 'clan_online' | 'weekly_report'
 ) {
+  const { notifyInviteReminder, notifyReportReady } = await loadNotificationService()
+
   const activeMembers = await prisma.clanMember.findMany({
     where: { isActive: true },
     select: { id: true },

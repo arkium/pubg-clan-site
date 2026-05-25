@@ -1,6 +1,6 @@
+import 'server-only'
 import cron, { type ScheduledTask } from 'node-cron'
 
-import { endChallenge } from '@/lib/challenge-service'
 import { syncClanLifetimeStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
@@ -25,6 +25,10 @@ const MAX_SYNC_ATTEMPTS = 3
 type NotificationService = {
   notifyInviteReminder: (memberId: number) => Promise<void>
   notifyReportReady: (reportId: string, memberId: number) => Promise<void>
+}
+
+type ChallengeService = {
+  endChallenge: (challengeId: string) => Promise<void>
 }
 
 const globalForCron = globalThis as typeof globalThis & {
@@ -70,7 +74,17 @@ async function wait(ms: number) {
 }
 
 async function loadNotificationService(): Promise<NotificationService> {
-  return import('@/lib/notification-service')
+  const load = new Function(
+    'return import("./notification-service")'
+  ) as () => Promise<NotificationService>
+  return load()
+}
+
+async function loadChallengeService(): Promise<ChallengeService> {
+  const load = new Function(
+    'return import("./challenge-service")'
+  ) as () => Promise<ChallengeService>
+  return load()
 }
 
 async function triggerClanSync(clanId: number) {
@@ -503,6 +517,8 @@ export async function sendNotificationsReminders(
 }
 
 export async function processChallenges() {
+  const { endChallenge } = await loadChallengeService()
+
   if (globalForCron.challengeProcessingInProgress) {
     console.warn('[Cron] Challenge processing skipped because a previous run is still in progress')
     return

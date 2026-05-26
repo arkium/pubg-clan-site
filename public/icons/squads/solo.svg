@@ -1,0 +1,15 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="solo_bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#B45309"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#solo_bg)"/>
+  <path d="M20 44C20 36.268 26.268 30 34 30C41.732 30 48 36.268 48 44V45H20V44Z" fill="white" fill-opacity="0.22"/>
+  <circle cx="34" cy="22" r="7" fill="white"/>
+  <path d="M16 20L22 16" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M14 32H20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M48 14L52 18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M46 50L52 46" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

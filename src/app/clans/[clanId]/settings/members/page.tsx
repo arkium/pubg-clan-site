@@ -47,24 +47,11 @@ type EmailDeliveryStatus = {
   ready?: boolean
 }
 
-type EmailDeliveryMeta = {
-  delivered: boolean
-  mode: 'smtp' | 'stub'
-  to: string
-  subject: string
-  from: string | null
-  messageId?: string
-  accepted?: string[]
-  rejected?: string[]
-  reason?: string
-}
-
 type InviteCreationResponse = {
   success?: boolean
   inviteId?: string
   expiresAt?: string
   activationUrl?: string
-  delivery?: EmailDeliveryMeta
   error?: string
 }
 
@@ -91,68 +78,12 @@ function getRoleBadgeClass(roleName: string) {
   }
 }
 
-function getInviteStorageKey(currentClanId: number) {
-  return `clan_member_invite_links_${currentClanId}`
+function isTechnicalInviteEmail(email: string) {
+  return email.trim().toLowerCase().endsWith('@local.invalid')
 }
 
-function readStoredInviteResults(currentClanId: number) {
-  try {
-    const raw = window.localStorage.getItem(getInviteStorageKey(currentClanId))
-    if (!raw) {
-      return {}
-    }
-
-    const parsed = JSON.parse(raw) as Record<
-      string,
-      {
-        activationUrl?: string
-        expiresAt?: string | null
-        delivery?: EmailDeliveryMeta | null
-      }
-    >
-
-    const normalized: Record<
-      number,
-      {
-        activationUrl: string
-        expiresAt: string | null
-        delivery: EmailDeliveryMeta | null
-      }
-    > = {}
-
-    for (const [memberId, value] of Object.entries(parsed)) {
-      if (!value?.activationUrl) {
-        continue
-      }
-
-      const parsedMemberId = Number(memberId)
-      if (!Number.isInteger(parsedMemberId) || parsedMemberId <= 0) {
-        continue
-      }
-
-      normalized[parsedMemberId] = {
-        activationUrl: value.activationUrl,
-        expiresAt: value.expiresAt ?? null,
-        delivery: value.delivery ?? null,
-      }
-    }
-
-    return normalized
-  } catch {
-    return {}
-  }
-}
-
-function persistInviteResults(currentClanId: number, value: Record<number, {
-  activationUrl: string
-  expiresAt: string | null
-  delivery: EmailDeliveryMeta | null
-}>) {
-  try {
-    window.localStorage.setItem(getInviteStorageKey(currentClanId), JSON.stringify(value))
-  } catch {
-    // Ignore storage errors silently.
-  }
+function getDisplayInviteEmail(email: string) {
+  return isTechnicalInviteEmail(email) ? '' : email
 }
 
 export default function ClanMembersSettingsPage() {
@@ -163,27 +94,30 @@ export default function ClanMembersSettingsPage() {
 
   const [members, setMembers] = useState<ClanMemberWithRole[]>([])
   const [roles, setRoles] = useState<ClanRole[]>([])
+  const [nameSortOrder, setNameSortOrder] = useState<'az' | 'za'>('az')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [invitingMemberId, setInvitingMemberId] = useState<number | null>(null)
+  const [memberActionLoading, setMemberActionLoading] = useState<
+    { memberId: number; action: 'email' | 'discord' | 'reset' } | null
+  >(null)
   const [inviteDraftMemberId, setInviteDraftMemberId] = useState<number | null>(null)
   const [inviteEmailDraft, setInviteEmailDraft] = useState('')
   const [isEmailDeliveryReady, setIsEmailDeliveryReady] = useState(false)
   const [emailStatusLoaded, setEmailStatusLoaded] = useState(false)
-  const [copiedInviteMemberId, setCopiedInviteMemberId] = useState<number | null>(null)
-  const [inviteResultByMemberId, setInviteResultByMemberId] = useState<
-    Record<
-      number,
-      {
-        activationUrl: string
-        expiresAt: string | null
-        delivery: EmailDeliveryMeta | null
-      }
-    >
-  >({})
   const [copiedDiscordMemberId, setCopiedDiscordMemberId] = useState<number | null>(null)
   const [copyToast, setCopyToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null)
   const copyToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [memberInlineToast, setMemberInlineToast] = useState<
+    { memberId: number; message: string; tone: 'success' | 'error' } | null
+  >(null)
+  const memberInlineToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((left, right) => {
+      const comparison = left.name.localeCompare(right.name, 'fr', { sensitivity: 'base' })
+      return nameSortOrder === 'az' ? comparison : comparison * -1
+    })
+  }, [members, nameSortOrder])
 
   function showCopyToast(message: string, tone: 'success' | 'error' = 'success') {
     setCopyToast({ message, tone })
@@ -195,6 +129,23 @@ export default function ClanMembersSettingsPage() {
     copyToastTimeoutRef.current = setTimeout(() => {
       setCopyToast(null)
       copyToastTimeoutRef.current = null
+    }, 3200)
+  }
+
+  function showMemberInlineToast(
+    memberId: number,
+    message: string,
+    tone: 'success' | 'error' = 'success'
+  ) {
+    setMemberInlineToast({ memberId, message, tone })
+
+    if (memberInlineToastTimeoutRef.current !== null) {
+      clearTimeout(memberInlineToastTimeoutRef.current)
+    }
+
+    memberInlineToastTimeoutRef.current = setTimeout(() => {
+      setMemberInlineToast((current) => (current?.memberId === memberId ? null : current))
+      memberInlineToastTimeoutRef.current = null
     }, 3200)
   }
 
@@ -271,7 +222,6 @@ export default function ClanMembersSettingsPage() {
           fetchEmailDeliveryStatus(),
         ])
         if (!cancelled) {
-          setInviteResultByMemberId(readStoredInviteResults(currentClanId))
           setMembers(data.members)
           setRoles(data.roles)
           setIsEmailDeliveryReady(emailReady)
@@ -302,17 +252,13 @@ export default function ClanMembersSettingsPage() {
   }, [clanId, router])
 
   useEffect(() => {
-    if (!clanId) {
-      return
-    }
-
-    persistInviteResults(clanId, inviteResultByMemberId)
-  }, [clanId, inviteResultByMemberId])
-
-  useEffect(() => {
     return () => {
       if (copyToastTimeoutRef.current !== null) {
         clearTimeout(copyToastTimeoutRef.current)
+      }
+
+      if (memberInlineToastTimeoutRef.current !== null) {
+        clearTimeout(memberInlineToastTimeoutRef.current)
       }
     }
   }, [])
@@ -345,26 +291,35 @@ export default function ClanMembersSettingsPage() {
     setRoles(data.roles)
   }
 
-  async function handleInvite(member: ClanMemberWithRole, email: string) {
+  async function handleInvite(
+    member: ClanMemberWithRole,
+    email: string,
+    options?: { sendEmail?: boolean; mode?: 'email' | 'discord' }
+  ) {
     if (!clanId) {
       return
     }
 
     const normalizedEmail = email.trim()
-    if (!normalizedEmail) {
+    const shouldSendEmail = options?.sendEmail !== false
+
+    if (shouldSendEmail && !normalizedEmail) {
       setError('Veuillez renseigner une adresse email valide.')
       return
     }
 
     try {
       setError('')
-      setInvitingMemberId(member.id)
+      setMemberActionLoading({ memberId: member.id, action: options?.mode ?? 'email' })
       const response = await fetch(`/api/clans/${clanId}/members/${member.id}/invite`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({
+          ...(normalizedEmail ? { email: normalizedEmail } : {}),
+          sendEmail: shouldSendEmail,
+        }),
       })
 
       const payload = (await response.json().catch(() => null)) as InviteCreationResponse | null
@@ -384,14 +339,6 @@ export default function ClanMembersSettingsPage() {
       const data = await fetchMembersAndRoles(clanId)
       setMembers(data.members)
       setRoles(data.roles)
-      setInviteResultByMemberId((current) => ({
-        ...current,
-        [member.id]: {
-          activationUrl: payload.activationUrl as string,
-          expiresAt: payload.expiresAt ?? null,
-          delivery: payload.delivery ?? null,
-        },
-      }))
       setInviteDraftMemberId(null)
       setInviteEmailDraft('')
 
@@ -403,18 +350,13 @@ export default function ClanMembersSettingsPage() {
       setError(inviteError instanceof Error ? inviteError.message : 'Failed to send invite')
       return null
     } finally {
-      setInvitingMemberId(null)
+      setMemberActionLoading((current) => (current?.memberId === member.id ? null : current))
     }
   }
 
   async function handleRegenerateAndCopyDiscord(member: ClanMemberWithRole) {
-    const fallbackEmail = member.pendingInvite?.email?.trim() ?? ''
-    if (!fallbackEmail) {
-      showCopyToast('Aucun email d\'invitation disponible pour ce membre.', 'error')
-      return
-    }
-
-    const result = await handleInvite(member, fallbackEmail)
+    const fallbackEmail = member.pendingInvite?.email?.trim() ?? member.recentInvites[0]?.email?.trim() ?? ''
+    const result = await handleInvite(member, fallbackEmail, { sendEmail: false, mode: 'discord' })
     if (!result) {
       showCopyToast('Impossible de regenerer le lien pour la copie Discord.', 'error')
       return
@@ -424,25 +366,12 @@ export default function ClanMembersSettingsPage() {
   }
 
   async function handleInviteAndCopyDiscord(member: ClanMemberWithRole, email: string) {
-    const result = await handleInvite(member, email)
+    const result = await handleInvite(member, email, { sendEmail: false, mode: 'discord' })
     if (!result) {
       return
     }
 
     await handleCopyDiscordMessage(member, result.activationUrl, result.expiresAt)
-  }
-
-  async function handleCopyActivationUrl(memberId: number, activationUrl: string) {
-    try {
-      await navigator.clipboard.writeText(activationUrl)
-      setCopiedInviteMemberId(memberId)
-      showCopyToast('Lien d\'activation copie dans le presse-papiers.', 'success')
-      window.setTimeout(() => {
-        setCopiedInviteMemberId((current) => (current === memberId ? null : current))
-      }, 1800)
-    } catch {
-      showCopyToast('Impossible de copier le lien automatiquement.', 'error')
-    }
   }
 
   function buildDiscordInviteMessage(memberName: string, activationUrl: string, expiresAt: string | null) {
@@ -465,13 +394,222 @@ export default function ClanMembersSettingsPage() {
       const message = buildDiscordInviteMessage(member.name, activationUrl, expiresAt)
       await navigator.clipboard.writeText(message)
       setCopiedDiscordMemberId(member.id)
-      showCopyToast('Message Discord copie dans le presse-papiers.', 'success')
+      showCopyToast('Message d invitation copie dans le presse-papiers.', 'success')
+      showMemberInlineToast(member.id, 'Message Discord copie dans le presse-papiers.', 'success')
       window.setTimeout(() => {
         setCopiedDiscordMemberId((current) => (current === member.id ? null : current))
       }, 1800)
     } catch {
       showCopyToast('Impossible de copier le message Discord automatiquement.', 'error')
+      showMemberInlineToast(member.id, 'Echec de copie du message Discord.', 'error')
     }
+  }
+
+  function openInviteDraft(member: ClanMemberWithRole, email: string) {
+    setInviteDraftMemberId(member.id)
+    setInviteEmailDraft(email)
+  }
+
+  async function resetInviteFlow(member: ClanMemberWithRole) {
+    if (!clanId) {
+      return
+    }
+
+    try {
+      setError('')
+      setMemberActionLoading({ memberId: member.id, action: 'reset' })
+
+      const response = await fetch(`/api/clans/${clanId}/members/${member.id}/invite`, {
+        method: 'DELETE',
+      })
+
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.replace(`/login?redirect=${encodeURIComponent(`/clans/${clanId}/settings/members`)}`)
+          return
+        }
+
+        throw new Error(payload?.error ?? 'Impossible de reinitialiser l invitation')
+      }
+
+      const data = await fetchMembersAndRoles(clanId)
+      setMembers(data.members)
+      setRoles(data.roles)
+
+      showCopyToast('Invitation active invalidee. Le membre revient a "Aucun acces".', 'success')
+      showMemberInlineToast(member.id, 'Invitation reinitialisee et token invalide.', 'success')
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : 'Impossible de reinitialiser l invitation'
+      )
+      showMemberInlineToast(member.id, 'Echec de reinitialisation.', 'error')
+    } finally {
+      setMemberActionLoading((current) => (current?.memberId === member.id ? null : current))
+    }
+
+    setCopiedDiscordMemberId((current) => (current === member.id ? null : current))
+    openInviteDraft(member, '')
+  }
+
+  function renderMemberAccess(member: ClanMemberWithRole) {
+    if (member.hasAccount) {
+      return (
+        <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+          Actif
+        </span>
+      )
+    }
+
+    return <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">Aucun accès</span>
+  }
+
+  function renderMemberActions(
+    member: ClanMemberWithRole,
+    currentRoleOption: ClanRole | undefined
+  ) {
+    const isMemberBusy = memberActionLoading?.memberId === member.id
+    const isEmailBusy = isMemberBusy && memberActionLoading?.action === 'email'
+    const isDiscordBusy = isMemberBusy && memberActionLoading?.action === 'discord'
+
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {memberInlineToast?.memberId === member.id ? (
+          <div
+            className={`w-full rounded border px-2 py-1 text-xs font-medium ${
+              memberInlineToast.tone === 'success'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border-rose-300 bg-rose-50 text-rose-800'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {memberInlineToast.message}
+          </div>
+        ) : null}
+
+        {currentRoleOption ? (
+          <RoleAssignment
+            member={{ id: member.id, name: member.name }}
+            currentRole={currentRoleOption}
+            availableRoles={roles}
+            onAssign={(roleId) => handleAssign(member.id, roleId)}
+          />
+        ) : (
+          <span className="text-xs text-gray-500">Aucun rôle</span>
+        )}
+
+        {!member.hasAccount && isEmailDeliveryReady ? (
+          inviteDraftMemberId === member.id ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="email"
+                value={inviteEmailDraft}
+                onChange={(event) => setInviteEmailDraft(event.target.value)}
+                placeholder="email@exemple.com"
+                className="rounded border border-gray-300 px-2 py-1 text-xs"
+                disabled={isMemberBusy}
+              />
+              <button
+                type="button"
+                onClick={() => void handleInvite(member, inviteEmailDraft)}
+                disabled={isMemberBusy}
+                title="Envoie une invitation email avec le lien d activation"
+                className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isEmailBusy ? 'Envoi...' : 'Envoyer'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleInviteAndCopyDiscord(member, inviteEmailDraft)}
+                disabled={isMemberBusy}
+                title="Genere un nouveau token et copie un message pret pour Discord (sans envoi email)"
+                className="rounded border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDiscordBusy ? 'Generation...' : 'Discord'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void resetInviteFlow(member)}
+                disabled={isMemberBusy}
+                className="rounded border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Reinitialiser invitation
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInviteDraftMemberId(null)
+                  setInviteEmailDraft('')
+                }}
+                disabled={isMemberBusy}
+                className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annuler
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  openInviteDraft(member, getDisplayInviteEmail(member.pendingInvite?.email ?? ''))
+                }}
+                disabled={isMemberBusy}
+                title="Ouvre le formulaire pour saisir ou modifier l adresse email d invitation"
+                className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Inviter
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleRegenerateAndCopyDiscord(member)
+                }}
+                disabled={isMemberBusy}
+                title="Genere un nouveau token et copie un message d invitation pret pour Discord"
+                className="rounded border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isDiscordBusy ? 'Generation...' : 'Discord'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void resetInviteFlow(member)}
+                disabled={isMemberBusy}
+                className="rounded border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Reinit invitation
+              </button>
+            </>
+          )
+        ) : null}
+
+        {member.recentInvites.length > 0 ? (
+          <div className="w-full rounded border border-gray-200 bg-white p-2 text-xs text-gray-600">
+            <p className="font-semibold text-gray-700">5 dernieres invitations</p>
+            <div className="mt-1 space-y-1">
+              {member.recentInvites.slice(0, 5).map((invite) => {
+                const status = invite.acceptedAt
+                  ? 'Acceptee'
+                  : invite.revokedAt
+                    ? 'Revoquee'
+                    : new Date(invite.expiresAt) < new Date()
+                      ? 'Expiree'
+                      : 'En attente'
+
+                return (
+                  <p key={invite.id}>
+                    {new Date(invite.createdAt).toLocaleDateString()} - {invite.email || 'Invitation Discord'} - {status}
+                  </p>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    )
   }
 
   if (!clanId) {
@@ -528,8 +666,77 @@ export default function ClanMembersSettingsPage() {
 
       {!loading && !error ? (
         <section className="overflow-hidden rounded border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/60 px-4 py-3">
+            <p className="text-xs text-gray-600">Vue cartes sur mobile, tableau detaille sur ecran large.</p>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setNameSortOrder('az')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  nameSortOrder === 'az'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Alpha
+              </button>
+              <button
+                type="button"
+                onClick={() => setNameSortOrder('za')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  nameSortOrder === 'za'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Inverse
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-3 md:hidden">
+            {sortedMembers.map((member) => {
+              const currentRole =
+                member.roles.find((role) => role.name === member.role) ?? member.roles[0]
+              const currentRoleOption = roles.find((role) => role.id === currentRole?.roleId)
+
+              return (
+                <article key={member.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border bg-gray-200">
+                      {member.avatarUrl ? (
+                        <img
+                          src={member.avatarUrl}
+                          alt={member.name + ' avatar'}
+                          className="h-10 w-10 rounded-full object-cover"
+                          onError={(e) => {
+                            ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-gray-700">{member.name.slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-gray-900">{member.name}</p>
+                      <p className="text-xs text-gray-500">Rejoint le {new Date(member.joinedAt).toLocaleDateString()}</p>
+                    </div>
+
+                    <span className={`rounded px-2 py-1 text-xs font-medium ${getRoleBadgeClass(member.role)}`}>
+                      {member.role}
+                    </span>
+                  </div>
+
+                  <div className="mt-3">{renderMemberAccess(member)}</div>
+                  <div className="mt-3">{renderMemberActions(member, currentRoleOption)}</div>
+                </article>
+              )
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="min-w-[1040px] divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Avatar</th>
@@ -540,11 +747,10 @@ export default function ClanMembersSettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {members.map((member) => {
+                {sortedMembers.map((member) => {
                   const currentRole =
                     member.roles.find((role) => role.name === member.role) ?? member.roles[0]
                   const currentRoleOption = roles.find((role) => role.id === currentRole?.roleId)
-                  const latestInvite = inviteResultByMemberId[member.id]
 
                   return (
                     <tr key={member.id}>
@@ -578,210 +784,10 @@ export default function ClanMembersSettingsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {member.hasAccount ? (
-                          <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
-                            Actif
-                          </span>
-                        ) : member.pendingInvite ? (
-                          <div className="space-y-1 text-xs text-amber-700">
-                            <p>Invitation: {member.pendingInvite.email}</p>
-                            <p>
-                              Expire le{' '}
-                              {new Date(member.pendingInvite.expiresAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                            Aucun accès
-                          </span>
-                        )}
+                        {renderMemberAccess(member)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {currentRoleOption ? (
-                            <RoleAssignment
-                              member={{ id: member.id, name: member.name }}
-                              currentRole={currentRoleOption}
-                              availableRoles={roles}
-                              onAssign={(roleId) => handleAssign(member.id, roleId)}
-                            />
-                          ) : (
-                            <span className="text-xs text-gray-500">Aucun rôle</span>
-                          )}
-
-                          {!member.hasAccount && isEmailDeliveryReady ? (
-                            inviteDraftMemberId === member.id ? (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <input
-                                  type="email"
-                                  value={inviteEmailDraft}
-                                  onChange={(event) => setInviteEmailDraft(event.target.value)}
-                                  placeholder="email@exemple.com"
-                                  className="rounded border border-gray-300 px-2 py-1 text-xs"
-                                  disabled={invitingMemberId === member.id}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => void handleInvite(member, inviteEmailDraft)}
-                                  disabled={invitingMemberId === member.id}
-                                  className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {invitingMemberId === member.id ? 'Envoi...' : 'Envoyer'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void handleInviteAndCopyDiscord(member, inviteEmailDraft)}
-                                  disabled={invitingMemberId === member.id}
-                                  className="rounded border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {invitingMemberId === member.id ? 'Envoi...' : 'Envoyer + Discord'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setInviteDraftMemberId(null)
-                                    setInviteEmailDraft('')
-                                  }}
-                                  disabled={invitingMemberId === member.id}
-                                  className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Annuler
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setInviteDraftMemberId(member.id)
-                                    setInviteEmailDraft(member.pendingInvite?.email ?? '')
-                                  }}
-                                  disabled={invitingMemberId === member.id}
-                                  className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Inviter
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (member.pendingInvite?.email) {
-                                      void handleRegenerateAndCopyDiscord(member)
-                                      return
-                                    }
-
-                                    setInviteDraftMemberId(member.id)
-                                    setInviteEmailDraft('')
-                                    showCopyToast('Renseigne un email puis clique "Envoyer + Discord".', 'success')
-                                  }}
-                                  disabled={invitingMemberId === member.id}
-                                  className="rounded border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Discord
-                                </button>
-                              </>
-                            )
-                          ) : null}
-
-                          {latestInvite ? (
-                            <div className="w-full rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
-                              <p>
-                                Invitation creee
-                                {latestInvite.expiresAt
-                                  ? ` (expire le ${new Date(latestInvite.expiresAt).toLocaleDateString()})`
-                                  : ''}
-                                .
-                              </p>
-                              <p>
-                                Envoi:{' '}
-                                {latestInvite.delivery?.mode === 'smtp'
-                                  ? latestInvite.delivery.delivered
-                                    ? 'SMTP confirme'
-                                    : 'SMTP en echec'
-                                  : 'Simulation locale'}
-                                {latestInvite.delivery?.messageId
-                                  ? ` - messageId: ${latestInvite.delivery.messageId}`
-                                  : ''}
-                              </p>
-                              {latestInvite.delivery?.reason ? (
-                                <p className="text-rose-700">Detail: {latestInvite.delivery.reason}</p>
-                              ) : null}
-                              <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void handleCopyActivationUrl(member.id, latestInvite.activationUrl)}
-                                  className="rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                                >
-                                  {copiedInviteMemberId === member.id ? 'Lien copie' : 'Copier lien activation'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void handleCopyDiscordMessage(
-                                      member,
-                                      latestInvite.activationUrl,
-                                      latestInvite.expiresAt
-                                    )
-                                  }
-                                  className="rounded border border-indigo-200 bg-white px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
-                                >
-                                  {copiedDiscordMemberId === member.id
-                                    ? 'Message Discord copie'
-                                    : 'Copier message Discord'}
-                                </button>
-                                <a
-                                  href={latestInvite.activationUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="rounded border border-sky-200 bg-white px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-50"
-                                >
-                                  Ouvrir lien
-                                </a>
-                              </div>
-                            </div>
-                          ) : null}
-
-                          {member.pendingInvite && !latestInvite ? (
-                            <div className="w-full rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                              <p>
-                                Lien non disponible dans cette session. Vous pouvez le regenerer et le copier pour
-                                Discord en un clic.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => void handleRegenerateAndCopyDiscord(member)}
-                                disabled={invitingMemberId === member.id}
-                                className="mt-2 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {invitingMemberId === member.id
-                                  ? 'Regeneration...'
-                                  : 'Regenerer lien + copier Discord'}
-                              </button>
-                            </div>
-                          ) : null}
-
-                          {member.recentInvites.length > 0 ? (
-                            <div className="w-full rounded border border-gray-200 bg-white p-2 text-xs text-gray-600">
-                              <p className="font-semibold text-gray-700">5 dernieres invitations</p>
-                              <div className="mt-1 space-y-1">
-                                {member.recentInvites.slice(0, 5).map((invite) => {
-                                  const status = invite.acceptedAt
-                                    ? 'Acceptee'
-                                    : invite.revokedAt
-                                      ? 'Revoquee'
-                                      : new Date(invite.expiresAt) < new Date()
-                                        ? 'Expiree'
-                                        : 'En attente'
-
-                                  return (
-                                    <p key={invite.id}>
-                                      {new Date(invite.createdAt).toLocaleDateString()} - {invite.email} - {status}
-                                    </p>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
+                        {renderMemberActions(member, currentRoleOption)}
                       </td>
                     </tr>
                   )

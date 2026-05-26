@@ -206,6 +206,38 @@ INTERNAL_APP_URL="http://127.0.0.1:3000"
 CRON_BOOTSTRAP_SECRET="change-me-long-random-string"
 ```
 
+### Parametres CRON disponibles
+
+Cette section documente les variables metier qui pilotent les jobs planifies.
+Elle ne change pas la strategie de workers (web/cron), seulement les horaires des taches.
+
+- `CLAN_MATCH_SYNC_CRON`: synchronisation des matchs clan (import PUBG)
+- `CLAN_MATCH_SYNC_TIMEZONE`: timezone utilisee pour les expressions cron (defaut `UTC`)
+- `CLAN_LIFETIME_STATS_SYNC_CRON`: sync quotidienne des stats lifetime PUBG
+- `CLAN_STATS_RECALC_CRON`: recalcul des stats consolidees / badges
+- `CLAN_ONLINE_REMINDER_CRON`: rappel quotidien de presence/online
+- `WEEKLY_REPORT_REMINDER_CRON`: rappel quotidien pour preparation rapport hebdo
+- `WEEKLY_REPORT_GENERATION_CRON`: generation automatique du rapport hebdomadaire
+- `MONTHLY_REPORT_GENERATION_CRON`: generation automatique du rapport mensuel
+
+Exemple complet:
+
+```env
+CLAN_MATCH_SYNC_CRON="0 2,12,13,14,15,17,21,22,23 * * *"
+CLAN_MATCH_SYNC_TIMEZONE="Europe/Paris"
+CLAN_LIFETIME_STATS_SYNC_CRON="0 4 * * *"
+CLAN_STATS_RECALC_CRON="0 3 * * *"
+CLAN_ONLINE_REMINDER_CRON="0 18 * * *"
+WEEKLY_REPORT_REMINDER_CRON="0 9 * * *"
+WEEKLY_REPORT_GENERATION_CRON="0 8 * * 1"
+MONTHLY_REPORT_GENERATION_CRON="0 8 1 * *"
+```
+
+Note:
+
+- Ces variables sont lues sur le worker cron (celui avec `ENABLE_CRON_JOBS=true`).
+- Si une variable n'est pas definie, le fallback interne du code est utilise.
+
 Important:
 
 - En mode 2 workers, garder `ENABLE_CRON_BOOTSTRAP=false` et declencher le bootstrap via l'endpoint interne securise.

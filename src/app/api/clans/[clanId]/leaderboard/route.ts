@@ -102,19 +102,61 @@ function buildHighlights(entries: PlayerStatsEntry[]): LeaderboardHighlights {
   return { topKiller, topDamage, bestWinRate, mvp }
 }
 
-function getPast4WeekPeriods(): string[] {
+function getPastPeriods(period: LeaderboardPeriod): string[] {
+  if (period === 'all') {
+    return []
+  }
+
   const periods: string[] = []
   const now = new Date()
 
+  if (period === 'week') {
+    for (let i = 0; i < 4; i += 1) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i * 7)
+      const week = getISOWeek(d)
+      const year = d.getFullYear()
+      periods.push(`week-${year}-${String(week).padStart(2, '0')}`)
+    }
+
+    return periods
+  }
+
   for (let i = 0; i < 4; i += 1) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i * 7)
-    const week = getISOWeek(d)
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const year = d.getFullYear()
-    periods.push(`week-${year}-${String(week).padStart(2, '0')}`)
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    periods.push(`month-${year}-${month}`)
   }
 
   return periods
+}
+
+function getDateRangeForPeriod(period: LeaderboardPeriod): { gte?: Date; lte?: Date } {
+  if (period === 'all') {
+    return {}
+  }
+
+  const now = new Date()
+
+  if (period === 'week') {
+    const day = now.getDay()
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+    const monday = new Date(now)
+    monday.setDate(diff)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    return { gte: monday, lte: sunday }
+  }
+
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+
+  return { gte: startDate, lte: endDate }
 }
 
 export async function GET(
@@ -183,29 +225,160 @@ export async function GET(
       winRate: row.winRate,
       avgKillsPerGame: row.avgKillsPerGame,
       avgDamagePerGame: row.avgDamagePerGame,
+      soloKills: 0,
+      duoClanKills: 0,
+      trioClanKills: 0,
+      squadClanKills: 0,
       badgeType: row.badgeType,
     }))
+
+    const memberIds = leaderboard.map((entry) => entry.memberId)
+    const dateRange = getDateRangeForPeriod(period)
+
+    const [soloMatches, squadMembers] = await Promise.all([
+      prisma.match.findMany({
+        where: {
+          memberId: { in: memberIds },
+          gameMode: {
+            startsWith: 'solo',
+          },
+          ...(dateRange.gte || dateRange.lte
+            ? {
+                pubgCreatedAt: {
+                  ...(dateRange.gte ? { gte: dateRange.gte } : {}),
+                  ...(dateRange.lte ? { lte: dateRange.lte } : {}),
+                },
+              }
+            : {}),
+        },
+        select: {
+          memberId: true,
+          kills: true,
+        },
+      }),
+      prisma.squadMember.findMany({
+        where: {
+          memberId: { in: memberIds },
+          ...(dateRange.gte || dateRange.lte
+            ? {
+                squadMatch: {
+                  createdAt: {
+                    ...(dateRange.gte ? { gte: dateRange.gte } : {}),
+                    ...(dateRange.lte ? { lte: dateRange.lte } : {}),
+                  },
+                },
+              }
+            : {}),
+        },
+        select: {
+          memberId: true,
+          kills: true,
+          squadMatch: {
+            select: {
+              _count: {
+                select: {
+                  members: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ])
+
+    const soloKillsByMember = new Map<number, number>()
+    for (const row of soloMatches) {
+      const current = soloKillsByMember.get(row.memberId) ?? 0
+      soloKillsByMember.set(row.memberId, current + row.kills)
+    }
+
+    const clanBreakdownByMember = new Map<
+      number,
+      { duoClanKills: number; trioClanKills: number; squadClanKills: number }
+    >()
+
+    for (const row of squadMembers) {
+      const current = clanBreakdownByMember.get(row.memberId) ?? {
+        duoClanKills: 0,
+        trioClanKills: 0,
+        squadClanKills: 0,
+      }
+      const clanMemberCount = row.squadMatch._count.members
+
+      if (clanMemberCount <= 2) {
+        current.duoClanKills += row.kills
+      } else if (clanMemberCount === 3) {
+        current.trioClanKills += row.kills
+      } else {
+        current.squadClanKills += row.kills
+      }
+
+      clanBreakdownByMember.set(row.memberId, current)
+    }
+
+    for (const entry of leaderboard) {
+      const originalTotalKills = entry.totalKills
+      const soloKills = soloKillsByMember.get(entry.memberId) ?? 0
+      const breakdown = clanBreakdownByMember.get(entry.memberId)
+      const duoClanKills = breakdown?.duoClanKills ?? 0
+      const trioClanKills = breakdown?.trioClanKills ?? 0
+      const squadClanKills = breakdown?.squadClanKills ?? 0
+
+      entry.soloKills = soloKills
+      entry.duoClanKills = duoClanKills
+      entry.trioClanKills = trioClanKills
+      entry.squadClanKills = squadClanKills
+
+      // Keep the displayed/ranked clan kills consistent with mode breakdown columns.
+      entry.totalKills = duoClanKills + trioClanKills + squadClanKills
+
+      if (originalTotalKills !== entry.totalKills) {
+        console.warn('[Leaderboard] Kills mismatch detected', {
+          clanId: parsedClanId,
+          memberId: entry.memberId,
+          memberName: entry.displayName,
+          period,
+          periodKey,
+          originalTotalKills,
+          computedClanKills: entry.totalKills,
+          duoClanKills,
+          trioClanKills,
+          squadClanKills,
+        })
+      }
+    }
+
+    const lastUpdated = statsRows.reduce<Date | null>((latest, row) => {
+      if (!latest || row.updatedAt > latest) {
+        return row.updatedAt
+      }
+
+      return latest
+    }, null)
 
     const sortedLeaderboard = sortLeaderboard(leaderboard, sortBy)
     const highlights = buildHighlights(leaderboard)
 
-    // Progression: last 4 weeks for top-5 players by kills
+    // Progression: follows selected period (4 weeks or 4 months)
     const top5Ids = sortLeaderboard(leaderboard, 'kills')
       .slice(0, 5)
       .map((e) => e.memberId)
 
-    const past4Periods = getPast4WeekPeriods()
+    const pastPeriods = getPastPeriods(period)
 
-    const progressionRows = await prisma.playerStats.findMany({
-      where: {
-        period: { in: past4Periods },
-        memberId: { in: top5Ids },
-      },
-      include: {
-        member: { select: { id: true, displayName: true } },
-      },
-      orderBy: { period: 'asc' },
-    })
+    const progressionRows =
+      pastPeriods.length === 0 || top5Ids.length === 0
+        ? []
+        : await prisma.playerStats.findMany({
+            where: {
+              period: { in: pastPeriods },
+              memberId: { in: top5Ids },
+            },
+            include: {
+              member: { select: { id: true, displayName: true } },
+            },
+            orderBy: { period: 'asc' },
+          })
 
     const progressionByMember = new Map<
       number,
@@ -230,6 +403,7 @@ export async function GET(
         totalDamage: row.totalDamage,
         winRate: row.winRate,
         matchesPlayed: row.matchesPlayed,
+        matchesWon: row.matchesWon,
       })
 
       progressionByMember.set(row.memberId, existing)
@@ -250,6 +424,7 @@ export async function GET(
       clanId: parsedClanId,
       period,
       sortBy,
+      lastUpdatedAt: lastUpdated ? lastUpdated.toISOString() : null,
       leaderboard: sortedLeaderboard,
       highlights,
       progression,

@@ -144,7 +144,7 @@ function LoginPageContent() {
           <img
             src={heroImageUrl}
             alt="Visuel du clan"
-            className="absolute inset-0 hidden h-full w-full object-cover opacity-35 lg:block"
+            className="absolute inset-4 hidden h-[calc(100%-2rem)] w-[calc(100%-2rem)] rounded-2xl object-cover opacity-35 lg:block"
           />
           <div className="absolute inset-0 bg-slate-900/72" />
           <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
@@ -165,11 +165,11 @@ function LoginPageContent() {
               ) : null}
             </div>
 
-            <div className="shrink-0 lg:hidden">
+            <div className="shrink-0 pt-1 md:mr-2 md:mt-1 lg:hidden">
               <img
                 src={heroImageUrl}
                 alt="Logo du clan"
-                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow"
+                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow md:h-20 md:w-20"
               />
             </div>
           </div>

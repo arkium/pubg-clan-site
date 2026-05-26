@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
-import { createMemberInvite } from '@/lib/auth-service'
+import { createMemberInvite, revokeActiveMemberInvite } from '@/lib/auth-service'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
 const InviteSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email('Invalid email address').optional(),
+  sendEmail: z.boolean().optional(),
 })
 
 function parsePositiveInt(value: string) {
@@ -44,6 +45,11 @@ export async function POST(
       )
     }
 
+    const shouldSendEmail = validated.data.sendEmail !== false
+    if (shouldSendEmail && !validated.data.email) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+    }
+
     const [session, actorMemberId] = await Promise.all([
       getSessionFromRequest(request),
       getActorMemberId(request),
@@ -59,6 +65,7 @@ export async function POST(
       email: validated.data.email,
       invitedByUserId: session?.userId ?? null,
       invitedByMemberId: actorMemberId,
+      sendEmail: validated.data.sendEmail,
     })
 
     return NextResponse.json(
@@ -86,5 +93,46 @@ export async function POST(
 
     console.error('Error creating member invite:', error)
     return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string; memberId: string }> }
+) {
+  try {
+    const { clanId, memberId } = await params
+    const parsedClanId = parsePositiveInt(clanId)
+    const parsedMemberId = parsePositiveInt(memberId)
+
+    if (!parsedClanId || !parsedMemberId) {
+      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+    }
+
+    const permissionError = await requirePermission('manage_members')(request, {
+      clanId: parsedClanId,
+      allowMissingActor: true,
+    })
+    if (permissionError) {
+      return permissionError
+    }
+
+    const { revokedCount } = await revokeActiveMemberInvite({
+      clanId: parsedClanId,
+      memberId: parsedMemberId,
+    })
+
+    return NextResponse.json({ success: true, revokedCount })
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'Member not found in clan') {
+        return NextResponse.json({ error: error.message }, { status: 404 })
+      }
+
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    console.error('Error revoking member invite:', error)
+    return NextResponse.json({ error: 'Failed to revoke invite' }, { status: 500 })
   }
 }

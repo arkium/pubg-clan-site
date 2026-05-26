@@ -12,6 +12,10 @@ import {
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 48
 
+function isTechnicalInviteEmail(email: string) {
+  return email.trim().toLowerCase().endsWith('@local.invalid')
+}
+
 function getPublicBaseUrl() {
   const configuredUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL
   if (configuredUrl) {
@@ -156,13 +160,18 @@ export async function resolveOwnerMemberFromPlayerName(params: {
 export async function createMemberInvite(params: {
   clanId: number
   memberId: number
-  email: string
+  email?: string
   invitedByUserId?: number | null
   invitedByMemberId?: number | null
+  sendEmail?: boolean
 }) {
   await ensureMemberBelongsToClan(params.memberId, params.clanId)
 
-  const email = normalizeEmail(params.email)
+  const shouldSendEmail = params.sendEmail !== false
+  const fallbackDiscordEmail = `discord-member-${params.memberId}@local.invalid`
+  const email = shouldSendEmail
+    ? normalizeEmail(params.email ?? '')
+    : normalizeEmail(params.email?.trim() ? params.email : fallbackDiscordEmail)
 
   const activeIdentity = await prisma.memberIdentity.findUnique({
     where: { memberId: params.memberId },
@@ -216,6 +225,17 @@ export async function createMemberInvite(params: {
   const activationUrl = `${getPublicBaseUrl()}/activate?token=${encodeURIComponent(token)}`
 
   const delivery = await (async () => {
+    if (!shouldSendEmail) {
+      return {
+        delivered: false,
+        mode: 'stub' as const,
+        to: email,
+        subject: `Invitation PUBG Clan ${invite.clan.tag}`,
+        from: process.env.SMTP_FROM?.trim() || null,
+        reason: 'email_not_sent_discord_flow',
+      }
+    }
+
     try {
       return await sendEmail({
         to: email,
@@ -251,6 +271,34 @@ export async function createMemberInvite(params: {
   }
 }
 
+export async function revokeActiveMemberInvite(params: {
+  clanId: number
+  memberId: number
+}) {
+  await ensureMemberBelongsToClan(params.memberId, params.clanId)
+
+  const now = new Date()
+
+  const result = await prisma.memberInvite.updateMany({
+    where: {
+      clanId: params.clanId,
+      memberId: params.memberId,
+      acceptedAt: null,
+      revokedAt: null,
+      expiresAt: {
+        gt: now,
+      },
+    },
+    data: {
+      revokedAt: now,
+    },
+  })
+
+  return {
+    revokedCount: result.count,
+  }
+}
+
 export async function activateMemberInvite(params: {
   token: string
   password: string
@@ -281,7 +329,7 @@ export async function activateMemberInvite(params: {
     throw new Error('Member is no longer active')
   }
 
-  const inviteEmail = invite.email.trim()
+  const inviteEmail = isTechnicalInviteEmail(invite.email) ? '' : invite.email.trim()
   const providedLoginEmail = params.loginEmail?.trim() ?? ''
 
   if (!inviteEmail && !providedLoginEmail) {
@@ -374,7 +422,7 @@ export async function getActivationInviteContext(token: string) {
   }
 
   return {
-    requiresLoginEmail: invite.email.trim().length === 0,
+    requiresLoginEmail: invite.email.trim().length === 0 || isTechnicalInviteEmail(invite.email),
   }
 }
 

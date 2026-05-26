@@ -35,6 +35,14 @@ function parseClanId(clanId: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+function isTechnicalInviteEmail(email: string) {
+  return email.trim().toLowerCase().endsWith('@local.invalid')
+}
+
+function getDisplayInviteEmail(email: string) {
+  return isTechnicalInviteEmail(email) ? '' : email
+}
+
 function readPermissionMap(value: unknown): PermissionMap {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {}
@@ -195,13 +203,26 @@ export async function GET(
         joinedAt: member.createdAt,
         hasAccount: member.identities.length > 0,
         avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
-        pendingInvite:
-          member.invites.find(
-            (invite) => !invite.acceptedAt && !invite.revokedAt && invite.expiresAt > new Date()
-          ) ?? null,
+        pendingInvite: (() => {
+          const invite = member.invites.find(
+            (currentInvite) =>
+              !currentInvite.acceptedAt &&
+              !currentInvite.revokedAt &&
+              currentInvite.expiresAt > new Date()
+          )
+
+          if (!invite) {
+            return null
+          }
+
+          return {
+            ...invite,
+            email: getDisplayInviteEmail(invite.email),
+          }
+        })(),
         recentInvites: member.invites.map((invite) => ({
           id: invite.id,
-          email: invite.email,
+          email: getDisplayInviteEmail(invite.email),
           createdAt: invite.createdAt,
           expiresAt: invite.expiresAt,
           acceptedAt: invite.acceptedAt,

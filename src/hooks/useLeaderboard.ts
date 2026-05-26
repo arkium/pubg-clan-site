@@ -19,6 +19,7 @@ const defaultData: LeaderboardResponse = {
   clanId: 0,
   period: 'week',
   sortBy: 'kills',
+  lastUpdatedAt: null,
   leaderboard: [],
   highlights: defaultHighlights,
   progression: [],
@@ -27,7 +28,7 @@ const defaultData: LeaderboardResponse = {
 const leaderboardCache = new Map<string, LeaderboardResponse>()
 
 function buildCacheKey(clanId: number, period: LeaderboardPeriod, sortBy: LeaderboardSortBy) {
-  return `${clanId}:${period}:${sortBy}`
+  return `v2:${clanId}:${period}:${sortBy}`
 }
 
 export function useLeaderboard(
@@ -102,6 +103,7 @@ export function useLeaderboard(
     leaderboard: clanId ? data.leaderboard : [],
     highlights: clanId ? data.highlights : defaultHighlights,
     progression: clanId ? data.progression : [],
+    lastUpdatedAt: clanId ? data.lastUpdatedAt : null,
     loading: clanId ? loading : false,
     error: clanId ? error : '',
   }

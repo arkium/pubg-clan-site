@@ -1,5 +1,6 @@
 export type LeaderboardPeriod = 'week' | 'month' | 'all'
 export type LeaderboardSortBy = 'kills' | 'damage' | 'winRate' | 'matches'
+export type LeaderboardKillsView = 'clan' | 'withSolo'
 
 export interface PlayerStatsEntry {
   id: string
@@ -18,6 +19,11 @@ export interface PlayerStatsEntry {
   winRate: number
   avgKillsPerGame: number
   avgDamagePerGame: number
+
+  soloKills: number
+  duoClanKills: number
+  trioClanKills: number
+  squadClanKills: number
 
   badgeType: string | null
 }
@@ -40,6 +46,7 @@ export interface WeeklyProgression {
     totalDamage: number
     winRate: number
     matchesPlayed: number
+    matchesWon: number
   }>
 }
 
@@ -47,6 +54,7 @@ export interface LeaderboardResponse {
   clanId: number
   period: LeaderboardPeriod
   sortBy: LeaderboardSortBy
+  lastUpdatedAt: string | null
   leaderboard: PlayerStatsEntry[]
   highlights: LeaderboardHighlights
   progression: WeeklyProgression[]

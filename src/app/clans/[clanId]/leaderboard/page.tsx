@@ -6,10 +6,9 @@ import { useEffect, useMemo, useState } from 'react'
 
 import Leaderboard from '@/components/Leaderboard'
 import LeaderboardStats from '@/components/LeaderboardStats'
-import ProgressionChart from '@/components/ProgressionChart'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import type { LeaderboardPeriod, LeaderboardSortBy } from '@/types/leaderboard'
+import type { LeaderboardKillsView, LeaderboardPeriod, LeaderboardSortBy } from '@/types/leaderboard'
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -23,6 +22,19 @@ const PERIOD_LABELS: Record<LeaderboardPeriod, string> = {
   all: 'All Time',
 }
 
+function formatLastUpdated(value: string | null) {
+  if (!value) {
+    return 'Derniere mise a jour indisponible pour le moment.'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Derniere mise a jour indisponible pour le moment.'
+  }
+
+  return `Derniere mise a jour des stats: ${date.toLocaleString('fr-FR')}. Cette date correspond au dernier recalcul enregistre pour cette periode.`
+}
+
 export default function LeaderboardPage() {
   const params = useParams()
   const router = useRouter()
@@ -31,9 +43,9 @@ export default function LeaderboardPage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const [period, setPeriod] = useState<LeaderboardPeriod>('week')
   const [sortBy, setSortBy] = useState<LeaderboardSortBy>('kills')
-  const [chartMetric, setChartMetric] = useState<LeaderboardSortBy>('kills')
+  const [killsView, setKillsView] = useState<LeaderboardKillsView>('clan')
 
-  const { leaderboard, highlights, progression, loading, error } = useLeaderboard(
+  const { leaderboard, progression, lastUpdatedAt, loading, error } = useLeaderboard(
     clanId,
     period,
     sortBy
@@ -58,6 +70,7 @@ export default function LeaderboardPage() {
             <p className="text-sm text-gray-600">
               Performances individuelles par période.
             </p>
+            <p className="mt-1 text-xs text-gray-500">{formatLastUpdated(lastUpdatedAt)}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -104,18 +117,15 @@ export default function LeaderboardPage() {
 
       {!loading && !error ? (
         <div className="space-y-6">
-          <LeaderboardStats highlights={highlights} />
+          <LeaderboardStats entries={leaderboard} killsView={killsView} />
 
           <Leaderboard
             entries={leaderboard}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-          />
-
-          <ProgressionChart
             progression={progression}
-            metric={chartMetric}
-            onMetricChange={setChartMetric}
+            sortBy={sortBy}
+            killsView={killsView}
+            onSortChange={setSortBy}
+            onKillsViewChange={setKillsView}
           />
         </div>
       ) : null}

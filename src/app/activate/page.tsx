@@ -162,7 +162,7 @@ function ActivatePageContent() {
           <img
             src={heroImageUrl}
             alt="Visuel du clan"
-            className="absolute inset-0 hidden h-full w-full object-cover opacity-35 lg:block"
+            className="absolute inset-4 hidden h-[calc(100%-2rem)] w-[calc(100%-2rem)] rounded-2xl object-cover opacity-35 lg:block"
           />
           <div className="absolute inset-0 bg-slate-900/72" />
           <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
@@ -183,11 +183,11 @@ function ActivatePageContent() {
               ) : null}
             </div>
 
-            <div className="shrink-0 lg:hidden">
+            <div className="shrink-0 pt-1 md:mr-2 md:mt-1 lg:hidden">
               <img
                 src={heroImageUrl}
                 alt="Logo du clan"
-                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow"
+                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow md:h-20 md:w-20"
               />
             </div>
           </div>
@@ -198,6 +198,13 @@ function ActivatePageContent() {
           <p className="mt-2 text-sm text-slate-600">
             Definissez votre mot de passe pour activer votre acces joueur.
           </p>
+
+          {requiresLoginEmail ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Invitation Discord detectee: saisissez votre email de connexion pour finaliser
+              l&apos;activation.
+            </div>
+          ) : null}
 
           <form className="mt-6 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
             <label className="block text-sm text-slate-700">
@@ -231,7 +238,7 @@ function ActivatePageContent() {
                   placeholder="joueur@exemple.com"
                 />
                 <span className="mt-1 block text-xs text-slate-500">
-                  Cette invitation ne contient pas d&apos;email, merci de saisir votre login.
+                  Utilisez l&apos;email que vous voulez pour vous connecter ensuite.
                 </span>
               </label>
             ) : null}

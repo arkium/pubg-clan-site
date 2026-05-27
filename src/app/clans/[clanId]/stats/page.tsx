@@ -372,7 +372,7 @@ export default function ClanStatsPage() {
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.title)}
-                  className="mb-4 flex w-full items-center justify-between gap-3 rounded px-1 py-1 text-left hover:bg-gray-50"
+                  className="mb-4 flex w-full select-none items-center justify-between gap-3 rounded px-1 py-1 text-left transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/60"
                   aria-expanded={expandedGroups[group.title]}
                   aria-controls={`group-${group.title}`}
                 >

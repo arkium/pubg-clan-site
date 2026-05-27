@@ -78,7 +78,7 @@ function SectionTitle({
 
   return (
     <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-      <Image src={icon.iconPath} alt={icon.alt} width={18} height={18} />
+      <Image src={icon.iconPath} alt={icon.alt} width={28} height={28} className="shrink-0" />
       <span>{title}</span>
     </h3>
   )
@@ -125,8 +125,8 @@ function StatRow({
 
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt>{label}</dt>
-      <dd className="flex items-center gap-1 text-lg font-semibold text-gray-900 sm:text-xl">
+      <dt className="member-lifetime-stat-label">{label}</dt>
+      <dd className="member-lifetime-stat-value flex items-center gap-1 text-lg font-semibold text-gray-900 sm:text-xl">
         {medal ? <Image src={medal.iconPath} alt={medal.alt} width={16} height={16} /> : null}
         <span>{value}</span>
       </dd>
@@ -142,7 +142,7 @@ export default function MemberLifetimeStatsPanel({
   lastRefreshedAt,
 }: MemberLifetimeStatsPanelProps) {
   return (
-    <section className="rounded bg-white p-6 shadow">
+    <section className="member-lifetime-stats rounded bg-white p-6 shadow">
       <div className="mb-4">
         <div>
           <h2 className="text-xl font-semibold">Statistiques globales</h2>
@@ -158,9 +158,9 @@ export default function MemberLifetimeStatsPanel({
       </div>
 
       {loadingStats && !lifetimeStats ? (
-        <p className="text-sm text-gray-500">Chargement des statistiques globales...</p>
+        <p className="member-lifetime-stats-muted text-sm text-gray-500">Chargement des statistiques globales...</p>
       ) : statsError && !lifetimeStats ? (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="member-lifetime-stats-alert rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {statsError}
         </div>
       ) : lifetimeStats ? (
@@ -226,7 +226,7 @@ export default function MemberLifetimeStatsPanel({
           </article>
         </div>
       ) : (
-        <p className="text-sm text-gray-500">Aucune statistique globale disponible.</p>
+        <p className="member-lifetime-stats-muted text-sm text-gray-500">Aucune statistique globale disponible.</p>
       )}
     </section>
   )

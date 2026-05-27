@@ -65,20 +65,21 @@ export default function MemberSectionNav({ memberId }: MemberSectionNavProps) {
     { label: 'Matchs', href: `/members/${memberId}/matches` },
     { label: 'Notifications', href: `/members/${memberId}/notifications` },
   ]
-
-  const currentItem = items.find((item) => pathname === item.href)
-  const currentSectionLabel = currentItem?.label ?? 'Section'
+  const normalizedDisplayName = memberName.trim().toLowerCase()
+  const normalizedPubgName = pubgName.trim().toLowerCase()
+  const showPubgAlias = Boolean(pubgName.trim()) && normalizedPubgName !== normalizedDisplayName
 
   return (
     <div className="mb-6 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-      <div className="mb-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-        <div className="mb-2 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-blue-600 text-sm font-bold text-white">
+      <div className="mb-3 px-1 py-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-slate-200 bg-blue-600 text-base font-bold text-white shadow-sm">
             {avatarUrl ? (
               <img
                 src={avatarUrl}
                 alt={(memberName || `Joueur #${memberId}`) + ' avatar'}
-                className="h-10 w-10 rounded-full object-cover"
+                className="h-12 w-12 rounded-full object-cover"
                 onError={(event) => {
                   event.currentTarget.style.display = 'none'
                 }}
@@ -86,25 +87,26 @@ export default function MemberSectionNav({ memberId }: MemberSectionNavProps) {
             ) : (
               <span>{(memberName || '?').charAt(0).toUpperCase()}</span>
             )}
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate text-base font-bold text-gray-900">{memberName || `Joueur #${memberId}`}</p>
+              {showPubgAlias ? (
+                <p className="truncate text-xs text-gray-500">@{pubgName}</p>
+              ) : null}
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Joueur consulte</p>
-            <p className="truncate text-sm font-semibold text-gray-900">{memberName || `Joueur #${memberId}`}</p>
-            <p className="truncate text-xs text-gray-500">{pubgName || 'Nom PUBG indisponible'}</p>
-          </div>
-        </div>
-
-        <div className="text-xs text-gray-500">
-          <Link href="/members" className="font-medium text-gray-600 hover:text-blue-700 hover:underline">
-            Membres
-          </Link>{' '}
-          / <span className="font-medium text-gray-700">{memberName || `Joueur #${memberId}`}</span> /{' '}
-          <span className="font-semibold text-gray-800">{currentSectionLabel}</span>
+          <Link
+            href="/members"
+            className="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Liste membres
+          </Link>
         </div>
       </div>
 
-      <nav className="flex flex-wrap gap-2">
+      <nav className="member-section-nav flex flex-wrap gap-2">
         {items.map((item) => {
           const active = pathname === item.href
 
@@ -112,9 +114,9 @@ export default function MemberSectionNav({ memberId }: MemberSectionNavProps) {
             <Link
               key={item.href}
               href={item.href}
-              className={`inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`member-section-nav-item inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition ${
                 active
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? 'member-section-nav-item-active bg-blue-600 text-white shadow-sm'
                   : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
               }`}
             >

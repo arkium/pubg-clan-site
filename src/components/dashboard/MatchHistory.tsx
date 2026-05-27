@@ -159,7 +159,7 @@ export default function MatchHistory({
           {subtitle ? <p className="text-xs text-gray-500">{subtitle}</p> : null}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded border border-gray-200 p-0.5">
+          <div className="dashboard-period-toggle flex rounded border border-gray-200 p-0.5">
             {periods.map((p) => (
               <button
                 key={p}
@@ -168,8 +168,10 @@ export default function MatchHistory({
                   onPeriodChange(p)
                   onOffsetChange(0)
                 }}
-                className={`rounded px-3 py-1 text-xs font-medium ${
-                  p === period ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                className={`dashboard-period-toggle-item rounded px-3 py-1 text-xs font-medium ${
+                  p === period
+                    ? 'dashboard-period-toggle-item-active bg-blue-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {periodLabels[p]}

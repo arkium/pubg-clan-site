@@ -89,7 +89,7 @@ export default function SquadMatchList({ clanId, period, matches, mapLabels }: S
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold ${team.tone}`}>
-                    <Image src={team.iconPath} alt={`${team.label} icon`} width={16} height={16} />
+                    <Image src={team.iconPath} alt={`${team.label} icon`} width={16} height={16} className="squad-mode-icon" />
                     <span>{team.label}</span>
                   </span>
                   <span className={`rounded px-2 py-1 text-xs font-medium ${placementTone(match.placement)}`}>

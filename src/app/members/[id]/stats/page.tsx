@@ -196,7 +196,7 @@ export default function MemberStatsPage() {
         </div>
       ) : null}
 
-      <section className="mb-4 overflow-hidden rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 shadow-sm ring-1 ring-amber-100">
+      <section className="member-stats-summary mb-4 overflow-hidden rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 shadow-sm ring-1 ring-amber-100">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Resume medailles</h2>

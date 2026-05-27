@@ -250,7 +250,7 @@ export default function ClanMatchesPage() {
               {teamModePerformance.map((mode) => (
                 <article key={mode.key} className={`rounded border p-3 ${mode.tone}`}>
                   <div className="mb-3 flex items-center gap-2">
-                    <Image src={mode.iconPath} alt={`Logo ${mode.label}`} width={20} height={20} />
+                    <Image src={mode.iconPath} alt={`Logo ${mode.label}`} width={20} height={20} className="squad-mode-icon" />
                     <p className="text-sm font-semibold">{mode.label}</p>
                   </div>
 

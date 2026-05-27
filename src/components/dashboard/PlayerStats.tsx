@@ -63,14 +63,16 @@ export default function PlayerStats({ stats, clanAverage, period, onPeriodChange
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Stats principales</h2>
-          <div className="inline-flex rounded border border-gray-200 p-0.5">
+          <div className="dashboard-period-toggle inline-flex rounded border border-gray-200 p-0.5">
             {(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => onPeriodChange(value)}
-                className={`rounded px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-                  value === period ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                className={`dashboard-period-toggle-item rounded px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
+                  value === period
+                    ? 'dashboard-period-toggle-item-active bg-blue-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {PERIOD_LABELS[value]}
@@ -113,14 +115,16 @@ export default function PlayerStats({ stats, clanAverage, period, onPeriodChange
           )}
         </div>
 
-        <div className="inline-flex w-full flex-wrap rounded border border-gray-200 p-0.5 sm:w-auto sm:flex-nowrap">
+        <div className="dashboard-period-toggle inline-flex w-full flex-wrap rounded border border-gray-200 p-0.5 sm:w-auto sm:flex-nowrap">
           {(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => (
             <button
               key={value}
               type="button"
               onClick={() => onPeriodChange(value)}
-              className={`rounded px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-                value === period ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              className={`dashboard-period-toggle-item rounded px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
+                value === period
+                  ? 'dashboard-period-toggle-item-active bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
               {PERIOD_LABELS[value]}

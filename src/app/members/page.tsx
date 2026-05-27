@@ -115,7 +115,7 @@ export default function MembersPage() {
   function renderChevron(expanded: boolean) {
     return (
       <span
-        className={`mt-3 inline-flex h-9 w-9 items-center justify-center self-center rounded-full border border-slate-200 bg-white text-slate-500 transition ${expanded ? 'rotate-180' : ''}`}
+        className={`members-card-chevron mt-3 inline-flex h-9 w-9 items-center justify-center self-center rounded-full border border-slate-200 bg-white text-slate-500 transition ${expanded ? 'rotate-180' : ''}`}
         aria-hidden="true"
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -132,9 +132,9 @@ export default function MembersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 px-3 py-6 sm:px-4 sm:py-8">
+    <div className="members-page min-h-screen bg-gray-100 px-3 py-6 sm:px-4 sm:py-8">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-8 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <header className="members-header mb-8 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Membres du clan</h1>
@@ -191,7 +191,7 @@ export default function MembersPage() {
           </div>
         </header>
 
-        <div className="rounded bg-white p-4 shadow sm:p-6">
+        <div className="members-panel rounded bg-white p-4 shadow sm:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <h2 className="text-xl font-semibold">
               Joueurs ({members.length})
@@ -220,7 +220,7 @@ export default function MembersPage() {
                 return (
                 <div
                   key={member.id}
-                  className={`mx-auto flex h-full w-full max-w-[19rem] flex-col rounded-lg border bg-gray-50 p-3 shadow-sm transition sm:max-w-none sm:p-4 ${isExpanded ? 'border-slate-300 shadow-md' : ''}`}
+                  className={`members-card mx-auto flex h-full w-full max-w-[19rem] flex-col rounded-lg border bg-gray-50 p-3 shadow-sm transition sm:max-w-none sm:p-4 ${isExpanded ? 'border-slate-300 shadow-md' : ''}`}
                 >
                   <button
                     type="button"
@@ -229,7 +229,7 @@ export default function MembersPage() {
                     aria-expanded={isExpanded}
                   >
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gray-200 sm:h-14 sm:w-14">
+                      <div className="members-avatar flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gray-200 sm:h-14 sm:w-14">
                         {member.avatarUrl ? (
                           <img
                             src={member.avatarUrl}
@@ -252,7 +252,7 @@ export default function MembersPage() {
                           <Link
                             href={`/members/${member.id}/dashboard`}
                             onClick={(event) => event.stopPropagation()}
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100"
+                            className="members-card-dashboard inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700 transition hover:bg-blue-100"
                             title="Tableau de bord"
                             aria-label="Ouvrir le tableau de bord"
                           >
@@ -273,16 +273,16 @@ export default function MembersPage() {
                         ) : (
                           <p className="truncate text-xs text-gray-400">Clan: no PUBG clan detected</p>
                         )}
-                        <div className="mt-2 flex items-center gap-3 text-xs text-gray-600">
-                          <span className="inline-flex items-center gap-1">
+                        <div className="members-medals mt-2 flex items-center gap-3 text-xs text-gray-600">
+                          <span className="members-medal inline-flex items-center gap-1">
                             <img src="/icons/medal-gold.svg" alt="Medaille or" className="h-4 w-4" />
                             <strong className="text-sm text-gray-900">{member.medalCounts?.gold ?? 0}</strong>
                           </span>
-                          <span className="inline-flex items-center gap-1">
+                          <span className="members-medal inline-flex items-center gap-1">
                             <img src="/icons/medal-silver.svg" alt="Medaille argent" className="h-4 w-4" />
                             <strong className="text-sm text-gray-900">{member.medalCounts?.silver ?? 0}</strong>
                           </span>
-                          <span className="inline-flex items-center gap-1">
+                          <span className="members-medal inline-flex items-center gap-1">
                             <img src="/icons/medal-bronze.svg" alt="Medaille bronze" className="h-4 w-4" />
                             <strong className="text-sm text-gray-900">{member.medalCounts?.bronze ?? 0}</strong>
                           </span>
@@ -298,13 +298,13 @@ export default function MembersPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <Link
                         href={`/members/${member.id}/matches`}
-                        className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        className="members-card-action inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         Matchs
                       </Link>
                       <Link
                         href={`/members/${member.id}/notifications`}
-                        className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        className="members-card-action inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         Notifications
                       </Link>

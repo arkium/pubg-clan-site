@@ -96,14 +96,16 @@ export default function ProgressionChart({ progression }: ProgressionChartProps)
     <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-900">Progression (4 semaines)</h2>
-        <div className="flex flex-wrap rounded border border-gray-200 p-0.5">
+        <div className="dashboard-period-toggle flex flex-wrap rounded border border-gray-200 p-0.5">
           {metrics.map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setMetric(m)}
-              className={`rounded px-3 py-1 text-xs font-medium ${
-                m === metric ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              className={`dashboard-period-toggle-item rounded px-3 py-1 text-xs font-medium ${
+                m === metric
+                  ? 'dashboard-period-toggle-item-active bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
               {METRIC_LABELS[m]}

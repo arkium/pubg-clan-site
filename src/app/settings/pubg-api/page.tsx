@@ -92,6 +92,7 @@ export default function PubgApiSettingsPage() {
   const [historyPageSize, setHistoryPageSize] = useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(25)
 
   const isOwner = permissions.includes('*')
+  const canWriteSettings = isOwner
 
   useEffect(() => {
     if (!loading && !authenticated) {

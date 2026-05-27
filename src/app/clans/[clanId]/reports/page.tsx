@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
+import ClanSectionNav from '@/components/ClanSectionNav'
 import ReportHighlights from '@/components/report/ReportHighlights'
 import { useReports } from '@/hooks/useReports'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -52,41 +53,27 @@ export default function ClanReportsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Rapports du clan</h1>
             <p className="text-sm text-gray-600">Historique hebdomadaire et mensuel des performances.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/members"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Joueurs
-            </Link>
-            <Link
-              href="/account"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Mon compte
-            </Link>
+            <ClanSectionNav clanId={clanId} />
           </div>
         </div>
       </header>
 
       <section className="mb-6 rounded border border-gray-200 bg-white p-4">
-        <label className="text-sm text-gray-700">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Type de rapport
-          </span>
-          <select
-            value={type}
-            onChange={(event) => setType(event.target.value as ReportFilterType)}
-            className="rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-          >
-            {(Object.keys(TYPE_LABELS) as ReportFilterType[]).map((value) => (
-              <option key={value} value={value}>
-                {TYPE_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Type de rapport</p>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(TYPE_LABELS) as ReportFilterType[]).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setType(value)}
+              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                type === value ? 'clan-section-nav-link--active shadow-sm' : ''
+              }`}
+            >
+              {TYPE_LABELS[value]}
+            </button>
+          ))}
+        </div>
       </section>
 
       {loading ? <p className="mb-6 text-sm text-gray-600">Chargement des rapports...</p> : null}

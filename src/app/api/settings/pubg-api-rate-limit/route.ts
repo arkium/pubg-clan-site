@@ -14,15 +14,11 @@ const UpdatePubgRateLimitSchema = z.object({
 })
 
 function canReadSettings(permissions: string[]) {
-  return (
-    permissions.includes('*') ||
-    permissions.includes('manage_settings') ||
-    permissions.includes('manage_members')
-  )
+  return permissions.includes('*')
 }
 
 function canWriteSettings(permissions: string[]) {
-  return permissions.includes('*') || permissions.includes('manage_settings')
+  return permissions.includes('*')
 }
 
 async function getAuthorizedPermissions(request: Request) {

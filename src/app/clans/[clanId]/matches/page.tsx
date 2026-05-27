@@ -9,6 +9,7 @@ import SessionRecap from '@/components/SessionRecap'
 import SquadMatchList from '@/components/SquadMatchList'
 import SquadSynergies from '@/components/SquadSynergies'
 import TopPerformers from '@/components/TopPerformers'
+import ClanSectionNav from '@/components/ClanSectionNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -159,20 +160,7 @@ export default function ClanMatchesPage() {
             <p className="text-sm text-gray-600">
               Performance collective du clan sur la période sélectionnée.
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href={dashboardHref}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href={`/clans/${clanId}/stats`}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Clan
-            </Link>
+            <ClanSectionNav clanId={clanId} />
           </div>
         </div>
       </header>
@@ -180,7 +168,7 @@ export default function ClanMatchesPage() {
       <div className="mb-6 flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-white p-4">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
-          <div className="flex rounded border border-gray-200 p-1">
+          <div className="flex flex-wrap gap-2">
             {(['week', 'month'] as const).map((value) => (
               <button
                 key={value}
@@ -189,10 +177,8 @@ export default function ClanMatchesPage() {
                   setPeriod(value)
                   setGameMode('')
                 }}
-                className={`rounded px-3 py-1 text-sm font-medium ${
-                  value === period
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                  value === period ? 'clan-section-nav-link--active shadow-sm' : ''
                 }`}
               >
                 {periodLabel(value)}
@@ -201,23 +187,32 @@ export default function ClanMatchesPage() {
           </div>
         </div>
 
-        <label className="text-sm text-gray-700">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Mode de jeu
-          </span>
-          <select
-            value={gameMode}
-            onChange={(event) => setGameMode(event.target.value)}
-            className="rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-          >
-            <option value="">Tous</option>
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Mode de jeu</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setGameMode('')}
+              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                gameMode === '' ? 'clan-section-nav-link--active shadow-sm' : ''
+              }`}
+            >
+              Tous
+            </button>
             {availableModes.map((mode) => (
-              <option key={mode} value={mode}>
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setGameMode(mode)}
+                className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                  gameMode === mode ? 'clan-section-nav-link--active shadow-sm' : ''
+                }`}
+              >
                 {mode}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
       </div>
 
       {loading ? <p className="mb-6 text-sm text-gray-600">Chargement des matchs en équipe...</p> : null}

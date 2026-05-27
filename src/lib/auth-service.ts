@@ -178,7 +178,7 @@ export async function createMemberInvite(params: {
     select: { userId: true },
   })
 
-  if (activeIdentity) {
+  if (activeIdentity && shouldSendEmail) {
     throw new Error('This player already has an account')
   }
 
@@ -476,10 +476,7 @@ export async function authenticateUser(params: {
       return false
     }
 
-    return identity.member.roles.some((entry) => {
-      const roleName = entry.role.name.toLowerCase()
-      return roleName === 'owner' || roleName === 'admin'
-    })
+    return identity.member.roles.some((entry) => entry.role.name.toLowerCase() === 'owner')
   })
   return {
     userId: user.id,

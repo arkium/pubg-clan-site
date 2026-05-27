@@ -16,11 +16,7 @@ export default function ClansPage() {
   const [error, setError] = useState('')
 
   const hasWildcard = permissions.includes('*')
-  const canSwitchClan =
-    hasWildcard ||
-    permissions.includes('manage_members') ||
-    permissions.includes('manage_roles') ||
-    permissions.includes('manage_settings')
+  const canSwitchClan = hasWildcard
 
   useEffect(() => {
     if (authLoading) {
@@ -80,11 +76,11 @@ export default function ClansPage() {
   function handleSelect(clanId: number) {
     const changed = setClanId(clanId)
     if (!changed) {
-      setError('Seuls les Owner/Admin peuvent changer de clan.')
+      setError('Seul le Owner peut changer de clan.')
       return
     }
 
-    router.push('/members')
+    router.push(`/clans/${clanId}/members`)
   }
 
   if (authLoading) {

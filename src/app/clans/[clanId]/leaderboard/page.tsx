@@ -1,11 +1,10 @@
 'use client'
-
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import Leaderboard from '@/components/Leaderboard'
 import LeaderboardStats from '@/components/LeaderboardStats'
+import ClanSectionNav from '@/components/ClanSectionNav'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { LeaderboardKillsView, LeaderboardPeriod, LeaderboardSortBy } from '@/types/leaderboard'
@@ -71,20 +70,7 @@ export default function LeaderboardPage() {
               Performances individuelles par période.
             </p>
             <p className="mt-1 text-xs text-gray-500">{formatLastUpdated(lastUpdatedAt)}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/clans/${clanId}/stats`}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Clan
-            </Link>
-            <Link
-              href="/members"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Joueurs
-            </Link>
+            <ClanSectionNav clanId={clanId} />
           </div>
         </div>
       </header>
@@ -92,16 +78,14 @@ export default function LeaderboardPage() {
       {/* Period selector */}
       <div className="mb-6 rounded border border-gray-200 bg-white p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
-        <div className="flex rounded border border-gray-200 p-1">
+        <div className="flex flex-wrap gap-2">
           {(['week', 'month', 'all'] as const).map((value) => (
             <button
               key={value}
               type="button"
               onClick={() => setPeriod(value)}
-              className={`rounded px-3 py-1 text-sm font-medium ${
-                value === period
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
+              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                value === period ? 'clan-section-nav-link--active shadow-sm' : ''
               }`}
             >
               {PERIOD_LABELS[value]}

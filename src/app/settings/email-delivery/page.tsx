@@ -63,7 +63,7 @@ export default function EmailDeliverySettingsPage() {
   const [success, setSuccess] = useState('')
   const [lastDelivery, setLastDelivery] = useState<EmailDeliveryMeta | null>(null)
 
-  const canManageSettings = permissions.includes('*') || permissions.includes('manage_settings')
+  const isOwner = permissions.includes('*')
 
   useEffect(() => {
     if (!loading && !authenticated) {
@@ -87,7 +87,7 @@ export default function EmailDeliverySettingsPage() {
       return
     }
 
-    if (!authenticated || !canManageSettings) {
+    if (!authenticated || !isOwner) {
       return
     }
 
@@ -115,9 +115,9 @@ export default function EmailDeliverySettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [authenticated, canManageSettings, loading])
+  }, [authenticated, isOwner, loading])
 
-  const loadingData = authenticated && canManageSettings && !statusLoaded
+  const loadingData = authenticated && isOwner && !statusLoaded
 
   async function handleRefreshStatus() {
     try {
@@ -228,14 +228,13 @@ export default function EmailDeliverySettingsPage() {
     return null
   }
 
-  if (!canManageSettings) {
+  if (!isOwner) {
     return (
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
           <p className="mt-2 text-sm text-amber-800">
-            Cette page est reservee au Owner ou aux admins disposant de la permission
-            manage_settings.
+            Cette page est reservee au Owner.
           </p>
           <Link
             href="/"

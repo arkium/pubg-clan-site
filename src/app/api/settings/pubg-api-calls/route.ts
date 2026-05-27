@@ -6,11 +6,7 @@ import { getPubgApiRateLimitBounds, getPubgApiRateLimitRpm } from '@/lib/pubg-ra
 import { getMemberPermissionKeys } from '@/lib/role-service'
 
 function canReadSettings(permissions: string[]) {
-  return (
-    permissions.includes('*') ||
-    permissions.includes('manage_settings') ||
-    permissions.includes('manage_members')
-  )
+  return permissions.includes('*')
 }
 
 export async function GET(request: Request) {

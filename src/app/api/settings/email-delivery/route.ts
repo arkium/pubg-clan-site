@@ -16,15 +16,11 @@ const TestEmailSchema = z.object({
 })
 
 function canReadEmailDeliveryStatus(permissions: string[]) {
-  return (
-    permissions.includes('*') ||
-    permissions.includes('manage_settings') ||
-    permissions.includes('manage_members')
-  )
+  return permissions.includes('*')
 }
 
 function canRunEmailDeliveryTest(permissions: string[]) {
-  return permissions.includes('*') || permissions.includes('manage_settings')
+  return permissions.includes('*')
 }
 
 const REQUIRED_EMAIL_ENV_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
+import ClanSectionNav from '@/components/ClanSectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type LifetimeStats = {
@@ -343,20 +344,7 @@ export default function ClanStatsPage() {
               {data?.clan?.name ?? `Clan #${clanId}`} | Clan
             </h1>
             <p className="text-sm text-gray-600">Vue clan complete avec top 3 pour chaque statistique.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/clans/${clanId}/matches`}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Matchs
-            </Link>
-            <Link
-              href={`/clans/${clanId}/leaderboard`}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Classement
-            </Link>
+            <ClanSectionNav clanId={clanId} />
           </div>
         </div>
       </header>

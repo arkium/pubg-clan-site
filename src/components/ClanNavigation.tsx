@@ -207,6 +207,30 @@ function renderNavIcon(label: string) {
   )
 }
 
+function renderThemeIcon(theme: AppTheme) {
+  const iconClass = 'h-4 w-4 shrink-0'
+
+  if (theme === 'light') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M10 4.25a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM9.25 1.5h1.5v2.25h-1.5V1.5Zm0 14.75h1.5V18.5h-1.5v-2.25ZM1.5 9.25h2.25v1.5H1.5v-1.5Zm14.75 0h2.25v1.5h-2.25v-1.5Zm-11.5-6.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm9.1 9.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm-9.1 1.59 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Zm9.1-9.1 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Z"
+        />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M13.8 3.2a7.25 7.25 0 1 0 3 13.7 7.6 7.6 0 0 1-3-13.7ZM10 15.5A5.5 5.5 0 1 1 10 4.5a6.75 6.75 0 0 0 0 11Z"
+      />
+    </svg>
+  )
+}
+
 function isAppTheme(value: string): value is AppTheme {
   return value === 'light' || value === 'dark'
 }
@@ -233,7 +257,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   })
   const [cronPending, setCronPending] = useState<CronAction | null>(null)
   const [cronMessage, setCronMessage] = useState<string | null>(null)
-  const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('completed')
+  const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('first_run')
   const [clanImageUrl, setClanImageUrl] = useState('/pubg.png')
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -312,46 +336,17 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
   const canClearClan = hasWildcard || permissionSet.has('manage_settings') || permissionSet.has('manage_roles')
   const isOwner = hasWildcard
-  const canSwitchClan = canManageMembers || canManageRoles || canManageSettings || isOwner
+  const canSwitchClan = isOwner
 
   const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
 
   const primaryLinks: NavItem[] = [
     { label: 'Dashboard', href: dashboardHref, tone: 'blue' },
-    ...(clanId
-      ? [
-          {
-            label: 'Matchs',
-            href: `/clans/${clanId}/matches`,
-            tone: 'brand' as const,
-          },
-          {
-            label: 'Clan',
-            href: `/clans/${clanId}/stats`,
-            tone: 'sky' as const,
-          },
-          ...(canViewLeaderboard
-            ? [
-                {
-                  label: 'Classement',
-                  href: `/clans/${clanId}/leaderboard`,
-                  tone: 'blue' as const,
-                },
-              ]
-            : []),
-          { label: 'Joueurs', href: '/members', tone: 'sky' as const },
-          ...(canViewReports
-            ? [
-                {
-                  label: 'Rapports',
-                  href: `/clans/${clanId}/reports`,
-                  tone: 'emerald' as const,
-                },
-              ]
-            : []),
-        ]
-      : []),
-    ...(!clanId ? [{ label: 'Joueurs', href: '/members', tone: 'sky' as const }] : []),
+    {
+      label: 'Mon clan',
+      href: clanId ? `/clans/${clanId}/members` : '/members',
+      tone: 'sky',
+    },
     { label: 'Mon compte', href: '/account', tone: 'neutral' },
   ]
 
@@ -363,29 +358,19 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             href: '/members/add',
             tone: 'brand' as const,
           },
-          {
-            label: 'Gerer les joueurs',
-            href: '/members/manage',
-            tone: 'neutral' as const,
-          },
         ]
       : []),
-    ...(clanId && canManageRoles
+    ...((clanId && (canManageMembers || canManageRoles))
       ? [
           {
-            label: 'Parametres roles',
+            label: 'Joueurs et rôles',
             href: `/clans/${clanId}/settings/members`,
-            tone: 'neutral' as const,
+            tone: 'brand' as const,
           },
         ]
       : []),
     ...(canManageSettings
       ? [
-          {
-            label: 'Monitoring PUBG API',
-            href: '/settings/pubg-api',
-            tone: 'neutral' as const,
-          },
           {
             label: 'Alias cartes PUBG',
             href: '/settings/map-labels',
@@ -394,20 +379,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           {
             label: 'Accueil login',
             href: '/settings/login-welcome',
-            tone: 'neutral' as const,
-          },
-          {
-            label: 'Test email',
-            href: '/settings/email-delivery',
-            tone: 'neutral' as const,
-          },
-        ]
-      : []),
-    ...(canSwitchClan
-      ? [
-          {
-            label: 'Changer de clan',
-            href: '/clans',
             tone: 'neutral' as const,
           },
         ]
@@ -611,13 +582,13 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
       let payload = null as
         | {
-            ok?: boolean
-            partial?: boolean
-            message?: string
-            warning?: string
-            error?: string
-          }
-        | null
+          ok?: boolean
+          partial?: boolean
+          message?: string
+          warning?: string
+          error?: string
+        }
+        | null;
       let rawResponseText = ''
 
       try {
@@ -713,6 +684,47 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     )
   }
 
+  function renderThemeToggle() {
+    return (
+      <div
+        className={cx(
+          'inline-flex items-center gap-1 rounded-full border p-1',
+          appTheme === 'dark'
+            ? 'border-slate-700 bg-slate-950/80 shadow-inner shadow-black/10'
+            : 'border-slate-200 bg-white/90 shadow-sm'
+        )}
+        role="group"
+        aria-label="Sélecteur de thème"
+      >
+        {(['light', 'dark'] as const).map((option) => {
+          const active = appTheme === option
+
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setAppTheme(option)}
+              aria-pressed={active}
+              aria-label={option === 'light' ? 'Passer au thème clair' : 'Passer au thème sombre'}
+              className={cx(
+                'inline-flex h-9 w-9 items-center justify-center rounded-full transition',
+                active
+                  ? option === 'light'
+                    ? 'bg-sky-100 text-sky-700 shadow-sm'
+                    : 'bg-slate-800 text-amber-300 shadow-sm'
+                  : appTheme === 'dark'
+                    ? 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+              )}
+            >
+              {renderThemeIcon(option)}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   if (setupState !== 'completed' || !authenticated) {
     return null
   }
@@ -731,28 +743,28 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           )}
         >
           <div className={cx('border-b p-4', appTheme === 'dark' ? 'border-slate-800/80' : 'border-slate-200')}>
-            <p className={cx('text-[11px] font-semibold uppercase tracking-[0.22em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-              Clan control room
-            </p>
-            <div className="mt-3 flex items-center gap-3">
-              <img
-                src={clanImageUrl}
-                alt="Image du clan"
-                className={cx('h-12 w-12 shrink-0 rounded-2xl border object-cover', appTheme === 'dark' ? 'border-slate-700' : 'border-slate-300')}
-                onError={(event) => {
-                  const target = event.currentTarget
-                  if (target.src.endsWith('/pubg.png')) {
-                    return
-                  }
-                  target.src = '/pubg.png'
-                }}
-              />
-              <div className="min-w-0">
-                <p className={cx('truncate text-sm font-semibold', appTheme === 'dark' ? 'text-slate-100' : 'text-slate-900')}>
-                  {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionne'}
-                </p>
-                <p className={cx('text-xs', appTheme === 'dark' ? 'text-emerald-300' : 'text-emerald-700')}>Connecte</p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <img
+                  src={clanImageUrl}
+                  alt="Image du clan"
+                  className={cx('h-12 w-12 shrink-0 rounded-2xl border object-cover', appTheme === 'dark' ? 'border-slate-700' : 'border-slate-300')}
+                  onError={(event) => {
+                    const target = event.currentTarget
+                    if (target.src.endsWith('/pubg.png')) {
+                      return
+                    }
+                    target.src = '/pubg.png'
+                  }}
+                />
+                <div className="min-w-0">
+                  <p className={cx('truncate text-sm font-semibold', appTheme === 'dark' ? 'text-slate-100' : 'text-slate-900')}>
+                    {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionne'}
+                  </p>
+                  <p className={cx('text-xs', appTheme === 'dark' ? 'text-emerald-300' : 'text-emerald-700')}>Connecte</p>
+                </div>
               </div>
+              {renderThemeToggle()}
             </div>
           </div>
 
@@ -764,102 +776,22 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item))}</nav>
             </section>
 
-            <section className={cx('rounded-xl border p-3', appTheme === 'dark' ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-slate-50')}>
-              <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                Quick actions
-              </p>
-              <div className="grid grid-cols-1 gap-2">
-                <Link
-                  href={dashboardHref}
-                  className={cx(
-                    'rounded-lg px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark' ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  )}
-                >
-                  Ouvrir dashboard
-                </Link>
-                <Link
-                  href="/members"
-                  className={cx(
-                    'rounded-lg px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark' ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  )}
-                >
-                  Voir les joueurs
-                </Link>
-                <Link
-                  href="/account"
-                  className={cx(
-                    'rounded-lg px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark' ? 'text-slate-300 hover:bg-white/5 hover:text-white' : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                  )}
-                >
-                  Parametres compte
-                </Link>
-              </div>
-            </section>
-
-            <section className={cx('rounded-xl border p-3', appTheme === 'dark' ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-slate-50')}>
-              <label
-                htmlFor="app-theme"
-                className={cx('mb-2 block text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}
-              >
-                Theme global
-              </label>
-              <select
-                id="app-theme"
-                value={appTheme}
-                onChange={(event) => setAppTheme(event.target.value as AppTheme)}
-                className={cx(
-                  'min-h-10 w-full rounded-xl px-3 py-2 text-sm font-medium',
-                  appTheme === 'dark'
-                    ? 'border border-slate-700 bg-slate-950 text-slate-200'
-                    : 'border border-slate-300 bg-white text-slate-800'
-                )}
-              >
-                {APP_THEME_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </section>
-
             {showAdminMenu ? (
               <section>
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Admin
                 </p>
                 <div className="grid grid-cols-1 gap-2">{adminLinks.map((item) => renderSubmenuLink(item))}</div>
-                {clanId && canClearClan ? (
-                  <button
-                    type="button"
-                    onClick={clearClanId}
-                    className={cx(
-                      'mt-2 w-full rounded-lg border px-3 py-2 text-sm font-semibold transition',
-                      appTheme === 'dark'
-                        ? 'border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20'
-                        : 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    )}
-                  >
-                    Effacer clan
-                  </button>
-                ) : null}
               </section>
             ) : null}
 
             {showOwnerMenu ? (
-              <section
-                className={cx(
-                  'rounded-xl border p-3',
-                  appTheme === 'dark' ? 'border-amber-300/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50'
-                )}
-              >
-                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-wide', appTheme === 'dark' ? 'text-amber-100' : 'text-amber-800')}>
-                  Owner - Cron
+              <section>
+                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                  Owner
                 </p>
                 <Link
-                  href={`/clans/${clanId}/settings/cron`}
+                  href="/settings/cron"
                   className={cx(
                     'mb-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
                     appTheme === 'dark'
@@ -869,61 +801,39 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 >
                   Ouvrir Ops Cron
                 </Link>
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('sync_matches')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Sync matchs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('sync_stats')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Sync stats
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('generate_weekly_report')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Rapport hebdo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('generate_monthly_report')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Rapport mensuel
-                  </button>
-                </div>
-                {cronMessage ? <p className={cx('mt-2 text-xs', appTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>{cronMessage}</p> : null}
+                <Link
+                  href="/settings/email-delivery"
+                  className={cx(
+                    'block rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    appTheme === 'dark'
+                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  )}
+                >
+                  Test email
+                </Link>
+                <Link
+                  href="/settings/pubg-api"
+                  className={cx(
+                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    appTheme === 'dark'
+                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  )}
+                >
+                  Monitoring PUBG API
+                </Link>
+                <Link
+                  href="/clans"
+                  className={cx(
+                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    appTheme === 'dark'
+                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  )}
+                >
+                  Changer de clan
+                </Link>
               </section>
             ) : null}
           </div>
@@ -944,17 +854,27 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                   >
                     Menu
                   </button>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionne'}
-                    </p>
-                    {loading ? (
-                      <p className="text-xs text-slate-500">Verification de session...</p>
-                    ) : authenticated ? (
-                      <p className="text-xs text-emerald-700">Session active</p>
-                    ) : (
-                      <p className="text-xs text-amber-700">Session non connectee</p>
-                    )}
+                  <div className="flex min-w-0 items-center gap-2 md:hidden">
+                    <img
+                      src={clanImageUrl}
+                      alt="Logo du clan"
+                      className="h-8 w-8 rounded-lg border border-slate-200 object-cover"
+                      onError={(event) => {
+                        ;(event.currentTarget as HTMLImageElement).src = '/pubg.png'
+                      }}
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionne'}
+                      </p>
+                      {loading ? (
+                        <p className="text-xs text-slate-500">Verification de session...</p>
+                      ) : authenticated ? (
+                        <p className="text-xs text-emerald-700">Session active</p>
+                      ) : (
+                        <p className="text-xs text-amber-700">Session non connectee</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1000,7 +920,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 </div>
               </div>
 
-              {cronMessage ? <p className="mt-2 text-xs text-slate-600 lg:hidden">{cronMessage}</p> : null}
             </div>
           </header>
 
@@ -1039,19 +958,22 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('truncate text-sm font-semibold', appTheme === 'dark' ? 'text-slate-100' : 'text-slate-900')}>Navigation clan</p>
                 <p className={cx('text-xs', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Tous les acces depuis mobile</p>
               </div>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                onClick={closeMobileDrawer}
-                className={cx(
-                  'inline-flex min-h-9 items-center justify-center rounded-lg border px-2 py-1 text-sm font-semibold',
-                  appTheme === 'dark'
-                    ? 'border-slate-700 bg-slate-900 text-slate-100'
-                    : 'border-slate-300 bg-white text-slate-700'
-                )}
-              >
-                Fermer
-              </button>
+              <div className="flex items-center gap-2">
+                {renderThemeToggle()}
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={closeMobileDrawer}
+                  className={cx(
+                    'inline-flex min-h-9 items-center justify-center rounded-lg border px-2 py-1 text-sm font-semibold',
+                    appTheme === 'dark'
+                      ? 'border-slate-700 bg-slate-900 text-slate-100'
+                      : 'border-slate-300 bg-white text-slate-700'
+                  )}
+                >
+                  Fermer
+                </button>
+              </div>
             </div>
 
             <section>
@@ -1061,70 +983,22 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item, true))}</nav>
             </section>
 
-            <section className={cx('mt-5 rounded-xl border p-3', appTheme === 'dark' ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-slate-50')}>
-              <label
-                htmlFor="app-theme-mobile"
-                className={cx('mb-2 block text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}
-              >
-                Theme global
-              </label>
-              <select
-                id="app-theme-mobile"
-                value={appTheme}
-                onChange={(event) => setAppTheme(event.target.value as AppTheme)}
-                className={cx(
-                  'min-h-10 w-full rounded-xl px-3 py-2 text-sm font-medium',
-                  appTheme === 'dark'
-                    ? 'border border-slate-700 bg-slate-950 text-slate-200'
-                    : 'border border-slate-300 bg-white text-slate-800'
-                )}
-              >
-                {APP_THEME_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </section>
-
             {showAdminMenu ? (
               <section className="mt-5">
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Admin
                 </p>
                 <div className="grid grid-cols-1 gap-2">{adminLinks.map((item) => renderSubmenuLink(item, true))}</div>
-                {clanId && canClearClan ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearClanId()
-                      closeMobileDrawer()
-                    }}
-                    className={cx(
-                      'mt-2 w-full rounded-lg border px-3 py-2 text-sm font-semibold transition',
-                      appTheme === 'dark'
-                        ? 'border-rose-400/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20'
-                        : 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    )}
-                  >
-                    Effacer clan
-                  </button>
-                ) : null}
               </section>
             ) : null}
 
             {showOwnerMenu ? (
-              <section
-                className={cx(
-                  'mt-5 rounded-xl border p-3',
-                  appTheme === 'dark' ? 'border-amber-300/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50'
-                )}
-              >
-                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-wide', appTheme === 'dark' ? 'text-amber-100' : 'text-amber-800')}>
-                  Owner - Cron
+              <section className="mt-5">
+                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                  Owner
                 </p>
                 <Link
-                  href={`/clans/${clanId}/settings/cron`}
+                  href="/settings/cron"
                   onClick={closeMobileDrawer}
                   className={cx(
                     'mb-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
@@ -1135,61 +1009,42 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 >
                   Ouvrir Ops Cron
                 </Link>
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('sync_matches')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Sync matchs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('sync_stats')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Sync stats
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('generate_weekly_report')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Rapport hebdo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCronAction('generate_monthly_report')}
-                    disabled={cronPending !== null}
-                    className={cx(
-                      'rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
-                      appTheme === 'dark'
-                        ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    )}
-                  >
-                    Rapport mensuel
-                  </button>
-                </div>
-                {cronMessage ? <p className={cx('mt-2 text-xs', appTheme === 'dark' ? 'text-slate-300' : 'text-slate-600')}>{cronMessage}</p> : null}
+                <Link
+                  href="/settings/email-delivery"
+                  onClick={closeMobileDrawer}
+                  className={cx(
+                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    appTheme === 'dark'
+                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  )}
+                >
+                  Test email
+                </Link>
+                <Link
+                  href="/settings/pubg-api"
+                  onClick={closeMobileDrawer}
+                  className={cx(
+                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    appTheme === 'dark'
+                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  )}
+                >
+                  Monitoring PUBG API
+                </Link>
+                <Link
+                  href="/clans"
+                  onClick={closeMobileDrawer}
+                  className={cx(
+                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
+                    appTheme === 'dark'
+                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
+                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
+                  )}
+                >
+                  Changer de clan
+                </Link>
               </section>
             ) : null}
           </aside>

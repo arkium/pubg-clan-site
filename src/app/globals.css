@@ -419,6 +419,135 @@ html[data-app-theme='dark'] :where([class*='hover:bg-amber-50']:hover) {
   background-color: rgb(120 53 15 / 0.45) !important;
 }
 
+.member-role-badge,
+.member-access-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+}
+
+.member-role-badge--owner {
+  border-color: rgb(244 63 94 / 0.36);
+  background-color: rgb(251 207 232 / 0.72);
+  color: rgb(136 19 55 / 1);
+}
+
+.member-role-badge--admin {
+  border-color: rgb(14 165 233 / 0.38);
+  background-color: rgb(186 230 253 / 0.74);
+  color: rgb(12 74 110 / 1);
+}
+
+.member-role-badge--moderator {
+  border-color: rgb(245 158 11 / 0.4);
+  background-color: rgb(254 240 138 / 0.76);
+  color: rgb(133 77 14 / 1);
+}
+
+.member-role-badge--member {
+  border-color: rgb(16 185 129 / 0.38);
+  background-color: rgb(167 243 208 / 0.75);
+  color: rgb(6 95 70 / 1);
+}
+
+.member-role-badge--default {
+  border-color: rgb(148 163 184 / 0.45);
+  background-color: rgb(226 232 240 / 0.82);
+  color: rgb(30 41 59 / 1);
+}
+
+.member-access-badge--active {
+  border-color: rgb(16 185 129 / 0.4);
+  background-color: rgb(167 243 208 / 0.78);
+  color: rgb(6 95 70 / 1);
+}
+
+.member-access-badge--inactive {
+  border-color: rgb(100 116 139 / 0.48);
+  background-color: rgb(226 232 240 / 0.84);
+  color: rgb(30 41 59 / 1);
+}
+
+html[data-app-theme='dark'] .member-role-badge--owner {
+  border-color: rgb(251 113 133 / 0.6);
+  background-color: rgb(190 24 93 / 0.34);
+  color: rgb(255 228 230 / 1);
+}
+
+html[data-app-theme='dark'] .member-role-badge--admin {
+  border-color: rgb(56 189 248 / 0.62);
+  background-color: rgb(3 105 161 / 0.35);
+  color: rgb(224 242 254 / 1);
+}
+
+html[data-app-theme='dark'] .member-role-badge--moderator {
+  border-color: rgb(251 191 36 / 0.62);
+  background-color: rgb(146 64 14 / 0.34);
+  color: rgb(254 243 199 / 1);
+}
+
+html[data-app-theme='dark'] .member-role-badge--member {
+  border-color: rgb(52 211 153 / 0.62);
+  background-color: rgb(6 95 70 / 0.4);
+  color: rgb(209 250 229 / 1);
+}
+
+html[data-app-theme='dark'] .member-role-badge--default {
+  border-color: rgb(148 163 184 / 0.62);
+  background-color: rgb(51 65 85 / 0.62);
+  color: rgb(226 232 240 / 1);
+}
+
+html[data-app-theme='dark'] .member-access-badge--active {
+  border-color: rgb(52 211 153 / 0.65);
+  background-color: rgb(6 95 70 / 0.42);
+  color: rgb(209 250 229 / 1);
+}
+
+html[data-app-theme='dark'] .member-access-badge--inactive {
+  border-color: rgb(148 163 184 / 0.68);
+  background-color: rgb(51 65 85 / 0.68);
+  color: rgb(226 232 240 / 1);
+}
+
+.clan-section-nav-link {
+  border-color: rgb(229 231 235 / 1);
+  background-color: rgb(255 255 255 / 1);
+  color: rgb(55 65 81 / 1);
+}
+
+.clan-section-nav-link:hover {
+  background-color: rgb(249 250 251 / 1);
+}
+
+.clan-section-nav-link--active {
+  border-color: rgb(30 64 175 / 1);
+  background-color: rgb(30 64 175 / 1);
+  color: rgb(255 255 255 / 1);
+}
+
+html[data-app-theme='dark'] .clan-section-nav-link {
+  border-color: rgb(71 85 105 / 1);
+  background-color: rgb(15 23 42 / 1);
+  color: rgb(203 213 225 / 1);
+}
+
+html[data-app-theme='dark'] .clan-section-nav-link:hover {
+  background-color: rgb(30 41 59 / 1);
+  color: rgb(226 232 240 / 1);
+}
+
+html[data-app-theme='dark'] .clan-section-nav-link--active {
+  border-color: rgb(125 211 252 / 0.75);
+  background-color: rgb(12 74 110 / 0.88);
+  color: rgb(240 249 255 / 1);
+}
+
 html[data-app-theme='dark'] :where([class*='hover:bg-rose-50']:hover) {
   background-color: rgb(136 19 55 / 0.45) !important;
 }

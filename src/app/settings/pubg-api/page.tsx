@@ -91,9 +91,7 @@ export default function PubgApiSettingsPage() {
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] = useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(25)
 
-  const canReadSettings =
-    permissions.includes('*') || permissions.includes('manage_settings') || permissions.includes('manage_members')
-  const canWriteSettings = permissions.includes('*') || permissions.includes('manage_settings')
+  const isOwner = permissions.includes('*')
 
   useEffect(() => {
     if (!loading && !authenticated) {
@@ -102,7 +100,7 @@ export default function PubgApiSettingsPage() {
   }, [authenticated, loading, router])
 
   useEffect(() => {
-    if (loading || !authenticated || !canReadSettings) {
+    if (loading || !authenticated || !isOwner) {
       return
     }
 
@@ -146,7 +144,7 @@ export default function PubgApiSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [authenticated, canReadSettings, errorsOnly, historyPage, historyPageSize, loading, reloadToken, windowMinutes])
+  }, [authenticated, errorsOnly, historyPage, historyPageSize, isOwner, loading, reloadToken, windowMinutes])
 
   const chartMax = useMemo(() => {
     const values = payload?.series.map((item) => item.total) ?? []
@@ -157,7 +155,7 @@ export default function PubgApiSettingsPage() {
   async function handleSaveRpm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!canWriteSettings) {
+    if (!isOwner) {
       return
     }
 
@@ -204,13 +202,13 @@ export default function PubgApiSettingsPage() {
     return null
   }
 
-  if (!canReadSettings) {
+  if (!isOwner) {
     return (
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
           <p className="mt-2 text-sm text-amber-800">
-            Cette page est reservee aux administrateurs disposant des droits adequats.
+            Cette page est reservee au Owner.
           </p>
           <Link
             href="/"

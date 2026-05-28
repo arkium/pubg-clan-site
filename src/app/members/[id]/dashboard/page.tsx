@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 
 import { usePlayerDashboard, usePlayerMatches } from '@/hooks/usePlayerDashboard'
@@ -12,13 +12,11 @@ import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { DashboardPeriod } from '@/types/dashboard'
 
 export default function DashboardPage() {
   const params = useParams()
   const memberId = params?.id ? Number(params.id) : null
-  const { clanId } = useSelectedClan()
 
   const [period, setPeriod] = useState<DashboardPeriod>('week')
   const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
@@ -64,23 +62,15 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Content */}
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
-        <MemberPageHeader
-          title="Tableau de bord"
-          subtitle="Vue synthese des performances du joueur."
-          backLabel="Joueurs"
-          actions={
-            clanId ? (
-              <Link
-                href={`/clans/${clanId}/matches`}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Matchs
-              </Link>
-            ) : null
-          }
-        />
-
-        <MemberSectionNav memberId={memberId} />
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <MemberPageHeader
+            title="Tableau de bord"
+            subtitle="Vue synthese des performances du joueur."
+            showBackButton={false}
+            framed={false}
+          />
+          <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+        </section>
 
         {/* Stats principales */}
         <PlayerStats

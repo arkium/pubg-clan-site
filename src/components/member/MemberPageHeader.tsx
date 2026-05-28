@@ -8,11 +8,20 @@ type MemberPageHeaderProps = {
   subtitle?: string
   actions?: ReactNode
   backLabel?: string
+  showBackButton?: boolean
+  framed?: boolean
 }
 
-export default function MemberPageHeader({ title, subtitle, actions, backLabel = 'Retour aux membres' }: MemberPageHeaderProps) {
+export default function MemberPageHeader({
+  title,
+  subtitle,
+  actions,
+  backLabel = 'Retour aux membres',
+  showBackButton = true,
+  framed = true,
+}: MemberPageHeaderProps) {
   return (
-    <header className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+    <header className={framed ? 'rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm' : 'px-1 py-1'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
@@ -21,12 +30,14 @@ export default function MemberPageHeader({ title, subtitle, actions, backLabel =
 
         <div className="flex flex-wrap items-center gap-2">
           {actions}
-          <Link
-            href="/members"
-            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            {backLabel}
-          </Link>
+          {showBackButton ? (
+            <Link
+              href="/members"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {backLabel}
+            </Link>
+          ) : null}
         </div>
       </div>
     </header>

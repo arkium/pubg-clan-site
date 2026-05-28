@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import MemberLifetimeStatsPanel from '@/components/MemberLifetimeStatsPanel'
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import NotificationBell from '@/components/NotificationBell'
 
 type LifetimeStats = {
   combat: {
@@ -180,15 +179,15 @@ export default function MemberStatsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <div className="mb-6">
+      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
           title="Statistiques globales"
           subtitle="Vue complete des statistiques PUBG cumulees du joueur."
-          actions={<NotificationBell memberId={memberId} />}
+          showBackButton={false}
+          framed={false}
         />
-      </div>
-
-      <MemberSectionNav memberId={memberId} />
+        <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+      </section>
 
       {statsError && lifetimeStats ? (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
@@ -204,8 +203,8 @@ export default function MemberStatsPage() {
               Classements top 3 du joueur sur les metriques globales du clan.
             </p>
           </div>
-          <p className="rounded-full border border-amber-200 bg-white px-3 py-1 text-sm font-semibold text-gray-800 shadow-sm">
-            Total: {medalsByRank[1].length + medalsByRank[2].length + medalsByRank[3].length}
+          <p className="inline-flex min-h-10 min-w-[6.5rem] items-center justify-center rounded-full border border-amber-200 bg-white px-4 py-2 text-center text-base font-semibold text-gray-800 shadow-sm">
+            x{medalsByRank[1].length + medalsByRank[2].length + medalsByRank[3].length}
           </p>
         </div>
 

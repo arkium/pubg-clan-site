@@ -238,7 +238,7 @@ function isAppTheme(value: string): value is AppTheme {
 export default function ClanNavigation({ children }: ClanNavigationProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { clanId, clearClanId, setClanId } = useSelectedClan()
+  const { clanId, clearClanId } = useSelectedClan()
   const { loading, authenticated, email, activeMemberId, permissions, members, refresh } = useAuthSession()
   const [clan, setClan] = useState<ClanSummary | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -257,8 +257,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   })
   const [cronPending, setCronPending] = useState<CronAction | null>(null)
   const [cronMessage, setCronMessage] = useState<string | null>(null)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('first_run')
   const [clanImageUrl, setClanImageUrl] = useState('/pubg.png')
+  const [playerAvatarUrl, setPlayerAvatarUrl] = useState<string | null>(null)
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
@@ -317,6 +319,36 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!activeMemberId) {
+      setPlayerAvatarUrl(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadPlayerAvatar() {
+      try {
+        const response = await fetch(`/api/members/${activeMemberId}`, { cache: 'no-store' })
+        const payload = (await response.json().catch(() => null)) as { avatarUrl?: string | null } | null
+
+        if (!cancelled) {
+          setPlayerAvatarUrl(response.ok ? payload?.avatarUrl ?? null : null)
+        }
+      } catch {
+        if (!cancelled) {
+          setPlayerAvatarUrl(null)
+        }
+      }
+    }
+
+    void loadPlayerAvatar()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeMemberId])
 
   useEffect(() => {
     window.localStorage.setItem(APP_THEME_STORAGE_KEY, appTheme)
@@ -542,25 +574,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     }
   }
 
-  async function handleSwitchMember(memberId: number) {
-    const response = await fetch('/api/auth/switch-member', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ memberId }),
-    })
-
-    if (!response.ok) {
-      return
-    }
-
-    const selected = members.find((entry) => entry.memberId === memberId)
-    if (selected?.clanId) {
-      setClanId(selected.clanId)
-    }
-
-    await refresh()
+  async function confirmLogout() {
+    setShowLogoutConfirm(false)
+    await handleLogout()
   }
 
   async function handleCronAction(action: CronAction) {
@@ -848,13 +864,20 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                     ref={menuButtonRef}
                     type="button"
                     onClick={openMobileDrawer}
-                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 lg:hidden"
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 lg:hidden"
                     aria-expanded={mobileOpen}
                     aria-controls="mobile-clan-nav"
+                    aria-label="Ouvrir la navigation"
+                    title="Ouvrir la navigation"
                   >
-                    Menu
+                    <svg viewBox="0 0 20 20" className="h-6 w-6" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v1A1.5 1.5 0 0 1 15.5 8h-11A1.5 1.5 0 0 1 3 6.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 8h11A1.5 1.5 0 0 1 17 9.5v1A1.5 1.5 0 0 1 15.5 12h-11A1.5 1.5 0 0 1 3 10.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 12h11A1.5 1.5 0 0 1 17 13.5v1A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-1Z"
+                      />
+                    </svg>
                   </button>
-                  <div className="flex min-w-0 items-center gap-2 md:hidden">
+                  <div className="flex min-w-0 items-center gap-2 lg:hidden">
                     <img
                       src={clanImageUrl}
                       alt="Logo du clan"
@@ -879,44 +902,41 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <select
-                    value={activeMemberId ?? ''}
-                    onChange={(event) => {
-                      const memberId = Number(event.target.value)
-                      if (Number.isInteger(memberId) && memberId > 0) {
-                        void handleSwitchMember(memberId)
-                      }
-                    }}
-                    className="min-h-10 min-w-32 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700"
-                  >
-                    <option value="" disabled>
-                      Membre actif
-                    </option>
-                    {members.map((member) => (
-                      <option key={member.memberId} value={member.memberId}>
-                        {member.displayName}
-                      </option>
-                    ))}
-                  </select>
-
                   <div className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
-                    <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
-                      {playerInitial}
+                    <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-emerald-600 text-xs font-bold text-white">
+                      {playerAvatarUrl ? (
+                        <img
+                          src={playerAvatarUrl}
+                          alt={`${playerName} avatar`}
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <span>{playerInitial}</span>
+                      )}
                       <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-400" />
                     </span>
                     <span className="hidden text-left sm:block">
                       <span className="block max-w-36 truncate text-xs font-semibold text-emerald-900">{playerName}</span>
                       <span className="block text-[11px] font-medium text-emerald-700">Connecte</span>
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoutConfirm(true)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800"
+                      aria-label="Se deconnecter"
+                      title="Se deconnecter"
+                    >
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M8.5 3.5A1.5 1.5 0 0 0 7 5v2h1.5V5h6v10h-6v-2H7v2a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 16 15V5a1.5 1.5 0 0 0-1.5-1.5h-6Zm-1.97 4.53-2 2a.75.75 0 0 0 0 1.06l2 2 1.06-1.06L6.89 11H12V9.5H6.89l1.7-1.69-1.06-1.06Z"
+                        />
+                      </svg>
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleLogout()}
-                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Se deconnecter
-                  </button>
                 </div>
               </div>
 
@@ -926,6 +946,34 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <main className="flex-1">{children}</main>
         </div>
       </div>
+
+      {showLogoutConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-slate-900">Confirmer la déconnexion</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Voulez-vous vraiment déconnecter le joueur {playerName} ?
+            </p>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmLogout()}
+                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700"
+              >
+                Se déconnecter
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {mobilePanelVisible ? (
         <div
@@ -954,26 +1002,28 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             )}
           >
             <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className={cx('truncate text-sm font-semibold', appTheme === 'dark' ? 'text-slate-100' : 'text-slate-900')}>Navigation clan</p>
-                <p className={cx('text-xs', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>Tous les acces depuis mobile</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {renderThemeToggle()}
-                <button
-                  ref={closeButtonRef}
-                  type="button"
-                  onClick={closeMobileDrawer}
-                  className={cx(
-                    'inline-flex min-h-9 items-center justify-center rounded-lg border px-2 py-1 text-sm font-semibold',
-                    appTheme === 'dark'
-                      ? 'border-slate-700 bg-slate-900 text-slate-100'
-                      : 'border-slate-300 bg-white text-slate-700'
-                  )}
-                >
-                  Fermer
-                </button>
-              </div>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={closeMobileDrawer}
+                className={cx(
+                  'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition',
+                  appTheme === 'dark'
+                    ? 'bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900'
+                )}
+                aria-label="Fermer le menu"
+                title="Fermer le menu"
+              >
+                <svg viewBox="0 0 20 20" className="h-5 w-5" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M5.22 4.28a.75.75 0 0 0-1.06 1.06L8.94 10l-4.78 4.66a.75.75 0 1 0 1.06 1.06L10 11.06l4.66 4.66a.75.75 0 0 0 1.06-1.06L11.06 10l4.66-4.66a.75.75 0 0 0-1.06-1.06L10 8.94 5.22 4.28Z"
+                  />
+                </svg>
+              </button>
+
+              <div className="flex min-w-0 items-center justify-end gap-2">{renderThemeToggle()}</div>
             </div>
 
             <section>

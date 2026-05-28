@@ -6,7 +6,6 @@ import { useParams } from 'next/navigation'
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MemberSectionNav from '@/components/MemberSectionNav'
-import NotificationBell from '@/components/NotificationBell'
 import type { DashboardPeriod, MatchesResponse } from '@/types/dashboard'
 
 interface MatchInfo {
@@ -272,15 +271,15 @@ export default function MatchesPage() {
   return (
     <main className="min-h-screen bg-gray-100 px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div>
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <MemberPageHeader
             title="Matchs du joueur"
             subtitle="Matchs importes deja stockes et recuperation manuelle des derniers matchs PUBG."
-            actions={<NotificationBell memberId={memberId} />}
+            showBackButton={false}
+            framed={false}
           />
-        </div>
-
-        <MemberSectionNav memberId={memberId} />
+          <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+        </section>
 
         {error ? (
           <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>

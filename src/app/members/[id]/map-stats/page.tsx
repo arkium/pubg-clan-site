@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import NotificationBell from '@/components/NotificationBell'
+import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -467,86 +467,218 @@ export default function MemberMapStatsPage() {
       ? `Team Play ${bestMode === 'duo' ? 'Duo' : bestMode === 'trio' ? 'Trio' : 'Squad'}`
       : 'Team Play Duo/Trio/Squad'
 
+  const scopeLabelMap: Record<Scope, string> = {
+    self: 'Le joueur',
+    member: 'Un joueur specifique',
+    clan: 'Le clan',
+    best: 'Son meilleur duo/trio/squad',
+  }
+
+  const scopeItems: MobileDropdownNavItem[] = [
+    {
+      key: 'self',
+      label: 'Le joueur',
+      active: scope === 'self',
+      onSelect: () => {
+        setScope('self')
+        setTargetMemberId(null)
+      },
+    },
+    {
+      key: 'member',
+      label: 'Un joueur specifique',
+      active: scope === 'member',
+      onSelect: () => {
+        setScope('member')
+      },
+    },
+    {
+      key: 'clan',
+      label: 'Le clan',
+      active: scope === 'clan',
+      onSelect: () => {
+        setScope('clan')
+        setTargetMemberId(null)
+      },
+    },
+    {
+      key: 'best',
+      label: 'Son meilleur duo/trio/squad',
+      active: scope === 'best',
+      onSelect: () => {
+        setScope('best')
+        setTargetMemberId(null)
+      },
+    },
+  ]
+
+  const periodLabelMap: Record<Period, string> = {
+    week: '7 jours',
+    month: '30 jours',
+    all: 'Tout',
+  }
+
+  const periodItems: MobileDropdownNavItem[] = [
+    {
+      key: 'week',
+      label: '7 jours',
+      active: period === 'week',
+      onSelect: () => setPeriod('week'),
+    },
+    {
+      key: 'month',
+      label: '30 jours',
+      active: period === 'month',
+      onSelect: () => setPeriod('month'),
+    },
+    {
+      key: 'all',
+      label: 'Tout',
+      active: period === 'all',
+      onSelect: () => setPeriod('all'),
+    },
+  ]
+
+  const selectedMemberId = targetMemberId ?? payload?.selected.targetMemberId ?? memberId
+  const selectedMemberLabel =
+    (payload?.options.members ?? []).find((entry) => entry.id === selectedMemberId)?.displayName ??
+    `Joueur #${selectedMemberId}`
+
+  const memberItems: MobileDropdownNavItem[] = (payload?.options.members ?? []).map((entry) => ({
+    key: String(entry.id),
+    label: entry.displayName,
+    active: selectedMemberId === entry.id,
+    onSelect: () => setTargetMemberId(entry.id),
+  }))
+
+  const bestModeLabelMap: Record<BestMode, string> = {
+    duo: 'Meilleur duo',
+    trio: 'Meilleur trio',
+    squad: 'Meilleur squad',
+  }
+
+  const bestModeItems: MobileDropdownNavItem[] = [
+    {
+      key: 'duo',
+      label: 'Meilleur duo',
+      active: bestMode === 'duo',
+      onSelect: () => setBestMode('duo'),
+    },
+    {
+      key: 'trio',
+      label: 'Meilleur trio',
+      active: bestMode === 'trio',
+      onSelect: () => setBestMode('trio'),
+    },
+    {
+      key: 'squad',
+      label: 'Meilleur squad',
+      active: bestMode === 'squad',
+      onSelect: () => setBestMode('squad'),
+    },
+  ]
+
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-      <div className="mb-6">
+      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
           title="Statistique des cartes"
           subtitle="Pilote les performances d'equipe carte par carte avec les filtres actifs."
-          actions={<NotificationBell memberId={memberId} />}
+          showBackButton={false}
+          framed={false}
         />
-      </div>
-
-      <MemberSectionNav memberId={memberId} />
+        <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+      </section>
 
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
-          <label className="text-sm text-gray-700">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Filtre</span>
-            <select
-              value={scope}
-              onChange={(event) => {
-                const nextScope = event.target.value as Scope
-                setScope(nextScope)
-                if (nextScope !== 'member') {
-                  setTargetMemberId(null)
-                }
-              }}
-              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="self">Le joueur</option>
-              <option value="member">Un joueur specifique</option>
-              <option value="clan">Le clan</option>
-              <option value="best">Son meilleur duo/trio/squad</option>
-            </select>
-          </label>
+        <div className="flex flex-wrap items-end gap-3">
+          <MobileDropdownNav
+            id={`map-stats-scope-${memberId}`}
+            label="Filtre"
+            currentLabel={scopeLabelMap[scope]}
+            items={scopeItems}
+            variant="compact"
+            visibilityClass="block"
+            className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+            leftIcon={(
+              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                <path
+                  d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            )}
+          />
 
-          <label className="text-sm text-gray-700">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Periode</span>
-            <select
-              value={period}
-              onChange={(event) => setPeriod(event.target.value as Period)}
-              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="week">7 jours</option>
-              <option value="month">30 jours</option>
-              <option value="all">Tout</option>
-            </select>
-          </label>
+          <MobileDropdownNav
+            id={`map-stats-period-${memberId}`}
+            label="Periode"
+            currentLabel={periodLabelMap[period]}
+            items={periodItems}
+            variant="compact"
+            visibilityClass="block"
+            className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+            leftIcon={(
+              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                <path
+                  d="M6 2.5h1.5V4H12V2.5h1.5V4h2A1.5 1.5 0 0 1 17 5.5v10a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5v-10A1.5 1.5 0 0 1 4.5 4h1.5V2.5Zm9.5 6h-11"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          />
 
           {scope === 'member' ? (
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Joueur</span>
-              <select
-                value={targetMemberId ?? payload?.selected.targetMemberId ?? memberId}
-                onChange={(event) => setTargetMemberId(Number(event.target.value))}
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-              >
-                {(payload?.options.members ?? []).map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <MobileDropdownNav
+              id={`map-stats-member-${memberId}`}
+              label="Joueur"
+              currentLabel={selectedMemberLabel}
+              items={memberItems}
+              variant="compact"
+              visibilityClass="block"
+              className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm-5.5 5.3a5.5 5.5 0 0 1 11 0"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            />
           ) : null}
 
           {scope === 'best' ? (
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Formation</span>
-              <select
-                value={bestMode}
-                onChange={(event) => setBestMode(event.target.value as BestMode)}
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="duo">Meilleur duo</option>
-                <option value="trio">Meilleur trio</option>
-                <option value="squad">Meilleur squad</option>
-              </select>
-            </label>
+            <MobileDropdownNav
+              id={`map-stats-best-mode-${memberId}`}
+              label="Formation"
+              currentLabel={bestModeLabelMap[bestMode]}
+              items={bestModeItems}
+              variant="compact"
+              visibilityClass="block"
+              className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M4.5 15.5h11M4.5 10h11M4.5 4.5h11"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            />
           ) : null}
 
-          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900 md:col-start-5 md:justify-self-end md:min-w-[16rem]">
+          <div className="w-full rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900">
             <p className="font-medium">{payload?.scopeLabel ? compactScopeLabel(payload.scopeLabel) : 'Chargement...'}</p>
             <p className="mt-1 text-xs text-cyan-800">
               {payload?.totals.rows ?? 0} lignes matches · {payload?.totals.maps ?? 0} cartes

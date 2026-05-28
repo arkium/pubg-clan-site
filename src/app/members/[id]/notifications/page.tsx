@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MemberSectionNav from '@/components/MemberSectionNav'
+import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import type { NotificationItem, NotificationType } from '@/types/notifications'
 import { NOTIFICATION_TYPES } from '@/types/notifications'
 
@@ -158,69 +159,142 @@ export default function NotificationsPage() {
     setNotifications((current) => current.filter((notification) => notification.id !== notificationId))
   }
 
+  const readFilterLabelMap: Record<ReadFilter, string> = {
+    all: 'Toutes',
+    unread: 'Non lues',
+    read: 'Lues',
+  }
+
+  const readFilterItems: MobileDropdownNavItem[] = [
+    {
+      key: 'all',
+      label: 'Toutes',
+      active: readFilter === 'all',
+      onSelect: () => {
+        setOffset(0)
+        setReadFilter('all')
+      },
+    },
+    {
+      key: 'unread',
+      label: 'Non lues',
+      active: readFilter === 'unread',
+      onSelect: () => {
+        setOffset(0)
+        setReadFilter('unread')
+      },
+    },
+    {
+      key: 'read',
+      label: 'Lues',
+      active: readFilter === 'read',
+      onSelect: () => {
+        setOffset(0)
+        setReadFilter('read')
+      },
+    },
+  ]
+
+  const typeFilterLabelMap: Record<'all' | NotificationType, string> = {
+    all: 'Tous',
+    squad_detected: formatTypeLabel('squad_detected'),
+    top_performance: formatTypeLabel('top_performance'),
+    challenge_started: formatTypeLabel('challenge_started'),
+    report_ready: formatTypeLabel('report_ready'),
+    invite_reminder: formatTypeLabel('invite_reminder'),
+  }
+
+  const typeFilterItems: MobileDropdownNavItem[] = [
+    {
+      key: 'all',
+      label: 'Tous',
+      active: typeFilter === 'all',
+      onSelect: () => {
+        setOffset(0)
+        setTypeFilter('all')
+      },
+    },
+    ...NOTIFICATION_TYPES.map((type) => ({
+      key: type,
+      label: formatTypeLabel(type),
+      active: typeFilter === type,
+      onSelect: () => {
+        setOffset(0)
+        setTypeFilter(type)
+      },
+    })),
+  ]
+
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-      <div className="mb-6">
+      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
           title="Notifications"
           subtitle={`${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
-          actions={
-            <>
-              <Link
-                href={`/members/${memberId}/notification-preferences`}
-                className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Préférences
-              </Link>
-              <button
-                type="button"
-                onClick={() => void markAllAsRead()}
-                className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Marquer toutes lues
-              </button>
-            </>
-          }
+          showBackButton={false}
+          framed={false}
         />
-      </div>
+        <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+      </section>
 
-      <MemberSectionNav memberId={memberId} />
+      <div className="mb-4 rounded border border-gray-200 bg-white p-4">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <div className="grid gap-3 md:grid-cols-2">
+            <MobileDropdownNav
+              id={`notifications-status-${memberId}`}
+              label="Statut"
+              currentLabel={readFilterLabelMap[readFilter]}
+              items={readFilterItems}
+              variant="compact"
+              visibilityClass="block"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            />
 
-      <div className="mb-4 grid gap-3 rounded border border-gray-200 bg-white p-4 md:grid-cols-2">
-        <label className="text-sm text-gray-700">
-          Statut
-          <select
-            value={readFilter}
-            onChange={(event) => {
-              setOffset(0)
-              setReadFilter(event.target.value as ReadFilter)
-            }}
-            className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="all">Toutes</option>
-            <option value="unread">Non lues</option>
-            <option value="read">Lues</option>
-          </select>
-        </label>
+            <MobileDropdownNav
+              id={`notifications-type-${memberId}`}
+              label="Type"
+              currentLabel={typeFilterLabelMap[typeFilter]}
+              items={typeFilterItems}
+              variant="compact"
+              visibilityClass="block"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M4.5 6h11M4.5 10h11M4.5 14h11"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            />
+          </div>
 
-        <label className="text-sm text-gray-700">
-          Type
-          <select
-            value={typeFilter}
-            onChange={(event) => {
-              setOffset(0)
-              setTypeFilter(event.target.value as 'all' | NotificationType)
-            }}
-            className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="all">Tous</option>
-            {NOTIFICATION_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {formatTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <Link
+              href={`/members/${memberId}/notification-preferences`}
+              className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Préférences
+            </Link>
+            <button
+              type="button"
+              onClick={() => void markAllAsRead()}
+              className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Marquer toutes lues
+            </button>
+          </div>
+        </div>
       </div>
 
       {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}

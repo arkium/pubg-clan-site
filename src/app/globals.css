@@ -6,6 +6,54 @@
   --app-surface: #ffffff;
   --app-surface-muted: #f8fafc;
   --app-border: #e2e8f0;
+  --page-surface: #f8fafc;
+  --app-content-max-width: 64rem;
+  --app-page-padding-x: 1rem;
+  --app-page-padding-y: 2rem;
+  --app-panel-radius: 0.75rem;
+  --app-panel-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --theme-nav-border: rgb(229 231 235 / 1);
+  --theme-nav-bg: rgb(255 255 255 / 1);
+  --theme-nav-text: rgb(55 65 81 / 1);
+  --theme-nav-hover-bg: rgb(249 250 251 / 1);
+  --theme-nav-hover-text: rgb(31 41 55 / 1);
+  --theme-nav-active-border: rgb(30 64 175 / 1);
+  --theme-nav-active-bg: rgb(30 64 175 / 1);
+  --theme-nav-active-text: rgb(255 255 255 / 1);
+  --theme-subnav-border: rgb(203 213 225 / 1);
+  --theme-subnav-bg: rgb(248 250 252 / 0.88);
+  --theme-subnav-text: rgb(51 65 85 / 1);
+  --theme-subnav-hover-bg: rgb(241 245 249 / 1);
+  --theme-subnav-active-border: rgb(148 163 184 / 1);
+  --theme-subnav-active-bg: rgb(226 232 240 / 0.84);
+  --theme-subnav-active-text: rgb(15 23 42 / 1);
+  --theme-owner-nav-border: rgb(252 211 77 / 0.6);
+  --theme-owner-nav-bg: rgb(254 243 199 / 0.52);
+  --theme-owner-nav-text: rgb(146 64 14 / 1);
+  --theme-owner-nav-hover-bg: rgb(253 230 138 / 0.64);
+  --theme-owner-nav-active-border: rgb(217 119 6 / 1);
+  --theme-owner-nav-active-bg: rgb(217 119 6 / 1);
+  --theme-owner-nav-active-text: rgb(255 255 255 / 1);
+  --theme-toggle-border: rgb(229 231 235 / 1);
+  --theme-toggle-bg: rgb(255 255 255 / 0.85);
+  --theme-toggle-item-text: rgb(55 65 81 / 1);
+  --theme-toggle-item-hover-bg: rgb(241 245 249 / 1);
+  --theme-toggle-item-hover-text: rgb(15 23 42 / 1);
+  --theme-toggle-item-active-bg: rgb(30 64 175 / 1);
+  --theme-toggle-item-active-text: rgb(255 255 255 / 1);
+  --theme-toggle-item-active-ring: rgb(30 64 175 / 0.3);
+  --theme-ui-surface: rgb(255 255 255 / 1);
+  --theme-ui-surface-soft: rgb(248 250 252 / 1);
+  --theme-ui-surface-strong: rgb(241 245 249 / 1);
+  --theme-ui-border: rgb(226 232 240 / 1);
+  --theme-ui-text: rgb(15 23 42 / 1);
+  --theme-ui-text-secondary: rgb(51 65 85 / 1);
+  --theme-ui-text-muted: rgb(100 116 139 / 1);
+  --theme-ui-hover: rgb(241 245 249 / 1);
+  --theme-avatar-border: rgb(226 232 240 / 1);
+  --theme-avatar-bg: rgb(255 255 255 / 1);
+  --theme-avatar-ring: rgb(226 232 240 / 0.8);
+  --theme-avatar-text: rgb(15 23 42 / 1);
 }
 
 @theme inline {
@@ -39,12 +87,162 @@
   --app-surface: #0f172a;
   --app-surface-muted: #111827;
   --app-border: #334155;
+  --page-surface: #020617;
+  --app-panel-shadow: 0 1px 2px rgba(2, 6, 23, 0.6);
+  --theme-nav-border: rgb(71 85 105 / 1);
+  --theme-nav-bg: rgb(15 23 42 / 1);
+  --theme-nav-text: rgb(203 213 225 / 1);
+  --theme-nav-hover-bg: rgb(30 41 59 / 1);
+  --theme-nav-hover-text: rgb(226 232 240 / 1);
+  --theme-nav-active-border: rgb(125 211 252 / 0.75);
+  --theme-nav-active-bg: rgb(12 74 110 / 0.88);
+  --theme-nav-active-text: rgb(240 249 255 / 1);
+  --theme-subnav-border: rgb(71 85 105 / 0.92);
+  --theme-subnav-bg: rgb(15 23 42 / 0.84);
+  --theme-subnav-text: rgb(203 213 225 / 1);
+  --theme-subnav-hover-bg: rgb(30 41 59 / 1);
+  --theme-subnav-active-border: rgb(100 116 139 / 1);
+  --theme-subnav-active-bg: rgb(30 41 59 / 0.95);
+  --theme-subnav-active-text: rgb(241 245 249 / 1);
+  --theme-owner-nav-border: rgb(252 211 77 / 0.34);
+  --theme-owner-nav-bg: rgb(245 158 11 / 0.14);
+  --theme-owner-nav-text: rgb(254 240 138 / 1);
+  --theme-owner-nav-hover-bg: rgb(245 158 11 / 0.24);
+  --theme-owner-nav-active-border: rgb(252 211 77 / 0.58);
+  --theme-owner-nav-active-bg: rgb(245 158 11 / 0.3);
+  --theme-owner-nav-active-text: rgb(255 251 235 / 1);
+  --theme-toggle-border: rgb(51 65 85 / 1);
+  --theme-toggle-bg: rgb(2 6 23 / 0.65);
+  --theme-toggle-item-text: rgb(203 213 225 / 1);
+  --theme-toggle-item-hover-bg: rgb(30 41 59 / 1);
+  --theme-toggle-item-hover-text: rgb(255 255 255 / 1);
+  --theme-toggle-item-active-bg: rgb(30 41 59 / 1);
+  --theme-toggle-item-active-text: rgb(248 250 252 / 1);
+  --theme-toggle-item-active-ring: rgb(71 85 105 / 1);
+  --theme-ui-surface: rgb(15 23 42 / 1);
+  --theme-ui-surface-soft: rgb(17 24 39 / 1);
+  --theme-ui-surface-strong: rgb(30 41 59 / 1);
+  --theme-ui-border: rgb(51 65 85 / 1);
+  --theme-ui-text: rgb(226 232 240 / 1);
+  --theme-ui-text-secondary: rgb(203 213 225 / 1);
+  --theme-ui-text-muted: rgb(148 163 184 / 1);
+  --theme-ui-hover: rgb(30 41 59 / 1);
+  --theme-avatar-border: rgb(148 163 184 / 0.42);
+  --theme-avatar-bg: rgb(15 23 42 / 0.9);
+  --theme-avatar-ring: rgb(255 255 255 / 0.12);
+  --theme-avatar-text: rgb(226 232 240 / 1);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+main,
+.app-page-surface {
+  background-color: var(--page-surface);
+  transition: background-color 280ms ease-out;
+}
+
+main.mx-auto,
+div.mx-auto {
+  width: 100%;
+  max-width: var(--app-content-max-width);
+}
+
+main.mx-auto {
+  padding-inline: max(var(--app-page-padding-x), 1rem);
+}
+
+:where(main, div).mx-auto :where(section, article, div)[class*='rounded'][class*='border'] {
+  border-color: var(--app-border);
+  border-radius: var(--app-panel-radius);
+}
+
+:where(main, div).mx-auto :where(section, article, div)[class*='shadow-sm'] {
+  box-shadow: var(--app-panel-shadow);
+}
+
+.app-container {
+  width: 100%;
+  max-width: var(--app-content-max-width);
+  margin-inline: auto;
+}
+
+.app-main {
+  padding-inline: max(var(--app-page-padding-x), 1rem);
+  padding-block: var(--app-page-padding-y);
+}
+
+.app-panel {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-panel-radius);
+  background-color: var(--app-surface);
+  box-shadow: var(--app-panel-shadow);
+}
+
+.app-panel-muted {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-panel-radius);
+  background-color: var(--app-surface-muted);
+  box-shadow: var(--app-panel-shadow);
+}
+
+.app-avatar,
+.members-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--theme-avatar-border);
+  background-color: var(--theme-avatar-bg);
+  border-radius: 1rem;
+  box-shadow: 0 0 0 1px var(--theme-avatar-ring);
+  color: var(--theme-avatar-text);
+}
+
+.app-avatar :where(img, svg),
+.members-avatar :where(img, svg) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+body[data-app-theme] :where(.bg-white, .bg-white\/90, .bg-white\/85, .bg-white\/80, .bg-white\/70, .bg-white\/60, .bg-white\/50, .bg-white\/30) {
+  background-color: var(--theme-ui-surface);
+}
+
+body[data-app-theme] :where(.bg-gray-50, .bg-gray-50\/60, .bg-gray-50\/50, .bg-slate-50, .bg-slate-50\/60, .bg-slate-50\/70) {
+  background-color: var(--theme-ui-surface-soft);
+}
+
+body[data-app-theme] :where(.bg-gray-100, .bg-slate-100) {
+  background-color: var(--theme-ui-surface-strong);
+}
+
+body[data-app-theme] :where(.border-gray-100, .border-gray-200, .border-gray-300, .border-gray-400, .border-slate-200, .border-slate-300, .border-slate-200\/80, .border-white, .border-white\/80, .border-white\/70, .border-white\/60, .border-white\/50, .border-white\/30) {
+  border-color: var(--theme-ui-border);
+}
+
+body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300, .divide-slate-100, .divide-slate-200) > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--theme-ui-border);
+}
+
+body[data-app-theme] :where(.text-gray-900, .text-slate-900) {
+  color: var(--theme-ui-text);
+}
+
+body[data-app-theme] :where(.text-gray-800, .text-gray-700, .text-slate-700, .text-slate-600, .text-gray-600) {
+  color: var(--theme-ui-text-secondary);
+}
+
+body[data-app-theme] :where(.text-gray-500, .text-slate-500, .text-gray-400) {
+  color: var(--theme-ui-text-muted);
+}
+
+body[data-app-theme] :where(.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover) {
+  background-color: var(--theme-ui-hover) !important;
 }
 
 html[data-app-theme='dark'] {
@@ -751,6 +949,103 @@ html[data-app-theme='dark'] :where([class*='hover:bg-amber-50']:hover) {
   color: rgb(30 41 59 / 1);
 }
 
+.app-placement-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  border: 1px solid;
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+}
+
+.app-placement-badge--winner {
+  border-color: rgb(217 119 6 / 0.9);
+  background-color: rgb(251 191 36 / 0.95);
+  color: rgb(69 26 3 / 1);
+  font-weight: 800;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.3),
+    0 0 0 1px rgb(217 119 6 / 0.18);
+}
+
+.app-placement-badge--top5 {
+  border-color: rgb(16 185 129 / 0.7);
+  background-color: rgb(209 250 229 / 0.92);
+  color: rgb(6 78 59 / 1);
+}
+
+.app-placement-badge--top10 {
+  border-color: rgb(14 165 233 / 0.62);
+  background-color: rgb(224 242 254 / 0.9);
+  color: rgb(12 74 110 / 1);
+}
+
+.app-placement-badge--default {
+  border-color: rgb(203 213 225 / 0.9);
+  background-color: rgb(241 245 249 / 0.92);
+  color: rgb(51 65 85 / 1);
+}
+
+.app-team-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid;
+  border-radius: 9999px;
+  box-shadow: var(--app-panel-shadow);
+  font-weight: 600;
+}
+
+.app-team-mode-badge--xs {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.app-team-mode-badge--sm {
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+}
+
+.app-team-mode-badge--duo {
+  border-color: rgb(125 211 252 / 0.72);
+  background-color: rgb(224 242 254 / 0.92);
+  color: rgb(7 89 133 / 1);
+}
+
+.app-team-mode-badge--trio {
+  border-color: rgb(196 181 253 / 0.72);
+  background-color: rgb(237 233 254 / 0.92);
+  color: rgb(91 33 182 / 1);
+}
+
+.app-team-mode-badge--squad {
+  border-color: rgb(110 231 183 / 0.72);
+  background-color: rgb(209 250 229 / 0.9);
+  color: rgb(6 95 70 / 1);
+}
+
+.app-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-ui-border);
+  border-radius: 9999px;
+  background-color: var(--theme-ui-surface);
+  color: var(--theme-ui-text-secondary);
+  box-shadow: var(--app-panel-shadow);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 html[data-app-theme='dark'] .member-role-badge--owner {
   border-color: rgb(251 113 133 / 0.6);
   background-color: rgb(190 24 93 / 0.34);
@@ -793,37 +1088,118 @@ html[data-app-theme='dark'] .member-access-badge--inactive {
   color: rgb(226 232 240 / 1);
 }
 
-.clan-section-nav-link {
-  border-color: rgb(229 231 235 / 1);
-  background-color: rgb(255 255 255 / 1);
-  color: rgb(55 65 81 / 1);
+html[data-app-theme='dark'] .app-placement-badge--winner {
+  border-color: rgb(252 211 77 / 0.95);
+  background-color: rgb(245 158 11 / 0.9);
+  color: rgb(15 23 42 / 1);
+  font-weight: 800;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.25),
+    0 0 0 1px rgb(252 211 77 / 0.32);
 }
 
-.clan-section-nav-link:hover {
-  background-color: rgb(249 250 251 / 1);
+html[data-app-theme='dark'] .app-placement-badge--top5 {
+  border-color: rgb(52 211 153 / 0.68);
+  background-color: rgb(6 95 70 / 0.45);
+  color: rgb(209 250 229 / 1);
 }
 
-.clan-section-nav-link--active {
-  border-color: rgb(30 64 175 / 1);
-  background-color: rgb(30 64 175 / 1);
-  color: rgb(255 255 255 / 1);
+html[data-app-theme='dark'] .app-placement-badge--top10 {
+  border-color: rgb(56 189 248 / 0.65);
+  background-color: rgb(3 105 161 / 0.42);
+  color: rgb(224 242 254 / 1);
 }
 
-html[data-app-theme='dark'] .clan-section-nav-link {
-  border-color: rgb(71 85 105 / 1);
-  background-color: rgb(15 23 42 / 1);
-  color: rgb(203 213 225 / 1);
-}
-
-html[data-app-theme='dark'] .clan-section-nav-link:hover {
-  background-color: rgb(30 41 59 / 1);
+html[data-app-theme='dark'] .app-placement-badge--default {
+  border-color: rgb(148 163 184 / 0.62);
+  background-color: rgb(51 65 85 / 0.62);
   color: rgb(226 232 240 / 1);
 }
 
-html[data-app-theme='dark'] .clan-section-nav-link--active {
-  border-color: rgb(125 211 252 / 0.75);
-  background-color: rgb(12 74 110 / 0.88);
-  color: rgb(240 249 255 / 1);
+html[data-app-theme='dark'] .app-team-mode-badge--duo {
+  border-color: rgb(56 189 248 / 0.65);
+  background-color: rgb(12 74 110 / 0.42);
+  color: rgb(125 211 252 / 1);
+}
+
+html[data-app-theme='dark'] .app-team-mode-badge--trio {
+  border-color: rgb(167 139 250 / 0.68);
+  background-color: rgb(76 29 149 / 0.4);
+  color: rgb(221 214 254 / 1);
+}
+
+html[data-app-theme='dark'] .app-team-mode-badge--squad {
+  border-color: rgb(52 211 153 / 0.65);
+  background-color: rgb(6 95 70 / 0.42);
+  color: rgb(209 250 229 / 1);
+}
+
+.clan-section-nav-link {
+  border-color: var(--theme-nav-border);
+  background-color: var(--theme-nav-bg);
+  color: var(--theme-nav-text);
+}
+
+.clan-section-nav-link:hover {
+  background-color: var(--theme-nav-hover-bg);
+  color: var(--theme-nav-hover-text);
+}
+
+.clan-section-nav-link--active {
+  border-color: var(--theme-nav-active-border);
+  background-color: var(--theme-nav-active-bg);
+  color: var(--theme-nav-active-text);
+}
+
+.clan-section-nav-link--owner {
+  border-color: var(--theme-owner-nav-border);
+  background-color: var(--theme-owner-nav-bg);
+  color: var(--theme-owner-nav-text);
+}
+
+.clan-section-nav-link--owner:hover {
+  background-color: var(--theme-owner-nav-hover-bg);
+  color: var(--theme-owner-nav-text);
+}
+
+.clan-section-nav-link--owner-active {
+  border-color: var(--theme-owner-nav-active-border);
+  background-color: var(--theme-owner-nav-active-bg);
+  color: var(--theme-owner-nav-active-text);
+}
+
+.clan-submenu-link {
+  border-color: var(--theme-subnav-border);
+  background-color: var(--theme-subnav-bg);
+  color: var(--theme-subnav-text);
+}
+
+.clan-submenu-link:hover {
+  background-color: var(--theme-subnav-hover-bg);
+  color: var(--theme-subnav-active-text);
+}
+
+.clan-submenu-link--active {
+  border-color: var(--theme-subnav-active-border);
+  background-color: var(--theme-subnav-active-bg);
+  color: var(--theme-subnav-active-text);
+}
+
+.clan-submenu-link--owner {
+  border-color: var(--theme-owner-nav-border);
+  background-color: var(--theme-owner-nav-bg);
+  color: var(--theme-owner-nav-text);
+}
+
+.clan-submenu-link--owner:hover {
+  background-color: var(--theme-owner-nav-hover-bg);
+  color: var(--theme-owner-nav-text);
+}
+
+.clan-submenu-link--owner-active {
+  border-color: var(--theme-owner-nav-active-border);
+  background-color: var(--theme-owner-nav-active-bg);
+  color: var(--theme-owner-nav-active-text);
 }
 
 html[data-app-theme='dark'] :where([class*='hover:bg-rose-50']:hover) {
@@ -854,12 +1230,18 @@ html[data-app-theme='dark'] :where(.bg-yellow-50\/30) {
   background-color: rgb(113 63 18 / 0.22);
 }
 
-html[data-app-theme='dark'] .members-page {
-  background-color: rgb(2 6 23 / 1);
+.members-header,
+.members-panel {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-panel-radius);
+  background-color: var(--app-surface);
+  box-shadow: var(--app-panel-shadow);
 }
 
-html[data-app-theme='dark'] .members-header,
-html[data-app-theme='dark'] .members-panel,
+html[data-app-theme='dark'] .members-page {
+  background-color: var(--page-surface);
+}
+
 html[data-app-theme='dark'] .members-card {
   background-color: rgb(15 23 42 / 1);
   border-color: rgb(51 65 85 / 1);
@@ -883,7 +1265,6 @@ html[data-app-theme='dark'] .members-medals {
   color: rgb(148 163 184 / 1);
 }
 
-html[data-app-theme='dark'] .members-avatar,
 html[data-app-theme='dark'] .members-card-chevron,
 html[data-app-theme='dark'] .members-card-dashboard,
 html[data-app-theme='dark'] .members-card-action,
@@ -959,42 +1340,125 @@ html[data-app-theme='dark'] .member-lifetime-stat-value :where(img) {
   filter: drop-shadow(0 0 0.18rem rgb(15 23 42 / 0.55));
 }
 
-html[data-app-theme='dark'] .member-section-nav-item-active {
-  border-color: rgb(51 65 85 / 1);
-  background-color: rgb(30 41 59 / 1);
-  color: rgb(248 250 252 / 1);
-  box-shadow: inset 0 0 0 1px rgb(71 85 105 / 1);
+.app-segmented-control,
+.dashboard-period-toggle {
+  border-color: var(--theme-toggle-border);
+  background-color: var(--theme-toggle-bg);
+  border-radius: var(--app-panel-radius);
+  overflow: hidden;
 }
 
-html[data-app-theme='dark'] .member-section-nav-item:not(.member-section-nav-item-active) {
-  border-color: rgb(51 65 85 / 1);
-  background-color: rgb(15 23 42 / 1);
-  color: rgb(203 213 225 / 1);
+.app-segmented-control__item,
+.dashboard-period-toggle-item {
+  color: var(--theme-toggle-item-text);
+  border-radius: 0;
 }
 
-html[data-app-theme='dark'] .member-section-nav-item:not(.member-section-nav-item-active):hover {
-  background-color: rgb(30 41 59 / 1);
-  color: rgb(255 255 255 / 1);
+.app-segmented-control__item--xs {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
-html[data-app-theme='dark'] .dashboard-period-toggle {
-  border-color: rgb(51 65 85 / 1);
-  background-color: rgb(2 6 23 / 0.65);
+.app-segmented-control__item--sm {
+  padding: 0.375rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
-html[data-app-theme='dark'] .dashboard-period-toggle-item {
-  color: rgb(203 213 225 / 1);
+.app-segmented-control > .app-segmented-control__item:first-child,
+.dashboard-period-toggle > .dashboard-period-toggle-item:first-child {
+  border-top-left-radius: calc(var(--app-panel-radius) - 0.125rem);
+  border-bottom-left-radius: calc(var(--app-panel-radius) - 0.125rem);
 }
 
-html[data-app-theme='dark'] .dashboard-period-toggle-item:hover {
-  background-color: rgb(30 41 59 / 1) !important;
-  color: rgb(255 255 255 / 1);
+.app-segmented-control > .app-segmented-control__item:last-child,
+.dashboard-period-toggle > .dashboard-period-toggle-item:last-child {
+  border-top-right-radius: calc(var(--app-panel-radius) - 0.125rem);
+  border-bottom-right-radius: calc(var(--app-panel-radius) - 0.125rem);
 }
 
-html[data-app-theme='dark'] .dashboard-period-toggle-item-active {
-  background-color: rgb(30 41 59 / 1);
-  color: rgb(248 250 252 / 1);
-  box-shadow: inset 0 0 0 1px rgb(71 85 105 / 1);
+.app-segmented-control__item:hover,
+.dashboard-period-toggle-item:hover {
+  background-color: var(--theme-toggle-item-hover-bg) !important;
+  color: var(--theme-toggle-item-hover-text) !important;
+}
+
+.app-segmented-control__item--active,
+.dashboard-period-toggle-item-active {
+  background-color: var(--theme-toggle-item-active-bg);
+  color: var(--theme-toggle-item-active-text);
+  box-shadow: inset 0 0 0 1px var(--theme-toggle-item-active-ring);
+}
+
+.app-table-shell {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-panel-radius);
+  background-color: var(--app-surface);
+  box-shadow: var(--app-panel-shadow);
+}
+
+.app-table-head {
+  border-bottom: 1px solid var(--app-border);
+  background-color: var(--app-surface-muted);
+  color: var(--theme-ui-text-muted);
+}
+
+.app-table-row {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-table-row:hover {
+  background-color: var(--theme-ui-hover);
+}
+
+body[data-app-theme] :where(.app-table-shell, .app-table-head, .app-table-row) {
+  border-color: var(--app-border);
+}
+
+body[data-app-theme] .app-table-head {
+  color: var(--theme-ui-text-muted);
+}
+
+body[data-app-theme] .app-table-row:hover {
+  background-color: var(--theme-ui-hover);
+}
+
+.app-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-pagination-button {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-border);
+  border-radius: 9999px;
+  background-color: var(--app-surface);
+  color: var(--theme-ui-text-secondary);
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.app-pagination-button:hover {
+  background-color: var(--theme-ui-hover);
+}
+
+.app-pagination-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-pagination-label {
+  min-width: 4.25rem;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--theme-ui-text-muted);
 }
 
 html[data-app-theme='dark'] .member-lifetime-stats-muted {

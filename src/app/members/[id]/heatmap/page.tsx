@@ -153,8 +153,14 @@ export default function MemberHeatmapPage() {
   }
 
   const countsByDay = new Map<number, number>()
+  const countsByDayHour = new Map<string, number>()
   for (const cell of payload?.heatmap ?? []) {
     countsByDay.set(cell.dayIndex, (countsByDay.get(cell.dayIndex) ?? 0) + cell.count)
+    countsByDayHour.set(`${cell.dayIndex}-${cell.hour}`, cell.count)
+  }
+
+  function getCellCount(dayIndex: number, hour: number) {
+    return countsByDayHour.get(`${dayIndex}-${hour}`) ?? 0
   }
 
   const scopeLabelMap: Record<HeatmapScope, string> = {
@@ -425,9 +431,39 @@ export default function MemberHeatmapPage() {
           <p className="text-sm text-gray-500">Aucune activite disponible pour ce filtre.</p>
         ) : (
           <div className="space-y-4">
-            <div className="overflow-x-auto">
-              <div className="min-w-[900px]">
-                <div className="mb-2 grid grid-cols-[90px_repeat(24,minmax(24px,1fr))] gap-1">
+            <div className="md:hidden">
+              <div className="mb-2 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
+                <div />
+                {DAY_LABELS.map((dayLabel, dayIndex) => (
+                  <div key={`mobile-day-head-${dayLabel}`} className="text-center text-[10px] text-gray-500">
+                    <div className="font-semibold text-gray-600">{dayLabel}</div>
+                    <div>{countsByDay.get(dayIndex) ?? 0}</div>
+                  </div>
+                ))}
+              </div>
+
+              {Array.from({ length: 24 }, (_, hour) => (
+                <div key={`mobile-hour-${hour}`} className="mb-1 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
+                  <div className="flex items-center justify-end pr-1 text-[10px] text-gray-500">{hourLabel(hour)}</div>
+
+                  {DAY_LABELS.map((dayLabel, dayIndex) => {
+                    const count = getCellCount(dayIndex, hour)
+
+                    return (
+                      <div
+                        key={`mobile-${dayLabel}-${hour}`}
+                        className={`h-5 rounded ${cellTone(count, payload.maxCellCount)}`}
+                        title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden md:block">
+              <div className="w-full">
+                <div className="mb-2 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]">
                   <div />
                   {Array.from({ length: 24 }, (_, hour) => (
                     <div key={`hour-head-${hour}`} className="text-center text-[10px] text-gray-500">
@@ -437,22 +473,22 @@ export default function MemberHeatmapPage() {
                 </div>
 
                 {DAY_LABELS.map((dayLabel, dayIndex) => (
-                  <div key={`day-${dayLabel}`} className="mb-1 grid grid-cols-[90px_repeat(24,minmax(24px,1fr))] gap-1">
-                    <div className="flex items-center justify-between pr-2 text-xs text-gray-700">
+                  <div
+                    key={`day-${dayLabel}`}
+                    className="mb-1 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]"
+                  >
+                    <div className="flex items-center justify-between pr-1 text-[11px] text-gray-700 lg:pr-2 lg:text-xs">
                       <span className="font-semibold">{dayLabel}</span>
-                      <span className="text-[10px] text-gray-500">{countsByDay.get(dayIndex) ?? 0}</span>
+                      <span className="text-[9px] text-gray-500 lg:text-[10px]">{countsByDay.get(dayIndex) ?? 0}</span>
                     </div>
 
                     {Array.from({ length: 24 }, (_, hour) => {
-                      const cell = payload.heatmap.find(
-                        (entry) => entry.dayIndex === dayIndex && entry.hour === hour
-                      )
-                      const count = cell?.count ?? 0
+                      const count = getCellCount(dayIndex, hour)
 
                       return (
                         <div
                           key={`${dayLabel}-${hour}`}
-                          className={`h-6 rounded ${cellTone(count, payload.maxCellCount)}`}
+                          className={`h-5 rounded lg:h-6 ${cellTone(count, payload.maxCellCount)}`}
                           title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
                         />
                       )

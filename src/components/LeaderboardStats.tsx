@@ -97,7 +97,7 @@ export default function LeaderboardStats({ entries, killsView }: LeaderboardStat
   }, null)
 
   return (
-    <section>
+    <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
       <h2 className="mb-3 text-lg font-semibold text-gray-900">Top performers</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <HighlightCard

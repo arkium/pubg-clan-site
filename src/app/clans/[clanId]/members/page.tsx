@@ -42,6 +42,21 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+function getAvatarInitials(name: string) {
+  const initials = name
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .flatMap((part) => part.match(/[\p{L}\p{N}]/gu) ?? [])
+    .filter((character) => /[\p{L}]/u.test(character))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  return initials || name.trim().slice(0, 2).toUpperCase() || '??'
+}
+
 export default function ClanMembersPage() {
   const params = useParams()
   const router = useRouter()
@@ -157,8 +172,8 @@ export default function ClanMembersPage() {
   }
 
   return (
-    <div className="members-page min-h-screen bg-gray-100 px-3 py-6 sm:px-4 sm:py-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="members-page app-page-surface min-h-screen">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
         <header className="members-header mb-8 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Membres du clan</h1>
@@ -206,21 +221,18 @@ export default function ClanMembersPage() {
                     aria-expanded={isExpanded}
                   >
                     <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="members-avatar flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-gray-200 sm:h-14 sm:w-14">
+                      <div className="members-avatar app-avatar flex h-12 w-12 shrink-0 sm:h-14 sm:w-14">
                         {member.avatarUrl ? (
                           <img
                             src={member.avatarUrl}
                             alt={member.displayName + ' avatar'}
-                            className="h-12 w-12 rounded-full object-cover sm:h-14 sm:w-14"
+                            className="h-full w-full object-cover"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                           />
                         ) : (
-                          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="20" cy="20" r="20" fill="#CBD5E1" />
-                            <text x="50%" y="55%" textAnchor="middle" fill="#64748B" fontSize="18" fontFamily="Arial" dy=".3em">
-                              {member.displayName.charAt(0).toUpperCase()}
-                            </text>
-                          </svg>
+                          <span className="text-base font-black tracking-wide text-white">
+                            {getAvatarInitials(member.displayName)}
+                          </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">

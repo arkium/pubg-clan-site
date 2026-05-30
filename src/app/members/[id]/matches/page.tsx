@@ -6,7 +6,14 @@ import { useParams } from 'next/navigation'
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MemberSectionNav from '@/components/MemberSectionNav'
-import type { DashboardPeriod, MatchesResponse } from '@/types/dashboard'
+import PlacementBadge from '@/components/ui/PlacementBadge'
+import { useAuthSession } from '@/hooks/useAuthSession'
+import type {
+  DashboardMatchSortDirection,
+  DashboardMatchSortKey,
+  DashboardPeriod,
+  MatchesResponse,
+} from '@/types/dashboard'
 
 interface MatchInfo {
   memberId: number
@@ -55,7 +62,9 @@ function formatDuration(seconds: number) {
 export default function MatchesPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
+  const { loading: authLoading, permissions } = useAuthSession()
   const HISTORY_LIMIT = 10
+  const canImportMatches = permissions.includes('*')
 
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null)
   const [apiMatches, setApiMatches] = useState<ApiMatch[]>([])
@@ -67,6 +76,8 @@ export default function MatchesPage() {
   const [importingMatchIds, setImportingMatchIds] = useState<string[]>([])
   const [historyPeriod, setHistoryPeriod] = useState<DashboardPeriod>('all')
   const [historyOffset, setHistoryOffset] = useState(0)
+  const [historySortKey, setHistorySortKey] = useState<DashboardMatchSortKey>('pubgCreatedAt')
+  const [historySortDir, setHistorySortDir] = useState<DashboardMatchSortDirection>('desc')
   const [historyReloadKey, setHistoryReloadKey] = useState(0)
   const [historyData, setHistoryData] = useState<MatchesResponse>({
     matches: [],
@@ -89,6 +100,8 @@ export default function MatchesPage() {
           period: historyPeriod,
           limit: String(HISTORY_LIMIT),
           offset: String(historyOffset),
+          sortBy: historySortKey,
+          sortDirection: historySortDir,
         })
         const response = await fetch(`/api/members/${memberId}/matches?${params.toString()}`)
         const payload = (await response.json()) as MatchesResponse | { error?: string }
@@ -116,7 +129,15 @@ export default function MatchesPage() {
     return () => {
       cancelled = true
     }
-  }, [HISTORY_LIMIT, historyOffset, historyPeriod, historyReloadKey, memberId])
+  }, [
+    HISTORY_LIMIT,
+    historyOffset,
+    historyPeriod,
+    historyReloadKey,
+    historySortDir,
+    historySortKey,
+    memberId,
+  ])
 
   useEffect(() => {
     if (!memberId) {
@@ -269,7 +290,7 @@ export default function MatchesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 px-4 py-8">
+    <main className="app-page-surface min-h-screen px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <MemberPageHeader
@@ -307,103 +328,114 @@ export default function MatchesPage() {
               limit={HISTORY_LIMIT}
               offset={historyOffset}
               onOffsetChange={setHistoryOffset}
+              sortKey={historySortKey}
+              sortDir={historySortDir}
+              onSortChange={(nextSortKey, nextSortDir) => {
+                setHistorySortKey(nextSortKey)
+                setHistorySortDir(nextSortDir)
+                setHistoryOffset(0)
+              }}
               loading={loadingHistory}
-              memberId={memberId}
-              showViewAllLink={false}
             />
 
-            <section className="rounded bg-white p-6 shadow">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Matchs PUBG recents a importer</h2>
+            {authLoading || canImportMatches ? (
+              <section className="app-panel p-6">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold">Matchs PUBG recents a importer</h2>
+                    <p className="text-sm text-gray-500">
+                      {apiMatches.length} match{apiMatches.length === 1 ? '' : 's'} non importe{apiMatches.length === 1 ? '' : 's'}
+                      {' '}sur les {matchInfo.recentMatchesConsidered} plus recents
+                      ({matchInfo.totalMatches} matchs remontes par PUBG).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                      A importer
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void handleImportAll()}
+                      disabled={importingAll || apiMatches.length === 0 || !canImportMatches}
+                      className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {importingAll ? 'Import en cours...' : 'Importer tout'}
+                    </button>
+                  </div>
+                </div>
+
+                {!canImportMatches ? (
+                  <p className="text-sm text-gray-500">Cette section est reservee aux owners.</p>
+                ) : apiMatches.length === 0 && !loadingApiMatches ? (
                   <p className="text-sm text-gray-500">
-                    {apiMatches.length} match{apiMatches.length === 1 ? '' : 's'} non importe{apiMatches.length === 1 ? '' : 's'}
-                    {' '}sur les {matchInfo.recentMatchesConsidered} plus recents
-                    ({matchInfo.totalMatches} matchs remontes par PUBG).
+                    Tous les derniers matchs sont deja importes.
                   </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                    A importer
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void handleImportAll()}
-                    disabled={importingAll || apiMatches.length === 0}
-                    className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {importingAll ? 'Import en cours...' : 'Importer tout'}
-                  </button>
-                </div>
-              </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="border border-gray-200 p-2 text-left">Mode</th>
+                          <th className="border border-gray-200 p-2 text-left">Carte</th>
+                          <th className="border border-gray-200 p-2 text-left">Joue le</th>
+                          <th className="border border-gray-200 p-2 text-center">Kills</th>
+                          <th className="border border-gray-200 p-2 text-center">Assists</th>
+                          <th className="border border-gray-200 p-2 text-center">Degats</th>
+                          <th className="border border-gray-200 p-2 text-center">Headshots</th>
+                          <th className="border border-gray-200 p-2 text-center">Revives</th>
+                          <th className="border border-gray-200 p-2 text-center">Place</th>
+                          <th className="border border-gray-200 p-2 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apiMatches.map((match) => {
+                          const isImporting = importingAll || importingMatchIds.includes(match.id)
 
-              {apiMatches.length === 0 && !loadingApiMatches ? (
-                <p className="text-sm text-gray-500">
-                  Tous les derniers matchs sont deja importes.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-200 text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="border border-gray-200 p-2 text-left">Mode</th>
-                        <th className="border border-gray-200 p-2 text-left">Carte</th>
-                        <th className="border border-gray-200 p-2 text-left">Joue le</th>
-                        <th className="border border-gray-200 p-2 text-center">Kills</th>
-                        <th className="border border-gray-200 p-2 text-center">Assists</th>
-                        <th className="border border-gray-200 p-2 text-center">Degats</th>
-                        <th className="border border-gray-200 p-2 text-center">Headshots</th>
-                        <th className="border border-gray-200 p-2 text-center">Revives</th>
-                        <th className="border border-gray-200 p-2 text-center">Place</th>
-                        <th className="border border-gray-200 p-2 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {apiMatches.map((match) => {
-                        const isImporting = importingAll || importingMatchIds.includes(match.id)
+                          return (
+                            <tr key={match.id} className="hover:bg-gray-50">
+                              <td className="border border-gray-200 p-2">{match.mode}</td>
+                              <td className="border border-gray-200 p-2">
+                                {historyData.mapLabels[match.mapName] ?? match.mapName}
+                              </td>
+                              <td className="border border-gray-200 p-2">
+                                <div>{new Date(match.createdAt).toLocaleString('fr-FR')}</div>
+                                <div className="text-xs text-gray-500">
+                                  Duree : {formatDuration(match.durationSeconds)}
+                                </div>
+                              </td>
+                              <td className="border border-gray-200 p-2 text-center">{match.stats.kills}</td>
+                              <td className="border border-gray-200 p-2 text-center">{match.stats.assists}</td>
+                              <td className="border border-gray-200 p-2 text-center">{match.stats.damageDealt.toFixed(0)}</td>
+                              <td className="border border-gray-200 p-2 text-center">{match.stats.headshotKills}</td>
+                              <td className="border border-gray-200 p-2 text-center">{match.stats.revives}</td>
+                              <td className="border border-gray-200 p-2 text-center">
+                                <PlacementBadge placement={match.stats.position} />
+                              </td>
+                              <td className="border border-gray-200 p-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => void importMatch(match.id)}
+                                  disabled={isImporting || !canImportMatches}
+                                  className="rounded bg-amber-500 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isImporting ? 'Import...' : 'Importer'}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                        return (
-                          <tr key={match.id} className="hover:bg-gray-50">
-                            <td className="border border-gray-200 p-2">{match.mode}</td>
-                            <td className="border border-gray-200 p-2">
-                              {historyData.mapLabels[match.mapName] ?? match.mapName}
-                            </td>
-                            <td className="border border-gray-200 p-2">
-                              <div>{new Date(match.createdAt).toLocaleString('fr-FR')}</div>
-                              <div className="text-xs text-gray-500">
-                                Duree : {formatDuration(match.durationSeconds)}
-                              </div>
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center">{match.stats.kills}</td>
-                            <td className="border border-gray-200 p-2 text-center">{match.stats.assists}</td>
-                            <td className="border border-gray-200 p-2 text-center">{match.stats.damageDealt.toFixed(0)}</td>
-                            <td className="border border-gray-200 p-2 text-center">{match.stats.headshotKills}</td>
-                            <td className="border border-gray-200 p-2 text-center">{match.stats.revives}</td>
-                            <td className="border border-gray-200 p-2 text-center">{match.stats.position}</td>
-                            <td className="border border-gray-200 p-2 text-center">
-                              <button
-                                type="button"
-                                onClick={() => void importMatch(match.id)}
-                                disabled={isImporting}
-                                className="rounded bg-amber-500 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {isImporting ? 'Import...' : 'Importer'}
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {loadingApiMatches ? (
-                <p className="mt-4 text-sm text-gray-500">
-                  Chargement des matchs API restants... le rythme est limite pour eviter les appels PUBG inutiles.
-                </p>
-              ) : null}
-            </section>
+                {loadingApiMatches ? (
+                  <p className="mt-4 text-sm text-gray-500">
+                    Chargement des matchs API restants... le rythme est limite pour eviter les appels PUBG inutiles.
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
           </>
         )}
       </div>

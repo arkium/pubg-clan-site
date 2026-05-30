@@ -163,7 +163,7 @@ export default function Leaderboard({
   }
 
   return (
-    <section>
+    <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-900">Classement</h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -239,12 +239,12 @@ export default function Leaderboard({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-gray-700">{medal ?? `#${rank}`}</span>
-                      <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-gray-200">
+                      <span className="app-avatar flex h-8 w-8 shrink-0">
                         {entry.avatarUrl ? (
                           <img
                             src={entry.avatarUrl}
                             alt={entry.displayName + ' avatar'}
-                            className="h-8 w-8 rounded-full object-cover"
+                            className="h-full w-full object-cover"
                             onError={(event) => {
                               event.currentTarget.style.display = 'none'
                             }}
@@ -438,12 +438,12 @@ export default function Leaderboard({
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-gray-200">
+                        <span className="app-avatar flex h-8 w-8 shrink-0">
                           {entry.avatarUrl ? (
                             <img
                               src={entry.avatarUrl}
                               alt={entry.displayName + ' avatar'}
-                              className="h-8 w-8 rounded-full object-cover"
+                              className="h-full w-full object-cover"
                               onError={(event) => {
                                 event.currentTarget.style.display = 'none'
                               }}

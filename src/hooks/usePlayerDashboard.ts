@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from 'react'
 
-import type { DashboardPeriod, DashboardResponse, MatchesResponse } from '@/types/dashboard'
+import type {
+  DashboardMatchSortDirection,
+  DashboardMatchSortKey,
+  DashboardPeriod,
+  DashboardResponse,
+  MatchesResponse,
+} from '@/types/dashboard'
 
 const defaultDashboard: DashboardResponse = {
   member: { id: 0, displayName: '', pubgPlayerName: '', platformShard: '', createdAt: '' },
@@ -66,7 +72,9 @@ export function usePlayerMatches(
   memberId: number | null,
   period: DashboardPeriod,
   limit: number,
-  offset: number
+  offset: number,
+  sortBy: DashboardMatchSortKey,
+  sortDirection: DashboardMatchSortDirection
 ) {
   const [data, setData] = useState<MatchesResponse>(defaultMatches)
   const [loading, setLoading] = useState(false)
@@ -84,6 +92,8 @@ export function usePlayerMatches(
           period,
           limit: String(limit),
           offset: String(offset),
+          sortBy,
+          sortDirection,
         })
         const response = await fetch(`/api/members/${memberId}/matches?${params.toString()}`)
         const payload = await response.json()
@@ -107,7 +117,7 @@ export function usePlayerMatches(
     return () => {
       cancelled = true
     }
-  }, [memberId, period, limit, offset])
+  }, [memberId, period, limit, offset, sortBy, sortDirection])
 
   return { data, loading, error }
 }

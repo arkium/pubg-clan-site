@@ -1,6 +1,8 @@
 import Image from 'next/image'
+import PlacementBadge from '@/components/ui/PlacementBadge'
 
 import type { PerformerEntry, TopPerformersData } from '@/types/squad-matches'
+import type { ReactNode } from 'react'
 
 interface TopPerformersProps {
   performers: TopPerformersData
@@ -27,7 +29,7 @@ function PerformerList({
 }: {
   title: string
   entries: PerformerEntry[]
-  value(entry: PerformerEntry): string
+  value(entry: PerformerEntry): ReactNode
 }) {
   return (
     <div className="rounded border border-gray-200 p-3">
@@ -71,7 +73,7 @@ export default function TopPerformers({ performers }: TopPerformersProps) {
         <PerformerList
           title="Top survie"
           entries={performers.survival}
-          value={(entry) => `#${entry.averagePlacement.toFixed(2)}`}
+          value={(entry) => <PlacementBadge placement={entry.averagePlacement} />}
         />
       </div>
     </section>

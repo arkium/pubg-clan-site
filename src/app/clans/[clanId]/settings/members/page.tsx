@@ -86,6 +86,21 @@ function getDisplayInviteEmail(email: string) {
   return isTechnicalInviteEmail(email) ? '' : email
 }
 
+function getAvatarInitials(name: string) {
+  const initials = name
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .flatMap((part) => part.match(/[\p{L}\p{N}]/gu) ?? [])
+    .filter((character) => /[\p{L}]/u.test(character))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  return initials || name.trim().slice(0, 2).toUpperCase() || '??'
+}
+
 export default function ClanMembersSettingsPage() {
   const params = useParams()
   const router = useRouter()
@@ -752,19 +767,19 @@ export default function ClanMembersSettingsPage() {
                 >
                   <div className="bg-gradient-to-r from-slate-950 via-slate-800 to-slate-700 px-5 py-4 text-white">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/10 ring-1 ring-white/10">
+                      <div className="app-avatar flex h-14 w-14 shrink-0">
                         {member.avatarUrl ? (
                           <img
                             src={member.avatarUrl}
                             alt={member.name + ' avatar'}
-                            className="h-14 w-14 rounded-2xl object-cover"
+                            className="h-full w-full object-cover"
                             onError={(e) => {
                               ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                             }}
                           />
                         ) : (
                           <span className="text-base font-black tracking-wide text-white">
-                            {member.name.slice(0, 2).toUpperCase()}
+                            {getAvatarInitials(member.name)}
                           </span>
                         )}
                       </div>

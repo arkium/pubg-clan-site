@@ -88,12 +88,12 @@ export default function ReportStats({ players }: { players: ReportPlayerStats[] 
                 <tr key={player.memberId} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">
                     <div className="flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border">
+                      <span className="app-avatar flex h-8 w-8 shrink-0">
                         {player.avatarUrl ? (
                           <img
                             src={player.avatarUrl}
                             alt={player.displayName + ' avatar'}
-                            className="w-8 h-8 object-cover rounded-full"
+                            className="h-full w-full object-cover"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
                           />
                         ) : (

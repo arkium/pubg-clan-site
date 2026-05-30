@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -9,6 +8,8 @@ import SessionRecap from '@/components/SessionRecap'
 import SquadMatchList from '@/components/SquadMatchList'
 import SquadSynergies from '@/components/SquadSynergies'
 import TopPerformers from '@/components/TopPerformers'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import TeamModeBadge, { teamModeFromMemberCount, type TeamMode } from '@/components/ui/TeamModeBadge'
 import ClanSectionNav from '@/components/ClanSectionNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
@@ -26,18 +27,6 @@ function parseClanId(value: string | string[] | undefined) {
 
 function periodLabel(period: SquadPeriod) {
   return period === 'week' ? 'Semaine' : 'Mois'
-}
-
-function teamModeLabel(memberCount: number) {
-  if (memberCount <= 2) {
-    return 'duo'
-  }
-
-  if (memberCount === 3) {
-    return 'trio'
-  }
-
-  return 'squad'
 }
 
 function formatDuration(totalSeconds: number) {
@@ -79,8 +68,8 @@ export default function ClanMatchesPage() {
     const modes = {
       duo: {
         key: 'duo',
+        mode: 'duo' as TeamMode,
         label: 'Duo',
-        iconPath: '/icons/squads/duo.svg',
         tone: 'border-sky-200 bg-sky-50 text-sky-800',
         matches: 0,
         kills: 0,
@@ -92,8 +81,8 @@ export default function ClanMatchesPage() {
       },
       trio: {
         key: 'trio',
+        mode: 'trio' as TeamMode,
         label: 'Trio',
-        iconPath: '/icons/squads/trio.svg',
         tone: 'border-violet-200 bg-violet-50 text-violet-800',
         matches: 0,
         kills: 0,
@@ -105,8 +94,8 @@ export default function ClanMatchesPage() {
       },
       squad: {
         key: 'squad',
+        mode: 'squad' as TeamMode,
         label: 'Squad',
-        iconPath: '/icons/squads/squad.svg',
         tone: 'border-emerald-200 bg-emerald-50 text-emerald-800',
         matches: 0,
         kills: 0,
@@ -119,7 +108,7 @@ export default function ClanMatchesPage() {
     }
 
     for (const match of squads) {
-      const mode = modes[teamModeLabel(match.members.length)]
+      const mode = modes[teamModeFromMemberCount(match.members.length)]
       mode.matches += 1
       mode.kills += match.totalKills
       mode.damage += match.totalDamage
@@ -136,6 +125,16 @@ export default function ClanMatchesPage() {
     return [modes.duo, modes.trio, modes.squad]
   }, [squads])
 
+  const gameModeOptions = useMemo(
+    () => [
+      { value: '', label: 'Tous' },
+      { value: 'duo', label: 'Duo', disabled: !availableModes.includes('duo') },
+      { value: 'trio', label: 'Trio', disabled: !availableModes.includes('trio') },
+      { value: 'squad', label: 'Squad', disabled: !availableModes.includes('squad') },
+    ],
+    [availableModes]
+  )
+
   useEffect(() => {
     if (!clanId) {
       router.replace('/clans')
@@ -144,6 +143,12 @@ export default function ClanMatchesPage() {
 
     setClanId(clanId)
   }, [clanId, router, setClanId])
+
+  useEffect(() => {
+    if (gameMode && !availableModes.includes(gameMode)) {
+      setGameMode('')
+    }
+  }, [availableModes, gameMode])
 
   if (!clanId) {
     return null
@@ -168,50 +173,32 @@ export default function ClanMatchesPage() {
       <div className="mb-6 flex flex-wrap items-end gap-3 rounded border border-gray-200 bg-white p-4">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
-          <div className="flex flex-wrap gap-2">
-            {(['week', 'month'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setPeriod(value)
-                  setGameMode('')
-                }}
-                className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                  value === period ? 'clan-section-nav-link--active shadow-sm' : ''
-                }`}
-              >
-                {periodLabel(value)}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={[
+              { value: 'week', label: 'Semaine' },
+              { value: 'month', label: 'Mois' },
+            ]}
+            value={period}
+            onChange={(value) => {
+              setPeriod(value)
+              setGameMode('')
+            }}
+            size="sm"
+            wrap
+            fullWidthOnMobile
+          />
         </div>
 
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Mode de jeu</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setGameMode('')}
-              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                gameMode === '' ? 'clan-section-nav-link--active shadow-sm' : ''
-              }`}
-            >
-              Tous
-            </button>
-            {availableModes.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setGameMode(mode)}
-                className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                  gameMode === mode ? 'clan-section-nav-link--active shadow-sm' : ''
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={gameModeOptions}
+            value={gameMode}
+            onChange={setGameMode}
+            size="sm"
+            wrap
+            fullWidthOnMobile
+          />
         </div>
       </div>
 
@@ -221,21 +208,21 @@ export default function ClanMatchesPage() {
       {!loading && !error ? (
         <>
           <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-wide text-gray-500">Éliminations totales ({periodLabel(period)})</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.totalKills}</p>
+              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{stats.totalKills}</p>
             </article>
-            <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-wide text-gray-500">Dégâts totaux</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{Math.round(stats.totalDamage)}</p>
+              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{Math.round(stats.totalDamage)}</p>
             </article>
-            <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-wide text-gray-500">Taux de victoire équipe</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{(stats.winRate * 100).toFixed(1)}%</p>
+              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{(stats.winRate * 100).toFixed(1)}%</p>
             </article>
-            <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs uppercase tracking-wide text-gray-500">Matchs joués ensemble</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{stats.matchCount}</p>
+              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{stats.matchCount}</p>
             </article>
           </section>
 
@@ -245,17 +232,36 @@ export default function ClanMatchesPage() {
               {teamModePerformance.map((mode) => (
                 <article key={mode.key} className={`rounded border p-3 ${mode.tone}`}>
                   <div className="mb-3 flex items-center gap-2">
-                    <Image src={mode.iconPath} alt={`Logo ${mode.label}`} width={20} height={20} className="squad-mode-icon" />
-                    <p className="text-sm font-semibold">{mode.label}</p>
+                    <TeamModeBadge mode={mode.mode} label={mode.label} size="sm" className="shadow-none" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                    <p>Matchs: {mode.matches}</p>
-                    <p>Éliminations: {mode.kills}</p>
-                    <p>W/L: {mode.wins}/{mode.losses}</p>
-                    <p>Dégâts: {Math.round(mode.damage)}</p>
-                    <p>Aides: {mode.assists}</p>
-                    <p>Durée: {formatDuration(mode.durationSeconds)}</p>
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span>Matchs</span>
+                      <span className="text-right font-semibold tabular-nums">{mode.matches}</span>
+                    </p>
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span>Éliminations</span>
+                      <span className="text-right font-semibold tabular-nums">{mode.kills}</span>
+                    </p>
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span>W/L</span>
+                      <span className="text-right font-semibold tabular-nums">
+                        {mode.wins}/{mode.losses}
+                      </span>
+                    </p>
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span>Dégâts</span>
+                      <span className="text-right font-semibold tabular-nums">{Math.round(mode.damage)}</span>
+                    </p>
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span>Aides</span>
+                      <span className="text-right font-semibold tabular-nums">{mode.assists}</span>
+                    </p>
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span>Durée</span>
+                      <span className="text-right font-semibold tabular-nums">{formatDuration(mode.durationSeconds)}</span>
+                    </p>
                   </div>
                 </article>
               ))}

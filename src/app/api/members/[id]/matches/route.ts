@@ -3,6 +3,10 @@ import { getMapLabels } from '@/lib/map-label-service'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
 
+const MATCH_SORT_KEYS = ['pubgCreatedAt', 'kills', 'damageDealt', 'placement'] as const
+type MatchSortKey = (typeof MATCH_SORT_KEYS)[number]
+type MatchSortDirection = 'asc' | 'desc'
+
 function parseMemberId(id: string) {
   const memberId = Number(id)
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null
@@ -22,6 +26,14 @@ function getPeriodDateFilter(period: string | null): Date | null {
   return null
 }
 
+function parseMatchSortKey(value: string | null): MatchSortKey {
+  return MATCH_SORT_KEYS.includes(value as MatchSortKey) ? (value as MatchSortKey) : 'pubgCreatedAt'
+}
+
+function parseMatchSortDirection(value: string | null): MatchSortDirection {
+  return value === 'asc' ? 'asc' : 'desc'
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -38,6 +50,8 @@ export async function GET(
     const period = searchParams.get('period')
     const limitParam = searchParams.get('limit')
     const offsetParam = searchParams.get('offset')
+    const sortBy = parseMatchSortKey(searchParams.get('sortBy'))
+    const sortDirection = parseMatchSortDirection(searchParams.get('sortDirection'))
 
     // Dashboard mode: when period, limit or offset params are provided,
     // return stored matches in a simplified format
@@ -51,10 +65,15 @@ export async function GET(
         ...(since ? { pubgCreatedAt: { gte: since } } : {}),
       }
 
+      const orderBy = [
+        { [sortBy]: sortDirection },
+        { id: 'desc' as const },
+      ]
+
       const [matches, totalCount] = await Promise.all([
         prisma.match.findMany({
           where,
-          orderBy: { pubgCreatedAt: 'desc' },
+          orderBy,
           take: limit,
           skip: offset,
         }),
@@ -62,6 +81,8 @@ export async function GET(
       ])
 
       return NextResponse.json({
+        sortBy,
+        sortDirection,
         matches: matches.map((m) => ({
           id: m.id,
           pubgMatchId: m.pubgMatchId,

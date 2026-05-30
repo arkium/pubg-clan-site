@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import packageJson from '../../package.json'
 
 import ClanNavigation from '@/components/ClanNavigation'
+import ThemeInitializer from '@/components/ThemeInitializer'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getSetupState } from '@/lib/setup-service'
 
@@ -109,8 +110,9 @@ export default async function RootLayout({
   )
 
   return (
-    <html lang="fr" className="h-full antialiased">
-      <body className="min-h-full bg-gray-50 text-gray-900">
+    <html lang="fr" className="h-full antialiased" suppressHydrationWarning>
+      <body className="min-h-full bg-gray-50 text-gray-900" suppressHydrationWarning>
+        <ThemeInitializer />
         {showAppShell ? (
           <ClanNavigation>
             <div className="flex-1">{children}</div>

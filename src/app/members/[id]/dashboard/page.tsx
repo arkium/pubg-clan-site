@@ -12,7 +12,12 @@ import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import type { DashboardPeriod } from '@/types/dashboard'
+import PlacementBadge from '@/components/ui/PlacementBadge'
+import type {
+  DashboardMatchSortDirection,
+  DashboardMatchSortKey,
+  DashboardPeriod,
+} from '@/types/dashboard'
 
 export default function DashboardPage() {
   const params = useParams()
@@ -21,17 +26,19 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>('week')
   const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
   const [matchOffset, setMatchOffset] = useState(0)
+  const [matchSortKey, setMatchSortKey] = useState<DashboardMatchSortKey>('pubgCreatedAt')
+  const [matchSortDir, setMatchSortDir] = useState<DashboardMatchSortDirection>('desc')
   const MATCH_LIMIT = 10
 
   const { data, loading, error } = usePlayerDashboard(memberId, period)
   const {
     data: matchData,
     loading: matchLoading,
-  } = usePlayerMatches(memberId, matchPeriod, MATCH_LIMIT, matchOffset)
+  } = usePlayerMatches(memberId, matchPeriod, MATCH_LIMIT, matchOffset, matchSortKey, matchSortDir)
 
   if (!memberId) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="app-page-surface min-h-screen p-8">
         <p className="text-red-600">ID joueur invalide.</p>
       </div>
     )
@@ -39,7 +46,7 @@ export default function DashboardPage() {
 
   if (loading && !data.member.id) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="app-page-surface flex min-h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
       </div>
     )
@@ -47,7 +54,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="app-page-surface min-h-screen p-8">
         <p className="text-red-600">Erreur : {error}</p>
         <Link href="/members" className="mt-2 inline-block text-blue-600 hover:underline">
           ← Retour aux membres
@@ -59,9 +66,9 @@ export default function DashboardPage() {
   const { stats, clanAverage, progression, topPerformances, squads, mapLabels } = data
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-page-surface min-h-screen">
       {/* Content */}
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6">
+      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:py-8">
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <MemberPageHeader
             title="Tableau de bord"
@@ -99,8 +106,14 @@ export default function DashboardPage() {
           limit={MATCH_LIMIT}
           offset={matchOffset}
           onOffsetChange={setMatchOffset}
+          sortKey={matchSortKey}
+          sortDir={matchSortDir}
+          onSortChange={(nextSortKey, nextSortDir) => {
+            setMatchSortKey(nextSortKey)
+            setMatchSortDir(nextSortDir)
+            setMatchOffset(0)
+          }}
           loading={matchLoading}
-          memberId={memberId}
         />
 
         {/* Squad frequency + Top performances */}
@@ -129,7 +142,8 @@ export default function DashboardPage() {
                         {m.kills} kills · {Math.round(m.damageDealt)} dmg
                       </p>
                       <p className="text-xs text-gray-500">
-                        #{m.placement} · {mapLabels[m.mapName] ?? m.mapName} ·{' '}
+                        <PlacementBadge placement={m.placement} className="mr-1 align-middle" />
+                        {mapLabels[m.mapName] ?? m.mapName} ·{' '}
                         {new Date(m.pubgCreatedAt).toLocaleDateString('fr-FR')}
                       </p>
                     </div>

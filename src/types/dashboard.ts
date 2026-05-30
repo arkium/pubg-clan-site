@@ -1,4 +1,6 @@
 export type DashboardPeriod = 'week' | 'month' | 'all'
+export type DashboardMatchSortKey = 'pubgCreatedAt' | 'kills' | 'damageDealt' | 'placement'
+export type DashboardMatchSortDirection = 'asc' | 'desc'
 
 export interface DashboardMember {
   id: number

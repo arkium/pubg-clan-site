@@ -1,12 +1,12 @@
 'use client'
 
-import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import TeamModeBadge from '@/components/ui/TeamModeBadge'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -247,30 +247,6 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(total / 60)
   const remaining = total % 60
   return `${minutes}m ${String(remaining).padStart(2, '0')}s`
-}
-
-function modeIcon(mode: BestMode) {
-  if (mode === 'duo') {
-    return {
-      iconPath: '/icons/squads/duo.svg',
-      iconAlt: 'Logo duo',
-      tone: 'bg-sky-100 text-sky-700',
-    }
-  }
-
-  if (mode === 'trio') {
-    return {
-      iconPath: '/icons/squads/trio.svg',
-      iconAlt: 'Logo trio',
-      tone: 'bg-violet-100 text-violet-700',
-    }
-  }
-
-  return {
-    iconPath: '/icons/squads/squad.svg',
-    iconAlt: 'Logo squad',
-    tone: 'bg-emerald-100 text-emerald-700',
-  }
 }
 
 function modeCardTone(mode: BestMode) {
@@ -578,6 +554,13 @@ export default function MemberMapStatsPage() {
     },
   ]
 
+  const sortItems: MobileDropdownNavItem[] = (Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
+    key,
+    label: SORT_LABELS[key],
+    active: sortKey === key,
+    onSelect: () => setSortKey(key),
+  }))
+
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -698,16 +681,12 @@ export default function MemberMapStatsPage() {
         </p>
         <div className="grid gap-3 md:grid-cols-3">
           {bestCompositionCards.map((entry) => {
-            const visual = modeIcon(entry.mode)
             const tone = modeCardTone(entry.mode)
 
             return (
             <article key={entry.mode} className={`rounded-2xl border p-4 shadow-sm ${tone.card}`}>
               <div className="flex items-center justify-between gap-2">
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${visual.tone}`}>
-                  <Image src={visual.iconPath} alt={visual.iconAlt} width={18} height={18} />
-                  <span>{entry.label}</span>
-                </span>
+                <TeamModeBadge mode={entry.mode} label={entry.label} size="sm" className="shadow-none" />
                 <span className={`text-lg font-bold ${tone.title}`}>{formatPercent(entry.winRate)}</span>
               </div>
 
@@ -763,20 +742,25 @@ export default function MemberMapStatsPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center lg:min-w-[23rem]">
-            <label className="flex h-10 items-center gap-2 text-sm text-gray-700">
-              <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-500">Trier par</span>
-              <select
-                value={sortKey}
-                onChange={(event) => setSortKey(event.target.value as SortKey)}
-                className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm"
-              >
-                {Object.entries(SORT_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <MobileDropdownNav
+              id={`map-stats-sort-${memberId}`}
+              label="Trier par"
+              currentLabel={SORT_LABELS[sortKey]}
+              items={sortItems}
+              variant="compact"
+              visibilityClass="block"
+              className="w-full"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M4.5 6.5h11M4.5 10h7.5M4.5 13.5h4"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            />
 
             <button
               type="button"

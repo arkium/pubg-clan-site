@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="fr" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Showcase composants UI - PUBG Clan Site</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --font-title: 'Space Grotesk', 'Segoe UI', sans-serif;
+        --font-body: 'Space Grotesk', 'Segoe UI', sans-serif;
+        --font-mono: 'IBM Plex Mono', Consolas, monospace;
+
+        --bg: #f4f6f8;
+        --bg-elevated: #ffffff;
+        --bg-soft: #e9eff5;
+        --text: #10202f;
+        --text-muted: #556170;
+        --border: #d9e1e8;
+        --accent: #0f766e;
+        --accent-soft: #d7f4ef;
+        --danger: #b42318;
+        --shadow: 0 14px 28px rgba(16, 32, 47, 0.08);
+
+        --winner-bg: #d4a017;
+        --winner-text: #271700;
+        --top5-bg: #1565c0;
+        --top5-text: #f4f9ff;
+        --top10-bg: #2e7d32;
+        --top10-text: #f2fff3;
+        --default-bg: #e4e9ef;
+        --default-text: #32465a;
+
+        --duo-bg: #e0f2fe;
+        --duo-text: #0f4c81;
+        --trio-bg: #efe8ff;
+        --trio-text: #50358e;
+        --squad-bg: #ddf5e4;
+        --squad-text: #18532e;
+      }
+
+      html[data-theme='dark'] {
+        --bg: #0d1824;
+        --bg-elevated: #132434;
+        --bg-soft: #1c2f42;
+        --text: #e7f0f7;
+        --text-muted: #9ab0c2;
+        --border: #2a4055;
+        --accent: #4dd4c8;
+        --accent-soft: #193a42;
+        --danger: #ff746d;
+        --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+
+        --winner-bg: #f2b11f;
+        --winner-text: #2f1d00;
+        --top5-bg: #2b86e0;
+        --top5-text: #eef7ff;
+        --top10-bg: #31a145;
+        --top10-text: #effff2;
+        --default-bg: #2a3d51;
+        --default-text: #d0deeb;
+
+        --duo-bg: #193b58;
+        --duo-text: #b4deff;
+        --trio-bg: #2f2558;
+        --trio-text: #d5c6ff;
+        --squad-bg: #1f4630;
+        --squad-text: #bfeccb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: var(--font-body);
+        color: var(--text);
+        background:
+          radial-gradient(circle at 15% 20%, rgba(77, 212, 200, 0.14), transparent 40%),
+          radial-gradient(circle at 85% 10%, rgba(21, 101, 192, 0.12), transparent 42%),
+          var(--bg);
+        min-height: 100vh;
+      }
+
+      .wrap {
+        width: min(1180px, 94vw);
+        margin: 0 auto;
+        padding: 36px 0 54px;
+      }
+
+      .hero {
+        border: 1px solid var(--border);
+        background: linear-gradient(140deg, var(--bg-elevated), color-mix(in srgb, var(--bg-elevated) 70%, var(--accent-soft)));
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 28px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+        background: color-mix(in srgb, var(--accent-soft) 50%, var(--bg-elevated));
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: var(--font-title);
+        font-size: clamp(28px, 4vw, 44px);
+        line-height: 1.05;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--text-muted);
+        max-width: 76ch;
+      }
+
+      .theme-btn {
+        border: 1px solid var(--border);
+        background: var(--bg-elevated);
+        color: var(--text);
+        border-radius: 14px;
+        font-weight: 600;
+        font-family: var(--font-body);
+        padding: 10px 14px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        transition: transform 140ms ease, border-color 140ms ease;
+      }
+
+      .theme-btn:hover {
+        transform: translateY(-1px);
+        border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+      }
+
+      .hero-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .ghost-btn {
+        border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--border));
+        background: color-mix(in srgb, var(--accent-soft) 30%, var(--bg-elevated));
+        color: var(--text);
+        border-radius: 14px;
+        font-weight: 600;
+        font-family: var(--font-body);
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+
+      .ghost-btn:hover {
+        border-color: var(--accent);
+      }
+
+      .layout {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 18px;
+      }
+
+      .toc,
+      .card {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--bg-elevated);
+        box-shadow: var(--shadow);
+      }
+
+      .toc {
+        position: sticky;
+        top: 16px;
+        height: fit-content;
+        padding: 16px;
+      }
+
+      .toc h2 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+      }
+
+      .toc a {
+        display: block;
+        text-decoration: none;
+        color: var(--text);
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+
+      .toc a:hover {
+        background: var(--bg-soft);
+      }
+
+      .content {
+        display: grid;
+        gap: 16px;
+      }
+
+      .shared-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .shared-item {
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, var(--bg-soft) 70%, var(--bg-elevated));
+        border-radius: 12px;
+        padding: 10px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .shared-item strong {
+        font-size: 14px;
+      }
+
+      .shared-item span {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+      }
+
+      .card {
+        padding: 18px;
+        display: grid;
+        gap: 14px;
+        animation: fade-in-up 340ms ease both;
+      }
+
+      .card h3 {
+        margin: 0;
+        font-size: 20px;
+        font-family: var(--font-title);
+      }
+
+      .meta {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+
+      .showcase-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .code-inline {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        border: 1px solid var(--border);
+        background: var(--bg-soft);
+        border-radius: 8px;
+        padding: 4px 8px;
+      }
+
+      .demo-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .segmented {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        background: var(--bg-soft);
+        border-radius: 13px;
+        overflow: hidden;
+      }
+
+      .segment {
+        padding: 8px 12px;
+        font-size: 13px;
+        border-right: 1px solid var(--border);
+      }
+
+      .segment:last-child {
+        border-right: 0;
+      }
+
+      .segment.active {
+        background: var(--bg-elevated);
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .mobile-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--bg-soft);
+      }
+
+      .chevron {
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: var(--bg-elevated);
+        display: grid;
+        place-items: center;
+        color: var(--text-muted);
+        font-size: 10px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .badge-winner {
+        background: var(--winner-bg);
+        color: var(--winner-text);
+      }
+
+      .badge-top5 {
+        background: var(--top5-bg);
+        color: var(--top5-text);
+      }
+
+      .badge-top10 {
+        background: var(--top10-bg);
+        color: var(--top10-text);
+      }
+
+      .badge-default {
+        background: var(--default-bg);
+        color: var(--default-text);
+      }
+
+      .mode {
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 5px 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .mode-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.8;
+      }
+
+      .mode-duo {
+        background: var(--duo-bg);
+        color: var(--duo-text);
+      }
+
+      .mode-trio {
+        background: var(--trio-bg);
+        color: var(--trio-text);
+      }
+
+      .mode-squad {
+        background: var(--squad-bg);
+        color: var(--squad-text);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 11px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      th {
+        background: color-mix(in srgb, var(--bg-soft) 72%, var(--bg-elevated));
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+
+      .pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .page-controls {
+        display: inline-flex;
+        gap: 8px;
+      }
+
+      .btn {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--bg-elevated);
+        color: var(--text);
+        padding: 8px 11px;
+        min-width: 40px;
+        text-align: center;
+      }
+
+      .btn.active {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent-soft) 45%, var(--bg-elevated));
+      }
+
+      .order-note {
+        border-left: 3px solid var(--accent);
+        padding-left: 10px;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 960px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .toc {
+          position: static;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .hero {
+          border-radius: 18px;
+          padding: 20px;
+        }
+
+        .shared-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .card {
+          border-radius: 14px;
+          padding: 14px;
+        }
+
+        .showcase-row {
+          gap: 8px;
+        }
+      }
+
+      @keyframes fade-in-up {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="hero">
+        <div class="hero-top">
+          <span class="pill">Design System / Docs</span>
+          <div class="hero-actions">
+            <button class="ghost-btn" id="dataRefresh" type="button" aria-label="Regenerer les donnees de demo">
+              Regenerer les donnees
+            </button>
+            <button class="theme-btn" id="themeToggle" type="button" aria-label="Changer le theme">
+              <span id="themeIcon">☀</span>
+              <span id="themeText">Passer en mode sombre</span>
+            </button>
+          </div>
+        </div>
+        <h1>Showcase des composants reutilisables</h1>
+        <p>
+          Cette page presente les composants standards de l application dans un ordre de lecture base sur un parcours
+          utilisateur classique: navigation puis filtres, affichage des donnees, badges de contexte et enfin pagination.
+        </p>
+      </section>
+
+      <div class="layout">
+        <aside class="toc">
+          <h2>Ordre recommande</h2>
+          <a href="#shared">0. Composants partages</a>
+          <a href="#navigation">1. Navigation mobile</a>
+          <a href="#filtres">2. Filtres segmentes</a>
+          <a href="#badges">3. Badges metier</a>
+          <a href="#table">4. Tableau standard</a>
+          <a href="#pagination">5. Pagination</a>
+        </aside>
+
+        <section class="content">
+          <article class="card" id="shared">
+            <h3>0) Composants partages disponibles</h3>
+            <p class="meta">Inventaire des composants mutualises du dossier src/components/ui.</p>
+            <span class="demo-meta" id="demoStamp">Derniere generation: --</span>
+            <div class="shared-grid">
+              <div class="shared-item">
+                <strong>MobileDropdownNav</strong>
+                <span>src/components/ui/MobileDropdownNav.tsx</span>
+              </div>
+              <div class="shared-item">
+                <strong>SegmentedControl</strong>
+                <span>src/components/ui/SegmentedControl.tsx</span>
+              </div>
+              <div class="shared-item">
+                <strong>PlacementBadge</strong>
+                <span>src/components/ui/PlacementBadge.tsx</span>
+              </div>
+              <div class="shared-item">
+                <strong>TeamModeBadge</strong>
+                <span>src/components/ui/TeamModeBadge.tsx</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="card" id="navigation">
+            <h3>1) MobileDropdownNav</h3>
+            <p class="meta">Utilise pour les selections compactes en mobile (pages membres, heatmap, notifications).</p>
+            <div class="showcase-row">
+              <div class="mobile-nav">
+                <strong id="navLabel">Periode:</strong>
+                <span id="navValue">30 jours</span>
+                <span class="chevron">v</span>
+              </div>
+              <span class="code-inline">ui/MobileDropdownNav</span>
+            </div>
+          </article>
+
+          <article class="card" id="filtres">
+            <h3>2) SegmentedControl</h3>
+            <p class="meta">Controle de bascule pour scope/periode/mode dans les vues dashboard et stats.</p>
+            <div class="showcase-row">
+              <div class="segmented" id="scopeSegment" role="tablist" aria-label="Filtre scope"></div>
+              <div class="segmented" id="periodSegment" role="tablist" aria-label="Filtre periode"></div>
+              <span class="code-inline">ui/SegmentedControl</span>
+            </div>
+          </article>
+
+          <article class="card" id="badges">
+            <h3>3) Badges metier</h3>
+            <p class="meta">PlacementBadge et TeamModeBadge renforcent la lecture rapide des infos critiques.</p>
+            <div class="showcase-row" id="placementBadges">
+              <span class="code-inline">ui/PlacementBadge</span>
+            </div>
+            <div class="showcase-row" id="modeBadges">
+              <span class="code-inline">ui/TeamModeBadge</span>
+            </div>
+          </article>
+
+          <article class="card" id="table">
+            <h3>4) Tableau standard</h3>
+            <p class="meta">Structure recommandee pour les listes de matchs avec colonnes stables et badges standardises.</p>
+            <table aria-label="Tableau de matchs exemple">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Mode</th>
+                  <th>Kills</th>
+                  <th>Placement</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+            <span class="code-inline">Classes app-table-* dans globals.css</span>
+          </article>
+
+          <article class="card" id="pagination">
+            <h3>5) Pagination</h3>
+            <p class="meta">Controle final de navigation des listes. Garder la meme semantique de boutons partout.</p>
+            <div class="pagination">
+              <span class="meta" id="paginationMeta">Page 1 sur 1</span>
+              <div class="page-controls" id="paginationControls">
+                <span class="btn" aria-hidden="true">&lt;</span>
+                <span class="btn active">1</span>
+                <span class="btn" aria-hidden="true">&gt;</span>
+              </div>
+            </div>
+            <span class="code-inline">Classes app-pagination* dans globals.css</span>
+          </article>
+
+          <article class="card">
+            <h3>Pourquoi cet ordre ?</h3>
+            <p class="order-note">
+              L ordre suit le flux utilisateur reel: d abord se positionner (navigation), ensuite filtrer, lire les
+              indicateurs (badges), consulter la data (table), puis changer de page (pagination).
+            </p>
+          </article>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        const root = document.documentElement;
+        const toggle = document.getElementById('themeToggle');
+        const refresh = document.getElementById('dataRefresh');
+        const icon = document.getElementById('themeIcon');
+        const text = document.getElementById('themeText');
+        const navLabel = document.getElementById('navLabel');
+        const navValue = document.getElementById('navValue');
+        const scopeSegment = document.getElementById('scopeSegment');
+        const periodSegment = document.getElementById('periodSegment');
+        const placementBadges = document.getElementById('placementBadges');
+        const modeBadges = document.getElementById('modeBadges');
+        const tableBody = document.getElementById('tableBody');
+        const paginationMeta = document.getElementById('paginationMeta');
+        const paginationControls = document.getElementById('paginationControls');
+        const demoStamp = document.getElementById('demoStamp');
+
+        function applyTheme(theme) {
+          root.setAttribute('data-theme', theme);
+
+          if (theme === 'dark') {
+            icon.textContent = '☾';
+            text.textContent = 'Passer en mode clair';
+          } else {
+            icon.textContent = '☀';
+            text.textContent = 'Passer en mode sombre';
+          }
+        }
+
+        function rand(min, max) {
+          return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function pick(list) {
+          return list[rand(0, list.length - 1)];
+        }
+
+        function placementClass(placement) {
+          if (placement === 1) return 'badge-winner';
+          if (placement <= 5) return 'badge-top5';
+          if (placement <= 10) return 'badge-top10';
+          return 'badge-default';
+        }
+
+        function modeClass(mode) {
+          if (mode === 'Duo') return 'mode-duo';
+          if (mode === 'Trio') return 'mode-trio';
+          return 'mode-squad';
+        }
+
+        function buildSegment(items, active) {
+          return items
+            .map(function (item) {
+              const isActive = item === active ? ' active' : '';
+              return '<span class="segment' + isActive + '">' + item + '</span>';
+            })
+            .join('');
+        }
+
+        function formatDate(daysAgo) {
+          const date = new Date();
+          date.setDate(date.getDate() - daysAgo);
+          return date.toISOString().slice(0, 10);
+        }
+
+        function generateMatches(total) {
+          const modes = ['Duo', 'Trio', 'Squad'];
+          const output = [];
+
+          for (let i = 0; i < total; i += 1) {
+            output.push({
+              date: formatDate(rand(0, 60)),
+              mode: pick(modes),
+              kills: rand(0, 14),
+              placement: rand(1, 24),
+            });
+          }
+
+          return output;
+        }
+
+        function renderRandomData() {
+          const scopes = ['Tous', 'Solo', 'Equipe'];
+          const periods = ['7j', '30j', 'Saison'];
+          const navChoices = [
+            { label: 'Periode:', value: '7 jours' },
+            { label: 'Periode:', value: '30 jours' },
+            { label: 'Scope:', value: 'Membre selectionne' },
+            { label: 'Mode:', value: 'Best Squad' },
+          ];
+
+          const currentScope = pick(scopes);
+          const currentPeriod = pick(periods);
+          const nav = pick(navChoices);
+
+          navLabel.textContent = nav.label;
+          navValue.textContent = nav.value;
+          scopeSegment.innerHTML = buildSegment(scopes, currentScope);
+          periodSegment.innerHTML = buildSegment(periods, currentPeriod);
+
+          const randomPlacements = [rand(1, 1), rand(2, 5), rand(6, 10), rand(11, 24)];
+          placementBadges.innerHTML =
+            randomPlacements
+              .map(function (placement) {
+                const label = placement === 1 ? '#1 Winner' : '#' + placement;
+                return '<span class="badge ' + placementClass(placement) + '">' + label + '</span>';
+              })
+              .join('') + '<span class="code-inline">ui/PlacementBadge</span>';
+
+          const teamModes = ['Duo', 'Trio', 'Squad'];
+          modeBadges.innerHTML =
+            teamModes
+              .map(function (mode) {
+                return '<span class="mode ' + modeClass(mode) + '"><span class="mode-dot"></span>' + mode + '</span>';
+              })
+              .join('') + '<span class="code-inline">ui/TeamModeBadge</span>';
+
+          const totalMatches = rand(14, 38);
+          const perPage = 5;
+          const totalPages = Math.max(1, Math.ceil(totalMatches / perPage));
+          const currentPage = rand(1, totalPages);
+          const allMatches = generateMatches(totalMatches);
+          const pageSlice = allMatches.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+          tableBody.innerHTML = pageSlice
+            .map(function (match) {
+              return (
+                '<tr>' +
+                '<td>' +
+                match.date +
+                '</td>' +
+                '<td><span class="mode ' +
+                modeClass(match.mode) +
+                '"><span class="mode-dot"></span>' +
+                match.mode +
+                '</span></td>' +
+                '<td>' +
+                match.kills +
+                '</td>' +
+                '<td><span class="badge ' +
+                placementClass(match.placement) +
+                '">#' +
+                match.placement +
+                '</span></td>' +
+                '</tr>'
+              );
+            })
+            .join('');
+
+          paginationMeta.textContent = 'Page ' + currentPage + ' sur ' + totalPages;
+
+          const pages = [];
+          const startPage = Math.max(1, currentPage - 1);
+          const endPage = Math.min(totalPages, currentPage + 1);
+          for (let p = startPage; p <= endPage; p += 1) {
+            pages.push(p);
+          }
+
+          paginationControls.innerHTML =
+            '<span class="btn" aria-hidden="true">&lt;</span>' +
+            pages
+              .map(function (p) {
+                const active = p === currentPage ? ' active' : '';
+                return '<span class="btn' + active + '">' + p + '</span>';
+              })
+              .join('') +
+            '<span class="btn" aria-hidden="true">&gt;</span>';
+
+          demoStamp.textContent =
+            'Derniere generation: ' +
+            new Date().toLocaleString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            });
+        }
+
+        toggle.addEventListener('click', function () {
+          const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+          applyTheme(next);
+        });
+
+        refresh.addEventListener('click', function () {
+          renderRandomData();
+        });
+
+        applyTheme(root.getAttribute('data-theme') || 'light');
+        renderRandomData();
+      })();
+    </script>
+  </body>
+</html>

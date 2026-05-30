@@ -31,15 +31,12 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
         {squads.map((entry, index) => (
           <li key={entry.memberId} className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-3">
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border text-xs font-bold text-white"
-                style={{ backgroundColor: `hsl(${(index * 47) % 360}, 60%, 55%)` }}
-              >
+              <span className="app-avatar flex h-7 w-7 shrink-0 text-xs font-bold" style={{ backgroundColor: `hsl(${(index * 47) % 360}, 60%, 55%)` }}>
                 {entry.avatarUrl ? (
                   <img
                     src={entry.avatarUrl}
                     alt={entry.displayName + ' avatar'}
-                    className="h-7 w-7 rounded-full object-cover"
+                    className="h-full w-full object-cover"
                     onError={(event) => {
                       event.currentTarget.style.display = 'none'
                     }}

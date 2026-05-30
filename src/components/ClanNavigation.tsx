@@ -27,6 +27,13 @@ type NavItem = {
   tone: 'neutral' | 'brand' | 'sky' | 'blue' | 'emerald'
 }
 
+type SubmenuItem = {
+  label: string
+  href: string
+  tone: NavItem['tone']
+  highlightWhenActive?: boolean
+}
+
 type CronAction = 'sync_matches' | 'sync_stats' | 'generate_weekly_report' | 'generate_monthly_report'
 type AppTheme = 'light' | 'dark'
 
@@ -161,6 +168,92 @@ function renderNavIcon(label: string) {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
         <path fill="currentColor" d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Mon clan') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Zm0 2.1 4.5 1.7v3.5c0 2.4-1.7 4.5-4.5 5.7-2.8-1.2-4.5-3.3-4.5-5.7V6.3L10 4.6Zm-2.2 5.2h4.4v1.4H7.8V9.8Zm0-2.3h4.4v1.4H7.8V7.5Z"
+        />
+      </svg>
+    )
+  }
+
+  if (label === 'Mon compte') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Zm-4.2 3.3c.5-1 2.2-1.9 4.2-1.9s3.7.9 4.2 1.9H5.8Z"
+        />
+      </svg>
+    )
+  }
+
+  if (label === 'Ajouter un joueur') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 3.3a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Zm0 8.2c-3 0-5.4 1.5-5.4 3.5 0 .6.4 1 1 1h9c.6 0 1-.4 1-1 0-2-2.4-3.5-5.4-3.5Zm.8 1.2h1.4v1.5h1.5v1.4h-1.5v1.5h-1.4v-1.5H9.3v-1.4h1.5v-1.5Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Joueurs et rôles') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M7 4.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Zm6 0a2.3 2.3 0 1 0 0 4.6 2.3 2.3 0 0 0 0-4.6ZM3.9 14.7c0-1.8 1.9-3.2 4.1-3.2s4.1 1.4 4.1 3.2v.8h-8.2v-.8Zm9.5.8v-.8c0-.8-.3-1.6-.8-2.2 1.7.1 3.1 1.1 3.1 2.4v.6h-2.3Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Alias cartes PUBG') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M4.5 3.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15V5a1.5 1.5 0 0 0-1.5-1.5h-11ZM6 7h8v1.4H6V7Zm0 2.9h5.5v1.4H6V9.9Zm0 2.9h8v1.4H6v-1.4Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Accueil login') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 3.2 3.4 8.3v8.5h4.3v-5.1h4.6v5.1h4.3V8.3L10 3.2Zm0 1.9 5.1 4v6.2h-1.5v-5.1a1 1 0 0 0-1-1H7.4a1 1 0 0 0-1 1v5.1H4.9V9.1l5.1-4Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Ouvrir Ops Cron') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 4.1a5.9 5.9 0 1 0 0 11.8 5.9 5.9 0 0 0 0-11.8Zm0 1.5a4.4 4.4 0 1 1 0 8.8 4.4 4.4 0 0 1 0-8.8Zm-.7 1.7v3.4c0 .2.1.4.3.6l2.3 1.8.9-1.1-2-1.5V7.3H9.3Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Test email') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M4.5 4A1.5 1.5 0 0 0 3 5.5v9A1.5 1.5 0 0 0 4.5 16h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 15.5 4h-11Zm0 1.5h11v.4L10 9.8 4.5 5.9v-.4Zm0 2.2 5 3.5a1 1 0 0 0 1 0l5-3.5v6.8h-11V7.7Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Monitoring PUBG API') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M3.5 4.5h13v11h-13v-11Zm1.5 1.5V14h10V6h-10Zm1.2 6.7 1.8-2.2 1.8 1.4 2.5-3.1 1.2 1-3.4 4.2-2.1-1.6-1.2 1.5-0.6-.6Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Changer de clan') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M6.2 3.8H4v12.4h2.2V3.8Zm9.8 0H7.8v5h8.2l-1.6-2.5L16 3.8Zm0 7.4H7.8v5H16l-1.6-2.5 1.6-2.5Z" />
       </svg>
     )
   }
@@ -382,7 +475,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     { label: 'Mon compte', href: '/account', tone: 'neutral' },
   ]
 
-  const adminLinks: NavItem[] = [
+  const adminLinks: SubmenuItem[] = [
     ...(canManageMembers
       ? [
           {
@@ -415,6 +508,13 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           },
         ]
       : []),
+  ]
+
+  const ownerLinks: SubmenuItem[] = [
+    { label: 'Ouvrir Ops Cron', href: '/settings/cron', tone: 'emerald' },
+    { label: 'Test email', href: '/settings/email-delivery', tone: 'emerald' },
+    { label: 'Monitoring PUBG API', href: '/settings/pubg-api', tone: 'emerald' },
+    { label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false },
   ]
 
   const showAdminMenu = adminLinks.length > 0 || Boolean(clanId && canClearClan)
@@ -674,9 +774,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     )
   }
 
-  function renderSubmenuLink(item: NavItem, mobile = false) {
-    const active = isActiveLink(item.href)
+  function renderSubmenuLink(item: SubmenuItem, mobile = false) {
+    const shouldHighlight = item.highlightWhenActive ?? true
+    const active = shouldHighlight && isActiveLink(item.href)
     const darkMode = appTheme === 'dark'
+    const icon = renderNavIcon(item.label)
 
     return (
       <Link
@@ -685,17 +787,17 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         onClick={mobile ? closeMobileDrawer : undefined}
         aria-current={active ? 'page' : undefined}
         className={cx(
-          'rounded-lg px-3 py-2 text-sm font-medium transition',
-          darkMode
-            ? active
-              ? 'bg-white/10 text-white ring-1 ring-inset ring-white/20'
-              : 'text-slate-300 hover:bg-white/5 hover:text-white'
-            : active
-              ? 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-300'
-              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+          'group relative rounded-lg px-3 py-2 text-sm font-semibold transition duration-200',
+          mobile && 'block w-full text-left',
+          getToneClasses(item.tone, active, darkMode)
         )}
       >
-        {item.label}
+        <span className="flex items-center gap-2">
+          <span className={cx('transition-transform duration-200 group-hover:scale-110', active && 'scale-110')}>
+            {icon}
+          </span>
+          <span className="truncate">{item.label}</span>
+        </span>
       </Link>
     )
   }
@@ -806,50 +908,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Owner
                 </p>
-                <Link
-                  href="/settings/cron"
-                  className={cx(
-                    'mb-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Ouvrir Ops Cron
-                </Link>
-                <Link
-                  href="/settings/email-delivery"
-                  className={cx(
-                    'block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Test email
-                </Link>
-                <Link
-                  href="/settings/pubg-api"
-                  className={cx(
-                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Monitoring PUBG API
-                </Link>
-                <Link
-                  href="/clans"
-                  className={cx(
-                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Changer de clan
-                </Link>
+                <div className="grid grid-cols-1 gap-2">{ownerLinks.map((item) => renderSubmenuLink(item))}</div>
               </section>
             ) : null}
           </div>
@@ -1047,54 +1106,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Owner
                 </p>
-                <Link
-                  href="/settings/cron"
-                  onClick={closeMobileDrawer}
-                  className={cx(
-                    'mb-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Ouvrir Ops Cron
-                </Link>
-                <Link
-                  href="/settings/email-delivery"
-                  onClick={closeMobileDrawer}
-                  className={cx(
-                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Test email
-                </Link>
-                <Link
-                  href="/settings/pubg-api"
-                  onClick={closeMobileDrawer}
-                  className={cx(
-                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Monitoring PUBG API
-                </Link>
-                <Link
-                  href="/clans"
-                  onClick={closeMobileDrawer}
-                  className={cx(
-                    'mt-2 block rounded-lg border px-3 py-2 text-xs font-semibold transition',
-                    appTheme === 'dark'
-                      ? 'border-amber-300/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20'
-                      : 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
-                  )}
-                >
-                  Changer de clan
-                </Link>
+                <div className="grid grid-cols-1 gap-2">{ownerLinks.map((item) => renderSubmenuLink(item, true))}</div>
               </section>
             ) : null}
           </aside>

@@ -1,4 +1,5 @@
-import Image from 'next/image'
+import PlacementBadge from '@/components/ui/PlacementBadge'
+import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
@@ -32,54 +33,10 @@ function formatMatchTime(value: string) {
   })
 }
 
-function getTeamSizeMeta(memberCount: number) {
-  if (memberCount <= 2) {
-    return {
-      label: 'Duo',
-      iconPath: '/icons/squads/duo.svg',
-      tone: 'bg-sky-100 text-sky-700',
-    }
-  }
-
-  if (memberCount === 3) {
-    return {
-      label: 'Trio',
-      iconPath: '/icons/squads/trio.svg',
-      tone: 'bg-violet-100 text-violet-700',
-    }
-  }
-
-  return {
-    label: 'Squad',
-    iconPath: '/icons/squads/squad.svg',
-    tone: 'bg-emerald-100 text-emerald-700',
-  }
-}
-
-function placementTone(placement: number) {
-  if (placement <= 1) {
-    return 'border-amber-200 bg-amber-100 text-amber-900'
-  }
-
-  if (placement <= 5) {
-    return 'border-yellow-200 bg-yellow-100 text-yellow-900'
-  }
-
-  if (placement <= 10) {
-    return 'border-orange-200 bg-orange-100 text-orange-900'
-  }
-
-  return 'border-slate-200 bg-slate-100 text-slate-700'
-}
-
 function resultTone(isWin: boolean) {
   return isWin
     ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
     : 'border-rose-200 bg-rose-100 text-rose-900'
-}
-
-function teamTone(teamSize: ReturnType<typeof getTeamSizeMeta>) {
-  return `border ${teamSize.tone} shadow-sm`
 }
 
 function formatDuration(totalSeconds: number) {
@@ -116,19 +73,19 @@ export default function SquadMatchList({ clanId, period, matches, mapLabels }: S
             Cartes synthétiques des 10 dernières parties détectées pour le clan #{clanId}.
           </p>
         </div>
-        <p className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600 shadow-sm">
+        <p className="app-meta-pill">
           {latestMatches.length} match{latestMatches.length > 1 ? 's' : ''}
         </p>
       </div>
       <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {latestMatches.map((match) => {
-          const team = getTeamSizeMeta(match.members.length)
+          const teamMode = teamModeFromMemberCount(match.members.length)
           const memberNames = match.members.map((member) => member.displayName)
 
           return (
             <li
               key={match.id}
-              className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition duration-200 hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -143,10 +100,7 @@ export default function SquadMatchList({ clanId, period, matches, mapLabels }: S
                 </div>
 
                 <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${teamTone(team)}`}>
-                    <Image src={team.iconPath} alt={`${team.label} icon`} width={14} height={14} className="squad-mode-icon" />
-                    <span>{team.label}</span>
-                  </span>
+                  <TeamModeBadge mode={teamMode} className="shadow-sm" />
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${resultTone(match.isWin)}`}>
                     {match.isWin ? 'Victoire' : 'Défaite'}
                   </span>
@@ -177,7 +131,9 @@ export default function SquadMatchList({ clanId, period, matches, mapLabels }: S
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-center">
                   <dt className="text-[9px] uppercase tracking-wide text-gray-500">Classement</dt>
-                  <dd className={`mt-0.5 text-base font-bold ${placementTone(match.placement)}`}>#{match.placement}</dd>
+                  <dd className="mt-1 flex justify-center">
+                    <PlacementBadge placement={match.placement} />
+                  </dd>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-center">
                   <dt className="text-[9px] uppercase tracking-wide text-gray-500">Durée</dt>

@@ -1,5 +1,6 @@
 import type { DashboardStats as DashboardStatsType, ClanAverage } from '@/types/dashboard'
 import type { DashboardPeriod } from '@/types/dashboard'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   week: 'Cette semaine',
@@ -63,22 +64,15 @@ export default function PlayerStats({ stats, clanAverage, period, onPeriodChange
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Stats principales</h2>
-          <div className="dashboard-period-toggle inline-flex rounded border border-gray-200 p-0.5">
-            {(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => onPeriodChange(value)}
-                className={`dashboard-period-toggle-item rounded px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-                  value === period
-                    ? 'dashboard-period-toggle-item-active bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {PERIOD_LABELS[value]}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => ({
+              value,
+              label: PERIOD_LABELS[value],
+            }))}
+            value={period}
+            onChange={onPeriodChange}
+            size="sm"
+          />
         </div>
         <p className="text-sm text-gray-500">
           Aucune donnée disponible pour cette période. Les stats sont calculées automatiquement
@@ -115,22 +109,17 @@ export default function PlayerStats({ stats, clanAverage, period, onPeriodChange
           )}
         </div>
 
-        <div className="dashboard-period-toggle inline-flex w-full flex-wrap rounded border border-gray-200 p-0.5 sm:w-auto sm:flex-nowrap">
-          {(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onPeriodChange(value)}
-              className={`dashboard-period-toggle-item rounded px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-                value === period
-                  ? 'dashboard-period-toggle-item-active bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {PERIOD_LABELS[value]}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          options={(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => ({
+            value,
+            label: PERIOD_LABELS[value],
+          }))}
+          value={period}
+          onChange={onPeriodChange}
+          size="sm"
+          wrap
+          fullWidthOnMobile
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

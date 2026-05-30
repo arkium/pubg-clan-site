@@ -198,10 +198,8 @@ export default function MemberSectionNav({
             <Link
               key={item.href}
               href={item.href}
-              className={`member-section-nav-item inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                active
-                  ? 'member-section-nav-item-active bg-blue-600 text-white shadow-sm'
-                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                active ? 'clan-section-nav-link--active shadow-sm' : ''
               }`}
             >
               {icon ? <span className="inline-flex h-4 w-4 items-center justify-center">{icon}</span> : null}

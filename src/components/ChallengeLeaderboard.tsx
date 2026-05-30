@@ -58,12 +58,12 @@ export default function ChallengeLeaderboard({ leaderboard, currentMemberId, met
                 </td>
                 <td className="px-4 py-2 text-gray-800">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border bg-gray-200">
+                    <span className="app-avatar flex h-8 w-8 shrink-0">
                       {entry.avatarUrl ? (
                         <img
                           src={entry.avatarUrl}
                           alt={entry.displayName + ' avatar'}
-                          className="h-8 w-8 rounded-full object-cover"
+                          className="h-full w-full object-cover"
                           onError={(event) => {
                             event.currentTarget.style.display = 'none'
                           }}

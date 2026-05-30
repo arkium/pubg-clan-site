@@ -29,6 +29,18 @@ function getPeriodStart(period: SquadPeriod) {
   return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 }
 
+function teamModeFromMemberCount(memberCount: number) {
+  if (memberCount <= 2) {
+    return 'duo'
+  }
+
+  if (memberCount === 3) {
+    return 'trio'
+  }
+
+  return 'squad'
+}
+
 function buildSynergyKey(memberIds: number[]) {
   return memberIds.join(':')
 }
@@ -114,8 +126,22 @@ export async function GET(
 
     const period = parsePeriod(request.nextUrl.searchParams.get('period'))
     const requestedGameMode = request.nextUrl.searchParams.get('gameMode')?.trim() ?? ''
-    const gameModeFilter = requestedGameMode.length > 0 ? requestedGameMode : undefined
+    const gameModeFilter =
+      requestedGameMode === 'duo' || requestedGameMode === 'trio' || requestedGameMode === 'squad'
+        ? requestedGameMode
+        : undefined
     const periodStart = getPeriodStart(period)
+    const baseWhere = {
+      createdAt: { gte: periodStart },
+      members: {
+        some: {
+          member: {
+            clanId: parsedClanId,
+            isActive: true,
+          },
+        },
+      },
+    }
 
     const clan = await prisma.clan.findUnique({
       where: { id: parsedClanId },
@@ -130,18 +156,7 @@ export async function GET(
     }
 
     const squadMatches = await prisma.squadMatch.findMany({
-      where: {
-        createdAt: { gte: periodStart },
-        ...(gameModeFilter ? { gameMode: gameModeFilter } : {}),
-        members: {
-          some: {
-            member: {
-              clanId: parsedClanId,
-              isActive: true,
-            },
-          },
-        },
-      },
+      where: baseWhere,
       include: {
         members: {
           include: {
@@ -204,7 +219,11 @@ export async function GET(
       isWin: match.placement === 1,
     }))
 
-    const stats = squads.reduce(
+    const filteredSquads = gameModeFilter
+      ? squads.filter((match) => teamModeFromMemberCount(match.members.length) === gameModeFilter)
+      : squads
+
+    const stats = filteredSquads.reduce(
       (acc, match) => {
         acc.totalKills += match.totalKills
         acc.totalDamage += match.totalDamage
@@ -269,7 +288,7 @@ export async function GET(
       }
     >()
 
-    for (const match of squads) {
+    for (const match of filteredSquads) {
       const date = match.createdAt.slice(0, 10)
       const session = sessionsMap.get(date) ?? {
         date,
@@ -389,9 +408,11 @@ export async function GET(
       clanName: clan.name,
       period,
       ...(gameModeFilter ? { gameMode: gameModeFilter } : {}),
-      availableModes: Array.from(new Set(squads.map((match) => match.gameMode))).sort(),
+      availableModes: Array.from(
+        new Set(squads.map((match) => teamModeFromMemberCount(match.members.length)))
+      ).sort(),
       mapLabels: await getMapLabels(),
-      squads,
+      squads: filteredSquads,
       stats: {
         totalKills: stats.totalKills,
         totalDamage: stats.totalDamage,

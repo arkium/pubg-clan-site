@@ -1,7 +1,7 @@
 'use client'
 
 import { usePlayerMatches } from './usePlayerDashboard'
-import type { DashboardPeriod } from '@/types/dashboard'
+import type { DashboardMatchSortDirection, DashboardMatchSortKey, DashboardPeriod } from '@/types/dashboard'
 
 /**
  * Hook to fetch and paginate a player's match history.
@@ -11,9 +11,11 @@ export function useMatchHistory(
   memberId: number | null,
   period: DashboardPeriod,
   limit: number,
-  offset: number
+  offset: number,
+  sortBy: DashboardMatchSortKey = 'pubgCreatedAt',
+  sortDirection: DashboardMatchSortDirection = 'desc'
 ) {
-  const { data, loading, error } = usePlayerMatches(memberId, period, limit, offset)
+  const { data, loading, error } = usePlayerMatches(memberId, period, limit, offset, sortBy, sortDirection)
 
   return {
     matches: data.matches,

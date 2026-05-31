@@ -1,18 +1,14 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="squad_bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+    <linearGradient id="squad_bg" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
       <stop stop-color="#34D399"/>
       <stop offset="1" stop-color="#065F46"/>
     </linearGradient>
   </defs>
-  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#squad_bg)"/>
-  <path d="M14 44C14 37.925 18.925 33 25 33H39C45.075 33 50 37.925 50 44V45H14V44Z" fill="white" fill-opacity="0.22"/>
-  <circle cx="22" cy="24" r="5" fill="#ECFDF5"/>
-  <circle cx="30" cy="22" r="5" fill="white"/>
-  <circle cx="38" cy="22" r="5" fill="white"/>
-  <circle cx="46" cy="24" r="5" fill="#ECFDF5"/>
-  <path d="M18 14L14 18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M46 14L50 18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M18 50L14 46" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M46 50L50 46" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="8" y="8" width="48" height="48" rx="14" fill="url(#squad_bg)"/>
+  <rect x="15" y="15" width="34" height="34" rx="9" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.22)"/>
+  <circle cx="24" cy="24" r="4.6" fill="#ECFDF5"/>
+  <circle cx="40" cy="24" r="4.6" fill="white"/>
+  <circle cx="24" cy="40" r="4.6" fill="white"/>
+  <circle cx="40" cy="40" r="4.6" fill="#ECFDF5"/>
 </svg>

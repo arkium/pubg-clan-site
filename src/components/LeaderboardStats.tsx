@@ -1,47 +1,37 @@
+import Image from 'next/image'
+
+import { DISTINCTION_BADGE_META, type DistinctionBadgeKey } from '@/lib/distinction-badges'
 import type {
-  LeaderboardKillsView,
   PlayerStatsEntry,
 } from '@/types/leaderboard'
-
-function getDisplayedKills(entry: PlayerStatsEntry, killsView: LeaderboardKillsView) {
-  if (killsView === 'withSolo') {
-    return entry.totalKills + entry.soloKills
-  }
-
-  return entry.totalKills
-}
-
-const BADGE_META = {
-  topKiller: '🔫 Top Killer',
-  topDamage: '💥 Top Damage',
-  bestWinRate: '🏆 Best Win Rate',
-  mvp: '💎 MVP',
-} as const
 
 function HighlightCard({
   label,
   entry,
-  badge,
+  badgeKey,
   value,
 }: {
   label: string
   entry: PlayerStatsEntry | null
-  badge: string
+  badgeKey: DistinctionBadgeKey
   value: (e: PlayerStatsEntry) => string
 }) {
+  const badgeMeta = DISTINCTION_BADGE_META[badgeKey]
+
   return (
-    <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+    <article className="flex h-full flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
       {entry ? (
-        <>
-          <p className="text-base font-bold text-gray-900">{entry.displayName}</p>
-          <p className="mt-1 text-sm text-blue-700">{value(entry)}</p>
-          <span className="mt-2 inline-block rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
-            {badge}
+        <div className="flex flex-1 flex-col items-center gap-1.5 text-center sm:items-start sm:text-left">
+          <p className="text-base leading-5 font-bold text-gray-900">{entry.displayName}</p>
+          <p className="text-sm leading-5 text-blue-700">{value(entry)}</p>
+          <span className="app-performer-pill app-performer-pill--award mt-auto self-center sm:self-start">
+            <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} className="app-performer-pill__icon" />
+            <span>{badgeMeta.label}</span>
           </span>
-        </>
+        </div>
       ) : (
-        <p className="text-sm text-gray-500">Aucune donnée</p>
+        <p className="text-center text-sm leading-5 text-gray-500 sm:text-left">Aucune donnée</p>
       )}
     </article>
   )
@@ -49,20 +39,20 @@ function HighlightCard({
 
 interface LeaderboardStatsProps {
   entries: PlayerStatsEntry[]
-  killsView: LeaderboardKillsView
 }
 
-export default function LeaderboardStats({ entries, killsView }: LeaderboardStatsProps) {
+export default function LeaderboardStats({ entries }: LeaderboardStatsProps) {
   const withMatches = entries.filter((entry) => entry.matchesPlayed > 0)
   const withMinMatches = entries.filter((entry) => entry.matchesPlayed >= 3)
-  const killCandidates = entries.filter((entry) => getDisplayedKills(entry, killsView) > 0)
+  const kpmCandidates = withMinMatches.length > 0 ? withMinMatches : withMatches
+  const killCandidates = entries.filter((entry) => entry.totalKills > 0)
 
   const topKiller = killCandidates.reduce<PlayerStatsEntry | null>((best, entry) => {
     if (!best) {
       return entry
     }
 
-    return getDisplayedKills(entry, killsView) > getDisplayedKills(best, killsView) ? entry : best
+    return entry.totalKills > best.totalKills ? entry : best
   }, null)
 
   const topDamage = withMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
@@ -81,7 +71,7 @@ export default function LeaderboardStats({ entries, killsView }: LeaderboardStat
     return entry.winRate > best.winRate ? entry : best
   }, null)
 
-  const maxKills = Math.max(...withMatches.map((entry) => getDisplayedKills(entry, killsView)), 1)
+  const maxKills = Math.max(...withMatches.map((entry) => entry.totalKills), 1)
   const maxDamage = Math.max(...withMatches.map((entry) => entry.totalDamage), 1)
 
   const mvp = withMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
@@ -89,46 +79,64 @@ export default function LeaderboardStats({ entries, killsView }: LeaderboardStat
       return entry
     }
 
-    const scoreEntry = getDisplayedKills(entry, killsView) / maxKills + entry.totalDamage / maxDamage + entry.winRate
-    const scoreBest =
-      getDisplayedKills(best, killsView) / maxKills + best.totalDamage / maxDamage + best.winRate
+    const scoreEntry = entry.totalKills / maxKills + entry.totalDamage / maxDamage + entry.winRate
+    const scoreBest = best.totalKills / maxKills + best.totalDamage / maxDamage + best.winRate
 
     return scoreEntry > scoreBest ? entry : best
+  }, null)
+
+  const bestKpm = kpmCandidates.reduce<PlayerStatsEntry | null>((best, entry) => {
+    if (!best) {
+      return entry
+    }
+
+    const currentRatio = entry.matchesPlayed > 0 ? entry.totalKills / entry.matchesPlayed : 0
+    const bestRatio = best.matchesPlayed > 0 ? best.totalKills / best.matchesPlayed : 0
+
+    return currentRatio > bestRatio ? entry : best
   }, null)
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
       <h2 className="mb-3 text-lg font-semibold text-gray-900">Top performers</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
         <HighlightCard
           label="Top Killer"
-          badge={BADGE_META.topKiller}
+          badgeKey="top_killer"
           entry={topKiller}
-          value={(e) =>
-            killsView === 'withSolo'
-              ? `${getDisplayedKills(e, killsView)} kills (avec solo)`
-              : `${e.totalKills} kills`
-          }
+          value={(e) => `${e.totalKills} kills`}
         />
         <HighlightCard
           label="Top Damage"
-          badge={BADGE_META.topDamage}
+          badgeKey="top_damage"
           entry={topDamage}
           value={(e) => `${Math.round(e.totalDamage)} dmg`}
         />
         <HighlightCard
           label="Best Win Rate"
-          badge={BADGE_META.bestWinRate}
+          badgeKey="best_wr"
           entry={bestWinRate}
           value={(e) => `${(e.winRate * 100).toFixed(1)}% (${e.matchesPlayed} matchs)`}
         />
         <HighlightCard
           label="MVP"
-          badge={BADGE_META.mvp}
+          badgeKey="mvp"
           entry={mvp}
           value={(e) =>
-            `${getDisplayedKills(e, killsView)}K / ${Math.round(e.totalDamage)}D / ${(e.winRate * 100).toFixed(0)}%WR`
+            `${e.totalKills}K / ${Math.round(e.totalDamage)}D / ${(e.winRate * 100).toFixed(0)}%WR`
           }
+        />
+        <HighlightCard
+          label="TOP Kills/Matchs"
+          badgeKey="best_kpm"
+          entry={bestKpm}
+          value={(e) => {
+            const ratio = e.matchesPlayed > 0 ? e.totalKills / e.matchesPlayed : 0
+            return `${ratio.toLocaleString('fr-FR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} K/M`
+          }}
         />
       </div>
     </section>

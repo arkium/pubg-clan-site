@@ -17,6 +17,37 @@ Ce document centralise les composants reutilisables de l application, leur inten
 | TeamModeBadge | src/components/ui/TeamModeBadge.tsx | Badge mode equipe Duo/Trio/Squad avec icone standard | clans matches, SquadMatchList, SquadSynergies, SessionRecap, members map-stats |
 | MobileDropdownNav | src/components/ui/MobileDropdownNav.tsx | Menu dropdown mobile pour filtres/navigation en petit ecran | MemberSectionNav, members notifications, members heatmap, members map-stats |
 
+## Metadonnees partagees de distinctions
+
+Fichier: src/lib/distinction-badges.ts
+
+Role:
+
+- Centraliser les metadonnees des distinctions (cle, label, chemin d icone SVG).
+- Eviter les labels/icones hardcodes dans plusieurs composants.
+
+Cles actuellement definies:
+
+- top_killer
+- top_damage
+- best_wr
+- mvp
+- best_kpm
+
+Usages actuels:
+
+- src/components/Leaderboard.tsx (badges dans la colonne joueur du tableau)
+- src/components/LeaderboardStats.tsx (cartes Top performers)
+- src/components/dashboard/PlayerStats.tsx (badge distinction profil)
+
+Assets utilises:
+
+- public/icons/distinctions/top-killer.svg
+- public/icons/distinctions/top-damage.svg
+- public/icons/distinctions/best-wr.svg
+- public/icons/distinctions/mvp.svg
+- public/icons/distinctions/best-kpm.svg
+
 ## Details par composant
 
 ### SegmentedControl
@@ -67,9 +98,9 @@ Fichier: src/components/ui/TeamModeBadge.tsx
 
 Props principales:
 
-- mode: duo, trio, squad
+- mode: solo, duo, trio, squad
 - label: surcharge optionnelle du texte
-- size: xs ou sm
+- size: xxs, xs ou sm
 - className: extension locale
 
 Helpers exposes:

@@ -41,10 +41,6 @@ export default function MobileDropdownNav({
   const triggerIcon = activeItem?.icon ?? leftIcon
 
   useEffect(() => {
-    setOpen(false)
-  }, [currentLabel])
-
-  useEffect(() => {
     if (!open) {
       return
     }
@@ -73,6 +69,7 @@ export default function MobileDropdownNav({
 
   return (
     <div
+      key={currentLabel}
       className={`mobile-dropdown-nav mobile-dropdown-nav--${variant} member-section-nav ${visibilityClass}${className ? ` ${className}` : ''}`}
     >
       <p className="member-section-nav-mobile-label block text-[11px] font-semibold uppercase tracking-[0.18em]">

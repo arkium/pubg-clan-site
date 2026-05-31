@@ -1,3 +1,6 @@
+import Image from 'next/image'
+
+import { DISTINCTION_BADGE_META, isDistinctionBadgeKey } from '@/lib/distinction-badges'
 import type { DashboardStats as DashboardStatsType, ClanAverage } from '@/types/dashboard'
 import type { DashboardPeriod } from '@/types/dashboard'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -6,20 +9,6 @@ const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   week: 'Cette semaine',
   month: 'Ce mois',
   all: 'Tout le temps',
-}
-
-const BADGE_ICONS: Record<string, string> = {
-  top_killer: '🔫',
-  top_damage: '💥',
-  best_wr: '🏆',
-  mvp: '💎',
-}
-
-const BADGE_LABELS: Record<string, string> = {
-  top_killer: 'Top Killer',
-  top_damage: 'Top Damage',
-  best_wr: 'Best Win Rate',
-  mvp: 'MVP',
 }
 
 interface StatCardProps {
@@ -91,20 +80,22 @@ export default function PlayerStats({ stats, clanAverage, period, onPeriodChange
       ? ((stats.totalDamage - clanAverage.avgDamage) / clanAverage.avgDamage) * 100
       : null
 
-  const badge = stats.badgeType ? BADGE_ICONS[stats.badgeType] : null
-  const badgeLabel = stats.badgeType ? BADGE_LABELS[stats.badgeType] : null
+  const badgeMeta = isDistinctionBadgeKey(stats.badgeType)
+    ? DISTINCTION_BADGE_META[stats.badgeType]
+    : null
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-900">Stats principales</h2>
-          {badge && (
+          {badgeMeta && (
             <span
-              title={badgeLabel ?? ''}
+              title={badgeMeta.label}
               className="flex items-center gap-1 rounded-full bg-yellow-100 px-3 py-1 text-sm font-medium text-yellow-800"
             >
-              {badge} {badgeLabel}
+              <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} />
+              <span>{badgeMeta.label}</span>
             </span>
           )}
         </div>

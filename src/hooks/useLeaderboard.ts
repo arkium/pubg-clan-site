@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import type {
+  LeaderboardKillsView,
   LeaderboardPeriod,
   LeaderboardResponse,
   LeaderboardSortBy,
@@ -27,14 +28,20 @@ const defaultData: LeaderboardResponse = {
 
 const leaderboardCache = new Map<string, LeaderboardResponse>()
 
-function buildCacheKey(clanId: number, period: LeaderboardPeriod, sortBy: LeaderboardSortBy) {
-  return `v2:${clanId}:${period}:${sortBy}`
+function buildCacheKey(
+  clanId: number,
+  period: LeaderboardPeriod,
+  sortBy: LeaderboardSortBy,
+  killsView: LeaderboardKillsView
+) {
+  return `v3:${clanId}:${period}:${sortBy}:${killsView}`
 }
 
 export function useLeaderboard(
   clanId: number | null,
   period: LeaderboardPeriod,
-  sortBy: LeaderboardSortBy
+  sortBy: LeaderboardSortBy,
+  killsView: LeaderboardKillsView
 ) {
   const [data, setData] = useState<LeaderboardResponse>(defaultData)
   const [loading, setLoading] = useState(false)
@@ -42,8 +49,8 @@ export function useLeaderboard(
 
   const cacheKey = useMemo(() => {
     if (!clanId) return null
-    return buildCacheKey(clanId, period, sortBy)
-  }, [clanId, period, sortBy])
+    return buildCacheKey(clanId, period, sortBy, killsView)
+  }, [clanId, period, sortBy, killsView])
 
   useEffect(() => {
     if (!clanId || !cacheKey) return
@@ -65,7 +72,7 @@ export function useLeaderboard(
           return
         }
 
-        const params = new URLSearchParams({ period, sortBy })
+        const params = new URLSearchParams({ period, sortBy, killsView })
         const response = await fetch(`/api/clans/${clanId}/leaderboard?${params.toString()}`)
         const payload = (await response.json()) as LeaderboardResponse | { error?: string }
 
@@ -97,7 +104,7 @@ export function useLeaderboard(
     return () => {
       cancelled = true
     }
-  }, [cacheKey, clanId, period, sortBy])
+  }, [cacheKey, clanId, period, sortBy, killsView])
 
   return {
     leaderboard: clanId ? data.leaderboard : [],

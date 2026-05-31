@@ -9,6 +9,8 @@ function getMetricValue(
   switch (metric) {
     case 'damage':
       return stats.totalDamage
+    case 'kpm':
+      return stats.matchesPlayed > 0 ? stats.totalKills / stats.matchesPlayed : 0
     case 'winRate':
       return stats.winRate * 100
     case 'matches':
@@ -21,6 +23,7 @@ function getMetricValue(
 function formatMetricValue(value: number, metric: LeaderboardSortBy): string {
   if (metric === 'winRate') return `${value.toFixed(1)}%`
   if (metric === 'damage') return `${Math.round(value)}`
+  if (metric === 'kpm') return value.toFixed(2)
   return String(Math.round(value))
 }
 
@@ -78,6 +81,7 @@ interface ProgressionChartProps {
 
 const METRIC_LABELS: Record<LeaderboardSortBy, string> = {
   kills: 'Kills',
+  kpm: 'K/M',
   damage: 'Damage',
   winRate: 'Win Rate (%)',
   matches: 'Matchs',

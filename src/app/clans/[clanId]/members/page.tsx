@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
+import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -80,6 +81,21 @@ export default function ClanMembersPage() {
       return sortOrder === 'az' ? comparison : comparison * -1
     })
   }, [members, sortOrder])
+
+  const sortItems: MobileDropdownNavItem[] = [
+    {
+      key: 'az',
+      label: 'Nom A-Z',
+      active: sortOrder === 'az',
+      onSelect: () => setSortOrder('az'),
+    },
+    {
+      key: 'za',
+      label: 'Nom Z-A',
+      active: sortOrder === 'za',
+      onSelect: () => setSortOrder('za'),
+    },
+  ]
 
   useEffect(() => {
     if (!clanId) {
@@ -186,19 +202,27 @@ export default function ClanMembersPage() {
         </header>
 
         <div className="members-panel rounded bg-white p-4 shadow sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <h2 className="text-xl font-semibold">Joueurs ({members.length})</h2>
-            <label className="flex w-full max-w-xs flex-col gap-1 text-sm font-medium text-slate-700 sm:w-auto">
-              Trier les joueurs
-              <select
-                value={sortOrder}
-                onChange={(event) => setSortOrder(event.target.value as 'az' | 'za')}
-                className="min-h-10 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm sm:min-h-11 sm:rounded-lg"
-              >
-                <option value="az">Nom A-Z</option>
-                <option value="za">Nom Z-A</option>
-              </select>
-            </label>
+            <MobileDropdownNav
+              id={`members-sort-${clanId}`}
+              label="Trier les joueurs"
+              currentLabel={sortOrder === 'az' ? 'Nom A-Z' : 'Nom Z-A'}
+              items={sortItems}
+              variant="compact"
+              visibilityClass="block"
+              className="w-full max-w-xs sm:w-auto"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M6 4.5h8M6 10h5.5M6 15.5h3"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            />
           </div>
           {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
           {loading ? <p className="text-sm text-gray-500">Chargement des membres...</p> : null}

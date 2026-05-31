@@ -1,5 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 
+import Image from 'next/image'
+
+import { DISTINCTION_BADGE_META, isDistinctionBadgeKey, type DistinctionBadgeKey } from '@/lib/distinction-badges'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import type {
   LeaderboardKillsView,
   LeaderboardSortBy,
@@ -13,72 +18,13 @@ const RANK_MEDALS: Record<number, string> = {
   3: '🥉',
 }
 
-const BADGE_ICONS: Record<string, string> = {
-  top_killer: '🔫',
-  top_damage: '💥',
-  best_wr: '🏆',
-  mvp: '💎',
-}
-
-const SORT_LABELS: Record<LeaderboardSortBy, string> = {
-  kills: 'Kills',
-  damage: 'Damage',
-  winRate: 'Win Rate',
-  matches: 'Matchs',
-}
-
-const MODE_ICONS = {
-  solo: '/icons/squads/solo.svg',
-  duo: '/icons/squads/duo.svg',
-  trio: '/icons/squads/trio.svg',
-  squad: '/icons/squads/squad.svg',
-} as const
-
-const SCOPE_ICONS = {
-  clan: '/icons/squads/scope-clan.svg',
-  outside: '/icons/squads/scope-outside.svg',
-} as const
-
-function formatSortValue(entry: PlayerStatsEntry, sortBy: LeaderboardSortBy): string {
-  switch (sortBy) {
-    case 'damage':
-      return `${Math.round(entry.totalDamage)} dmg`
-    case 'winRate':
-      return `${(entry.winRate * 100).toFixed(1)}%`
-    case 'matches':
-      return `${entry.matchesPlayed} matchs`
-    default:
-      return `${entry.totalKills} kills`
-  }
-}
-
-function ModeLabel({
-  icon,
-  modeHint,
-  scope,
-}: {
-  icon: (typeof MODE_ICONS)[keyof typeof MODE_ICONS]
-  modeHint: string
-  scope: keyof typeof SCOPE_ICONS
-}) {
-  return (
-    <span className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
-      <img
-        src={icon}
-        alt={modeHint}
-        className="h-4 w-4 rounded-sm"
-        title={modeHint}
-        aria-label={modeHint}
-      />
-      <img
-        src={SCOPE_ICONS[scope]}
-        alt={scope === 'clan' ? 'Perimetre clan' : 'Perimetre hors clan'}
-        className="h-4 w-4 rounded-sm"
-        title={scope === 'clan' ? 'Clan' : 'Hors clan'}
-      />
-    </span>
-  )
-}
+const SORT_OPTIONS: Array<{ value: LeaderboardSortBy; label: string }> = [
+  { value: 'kills', label: 'Kills' },
+  { value: 'kpm', label: 'K/M' },
+  { value: 'damage', label: 'Damage' },
+  { value: 'winRate', label: 'Win Rate' },
+  { value: 'matches', label: 'Matchs' },
+]
 
 interface LeaderboardProps {
   entries: PlayerStatsEntry[]
@@ -86,7 +32,7 @@ interface LeaderboardProps {
   sortBy: LeaderboardSortBy
   killsView: LeaderboardKillsView
   onSortChange: (sortBy: LeaderboardSortBy) => void
-  onKillsViewChange: (view: LeaderboardKillsView) => void
+  showPerformanceDelta?: boolean
 }
 
 export default function Leaderboard({
@@ -95,9 +41,8 @@ export default function Leaderboard({
   sortBy,
   killsView,
   onSortChange,
-  onKillsViewChange,
+  showPerformanceDelta = true,
 }: LeaderboardProps) {
-  const sortOptions: LeaderboardSortBy[] = ['kills', 'damage', 'winRate', 'matches']
   const progressionByMember = new Map<number, WeeklyProgression['weeklyStats']>(
     progression.map((item) => [item.memberId, item.weeklyStats])
   )
@@ -108,15 +53,15 @@ export default function Leaderboard({
       return null
     }
 
-    const first = weeklyStats[0]
-    const last = weeklyStats[weeklyStats.length - 1]
+    const current = weeklyStats[weeklyStats.length - 1]
+    const previous = weeklyStats[weeklyStats.length - 2]
 
     return {
-      kills: last.totalKills - first.totalKills,
-      winner: last.matchesWon - first.matchesWon,
-      winRate: (last.winRate - first.winRate) * 100,
-      matches: last.matchesPlayed - first.matchesPlayed,
-      damage: Math.round(last.totalDamage - first.totalDamage),
+      kills: current.totalKills - previous.totalKills,
+      winner: current.matchesWon - previous.matchesWon,
+      winRate: (current.winRate - previous.winRate) * 100,
+      matches: current.matchesPlayed - previous.matchesPlayed,
+      damage: Math.round(current.totalDamage - previous.totalDamage),
     }
   }
 
@@ -150,16 +95,116 @@ export default function Leaderboard({
   }
 
   function renderValueWithTrend(value: string, delta: number | null, decimals = 0) {
+    if (!showPerformanceDelta) {
+      return <span className="block w-full text-right font-semibold text-gray-900 tabular-nums">{value}</span>
+    }
+
     const trend = getTrend(delta)
 
     return (
-      <span className="inline-flex items-center gap-1 whitespace-nowrap">
-        <span className="font-semibold text-gray-900">{value}</span>
-        <span className={`text-xs font-semibold ${trend.tone}`}>
+      <span className="inline-flex max-w-full flex-col items-end text-right leading-tight tabular-nums">
+        <span className="block w-full text-right font-semibold text-gray-900">{value}</span>
+        <span className={`mt-0.5 block w-full text-right text-xs font-semibold ${trend.tone}`}>
           {delta === null ? '•' : `${trend.symbol}${formatDeltaMagnitude(delta, decimals)}`}
         </span>
       </span>
     )
+  }
+
+  function getDisplayedSoloClanKills(entry: PlayerStatsEntry) {
+    return killsView === 'withSolo' ? entry.soloKills : 0
+  }
+
+  function formatKillsPerMatch(entry: PlayerStatsEntry) {
+    return entry.avgKillsPerGame.toLocaleString('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  }
+
+  const withMatches = entries.filter((entry) => entry.matchesPlayed > 0)
+  const withMinMatches = entries.filter((entry) => entry.matchesPlayed >= 3)
+  const kpmCandidates = withMinMatches.length > 0 ? withMinMatches : withMatches
+  const killCandidates = entries.filter((entry) => entry.totalKills > 0)
+
+  const topKiller = killCandidates.reduce<PlayerStatsEntry | null>((best, entry) => {
+    if (!best) {
+      return entry
+    }
+
+    return entry.totalKills > best.totalKills ? entry : best
+  }, null)
+
+  const topDamage = withMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
+    if (!best) {
+      return entry
+    }
+
+    return entry.totalDamage > best.totalDamage ? entry : best
+  }, null)
+
+  const bestWinRate = withMinMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
+    if (!best) {
+      return entry
+    }
+
+    return entry.winRate > best.winRate ? entry : best
+  }, null)
+
+  const maxKills = Math.max(...withMatches.map((entry) => entry.totalKills), 1)
+  const maxDamage = Math.max(...withMatches.map((entry) => entry.totalDamage), 1)
+
+  const mvp = withMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
+    if (!best) {
+      return entry
+    }
+
+    const scoreEntry = entry.totalKills / maxKills + entry.totalDamage / maxDamage + entry.winRate
+    const scoreBest = best.totalKills / maxKills + best.totalDamage / maxDamage + best.winRate
+
+    return scoreEntry > scoreBest ? entry : best
+  }, null)
+
+  const bestKpm = kpmCandidates.reduce<PlayerStatsEntry | null>((best, entry) => {
+    if (!best) {
+      return entry
+    }
+
+    const currentRatio = entry.matchesPlayed > 0 ? entry.totalKills / entry.matchesPlayed : 0
+    const bestRatio = best.matchesPlayed > 0 ? best.totalKills / best.matchesPlayed : 0
+
+    return currentRatio > bestRatio ? entry : best
+  }, null)
+
+  const performerBadgeKeysByMemberId = new Map<number, DistinctionBadgeKey[]>()
+  const performerAssignments: Array<{ entry: PlayerStatsEntry | null; badgeKey: DistinctionBadgeKey }> = [
+    { entry: topKiller, badgeKey: 'top_killer' },
+    { entry: topDamage, badgeKey: 'top_damage' },
+    { entry: bestWinRate, badgeKey: 'best_wr' },
+    { entry: mvp, badgeKey: 'mvp' },
+    { entry: bestKpm, badgeKey: 'best_kpm' },
+  ]
+
+  for (const assignment of performerAssignments) {
+    if (!assignment.entry) {
+      continue
+    }
+
+    const current = performerBadgeKeysByMemberId.get(assignment.entry.memberId) ?? []
+    performerBadgeKeysByMemberId.set(assignment.entry.memberId, [...current, assignment.badgeKey])
+  }
+
+  function getRowBadgeKeys(entry: PlayerStatsEntry): DistinctionBadgeKey[] {
+    const computedBadges = performerBadgeKeysByMemberId.get(entry.memberId)
+    if (computedBadges && computedBadges.length > 0) {
+      return computedBadges
+    }
+
+    if (isDistinctionBadgeKey(entry.badgeType)) {
+      return [entry.badgeType]
+    }
+
+    return []
   }
 
   return (
@@ -167,57 +212,25 @@ export default function Leaderboard({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-900">Classement</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded border border-gray-200 p-1">
-            <button
-              type="button"
-              onClick={() => onKillsViewChange('clan')}
-              className={`rounded px-3 py-1 text-sm font-medium ${
-                killsView === 'clan' ? 'bg-slate-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              title="Classement inchange: kills avec membres du clan uniquement"
-            >
-              Kills clan
-            </button>
-            <button
-              type="button"
-              onClick={() => onKillsViewChange('withSolo')}
-              className={`rounded px-3 py-1 text-sm font-medium ${
-                killsView === 'withSolo' ? 'bg-slate-900 text-white' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              title="Affichage Kills = kills clan + kills solo hors clan"
-            >
-              Kills + solo
-            </button>
-          </div>
-
-          <div className="flex rounded border border-gray-200 p-1">
-            {sortOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => onSortChange(option)}
-                className={`rounded px-3 py-1 text-sm font-medium ${
-                  option === sortBy
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {SORT_LABELS[option]}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={SORT_OPTIONS}
+            value={sortBy}
+            onChange={onSortChange}
+            size="sm"
+            fullWidthOnMobile
+            className="w-full sm:w-auto"
+          />
         </div>
       </div>
 
       <p className="mb-3 text-xs text-gray-500">
-        Le classement et les badges du tableau restent calcules sur les kills clan (sans solo). Le toggle
-        "Kills + solo" recalcule uniquement les cartes Top performers.
+        Ce tableau est recalculé selon la période sélectionnée, triable via le toggle, avec le détail des éliminations par mode (Solo, Duo, Trio, Squad).
       </p>
 
       {entries.length === 0 ? (
         <div className="rounded border border-gray-200 bg-white p-6 text-center">
           <p className="text-sm text-gray-600">
-            Aucune donnée disponible. Les stats sont calculées automatiquement chaque nuit.
+            Aucune donnée disponible pour cette période. Le leaderboard est recalculé à la volée à partir des matchs importés.
           </p>
         </div>
       ) : (
@@ -226,7 +239,7 @@ export default function Leaderboard({
             {entries.map((entry, index) => {
               const rank = index + 1
               const medal = RANK_MEDALS[rank]
-              const badgeIcon = entry.badgeType ? BADGE_ICONS[entry.badgeType] : null
+              const badgeKeys = getRowBadgeKeys(entry)
               const delta = getProgressionDelta(entry.memberId)
 
               return (
@@ -257,13 +270,22 @@ export default function Leaderboard({
                       </span>
                       <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-gray-900">
                         <span className="truncate">{entry.displayName}</span>
-                        {badgeIcon ? (
-                          <span
-                            title={entry.badgeType ?? ''}
-                            className="shrink-0 text-base leading-none"
-                            aria-label={entry.badgeType ?? 'badge'}
-                          >
-                            {badgeIcon}
+                        {badgeKeys.length > 0 ? (
+                          <span className="inline-flex items-center gap-1">
+                            {badgeKeys.map((badgeKey) => {
+                              const badgeMeta = DISTINCTION_BADGE_META[badgeKey]
+
+                              return (
+                                <span
+                                  key={`${entry.id}-${badgeKey}`}
+                                  title={badgeMeta.label}
+                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center"
+                                  aria-label={badgeMeta.label}
+                                >
+                                  <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} />
+                                </span>
+                              )
+                            })}
                           </span>
                         ) : null}
                       </span>
@@ -271,111 +293,65 @@ export default function Leaderboard({
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
                       <p className="text-gray-500">KILLS</p>
-                      <p className="text-sm text-gray-900">
+                      <div className="mt-auto flex justify-end text-sm text-gray-900">
                         {renderValueWithTrend(String(entry.totalKills), delta?.kills ?? null)}
-                      </p>
+                      </div>
                     </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">DAMAGE</p>
-                      <p className="text-sm text-gray-900">
-                        {renderValueWithTrend(String(Math.round(entry.totalDamage)), delta?.damage ?? null)}
-                      </p>
-                    </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">WINNER</p>
-                      <p className="text-sm text-gray-900">
-                        {renderValueWithTrend(String(entry.matchesWon), delta?.winner ?? null)}
-                      </p>
-                    </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">WIN RATE</p>
-                      <p className="text-sm text-gray-900">
-                        {renderValueWithTrend(`${(entry.winRate * 100).toFixed(1)}%`, delta?.winRate ?? null, 1)}
-                      </p>
-                    </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
                       <p className="text-gray-500">MATCHS</p>
-                      <p className="text-sm text-gray-900">
+                      <div className="mt-auto flex justify-end text-sm text-gray-900">
                         {renderValueWithTrend(String(entry.matchesPlayed), delta?.matches ?? null)}
+                      </div>
+                    </div>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">DAMAGE</p>
+                      <div className="mt-auto flex justify-end text-sm text-gray-900">
+                        {renderValueWithTrend(String(Math.round(entry.totalDamage)), delta?.damage ?? null)}
+                      </div>
+                    </div>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">K/M</p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">
+                        {formatKillsPerMatch(entry)}
                       </p>
                     </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="inline-flex items-center gap-1 text-gray-500">
-                        <img
-                          src={MODE_ICONS.solo}
-                          alt="Solo"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Solo"
-                          aria-label="Solo"
-                        />
-                        SOLO
-                        <img
-                          src={SCOPE_ICONS.outside}
-                          alt="Perimetre hors clan"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Hors clan"
-                        />
-                      </p>
-                      <p className="text-sm font-semibold text-gray-900">{entry.soloKills}</p>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">WINNER</p>
+                      <div className="mt-auto flex justify-end text-sm text-gray-900">
+                        {renderValueWithTrend(String(entry.matchesWon), delta?.winner ?? null)}
+                      </div>
                     </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="inline-flex items-center gap-1 text-gray-500">
-                        <img
-                          src={MODE_ICONS.duo}
-                          alt="Duo"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Duo"
-                          aria-label="Duo"
-                        />
-                        DUO
-                        <img
-                          src={SCOPE_ICONS.clan}
-                          alt="Perimetre clan"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Clan"
-                        />
-                      </p>
-                      <p className="text-sm font-semibold text-gray-900">{entry.duoClanKills}</p>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">WIN RATE</p>
+                      <div className="mt-auto flex justify-end text-sm text-gray-900">
+                        {renderValueWithTrend(`${(entry.winRate * 100).toFixed(1)}%`, delta?.winRate ?? null, 1)}
+                      </div>
                     </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="inline-flex items-center gap-1 text-gray-500">
-                        <img
-                          src={MODE_ICONS.trio}
-                          alt="Trio"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Trio"
-                          aria-label="Trio"
-                        />
-                        TRIO
-                        <img
-                          src={SCOPE_ICONS.clan}
-                          alt="Perimetre clan"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Clan"
-                        />
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">
+                        <TeamModeBadge mode="solo" label="Solo" size="xs" className="shadow-none" />
                       </p>
-                      <p className="text-sm font-semibold text-gray-900">{entry.trioClanKills}</p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{getDisplayedSoloClanKills(entry)}</p>
                     </div>
-                    <div className="rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="inline-flex items-center gap-1 text-gray-500">
-                        <img
-                          src={MODE_ICONS.squad}
-                          alt="Squad"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Squad"
-                          aria-label="Squad"
-                        />
-                        SQUAD
-                        <img
-                          src={SCOPE_ICONS.clan}
-                          alt="Perimetre clan"
-                          className="h-3.5 w-3.5 rounded-sm"
-                          title="Clan"
-                        />
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">
+                        <TeamModeBadge mode="duo" label="Duo" size="xs" className="shadow-none" />
                       </p>
-                      <p className="text-sm font-semibold text-gray-900">{entry.squadClanKills}</p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.duoClanKills}</p>
+                    </div>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">
+                        <TeamModeBadge mode="trio" label="Trio" size="xs" className="shadow-none" />
+                      </p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.trioClanKills}</p>
+                    </div>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">
+                        <TeamModeBadge mode="squad" label="Squad" size="xs" className="shadow-none" />
+                      </p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.squadClanKills}</p>
                     </div>
                   </div>
                 </article>
@@ -383,114 +359,166 @@ export default function Leaderboard({
             })}
           </div>
 
-          <div className="hidden overflow-x-auto rounded border border-gray-200 bg-white shadow-sm md:block">
+          <div className="app-table-shell hidden overflow-x-auto md:block">
             <table className="w-full table-fixed text-sm">
-            <colgroup>
-              <col style={{ width: '5%' }} />
-              <col style={{ width: '23%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '7%' }} />
-              <col style={{ width: '8%' }} />
-            </colgroup>
-            <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <tr>
+              <colgroup>
+                <col style={{ width: '5%' }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '5.5%' }} />
+                <col style={{ width: '5.5%' }} />
+                <col style={{ width: '5.5%' }} />
+                <col style={{ width: '5.5%' }} />
+              </colgroup>
+              <thead className="app-table-head text-xs uppercase tracking-wide">
+                <tr>
                   <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Joueur</th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap">Kills</th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap">Damage</th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap">Winner</th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap">Win Rate</th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap">Matchs</th>
-                  <th className="px-4 py-3 text-center">
-                    <ModeLabel icon={MODE_ICONS.solo} modeHint="Solo" scope="outside" />
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Kills</div>
                   </th>
-                  <th className="px-4 py-3 text-center">
-                    <ModeLabel icon={MODE_ICONS.duo} modeHint="Duo" scope="clan" />
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Matchs</div>
                   </th>
-                  <th className="px-4 py-3 text-center">
-                    <ModeLabel icon={MODE_ICONS.trio} modeHint="Trio" scope="clan" />
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Damage</div>
                   </th>
-                  <th className="px-4 py-3 text-center">
-                    <ModeLabel icon={MODE_ICONS.squad} modeHint="Squad" scope="clan" />
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">K/M</div>
                   </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {entries.map((entry, index) => {
-                const rank = index + 1
-                const medal = RANK_MEDALS[rank]
-                const badgeIcon = entry.badgeType ? BADGE_ICONS[entry.badgeType] : null
-                const delta = getProgressionDelta(entry.memberId)
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Winner</div>
+                  </th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Win Rate</div>
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    <div className="flex w-full justify-end">
+                      <TeamModeBadge mode="solo" label="Solo" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    <div className="flex w-full justify-end">
+                      <TeamModeBadge mode="duo" label="Duo" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    <div className="flex w-full justify-end">
+                      <TeamModeBadge mode="trio" label="Trio" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    <div className="flex w-full justify-end">
+                      <TeamModeBadge mode="squad" label="Squad" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry, index) => {
+                  const rank = index + 1
+                  const medal = RANK_MEDALS[rank]
+                  const badgeKeys = getRowBadgeKeys(entry)
+                  const delta = getProgressionDelta(entry.memberId)
+                  const rowClassName =
+                    rank === 1
+                      ? 'app-table-row app-table-row--top1'
+                      : rank === 2
+                        ? 'app-table-row app-table-row--top2'
+                        : rank === 3
+                          ? 'app-table-row app-table-row--top3'
+                          : 'app-table-row'
 
-                return (
-                  <tr
-                    key={entry.id}
-                    className={rank <= 3 ? 'bg-yellow-50/30' : 'hover:bg-gray-50'}
-                  >
-                    <td className="px-4 py-3 text-center font-semibold text-gray-700">
-                      {medal ?? rank}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      <div className="flex items-center gap-2">
-                        <span className="app-avatar flex h-8 w-8 shrink-0">
-                          {entry.avatarUrl ? (
-                            <img
-                              src={entry.avatarUrl}
-                              alt={entry.displayName + ' avatar'}
-                              className="h-full w-full object-cover"
-                              onError={(event) => {
-                                event.currentTarget.style.display = 'none'
-                              }}
-                            />
-                          ) : (
-                            <span className="text-xs font-semibold text-gray-700">
-                              {entry.displayName.charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                        </span>
-                        <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                          <span className="truncate">{entry.displayName}</span>
-                          {badgeIcon ? (
-                            <span
-                              title={entry.badgeType ?? ''}
-                              className="shrink-0 text-base leading-none"
-                              aria-label={entry.badgeType ?? 'badge'}
-                            >
-                              {badgeIcon}
-                            </span>
-                          ) : null}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {renderValueWithTrend(String(entry.totalKills), delta?.kills ?? null)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {renderValueWithTrend(String(Math.round(entry.totalDamage)), delta?.damage ?? null)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {renderValueWithTrend(String(entry.matchesWon), delta?.winner ?? null)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {renderValueWithTrend(`${(entry.winRate * 100).toFixed(1)}%`, delta?.winRate ?? null, 1)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">
-                      {renderValueWithTrend(String(entry.matchesPlayed), delta?.matches ?? null)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-700">{entry.soloKills}</td>
-                    <td className="px-4 py-3 text-center text-gray-700">{entry.duoClanKills}</td>
-                    <td className="px-4 py-3 text-center text-gray-700">{entry.trioClanKills}</td>
-                    <td className="px-4 py-3 text-center text-gray-700">{entry.squadClanKills}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
+                  return (
+                    <tr
+                      key={entry.id}
+                      className={rowClassName}
+                    >
+                      <td className="px-4 py-3 text-center font-semibold text-gray-700">
+                        {medal ?? rank}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <span className="app-avatar flex h-8 w-8 shrink-0">
+                            {entry.avatarUrl ? (
+                              <img
+                                src={entry.avatarUrl}
+                                alt={entry.displayName + ' avatar'}
+                                className="h-full w-full object-cover"
+                                onError={(event) => {
+                                  event.currentTarget.style.display = 'none'
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs font-semibold text-gray-700">
+                                {entry.displayName.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                            <span className="truncate">{entry.displayName}</span>
+                            {badgeKeys.length > 0 ? (
+                              <span className="inline-flex items-center gap-1">
+                                {badgeKeys.map((badgeKey) => {
+                                  const badgeMeta = DISTINCTION_BADGE_META[badgeKey]
+
+                                  return (
+                                    <span
+                                      key={`${entry.id}-${badgeKey}`}
+                                      title={badgeMeta.label}
+                                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center"
+                                      aria-label={badgeMeta.label}
+                                    >
+                                      <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} />
+                                    </span>
+                                  )
+                                })}
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">
+                        <div className="flex w-full justify-end">
+                          {renderValueWithTrend(String(entry.totalKills), delta?.kills ?? null)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">
+                        <div className="flex w-full justify-end">
+                          {renderValueWithTrend(String(entry.matchesPlayed), delta?.matches ?? null)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">
+                        <div className="flex w-full justify-end">
+                          {renderValueWithTrend(String(Math.round(entry.totalDamage)), delta?.damage ?? null)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700 font-semibold tabular-nums">
+                        {formatKillsPerMatch(entry)}
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">
+                        <div className="flex w-full justify-end">
+                          {renderValueWithTrend(String(entry.matchesWon), delta?.winner ?? null)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">
+                        <div className="flex w-full justify-end">
+                          {renderValueWithTrend(`${(entry.winRate * 100).toFixed(1)}%`, delta?.winRate ?? null, 1)}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">{getDisplayedSoloClanKills(entry)}</td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">{entry.duoClanKills}</td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">{entry.trioClanKills}</td>
+                      <td className="px-4 py-3 align-top text-right text-gray-700">{entry.squadClanKills}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
             </table>
           </div>
         </div>

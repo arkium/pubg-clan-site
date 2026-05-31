@@ -14,7 +14,7 @@ Ce document liste les tableaux visibles dans l’application, avec les contrôle
 
 | Vue | Route | Composant / tableau | Pagination | Tri | Filtrage | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Classement du clan | `/clans/[clanId]/leaderboard` | `Leaderboard` | Non | Oui | Oui, période + mode `Kills clan` / `Kills + solo` | Le tri agit sur la période sélectionnée. |
+| Classement du clan | `/clans/[clanId]/leaderboard` | `Leaderboard` | Non | Oui (`Kills`, `K/M`, `Damage`, `Win Rate`, `Matchs`) | Oui, période + mode `Clan` / `Inclus Solo` | Le tri agit sur la période sélectionnée. Le mode `Inclus Solo` inclut les stats `solo clan` (un seul membre du clan dans le match). Les distinctions joueur sont calculees a la volee (Top Killer, Top Damage, Best Win Rate, MVP, Top K/M). |
 | Classement challenge | `/clans/[clanId]/challenges/[challengeId]` | `ChallengeLeaderboard` | Non | Non | Non | Tableau simple de progression / points. |
 | Tableau de bord membre, historique des matchs | `/members/[id]/dashboard` | `MatchHistory` | Oui | Oui (serveur) | Oui, période | Tableau réutilisé aussi sur la page matchs membre. Le tri est appliqué côté API avant pagination. |
 | Page matchs membre, historique des matchs | `/members/[id]/matches` | `MatchHistory` | Oui | Oui (serveur) | Oui, période | Même composant que sur le dashboard. Le tri est appliqué côté API avant pagination. |

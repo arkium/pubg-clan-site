@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Leaderboard from '@/components/Leaderboard'
 import LeaderboardStats from '@/components/LeaderboardStats'
 import ClanSectionNav from '@/components/ClanSectionNav'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { LeaderboardKillsView, LeaderboardPeriod, LeaderboardSortBy } from '@/types/leaderboard'
@@ -21,17 +22,34 @@ const PERIOD_LABELS: Record<LeaderboardPeriod, string> = {
   all: 'All Time',
 }
 
+const PERIOD_OPTIONS = (Object.entries(PERIOD_LABELS) as [LeaderboardPeriod, string][]).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+const KILLS_VIEW_LABELS: Record<LeaderboardKillsView, string> = {
+  clan: 'Clan',
+  withSolo: 'Inclus Solo',
+}
+
+const KILLS_VIEW_OPTIONS = (Object.entries(KILLS_VIEW_LABELS) as [LeaderboardKillsView, string][]).map(
+  ([value, label]) => ({
+    value,
+    label,
+  })
+)
+
 function formatLastUpdated(value: string | null) {
   if (!value) {
-    return 'Derniere mise a jour indisponible pour le moment.'
+    return 'Classement calculé en direct depuis les matchs de la période sélectionnée. Derniers matchs récupérés : horodatage indisponible.'
   }
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
-    return 'Derniere mise a jour indisponible pour le moment.'
+    return 'Classement calculé en direct depuis les matchs de la période sélectionnée. Derniers matchs récupérés : horodatage indisponible.'
   }
 
-  return `Derniere mise a jour des stats: ${date.toLocaleString('fr-FR')}. Cette date correspond au dernier recalcul enregistre pour cette periode.`
+  return `Classement calculé en direct depuis les matchs de la période sélectionnée. Derniers matchs récupérés au ${date.toLocaleString('fr-FR')}.`
 }
 
 export default function LeaderboardPage() {
@@ -47,7 +65,8 @@ export default function LeaderboardPage() {
   const { leaderboard, progression, lastUpdatedAt, loading, error } = useLeaderboard(
     clanId,
     period,
-    sortBy
+    sortBy,
+    killsView
   )
 
   useEffect(() => {
@@ -75,22 +94,31 @@ export default function LeaderboardPage() {
         </div>
       </header>
 
-      {/* Period selector */}
+      {/* Filters */}
       <div className="mb-6 rounded border border-gray-200 bg-white p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
-        <div className="flex flex-wrap gap-2">
-          {(['week', 'month', 'all'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setPeriod(value)}
-              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                value === period ? 'clan-section-nav-link--active shadow-sm' : ''
-              }`}
-            >
-              {PERIOD_LABELS[value]}
-            </button>
-          ))}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
+            <SegmentedControl
+              options={PERIOD_OPTIONS}
+              value={period}
+              onChange={setPeriod}
+              size="sm"
+              fullWidthOnMobile
+              className="w-full sm:w-auto"
+            />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Mode de calcul</p>
+            <SegmentedControl
+              options={KILLS_VIEW_OPTIONS}
+              value={killsView}
+              onChange={setKillsView}
+              size="sm"
+              fullWidthOnMobile
+              className="w-full sm:w-auto"
+            />
+          </div>
         </div>
       </div>
 
@@ -101,7 +129,7 @@ export default function LeaderboardPage() {
 
       {!loading && !error ? (
         <div className="space-y-6">
-          <LeaderboardStats entries={leaderboard} killsView={killsView} />
+          <LeaderboardStats entries={leaderboard} />
 
           <Leaderboard
             entries={leaderboard}
@@ -109,7 +137,7 @@ export default function LeaderboardPage() {
             sortBy={sortBy}
             killsView={killsView}
             onSortChange={setSortBy}
-            onKillsViewChange={setKillsView}
+            showPerformanceDelta={period !== 'all'}
           />
         </div>
       ) : null}

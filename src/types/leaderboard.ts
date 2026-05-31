@@ -1,5 +1,5 @@
 export type LeaderboardPeriod = 'week' | 'month' | 'all'
-export type LeaderboardSortBy = 'kills' | 'damage' | 'winRate' | 'matches'
+export type LeaderboardSortBy = 'kills' | 'damage' | 'winRate' | 'matches' | 'kpm'
 export type LeaderboardKillsView = 'clan' | 'withSolo'
 
 export interface PlayerStatsEntry {

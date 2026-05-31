@@ -1,15 +1,19 @@
 import Image from 'next/image'
 
-export type TeamMode = 'duo' | 'trio' | 'squad'
+export type TeamMode = 'solo' | 'duo' | 'trio' | 'squad'
 
 type TeamModeBadgeProps = {
   mode: TeamMode
   label?: string
-  size?: 'xs' | 'sm'
+  size?: 'xxs' | 'xs' | 'sm'
   className?: string
 }
 
 function modeLabel(mode: TeamMode) {
+  if (mode === 'solo') {
+    return 'Solo'
+  }
+
   if (mode === 'duo') {
     return 'Duo'
   }
@@ -22,6 +26,10 @@ function modeLabel(mode: TeamMode) {
 }
 
 function modeIconPath(mode: TeamMode) {
+  if (mode === 'solo') {
+    return '/icons/squads/solo.svg'
+  }
+
   if (mode === 'duo') {
     return '/icons/squads/duo.svg'
   }
@@ -46,7 +54,13 @@ export function teamModeFromMemberCount(memberCount: number): TeamMode {
 }
 
 export default function TeamModeBadge({ mode, label, size = 'xs', className }: TeamModeBadgeProps) {
-  const sizeClass = size === 'sm' ? 'app-team-mode-badge--sm' : 'app-team-mode-badge--xs'
+  const sizeClass =
+    size === 'sm'
+      ? 'app-team-mode-badge--sm'
+      : size === 'xxs'
+        ? 'app-team-mode-badge--xxs'
+        : 'app-team-mode-badge--xs'
+  const resolvedLabel = label ?? modeLabel(mode)
 
   return (
     <span
@@ -58,9 +72,10 @@ export default function TeamModeBadge({ mode, label, size = 'xs', className }: T
       ]
         .filter(Boolean)
         .join(' ')}
+      title={resolvedLabel}
     >
-      <Image src={modeIconPath(mode)} alt={`Logo ${modeLabel(mode)}`} width={14} height={14} className="squad-mode-icon" />
-      <span>{label ?? modeLabel(mode)}</span>
+      <Image src={modeIconPath(mode)} alt={`Logo ${resolvedLabel}`} width={16} height={16} className="squad-mode-icon" />
+      {size === 'xxs' ? <span className="sr-only">{resolvedLabel}</span> : <span>{resolvedLabel}</span>}
     </span>
   )
 }

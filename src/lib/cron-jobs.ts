@@ -1,7 +1,7 @@
 import 'server-only'
 import cron, { type ScheduledTask } from 'node-cron'
 
-import { syncClanLifetimeStats } from '@/lib/clan-service'
+import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
@@ -111,9 +111,12 @@ async function triggerClanSync(clanId: number) {
   return payload as {
     clanId: number
     clanName: string
+    status?: 'success' | 'partial'
     importedCount?: number
     importedMatches?: number
     membersProcessed: number
+    errorsCount?: number
+    errorsPreview?: string[]
     errors?: string[]
     logs?: string[]
     memberResults?: Array<{
@@ -335,6 +338,8 @@ async function runDailyClanSync() {
       try {
         const result = await syncClanWithRetry(clan.id, clan.name)
         const clanImportedMatches = result?.importedMatches ?? result?.importedCount ?? 0
+        const errorsCount = result?.errorsCount ?? result?.errors?.length ?? 0
+        const isPartialSync = result?.status === 'partial' || errorsCount > 0
         syncedClans += 1
         importedMatches += clanImportedMatches
         failureTracker.set(clan.id, 0)
@@ -343,13 +348,81 @@ async function runDailyClanSync() {
           `[Cron] Clan "${clan.name}" (${clan.id}) synced: ${clanImportedMatches} imported matches`
         )
 
+        if (isPartialSync) {
+          await finishCronExecution({
+            id: execution.id,
+            startedAt: execution.startedAt,
+            status: 'partial',
+            message: `Daily sync partial: ${clanImportedMatches} imported match(es), ${errorsCount} error(s). Stats recalculation skipped.`,
+            details: {
+              importedMatches: clanImportedMatches,
+              errorsCount,
+              errorsPreview: result?.errorsPreview ?? result?.errors?.slice(0, 5),
+              statsSync: {
+                status: 'skipped',
+                reason: 'partial_import',
+              },
+              result,
+            },
+          })
+
+          continue
+        }
+
+        if (clanImportedMatches <= 0) {
+          await finishCronExecution({
+            id: execution.id,
+            startedAt: execution.startedAt,
+            status: 'success',
+            message: 'Daily sync completed: no new matches, stats recalculation skipped.',
+            details: {
+              importedMatches: clanImportedMatches,
+              statsSync: {
+                status: 'skipped',
+                reason: 'no_new_matches',
+              },
+              result,
+            },
+          })
+
+          continue
+        }
+
+        try {
+          await syncTrackedClanStats(clan.id)
+        } catch (statsError) {
+          const statsErrorMessage =
+            statsError instanceof Error ? statsError.message : 'Stats recalculation failed'
+
+          await finishCronExecution({
+            id: execution.id,
+            startedAt: execution.startedAt,
+            status: 'partial',
+            message: `Daily sync completed: ${clanImportedMatches} imported match(es), but stats recalculation failed.`,
+            details: {
+              importedMatches: clanImportedMatches,
+              statsSync: {
+                status: 'failed',
+                reason: statsErrorMessage,
+              },
+              result,
+            },
+          })
+
+          continue
+        }
+
         await finishCronExecution({
           id: execution.id,
           startedAt: execution.startedAt,
           status: 'success',
-          message: `Daily sync completed: ${clanImportedMatches} imported match(es)`,
+          message: `Daily sync completed: ${clanImportedMatches} imported match(es). Stats recalculated automatically.`,
           details: {
             importedMatches: clanImportedMatches,
+            statsSync: {
+              status: 'success',
+              reason: 'post_import_recalc',
+            },
             result,
           },
         })

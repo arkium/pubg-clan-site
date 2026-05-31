@@ -7,7 +7,6 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type CronAction =
   | 'sync_matches'
-  | 'sync_stats'
   | 'sync_lifetime_stats'
   | 'generate_weekly_report'
   | 'generate_monthly_report'
@@ -368,7 +367,7 @@ export default function CronSettingsPage() {
               Lance une action et controle le resultat immediatement dans l historique.
             </p>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <button
                 type="button"
                 onClick={() => void runAction('sync_matches')}
@@ -376,14 +375,6 @@ export default function CronSettingsPage() {
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pendingAction === 'sync_matches' ? 'Execution...' : 'Sync matchs'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void runAction('sync_stats')}
-                disabled={pendingAction !== null}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pendingAction === 'sync_stats' ? 'Execution...' : 'Sync stats'}
               </button>
               <button
                 type="button"

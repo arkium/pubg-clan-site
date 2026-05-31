@@ -260,8 +260,14 @@ export async function POST(
           id: executionLog.id,
           startedAt: executionLog.startedAt,
           status: 'partial',
-          message: `Sync partielle: ${importedMatches} match(s) importé(s), ${errorsCount} erreur(s).`,
-          details: payload,
+          message: `Sync partielle: ${importedMatches} match(s) importé(s), ${errorsCount} erreur(s). Recalcul des stats ignoré.`,
+          details: {
+            ...payload,
+            statsSync: {
+              status: 'skipped',
+              reason: 'partial_import',
+            },
+          },
         })
 
         return NextResponse.json({
@@ -270,8 +276,61 @@ export async function POST(
           action,
           importedMatches,
           errorsCount,
-          message: `Sync partielle: ${importedMatches} match(s) importé(s), ${errorsCount} erreur(s).`,
-          warning: firstError ? `Exemple d'erreur: ${firstError}` : undefined,
+          message: `Sync partielle: ${importedMatches} match(s) importé(s), ${errorsCount} erreur(s). Recalcul des stats ignoré.`,
+          warning: firstError ? `Exemple d'erreur: ${firstError}` : 'Import partiel: stats conservees.',
+        })
+      }
+
+      if (importedMatches <= 0) {
+        await finishCronExecution({
+          id: executionLog.id,
+          startedAt: executionLog.startedAt,
+          status: 'success',
+          message: 'Synchronisation des matchs terminee: aucun nouveau match, recalcul des stats ignoré.',
+          details: {
+            ...payload,
+            statsSync: {
+              status: 'skipped',
+              reason: 'no_new_matches',
+            },
+          },
+        })
+
+        return NextResponse.json({
+          ok: true,
+          action,
+          importedMatches,
+          message: 'Synchronisation des matchs terminee: aucun nouveau match, recalcul des stats ignoré.',
+        })
+      }
+
+      try {
+        await syncTrackedClanStats(parsedClanId)
+      } catch (statsError) {
+        const statsErrorMessage =
+          statsError instanceof Error ? statsError.message : 'Echec du recalcul des stats'
+
+        await finishCronExecution({
+          id: executionLog.id,
+          startedAt: executionLog.startedAt,
+          status: 'partial',
+          message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s), mais recalcul des stats en echec.`,
+          details: {
+            ...payload,
+            statsSync: {
+              status: 'failed',
+              reason: statsErrorMessage,
+            },
+          },
+        })
+
+        return NextResponse.json({
+          ok: true,
+          partial: true,
+          action,
+          importedMatches,
+          message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s), mais recalcul des stats en echec.`,
+          warning: `Stats non mises a jour automatiquement: ${statsErrorMessage}`,
         })
       }
 
@@ -279,15 +338,21 @@ export async function POST(
         id: executionLog.id,
         startedAt: executionLog.startedAt,
         status: 'success',
-        message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s).`,
-        details: payload,
+        message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s). Stats recalculees automatiquement.`,
+        details: {
+          ...payload,
+          statsSync: {
+            status: 'success',
+            reason: 'post_import_recalc',
+          },
+        },
       })
 
       return NextResponse.json({
         ok: true,
         action,
         importedMatches,
-        message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s).`,
+        message: `Synchronisation des matchs terminee: ${importedMatches} match(s) importé(s). Stats recalculees automatiquement.`,
       })
     }
 

@@ -6,6 +6,8 @@ Cette page centralise la documentation du projet sur une seule vue.
 
 - Classement clan: calcul live, filtres, badges, progression
 - Matchs clan: agrégations sessions, synergies, top performers
+- Cron clan: pilotage, sante, actions manuelles et jobs planifies
+- Selection de clan: controle d acces, liste des clans, persistance de selection
 - Login et activation: parcours auth joueur, invitations et reset mot de passe
 - Tableaux du site: inventaire complet des vues tabulaires
 - Composants UI: composants réutilisables et conventions
@@ -17,6 +19,10 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Source des données, période, tri, K/M, distinctions, progression, all time
 - [Calcul matchs clan](matchs-clan-calcul.md)
   - Méthodes de calcul de /clans/[clanId]/matches + sous-pages /matches/session/[date], navigation par date, sessions, synergies, performers
+- [Pilotage cron clan](cron-clan-settings.md)
+  - Logique de /clans/[clanId]/settings/cron: sante, checks, historique, actions manuelles et portee metier des crons
+- [Selection de clan](selection-clan.md)
+  - Logique de /clans: permissions, fetch `/api/clans`, recherche, selection et redirection
 - [Calcul matchs membre](matchs-membre-calcul.md)
   - Logique de /members/[id]/matches: historique DB, tri/pagination, matchs recents PUBG et import
 - [Calcul dashboard membre](dashboard-membre-calcul.md)

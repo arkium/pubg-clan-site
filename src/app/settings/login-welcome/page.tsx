@@ -130,8 +130,8 @@ export default function LoginWelcomeSettingsPage() {
 
   if (loading || loadingData) {
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-4 py-12">
-        <p className="text-sm text-slate-600">Chargement de la configuration...</p>
+      <main className="app-container app-main flex flex-1 items-center justify-center">
+        <p className="text-sm text-gray-600">Chargement de la configuration...</p>
       </main>
     )
   }
@@ -142,16 +142,19 @@ export default function LoginWelcomeSettingsPage() {
 
   if (!canManageSettings) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
-          <p className="mt-2 text-sm text-amber-800">
-            Cette page est réservée au Owner ou aux admins disposant de la permission
-            manage_settings.
-          </p>
+      <main className="app-container app-main flex-1">
+        <section className="app-panel p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
+          <h1 className="mt-2 text-2xl font-bold text-gray-900">Accès restreint</h1>
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">
+              Cette page est réservée au Owner ou aux admins disposant de la permission
+              manage_settings.
+            </p>
+          </div>
           <Link
             href="/"
-            className="mt-5 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900"
+            className="mt-5 inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
           >
             Retour à l&apos;accueil
           </Link>
@@ -161,26 +164,20 @@ export default function LoginWelcomeSettingsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="rounded-3xl border border-slate-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-6 shadow-sm sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
-          Paramétrage accueil
-        </p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900">Message de bienvenue login</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+    <main className="app-container app-main flex-1">
+      <section className="app-panel mb-4 px-4 py-4">
+        <h1 className="text-2xl font-bold text-gray-900">Message de bienvenue login</h1>
+        <p className="mt-2 max-w-3xl text-sm text-gray-600">
           Personnalisez le texte affiché sur la page de connexion, sans image de clan. Ce contenu
           aide à poser l&apos;identité du clan dès l&apos;arrivée.
         </p>
 
-        {clanLabel ? (
-          <p className="mt-3 inline-flex rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-            Clan détecté: {clanLabel}
-          </p>
-        ) : null}
+      </section>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <form className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5" onSubmit={handleSave}>
-            <label className="block text-sm font-medium text-slate-700">
+      <section className="app-panel p-5 sm:p-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form className="app-panel-muted space-y-4 p-4 sm:p-5" onSubmit={handleSave}>
+            <label className="block text-sm font-medium text-gray-700">
               Badge court
               <input
                 type="text"
@@ -192,12 +189,12 @@ export default function LoginWelcomeSettingsPage() {
                     badge: event.target.value,
                   }))
                 }
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="Bienvenue au clan"
               />
             </label>
 
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-gray-700">
               Titre principal
               <input
                 type="text"
@@ -209,12 +206,12 @@ export default function LoginWelcomeSettingsPage() {
                     title: event.target.value,
                   }))
                 }
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="Connexion escouade"
               />
             </label>
 
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-gray-700">
               Message
               <textarea
                 value={settings.message}
@@ -225,12 +222,12 @@ export default function LoginWelcomeSettingsPage() {
                     message: event.target.value,
                   }))
                 }
-                className="mt-1 min-h-28 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 min-h-28 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="Décrivez l'ambiance ou les attentes du clan"
               />
             </label>
 
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-gray-700">
               Image du clan (URL, optionnel)
               <input
                 type="url"
@@ -242,7 +239,7 @@ export default function LoginWelcomeSettingsPage() {
                     imageUrl: event.target.value.trim() ? event.target.value : null,
                   }))
                 }
-                className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="https://..."
               />
             </label>
@@ -253,13 +250,18 @@ export default function LoginWelcomeSettingsPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                borderColor: 'var(--theme-nav-active-border)',
+                backgroundColor: 'var(--theme-nav-active-bg)',
+                color: 'var(--theme-nav-active-text)',
+              }}
             >
               {saving ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </form>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 text-white">
+          <section className="app-panel-muted overflow-hidden">
             <div className="relative h-full p-6">
               {settings.imageUrl ? (
                 <img
@@ -269,8 +271,6 @@ export default function LoginWelcomeSettingsPage() {
                 />
               ) : null}
               <div className="absolute inset-0 bg-slate-900/70" />
-              <div className="pointer-events-none absolute -left-12 top-10 h-44 w-44 rounded-full bg-emerald-400/30 blur-2xl" />
-              <div className="pointer-events-none absolute -right-16 bottom-4 h-56 w-56 rounded-full bg-sky-500/25 blur-2xl" />
 
               <p className="relative z-10 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
                 {settings.badge || 'Bienvenue au clan'}

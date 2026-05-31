@@ -75,6 +75,17 @@ export interface TopPerformersData {
   survival: PerformerEntry[]
 }
 
+export interface ClanModePerformanceEntry {
+  mode: 'duo' | 'trio' | 'squad'
+  matches: number
+  kills: number
+  wins: number
+  losses: number
+  damage: number
+  assists: number
+  durationSeconds: number
+}
+
 export interface ClanMatchesResponse {
   clanId: number
   clanName: string
@@ -84,6 +95,7 @@ export interface ClanMatchesResponse {
   mapLabels: Record<string, string>
   squads: SquadMatch[]
   stats: ClanMatchStats
+  modePerformance: ClanModePerformanceEntry[]
   sessions: SessionRecapItem[]
   synergies: SquadSynergiesData
   topPerformers: TopPerformersData

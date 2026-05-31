@@ -102,11 +102,11 @@ export default function ComparisonRadar({ stats, clanAverage }: ComparisonRadarP
     <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
       <h2 className="mb-4 text-lg font-semibold text-gray-900">Comparaison vs Clan</h2>
 
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
         {/* Radar SVG */}
         <svg
           viewBox="0 0 240 240"
-          className="mx-auto h-auto w-full max-w-[240px] shrink-0 lg:mx-0"
+          className="mx-auto h-auto w-full max-w-[240px] shrink-0 xl:mx-0"
           aria-label="Radar chart comparaison vs clan"
         >
           {/* Grid circles */}

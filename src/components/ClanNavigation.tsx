@@ -847,7 +847,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return null
   }
 
-  if (pathname.startsWith('/activate') || pathname.startsWith('/login')) {
+  if (pathname.startsWith('/activate') || pathname.startsWith('/login') || pathname.startsWith('/reset-password')) {
     return null
   }
 

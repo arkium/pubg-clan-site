@@ -75,6 +75,7 @@ const AddMemberSchema = z.object({
   pubgPlayerName: z.string().min(1, 'PUBG player name is required'),
   platformShard: z.string().default('steam'),
   clanId: z.number().int().positive().optional(),
+  mode: z.enum(['preview', 'create']).default('create'),
 })
 
 /**
@@ -129,6 +130,24 @@ export async function POST(request: NextRequest) {
       resolvedClanId,
       usedFallbackUngrouped: !detectedClan?.clan.id && !validated.clanId,
     })
+
+    if (validated.mode === 'preview') {
+      return NextResponse.json({
+        mode: 'preview',
+        player: {
+          displayName: validated.displayName,
+          pubgPlayerName: pubgPlayer.playerName,
+          platformShard: validated.platformShard,
+        },
+        clan: detectedClan?.clan
+          ? {
+              id: detectedClan.clan.id,
+              name: detectedClan.clan.name,
+              tag: detectedClan.clan.tag,
+            }
+          : null,
+      })
+    }
 
     // Créer le membre du clan en base
     const member = await prisma.clanMember.create({

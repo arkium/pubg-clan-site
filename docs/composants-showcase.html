@@ -404,6 +404,22 @@
         color: var(--squad-text);
       }
 
+      .player-name-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--bg-elevated);
+        color: var(--text-muted);
+        box-shadow: 0 1px 2px rgba(16, 32, 47, 0.12);
+        padding: 2px 8px;
+        font-size: 10px;
+        line-height: 1.4;
+        font-weight: 600;
+        text-align: center;
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -563,6 +579,10 @@
                 <strong>TeamModeBadge</strong>
                 <span>src/components/ui/TeamModeBadge.tsx</span>
               </div>
+              <div class="shared-item">
+                <strong>PlayerNameBadge</strong>
+                <span>src/components/ui/PlayerNameBadge.tsx</span>
+              </div>
             </div>
           </article>
 
@@ -591,12 +611,22 @@
 
           <article class="card" id="badges">
             <h3>3) Badges metier</h3>
-            <p class="meta">PlacementBadge et TeamModeBadge renforcent la lecture rapide des infos critiques.</p>
+            <p class="meta">PlacementBadge, TeamModeBadge et PlayerNameBadge renforcent la lecture rapide des infos critiques.</p>
+            <div class="showcase-row">
+              <span class="badge badge-winner">#1 Winner</span>
+              <span class="badge badge-top5">#4</span>
+              <span class="badge badge-top10">#9</span>
+              <span class="badge badge-default">#14</span>
+              <span class="code-inline">ui/PlacementBadge (exemples fixes)</span>
+            </div>
             <div class="showcase-row" id="placementBadges">
               <span class="code-inline">ui/PlacementBadge</span>
             </div>
             <div class="showcase-row" id="modeBadges">
               <span class="code-inline">ui/TeamModeBadge</span>
+            </div>
+            <div class="showcase-row" id="playerNameBadges">
+              <span class="code-inline">ui/PlayerNameBadge</span>
             </div>
           </article>
 
@@ -655,6 +685,7 @@
         const periodSegment = document.getElementById('periodSegment');
         const placementBadges = document.getElementById('placementBadges');
         const modeBadges = document.getElementById('modeBadges');
+        const playerNameBadges = document.getElementById('playerNameBadges');
         const tableBody = document.getElementById('tableBody');
         const paginationMeta = document.getElementById('paginationMeta');
         const paginationControls = document.getElementById('paginationControls');
@@ -727,6 +758,7 @@
         function renderRandomData() {
           const scopes = ['Tous', 'Solo', 'Equipe'];
           const periods = ['7j', '30j', 'Saison'];
+          const players = ['TigrOo-SmK', 'Viande_Hachee', 'CanardEnrage', 'MrAlgo', '37u51v3', 'NephrenKa'];
           const navChoices = [
             { label: 'Periode:', value: '7 jours' },
             { label: 'Periode:', value: '30 jours' },
@@ -759,6 +791,20 @@
                 return '<span class="mode ' + modeClass(mode) + '"><span class="mode-dot"></span>' + mode + '</span>';
               })
               .join('') + '<span class="code-inline">ui/TeamModeBadge</span>';
+
+          const samplePlayers = players
+            .slice()
+            .sort(function () {
+              return Math.random() - 0.5;
+            })
+            .slice(0, 4);
+
+          playerNameBadges.innerHTML =
+            samplePlayers
+              .map(function (name) {
+                return '<span class="player-name-badge">' + name + '</span>';
+              })
+              .join('') + '<span class="code-inline">ui/PlayerNameBadge</span>';
 
           const totalMatches = rand(14, 38);
           const perPage = 5;

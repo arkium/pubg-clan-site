@@ -34,6 +34,22 @@ function parseMatchSortDirection(value: string | null): MatchSortDirection {
   return value === 'asc' ? 'asc' : 'desc'
 }
 
+function clanModeFromClanMemberCount(memberCount: number | null | undefined): 'solo' | 'duo' | 'trio' | 'squad' {
+  if (!memberCount || memberCount <= 1) {
+    return 'solo'
+  }
+
+  if (memberCount <= 2) {
+    return 'duo'
+  }
+
+  if (memberCount === 3) {
+    return 'trio'
+  }
+
+  return 'squad'
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -80,12 +96,45 @@ export async function GET(
         prisma.match.count({ where }),
       ])
 
+      const pubgMatchIds = matches.map((match) => match.pubgMatchId)
+      const squadMembers = pubgMatchIds.length
+        ? await prisma.squadMember.findMany({
+            where: {
+              memberId,
+              squadMatch: {
+                pubgMatchId: { in: pubgMatchIds },
+              },
+            },
+            select: {
+              squadMatch: {
+                select: {
+                  pubgMatchId: true,
+                  _count: {
+                    select: {
+                      members: true,
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : []
+
+      const clanMemberCountByMatchId = new Map<string, number>()
+      for (const squadMember of squadMembers) {
+        clanMemberCountByMatchId.set(
+          squadMember.squadMatch.pubgMatchId,
+          squadMember.squadMatch._count.members
+        )
+      }
+
       return NextResponse.json({
         sortBy,
         sortDirection,
         matches: matches.map((m) => ({
           id: m.id,
           pubgMatchId: m.pubgMatchId,
+          clanMode: clanModeFromClanMemberCount(clanMemberCountByMatchId.get(m.pubgMatchId)),
           mapName: m.mapName,
           gameMode: m.gameMode,
           duration: m.duration,

@@ -5,11 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SessionRecap from '@/components/SessionRecap'
-import SquadMatchList from '@/components/SquadMatchList'
 import SquadSynergies from '@/components/SquadSynergies'
 import TopPerformers from '@/components/TopPerformers'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import TeamModeBadge, { teamModeFromMemberCount, type TeamMode } from '@/components/ui/TeamModeBadge'
+import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import ClanSectionNav from '@/components/ClanSectionNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
@@ -57,6 +56,7 @@ export default function ClanMatchesPage() {
     mapLabels,
     squads,
     stats,
+    modePerformance,
     sessions,
     synergies,
     topPerformers,
@@ -64,66 +64,11 @@ export default function ClanMatchesPage() {
     error,
   } = useSquadMatches(clanId, period, gameMode)
 
-  const teamModePerformance = useMemo(() => {
-    const modes = {
-      duo: {
-        key: 'duo',
-        mode: 'duo' as TeamMode,
-        label: 'Duo',
-        tone: 'border-sky-200 bg-sky-50 text-sky-800',
-        matches: 0,
-        kills: 0,
-        wins: 0,
-        losses: 0,
-        damage: 0,
-        assists: 0,
-        durationSeconds: 0,
-      },
-      trio: {
-        key: 'trio',
-        mode: 'trio' as TeamMode,
-        label: 'Trio',
-        tone: 'border-violet-200 bg-violet-50 text-violet-800',
-        matches: 0,
-        kills: 0,
-        wins: 0,
-        losses: 0,
-        damage: 0,
-        assists: 0,
-        durationSeconds: 0,
-      },
-      squad: {
-        key: 'squad',
-        mode: 'squad' as TeamMode,
-        label: 'Squad',
-        tone: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-        matches: 0,
-        kills: 0,
-        wins: 0,
-        losses: 0,
-        damage: 0,
-        assists: 0,
-        durationSeconds: 0,
-      },
-    }
-
-    for (const match of squads) {
-      const mode = modes[teamModeFromMemberCount(match.members.length)]
-      mode.matches += 1
-      mode.kills += match.totalKills
-      mode.damage += match.totalDamage
-      mode.assists += match.totalAssists
-      mode.durationSeconds += match.durationSeconds
-
-      if (match.isWin) {
-        mode.wins += 1
-      } else {
-        mode.losses += 1
-      }
-    }
-
-    return [modes.duo, modes.trio, modes.squad]
-  }, [squads])
+  const modeMeta = {
+    duo: { label: 'Duo', tone: 'border-sky-200 bg-sky-50 text-sky-800' },
+    trio: { label: 'Trio', tone: 'border-violet-200 bg-violet-50 text-violet-800' },
+    squad: { label: 'Squad', tone: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+  } as const
 
   const gameModeOptions = useMemo(
     () => [
@@ -229,10 +174,10 @@ export default function ClanMatchesPage() {
           <section className="mb-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Performances duo/trio/squad</h2>
             <div className="grid gap-3 md:grid-cols-3">
-              {teamModePerformance.map((mode) => (
-                <article key={mode.key} className={`rounded border p-3 ${mode.tone}`}>
+              {modePerformance.map((mode) => (
+                <article key={mode.mode} className={`rounded border p-3 ${modeMeta[mode.mode].tone}`}>
                   <div className="mb-3 flex items-center gap-2">
-                    <TeamModeBadge mode={mode.mode} label={mode.label} size="sm" className="shadow-none" />
+                    <TeamModeBadge mode={mode.mode} label={modeMeta[mode.mode].label} size="sm" className="shadow-none" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
@@ -269,10 +214,9 @@ export default function ClanMatchesPage() {
           </section>
 
           <div className="space-y-6">
-            <SquadMatchList clanId={clanId} period={period} matches={squads} mapLabels={mapLabels} />
             <SquadSynergies synergies={synergies} />
-            <SessionRecap sessions={sessions} />
             <TopPerformers performers={topPerformers} />
+            <SessionRecap clanId={clanId} period={period} gameMode={gameMode || undefined} sessions={sessions} />
           </div>
         </>
       ) : null}

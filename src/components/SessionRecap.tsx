@@ -1,8 +1,13 @@
+import Link from 'next/link'
+
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 
-import type { SessionRecapItem } from '@/types/squad-matches'
+import type { SessionRecapItem, SquadPeriod } from '@/types/squad-matches'
 
 interface SessionRecapProps {
+  clanId: number
+  period: SquadPeriod
+  gameMode?: string
   sessions: SessionRecapItem[]
 }
 
@@ -87,7 +92,7 @@ function getModeRecap(matches: SessionRecapItem['matches']) {
   }
 }
 
-export default function SessionRecap({ sessions }: SessionRecapProps) {
+export default function SessionRecap({ clanId, period, gameMode, sessions }: SessionRecapProps) {
   return (
     <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
       <h2 className="mb-4 text-lg font-semibold text-gray-900">Récap par soirée</h2>
@@ -97,72 +102,84 @@ export default function SessionRecap({ sessions }: SessionRecapProps) {
         <ul className="space-y-3">
           {sessions.map((session) => {
             const modeRecap = getModeRecap(session.matches)
+            const params = new URLSearchParams({ period })
+
+            if (gameMode) {
+              params.set('gameMode', gameMode)
+            }
+
+            const detailHref = `/clans/${clanId}/matches/session/${session.date}?${params.toString()}`
 
             return (
-              <li key={session.date} className="rounded border border-gray-200 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-gray-900">{formatDate(session.date)}</p>
-                  <p className="app-meta-pill">{session.matches.length} matchs</p>
-                </div>
+              <li key={session.date}>
+                <Link
+                  href={detailHref}
+                  className="group block rounded-lg border border-gray-200 bg-white p-3 transition duration-150 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40 focus-visible:border-blue-400"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-900">{formatDate(session.date)}</p>
+                    <p className="app-meta-pill">{session.matches.length} matchs</p>
+                  </div>
 
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {session.members.map((member) => (
-                    <span
-                      key={member.memberId}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700"
-                      title={member.displayName}
-                    >
-                      {member.displayName.slice(0, 1).toUpperCase()}
-                    </span>
-                  ))}
-                </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {session.members.map((member) => (
+                      <span
+                        key={member.memberId}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700"
+                        title={member.displayName}
+                      >
+                        {member.displayName.slice(0, 1).toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
 
-                <div className="mt-3 overflow-x-auto">
-                  <table className="min-w-full text-xs text-gray-700">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-[11px] uppercase tracking-wide text-gray-500">
-                        <th className="px-2 py-1 text-left">Mode</th>
-                        <th className="px-2 py-1 text-right">Matchs</th>
-                        <th className="px-2 py-1 text-right">Durée</th>
-                        <th className="px-2 py-1 text-right">Éliminations</th>
-                        <th className="px-2 py-1 text-right">Dégâts</th>
-                        <th className="px-2 py-1 text-right">Taux de victoire</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {modeRecap.rows.map((mode) => {
-                        const modeKey = modeKeyFromLabel(mode.label)
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="min-w-full text-xs text-gray-700">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-[11px] uppercase tracking-wide text-gray-500">
+                          <th className="px-2 py-1 text-left">Mode</th>
+                          <th className="px-2 py-1 text-right">Matchs</th>
+                          <th className="px-2 py-1 text-right">Durée</th>
+                          <th className="px-2 py-1 text-right">Éliminations</th>
+                          <th className="px-2 py-1 text-right">Dégâts</th>
+                          <th className="px-2 py-1 text-right">Taux de victoire</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {modeRecap.rows.map((mode) => {
+                          const modeKey = modeKeyFromLabel(mode.label)
 
-                        return (
-                        <tr key={mode.label} className="border-b border-gray-100 last:border-b-0">
-                          <td className="px-2 py-1 font-medium text-gray-900">
-                            <TeamModeBadge mode={modeKey} label={mode.label} className="shadow-none" />
-                          </td>
-                          <td className="px-2 py-1 text-right tabular-nums">{mode.matches}</td>
-                          <td className="px-2 py-1 text-right tabular-nums">{formatDuration(mode.duration)}</td>
-                          <td className="px-2 py-1 text-right tabular-nums">{mode.kills}</td>
-                          <td className="px-2 py-1 text-right tabular-nums">{Math.round(mode.damage)}</td>
+                          return (
+                            <tr key={mode.label} className="border-b border-gray-100 last:border-b-0">
+                              <td className="px-2 py-1 font-medium text-gray-900">
+                                <TeamModeBadge mode={modeKey} label={mode.label} className="shadow-none" />
+                              </td>
+                              <td className="px-2 py-1 text-right tabular-nums">{mode.matches}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{formatDuration(mode.duration)}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{mode.kills}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">{Math.round(mode.damage)}</td>
+                              <td className="px-2 py-1 text-right tabular-nums">
+                                {mode.matches > 0 ? `${((mode.wins / mode.matches) * 100).toFixed(1)}%` : '0.0%'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-900">
+                          <td className="px-2 py-1">Total</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{modeRecap.total.matches}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{formatDuration(modeRecap.total.duration)}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{modeRecap.total.kills}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{Math.round(modeRecap.total.damage)}</td>
                           <td className="px-2 py-1 text-right tabular-nums">
-                            {mode.matches > 0 ? `${((mode.wins / mode.matches) * 100).toFixed(1)}%` : '0.0%'}
+                            {modeRecap.total.matches > 0
+                              ? `${((modeRecap.total.wins / modeRecap.total.matches) * 100).toFixed(1)}%`
+                              : '0.0%'}
                           </td>
                         </tr>
-                        )
-                      })}
-                      <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-900">
-                        <td className="px-2 py-1">Total</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{modeRecap.total.matches}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{formatDuration(modeRecap.total.duration)}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{modeRecap.total.kills}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{Math.round(modeRecap.total.damage)}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">
-                          {modeRecap.total.matches > 0
-                            ? `${((modeRecap.total.wins / modeRecap.total.matches) * 100).toFixed(1)}%`
-                            : '0.0%'}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                      </tbody>
+                    </table>
+                  </div>
+                </Link>
               </li>
             )
           })}

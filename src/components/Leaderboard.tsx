@@ -122,6 +122,33 @@ export default function Leaderboard({
     })
   }
 
+  const totals = entries.reduce(
+    (acc, entry) => {
+      acc.kills += entry.totalKills
+      acc.matches += entry.matchesPlayed
+      acc.damage += Math.round(entry.totalDamage)
+      acc.winner += entry.matchesWon
+      acc.solo += getDisplayedSoloClanKills(entry)
+      acc.duo += entry.duoClanKills
+      acc.trio += entry.trioClanKills
+      acc.squad += entry.squadClanKills
+      return acc
+    },
+    {
+      kills: 0,
+      matches: 0,
+      damage: 0,
+      winner: 0,
+      solo: 0,
+      duo: 0,
+      trio: 0,
+      squad: 0,
+    }
+  )
+
+  const totalKpm = totals.matches > 0 ? totals.kills / totals.matches : 0
+  const totalWinRate = totals.matches > 0 ? (totals.winner / totals.matches) * 100 : 0
+
   const withMatches = entries.filter((entry) => entry.matchesPlayed > 0)
   const withMinMatches = entries.filter((entry) => entry.matchesPlayed >= 3)
   const kpmCandidates = withMinMatches.length > 0 ? withMinMatches : withMatches
@@ -357,6 +384,71 @@ export default function Leaderboard({
                 </article>
               )
             })}
+
+            <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-gray-700">-</span>
+                  <span className="font-semibold text-gray-900">Total</span>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">KILLS</p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.kills}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">MATCHS</p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.matches}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">DAMAGE</p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.damage}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">K/M</p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">
+                    {totalKpm.toLocaleString('fr-FR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">WINNER</p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.winner}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">WIN RATE</p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totalWinRate.toFixed(1)}%</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">
+                    <TeamModeBadge mode="solo" label="Solo" size="xs" className="shadow-none" />
+                  </p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.solo}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">
+                    <TeamModeBadge mode="duo" label="Duo" size="xs" className="shadow-none" />
+                  </p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.duo}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">
+                    <TeamModeBadge mode="trio" label="Trio" size="xs" className="shadow-none" />
+                  </p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.trio}</p>
+                </div>
+                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                  <p className="text-gray-500">
+                    <TeamModeBadge mode="squad" label="Squad" size="xs" className="shadow-none" />
+                  </p>
+                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.squad}</p>
+                </div>
+              </div>
+            </article>
           </div>
 
           <div className="app-table-shell hidden overflow-x-auto md:block">
@@ -519,6 +611,27 @@ export default function Leaderboard({
                   )
                 })}
               </tbody>
+              <tfoot>
+                <tr className="app-table-head">
+                  <td className="px-4 py-3 text-center font-semibold text-gray-700">-</td>
+                  <td className="px-4 py-3 font-semibold text-gray-900">Total</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.kills}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.matches}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.damage}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">
+                    {totalKpm.toLocaleString('fr-FR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.winner}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totalWinRate.toFixed(1)}%</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.solo}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.duo}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.trio}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.squad}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>

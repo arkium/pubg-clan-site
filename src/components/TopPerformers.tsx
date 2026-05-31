@@ -39,14 +39,14 @@ function PerformerList({
       ) : (
         <ol className="space-y-2 text-xs">
           {entries.map((entry, index) => (
-            <li key={entry.memberId} className="flex items-center justify-between gap-2">
+            <li key={entry.memberId} className="flex min-h-7 items-center justify-between gap-2">
               <span className="flex items-center gap-2 font-medium text-gray-900">
                 {index < MEDAL_ICONS.length ? (
                   <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={16} height={16} />
                 ) : null}
                 {entry.displayName}
               </span>
-              <span className="text-gray-700">{value(entry)}</span>
+              <span className="inline-flex min-h-7 items-center text-gray-700">{value(entry)}</span>
             </li>
           ))}
         </ol>

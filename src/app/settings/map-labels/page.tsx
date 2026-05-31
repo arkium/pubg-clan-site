@@ -120,8 +120,8 @@ export default function MapLabelsSettingsPage() {
 
   if (loading || loadingData) {
     return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-4 py-12">
-        <p className="text-sm text-slate-600">Chargement de la configuration...</p>
+      <main className="app-container app-main flex flex-1 items-center justify-center">
+        <p className="text-sm text-gray-600">Chargement de la configuration...</p>
       </main>
     )
   }
@@ -132,16 +132,19 @@ export default function MapLabelsSettingsPage() {
 
   if (!canManageSettings) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
-          <p className="mt-2 text-sm text-amber-800">
-            Cette page est reservee au Owner ou aux admins disposant de la permission
-            manage_settings.
-          </p>
+      <main className="app-container app-main flex-1">
+        <section className="app-panel p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
+          <h1 className="mt-2 text-2xl font-bold text-gray-900">Acces restreint</h1>
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">
+              Cette page est reservee au Owner ou aux admins disposant de la permission
+              manage_settings.
+            </p>
+          </div>
           <Link
             href="/"
-            className="mt-5 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900"
+            className="mt-5 inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
           >
             Retour a l&apos;accueil
           </Link>
@@ -151,53 +154,73 @@ export default function MapLabelsSettingsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="rounded-3xl border border-slate-200 bg-gradient-to-br from-cyan-50 via-white to-blue-50 p-6 shadow-sm sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700">
-          Parametrage heatmap
-        </p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900">Alias des cartes PUBG</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Personnalisez les libelles affiches dans le filtre Carte PUBG de la page calendrier
-          d&apos;activite.
-        </p>
+    <main className="app-container app-main flex-1">
+      <section className="app-panel mb-4 px-4 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Alias des cartes PUBG</h1>
+            <p className="mt-2 max-w-3xl text-sm text-gray-600">
+              Personnalisez les libelles affiches dans le filtre Carte PUBG de la page calendrier
+              d&apos;activite.
+            </p>
+          </div>
+          <Link
+            href="/settings/login-welcome"
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            Aller au message d&apos;accueil
+          </Link>
+        </div>
+      </section>
 
-        <form className="mt-8 space-y-4 rounded-2xl border border-slate-200 bg-white p-5" onSubmit={handleSave}>
-          <div className="grid gap-4 md:grid-cols-2">
-            {MAP_KEYS.map((mapKey) => (
-              <label key={mapKey} className="block text-sm font-medium text-slate-700">
-                {mapKey}
-                <input
-                  type="text"
-                  value={labels[mapKey] ?? ''}
-                  maxLength={40}
-                  onChange={(event) =>
-                    setLabels((current) => ({
-                      ...current,
-                      [mapKey]: event.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  placeholder={mapKey}
-                />
-              </label>
-            ))}
+      <section className="app-panel p-5 sm:p-6">
+        <form className="space-y-4" onSubmit={handleSave}>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Libellés des cartes</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Ajuste les noms affichés dans les filtres et tableaux de l&apos;application.
+            </p>
+          </div>
+
+          <div className="app-panel-muted p-4 sm:p-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              {MAP_KEYS.map((mapKey) => (
+                <label key={mapKey} className="block text-sm font-medium text-gray-700">
+                  {mapKey}
+                  <input
+                    type="text"
+                    value={labels[mapKey] ?? ''}
+                    maxLength={40}
+                    onChange={(event) =>
+                      setLabels((current) => ({
+                        ...current,
+                        [mapKey]: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                    placeholder={mapKey}
+                  />
+                </label>
+              ))}
+            </div>
           </div>
 
           {error ? <p className="text-sm text-rose-700">{error}</p> : null}
           {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
               disabled={saving}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+              style={{
+                borderColor: 'var(--theme-nav-active-border)',
+                backgroundColor: 'var(--theme-nav-active-bg)',
+                color: 'var(--theme-nav-active-text)',
+              }}
             >
               {saving ? 'Enregistrement...' : 'Enregistrer'}
             </button>
-            <Link href="/settings/login-welcome" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-              Aller au message d&apos;accueil
-            </Link>
           </div>
         </form>
       </section>

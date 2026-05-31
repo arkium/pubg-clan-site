@@ -1,4 +1,5 @@
 import PlacementBadge from '@/components/ui/PlacementBadge'
+import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
@@ -8,6 +9,10 @@ interface SquadMatchListProps {
   period: SquadPeriod
   matches: SquadMatch[]
   mapLabels: Record<string, string>
+  title?: string
+  description?: string
+  emptyMessage?: string
+  limit?: number
 }
 
 function formatMatchDate(value: string) {
@@ -50,15 +55,24 @@ function formatDuration(totalSeconds: number) {
   return `${minutes}m`
 }
 
-export default function SquadMatchList({ clanId, period, matches, mapLabels }: SquadMatchListProps) {
-  const latestMatches = matches.slice(0, 10)
+export default function SquadMatchList({
+  clanId,
+  period,
+  matches,
+  mapLabels,
+  title = 'Derniers matchs ensemble',
+  description,
+  emptyMessage,
+  limit = 10,
+}: SquadMatchListProps) {
+  const latestMatches = matches.slice(0, limit)
 
   if (latestMatches.length === 0) {
     return (
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-gray-900">Derniers matchs ensemble</h2>
+        <h2 className="mb-2 text-lg font-semibold text-gray-900">{title}</h2>
         <p className="text-sm text-gray-600">
-          Aucun match en squad pour le clan #{clanId} sur la période {period === 'week' ? 'semaine' : 'mois'}.
+          {emptyMessage ?? `Aucun match en squad pour le clan #${clanId} sur la période ${period === 'week' ? 'semaine' : 'mois'}.`}
         </p>
       </section>
     )
@@ -68,9 +82,9 @@ export default function SquadMatchList({ clanId, period, matches, mapLabels }: S
     <section className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-white to-gray-50 p-3 shadow-sm">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">Derniers matchs ensemble</h2>
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <p className="mt-0.5 text-xs text-gray-600">
-            Cartes synthétiques des 10 dernières parties détectées pour le clan #{clanId}.
+            {description ?? `Cartes synthétiques des ${latestMatches.length} dernières parties détectées pour le clan #${clanId}.`}
           </p>
         </div>
         <p className="app-meta-pill">
@@ -145,12 +159,7 @@ export default function SquadMatchList({ clanId, period, matches, mapLabels }: S
                 <p className="text-[9px] uppercase tracking-wide text-gray-500">Membres présents</p>
                 <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
                   {memberNames.map((memberName) => (
-                    <span
-                      key={memberName}
-                      className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm"
-                    >
-                      {memberName}
-                    </span>
+                    <PlayerNameBadge key={memberName} name={memberName} />
                   ))}
                 </div>
               </div>

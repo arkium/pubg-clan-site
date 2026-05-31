@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import PlacementBadge from '@/components/ui/PlacementBadge'
+import TeamModeBadge from '@/components/ui/TeamModeBadge'
 
 import type {
   DashboardMatch,
@@ -39,6 +40,13 @@ function formatMapName(name: string): string {
 
 function formatMode(mode: string): string {
   return MODE_LABELS[mode] ?? mode
+}
+
+function clanModeLabel(mode: DashboardMatch['clanMode']) {
+  if (mode === 'solo') return 'Solo'
+  if (mode === 'duo') return 'Duo'
+  if (mode === 'trio') return 'Trio'
+  return 'Squad'
 }
 
 function formatDuration(seconds: number): string {
@@ -119,9 +127,9 @@ export default function MatchHistory({
 }: MatchHistoryProps) {
   const periods: DashboardPeriod[] = ['week', 'month', 'all']
   const periodLabels: Record<DashboardPeriod, string> = {
-    week: '7 jours',
-    month: '30 jours',
-    all: 'Tout',
+    week: 'Semaine',
+    month: 'Mois',
+    all: 'Tous',
   }
 
   function handleSort(key: DashboardMatchSortKey) {
@@ -204,6 +212,8 @@ export default function MatchHistory({
                       <span className="inline-block h-2 w-2 rounded-full bg-gray-400" aria-hidden="true" />
                     )}
                     <span>{formatMode(m.gameMode)}</span>
+                    <span>•</span>
+                    <TeamModeBadge mode={m.clanMode} label={clanModeLabel(m.clanMode)} size="xs" className="shadow-none" />
                   </div>
                 </article>
               )
@@ -226,6 +236,7 @@ export default function MatchHistory({
                       )}
                     </th>
                   ))}
+                  <th className="px-4 py-2 text-left">Mode clan</th>
                   <th className="px-4 py-2 text-left">Carte</th>
                 </tr>
               </thead>
@@ -243,6 +254,9 @@ export default function MatchHistory({
                       <td className="px-4 py-2 text-gray-700">{Math.round(m.damageDealt)}</td>
                       <td className="px-4 py-2">
                         <PlacementBadge placement={m.placement} />
+                      </td>
+                      <td className="px-4 py-2 text-gray-700">
+                        <TeamModeBadge mode={m.clanMode} label={clanModeLabel(m.clanMode)} size="xs" className="shadow-none" />
                       </td>
                       <td className="px-4 py-2 text-gray-600">
                         <div>{mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}</div>

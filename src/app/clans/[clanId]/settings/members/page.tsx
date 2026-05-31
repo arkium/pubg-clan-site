@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import RoleAssignment from '@/components/RoleAssignment'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type ClanRole = {
@@ -690,25 +691,24 @@ export default function ClanMembersSettingsPage() {
           {inviteToast.message}
         </div>
       ) : null}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-2xl">
-          <p className="mb-2 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 shadow-sm">
-            Membres et rôles
-          </p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">Membres et rôles</h1>
-          <p className="mt-2 max-w-xl text-sm text-slate-600">
-            Cartes premium pour les membres du clan, leurs rôles et leurs invitations.
-          </p>
+      <section className="app-panel mb-6 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-2xl">
+            <h1 className="text-2xl font-bold text-gray-900">Membres et rôles</h1>
+            <p className="mt-2 max-w-xl text-sm text-gray-600">
+              Cartes premium pour les membres du clan, leurs rôles et leurs invitations.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/clans"
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+              Changer de clan
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/clans"
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-          >
-            Changer de clan
-          </Link>
-        </div>
-      </div>
+      </section>
 
       {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -728,30 +728,14 @@ export default function ClanMembersSettingsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               {sortedMembers.length} membre{sortedMembers.length > 1 ? 's' : ''} du clan
             </p>
-            <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-inner">
-              <button
-                type="button"
-                onClick={() => setNameSortOrder('az')}
-                className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                  nameSortOrder === 'az'
-                    ? 'bg-slate-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white'
-                }`}
-              >
-                Alpha
-              </button>
-              <button
-                type="button"
-                onClick={() => setNameSortOrder('za')}
-                className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                  nameSortOrder === 'za'
-                    ? 'bg-slate-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white'
-                }`}
-              >
-                Inverse
-              </button>
-            </div>
+            <SegmentedControl
+              options={[
+                { value: 'az', label: 'Alpha' },
+                { value: 'za', label: 'Inverse' },
+              ]}
+              value={nameSortOrder}
+              onChange={setNameSortOrder}
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

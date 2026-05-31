@@ -78,6 +78,7 @@ export interface DashboardResponse {
 export interface DashboardMatch {
   id: string
   pubgMatchId: string
+  clanMode: 'solo' | 'duo' | 'trio' | 'squad'
   mapName: string
   gameMode: string
   duration: number

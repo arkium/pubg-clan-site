@@ -1,4 +1,5 @@
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 
 import type { SquadSynergiesData } from '@/types/squad-matches'
 
@@ -32,7 +33,11 @@ function SynergyList({
                 <div className="mb-1 flex items-center gap-2">
                   <TeamModeBadge mode={teamMode} className="shadow-none" />
                 </div>
-                <p className="font-medium text-gray-900">{entry.memberNames.join(' + ')}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {entry.memberNames.map((memberName) => (
+                    <PlayerNameBadge key={`${entry.memberIds.join(':')}:${memberName}`} name={memberName} />
+                  ))}
+                </div>
                 <p>
                   {entry.matchesPlayed} matchs · {entry.totalKills} éliminations · {formatWinRate(entry.winRate)}
                 </p>

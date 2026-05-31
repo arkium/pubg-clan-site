@@ -6,6 +6,7 @@ Cette page centralise la documentation du projet sur une seule vue.
 
 - Classement clan: calcul live, filtres, badges, progression
 - Matchs clan: agrégations sessions, synergies, top performers
+- Login et activation: parcours auth joueur, invitations et reset mot de passe
 - Tableaux du site: inventaire complet des vues tabulaires
 - Composants UI: composants réutilisables et conventions
 - Uniformisation UI: charte visuelle globale
@@ -15,7 +16,13 @@ Cette page centralise la documentation du projet sur une seule vue.
 - [Calcul leaderboard](leaderboard-calcul.md)
   - Source des données, période, tri, K/M, distinctions, progression, all time
 - [Calcul matchs clan](matchs-clan-calcul.md)
-  - Méthodes de calcul de /clans/[clanId]/matches, sessions, synergies, performers
+  - Méthodes de calcul de /clans/[clanId]/matches + sous-pages /matches/session/[date], navigation par date, sessions, synergies, performers
+- [Calcul matchs membre](matchs-membre-calcul.md)
+  - Logique de /members/[id]/matches: historique DB, tri/pagination, matchs recents PUBG et import
+- [Calcul dashboard membre](dashboard-membre-calcul.md)
+  - Logique de /members/[id]/dashboard: stats, progression, comparaison clan, squads, historique matchs
+- [Login et activation joueurs](login-activation-joueurs.md)
+  - Flux de connexion, activation par invitation, mot de passe oublie
 - [Inventaire des tableaux](tableaux-site.md)
   - Où sont les tableaux, contrôles disponibles, état de centralisation
 - [Composants réutilisables](composants-reutilisables.md)
@@ -38,3 +45,4 @@ Cette page centralise la documentation du projet sur une seule vue.
 - En cas d'évolution métier, mettre à jour en priorité:
   - leaderboard-calcul.md
   - matchs-clan-calcul.md
+  - dashboard-membre-calcul.md

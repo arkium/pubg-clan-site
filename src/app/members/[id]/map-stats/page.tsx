@@ -782,7 +782,7 @@ export default function MemberMapStatsPage() {
         ) : !payload || payload.mapStats.length === 0 ? (
           <p className="text-sm text-gray-500">Aucune statistique disponible pour les filtres sélectionnés.</p>
         ) : (
-          <div className="map-stats-grid grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="map-stats-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {sortedMapStats.map((entry) => (
               <article
                 key={entry.mapName}

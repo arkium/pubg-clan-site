@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 
 import type { DashboardPeriod } from '@/types/dashboard'
 
+type ClanMode = 'solo' | 'duo' | 'trio' | 'squad'
+
 function parseMemberId(id: string) {
   const memberId = Number(id)
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null
@@ -12,6 +14,22 @@ function parseMemberId(id: string) {
 function parsePeriod(value: string | null): DashboardPeriod {
   if (value === 'month' || value === 'all') return value
   return 'week'
+}
+
+function clanModeFromClanMemberCount(memberCount: number | null | undefined): ClanMode {
+  if (!memberCount || memberCount <= 1) {
+    return 'solo'
+  }
+
+  if (memberCount <= 2) {
+    return 'duo'
+  }
+
+  if (memberCount === 3) {
+    return 'trio'
+  }
+
+  return 'squad'
 }
 
 function getPeriodKey(period: DashboardPeriod): string {
@@ -46,6 +64,36 @@ function getLastFourWeekKeys(): string[] {
   return keys
 }
 
+function getDateRangeForDashboardPeriod(period: DashboardPeriod): {
+  startDate: Date
+  endDate: Date
+} | null {
+  if (period === 'all') {
+    return null
+  }
+
+  const now = new Date()
+
+  if (period === 'month') {
+    return {
+      startDate: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+      endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+    }
+  }
+
+  const currentDay = now.getDay()
+  const distanceFromMonday = currentDay === 0 ? 6 : currentDay - 1
+  const startDate = new Date(now)
+  startDate.setDate(now.getDate() - distanceFromMonday)
+  startDate.setHours(0, 0, 0, 0)
+
+  const endDate = new Date(startDate)
+  endDate.setDate(startDate.getDate() + 6)
+  endDate.setHours(23, 59, 59, 999)
+
+  return { startDate, endDate }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -61,6 +109,7 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const period = parsePeriod(searchParams.get('period'))
     const periodKey = getPeriodKey(period)
+    const dateRange = getDateRangeForDashboardPeriod(period)
 
     // 1. Fetch member
     const member = await prisma.clanMember.findUnique({
@@ -140,11 +189,21 @@ export async function GET(
       }
     })
 
-    // 5. Top performances
-    const topPerformances = await prisma.match.findMany({
-      where: { memberId },
+    // 5. Top performances (sans solo clan)
+    const topPerformanceCandidates = await prisma.match.findMany({
+      where: {
+        memberId,
+        ...(dateRange
+          ? {
+              pubgCreatedAt: {
+                gte: dateRange.startDate,
+                lte: dateRange.endDate,
+              },
+            }
+          : {}),
+      },
       orderBy: [{ kills: 'desc' }, { damageDealt: 'desc' }],
-      take: 5,
+      take: 50,
       select: {
         id: true,
         pubgMatchId: true,
@@ -157,13 +216,67 @@ export async function GET(
       },
     })
 
+    const candidateMatchIds = topPerformanceCandidates.map((match) => match.pubgMatchId)
+    const squadMembersForCandidates = candidateMatchIds.length
+      ? await prisma.squadMember.findMany({
+          where: {
+            memberId,
+            squadMatch: {
+              pubgMatchId: { in: candidateMatchIds },
+            },
+          },
+          select: {
+            squadMatch: {
+              select: {
+                pubgMatchId: true,
+                _count: {
+                  select: {
+                    members: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : []
+
+    const clanMemberCountByMatchId = new Map<string, number>()
+    for (const squadMember of squadMembersForCandidates) {
+      clanMemberCountByMatchId.set(
+        squadMember.squadMatch.pubgMatchId,
+        squadMember.squadMatch._count.members
+      )
+    }
+
+    const topPerformances = topPerformanceCandidates
+      .filter(
+        (match) =>
+          clanModeFromClanMemberCount(clanMemberCountByMatchId.get(match.pubgMatchId)) !== 'solo'
+      )
+      .slice(0, 5)
+
     // 6. Squad frequency: find clan-mates who played most matches with this member
     const memberSquadMatches = await prisma.squadMember.findMany({
-      where: { memberId },
-      select: { squadMatchId: true },
+      where: {
+        memberId,
+        ...(dateRange
+          ? {
+              squadMatch: {
+                createdAt: {
+                  gte: dateRange.startDate,
+                  lte: dateRange.endDate,
+                },
+              },
+            }
+          : {}),
+      },
+      select: { squadMatchId: true, kills: true },
     })
 
     const squadMatchIds = memberSquadMatches.map((s) => s.squadMatchId)
+    const memberKillsBySquadMatchId = new Map(
+      memberSquadMatches.map((entry) => [entry.squadMatchId, entry.kills])
+    )
 
     let squads: Array<{
       memberId: number
@@ -224,7 +337,7 @@ export async function GET(
           wins: 0,
         }
         existing.matchCount += 1
-        existing.kills += cp.kills
+        existing.kills += cp.kills + (memberKillsBySquadMatchId.get(cp.squadMatchId) ?? 0)
         existing.damage += cp.damage
         if (cp.squadMatch.placement === 1) existing.wins += 1
         playerMap.set(cp.memberId, existing)

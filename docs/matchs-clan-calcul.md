@@ -8,7 +8,8 @@ Ce document explique comment est calculee la page `/clans/[clanId]/matches`, ave
 - Le calcul est fait a la volee depuis `SquadMatch` et `SquadMember`, avec un enrichissement de duree via `Match`.
 - La periode supportee est `week` ou `month`.
 - Le filtre mode (`duo`, `trio`, `squad`) est applique selon le nombre de membres clan detectes dans le match, pas sur `gameMode` PUBG brut.
-- Les blocs principaux renvoyes sont: `squads`, `stats`, `sessions`, `synergies`, `topPerformers`.
+- Les blocs principaux renvoyes sont: `squads`, `stats`, `modePerformance`, `sessions`, `synergies`, `topPerformers`.
+- La liste detaillee des matchs n est plus sur la page principale: elle est accessible par sous-page de date depuis `Recap par soiree`.
 
 ## Route et fichier principal
 
@@ -16,6 +17,16 @@ Ce document explique comment est calculee la page `/clans/[clanId]/matches`, ave
 - Page UI: `src/app/clans/[clanId]/matches/page.tsx`
 - Hook client: `src/hooks/useSquadMatches.ts`
 - Types: `src/types/squad-matches.ts`
+
+## Contrat de reponse (payload)
+
+Les champs majeurs renvoyes par l API Matchs sont:
+
+- `stats`: KPI globaux de la periode/mode
+- `modePerformance`: agrégats duo/trio/squad utilises par le cadre `Performances duo/trio/squad`
+- `sessions`: recap par date
+- `synergies`: top paires et top squads
+- `topPerformers`: tops individuels (kills, damage, survie)
 
 ## Parametres d entree
 
@@ -31,10 +42,10 @@ Validation appliquee:
 
 ## Periode appliquee
 
-Contrairement au leaderboard qui travaille sur semaine/mois calendaires, la page Matchs utilise une fenetre glissante:
+La page Matchs travaille sur des periodes calendaires, alignees avec le leaderboard:
 
-- `week`: maintenant - 7 jours
-- `month`: maintenant - 30 jours
+- `week`: du lundi 00:00:00 au dimanche 23:59:59.999
+- `month`: du premier jour du mois 00:00:00 au dernier jour du mois 23:59:59.999
 
 Le filtre temporel est applique sur `SquadMatch.createdAt`.
 
@@ -86,6 +97,17 @@ Ensuite:
 
 Apres chargement de `squads`, la route applique le filtre `gameMode` (si fourni), puis calcule les blocs ci-dessous.
 
+Tous les cadres principaux de la page Matchs partagent maintenant la meme base de calcul (`filteredSquads`) cote API:
+
+- `Performances duo/trio/squad` (bloc `modePerformance`)
+- `Synergies`
+- `Meilleures performances`
+
+Objectif:
+
+- eviter un calcul client different pour un des cadres
+- garantir la coherence des chiffres affiches pour une meme periode/mode
+
 ### A. Stats globales (`stats`)
 
 Accumulation sur `filteredSquads`:
@@ -98,6 +120,20 @@ Accumulation sur `filteredSquads`:
 Formule:
 
 - `winRate = wins / matchCount` (sinon `0`)
+
+### A bis. Performance par mode clan (`modePerformance`)
+
+La route calcule aussi les agrégats par mode clan (`duo`, `trio`, `squad`) sur la meme boucle `filteredSquads`:
+
+- `matches`
+- `kills`
+- `wins`
+- `losses`
+- `damage`
+- `assists`
+- `durationSeconds`
+
+Ce bloc alimente directement le cadre `Performances duo/trio/squad` de la page.
 
 ### B. Sessions par jour (`sessions`)
 
@@ -201,9 +237,55 @@ Le hook `useSquadMatches` applique un cache memoire en front:
 ## Limites actuelles
 
 - Pas de pagination sur `squads`.
-- Fenetre glissante fixe (7/30 jours) et non calendrier complet.
 - Synergies et top performers limites au top 5.
 - Le mode `solo` n existe pas sur cette page: on parle uniquement de matchs equipe detectes.
+
+## Navigation detail par date (recap par soiree)
+
+Depuis `Récap par soirée`, chaque carte de date est cliquable et ouvre une sous-page:
+
+- route: `/clans/[clanId]/matches/session/[date]`
+- parametres conserves: `period` et `gameMode` (query string)
+
+Sur cette sous-page:
+
+- les cartes de performance de la page Matchs sont conservees (resume + performances duo/trio/squad)
+- la section matchs reprend le rendu de `Derniers matchs ensemble` sans limite (liste complete des matchs de la date)
+
+### Comportement de la page principale apres evolution
+
+- La section `Derniers matchs ensemble` a ete retiree de `/clans/[clanId]/matches` pour eviter la duplication avec la sous-page date.
+- Le parcours detail devient: page Matchs -> `Recap par soiree` -> detail date.
+
+### Validation et filtrage de la sous-page
+
+Sur `/matches/session/[date]`:
+
+- la date est validee au format `YYYY-MM-DD`
+- si `clanId` est invalide, redirection vers `/clans`
+- la liste est filtree localement sur `match.createdAt.slice(0, 10) === date`
+
+### Navigation entre dates
+
+La sous-page calcule toutes les dates de session disponibles, puis derive:
+
+- `previousDate` (date plus ancienne)
+- `nextDate` (date plus recente)
+
+UI associee:
+
+- bouton `Retour aux matchs` vers `/clans/[clanId]/matches` en conservant `period` et `gameMode`
+- boutons `Soiree precedente` / `Soiree suivante` actifs si date disponible, sinon etat desactive
+- version mobile optimisee: boutons de navigation alignes et labels compacts
+
+### Reutilisation des composants UI
+
+Les sous-pages et sections associees reposent sur des composants mutualises:
+
+- `SquadMatchList` reutilise pour le detail date avec `limit={sessionMatches.length}`
+- `PlacementBadge` pour les classements de match
+- `PlayerNameBadge` pour les noms de joueurs dans la liste des matchs et les synergies
+- `TeamModeBadge` pour les blocs mode (duo/trio/squad)
 
 ## Point d attention
 
@@ -223,4 +305,8 @@ Si la volumetrie augmente fortement, envisager:
 - `src/app/api/clans/[clanId]/matches/route.ts`: calcul principal
 - `src/hooks/useSquadMatches.ts`: chargement + cache client
 - `src/app/clans/[clanId]/matches/page.tsx`: composition UI
+- `src/app/clans/[clanId]/matches/session/[date]/page.tsx`: detail par date + navigation precedente/suivante
+- `src/components/SessionRecap.tsx`: cartes de recap cliquables vers la sous-page
+- `src/components/SquadMatchList.tsx`: rendu des cartes match (reutilise en detail date)
+- `src/components/SquadSynergies.tsx`: synergies avec badges joueurs
 - `src/types/squad-matches.ts`: contrat de donnees

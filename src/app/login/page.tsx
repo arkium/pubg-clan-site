@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
+import Link from 'next/link'
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -207,6 +208,15 @@ function LoginPageContent() {
                 autoComplete="current-password"
               />
             </label>
+
+            <div className="flex justify-end">
+              <Link
+                href={email.trim() ? `/reset-password?email=${encodeURIComponent(email.trim())}` : '/reset-password'}
+                className="text-xs font-semibold text-slate-600 underline underline-offset-2 transition hover:text-slate-900"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
 
             {error ? <p className="text-sm text-rose-700">{error}</p> : null}
 

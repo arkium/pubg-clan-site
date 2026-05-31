@@ -93,29 +93,6 @@ export default function DashboardPage() {
           <ComparisonRadar stats={stats} clanAverage={clanAverage} />
         </div>
 
-        {/* Match history */}
-        <MatchHistory
-          matches={matchData.matches}
-          totalCount={matchData.totalCount}
-          mapLabels={matchData.mapLabels}
-          period={matchPeriod}
-          onPeriodChange={(p) => {
-            setMatchPeriod(p)
-            setMatchOffset(0)
-          }}
-          limit={MATCH_LIMIT}
-          offset={matchOffset}
-          onOffsetChange={setMatchOffset}
-          sortKey={matchSortKey}
-          sortDir={matchSortDir}
-          onSortChange={(nextSortKey, nextSortDir) => {
-            setMatchSortKey(nextSortKey)
-            setMatchSortDir(nextSortDir)
-            setMatchOffset(0)
-          }}
-          loading={matchLoading}
-        />
-
         {/* Squad frequency + Top performances */}
         <div className="grid gap-6 md:grid-cols-2">
           <SquadFrequency squads={squads} />
@@ -131,9 +108,12 @@ export default function DashboardPage() {
                 Aucun match enregistré pour l&apos;instant.
               </p>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul>
                 {topPerformances.map((m, i) => (
-                  <li key={m.id} className="flex items-center gap-3 px-4 py-3">
+                  <li
+                    key={m.id}
+                    className="flex items-center gap-3 border-t border-gray-200 px-4 py-3 first:border-t-0"
+                  >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700">
                       {i + 1}
                     </span>
@@ -158,6 +138,29 @@ export default function DashboardPage() {
             )}
           </section>
         </div>
+
+        {/* Match history */}
+        <MatchHistory
+          matches={matchData.matches}
+          totalCount={matchData.totalCount}
+          mapLabels={matchData.mapLabels}
+          period={matchPeriod}
+          onPeriodChange={(p) => {
+            setMatchPeriod(p)
+            setMatchOffset(0)
+          }}
+          limit={MATCH_LIMIT}
+          offset={matchOffset}
+          onOffsetChange={setMatchOffset}
+          sortKey={matchSortKey}
+          sortDir={matchSortDir}
+          onSortChange={(nextSortKey, nextSortDir) => {
+            setMatchSortKey(nextSortKey)
+            setMatchSortDir(nextSortDir)
+            setMatchOffset(0)
+          }}
+          loading={matchLoading}
+        />
       </div>
     </div>
   )

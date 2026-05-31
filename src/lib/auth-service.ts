@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth-crypto'
 
 const INVITE_TTL_MS = 1000 * 60 * 60 * 48
+const PASSWORD_RESET_TTL_MS = 1000 * 60 * 30
 
 function isTechnicalInviteEmail(email: string) {
   return email.trim().toLowerCase().endsWith('@local.invalid')
@@ -551,6 +552,190 @@ export async function changeUserPassword(params: {
       passwordHash: nextPasswordHash,
     },
   })
+}
+
+export async function requestPasswordReset(emailInput: string) {
+  const email = normalizeEmail(emailInput)
+  const now = new Date()
+
+  const user = await prisma.userAccount.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      status: true,
+      emailVerifiedAt: true,
+    },
+  })
+
+  if (!user || user.status !== 'active' || !user.emailVerifiedAt) {
+    return {
+      requested: false,
+    }
+  }
+
+  await prisma.passwordResetToken.updateMany({
+    where: {
+      userId: user.id,
+      usedAt: null,
+      revokedAt: null,
+      expiresAt: {
+        gt: now,
+      },
+    },
+    data: {
+      revokedAt: now,
+    },
+  })
+
+  const token = generateToken()
+  const tokenHash = hashToken(token)
+  const expiresAt = new Date(now.getTime() + PASSWORD_RESET_TTL_MS)
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    },
+  })
+
+  const resetUrl = `${getPublicBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`
+
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: 'Réinitialisation de votre mot de passe PUBG Clan',
+      text: [
+        `Bonjour ${user.displayName?.trim() || 'joueur'},`,
+        '',
+        'Vous avez demandé la réinitialisation de votre mot de passe.',
+        `Lien de réinitialisation (valide 30 minutes): ${resetUrl}`,
+        '',
+        "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+      ].join('\n'),
+    })
+  } catch (error) {
+    console.error('Password reset email error:', error)
+  }
+
+  return {
+    requested: true,
+  }
+}
+
+export async function getPasswordResetContext(tokenInput: string) {
+  const normalizedToken = tokenInput.trim()
+  if (!normalizedToken) {
+    return null
+  }
+
+  const tokenHash = hashToken(normalizedToken)
+  const token = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: {
+      user: {
+        select: {
+          id: true,
+          status: true,
+          emailVerifiedAt: true,
+        },
+      },
+    },
+  })
+
+  if (!token || token.usedAt || token.revokedAt || token.expiresAt <= new Date()) {
+    return null
+  }
+
+  if (!token.user || token.user.status !== 'active' || !token.user.emailVerifiedAt) {
+    return null
+  }
+
+  return {
+    valid: true,
+  }
+}
+
+export async function resetPasswordWithToken(params: {
+  token: string
+  newPassword: string
+}) {
+  const now = new Date()
+  const tokenHash = hashToken(params.token.trim())
+
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: {
+      user: {
+        select: {
+          id: true,
+          status: true,
+          emailVerifiedAt: true,
+          passwordHash: true,
+        },
+      },
+    },
+  })
+
+  if (!resetToken || resetToken.usedAt || resetToken.revokedAt || resetToken.expiresAt <= now) {
+    throw new Error('Lien de réinitialisation invalide ou expiré')
+  }
+
+  if (!resetToken.user || resetToken.user.status !== 'active' || !resetToken.user.emailVerifiedAt) {
+    throw new Error('Compte invalide')
+  }
+
+  const sameAsCurrentPassword = await verifyPassword(params.newPassword, resetToken.user.passwordHash)
+  if (sameAsCurrentPassword) {
+    throw new Error('Le nouveau mot de passe doit être différent')
+  }
+
+  const nextPasswordHash = await hashPassword(params.newPassword)
+
+  await prisma.$transaction([
+    prisma.userAccount.update({
+      where: { id: resetToken.user.id },
+      data: {
+        passwordHash: nextPasswordHash,
+      },
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: {
+        usedAt: now,
+      },
+    }),
+    prisma.passwordResetToken.updateMany({
+      where: {
+        userId: resetToken.user.id,
+        id: {
+          not: resetToken.id,
+        },
+        usedAt: null,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      data: {
+        revokedAt: now,
+      },
+    }),
+    prisma.userSession.updateMany({
+      where: {
+        userId: resetToken.user.id,
+        revokedAt: null,
+        expiresAt: {
+          gt: now,
+        },
+      },
+      data: {
+        revokedAt: now,
+      },
+    }),
+  ])
 }
 
 export async function createOwnerBootstrapInvite(params: {

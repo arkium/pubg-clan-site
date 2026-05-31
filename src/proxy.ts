@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
-const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/','/activate','/login'])
-const PUBLIC_PATHS = new Set(['/login', '/activate'])
+const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/','/activate','/login','/reset-password'])
+const PUBLIC_PATHS = new Set(['/login', '/activate', '/reset-password'])
 const SESSION_COOKIE_NAME = 'pubg_clan_session'
 
 async function getSetupState(origin: string): Promise<'first_run' | 'pending_activation' | 'completed'> {

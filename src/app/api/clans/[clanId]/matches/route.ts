@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
 import type {
+  ClanModePerformanceEntry,
   ClanMatchesResponse,
   PerformerEntry,
   SessionRecapItem,
@@ -20,13 +21,27 @@ function parsePeriod(period: string | null): SquadPeriod {
   return period === 'month' ? 'month' : 'week'
 }
 
-function getPeriodStart(period: SquadPeriod) {
+function getDateRangeForPeriod(period: SquadPeriod): { gte: Date; lte: Date } {
   const now = new Date()
+
   if (period === 'week') {
-    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const day = now.getDay()
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+    const monday = new Date(now)
+    monday.setDate(diff)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    return { gte: monday, lte: sunday }
   }
 
-  return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  const startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+
+  return { gte: startDate, lte: endDate }
 }
 
 function teamModeFromMemberCount(memberCount: number) {
@@ -130,9 +145,12 @@ export async function GET(
       requestedGameMode === 'duo' || requestedGameMode === 'trio' || requestedGameMode === 'squad'
         ? requestedGameMode
         : undefined
-    const periodStart = getPeriodStart(period)
+    const periodRange = getDateRangeForPeriod(period)
     const baseWhere = {
-      createdAt: { gte: periodStart },
+      createdAt: {
+        gte: periodRange.gte,
+        lte: periodRange.lte,
+      },
       members: {
         some: {
           member: {
@@ -288,7 +306,53 @@ export async function GET(
       }
     >()
 
+    const modePerformance: Record<'duo' | 'trio' | 'squad', ClanModePerformanceEntry> = {
+      duo: {
+        mode: 'duo',
+        matches: 0,
+        kills: 0,
+        wins: 0,
+        losses: 0,
+        damage: 0,
+        assists: 0,
+        durationSeconds: 0,
+      },
+      trio: {
+        mode: 'trio',
+        matches: 0,
+        kills: 0,
+        wins: 0,
+        losses: 0,
+        damage: 0,
+        assists: 0,
+        durationSeconds: 0,
+      },
+      squad: {
+        mode: 'squad',
+        matches: 0,
+        kills: 0,
+        wins: 0,
+        losses: 0,
+        damage: 0,
+        assists: 0,
+        durationSeconds: 0,
+      },
+    }
+
     for (const match of filteredSquads) {
+      const mode = modePerformance[teamModeFromMemberCount(match.members.length)]
+      mode.matches += 1
+      mode.kills += match.totalKills
+      mode.damage += match.totalDamage
+      mode.assists += match.totalAssists
+      mode.durationSeconds += match.durationSeconds
+
+      if (match.isWin) {
+        mode.wins += 1
+      } else {
+        mode.losses += 1
+      }
+
       const date = match.createdAt.slice(0, 10)
       const session = sessionsMap.get(date) ?? {
         date,
@@ -419,6 +483,7 @@ export async function GET(
         winRate: buildWinRate(stats.wins, stats.matchCount),
         matchCount: stats.matchCount,
       },
+      modePerformance: [modePerformance.duo, modePerformance.trio, modePerformance.squad],
       sessions,
       synergies: {
         topPairs: toSortedSynergies(pairAggregates).slice(0, 5),

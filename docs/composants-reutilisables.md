@@ -12,9 +12,10 @@ Ce document centralise les composants reutilisables de l application, leur inten
 
 | Composant | Fichier | Role | Usages actuels |
 | --- | --- | --- | --- |
-| SegmentedControl | src/components/ui/SegmentedControl.tsx | Groupe de boutons segmentes pour filtres/periodes/onglets | dashboard PlayerStats, dashboard MatchHistory, dashboard ProgressionChart |
-| PlacementBadge | src/components/ui/PlacementBadge.tsx | Badge de classement joueur avec paliers de placement | dashboard MatchHistory, SquadMatchList, members dashboard (top performances), members matches (imports), TopPerformers |
+| SegmentedControl | src/components/ui/SegmentedControl.tsx | Groupe de boutons segmentes pour filtres/periodes/onglets | dashboard PlayerStats, dashboard MatchHistory, dashboard ProgressionChart, dashboard SquadFrequency |
+| PlacementBadge | src/components/ui/PlacementBadge.tsx | Badge de classement joueur avec paliers de placement | dashboard MatchHistory, SquadMatchList, page session par date, members dashboard (top performances), members matches (imports), TopPerformers |
 | TeamModeBadge | src/components/ui/TeamModeBadge.tsx | Badge mode equipe Duo/Trio/Squad avec icone standard | clans matches, SquadMatchList, SquadSynergies, SessionRecap, members map-stats |
+| PlayerNameBadge | src/components/ui/PlayerNameBadge.tsx | Badge compact de nom de joueur | SquadMatchList (membres presents) |
 | MobileDropdownNav | src/components/ui/MobileDropdownNav.tsx | Menu dropdown mobile pour filtres/navigation en petit ecran | MemberSectionNav, members notifications, members heatmap, members map-stats |
 
 ## Metadonnees partagees de distinctions
@@ -91,6 +92,26 @@ Contrat visuel:
 
 - S appuie sur les classes theme app-placement-badge, app-placement-badge--winner, app-placement-badge--top5, app-placement-badge--top10, app-placement-badge--default
 - Variantes claire et sombre definies dans src/app/globals.css
+
+Regle d usage:
+
+- Toujours utiliser le composant `PlacementBadge` pour afficher #1/#5/#10/etc.
+- Ne pas ecrire `app-placement-badge*` directement dans les pages/composants metier.
+
+### PlayerNameBadge
+
+Fichier: src/components/ui/PlayerNameBadge.tsx
+
+Props principales:
+
+- name: nom affiche dans la pastille
+- className: extension locale optionnelle
+- title: surcharge optionnelle du tooltip
+
+Contrat visuel:
+
+- S appuie sur la classe theme app-player-name-badge
+- Variantes claire et sombre derivees des tokens `--theme-ui-*` dans src/app/globals.css
 
 ### TeamModeBadge
 

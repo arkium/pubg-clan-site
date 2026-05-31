@@ -6,9 +6,9 @@ import type { DashboardPeriod } from '@/types/dashboard'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
-  week: 'Cette semaine',
-  month: 'Ce mois',
-  all: 'Tout le temps',
+  week: 'Semaine',
+  month: 'Mois',
+  all: 'Tous',
 }
 
 interface StatCardProps {

@@ -1140,6 +1140,22 @@ html[data-app-theme='dark'] .app-team-mode-badge--solo {
   flex-shrink: 0;
 }
 
+.app-player-name-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-ui-border);
+  border-radius: 9999px;
+  background-color: var(--theme-ui-surface);
+  color: var(--theme-ui-text-secondary);
+  box-shadow: var(--app-panel-shadow);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.625rem;
+  line-height: 0.9375rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 html[data-app-theme='dark'] .app-performer-pill--award {
   border-color: rgb(252 211 77 / 0.6);
   background-color: rgb(146 64 14 / 0.34);

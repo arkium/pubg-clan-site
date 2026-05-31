@@ -17,6 +17,7 @@ const defaultData: ClanMatchesResponse = {
     winRate: 0,
     matchCount: 0,
   },
+  modePerformance: [],
   sessions: [],
   synergies: {
     topPairs: [],
@@ -114,6 +115,7 @@ export function useSquadMatches(clanId: number | null, period: SquadPeriod, game
     mapLabels: clanId ? data.mapLabels : {},
     squads: clanId ? data.squads : [],
     stats: clanId ? data.stats : defaultData.stats,
+    modePerformance: clanId ? (data.modePerformance ?? []) : [],
     sessions: clanId ? data.sessions : [],
     synergies: clanId ? data.synergies : defaultData.synergies,
     topPerformers: clanId ? data.topPerformers : defaultData.topPerformers,

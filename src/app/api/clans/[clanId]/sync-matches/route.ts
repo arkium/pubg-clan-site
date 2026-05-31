@@ -13,6 +13,11 @@ function parseClanId(clanId: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+function isMissingMatchError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('API request failed (404)') && message.includes('/matches/')
+}
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -26,6 +31,7 @@ export async function POST(
 
   const logs: string[] = []
   const errors: string[] = []
+  const skipped: string[] = []
   let importedCount = 0
 
   try {
@@ -166,6 +172,13 @@ export async function POST(
 
             importedCount += 1
           } catch (err) {
+            if (isMissingMatchError(err)) {
+              const skipMsg = `Member ${member.displayName}, match ${matchId}: skipped (match introuvable sur l'API PUBG)`
+              skipped.push(skipMsg)
+              logs.push(skipMsg)
+              continue
+            }
+
             const msg = `Member ${member.displayName}, match ${matchId}: ${err instanceof Error ? err.message : String(err)}`
             errors.push(msg)
           }
@@ -189,11 +202,14 @@ export async function POST(
       errorsCount: errors.length,
       errorsPreview: errors.slice(0, 5),
       errors,
+      skippedCount: skipped.length,
+      skippedPreview: skipped.slice(0, 5),
+      skipped,
       logs,
     }
 
     console.info(
-      `[Clan Sync] Finished clan sync for "${clan.name}" (${clan.id}) at ${finishedAt.toISOString()} - members: ${clan.members.length}, imported matches: ${importedCount}, errors: ${errors.length}`
+      `[Clan Sync] Finished clan sync for "${clan.name}" (${clan.id}) at ${finishedAt.toISOString()} - members: ${clan.members.length}, imported matches: ${importedCount}, errors: ${errors.length}, skipped: ${skipped.length}`
     )
 
     if (errors.length > 0) {
@@ -204,7 +220,9 @@ export async function POST(
         `[Summary] Partial sync: imported=${importedCount}, errors=${errors.length}`
       )
     } else {
-      logs.push(`[Summary] Successful sync: imported=${importedCount}, errors=0`)
+      logs.push(
+        `[Summary] Successful sync: imported=${importedCount}, errors=0, skipped=${skipped.length}`
+      )
     }
 
     return NextResponse.json(payload)

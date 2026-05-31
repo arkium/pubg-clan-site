@@ -23,6 +23,8 @@ Ce document explique la page Owner `/clans/[clanId]/settings/cron` :
 - API control: `src/app/api/clans/[clanId]/cron-control/route.ts`
 - Scheduler: `src/lib/cron-jobs.ts`
 - Checks + historique: `src/lib/cron-observability.ts`
+- Rate-limit PUBG API (observabilite): `src/lib/pubg-api-call-log-service.ts`
+- Queue PUBG + garde-fou RPM: `src/lib/api-throttle.ts`
 - Sync metier clan: `src/lib/clan-service.ts`
 - Recalcul stats: `src/lib/stats-calculator.ts`
 - Generation rapports: `src/lib/report-generator.ts`
@@ -71,6 +73,10 @@ Resultat:
 
 - `success` ou `partial` (si certaines erreurs membre/match),
 - details: `importedMatches`, `errorsCount`, apercu d'erreurs.
+- robustesse import:
+  - un `404` PUBG sur `/matches/{id}` est traite en `skipped` (non bloquant),
+  - ces cas remontent dans `skippedCount`, `skippedPreview`, `skipped`,
+  - les erreurs bloquantes restent dans `errorsCount` / `errors`.
 - garde-fous post-import:
   - import `partial` -> recalcul des stats ignore (on conserve les stats existantes),
   - import `success` avec `0` nouveau match -> recalcul ignore,
@@ -231,6 +237,25 @@ La page agrège via `getCronOverview(clanId)`:
 - integrite des expressions cron,
 - hints de remediation.
 
+### Bloc rate limit PUBG API (snapshot)
+
+La page cron affiche aussi un snapshot des headers rate-limit les plus recents, recupere depuis les logs d'appels PUBG:
+
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`
+- date d'observation (`observedAt`)
+
+Source technique:
+
+- `GET /api/clans/[clanId]/cron-control` expose `pubgApi.latestRateLimit`,
+- valeur calculee via `getLatestPubgRateLimitSnapshot()`.
+
+Utilite:
+
+- verifier rapidement si les syncs cron/manual approchent du plafond,
+- confirmer que les garde-fous anti-429 sont actifs.
+
 ### Bloc runtime cron worker
 
 `cron-control` sonde un endpoint interne securise:
@@ -251,6 +276,30 @@ La table "Historique des cron" lit `CronExecution`:
 - debut, duree,
 - source (`manual`, `scheduler`, `system`),
 - message.
+
+Pour `sync_matches`, `details` peut inclure:
+
+- `errorsCount`, `errorsPreview`, `errors`
+- `skippedCount`, `skippedPreview`, `skipped`
+- `statsSync` (`success` | `skipped` | `failed`)
+
+Cela permet de distinguer:
+
+- un import partiel reel (erreurs bloquantes),
+- des matchs PUBG introuvables (`404`) ignores sans casser le sync.
+
+## Garde-fous rate limit (couche PUBG)
+
+La queue PUBG applique des garde-fous en amont des appels pour reduire les `429`:
+
+- attente proactive avant envoi si `remaining` est proche du seuil,
+- prise en compte de `reset` pour temporiser jusqu'a la prochaine fenetre,
+- retry 429 avec delai base sur `reset` quand disponible.
+
+Effet attendu:
+
+- moins de `429` intermittents pendant les syncs volumineux,
+- comportement plus stable en mode manuel comme en cron auto.
 
 ## Reponse a la question "calcul quoi, pour qui ?"
 

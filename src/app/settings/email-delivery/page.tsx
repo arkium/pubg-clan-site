@@ -238,7 +238,7 @@ export default function EmailDeliverySettingsPage() {
           </p>
           <Link
             href="/"
-            className="mt-5 inline-flex rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900"
+            className="mt-5 app-btn app-btn--md app-btn--secondary"
           >
             Retour a l&apos;accueil
           </Link>
@@ -336,7 +336,7 @@ export default function EmailDeliverySettingsPage() {
               <button
                 type="submit"
                 disabled={testing}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--primary"
               >
                 {testing ? 'Envoi en cours...' : 'Envoyer un email test'}
               </button>
@@ -345,7 +345,7 @@ export default function EmailDeliverySettingsPage() {
               type="button"
               onClick={() => void handleRevoke()}
               disabled={revoking}
-              className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="app-btn app-btn--md app-btn--danger"
             >
               {revoking ? 'Revocation...' : 'Revoquer la validation'}
             </button>
@@ -353,7 +353,7 @@ export default function EmailDeliverySettingsPage() {
               type="button"
               onClick={() => void handleRefreshStatus()}
               disabled={refreshing}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="app-btn app-btn--md app-btn--secondary"
             >
               {refreshing ? 'Rechargement...' : 'Recharger le statut'}
             </button>

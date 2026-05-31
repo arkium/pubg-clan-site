@@ -154,7 +154,7 @@ export default function LoginWelcomeSettingsPage() {
           </div>
           <Link
             href="/"
-            className="mt-5 inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            className="mt-5 app-btn app-btn--md app-btn--secondary"
           >
             Retour à l&apos;accueil
           </Link>
@@ -250,12 +250,7 @@ export default function LoginWelcomeSettingsPage() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
-              style={{
-                borderColor: 'var(--theme-nav-active-border)',
-                backgroundColor: 'var(--theme-nav-active-bg)',
-                color: 'var(--theme-nav-active-text)',
-              }}
+              className="app-btn app-btn--md app-btn--primary"
             >
               {saving ? 'Enregistrement...' : 'Enregistrer'}
             </button>

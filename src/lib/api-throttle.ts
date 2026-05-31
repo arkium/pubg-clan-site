@@ -3,6 +3,8 @@ import { createPubgApiCallLog } from '@/lib/pubg-api-call-log-service'
 
 // Fallback used only if no configuration is provided.
 const PUBG_API_RATE_LIMIT_RPM = 10
+const RATE_LIMIT_SAFETY_BUFFER = 1
+const RATE_LIMIT_RESET_PADDING_MS = 250
 
 type QueueItem<T> = {
   fn: () => Promise<T>
@@ -33,6 +35,11 @@ export class ApiQueue {
   private readonly intervalMs: number
   private readonly maxRetries: number
   private logs: string[] = []
+  private lastRateLimit: ExtractedRateLimit = {
+    limit: null,
+    remaining: null,
+    resetAt: null,
+  }
 
   constructor(requestsPerMinute = PUBG_API_RATE_LIMIT_RPM, maxRetries = 3) {
     this.intervalMs = Math.ceil(60_000 / requestsPerMinute)
@@ -52,12 +59,15 @@ export class ApiQueue {
   private async drain(): Promise<void> {
     while (this.queue.length > 0) {
       const item = this.queue.shift()!
+      await this.waitIfNearRateLimit()
+
       const startTime = Date.now()
       const startedAt = new Date(startTime)
       this.log('API call started')
       try {
         const { result, retryCount } = await this.callWithRetry(item.fn)
         const rateLimit = extractRateLimitFromSuccessValue(result)
+        this.updateRateLimitState(rateLimit)
         this.log(`API call succeeded in ${Date.now() - startTime}ms`)
         void createPubgApiCallLog({
           source: item.metadata?.source ?? 'gateway',
@@ -80,6 +90,7 @@ export class ApiQueue {
         item.resolve(result)
       } catch (err) {
         const rateLimit = extractRateLimitFromError(err)
+        this.updateRateLimitState(rateLimit)
         this.log(
           `API call failed after ${Date.now() - startTime}ms: ${err instanceof Error ? err.message : String(err)}`
         )
@@ -120,7 +131,9 @@ export class ApiQueue {
       } catch (err) {
         lastError = err
         if (this.isRateLimitError(err) && attempt < this.maxRetries) {
-          const retryDelay = this.intervalMs * attempt
+          const rateLimit = extractRateLimitFromError(err)
+          this.updateRateLimitState(rateLimit)
+          const retryDelay = this.resolveRetryDelayMs(rateLimit, attempt)
           this.log(
             `Rate limit hit (429), retrying in ${retryDelay}ms (attempt ${attempt}/${this.maxRetries})`
           )
@@ -154,6 +167,66 @@ export class ApiQueue {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  private resolveRetryDelayMs(rateLimit: ExtractedRateLimit, attempt: number): number {
+    if (rateLimit.resetAt) {
+      const delayUntilReset = rateLimit.resetAt.getTime() - Date.now() + RATE_LIMIT_RESET_PADDING_MS
+      if (delayUntilReset > 0) {
+        return delayUntilReset
+      }
+    }
+
+    return this.intervalMs * attempt
+  }
+
+  private updateRateLimitState(rateLimit: ExtractedRateLimit): void {
+    const hasHeaders =
+      rateLimit.limit !== null || rateLimit.remaining !== null || rateLimit.resetAt !== null
+
+    if (!hasHeaders) {
+      return
+    }
+
+    this.lastRateLimit = {
+      limit: rateLimit.limit ?? this.lastRateLimit.limit,
+      remaining: rateLimit.remaining ?? this.lastRateLimit.remaining,
+      resetAt: rateLimit.resetAt ?? this.lastRateLimit.resetAt,
+    }
+  }
+
+  private async waitIfNearRateLimit(): Promise<void> {
+    const remaining = this.lastRateLimit.remaining
+    const resetAt = this.lastRateLimit.resetAt
+
+    if (remaining === null || !resetAt) {
+      return
+    }
+
+    const now = Date.now()
+    if (resetAt.getTime() <= now) {
+      this.lastRateLimit.remaining = null
+      this.lastRateLimit.resetAt = null
+      return
+    }
+
+    if (remaining > RATE_LIMIT_SAFETY_BUFFER) {
+      return
+    }
+
+    const waitMs = resetAt.getTime() - now + RATE_LIMIT_RESET_PADDING_MS
+    if (waitMs <= 0) {
+      return
+    }
+
+    this.log(
+      `Rate limit guard: remaining=${remaining}, waiting ${waitMs}ms until next reset before sending the next request`
+    )
+    await this.sleep(waitMs)
+
+    // Reset stale rate-limit state after waiting for the next server window.
+    this.lastRateLimit.remaining = null
+    this.lastRateLimit.resetAt = null
   }
 
   private log(message: string): void {

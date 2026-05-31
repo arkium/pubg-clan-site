@@ -42,18 +42,58 @@ export async function createPubgApiCallLog(input: PubgApiCallLogInput) {
   })
 }
 
+export async function purgePubgApiCallLogHistory() {
+  const result = await prisma.pubgApiCallLog.deleteMany({})
+  return result.count
+}
+
+export async function getLatestPubgRateLimitSnapshot() {
+  const latestRateLimitRow = await prisma.pubgApiCallLog.findFirst({
+    where: {
+      OR: [
+        { rateLimitRemaining: { not: null } },
+        { rateLimitLimit: { not: null } },
+        { rateLimitResetAt: { not: null } },
+      ],
+    },
+    orderBy: { startedAt: 'desc' },
+    select: {
+      startedAt: true,
+      rateLimitLimit: true,
+      rateLimitRemaining: true,
+      rateLimitResetAt: true,
+    },
+  })
+
+  if (!latestRateLimitRow) {
+    return null
+  }
+
+  return {
+    limit: latestRateLimitRow.rateLimitLimit,
+    remaining: latestRateLimitRow.rateLimitRemaining,
+    resetAt: latestRateLimitRow.rateLimitResetAt,
+    observedAt: latestRateLimitRow.startedAt,
+  }
+}
+
 export async function getPubgApiCallsOverview(params?: {
   windowMinutes?: number
   historyPage?: number
   historyPageSize?: number
   errorsOnly?: boolean
 }) {
-  const windowMinutes = Math.max(5, Math.min(24 * 60, params?.windowMinutes ?? 60))
+  const windowMinutes = 24 * 60
+  const bucketMinutes = 30
+  const bucketMs = bucketMinutes * 60_000
   const historyPage = Math.max(1, params?.historyPage ?? 1)
   const historyPageSize = Math.max(10, Math.min(100, params?.historyPageSize ?? 25))
   const errorsOnly = params?.errorsOnly === true
 
-  const from = new Date(Date.now() - windowMinutes * 60_000)
+  const dayStart = new Date()
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(dayStart.getTime() + windowMinutes * 60_000)
+
   const historyWhere = errorsOnly
     ? {
         OR: [
@@ -64,9 +104,14 @@ export async function getPubgApiCallsOverview(params?: {
       }
     : undefined
 
-  const [windowRows, historyRows, historyTotal, latestRateLimitRow] = await Promise.all([
+  const [dayRows, historyRows, historyTotal, latestRateLimitRow] = await Promise.all([
     prisma.pubgApiCallLog.findMany({
-      where: { startedAt: { gte: from } },
+      where: {
+        startedAt: {
+          gte: dayStart,
+          lt: dayEnd,
+        },
+      },
       orderBy: { startedAt: 'asc' },
       select: {
         startedAt: true,
@@ -161,9 +206,8 @@ export async function getPubgApiCallsOverview(params?: {
     errors: number
   }>()
 
-  for (let i = windowMinutes - 1; i >= 0; i -= 1) {
-    const minuteDate = new Date(Date.now() - i * 60_000)
-    minuteDate.setSeconds(0, 0)
+  for (let offsetMs = 0; offsetMs < windowMinutes * 60_000; offsetMs += bucketMs) {
+    const minuteDate = new Date(dayStart.getTime() + offsetMs)
     const minute = minuteDate.toISOString()
     minuteBuckets.set(minute, {
       minute,
@@ -180,7 +224,7 @@ export async function getPubgApiCallsOverview(params?: {
   let errors = 0
   let durationTotal = 0
 
-  for (const row of windowRows) {
+  for (const row of dayRows) {
     total += 1
     durationTotal += row.durationMs ?? 0
 
@@ -196,9 +240,14 @@ export async function getPubgApiCallsOverview(params?: {
       errors += 1
     }
 
-    const bucketDate = new Date(row.startedAt)
-    bucketDate.setSeconds(0, 0)
-    const minuteKey = bucketDate.toISOString()
+    const elapsedMs = new Date(row.startedAt).getTime() - dayStart.getTime()
+    if (elapsedMs < 0 || elapsedMs >= windowMinutes * 60_000) {
+      continue
+    }
+
+    const bucketIndex = Math.floor(elapsedMs / bucketMs)
+    const bucketStart = new Date(dayStart.getTime() + bucketIndex * bucketMs)
+    const minuteKey = bucketStart.toISOString()
     const bucket = minuteBuckets.get(minuteKey)
 
     if (!bucket) {

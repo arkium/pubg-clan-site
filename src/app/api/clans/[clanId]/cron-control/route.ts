@@ -10,6 +10,7 @@ import {
 } from '@/lib/cron-observability'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
+import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
 
@@ -128,10 +129,11 @@ export async function GET(
       return roleError
     }
 
-    const [overview, configChecks, cronWorkerRuntime] = await Promise.all([
+    const [overview, configChecks, cronWorkerRuntime, latestPubgRateLimit] = await Promise.all([
       getCronOverview(parsedClanId),
       getCronConfigurationChecks(),
       getCronWorkerRuntimeStatus(),
+      getLatestPubgRateLimitSnapshot(),
     ])
 
     const criticalChecks = configChecks.filter((entry) => entry.status === 'error').length
@@ -160,6 +162,9 @@ export async function GET(
           cronBootstrapEnabled: process.env.ENABLE_CRON_BOOTSTRAP === 'true',
         },
         cronWorker: cronWorkerRuntime,
+      },
+      pubgApi: {
+        latestRateLimit: latestPubgRateLimit,
       },
       latestByAction: overview.latestByAction,
       history: overview.recent,

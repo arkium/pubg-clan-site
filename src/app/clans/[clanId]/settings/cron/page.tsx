@@ -62,6 +62,14 @@ type CronStatusPayload = {
       reason?: string
     }
   }
+  pubgApi: {
+    latestRateLimit: {
+      limit: number | null
+      remaining: number | null
+      resetAt: string | null
+      observedAt: string
+    } | null
+  }
   latestByAction: CronHistoryEntry[]
   history: CronHistoryEntry[]
 }
@@ -287,15 +295,15 @@ export default function CronSettingsPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-4 p-4 sm:p-6">
+      <main className="app-container app-main flex-1 space-y-4">
         <p className="text-sm text-slate-600">Chargement des operations cron...</p>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
-      <header className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <main className="app-container app-main flex-1 space-y-6">
+      <header className="app-panel p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Owner Ops</p>
         <h1 className="mt-1 text-2xl font-bold text-slate-900">Pilotage des cron</h1>
         <p className="mt-2 text-sm text-slate-600">
@@ -310,37 +318,33 @@ export default function CronSettingsPage() {
 
       </header>
 
-      {error ? (
-        <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</section>
-      ) : null}
+      {error ? <section className="app-panel p-4 text-sm text-rose-800">{error}</section> : null}
 
-      {info ? (
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{info}</section>
-      ) : null}
+      {info ? <section className="app-panel p-4 text-sm text-emerald-800">{info}</section> : null}
 
       {payload ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Succes recent</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {payload.health.successRate === null ? '-' : `${payload.health.successRate}%`}
               </p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Executions recentes</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{payload.health.totalRecent}</p>
               <p className="mt-1 text-xs text-slate-500">{payload.health.completedRecent} terminees</p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">En cours</p>
               <p className="mt-2 text-2xl font-bold text-amber-700">{payload.health.runningCount}</p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Echecs recents</p>
               <p className="mt-2 text-2xl font-bold text-rose-700">{payload.health.failedCount}</p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Dernier sync lifetime</p>
               {(() => {
                 const latestLifetimeSync = getLatestLifetimeSyncEntry(payload.latestByAction)
@@ -361,7 +365,7 @@ export default function CronSettingsPage() {
             </article>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="app-panel p-4">
             <h2 className="text-lg font-semibold text-slate-900">Actions manuelles</h2>
             <p className="mt-1 text-sm text-slate-600">
               Lance une action et controle le resultat immediatement dans l historique.
@@ -372,7 +376,7 @@ export default function CronSettingsPage() {
                 type="button"
                 onClick={() => void runAction('sync_matches')}
                 disabled={pendingAction !== null}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 {pendingAction === 'sync_matches' ? 'Execution...' : 'Sync matchs'}
               </button>
@@ -380,7 +384,7 @@ export default function CronSettingsPage() {
                 type="button"
                 onClick={() => void runAction('sync_lifetime_stats')}
                 disabled={pendingAction !== null}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 {pendingAction === 'sync_lifetime_stats' ? 'Execution...' : 'Sync stats lifetime'}
               </button>
@@ -388,7 +392,7 @@ export default function CronSettingsPage() {
                 type="button"
                 onClick={() => void runAction('generate_weekly_report')}
                 disabled={pendingAction !== null}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 {pendingAction === 'generate_weekly_report' ? 'Execution...' : 'Rapport hebdo'}
               </button>
@@ -396,21 +400,21 @@ export default function CronSettingsPage() {
                 type="button"
                 onClick={() => void runAction('generate_monthly_report')}
                 disabled={pendingAction !== null}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 {pendingAction === 'generate_monthly_report' ? 'Execution...' : 'Rapport mensuel'}
               </button>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="app-panel p-4">
             <h2 className="text-lg font-semibold text-slate-900">Verification configuration</h2>
             <p className="mt-1 text-sm text-slate-600">
               Controle des variables critiques, expressions cron et points de configuration sensibles.
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <article className="app-panel-muted p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contexte web worker</p>
                 <p className="mt-2 text-sm text-slate-700">
                   ENABLE_CRON_JOBS: <strong>{payload.runtime.webWorker.cronJobsEnabled ? 'true' : 'false'}</strong>
@@ -421,7 +425,7 @@ export default function CronSettingsPage() {
                 </p>
               </article>
 
-              <article className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <article className="app-panel-muted p-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Etat cron worker (runtime)</p>
                 {payload.runtime.cronWorker.available ? (
                   <>
@@ -447,6 +451,22 @@ export default function CronSettingsPage() {
                   </p>
                 )}
               </article>
+
+              <article className="app-panel-muted p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rate limit PUBG API (snapshot)</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  Limite: <strong>{payload.pubgApi.latestRateLimit?.limit ?? '-'}</strong>
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Restant: <strong>{payload.pubgApi.latestRateLimit?.remaining ?? '-'}</strong>
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  Reset: <strong>{formatDate(payload.pubgApi.latestRateLimit?.resetAt ?? null)}</strong>
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Observe: {formatDate(payload.pubgApi.latestRateLimit?.observedAt ?? null)}
+                </p>
+              </article>
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -461,9 +481,9 @@ export default function CronSettingsPage() {
               </span>
             </div>
 
-            <div className="mt-4 overflow-x-auto">
+            <div className="app-table-shell mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-wide text-slate-500">
+                <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-2 py-2">Check</th>
                     <th className="px-2 py-2">Etat</th>
@@ -473,7 +493,7 @@ export default function CronSettingsPage() {
                 </thead>
                 <tbody>
                   {payload.checks.items.map((item) => (
-                    <tr key={item.key} className="border-t border-slate-100 align-top">
+                    <tr key={item.key} className="app-table-row align-top">
                       <td className="px-2 py-2 font-medium text-slate-900">{item.label}</td>
                       <td className="px-2 py-2">
                         <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(item.status)}`}>
@@ -489,15 +509,15 @@ export default function CronSettingsPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="app-panel p-4">
             <h2 className="text-lg font-semibold text-slate-900">Historique des cron</h2>
             <p className="mt-1 text-sm text-slate-600">
               Dernieres executions enregistrees, avec statut, duree et message.
             </p>
 
-            <div className="mt-4 overflow-x-auto">
+            <div className="app-table-shell mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-wide text-slate-500">
+                <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-2 py-2">Action</th>
                     <th className="px-2 py-2">Statut</th>
@@ -516,7 +536,7 @@ export default function CronSettingsPage() {
                     </tr>
                   ) : (
                     payload.history.map((item) => (
-                      <tr key={item.id} className="border-t border-slate-100 align-top">
+                      <tr key={item.id} className="app-table-row align-top">
                         <td className="px-2 py-2 font-medium text-slate-900">
                           {payload.actionLabels[item.action] ?? item.action}
                         </td>
@@ -537,7 +557,7 @@ export default function CronSettingsPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 text-sm text-indigo-900">
+          <section className="app-panel-muted p-4 text-sm text-slate-700">
             <h2 className="text-base font-semibold">Points importants supplementaires</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>Executer les cron automatiques sur un seul worker avec ENABLE_CRON_JOBS=true.</li>
@@ -549,6 +569,6 @@ export default function CronSettingsPage() {
           </section>
         </>
       ) : null}
-    </div>
+    </main>
   )
 }

@@ -414,7 +414,7 @@ function applyLiveBadges(entries: PlayerStatsEntry[]): PlayerStatsEntry[] {
     return entries
   }
 
-  const nextEntries = entries.map((entry) => ({ ...entry, badgeType: null }))
+  const nextEntries = entries.map<PlayerStatsEntry>((entry) => ({ ...entry, badgeType: null }))
   const withMatches = nextEntries.filter((entry) => entry.matchesPlayed > 0)
   const withMinMatches = nextEntries.filter((entry) => entry.matchesPlayed >= 3)
 

@@ -10,6 +10,10 @@ Ce document liste les tableaux visibles dans l’application, avec les contrôle
 - Le filtrage existe sur certaines pages d’historique et sur le monitoring PUBG API.
 - Il n’existe pas de composant table unique partagé, mais la base visuelle est centralisée dans `src/app/globals.css` via des tokens et des surcharges de thème.
 
+## Sommaire global
+
+- Sommaire central de la documentation: [sommaire.md](sommaire.md)
+
 ## Tableaux et contrôles
 
 | Vue | Route | Composant / tableau | Pagination | Tri | Filtrage | Notes |

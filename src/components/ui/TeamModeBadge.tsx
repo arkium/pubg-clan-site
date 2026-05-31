@@ -1,6 +1,7 @@
 import Image from 'next/image'
 
 export type TeamMode = 'solo' | 'duo' | 'trio' | 'squad'
+export type TeamGroupedMode = Exclude<TeamMode, 'solo'>
 
 type TeamModeBadgeProps = {
   mode: TeamMode
@@ -41,7 +42,7 @@ function modeIconPath(mode: TeamMode) {
   return '/icons/squads/squad.svg'
 }
 
-export function teamModeFromMemberCount(memberCount: number): TeamMode {
+export function teamModeFromMemberCount(memberCount: number): TeamGroupedMode {
   if (memberCount <= 2) {
     return 'duo'
   }

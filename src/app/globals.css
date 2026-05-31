@@ -1251,6 +1251,19 @@ html[data-app-theme='dark'] .app-team-mode-badge--squad {
 }
 
 .clan-section-nav-link {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
   border-color: var(--theme-nav-border);
   background-color: var(--theme-nav-bg);
   color: var(--theme-nav-text);

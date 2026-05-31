@@ -156,7 +156,7 @@ export default function AddMemberPage() {
           </p>
           <Link
             href="/members"
-            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+            className="mt-4 app-btn app-btn--md app-btn--secondary"
           >
             Retour à la liste des joueurs
           </Link>
@@ -173,7 +173,7 @@ export default function AddMemberPage() {
             <h1 className="text-2xl font-bold text-gray-900">Ajouter un joueur</h1>
             <Link
               href="/members"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              className="app-btn app-btn--md app-btn--secondary"
             >
               Voir la liste
             </Link>
@@ -234,12 +234,7 @@ export default function AddMemberPage() {
             <button
               type="submit"
               disabled={checkingPlayer || submitting}
-              className="inline-flex min-h-10 w-full items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-              style={{
-                borderColor: 'var(--theme-nav-active-border)',
-                backgroundColor: 'var(--theme-nav-active-bg)',
-                color: 'var(--theme-nav-active-text)',
-              }}
+              className="app-btn app-btn--md app-btn--primary w-full"
             >
               {checkingPlayer ? 'Vérification en cours...' : 'Ajouter le joueur'}
             </button>
@@ -277,7 +272,7 @@ export default function AddMemberPage() {
                 type="button"
                 onClick={cancelConfirm}
                 disabled={submitting}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 Annuler
               </button>
@@ -285,12 +280,7 @@ export default function AddMemberPage() {
                 type="button"
                 onClick={() => void confirmAddMember()}
                 disabled={submitting}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-                style={{
-                  borderColor: 'var(--theme-nav-active-border)',
-                  backgroundColor: 'var(--theme-nav-active-bg)',
-                  color: 'var(--theme-nav-active-text)',
-                }}
+                className="app-btn app-btn--md app-btn--primary"
               >
                 {submitting ? 'Ajout en cours...' : 'Confirmer'}
               </button>

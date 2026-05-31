@@ -33,7 +33,7 @@ export default function MemberPageHeader({
           {showBackButton ? (
             <Link
               href="/members"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="app-btn app-btn--md app-btn--secondary"
             >
               {backLabel}
             </Link>

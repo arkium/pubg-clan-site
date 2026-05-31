@@ -103,11 +103,11 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition ${
+              className={`clan-section-nav-link ${
                 active ? 'clan-section-nav-link--active shadow-sm' : ''
               }`}
             >
-              <span className="mr-2 inline-flex h-4 w-4 items-center justify-center" aria-hidden="true">
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
                 {item.icon}
               </span>
               {item.label}

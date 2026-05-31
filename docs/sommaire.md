@@ -37,6 +37,10 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Tokens, layout, panneaux, bonnes pratiques
 - [Showcase composants](composants-showcase.html)
   - Démo visuelle des composants et styles
+- [Télémétrie matchs clan](telemetrie-matchs-clan.md)
+  - Données exploitables depuis l'API télémétrie PUBG, idées de stats, contraintes techniques et modèle de stockage
+- [Déploiement télémétrie matchs clan](telemetrie-matchs-clan-deploiement.md)
+  - Plan complet de livraison: lib télémétrie, migrations Prisma, cron, APIs, UI, observabilité, rollout et rollback
 
 ## Parcours recommandé
 

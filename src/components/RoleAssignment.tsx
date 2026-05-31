@@ -86,7 +86,7 @@ export default function RoleAssignment({
         <button
           type="button"
           onClick={handleStartEditing}
-          className="rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+          className="app-btn app-btn--xs app-btn--secondary"
         >
           Changer rôle
         </button>
@@ -108,7 +108,7 @@ export default function RoleAssignment({
             type="button"
             onClick={() => void handleAssign()}
             disabled={!hasChanged || submitting}
-            className="rounded border border-emerald-200 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="app-btn app-btn--xs app-btn--primary"
           >
             {submitting ? 'Mise à jour...' : 'Confirmer'}
           </button>
@@ -116,7 +116,7 @@ export default function RoleAssignment({
             type="button"
             onClick={handleCancel}
             disabled={submitting}
-            className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="app-btn app-btn--xs app-btn--secondary"
           >
             Annuler
           </button>

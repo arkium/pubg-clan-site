@@ -198,7 +198,7 @@ export default function MemberSectionNav({
             <Link
               key={item.href}
               href={item.href}
-              className={`clan-section-nav-link inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+              className={`clan-section-nav-link ${
                 active ? 'clan-section-nav-link--active shadow-sm' : ''
               }`}
             >

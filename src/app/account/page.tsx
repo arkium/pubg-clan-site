@@ -266,7 +266,7 @@ export default function AccountPage() {
             </div>
             <Link
               href={dashboardHref}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              className="app-btn app-btn--md app-btn--secondary"
             >
               Dashboard
             </Link>
@@ -337,14 +337,14 @@ export default function AccountPage() {
                         setAvatarSeriesSeed(generateSeriesSeed())
                         setFailedAvatarIds({})
                       }}
-                      className="inline-flex min-h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                      className="app-btn app-btn--xs app-btn--secondary"
                     >
                       Régénérer série
                     </button>
                     <button
                       type="button"
                       onClick={() => setAvatarUrl('')}
-                      className="inline-flex min-h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+                      className="app-btn app-btn--xs app-btn--secondary"
                     >
                       Retirer avatar
                     </button>
@@ -399,12 +399,7 @@ export default function AccountPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-                style={{
-                  borderColor: 'var(--theme-nav-active-border)',
-                  backgroundColor: 'var(--theme-nav-active-bg)',
-                  color: 'var(--theme-nav-active-text)',
-                }}
+                className="app-btn app-btn--md app-btn--primary"
               >
                 {saving ? 'Enregistrement...' : 'Enregistrer'}
               </button>
@@ -482,12 +477,7 @@ export default function AccountPage() {
                 <button
                   type="submit"
                   disabled={passwordSaving}
-                  className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-                  style={{
-                    borderColor: 'var(--theme-nav-active-border)',
-                    backgroundColor: 'var(--theme-nav-active-bg)',
-                    color: 'var(--theme-nav-active-text)',
-                  }}
+                  className="app-btn app-btn--md app-btn--primary"
                 >
                   {passwordSaving ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
                 </button>
@@ -510,7 +500,7 @@ export default function AccountPage() {
                 type="button"
                 onClick={cancelPasswordConfirm}
                 disabled={passwordSaving}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 Annuler
               </button>
@@ -518,12 +508,7 @@ export default function AccountPage() {
                 type="button"
                 onClick={() => void submitPasswordChange()}
                 disabled={passwordSaving}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-                style={{
-                  borderColor: 'var(--theme-nav-active-border)',
-                  backgroundColor: 'var(--theme-nav-active-bg)',
-                  color: 'var(--theme-nav-active-text)',
-                }}
+                className="app-btn app-btn--md app-btn--primary"
               >
                 {passwordSaving ? 'Mise à jour...' : 'Confirmer'}
               </button>

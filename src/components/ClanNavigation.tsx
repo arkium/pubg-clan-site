@@ -1018,14 +1018,14 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 Annuler
               </button>
               <button
                 type="button"
                 onClick={() => void confirmLogout()}
-                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700"
+                className="app-btn app-btn--md app-btn--danger-solid"
               >
                 Se déconnecter
               </button>

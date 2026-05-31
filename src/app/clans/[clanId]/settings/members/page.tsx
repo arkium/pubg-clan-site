@@ -560,7 +560,7 @@ export default function ClanMembersSettingsPage() {
                 onClick={() => void handleInvite(member, inviteEmailDraft)}
                 disabled={isMemberBusy}
                 title="Envoie une invitation email avec le lien d activation"
-                className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--xs app-btn--primary"
               >
                 {isEmailBusy ? 'Envoi...' : 'Envoyer'}
               </button>
@@ -569,7 +569,7 @@ export default function ClanMembersSettingsPage() {
                   type="button"
                   onClick={() => void resetInviteFlow(member)}
                   disabled={isMemberBusy}
-                  className="rounded border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="app-btn app-btn--xs app-btn--danger"
                 >
                   Reinitialiser invitation
                 </button>
@@ -581,7 +581,7 @@ export default function ClanMembersSettingsPage() {
                   setInviteEmailDraft('')
                 }}
                 disabled={isMemberBusy}
-                className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--xs app-btn--secondary"
               >
                 Annuler
               </button>
@@ -590,7 +590,7 @@ export default function ClanMembersSettingsPage() {
                 onClick={() => void handleInviteAndCopyDiscord(member, inviteEmailDraft)}
                 disabled={isMemberBusy}
                 title="Genere un nouveau token et copie un message pret pour Discord (sans envoi email)"
-                className="rounded border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--xs app-btn--secondary"
               >
                 {isDiscordBusy ? 'Generation...' : 'Discord'}
               </button>
@@ -605,7 +605,7 @@ export default function ClanMembersSettingsPage() {
                   }}
                   disabled={isMemberBusy}
                   title="Ouvre le formulaire pour saisir ou modifier l adresse email d invitation"
-                  className="rounded border border-amber-200 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="app-btn app-btn--xs app-btn--primary"
                 >
                   Inviter
                 </button>
@@ -615,7 +615,7 @@ export default function ClanMembersSettingsPage() {
                 onClick={() => void handleRegenerateAndCopyDiscord(member)}
                 disabled={isMemberBusy}
                 title="Genere un message Discord pret a copier dans le presse-papiers"
-                className="rounded border border-indigo-200 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="app-btn app-btn--xs app-btn--secondary"
               >
                 Discord
               </button>
@@ -624,7 +624,7 @@ export default function ClanMembersSettingsPage() {
                   type="button"
                   onClick={() => void resetInviteFlow(member)}
                   disabled={isMemberBusy}
-                  className="rounded border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="app-btn app-btn--xs app-btn--danger"
                 >
                   Reinit invitation
                 </button>
@@ -702,7 +702,7 @@ export default function ClanMembersSettingsPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/clans"
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              className="app-btn app-btn--md app-btn--secondary"
             >
               Changer de clan
             </Link>

@@ -13,6 +13,9 @@ interface SquadMatchListProps {
   description?: string
   emptyMessage?: string
   limit?: number
+  selectable?: boolean
+  selectedMatchIds?: string[]
+  onToggleMatchSelection?: (matchId: string) => void
 }
 
 function formatMatchDate(value: string) {
@@ -44,6 +47,30 @@ function resultTone(isWin: boolean) {
     : 'border-rose-200 bg-rose-100 text-rose-900'
 }
 
+function telemetryTone(status: 'success' | 'failed' | 'pending') {
+  if (status === 'success') {
+    return 'border-emerald-200 bg-emerald-100 text-emerald-900'
+  }
+
+  if (status === 'failed') {
+    return 'border-rose-200 bg-rose-100 text-rose-900'
+  }
+
+  return 'border-amber-200 bg-amber-100 text-amber-900'
+}
+
+function telemetryLabel(status: 'success' | 'failed' | 'pending') {
+  if (status === 'success') {
+    return 'Télémétrie OK'
+  }
+
+  if (status === 'failed') {
+    return 'Télémétrie KO'
+  }
+
+  return 'Télémétrie en attente'
+}
+
 function formatDuration(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
@@ -64,8 +91,12 @@ export default function SquadMatchList({
   description,
   emptyMessage,
   limit = 10,
+  selectable = false,
+  selectedMatchIds,
+  onToggleMatchSelection,
 }: SquadMatchListProps) {
   const latestMatches = matches.slice(0, limit)
+  const selectedIds = new Set(selectedMatchIds ?? [])
 
   if (latestMatches.length === 0) {
     return (
@@ -95,6 +126,7 @@ export default function SquadMatchList({
         {latestMatches.map((match) => {
           const teamMode = teamModeFromMemberCount(match.members.length)
           const memberNames = match.members.map((member) => member.displayName)
+          const telemetryStatus = match.telemetry?.status ?? 'pending'
 
           return (
             <li
@@ -103,6 +135,17 @@ export default function SquadMatchList({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
+                  {selectable ? (
+                    <label className="mb-2 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={selectedIds.has(match.id)}
+                        onChange={() => onToggleMatchSelection?.(match.id)}
+                      />
+                      Sélectionner ce match
+                    </label>
+                  ) : null}
                   <div className="flex flex-wrap gap-1.5">
                     <span className="inline-flex rounded-full border border-gray-200 bg-white px-2.5 py-1 text-sm font-semibold text-gray-900 shadow-sm">
                       {formatMatchDay(match.createdAt)}
@@ -117,6 +160,9 @@ export default function SquadMatchList({
                   <TeamModeBadge mode={teamMode} className="shadow-sm" />
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${resultTone(match.isWin)}`}>
                     {match.isWin ? 'Victoire' : 'Défaite'}
+                  </span>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${telemetryTone(telemetryStatus)}`}>
+                    {telemetryLabel(telemetryStatus)}
                   </span>
                 </div>
               </div>

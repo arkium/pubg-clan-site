@@ -25,6 +25,20 @@ Les points a couvrir en livraison:
 
 ## Architecture cible
 
+## Reference externe: pubg.js
+
+Le repo https://github.com/ickerio/pubg.js peut servir de reference de bonnes pratiques pour:
+
+- la modelisation `Match` / `Asset` / `Participant`,
+- l'extraction de l'URL telemetrie depuis les assets du match,
+- la separation entre appel match et appel telemetrie.
+
+Adaptation imposee a ce projet:
+
+- conserver la gateway rate-limitee existante pour `api.pubg.com` (`src/lib/pubg.ts` + `api-throttle`),
+- traiter la telemetrie CDN dans une couche dediee avec garde-fous de production,
+- ajouter observabilite cron/idempotence/retry, non couverts nativement par pubg.js.
+
 ### Nouvelle lib serveur
 
 Créer une lib dédiée avec découpage clair:

@@ -176,6 +176,16 @@ export async function GET(
     const squadMatches = await prisma.squadMatch.findMany({
       where: baseWhere,
       include: {
+        telemetry: {
+          select: {
+            status: true,
+            parserVersion: true,
+            parsedAt: true,
+            bytesDownloaded: true,
+            errorCode: true,
+            errorMessage: true,
+          },
+        },
         members: {
           include: {
             member: {
@@ -235,6 +245,26 @@ export async function GET(
         placement: member.placement,
       })),
       isWin: match.placement === 1,
+      telemetry: match.telemetry
+        ? {
+            status:
+              match.telemetry.status === 'success' || match.telemetry.status === 'failed'
+                ? match.telemetry.status
+                : 'pending',
+            parserVersion: match.telemetry.parserVersion,
+            parsedAt: match.telemetry.parsedAt.toISOString(),
+            bytesDownloaded: match.telemetry.bytesDownloaded,
+            errorCode: match.telemetry.errorCode,
+            errorMessage: match.telemetry.errorMessage,
+          }
+        : {
+            status: 'pending',
+            parserVersion: null,
+            parsedAt: null,
+            bytesDownloaded: null,
+            errorCode: null,
+            errorMessage: null,
+          },
     }))
 
     const filteredSquads = gameModeFilter

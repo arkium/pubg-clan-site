@@ -24,6 +24,14 @@ export interface SquadMatch {
   totalRevives: number
   members: SquadMatchMember[]
   isWin: boolean
+  telemetry?: {
+    status: 'success' | 'failed' | 'pending'
+    parserVersion: string | null
+    parsedAt: string | null
+    bytesDownloaded: number | null
+    errorCode: string | null
+    errorMessage: string | null
+  }
 }
 
 export interface ClanMatchStats {

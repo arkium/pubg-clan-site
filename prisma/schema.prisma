@@ -284,6 +284,7 @@ model SquadMatch {
   createdAt   DateTime
 
   members SquadMember[]
+  telemetry SquadMatchTelemetry?
 
   totalKills   Int
   totalDamage  Float
@@ -309,6 +310,27 @@ model SquadMember {
 
   @@unique([squadMatchId, memberId])
   @@map("SquadMember")
+}
+
+model SquadMatchTelemetry {
+  id          String    @id @default(cuid())
+  squadMatchId String   @unique
+  squadMatch  SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+
+  status         String
+  parserVersion  String
+  parsedAt       DateTime
+  sourceGeneratedAt DateTime?
+  contentLength  Int?
+  bytesDownloaded Int?
+  errorCode      String?
+  errorMessage   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, updatedAt])
+  @@map("SquadMatchTelemetry")
 }
 
 model PlayerStats {

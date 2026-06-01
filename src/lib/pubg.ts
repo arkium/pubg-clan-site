@@ -159,11 +159,20 @@ type ParticipantStats = {
   winPlace?: number
 }
 
+type PubgAssetAttributes = {
+  URL?: string
+  url?: string
+  createdAt?: string
+}
+
 type PubgIncludedItem = {
   id?: string
   type?: string
   attributes?: {
     stats?: ParticipantStats
+    URL?: string
+    url?: string
+    createdAt?: string
   }
   relationships?: {
     participants?: {
@@ -222,6 +231,11 @@ export type ResolvedPubgMatch = {
   }
 }
 
+export type ResolvedPubgMatchWithTelemetry = ResolvedPubgMatch & {
+  telemetryAssetUrl: string | null
+  telemetryGeneratedAt: string | null
+}
+
 function resolveRosterParticipants(
   included: PubgIncludedItem[],
   participants: MatchReference[]
@@ -254,6 +268,24 @@ function resolveRosterParticipants(
       }
     })
     .filter((participant): participant is NonNullable<typeof participant> => participant !== null)
+}
+
+function resolveTelemetryAssetFromIncluded(included: PubgIncludedItem[]) {
+  const asset = included.find((item) => item.type === 'asset')
+
+  if (!asset) {
+    return {
+      telemetryAssetUrl: null,
+      telemetryGeneratedAt: null,
+    }
+  }
+
+  const attributes = asset.attributes as PubgAssetAttributes | undefined
+
+  return {
+    telemetryAssetUrl: attributes?.URL ?? attributes?.url ?? null,
+    telemetryGeneratedAt: attributes?.createdAt ?? null,
+  }
 }
 
 export type PubgLifetimeStats = {
@@ -612,18 +644,26 @@ export async function fetchLifetimeStats(
   }
 }
 
-export async function fetchMatchDetails(
-  matchId: string,
-  playerId: string,
-  shard: string = 'steam'
-): Promise<ResolvedPubgMatch> {
+async function fetchMatchResponse(matchId: string, shard: string) {
   ensurePubgApiKey()
   const response = await queuedPubgGet<PubgMatchResponse>(`/shards/${shard}/matches/${matchId}`)
   const match = response.data.data
   const included = Array.isArray(response.data.included) ? response.data.included : []
-  const rosters = match?.relationships?.rosters?.data
 
-  if (!match || !Array.isArray(rosters)) {
+  return {
+    match,
+    included,
+  }
+}
+
+function resolveMatchDetails(
+  match: NonNullable<PubgMatchResponse['data']>,
+  included: PubgIncludedItem[],
+  playerId: string
+): ResolvedPubgMatch {
+  const rosters = match.relationships?.rosters?.data
+
+  if (!Array.isArray(rosters)) {
     throw new Error('Invalid match data from PUBG API')
   }
 
@@ -666,7 +706,6 @@ export async function fetchMatchDetails(
         break
       }
     }
-
   }
 
   if (!playerStats) {
@@ -689,5 +728,40 @@ export async function fetchMatchDetails(
       revives: playerStats.revives ?? 0,
       position: playerStats.winPlace ?? 0,
     },
+  }
+}
+
+export async function fetchMatchDetails(
+  matchId: string,
+  playerId: string,
+  shard: string = 'steam'
+): Promise<ResolvedPubgMatch> {
+  const { match, included } = await fetchMatchResponse(matchId, shard)
+
+  if (!match) {
+    throw new Error('Invalid match data from PUBG API')
+  }
+
+  return resolveMatchDetails(match, included, playerId)
+}
+
+export async function fetchMatchDetailsWithTelemetryAsset(
+  matchId: string,
+  playerId: string,
+  shard: string = 'steam'
+): Promise<ResolvedPubgMatchWithTelemetry> {
+  const { match, included } = await fetchMatchResponse(matchId, shard)
+
+  if (!match) {
+    throw new Error('Invalid match data from PUBG API')
+  }
+
+  const details = resolveMatchDetails(match, included, playerId)
+  const telemetry = resolveTelemetryAssetFromIncluded(included)
+
+  return {
+    ...details,
+    telemetryAssetUrl: telemetry.telemetryAssetUrl,
+    telemetryGeneratedAt: telemetry.telemetryGeneratedAt,
   }
 }

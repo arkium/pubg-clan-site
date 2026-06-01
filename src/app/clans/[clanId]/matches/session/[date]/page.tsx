@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
 import SquadMatchList from '@/components/SquadMatchList'
@@ -129,6 +129,10 @@ export default function ClanSessionDatePage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const period = useMemo(() => parsePeriod(searchParams.get('period')), [searchParams])
   const gameMode = useMemo(() => parseGameMode(searchParams.get('gameMode')), [searchParams])
+  const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([])
+  const [telemetrySyncLoading, setTelemetrySyncLoading] = useState(false)
+  const [telemetrySyncMessage, setTelemetrySyncMessage] = useState<string | null>(null)
+  const [telemetrySyncErrors, setTelemetrySyncErrors] = useState<string[]>([])
 
   useEffect(() => {
     if (!clanId) {
@@ -155,6 +159,12 @@ export default function ClanSessionDatePage() {
 
     return squads.filter((match) => match.createdAt.slice(0, 10) === date)
   }, [date, squads])
+
+  useEffect(() => {
+    setSelectedMatchIds([])
+    setTelemetrySyncMessage(null)
+    setTelemetrySyncErrors([])
+  }, [date, gameMode, period])
 
   const sessionStats = useMemo(() => buildSessionStats(sessionMatches), [sessionMatches])
   const modePerformance = useMemo(() => buildModePerformance(sessionMatches), [sessionMatches])
@@ -196,6 +206,78 @@ export default function ClanSessionDatePage() {
       return `/clans/${clanId}/matches/session/${targetDate}?${paramsBuilder.toString()}`
     }
   }, [clanId, gameMode, period])
+
+  async function runManualTelemetrySync() {
+    if (!clanId || selectedMatchIds.length === 0) {
+      return
+    }
+
+    setTelemetrySyncLoading(true)
+    setTelemetrySyncMessage(null)
+    setTelemetrySyncErrors([])
+
+    try {
+      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          squadMatchIds: selectedMatchIds,
+        }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            successCount?: number
+            failedCount?: number
+            processedCount?: number
+            results?: Array<{
+              squadMatchId: string
+              status: 'success' | 'failed'
+              errorMessage: string | null
+            }>
+          }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        setTelemetrySyncMessage(payload?.error ?? 'Echec de la récupération télémétrie.')
+        return
+      }
+
+      const failedEntries = (payload.results ?? [])
+        .filter((entry) => entry.status === 'failed')
+        .map((entry) => `${entry.squadMatchId}: ${entry.errorMessage ?? 'erreur inconnue'}`)
+
+      setTelemetrySyncMessage(
+        `Récupération terminée: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).`
+      )
+      setTelemetrySyncErrors(failedEntries)
+      router.refresh()
+    } catch {
+      setTelemetrySyncMessage('Echec de la récupération télémétrie.')
+    } finally {
+      setTelemetrySyncLoading(false)
+    }
+  }
+
+  function toggleMatchSelection(matchId: string) {
+    setSelectedMatchIds((current) =>
+      current.includes(matchId)
+        ? current.filter((id) => id !== matchId)
+        : [...current, matchId]
+    )
+  }
+
+  function selectAllSessionMatches() {
+    setSelectedMatchIds(sessionMatches.map((match) => match.id))
+  }
+
+  function clearSelectedSessionMatches() {
+    setSelectedMatchIds([])
+  }
 
   if (!clanId || !date) {
     return null
@@ -330,7 +412,58 @@ export default function ClanSessionDatePage() {
             description={`Liste complete des ${sessionMatches.length} matchs détectés pour le ${formatDateLabel(date)}.`}
             emptyMessage="Aucun match trouvé pour cette date."
             limit={sessionMatches.length}
+            selectable
+            selectedMatchIds={selectedMatchIds}
+            onToggleMatchSelection={toggleMatchSelection}
           />
+
+          <section className="mt-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">Récupération télémétrie manuelle</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Sélectionnez des matchs ci-dessus puis lancez la récupération sans passer par le cron.
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={selectAllSessionMatches}
+                className="app-btn app-btn--xs app-btn--secondary"
+                disabled={telemetrySyncLoading || sessionMatches.length === 0}
+              >
+                Tout sélectionner
+              </button>
+              <button
+                type="button"
+                onClick={clearSelectedSessionMatches}
+                className="app-btn app-btn--xs app-btn--secondary"
+                disabled={telemetrySyncLoading || selectedMatchIds.length === 0}
+              >
+                Vider la sélection
+              </button>
+              <button
+                type="button"
+                onClick={runManualTelemetrySync}
+                className="app-btn app-btn--xs app-btn--primary"
+                disabled={telemetrySyncLoading || selectedMatchIds.length === 0}
+              >
+                {telemetrySyncLoading
+                  ? 'Récupération en cours...'
+                  : `Lancer récupération (${selectedMatchIds.length})`}
+              </button>
+            </div>
+
+            {telemetrySyncMessage ? (
+              <p className="mt-3 text-sm text-gray-700">{telemetrySyncMessage}</p>
+            ) : null}
+
+            {telemetrySyncErrors.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-700">
+                {telemetrySyncErrors.slice(0, 10).map((errorLine) => (
+                  <li key={errorLine}>{errorLine}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
         </>
       ) : null}
 

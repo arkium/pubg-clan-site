@@ -21,6 +21,14 @@ type TelemetryWeaponStats = {
   damageDealt: number
 }
 
+function getObjectProperty(value: unknown, key: string) {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  return (value as Record<string, unknown>)[key]
+}
+
 export type ParsedTelemetrySnapshot = {
   summary: {
     totalEvents: number
@@ -56,12 +64,13 @@ function getMemberKey(event: TelemetryEvent, keys: string[]) {
 }
 
 function getWeaponName(event: TelemetryEvent) {
+  const item = getObjectProperty(event, 'item')
   const candidates = [
     event.weapon,
     event.weaponName,
     event.damageCauserName,
-    event.item?.weaponName,
-    event.item?.name,
+    getObjectProperty(item, 'weaponName'),
+    getObjectProperty(item, 'name'),
   ]
 
   for (const candidate of candidates) {

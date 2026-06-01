@@ -1,7 +1,9 @@
-import 'server-only'
-
 import { fetchMatchDetailsWithTelemetryAsset } from '@/lib/pubg'
-import { downloadTelemetryFromAsset } from '@/lib/pubg-telemetry/client'
+import {
+  downloadTelemetryFromAsset,
+  readTelemetryStreamAsText,
+} from '@/lib/pubg-telemetry/client'
+import { parseTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import { prisma } from '@/lib/prisma'
 
 type ManualTelemetrySyncItemResult = {
@@ -239,7 +241,8 @@ export async function syncTelemetryForSelectedSquadMatches(
         maxAssetSizeBytes,
       })
 
-      const bytesDownloaded = await consumeStreamAndCountBytes(downloaded.stream, maxAssetSizeBytes)
+      const { text, bytesRead } = await readTelemetryStreamAsText(downloaded.stream, maxAssetSizeBytes)
+      const parsed = parseTelemetrySnapshot(JSON.parse(text) as unknown)
 
       await prisma.squadMatchTelemetry.upsert({
         where: { squadMatchId: match.id },
@@ -251,7 +254,10 @@ export async function syncTelemetryForSelectedSquadMatches(
             ? new Date(matchDetails.telemetryGeneratedAt)
             : null,
           contentLength: downloaded.contentLength,
-          bytesDownloaded,
+          bytesDownloaded: bytesRead,
+          summary: parsed.summary,
+          weaponStats: parsed.weaponStats,
+          memberStats: parsed.memberStats,
           errorCode: null,
           errorMessage: null,
         },
@@ -264,7 +270,10 @@ export async function syncTelemetryForSelectedSquadMatches(
             ? new Date(matchDetails.telemetryGeneratedAt)
             : null,
           contentLength: downloaded.contentLength,
-          bytesDownloaded,
+          bytesDownloaded: bytesRead,
+          summary: parsed.summary,
+          weaponStats: parsed.weaponStats,
+          memberStats: parsed.memberStats,
           errorCode: null,
           errorMessage: null,
         },
@@ -274,7 +283,7 @@ export async function syncTelemetryForSelectedSquadMatches(
         squadMatchId: match.id,
         pubgMatchId: match.pubgMatchId,
         status: 'success',
-        bytesDownloaded,
+        bytesDownloaded: bytesRead,
         contentLength: downloaded.contentLength,
         errorCode: null,
         errorMessage: null,

@@ -323,6 +323,9 @@ model SquadMatchTelemetry {
   sourceGeneratedAt DateTime?
   contentLength  Int?
   bytesDownloaded Int?
+  summary        Json?
+  weaponStats    Json?
+  memberStats    Json?
   errorCode      String?
   errorMessage   String?
 

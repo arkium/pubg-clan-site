@@ -1,5 +1,3 @@
-import 'server-only'
-
 export type DownloadTelemetryOptions = {
   timeoutMs: number
   maxAssetSizeBytes: number
@@ -9,6 +7,37 @@ export type DownloadTelemetryResult = {
   stream: ReadableStream<Uint8Array>
   contentLength: number | null
   contentType: string | null
+}
+
+export async function readTelemetryStreamAsText(
+  stream: ReadableStream<Uint8Array>,
+  maxBytes: number
+): Promise<{ text: string; bytesRead: number }> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let bytesRead = 0
+  let text = ''
+
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) {
+        break
+      }
+
+      bytesRead += chunk.value.byteLength
+      if (bytesRead > maxBytes) {
+        throw new Error(`Telemetry asset exceeded max size while streaming (${bytesRead} bytes)`)
+      }
+
+      text += decoder.decode(chunk.value, { stream: true })
+    }
+
+    text += decoder.decode()
+    return { text, bytesRead }
+  } finally {
+    reader.releaseLock()
+  }
 }
 
 function parseContentLength(headerValue: string | null) {

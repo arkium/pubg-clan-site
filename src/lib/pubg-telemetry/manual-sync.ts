@@ -49,6 +49,15 @@ function getTelemetryParserVersion() {
   return raw && raw.length > 0 ? raw : 'v1'
 }
 
+function normalizeErrorMessage(value: string) {
+  const trimmed = value.trim()
+  if (trimmed.length <= 4000) {
+    return trimmed
+  }
+
+  return `${trimmed.slice(0, 3997)}...`
+}
+
 async function consumeStreamAndCountBytes(stream: ReadableStream<Uint8Array>, maxBytes: number) {
   const reader = stream.getReader()
   let total = 0
@@ -289,7 +298,9 @@ export async function syncTelemetryForSelectedSquadMatches(
         errorMessage: null,
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = normalizeErrorMessage(
+        error instanceof Error ? error.message : String(error)
+      )
 
       await prisma.squadMatchTelemetry.upsert({
         where: { squadMatchId: match.id },

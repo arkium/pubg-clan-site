@@ -327,7 +327,7 @@ model SquadMatchTelemetry {
   weaponStats    Json?
   memberStats    Json?
   errorCode      String?
-  errorMessage   String?
+  errorMessage   String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

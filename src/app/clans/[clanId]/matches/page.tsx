@@ -214,7 +214,7 @@ export default function ClanMatchesPage() {
           </section>
 
           <div className="space-y-6">
-            <SquadSynergies synergies={synergies} />
+            <SquadSynergies clanId={clanId} period={period} synergies={synergies} />
             <TopPerformers performers={topPerformers} />
             <SessionRecap clanId={clanId} period={period} gameMode={gameMode || undefined} sessions={sessions} />
           </div>

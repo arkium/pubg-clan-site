@@ -20,6 +20,13 @@ export type SyncTelemetryBatchResult = {
   failed: number
   skipped: number
   durationMs: number
+  metrics: {
+    bytesDownloaded: number
+    fetchMatchMs: number
+    downloadAssetMs: number
+    parseMs: number
+    persistMs: number
+  }
   results: SyncTelemetryForSquadMatchResult[]
 }
 
@@ -36,6 +43,11 @@ function logTelemetryBatchStep(payload: {
   errorCode?: string
   retryAttempt?: number
   retryDelayMs?: number
+  bytesDownloaded?: number
+  fetchMatchMs?: number
+  downloadAssetMs?: number
+  parseMs?: number
+  persistMs?: number
 }) {
   console.info('[TelemetryBatch]', {
     step: payload.step,
@@ -50,6 +62,11 @@ function logTelemetryBatchStep(payload: {
     errorCode: payload.errorCode ?? null,
     retryAttempt: payload.retryAttempt ?? null,
     retryDelayMs: payload.retryDelayMs ?? null,
+    bytesDownloaded: payload.bytesDownloaded ?? null,
+    fetchMatchMs: payload.fetchMatchMs ?? null,
+    downloadAssetMs: payload.downloadAssetMs ?? null,
+    parseMs: payload.parseMs ?? null,
+    persistMs: payload.persistMs ?? null,
   })
 }
 
@@ -267,6 +284,23 @@ export async function syncTelemetryBatchForRecentSquadMatches(
   const parsed = results.filter((item) => item.status === 'success').length
   const failed = results.length - parsed
   const durationMs = Date.now() - startedAt
+  const metrics = results.reduce(
+    (acc, item) => {
+      acc.bytesDownloaded += item.bytesDownloaded
+      acc.fetchMatchMs += item.metrics?.fetchMatchMs ?? 0
+      acc.downloadAssetMs += item.metrics?.downloadAssetMs ?? 0
+      acc.parseMs += item.metrics?.parseMs ?? 0
+      acc.persistMs += item.metrics?.persistMs ?? 0
+      return acc
+    },
+    {
+      bytesDownloaded: 0,
+      fetchMatchMs: 0,
+      downloadAssetMs: 0,
+      parseMs: 0,
+      persistMs: 0,
+    }
+  )
 
   logTelemetryBatchStep({
     step: 'batch-complete',
@@ -276,6 +310,11 @@ export async function syncTelemetryBatchForRecentSquadMatches(
     parsed,
     failed,
     skipped,
+    bytesDownloaded: metrics.bytesDownloaded,
+    fetchMatchMs: metrics.fetchMatchMs,
+    downloadAssetMs: metrics.downloadAssetMs,
+    parseMs: metrics.parseMs,
+    persistMs: metrics.persistMs,
   })
 
   return {
@@ -284,6 +323,7 @@ export async function syncTelemetryBatchForRecentSquadMatches(
     failed,
     skipped,
     durationMs,
+    metrics,
     results,
   }
 }

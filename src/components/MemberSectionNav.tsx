@@ -63,6 +63,17 @@ function renderMemberNavIcon(label: string) {
     )
   }
 
+  if (label === 'Armes') {
+    return (
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+        <path
+          fill="currentColor"
+          d="M3 11.5 8.8 5.7a1.5 1.5 0 0 1 2.12 0l3.38 3.38a1.5 1.5 0 0 1 0 2.12L8.5 17H6v-2.5L3 11.5Zm10.8-7.3a1 1 0 0 1 1.4 0l.6.6a1 1 0 0 1 0 1.4l-1.2 1.2-2-2 1.2-1.2Z"
+        />
+      </svg>
+    )
+  }
+
   if (label === 'Notifications') {
     return (
       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
@@ -130,6 +141,7 @@ export default function MemberSectionNav({
   const items: NavItem[] = [
     { label: 'Tableau de bord', href: `/members/${memberId}/dashboard` },
     { label: 'Stats globales', href: `/members/${memberId}/stats` },
+    { label: 'Armes', href: `/members/${memberId}/weapons` },
     { label: 'Cartes', href: `/members/${memberId}/map-stats` },
     { label: 'Calendrier', href: `/members/${memberId}/heatmap` },
     { label: 'Matchs', href: `/members/${memberId}/matches` },

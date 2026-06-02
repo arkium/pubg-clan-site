@@ -31,6 +31,13 @@ type TelemetryCronSyncSummary = {
   parsed: number
   failed: number
   skipped: number
+  metrics: {
+    bytesDownloaded: number
+    fetchMatchMs: number
+    downloadAssetMs: number
+    parseMs: number
+    persistMs: number
+  }
 }
 
 type TelemetryAggregateCronSummary = {
@@ -205,6 +212,13 @@ async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSy
       parsed: 0,
       failed: 0,
       skipped: 0,
+      metrics: {
+        bytesDownloaded: 0,
+        fetchMatchMs: 0,
+        downloadAssetMs: 0,
+        parseMs: 0,
+        persistMs: 0,
+      },
     }
   }
 
@@ -223,6 +237,7 @@ async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSy
         parsed: result.parsed,
         failed: result.failed,
         skipped: result.skipped,
+        metrics: result.metrics,
       }
     }
 
@@ -234,6 +249,7 @@ async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSy
         parsed: result.parsed,
         failed: result.failed,
         skipped: result.skipped,
+        metrics: result.metrics,
       }
     }
 
@@ -244,6 +260,7 @@ async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSy
       parsed: result.parsed,
       failed: result.failed,
       skipped: result.skipped,
+      metrics: result.metrics,
     }
   } catch (error) {
     return {
@@ -253,6 +270,13 @@ async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSy
       parsed: 0,
       failed: 0,
       skipped: 0,
+      metrics: {
+        bytesDownloaded: 0,
+        fetchMatchMs: 0,
+        downloadAssetMs: 0,
+        parseMs: 0,
+        persistMs: 0,
+      },
     }
   }
 }

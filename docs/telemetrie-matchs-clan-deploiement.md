@@ -248,6 +248,7 @@ Critères de sortie:
 - GET /api/clans/[clanId]/telemetry/circles?period=week|month|all
 - GET /api/clans/[clanId]/telemetry/vehicles?period=week|month|all
 - GET /api/clans/[clanId]/telemetry/loot?period=week|month|all
+- GET /api/clans/[clanId]/telemetry/observability?window=24h|7d|30d|all&limit=100
 
 ### Membre
 
@@ -268,6 +269,30 @@ Critères de sortie:
 
 - /members/[id]/weapons
 - Bloc playstyle et discipline zone sur dashboard membre
+
+## Assets cartes heatmap-kills
+
+Pour afficher les apercus de cartes dans `/clans/[clanId]/stats/heatmap-kills`:
+
+- Dossier de stockage: `public/maps/pubg/`
+- Format: `.webp`
+- Nom de fichier: exactement le `mapName` PUBG + `.webp`
+
+Exemples de noms attendus:
+
+- `Baltic_Main.webp` (Erangel)
+- `Savage_Main.webp` (Sanhok)
+- `Desert_Main.webp` (Miramar)
+- `DihorOtok_Main.webp` (Vikendi)
+- `Range_Main.webp` (Camp Jackal)
+- `Summerland_Main.webp` (Karakin)
+- `Tiger_Main.webp` (Taego)
+- `Kiki_Main.webp` (Deston)
+- `Chimera_Main.webp` (Paramo)
+- `Heaven_Main.webp` (Haven)
+- `Neon_Main.webp` (Rondo)
+
+Chemin charge cote UI: `/maps/pubg/<mapName>.webp`
 
 ## Cron et orchestration
 
@@ -403,7 +428,7 @@ Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 
 - [x] Phase 0 - Preparation: migrations telemetry OK, feature flag `TELEMETRY_SYNC_ENABLED` branche au flux runtime.
 - [x] Phase 1 - Ingestion/parsing minimal: disponible en mode manuel et automatise via cron telemetry.
-- [~] Observabilite: vue recoveries disponible, mais pas encore de metriques completes type `telemetry.fetch.ms`, `telemetry.parse.ms`, etc.
+- [~] Observabilite: vue recoveries disponible et metriques techniques batch/cron ajoutees (`bytesDownloaded`, `fetchMatchMs`, `downloadAssetMs`, `parseMs`, `persistMs`), mais pas encore de series de metriques consolidees type dashboard/time-series.
 
 ### Ce qui reste a faire (ecart principal avec cette doc)
 
@@ -411,8 +436,11 @@ Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 - [x] Integration cron telemetry initiale en place dans `runDailyClanSync` (gatee par `TELEMETRY_SYNC_ENABLED`).
 - [x] Champs de reprise avances (`attemptCount`, `lastAttemptAt`, `nextRetryAt`) ajoutes dans `SquadMatchTelemetry`.
 - [~] Agregats periodiques dedies implementes partiellement: tables `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats` + recalcul periodique cron; alimentation `MemberWeaponStats` reste limitee par le snapshot parser v1.
-- [~] APIs telemetry partiellement livrees: clan `/telemetry/weapons`, `/telemetry/synergies`, `/telemetry/playstyle` disponibles; heatmap/circles/vehicles/loot et endpoints membre restent a faire.
-- [ ] Pages produit telemetry ciblees (`/clans/[clanId]/stats/weapons`, `/stats/heatmap-kills`, `/members/[id]/weapons`) non implementees.
+- [~] APIs telemetry partiellement livrees: clan `/telemetry/weapons`, `/telemetry/synergies`, `/telemetry/playstyle`, `/telemetry/circles`, `/telemetry/heatmap`, `/telemetry/vehicles`, `/telemetry/loot`, `/telemetry/observability` + membre `/telemetry/weapons`, `/telemetry/playstyle`, `/telemetry/circles` disponibles; reste surtout l'enrichissement metier des endpoints et la chaleur geospatiale fine.
+- [x] Pages produit telemetry ciblees implementees: `/clans/[clanId]/stats/weapons`, `/clans/[clanId]/stats/heatmap-kills`, `/members/[id]/weapons`.
+- [x] Carte playstyle clan ajoutee sur `/clans/[clanId]/stats` (filtres `week|month|all`, moyennes et tops par axe).
+- [x] Extension synergies livree sur `/clans/[clanId]/matches`: onglet `Telemetry` ajoute au bloc `Synergies` avec chargement API `/api/clans/[clanId]/telemetry/synergies`.
+- [x] Onglet `Synergies > Telemetry` enrichi avec indicateur global de qualite (score combine revive/co-kills/shared damage) + KPIs de volume.
 - [x] Parsing streaming JSON pur (sans `JSON.parse` global) implemente.
 - [x] Suite de tests telemetry: socle unitaire livre, integration corpus reel validee (20 fixtures).
 
@@ -436,7 +464,7 @@ Critere de sortie P1:
 
 - [x] Ajouter tables agregats periodiques (`MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats`).
 - [~] Alimenter week/month/all depuis snapshots match (member telemetry + synergies OK, member weapons limite par parser v1).
-- [~] Exposer APIs clan/membre telemetry de la section "APIs a creer" (clan weapons/synergies/playstyle livres, reste a completer).
+- [~] Exposer APIs clan/membre telemetry de la section "APIs a creer" (clan weapons/synergies/playstyle/circles/heatmap/vehicles/loot + membre weapons/playstyle/circles livres, reste a completer).
 
 Critere de sortie P2:
 
@@ -459,7 +487,7 @@ Critere de sortie P3:
 
 - [x] Passer a un parser JSON streaming reel.
 - [x] Ajouter tests unitaires + integration sur corpus reel (10-20 matchs): socle unitaire livre, corpus reel valide sur 20 fixtures reelles.
-- [ ] Instrumenter metriques telemetry (`matches.scanned/parsed/failed`, `fetch.ms`, `parse.ms`, `asset.bytes`).
+- [~] Instrumenter metriques telemetry (`matches.scanned/parsed/failed`, `fetch.ms`, `parse.ms`, `asset.bytes`) : metriques exposees dans les resultats batch/cron, reste a brancher vers un tableau de bord/series de temps.
 - [ ] Executer rollout progressif (flag off -> dry-run -> clan pilote -> global).
 
 Critere de sortie P4:

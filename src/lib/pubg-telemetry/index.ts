@@ -28,6 +28,12 @@ export type SyncTelemetryForSquadMatchResult = {
   errorCode: string | null
   errorMessage: string | null
   durationMs: number
+  metrics?: {
+    fetchMatchMs: number
+    downloadAssetMs: number
+    parseMs: number
+    persistMs: number
+  }
 }
 
 type FailedSnapshotInput = {
@@ -108,6 +114,10 @@ export async function syncTelemetryForSquadMatch(
   input: SyncTelemetryForSquadMatchInput
 ): Promise<SyncTelemetryForSquadMatchResult> {
   const startedAt = Date.now()
+  let fetchMatchMs = 0
+  let downloadAssetMs = 0
+  let parseMs = 0
+  let persistMs = 0
 
   try {
     const fetchStartedAt = Date.now()
@@ -116,11 +126,12 @@ export async function syncTelemetryForSquadMatch(
       input.anyPlayerId,
       input.shard
     )
+    fetchMatchMs = Date.now() - fetchStartedAt
     logTelemetryStep({
       step: 'fetch-match',
       squadMatchId: input.squadMatchId,
       pubgMatchId: input.pubgMatchId,
-      durationMs: Date.now() - fetchStartedAt,
+      durationMs: fetchMatchMs,
     })
 
     if (!matchDetails.telemetryAssetUrl) {
@@ -148,6 +159,12 @@ export async function syncTelemetryForSquadMatch(
         errorCode: 'ASSET_URL_MISSING',
         errorMessage,
         durationMs: Date.now() - startedAt,
+        metrics: {
+          fetchMatchMs,
+          downloadAssetMs,
+          parseMs,
+          persistMs,
+        },
       }
     }
 
@@ -156,11 +173,12 @@ export async function syncTelemetryForSquadMatch(
       timeoutMs: input.timeoutMs,
       maxAssetSizeBytes: input.maxAssetSizeBytes,
     })
+    downloadAssetMs = Date.now() - downloadStartedAt
     logTelemetryStep({
       step: 'download-asset',
       squadMatchId: input.squadMatchId,
       pubgMatchId: input.pubgMatchId,
-      durationMs: Date.now() - downloadStartedAt,
+      durationMs: downloadAssetMs,
       bytes: downloaded.contentLength ?? undefined,
     })
 
@@ -169,11 +187,12 @@ export async function syncTelemetryForSquadMatch(
       downloaded.stream,
       input.maxAssetSizeBytes
     )
+    parseMs = Date.now() - parseStartedAt
     logTelemetryStep({
       step: 'parse-stream',
       squadMatchId: input.squadMatchId,
       pubgMatchId: input.pubgMatchId,
-      durationMs: Date.now() - parseStartedAt,
+      durationMs: parseMs,
       bytes: bytesRead,
     })
 
@@ -203,11 +222,12 @@ export async function syncTelemetryForSquadMatch(
           ...successPayloadWithJson,
         },
       })
+      persistMs = Date.now() - persistStartedAt
       logTelemetryStep({
         step: 'persist-snapshot',
         squadMatchId: input.squadMatchId,
         pubgMatchId: input.pubgMatchId,
-        durationMs: Date.now() - persistStartedAt,
+        durationMs: persistMs,
         bytes: bytesRead,
       })
     } catch (persistError) {
@@ -224,11 +244,12 @@ export async function syncTelemetryForSquadMatch(
           ...successBasePayload,
         },
       })
+      persistMs = Date.now() - persistStartedAt
       logTelemetryStep({
         step: 'persist-snapshot',
         squadMatchId: input.squadMatchId,
         pubgMatchId: input.pubgMatchId,
-        durationMs: Date.now() - persistStartedAt,
+        durationMs: persistMs,
         bytes: bytesRead,
       })
     }
@@ -250,6 +271,12 @@ export async function syncTelemetryForSquadMatch(
       errorCode: null,
       errorMessage: null,
       durationMs: Date.now() - startedAt,
+      metrics: {
+        fetchMatchMs,
+        downloadAssetMs,
+        parseMs,
+        persistMs,
+      },
     }
   } catch (error) {
     const message = normalizeErrorMessage(error instanceof Error ? error.message : String(error))
@@ -278,6 +305,12 @@ export async function syncTelemetryForSquadMatch(
       errorCode: 'TELEMETRY_SYNC_FAILED',
       errorMessage: message,
       durationMs: Date.now() - startedAt,
+      metrics: {
+        fetchMatchMs,
+        downloadAssetMs,
+        parseMs,
+        persistMs,
+      },
     }
   }
 }

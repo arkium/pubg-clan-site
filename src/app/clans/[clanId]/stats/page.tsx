@@ -6,7 +6,31 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+
+type TelemetryPeriod = 'week' | 'month' | 'all'
+
+type ClanPlaystyleRow = {
+  memberId: number
+  displayName: string
+  pubgPlayerName: string
+  aggressionScore: number
+  supportScore: number
+  zoneDisciplineScore: number
+  avgBlueZoneHits: number
+  avgCircleDelaySeconds: number
+  matchesPlayed: number
+}
+
+type ClanPlaystyleResponse = {
+  ok: boolean
+  clanId: number
+  period: TelemetryPeriod
+  periodKey: string
+  count: number
+  rows: ClanPlaystyleRow[]
+}
 
 type LifetimeStats = {
   combat: {
@@ -147,6 +171,12 @@ const METRIC_GROUPS: Array<{ title: string; metrics: MetricDefinition[] }> = [
   },
 ]
 
+const PLAYSTYLE_PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
+  { value: 'week', label: 'Semaine' },
+  { value: 'month', label: 'Mois' },
+  { value: 'all', label: 'Tous' },
+]
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -187,6 +217,52 @@ function formatDurationLong(seconds: number) {
   }
 
   return `${minutes}m ${remainingSeconds}s`
+}
+
+function formatSeconds(value: number) {
+  return `${Math.max(0, value).toFixed(1)} s`
+}
+
+function formatTelemetryScore(value: number) {
+  return Math.max(0, value).toFixed(1)
+}
+
+function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
+  if (rows.length === 0) {
+    return {
+      aggression: 0,
+      support: 0,
+      zoneDiscipline: 0,
+      avgBlueZoneHits: 0,
+      avgCircleDelaySeconds: 0,
+    }
+  }
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.aggression += row.aggressionScore
+      acc.support += row.supportScore
+      acc.zoneDiscipline += row.zoneDisciplineScore
+      acc.avgBlueZoneHits += row.avgBlueZoneHits
+      acc.avgCircleDelaySeconds += row.avgCircleDelaySeconds
+      return acc
+    },
+    {
+      aggression: 0,
+      support: 0,
+      zoneDiscipline: 0,
+      avgBlueZoneHits: 0,
+      avgCircleDelaySeconds: 0,
+    }
+  )
+
+  return {
+    aggression: totals.aggression / rows.length,
+    support: totals.support / rows.length,
+    zoneDiscipline: totals.zoneDiscipline / rows.length,
+    avgBlueZoneHits: totals.avgBlueZoneHits / rows.length,
+    avgCircleDelaySeconds: totals.avgCircleDelaySeconds / rows.length,
+  }
 }
 
 function computeMetric(metric: MetricDefinition, members: ClanMemberLifetime[]): MetricComputed {
@@ -264,6 +340,10 @@ export default function ClanStatsPage() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(METRIC_GROUPS.map((group) => [group.title, group.title === 'Combat']))
   )
+  const [telemetryPeriod, setTelemetryPeriod] = useState<TelemetryPeriod>('week')
+  const [playstyleRows, setPlaystyleRows] = useState<ClanPlaystyleRow[]>([])
+  const [loadingPlaystyle, setLoadingPlaystyle] = useState(false)
+  const [playstyleError, setPlaystyleError] = useState('')
 
   useEffect(() => {
     if (!clanId) {
@@ -315,6 +395,55 @@ export default function ClanStatsPage() {
     }
   }, [clanId])
 
+  useEffect(() => {
+    if (!clanId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadPlaystyleTelemetry() {
+      try {
+        setLoadingPlaystyle(true)
+        setPlaystyleError('')
+
+        const response = await fetch(`/api/clans/${clanId}/telemetry/playstyle?period=${telemetryPeriod}`, {
+          cache: 'no-store',
+        })
+        const payload = (await response.json()) as ClanPlaystyleResponse | { error?: string }
+
+        if (!response.ok) {
+          throw new Error(
+            'error' in payload ? payload.error : 'Impossible de charger la telemetrie playstyle du clan'
+          )
+        }
+
+        if (!cancelled) {
+          setPlaystyleRows((payload as ClanPlaystyleResponse).rows ?? [])
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setPlaystyleRows([])
+          setPlaystyleError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Impossible de charger la telemetrie playstyle du clan'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPlaystyle(false)
+        }
+      }
+    }
+
+    void loadPlaystyleTelemetry()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clanId, telemetryPeriod])
+
   const groupedMetrics = useMemo(() => {
     const members = data?.members ?? []
 
@@ -323,6 +452,20 @@ export default function ClanStatsPage() {
       rows: group.metrics.map((metric) => computeMetric(metric, members)),
     }))
   }, [data])
+
+  const playstyleAverages = useMemo(() => computePlaystyleAverages(playstyleRows), [playstyleRows])
+  const playstyleTopAggressive = useMemo(
+    () => [...playstyleRows].sort((a, b) => b.aggressionScore - a.aggressionScore).slice(0, 3),
+    [playstyleRows]
+  )
+  const playstyleTopSupport = useMemo(
+    () => [...playstyleRows].sort((a, b) => b.supportScore - a.supportScore).slice(0, 3),
+    [playstyleRows]
+  )
+  const playstyleTopDiscipline = useMemo(
+    () => [...playstyleRows].sort((a, b) => b.zoneDisciplineScore - a.zoneDisciplineScore).slice(0, 3),
+    [playstyleRows]
+  )
 
   if (!clanId) {
     return null
@@ -355,6 +498,96 @@ export default function ClanStatsPage() {
       {!loading && !error ? (
         data && data.members.length > 0 ? (
           <div className="space-y-6">
+            <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Carte playstyle clan</h2>
+                  <p className="text-sm text-gray-600">Repartition agressif / support / discipline zone via telemetry.</p>
+                </div>
+                <SegmentedControl
+                  options={PLAYSTYLE_PERIOD_OPTIONS}
+                  value={telemetryPeriod}
+                  onChange={setTelemetryPeriod}
+                  size="sm"
+                  fullWidthOnMobile
+                  className="w-full sm:w-auto"
+                />
+              </div>
+
+              {loadingPlaystyle ? <p className="text-sm text-gray-600">Chargement de la telemetrie playstyle...</p> : null}
+              {playstyleError ? <p className="text-sm text-amber-700">{playstyleError}</p> : null}
+
+              {!loadingPlaystyle && !playstyleError ? (
+                playstyleRows.length > 0 ? (
+                  <>
+                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                      <article className="rounded border border-red-200 bg-red-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-red-700">Agressivite moyenne</p>
+                        <p className="mt-1 text-xl font-semibold text-red-900">{formatTelemetryScore(playstyleAverages.aggression)}</p>
+                      </article>
+                      <article className="rounded border border-sky-200 bg-sky-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-sky-700">Support moyen</p>
+                        <p className="mt-1 text-xl font-semibold text-sky-900">{formatTelemetryScore(playstyleAverages.support)}</p>
+                      </article>
+                      <article className="rounded border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-emerald-700">Discipline zone moyenne</p>
+                        <p className="mt-1 text-xl font-semibold text-emerald-900">{formatTelemetryScore(playstyleAverages.zoneDiscipline)}</p>
+                      </article>
+                    </div>
+
+                    <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Blue zone hits moyens</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgBlueZoneHits)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Retard cercle moyen</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatSeconds(playstyleAverages.avgCircleDelaySeconds)}</p>
+                      </article>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <article className="rounded border border-gray-200 p-3">
+                        <h3 className="mb-2 text-sm font-semibold text-gray-900">Top agressifs</h3>
+                        <ul className="space-y-2 text-sm text-gray-700">
+                          {playstyleTopAggressive.map((entry) => (
+                            <li key={`agg:${entry.memberId}`} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{entry.displayName}</span>
+                              <span className="font-semibold text-red-700">{formatTelemetryScore(entry.aggressionScore)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </article>
+                      <article className="rounded border border-gray-200 p-3">
+                        <h3 className="mb-2 text-sm font-semibold text-gray-900">Top supports</h3>
+                        <ul className="space-y-2 text-sm text-gray-700">
+                          {playstyleTopSupport.map((entry) => (
+                            <li key={`sup:${entry.memberId}`} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{entry.displayName}</span>
+                              <span className="font-semibold text-sky-700">{formatTelemetryScore(entry.supportScore)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </article>
+                      <article className="rounded border border-gray-200 p-3">
+                        <h3 className="mb-2 text-sm font-semibold text-gray-900">Top disciplines zone</h3>
+                        <ul className="space-y-2 text-sm text-gray-700">
+                          {playstyleTopDiscipline.map((entry) => (
+                            <li key={`disc:${entry.memberId}`} className="flex items-center justify-between gap-2">
+                              <span className="truncate">{entry.displayName}</span>
+                              <span className="font-semibold text-emerald-700">{formatTelemetryScore(entry.zoneDisciplineScore)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </article>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-600">Aucune donnee telemetry playstyle pour cette periode.</p>
+                )
+              ) : null}
+            </section>
+
             {groupedMetrics.map((group) => (
               <section key={group.title} className="rounded border border-gray-200 bg-white p-4 shadow-sm">
                 <button

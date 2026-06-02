@@ -1,0 +1,24 @@
+[
+  {
+    "_T": "LogPlayerKill",
+    "killerName": "Golf",
+    "victimName": "Hotel",
+    "weapon": "WeapMini14_C",
+    "damage": 80,
+    "headshot": true
+  },
+  {
+    "_T": "LogPlayerTakeDamage",
+    "attackerName": "Golf",
+    "weapon": "WeapMini14_C",
+    "damage": 20
+  },
+  {
+    "_T": "LogSomethingWeird",
+    "foo": "bar"
+  },
+  {
+    "_T": "CustomUnknownEvent",
+    "value": 42
+  }
+]

@@ -150,9 +150,15 @@ A définir/valider:
 - TELEMETRY_PARSER_VERSION=v1
 - TELEMETRY_MAX_ASSET_SIZE_MB=250
 - TELEMETRY_TEMP_DIR=/tmp (ou équivalent OS)
+- TELEMETRY_CAPTURE_FIXTURES=true|false (mode debug manuel uniquement)
+- TELEMETRY_CAPTURE_FIXTURES_DIR=.telemetry-captured
+- TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES=52428800 (defaut 10 Mo, plafond dur 50 Mo)
 
 Note:
 - Le download assets.pubg.com ne passe pas par la limite RPM api.pubg.com, mais doit quand meme être borné en volume pour protéger le serveur.
+- La capture de fixtures est volontairement bornée pour stabilité runtime et fonctionne en streaming incremental; si la limite est atteinte (ou si `content-length` est absent), le fichier est tronqué proprement (JSON valide) et la sync continue.
+- Le dossier de capture recommandé est hors `src` (`.telemetry-captured`) pour éviter que `next dev` surveille/compile de gros JSON et déclenche des OOM.
+- En cas d'échec de capture, le fichier partiel est supprimé automatiquement (pas de faux positifs avec JSON invalide).
 
 ## Gestion mémoire et temporaires
 
@@ -376,6 +382,91 @@ Rollback:
 - Pages UI telemetry clan/membre
 - Tests unitaires + intégration
 - Monitoring et runbook de prod
+
+## Verification d'avancement (basee sur nos echanges + code au 01/06/2026)
+
+Cette section met a jour l'etat reel par rapport au plan ci-dessus.
+
+### Ce qui est deja livre
+
+- [x] Extraction de l'URL telemetry asset depuis le match (`src/lib/pubg.ts`, `fetchMatchDetailsWithTelemetryAsset`).
+- [x] Client CDN telemetry avec garde-fous (`src/lib/pubg-telemetry/client.ts`: timeout, limite taille, validation URL).
+- [x] Parser minimal (`src/lib/pubg-telemetry/parser.ts`) avec summary/weaponStats/memberStats.
+- [x] Snapshot DB par match (`SquadMatchTelemetry`) avec relation 1:1 et index status/updatedAt.
+- [x] Declenchement manuel Owner (`POST /api/clans/[clanId]/telemetry/sync-selected`).
+- [x] UI de selection sur la page session + bouton de recuperation manuelle.
+- [x] Exposition telemetry dans l'API matchs (`GET /api/clans/[clanId]/matches`) et affichage dans la liste des matchs.
+- [x] Page provisoire d'observabilite recoveries (`/clans/[clanId]/telemetry/recoveries`) + API associee.
+- [x] Corpus reel valide: 20 fixtures capturees (`.telemetry-captured`) parsees en tests avec budget 2000 ms (`avgParseMs=359.3`, `p95ParseMs=508`).
+
+### Ce qui est partiellement livre
+
+- [x] Phase 0 - Preparation: migrations telemetry OK, feature flag `TELEMETRY_SYNC_ENABLED` branche au flux runtime.
+- [x] Phase 1 - Ingestion/parsing minimal: disponible en mode manuel et automatise via cron telemetry.
+- [~] Observabilite: vue recoveries disponible, mais pas encore de metriques completes type `telemetry.fetch.ms`, `telemetry.parse.ms`, etc.
+
+### Ce qui reste a faire (ecart principal avec cette doc)
+
+- [x] Job backlog + orchestrateur generique (`src/lib/pubg-telemetry/backlog.ts`, `index.ts`, `job.ts`) en place.
+- [x] Integration cron telemetry initiale en place dans `runDailyClanSync` (gatee par `TELEMETRY_SYNC_ENABLED`).
+- [x] Champs de reprise avances (`attemptCount`, `lastAttemptAt`, `nextRetryAt`) ajoutes dans `SquadMatchTelemetry`.
+- [~] Agregats periodiques dedies implementes partiellement: tables `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats` + recalcul periodique cron; alimentation `MemberWeaponStats` reste limitee par le snapshot parser v1.
+- [~] APIs telemetry partiellement livrees: clan `/telemetry/weapons`, `/telemetry/synergies`, `/telemetry/playstyle` disponibles; heatmap/circles/vehicles/loot et endpoints membre restent a faire.
+- [ ] Pages produit telemetry ciblees (`/clans/[clanId]/stats/weapons`, `/stats/heatmap-kills`, `/members/[id]/weapons`) non implementees.
+- [x] Parsing streaming JSON pur (sans `JSON.parse` global) implemente.
+- [x] Suite de tests telemetry: socle unitaire livre, integration corpus reel validee (20 fixtures).
+
+## Roadmap actualisee (priorites)
+
+### P1 - Fermer le pipeline automatique
+
+- [x] Creer backlog telemetry (`listSquadMatchesNeedingTelemetry`).
+- [x] Creer orchestrateur unique `syncTelemetryForSquadMatch`.
+- [x] Creer job batch avec concurrence bornee (2-4).
+- [x] Brancher le job dans cron (ou sous-etape fin `sync-matches`) avec compte-rendu d'execution.
+- [x] Ajouter retry borne + backoff sur erreurs transitoires.
+
+Critere de sortie P1:
+
+- le traitement telemetry fonctionne sans action manuelle,
+- les erreurs d'un match n'interrompent pas le batch,
+- reprise operationnelle sur run suivant.
+
+### P2 - Agregats et APIs metier
+
+- [x] Ajouter tables agregats periodiques (`MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats`).
+- [~] Alimenter week/month/all depuis snapshots match (member telemetry + synergies OK, member weapons limite par parser v1).
+- [~] Exposer APIs clan/membre telemetry de la section "APIs a creer" (clan weapons/synergies/playstyle livres, reste a completer).
+
+Critere de sortie P2:
+
+- endpoints telemetry clan/membre disponibles,
+- temps de reponse cible atteignable sur dataset moyen,
+- recalcul idempotent verifie.
+
+### P3 - UI telemetry ciblee
+
+- [ ] Livrer pages clan weapons + heatmap + extension synergies telemetry.
+- [ ] Livrer page membre weapons + bloc playstyle/zone.
+- [ ] Conserver la page provisoire recoveries comme console ops (ou la migrer en settings/ops).
+
+Critere de sortie P3:
+
+- parcours telemetry clan/membre complet en UI,
+- coherence desktop/mobile validee.
+
+### P4 - Qualite, perf et rollout
+
+- [x] Passer a un parser JSON streaming reel.
+- [x] Ajouter tests unitaires + integration sur corpus reel (10-20 matchs): socle unitaire livre, corpus reel valide sur 20 fixtures reelles.
+- [ ] Instrumenter metriques telemetry (`matches.scanned/parsed/failed`, `fetch.ms`, `parse.ms`, `asset.bytes`).
+- [ ] Executer rollout progressif (flag off -> dry-run -> clan pilote -> global).
+
+Critere de sortie P4:
+
+- stabilite prouvee sur 48h mini,
+- observabilite suffisante pour diagnostiquer sans SQL manuel,
+- procedure de rollback validee.
 
 ## Exemple de bloc fun en bas de page
 

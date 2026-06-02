@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 
 import { getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
@@ -10,6 +11,9 @@ import type {
   SquadMatch,
   SquadPeriod,
   SquadSynergyEntry,
+  SquadMatchTelemetryMemberStat,
+  SquadMatchTelemetrySummary,
+  SquadMatchTelemetryWeaponStat,
 } from '@/types/squad-matches'
 
 function parseClanId(clanId: string) {
@@ -62,6 +66,102 @@ function buildSynergyKey(memberIds: number[]) {
 
 function buildWinRate(wins: number, matchesPlayed: number) {
   return matchesPlayed > 0 ? wins / matchesPlayed : 0
+}
+
+function asTelemetrySummary(value: unknown): SquadMatchTelemetrySummary | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const summary = value as Record<string, unknown>
+  const requiredKeys = [
+    'totalEvents',
+    'killEvents',
+    'reviveEvents',
+    'damageEvents',
+    'knockoutEvents',
+    'itemUseEvents',
+    'vehicleEvents',
+    'positionEvents',
+    'phaseChangeEvents',
+    'blueZoneEvents',
+    'distinctEventTypes',
+  ] as const
+
+  if (requiredKeys.some((key) => typeof summary[key] !== 'number')) {
+    return null
+  }
+
+  return summary as unknown as SquadMatchTelemetrySummary
+}
+
+function asTelemetryWeaponStats(value: unknown): SquadMatchTelemetryWeaponStat[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .filter((entry): entry is SquadMatchTelemetryWeaponStat => {
+      if (!entry || typeof entry !== 'object') {
+        return false
+      }
+
+      const item = entry as Record<string, unknown>
+      return (
+        typeof item.weaponName === 'string' &&
+        typeof item.kills === 'number' &&
+        typeof item.headshots === 'number' &&
+        typeof item.damageDealt === 'number'
+      )
+    })
+    .sort((left, right) => {
+      if (right.kills !== left.kills) {
+        return right.kills - left.kills
+      }
+
+      return right.damageDealt - left.damageDealt
+    })
+    .slice(0, 3)
+}
+
+function asTelemetryMemberStats(value: unknown): SquadMatchTelemetryMemberStat[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .filter((entry): entry is SquadMatchTelemetryMemberStat => {
+      if (!entry || typeof entry !== 'object') {
+        return false
+      }
+
+      const item = entry as Record<string, unknown>
+      return (
+        typeof item.memberKey === 'string' &&
+        typeof item.kills === 'number' &&
+        typeof item.headshots === 'number' &&
+        typeof item.damageDealt === 'number' &&
+        typeof item.revives === 'number' &&
+        typeof item.knockouts === 'number' &&
+        typeof item.deaths === 'number' &&
+        typeof item.blueZoneHits === 'number' &&
+        typeof item.vehicleRideEvents === 'number' &&
+        typeof item.vehicleLeaveEvents === 'number' &&
+        typeof item.positionEvents === 'number'
+      )
+    })
+    .sort((left, right) => {
+      if (right.kills !== left.kills) {
+        return right.kills - left.kills
+      }
+
+      if (right.damageDealt !== left.damageDealt) {
+        return right.damageDealt - left.damageDealt
+      }
+
+      return right.revives - left.revives
+    })
+    .slice(0, 4)
 }
 
 function toSortedSynergies(
@@ -201,6 +301,23 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
     })
 
+    const telemetryRows = squadMatches.length
+      ? await prisma.$queryRaw<Array<{
+          squadMatchId: string
+          summary: unknown
+          weaponStats: unknown
+          memberStats: unknown
+        }>>(Prisma.sql`
+          SELECT squadMatchId, summary, weaponStats, memberStats
+          FROM SquadMatchTelemetry
+          WHERE squadMatchId IN (${Prisma.join(squadMatches.map((match) => match.id))})
+        `)
+      : []
+
+    const telemetryExtraByMatchId = new Map(
+      telemetryRows.map((row) => [row.squadMatchId, row])
+    )
+
     const durationByMatchId = new Map<string, number>()
 
     if (squadMatches.length > 0) {
@@ -254,6 +371,9 @@ export async function GET(
             parserVersion: match.telemetry.parserVersion,
             parsedAt: match.telemetry.parsedAt.toISOString(),
             bytesDownloaded: match.telemetry.bytesDownloaded,
+            summary: asTelemetrySummary(telemetryExtraByMatchId.get(match.id)?.summary),
+            topWeapons: asTelemetryWeaponStats(telemetryExtraByMatchId.get(match.id)?.weaponStats),
+            memberStats: asTelemetryMemberStats(telemetryExtraByMatchId.get(match.id)?.memberStats),
             errorCode: match.telemetry.errorCode,
             errorMessage: match.telemetry.errorMessage,
           }
@@ -262,6 +382,9 @@ export async function GET(
             parserVersion: null,
             parsedAt: null,
             bytesDownloaded: null,
+            summary: null,
+            topWeapons: [],
+            memberStats: [],
             errorCode: null,
             errorMessage: null,
           },

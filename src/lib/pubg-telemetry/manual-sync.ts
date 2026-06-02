@@ -1,9 +1,17 @@
 import { fetchMatchDetailsWithTelemetryAsset } from '@/lib/pubg'
+import { downloadTelemetryFromAsset } from '@/lib/pubg-telemetry/client'
 import {
-  downloadTelemetryFromAsset,
-  readTelemetryStreamAsText,
-} from '@/lib/pubg-telemetry/client'
-import { parseTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
+  captureTelemetryFixtureFromStream,
+  getTelemetryFixtureCaptureMaxBytes,
+  isTelemetryFixtureCaptureEnabled,
+} from '@/lib/pubg-telemetry/fixture-capture'
+import { parseTelemetrySnapshotFromStream } from '@/lib/pubg-telemetry/parser'
+import {
+  buildTelemetrySuccessBasePayload,
+  buildTelemetrySuccessPayloadWithJson,
+  isTelemetryJsonFieldUnsupportedError,
+  normalizeErrorMessage,
+} from '@/lib/pubg-telemetry/persistence-payload'
 import { prisma } from '@/lib/prisma'
 
 type ManualTelemetrySyncItemResult = {
@@ -14,6 +22,11 @@ type ManualTelemetrySyncItemResult = {
   contentLength: number | null
   errorCode: string | null
   errorMessage: string | null
+  captureFilePath?: string
+  captureEventCount?: number
+  captureBytesRead?: number
+  captureWasTruncated?: boolean
+  captureError?: string
 }
 
 export type ManualTelemetrySyncResult = {
@@ -23,6 +36,8 @@ export type ManualTelemetrySyncResult = {
   successCount: number
   failedCount: number
   skippedCount: number
+  captureEnabled: boolean
+  captureMaxBytes: number
   results: ManualTelemetrySyncItemResult[]
 }
 
@@ -49,39 +64,6 @@ function getTelemetryParserVersion() {
   return raw && raw.length > 0 ? raw : 'v1'
 }
 
-function normalizeErrorMessage(value: string) {
-  const trimmed = value.trim()
-  if (trimmed.length <= 4000) {
-    return trimmed
-  }
-
-  return `${trimmed.slice(0, 3997)}...`
-}
-
-async function consumeStreamAndCountBytes(stream: ReadableStream<Uint8Array>, maxBytes: number) {
-  const reader = stream.getReader()
-  let total = 0
-
-  try {
-    while (true) {
-      const chunk = await reader.read()
-      if (chunk.done) {
-        break
-      }
-
-      total += chunk.value.byteLength
-
-      if (total > maxBytes) {
-        throw new Error(`Telemetry asset exceeded max size while streaming (${total} bytes)`)
-      }
-    }
-
-    return total
-  } finally {
-    reader.releaseLock()
-  }
-}
-
 function sanitizeSquadMatchIds(ids: string[]) {
   const unique = Array.from(new Set(ids.map((id) => id.trim()).filter((id) => id.length > 0)))
   return unique.slice(0, 50)
@@ -101,6 +83,8 @@ export async function syncTelemetryForSelectedSquadMatches(
       successCount: 0,
       failedCount: 0,
       skippedCount: 0,
+      captureEnabled: isTelemetryFixtureCaptureEnabled(),
+      captureMaxBytes: getTelemetryFixtureCaptureMaxBytes(),
       results: [],
     }
   }
@@ -137,6 +121,8 @@ export async function syncTelemetryForSelectedSquadMatches(
   const timeoutMs = getTelemetryTimeoutMs()
   const maxAssetSizeBytes = getTelemetryMaxAssetSizeBytes()
   const parserVersion = getTelemetryParserVersion()
+  const captureEnabled = isTelemetryFixtureCaptureEnabled()
+  const captureMaxBytes = getTelemetryFixtureCaptureMaxBytes()
 
   const foundIds = new Set(matches.map((match) => match.id))
   const missingIds = sanitizedIds.filter((id) => !foundIds.has(id))
@@ -156,15 +142,28 @@ export async function syncTelemetryForSelectedSquadMatches(
   }
 
   for (const match of matches) {
+    let captureFilePath: string | undefined
+    let captureEventCount: number | undefined
+    let captureBytesRead: number | undefined
+    let captureWasTruncated: boolean | undefined
+    let captureErrorMessage: string | undefined
+
     const candidateMember = match.members.find((entry) => !!entry.member.pubgAccountId)
 
     if (!candidateMember?.member.pubgAccountId) {
+      const now = new Date()
+
       await prisma.squadMatchTelemetry.upsert({
         where: { squadMatchId: match.id },
         update: {
           status: 'failed',
+          attemptCount: {
+            increment: 1,
+          },
+          lastAttemptAt: now,
+          nextRetryAt: null,
           parserVersion,
-          parsedAt: new Date(),
+          parsedAt: now,
           sourceGeneratedAt: null,
           contentLength: null,
           bytesDownloaded: 0,
@@ -174,8 +173,11 @@ export async function syncTelemetryForSelectedSquadMatches(
         create: {
           squadMatchId: match.id,
           status: 'failed',
+          attemptCount: 1,
+          lastAttemptAt: now,
+          nextRetryAt: null,
           parserVersion,
-          parsedAt: new Date(),
+          parsedAt: now,
           sourceGeneratedAt: null,
           contentLength: null,
           bytesDownloaded: 0,
@@ -204,12 +206,19 @@ export async function syncTelemetryForSelectedSquadMatches(
       )
 
       if (!matchDetails.telemetryAssetUrl) {
+        const now = new Date()
+
         await prisma.squadMatchTelemetry.upsert({
           where: { squadMatchId: match.id },
           update: {
             status: 'failed',
+            attemptCount: {
+              increment: 1,
+            },
+            lastAttemptAt: now,
+            nextRetryAt: null,
             parserVersion,
-            parsedAt: new Date(),
+            parsedAt: now,
             sourceGeneratedAt: matchDetails.telemetryGeneratedAt
               ? new Date(matchDetails.telemetryGeneratedAt)
               : null,
@@ -221,8 +230,11 @@ export async function syncTelemetryForSelectedSquadMatches(
           create: {
             squadMatchId: match.id,
             status: 'failed',
+            attemptCount: 1,
+            lastAttemptAt: now,
+            nextRetryAt: null,
             parserVersion,
-            parsedAt: new Date(),
+            parsedAt: now,
             sourceGeneratedAt: matchDetails.telemetryGeneratedAt
               ? new Date(matchDetails.telemetryGeneratedAt)
               : null,
@@ -250,43 +262,112 @@ export async function syncTelemetryForSelectedSquadMatches(
         maxAssetSizeBytes,
       })
 
-      const { text, bytesRead } = await readTelemetryStreamAsText(downloaded.stream, maxAssetSizeBytes)
-      const parsed = parseTelemetrySnapshot(JSON.parse(text) as unknown)
+      const shouldCaptureFixture = captureEnabled
+      const [streamForParsing, streamForCapture] = shouldCaptureFixture
+        ? downloaded.stream.tee()
+        : [downloaded.stream, null]
 
-      await prisma.squadMatchTelemetry.upsert({
-        where: { squadMatchId: match.id },
-        update: {
-          status: 'success',
-          parserVersion,
-          parsedAt: new Date(),
-          sourceGeneratedAt: matchDetails.telemetryGeneratedAt
-            ? new Date(matchDetails.telemetryGeneratedAt)
-            : null,
-          contentLength: downloaded.contentLength,
-          bytesDownloaded: bytesRead,
-          summary: parsed.summary,
-          weaponStats: parsed.weaponStats,
-          memberStats: parsed.memberStats,
-          errorCode: null,
-          errorMessage: null,
-        },
-        create: {
+      if (captureEnabled && downloaded.contentLength === null) {
+        console.warn('[TelemetryFixtureCapture]', {
           squadMatchId: match.id,
-          status: 'success',
-          parserVersion,
-          parsedAt: new Date(),
-          sourceGeneratedAt: matchDetails.telemetryGeneratedAt
-            ? new Date(matchDetails.telemetryGeneratedAt)
-            : null,
+          pubgMatchId: match.pubgMatchId,
+          mode: 'streaming_truncate_on_limit',
+          reason: 'CONTENT_LENGTH_UNKNOWN',
+          captureMaxBytes,
+        })
+      }
+
+      if (captureEnabled && downloaded.contentLength !== null && downloaded.contentLength > captureMaxBytes) {
+        console.warn('[TelemetryFixtureCapture]', {
+          squadMatchId: match.id,
+          pubgMatchId: match.pubgMatchId,
+          mode: 'streaming_truncate_on_limit',
+          reason: 'ASSET_EXPECTED_TO_TRUNCATE',
           contentLength: downloaded.contentLength,
-          bytesDownloaded: bytesRead,
-          summary: parsed.summary,
-          weaponStats: parsed.weaponStats,
-          memberStats: parsed.memberStats,
-          errorCode: null,
-          errorMessage: null,
-        },
+          captureMaxBytes,
+        })
+      }
+
+      if (streamForCapture) {
+        try {
+          const capture = await captureTelemetryFixtureFromStream({
+            stream: streamForCapture,
+            squadMatchId: match.id,
+            pubgMatchId: match.pubgMatchId,
+          })
+
+          captureFilePath = capture.filePath
+          captureEventCount = capture.eventCount
+          captureBytesRead = capture.bytesRead
+          captureWasTruncated = capture.wasTruncated
+
+          console.info('[TelemetryFixtureCapture]', {
+            squadMatchId: match.id,
+            pubgMatchId: match.pubgMatchId,
+            eventCount: capture.eventCount,
+            bytesRead: capture.bytesRead,
+            wasTruncated: capture.wasTruncated,
+            filePath: capture.filePath,
+          })
+        } catch (captureIssue) {
+          captureErrorMessage =
+            captureIssue instanceof Error ? captureIssue.message : String(captureIssue)
+
+          console.warn('[TelemetryFixtureCapture]', {
+            squadMatchId: match.id,
+            pubgMatchId: match.pubgMatchId,
+            error: captureErrorMessage,
+          })
+        }
+      }
+
+      const { snapshot: parsed, bytesRead } = await parseTelemetrySnapshotFromStream(
+        streamForParsing,
+        maxAssetSizeBytes
+      )
+
+      const successBasePayload = buildTelemetrySuccessBasePayload({
+        parserVersion,
+        parsedAt: new Date(),
+        telemetryGeneratedAt: matchDetails.telemetryGeneratedAt,
+        contentLength: downloaded.contentLength,
+        bytesDownloaded: bytesRead,
       })
+
+      const successPayloadWithJson = buildTelemetrySuccessPayloadWithJson(
+        successBasePayload,
+        parsed
+      )
+
+      try {
+        await (prisma.squadMatchTelemetry as unknown as {
+          upsert: (args: {
+            where: { squadMatchId: string }
+            update: Record<string, unknown>
+            create: Record<string, unknown>
+          }) => Promise<unknown>
+        }).upsert({
+          where: { squadMatchId: match.id },
+          update: successPayloadWithJson,
+          create: {
+            squadMatchId: match.id,
+            ...successPayloadWithJson,
+          },
+        })
+      } catch (persistError) {
+        if (!isTelemetryJsonFieldUnsupportedError(persistError)) {
+          throw persistError
+        }
+
+        await prisma.squadMatchTelemetry.upsert({
+          where: { squadMatchId: match.id },
+          update: successBasePayload,
+          create: {
+            squadMatchId: match.id,
+            ...successBasePayload,
+          },
+        })
+      }
 
       results.push({
         squadMatchId: match.id,
@@ -296,18 +377,29 @@ export async function syncTelemetryForSelectedSquadMatches(
         contentLength: downloaded.contentLength,
         errorCode: null,
         errorMessage: null,
+        captureFilePath,
+        captureEventCount,
+        captureBytesRead,
+        captureWasTruncated,
+        captureError: captureErrorMessage,
       })
     } catch (error) {
       const message = normalizeErrorMessage(
         error instanceof Error ? error.message : String(error)
       )
+      const now = new Date()
 
       await prisma.squadMatchTelemetry.upsert({
         where: { squadMatchId: match.id },
         update: {
           status: 'failed',
+          attemptCount: {
+            increment: 1,
+          },
+          lastAttemptAt: now,
+          nextRetryAt: null,
           parserVersion,
-          parsedAt: new Date(),
+          parsedAt: now,
           sourceGeneratedAt: null,
           contentLength: null,
           bytesDownloaded: 0,
@@ -317,8 +409,11 @@ export async function syncTelemetryForSelectedSquadMatches(
         create: {
           squadMatchId: match.id,
           status: 'failed',
+          attemptCount: 1,
+          lastAttemptAt: now,
+          nextRetryAt: null,
           parserVersion,
-          parsedAt: new Date(),
+          parsedAt: now,
           sourceGeneratedAt: null,
           contentLength: null,
           bytesDownloaded: 0,
@@ -335,6 +430,11 @@ export async function syncTelemetryForSelectedSquadMatches(
         contentLength: null,
         errorCode: 'TELEMETRY_SYNC_FAILED',
         errorMessage: message,
+        captureFilePath,
+        captureEventCount,
+        captureBytesRead,
+        captureWasTruncated,
+        captureError: captureErrorMessage,
       })
     }
   }
@@ -349,6 +449,8 @@ export async function syncTelemetryForSelectedSquadMatches(
     successCount,
     failedCount,
     skippedCount: Math.max(0, squadMatchIds.length - sanitizedIds.length),
+    captureEnabled,
+    captureMaxBytes,
     results,
   }
 }

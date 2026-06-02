@@ -1,0 +1,31 @@
+[
+  {
+    "_T": "LogPlayerKill",
+    "killerName": "Echo",
+    "victimName": "Foxtrot",
+    "weapon": "WeapBerylM762_C",
+    "damage": 70,
+    "headshot": false
+  },
+  {
+    "_T": "LogPlayerMakeGroggy",
+    "killerName": "Echo",
+    "victimName": "Foxtrot"
+  },
+  {
+    "_T": "LogItemUse",
+    "character": {
+      "name": "Echo"
+    }
+  },
+  {
+    "_T": "LogVehicleRide",
+    "attackerName": "Echo"
+  },
+  {
+    "_T": "LogPhaseChange"
+  },
+  {
+    "_T": "LogGameStatePeriodically"
+  }
+]

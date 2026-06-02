@@ -10,6 +10,41 @@ export interface SquadMatchMember {
   placement: number
 }
 
+export interface SquadMatchTelemetrySummary {
+  totalEvents: number
+  killEvents: number
+  reviveEvents: number
+  damageEvents: number
+  knockoutEvents: number
+  itemUseEvents: number
+  vehicleEvents: number
+  positionEvents: number
+  phaseChangeEvents: number
+  blueZoneEvents: number
+  distinctEventTypes: number
+}
+
+export interface SquadMatchTelemetryWeaponStat {
+  weaponName: string
+  kills: number
+  headshots: number
+  damageDealt: number
+}
+
+export interface SquadMatchTelemetryMemberStat {
+  memberKey: string
+  kills: number
+  headshots: number
+  damageDealt: number
+  revives: number
+  knockouts: number
+  deaths: number
+  blueZoneHits: number
+  vehicleRideEvents: number
+  vehicleLeaveEvents: number
+  positionEvents: number
+}
+
 export interface SquadMatch {
   id: string
   pubgMatchId: string
@@ -29,6 +64,9 @@ export interface SquadMatch {
     parserVersion: string | null
     parsedAt: string | null
     bytesDownloaded: number | null
+    summary: SquadMatchTelemetrySummary | null
+    topWeapons: SquadMatchTelemetryWeaponStat[]
+    memberStats: SquadMatchTelemetryMemberStat[]
     errorCode: string | null
     errorMessage: string | null
   }

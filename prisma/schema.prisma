@@ -24,6 +24,7 @@ model Clan {
   members ClanMember[]
   roles   ClanRole[]
   reports Report[]
+  clanSynergyTelemetryStats ClanSynergyTelemetryStats[]
   challenges Challenge[]
   invites MemberInvite[]
   cronExecutions CronExecution[]
@@ -49,6 +50,10 @@ model ClanMember {
   lifetimeStats          MemberLifetimeStats?
   squadMembers           SquadMember[]
   playerStats            PlayerStats[]
+  memberWeaponStats      MemberWeaponStats[]
+  memberTelemetryStats   MemberTelemetryStats[]
+  telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
+  telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
   notifications          Notification[]
   notificationPreference NotificationPreference?
   roles                  ClanMemberRole[]
@@ -318,6 +323,9 @@ model SquadMatchTelemetry {
   squadMatch  SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
 
   status         String
+  attemptCount   Int      @default(0)
+  lastAttemptAt  DateTime?
+  nextRetryAt    DateTime?
   parserVersion  String
   parsedAt       DateTime
   sourceGeneratedAt DateTime?
@@ -363,6 +371,76 @@ model PlayerStats {
 
   @@unique([memberId, period])
   @@map("PlayerStats")
+}
+
+model MemberWeaponStats {
+  id       String     @id @default(cuid())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  period     String
+  periodType String
+
+  weaponName  String
+  kills       Int   @default(0)
+  headshots   Int   @default(0)
+  avgDistance Float @default(0)
+  matchCount  Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([memberId, period, weaponName])
+  @@index([period, weaponName])
+  @@map("MemberWeaponStats")
+}
+
+model MemberTelemetryStats {
+  id       String     @id @default(cuid())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  period     String
+  periodType String
+
+  aggressionScore     Float @default(0)
+  supportScore        Float @default(0)
+  zoneDisciplineScore Float @default(0)
+  avgBlueZoneHits     Float @default(0)
+  avgCircleDelaySeconds Float @default(0)
+  matchesPlayed       Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([memberId, period])
+  @@index([period, aggressionScore])
+  @@map("MemberTelemetryStats")
+}
+
+model ClanSynergyTelemetryStats {
+  id       String @id @default(cuid())
+  clanId   Int
+  clan     Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  memberAId Int
+  memberA   ClanMember @relation("TelemetrySynergyMemberA", fields: [memberAId], references: [id], onDelete: Cascade)
+  memberBId Int
+  memberB   ClanMember @relation("TelemetrySynergyMemberB", fields: [memberBId], references: [id], onDelete: Cascade)
+
+  period     String
+  periodType String
+
+  reviveCount        Int @default(0)
+  coKillCount        Int @default(0)
+  sharedDamageEvents Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clanId, period, memberAId, memberBId])
+  @@index([clanId, period])
+  @@map("ClanSynergyTelemetryStats")
 }
 
 model Report {

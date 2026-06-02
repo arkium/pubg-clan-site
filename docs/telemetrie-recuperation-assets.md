@@ -383,12 +383,104 @@ Ce mode est utile pour:
 - `TELEMETRY_FETCH_TIMEOUT_MS=30000`
 - `TELEMETRY_MAX_ASSET_SIZE_MB=250`
 - `TELEMETRY_PARSER_VERSION=v1`
+- `TELEMETRY_CAPTURE_FIXTURES=true|false` (capture anonymisee des payloads lors du mode manuel)
+- `TELEMETRY_CAPTURE_FIXTURES_DIR=.telemetry-captured` (optionnel, recommande hors `src`)
+- `TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES=52428800` (optionnel, defaut 10 Mo, plafond dur 50 Mo)
 
 Conversion utile:
 
 ```ts
 const maxAssetSizeBytes = Number(process.env.TELEMETRY_MAX_ASSET_SIZE_MB ?? '250') * 1024 * 1024
 ```
+
+## Capture de fixtures reelles via le bouton manuel
+
+Le mode manuel peut maintenant capturer des fixtures telemetry reelles anonymisees pour alimenter P2.
+
+Principe:
+
+- declenchement: bouton `Lancer recuperation (N)` sur la page session,
+- precondition: `TELEMETRY_CAPTURE_FIXTURES=true`,
+- resultat: ecriture d'un fichier JSON anonymise par match dans `.telemetry-captured` (ou dossier configure),
+- robustesse: un echec de capture n'interrompt pas la sync telemetry principale.
+
+Retour UI apres clic sur le bouton manuel:
+
+- resume succes/echecs du traitement telemetry,
+- note de capture fixtures (`Fixtures capturees: X`),
+- indicateur explicite des fichiers tronques (`dont Y tronquee(s)`),
+- details d'erreurs de capture par `squadMatchId` si necessaire.
+
+Nouveau bouton sur la meme page session:
+
+- `Effacer telemetrie OK (N)`: supprime uniquement les enregistrements `SquadMatchTelemetry` en statut `success` pour les matchs selectionnes,
+- supprime aussi les fichiers JSON captures correspondants dans `.telemetry-captured` (quand ils existent),
+- utile pour forcer une re-recupération propre via `Lancer recuperation (N)` juste apres.
+
+Anonymisation appliquee:
+
+- masquage des identifiants joueurs (`accountId`, `playerId`, `characterId`, `killerName`, `victimName`, etc.),
+- remappage stable des `teamId`,
+- conservation des champs metier utiles (types d'evenements, armes, damages, timings) pour garder la valeur des tests.
+
+Procedure recommandee:
+
+1. Activer `TELEMETRY_CAPTURE_FIXTURES=true` en local.
+2. Lancer la recuperation manuelle sur 2-3 matchs representatifs.
+3. Verifier les fichiers crees dans `.telemetry-captured`.
+4. Selectionner les meilleurs cas (standard + cas limites) et les versionner pour les tests d'integration.
+5. Desactiver le flag hors phase de collecte.
+
+Test reel recommande (fixtures capturees):
+
+```powershell
+$env:TELEMETRY_TEST_CAPTURED_FIXTURES='true'
+$env:TELEMETRY_TEST_CAPTURED_FIXTURES_MAX_FILES='5'
+$env:TELEMETRY_TEST_CAPTURED_FIXTURE_MAX_PARSE_MS='2000'
+npm run test:telemetry
+```
+
+Le test `parser.captured-fixtures.test.ts` reste ignore par defaut et ne s'execute que si `TELEMETRY_TEST_CAPTURED_FIXTURES=true`.
+Le budget de performance est configurable via `TELEMETRY_TEST_CAPTURED_FIXTURE_MAX_PARSE_MS` (defaut: 2000 ms par fixture testee).
+
+Quand il est actif, il affiche un resume par fixture:
+
+- taille du fichier,
+- bytes effectivement lus,
+- nombre d'evenements parses,
+- duree de parsing en millisecondes.
+
+Il affiche aussi un resume agrege du lot teste:
+
+- moyenne des temps de parsing (`avgParseMs`),
+- percentile 95 des temps de parsing (`p95ParseMs`),
+- budget applique (`budgetMs`).
+
+### Garde-fou stabilite (incident V8)
+
+Un incident a montre qu'une capture de fixture tres volumineuse (plusieurs dizaines de Mo) peut declencher un crash natif V8 en environnement de dev.
+
+Mitigation maintenant appliquee:
+
+- limite capture active recommandee: `TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES=52428800` (50 Mo),
+- plafond dur interne: 50 Mo,
+- capture streaming incrementale (ecriture au fil de l'eau),
+- si la limite est atteinte: troncature propre du fichier (JSON valide) avec `wasTruncated=true`,
+- si `content-length` est absent: la capture est quand meme tentee et se tronque proprement a la limite,
+- en cas d'erreur pendant la capture: le fichier partiel est supprime automatiquement,
+- la sync telemetry principale continue normalement (pas de blocage du traitement match).
+
+### Etat valide sur corpus reel (02/06/2026)
+
+- corpus local capture: 20 fichiers dans `.telemetry-captured`,
+- test integration reelle execute avec `TELEMETRY_TEST_CAPTURED_FIXTURES_MAX_FILES=20`,
+- resultat observe: 20/20 fichiers parses, budget respecte (`avgParseMs=359.3`, `p95ParseMs=508`, budget 2000 ms).
+
+Conseil exploitation:
+
+- garder la limite par defaut pour la collecte continue,
+- ne pas augmenter au-dela de 50 Mo (la valeur sera de toute facon plafonnee),
+- redemarrer le serveur apres modification `.env` pour appliquer la nouvelle limite.
 
 ## Comment exploiter vos matchs deja presents pour le dev
 
@@ -441,3 +533,94 @@ Ce sequence permet de livrer rapidement des indicateurs visibles, en minimisant 
 - Timeout + limite de taille actifs en environnement de dev et prod.
 - Journalisation exploitable: `squadMatchId`, `pubgMatchId`, `assetBytes`, `durationMs`, `errorCode`.
 - Tests d'integration sur un corpus reel (minimum 10 matchs multi-situations).
+
+## Suivi d'avancement (etat au 01/06/2026)
+
+### 1) Foundation telemetry
+
+- [x] Extraire l'URL telemetry asset depuis `matches/{id}` (`fetchMatchDetailsWithTelemetryAsset`, `resolveTelemetryAssetFromIncluded`).
+- [x] Ajouter un client CDN dedie (`src/lib/pubg-telemetry/client.ts`) avec timeout + limite de taille + validation URL.
+- [x] Ajouter une lecture stream->texte avec garde-fou taille (`readTelemetryStreamAsText`).
+- [x] Parser en streaming natif implemente (`parseTelemetrySnapshotFromStream`).
+
+### 2) Parsing et persistence
+
+- [x] Parser minimal implemente (`src/lib/pubg-telemetry/parser.ts`): summary, weaponStats, memberStats.
+- [x] Table `SquadMatchTelemetry` + relation 1:1 avec `SquadMatch`.
+- [x] Persistence snapshot success/failed via upsert dans `manual-sync.ts`.
+- [x] Stockage JSON `summary/weaponStats/memberStats` avec fallback compatibilite si types Prisma locaux desynchronises.
+
+### 3) Declenchement manuel
+
+- [x] Endpoint Owner `POST /api/clans/[clanId]/telemetry/sync-selected`.
+- [x] Selection de matchs en UI + bouton `Lancer recuperation (N)` sur la page session.
+- [x] Retour de synthese `successCount/failedCount/processedCount` + details par match.
+
+### 4) Exposition UI/API de l'etat
+
+- [x] Exposition telemetry dans `GET /api/clans/[clanId]/matches` (status, parserVersion, parsedAt, bytes, erreurs).
+- [x] Cartes match enrichies (`SquadMatchList`) avec statut telemetry + resume parser (si disponible).
+- [x] Page provisoire de monitoring: `/clans/[clanId]/telemetry/recoveries`.
+- [x] API de monitoring: `GET /api/clans/[clanId]/telemetry/recoveries` (filtree clan + synthese).
+- [x] Filtres sur la page provisoire: statut, presence JSON parser, recherche texte.
+
+### 5) Batch/Cron (reste a faire)
+
+- [x] `listSquadMatchesNeedingTelemetry(limit)` (backlog dedie) dans `src/lib/pubg-telemetry/backlog.ts`.
+- [x] Orchestrateur generique `syncTelemetryForSquadMatch(...)` dans `src/lib/pubg-telemetry/index.ts`.
+- [x] Job batch dedie `syncTelemetryBatchForRecentSquadMatches(...)` dans `src/lib/pubg-telemetry/job.ts`.
+- [x] Integration cron dans `runDailyClanSync` (activee via `TELEMETRY_SYNC_ENABLED=true`).
+
+### 6) Qualite/ops (reste a renforcer)
+
+- [x] Journalisation structuree complete (duree, bytes, shard, code erreur standardise par etape).
+- [x] Tests d'integration sur corpus reel 10-20 matchs (golden set): 20 fixtures reelles capturees et validees.
+- [x] Base de fixtures de non-regression + tests parser/persistence (Vitest) en place.
+
+## Lecture rapide de l'etat actuel
+
+- Globalement: pipeline manuel utilisable en production pour telecharger et persister les snapshots telemetry.
+- Ce qui manque principalement pour "phase complete": observabilite metriques avancees (P4).
+
+## Roadmap priorisee (prochain sprint)
+
+### P1 - Stabiliser l'exploitation (priorite haute)
+
+- [x] Implementer `src/lib/pubg-telemetry/backlog.ts` avec `listSquadMatchesNeedingTelemetry(limit)`.
+- [x] Implementer `src/lib/pubg-telemetry/index.ts` avec `syncTelemetryForSquadMatch(...)` (orchestrateur unique).
+- [x] Implementer `src/lib/pubg-telemetry/job.ts` avec traitement batch borne (concurrency 2-4, erreurs isolees).
+- [x] Integrer le job telemetry dans le cron (ou appel dedie) avec compte-rendu execution.
+- [x] Ajouter journalisation structuree standard (`step`, `squadMatchId`, `pubgMatchId`, `durationMs`, `bytes`, `errorCode`).
+
+Critere de sortie P1:
+
+- un run automatique traite un backlog de matchs sans intervention manuelle,
+- les erreurs sont tracables par match,
+- aucun crash batch si un match individuel echoue.
+
+### P2 - Robustesse parser et qualite data
+
+- [x] Basculer vers un parsing streaming reel (sans `JSON.parse` global du payload complet).
+- [x] Definir une batterie de fixtures telemetry reelles (10-20 matchs reels + 3-5 cas limites): 20 matchs reels captures.
+- [x] Ajouter un socle golden set synthetique versionne pour tests d'integration parser (cas standard + rotations + mix + malforme).
+- [x] Ajouter un mode de capture anonymisee de fixtures reelles via le bouton manuel (`TELEMETRY_CAPTURE_FIXTURES`).
+- [x] Ajouter un premier socle de tests parser + persistence (Vitest).
+- [x] Ajouter controle de regression de base sur les champs critiques (`summary`, `weaponStats`, `memberStats`).
+
+Critere de sortie P2:
+
+- le parser passe sur corpus reel sans depassement memoire,
+- les agregats restent stables entre releases (tests de non-regression verts).
+
+### P3 - Produit et observabilite avancee
+
+- [x] Ajouter tri multi-colonnes sur la page recoveries (date, statut, taille).
+- [x] Ajouter export CSV des lignes filtrees.
+- [x] Ajouter liens contextuels vers la session/match source.
+- [x] Ajouter KPIs de sante telemetry (taux succes 24h/7j, mediane duree, mediane bytes).
+- [x] Ajouter une fenetre de calcul KPI selectionnable (24h/7j/30j/tout).
+
+Critere de sortie P3:
+
+- l'equipe peut auditer et investiguer les recuperations telemetry sans SQL direct,
+- la page recoveries devient un tableau de bord ops complet.

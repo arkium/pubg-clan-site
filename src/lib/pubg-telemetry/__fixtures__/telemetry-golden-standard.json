@@ -1,0 +1,28 @@
+[
+  {
+    "_T": "LogPlayerKill",
+    "killerName": "Alpha",
+    "victimName": "Bravo",
+    "weapon": "WeapM416_C",
+    "damage": 100,
+    "headshot": true
+  },
+  {
+    "_T": "LogPlayerTakeDamage",
+    "attackerName": "Alpha",
+    "weapon": "WeapM416_C",
+    "damage": 20
+  },
+  {
+    "_T": "LogPlayerRevive",
+    "reviverName": "Charlie"
+  },
+  {
+    "_T": "LogVehicleRide",
+    "attackerName": "Alpha"
+  },
+  {
+    "_T": "LogPlayerPosition",
+    "attackerName": "Alpha"
+  }
+]

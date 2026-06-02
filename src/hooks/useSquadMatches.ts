@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { ClanMatchesResponse, SquadPeriod } from '@/types/squad-matches'
 
@@ -40,6 +40,7 @@ export function useSquadMatches(clanId: number | null, period: SquadPeriod, game
   const [data, setData] = useState<ClanMatchesResponse>(defaultData)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [refreshToken, setRefreshToken] = useState(0)
 
   const cacheKey = useMemo(() => {
     if (!clanId) {
@@ -48,6 +49,21 @@ export function useSquadMatches(clanId: number | null, period: SquadPeriod, game
 
     return buildCacheKey(clanId, period, gameMode)
   }, [clanId, period, gameMode])
+
+  const refresh = useCallback(() => {
+    if (!clanId) {
+      return
+    }
+
+    const clanPrefix = `${clanId}:`
+    for (const key of Array.from(squadMatchesCache.keys())) {
+      if (key.startsWith(clanPrefix)) {
+        squadMatchesCache.delete(key)
+      }
+    }
+
+    setRefreshToken((current) => current + 1)
+  }, [clanId])
 
   useEffect(() => {
     if (!clanId || !cacheKey) {
@@ -107,7 +123,7 @@ export function useSquadMatches(clanId: number | null, period: SquadPeriod, game
     return () => {
       cancelled = true
     }
-  }, [cacheKey, clanId, gameMode, period])
+  }, [cacheKey, clanId, gameMode, period, refreshToken])
 
   return {
     clanName: clanId ? data.clanName : '',
@@ -121,5 +137,6 @@ export function useSquadMatches(clanId: number | null, period: SquadPeriod, game
     topPerformers: clanId ? data.topPerformers : defaultData.topPerformers,
     loading: clanId ? loading : false,
     error: clanId ? error : '',
+    refresh,
   }
 }

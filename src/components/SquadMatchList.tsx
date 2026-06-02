@@ -82,6 +82,27 @@ function formatDuration(totalSeconds: number) {
   return `${minutes}m`
 }
 
+function formatTelemetryBytes(bytes: number | null | undefined) {
+  if (!bytes || bytes <= 0) {
+    return null
+  }
+
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+  }
+
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} Ko`
+  }
+
+  return `${bytes} o`
+}
+
+function formatTelemetryMemberLabel(memberKey: string) {
+  const normalized = memberKey.trim()
+  return normalized.length > 0 ? normalized : 'Joueur inconnu'
+}
+
 export default function SquadMatchList({
   clanId,
   period,
@@ -127,10 +148,12 @@ export default function SquadMatchList({
           const teamMode = teamModeFromMemberCount(match.members.length)
           const memberNames = match.members.map((member) => member.displayName)
           const telemetryStatus = match.telemetry?.status ?? 'pending'
+          const telemetryBytes = formatTelemetryBytes(match.telemetry?.bytesDownloaded)
 
           return (
             <li
               key={match.id}
+              id={`match-${match.id}`}
               className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition duration-200 hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-2">
@@ -209,6 +232,103 @@ export default function SquadMatchList({
                   ))}
                 </div>
               </div>
+
+              {match.telemetry?.status === 'success' && match.telemetry.summary ? (
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700">
+                      Résumé télémétrie
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 text-[10px] text-emerald-900">
+                      <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 font-medium">
+                        {match.telemetry.summary.totalEvents} events
+                      </span>
+                      {telemetryBytes ? (
+                        <span className="rounded-full border border-emerald-200 bg-white px-2 py-0.5 font-medium">
+                          {telemetryBytes}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <dl className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                    <div className="rounded-lg border border-emerald-200 bg-white px-2 py-1">
+                      <dt className="text-[9px] uppercase tracking-wide text-emerald-700">Kills</dt>
+                      <dd className="text-sm font-semibold text-emerald-950">{match.telemetry.summary.killEvents}</dd>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-white px-2 py-1">
+                      <dt className="text-[9px] uppercase tracking-wide text-emerald-700">Revives</dt>
+                      <dd className="text-sm font-semibold text-emerald-950">{match.telemetry.summary.reviveEvents}</dd>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-white px-2 py-1">
+                      <dt className="text-[9px] uppercase tracking-wide text-emerald-700">Dégâts</dt>
+                      <dd className="text-sm font-semibold text-emerald-950">{match.telemetry.summary.damageEvents}</dd>
+                    </div>
+                  </dl>
+
+                  {match.telemetry.topWeapons.length > 0 ? (
+                    <div className="mt-2">
+                      <p className="text-[9px] uppercase tracking-wide text-emerald-700">Top armes parser</p>
+                      <ul className="mt-1 space-y-1 text-[11px] text-emerald-950">
+                        {match.telemetry.topWeapons.map((weapon) => (
+                          <li key={weapon.weaponName} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-white px-2 py-1">
+                            <span className="truncate">{weapon.weaponName}</span>
+                            <span className="shrink-0 font-medium">
+                              {weapon.kills} kill{weapon.kills > 1 ? 's' : ''} · {Math.round(weapon.damageDealt)} dmg
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {match.telemetry.memberStats.length > 0 ? (
+                    <div className="mt-2">
+                      <p className="text-[9px] uppercase tracking-wide text-emerald-700">Stats joueurs parser</p>
+                      <ul className="mt-1 space-y-1 text-[11px] text-emerald-950">
+                        {match.telemetry.memberStats.map((member) => (
+                          <li
+                            key={member.memberKey}
+                            className="rounded-lg border border-emerald-200 bg-white px-2 py-1"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate font-medium">
+                                {formatTelemetryMemberLabel(member.memberKey)}
+                              </span>
+                              <span className="shrink-0 text-[10px] text-emerald-700">
+                                {member.kills} K · {Math.round(member.damageDealt)} Dmg · {member.revives} Rev
+                              </span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-emerald-800">
+                              <span className="rounded-full border border-emerald-200 px-1.5 py-0.5">
+                                HS {member.headshots}
+                              </span>
+                              <span className="rounded-full border border-emerald-200 px-1.5 py-0.5">
+                                KO {member.knockouts}
+                              </span>
+                              <span className="rounded-full border border-emerald-200 px-1.5 py-0.5">
+                                Deaths {member.deaths}
+                              </span>
+                              {member.vehicleRideEvents > 0 ? (
+                                <span className="rounded-full border border-emerald-200 px-1.5 py-0.5">
+                                  Ride {member.vehicleRideEvents}
+                                </span>
+                              ) : null}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {match.telemetry?.status === 'failed' && match.telemetry.errorMessage ? (
+                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-[11px] text-rose-900">
+                  <p className="text-[9px] font-semibold uppercase tracking-wide text-rose-700">Erreur télémétrie</p>
+                  <p className="mt-1 line-clamp-3">{match.telemetry.errorMessage}</p>
+                </div>
+              ) : null}
             </li>
           )
         })}

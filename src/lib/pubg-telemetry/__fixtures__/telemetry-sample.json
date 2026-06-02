@@ -1,0 +1,49 @@
+[
+  {
+    "_T": "LogPlayerKill",
+    "killerName": "Alpha",
+    "victimName": "Bravo",
+    "weapon": "WeapAK47_C",
+    "damage": 100,
+    "headshot": true
+  },
+  {
+    "_T": "LogPlayerRevive",
+    "reviverName": "Charlie"
+  },
+  {
+    "_T": "LogPlayerTakeDamage",
+    "attackerName": "Alpha",
+    "weapon": "WeapAK47_C",
+    "damage": 35
+  },
+  {
+    "_T": "LogPlayerMakeGroggy",
+    "killerName": "Alpha",
+    "victimName": "Delta"
+  },
+  {
+    "_T": "LogItemUse",
+    "character": {
+      "name": "Alpha"
+    }
+  },
+  {
+    "_T": "LogVehicleRide",
+    "attackerName": "Alpha"
+  },
+  {
+    "_T": "LogVehicleLeave",
+    "attackerName": "Alpha"
+  },
+  {
+    "_T": "LogPlayerPosition",
+    "attackerName": "Alpha"
+  },
+  {
+    "_T": "LogPhaseChange"
+  },
+  {
+    "_T": "LogGameStatePeriodically"
+  }
+]

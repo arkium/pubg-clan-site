@@ -133,6 +133,9 @@ export default function ClanSessionDatePage() {
   const [telemetrySyncLoading, setTelemetrySyncLoading] = useState(false)
   const [telemetrySyncMessage, setTelemetrySyncMessage] = useState<string | null>(null)
   const [telemetrySyncErrors, setTelemetrySyncErrors] = useState<string[]>([])
+  const [telemetrySyncCaptureNotes, setTelemetrySyncCaptureNotes] = useState<string[]>([])
+  const [telemetryClearLoading, setTelemetryClearLoading] = useState(false)
+  const [telemetryClearMessage, setTelemetryClearMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -146,7 +149,7 @@ export default function ClanSessionDatePage() {
   const validDate = isValidDateSegment(params.date)
   const date = validDate && typeof params.date === 'string' ? params.date : null
 
-  const { clanName, mapLabels, squads, loading, error } = useSquadMatches(
+  const { clanName, mapLabels, squads, loading, error, refresh } = useSquadMatches(
     clanId,
     period,
     gameMode
@@ -164,6 +167,8 @@ export default function ClanSessionDatePage() {
     setSelectedMatchIds([])
     setTelemetrySyncMessage(null)
     setTelemetrySyncErrors([])
+    setTelemetrySyncCaptureNotes([])
+    setTelemetryClearMessage(null)
   }, [date, gameMode, period])
 
   const sessionStats = useMemo(() => buildSessionStats(sessionMatches), [sessionMatches])
@@ -215,6 +220,7 @@ export default function ClanSessionDatePage() {
     setTelemetrySyncLoading(true)
     setTelemetrySyncMessage(null)
     setTelemetrySyncErrors([])
+    setTelemetrySyncCaptureNotes([])
 
     try {
       const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected`, {
@@ -234,10 +240,18 @@ export default function ClanSessionDatePage() {
             successCount?: number
             failedCount?: number
             processedCount?: number
+            captureEnabled?: boolean
+            captureMaxBytes?: number
             results?: Array<{
               squadMatchId: string
               status: 'success' | 'failed'
+              errorCode?: string | null
               errorMessage: string | null
+              captureFilePath?: string
+              captureEventCount?: number
+              captureBytesRead?: number
+              captureWasTruncated?: boolean
+              captureError?: string
             }>
           }
         | null
@@ -251,15 +265,101 @@ export default function ClanSessionDatePage() {
         .filter((entry) => entry.status === 'failed')
         .map((entry) => `${entry.squadMatchId}: ${entry.errorMessage ?? 'erreur inconnue'}`)
 
+      const capturedEntries = (payload.results ?? []).filter((entry) => !!entry.captureFilePath)
+      const truncatedEntries = capturedEntries.filter((entry) => entry.captureWasTruncated === true)
+      const captureErrorEntries = (payload.results ?? [])
+        .filter((entry) => !!entry.captureError)
+        .map((entry) => `${entry.squadMatchId}: ${entry.captureError}`)
+      const captureNotAttemptedEntries = (payload.results ?? []).filter(
+        (entry) => !entry.captureFilePath && !entry.captureError
+      )
+      const captureFailedCount = (payload.results ?? []).filter((entry) => !!entry.captureError).length
+      const captureDisabledCount = payload.captureEnabled === false ? payload.processedCount ?? 0 : 0
+      const captureNotAttemptedCount = Math.max(0, captureNotAttemptedEntries.length - captureDisabledCount)
+
+      const captureNotes: string[] = []
+      const captureMaxBytesLabel = payload.captureMaxBytes
+        ? `${(payload.captureMaxBytes / (1024 * 1024)).toFixed(1)} Mo`
+        : 'limite inconnue'
+
+      captureNotes.push(
+        `Captures: ${capturedEntries.length} réussie(s), ${captureNotAttemptedCount + captureDisabledCount} non tentée(s), ${captureFailedCount} en erreur.`
+      )
+
+      if (truncatedEntries.length > 0) {
+        captureNotes.push(`Fichiers tronqués: ${truncatedEntries.length} (limite ${captureMaxBytesLabel}).`)
+      }
+
+      if (captureDisabledCount > 0) {
+        captureNotes.push('Raison non tentée: capture désactivée (TELEMETRY_CAPTURE_FIXTURES=false).')
+      } else if (captureNotAttemptedCount > 0) {
+        captureNotes.push('Raison non tentée: capture non lancée pour certains matchs (échec en amont du flux telemetry).')
+      }
+
+      if (captureErrorEntries.length > 0) {
+        captureNotes.push(...captureErrorEntries.slice(0, 10))
+      }
+
       setTelemetrySyncMessage(
         `Récupération terminée: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).`
       )
       setTelemetrySyncErrors(failedEntries)
-      router.refresh()
+      setTelemetrySyncCaptureNotes(captureNotes)
+      setTelemetryClearMessage(null)
+      refresh()
     } catch {
       setTelemetrySyncMessage('Echec de la récupération télémétrie.')
     } finally {
       setTelemetrySyncLoading(false)
+    }
+  }
+
+  async function runClearTelemetryOk() {
+    if (!clanId || selectedMatchIds.length === 0) {
+      return
+    }
+
+    setTelemetryClearLoading(true)
+    setTelemetryClearMessage(null)
+
+    try {
+      const response = await fetch(`/api/clans/${clanId}/telemetry/clear-selected`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          squadMatchIds: selectedMatchIds,
+        }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            deletedCount?: number
+            deletedFileCount?: number
+            alreadyMissingCount?: number
+            outOfScopeCount?: number
+          }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        setTelemetryClearMessage(payload?.error ?? 'Echec de la suppression télémétrie OK.')
+        return
+      }
+
+      setTelemetryClearMessage(
+        `Suppression terminée: ${payload.deletedCount ?? 0} télémétrie OK effacée(s), ${payload.deletedFileCount ?? 0} fichier(s) capturé(s) supprimé(s), ${payload.alreadyMissingCount ?? 0} déjà absente(s), ${payload.outOfScopeCount ?? 0} hors périmètre.`
+      )
+      setTelemetrySyncMessage(null)
+      setTelemetrySyncErrors([])
+      setTelemetrySyncCaptureNotes([])
+      refresh()
+    } catch {
+      setTelemetryClearMessage('Echec de la suppression télémétrie OK.')
+    } finally {
+      setTelemetryClearLoading(false)
     }
   }
 
@@ -422,6 +522,14 @@ export default function ClanSessionDatePage() {
             <p className="mt-1 text-sm text-gray-600">
               Sélectionnez des matchs ci-dessus puis lancez la récupération sans passer par le cron.
             </p>
+            <div className="mt-3">
+              <Link
+                href={`/clans/${clanId}/telemetry/recoveries`}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+              >
+                Ouvrir le suivi des récupérations
+              </Link>
+            </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -444,13 +552,27 @@ export default function ClanSessionDatePage() {
                 type="button"
                 onClick={runManualTelemetrySync}
                 className="app-btn app-btn--xs app-btn--primary"
-                disabled={telemetrySyncLoading || selectedMatchIds.length === 0}
+                disabled={telemetrySyncLoading || telemetryClearLoading || selectedMatchIds.length === 0}
               >
                 {telemetrySyncLoading
                   ? 'Récupération en cours...'
                   : `Lancer récupération (${selectedMatchIds.length})`}
               </button>
+              <button
+                type="button"
+                onClick={runClearTelemetryOk}
+                className="app-btn app-btn--xs app-btn--danger"
+                disabled={telemetrySyncLoading || telemetryClearLoading || selectedMatchIds.length === 0}
+              >
+                {telemetryClearLoading
+                  ? 'Suppression en cours...'
+                  : `Effacer télémétrie OK (${selectedMatchIds.length})`}
+              </button>
             </div>
+
+            {telemetryClearMessage ? (
+              <p className="mt-3 text-sm text-amber-700">{telemetryClearMessage}</p>
+            ) : null}
 
             {telemetrySyncMessage ? (
               <p className="mt-3 text-sm text-gray-700">{telemetrySyncMessage}</p>
@@ -460,6 +582,14 @@ export default function ClanSessionDatePage() {
               <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-700">
                 {telemetrySyncErrors.slice(0, 10).map((errorLine) => (
                   <li key={errorLine}>{errorLine}</li>
+                ))}
+              </ul>
+            ) : null}
+
+            {telemetrySyncCaptureNotes.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-700">
+                {telemetrySyncCaptureNotes.map((line) => (
+                  <li key={line}>{line}</li>
                 ))}
               </ul>
             ) : null}

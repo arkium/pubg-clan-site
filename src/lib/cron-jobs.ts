@@ -5,6 +5,8 @@ import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
+import { syncTelemetryBatchForRecentSquadMatches } from '@/lib/pubg-telemetry/job'
+import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
@@ -21,6 +23,24 @@ const WEEKLY_REPORT_GENERATION_SCHEDULE =
 const MONTHLY_REPORT_GENERATION_SCHEDULE =
   process.env.MONTHLY_REPORT_GENERATION_CRON ?? '0 8 1 * *'
 const MAX_SYNC_ATTEMPTS = 3
+
+type TelemetryCronSyncSummary = {
+  status: 'success' | 'partial' | 'failed' | 'skipped'
+  reason: string
+  scanned: number
+  parsed: number
+  failed: number
+  skipped: number
+}
+
+type TelemetryAggregateCronSummary = {
+  status: 'success' | 'partial' | 'failed' | 'skipped'
+  reason: string
+  periodsUpdated: number
+  memberTelemetryRows: number
+  memberWeaponRows: number
+  clanSynergyRows: number
+}
 
 type NotificationService = {
   notifyInviteReminder: (memberId: number) => Promise<void>
@@ -59,6 +79,28 @@ function isCronWorkerEnabled() {
   }
 
   return process.env.NODE_ENV !== 'production'
+}
+
+function isTelemetrySyncEnabled() {
+  return process.env.TELEMETRY_SYNC_ENABLED === 'true'
+}
+
+function getTelemetryMaxMatchesPerRun() {
+  const value = Number(process.env.TELEMETRY_MAX_MATCHES_PER_RUN ?? '50')
+  if (!Number.isFinite(value) || value <= 0) {
+    return 50
+  }
+
+  return Math.min(Math.floor(value), 200)
+}
+
+function getTelemetryBatchConcurrency() {
+  const value = Number(process.env.TELEMETRY_SYNC_CONCURRENCY ?? '2')
+  if (!Number.isFinite(value) || value <= 0) {
+    return 2
+  }
+
+  return Math.min(Math.floor(value), 8)
 }
 
 function getFailureTracker() {
@@ -152,6 +194,129 @@ async function syncClanWithRetry(clanId: number, clanName: string) {
   }
 
   throw lastError instanceof Error ? lastError : new Error('Clan sync failed')
+}
+
+async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSyncSummary> {
+  if (!isTelemetrySyncEnabled()) {
+    return {
+      status: 'skipped',
+      reason: 'telemetry_sync_disabled',
+      scanned: 0,
+      parsed: 0,
+      failed: 0,
+      skipped: 0,
+    }
+  }
+
+  try {
+    const result = await syncTelemetryBatchForRecentSquadMatches({
+      clanId,
+      maxMatchesPerRun: getTelemetryMaxMatchesPerRun(),
+      concurrency: getTelemetryBatchConcurrency(),
+    })
+
+    if (result.failed > 0 && result.parsed > 0) {
+      return {
+        status: 'partial',
+        reason: 'batch_completed_with_failures',
+        scanned: result.scanned,
+        parsed: result.parsed,
+        failed: result.failed,
+        skipped: result.skipped,
+      }
+    }
+
+    if (result.failed > 0) {
+      return {
+        status: 'failed',
+        reason: 'batch_completed_with_only_failures',
+        scanned: result.scanned,
+        parsed: result.parsed,
+        failed: result.failed,
+        skipped: result.skipped,
+      }
+    }
+
+    return {
+      status: 'success',
+      reason: result.scanned > 0 ? 'batch_completed' : 'no_match_to_process',
+      scanned: result.scanned,
+      parsed: result.parsed,
+      failed: result.failed,
+      skipped: result.skipped,
+    }
+  } catch (error) {
+    return {
+      status: 'failed',
+      reason: error instanceof Error ? error.message : 'telemetry_batch_failed',
+      scanned: 0,
+      parsed: 0,
+      failed: 0,
+      skipped: 0,
+    }
+  }
+}
+
+async function runTelemetryAggregateRefreshForClan(
+  clanId: number,
+  telemetrySync: TelemetryCronSyncSummary
+): Promise<TelemetryAggregateCronSummary> {
+  if (!isTelemetrySyncEnabled()) {
+    return {
+      status: 'skipped',
+      reason: 'telemetry_sync_disabled',
+      periodsUpdated: 0,
+      memberTelemetryRows: 0,
+      memberWeaponRows: 0,
+      clanSynergyRows: 0,
+    }
+  }
+
+  if (telemetrySync.parsed <= 0) {
+    return {
+      status: 'skipped',
+      reason: 'no_new_telemetry_snapshot',
+      periodsUpdated: 0,
+      memberTelemetryRows: 0,
+      memberWeaponRows: 0,
+      clanSynergyRows: 0,
+    }
+  }
+
+  try {
+    const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(clanId)
+    const periodsUpdated = aggregateResult.summaries.length
+    const memberTelemetryRows = aggregateResult.summaries.reduce(
+      (sum, summary) => sum + summary.memberTelemetryRows,
+      0
+    )
+    const memberWeaponRows = aggregateResult.summaries.reduce(
+      (sum, summary) => sum + summary.memberWeaponRows,
+      0
+    )
+    const clanSynergyRows = aggregateResult.summaries.reduce(
+      (sum, summary) => sum + summary.clanSynergyRows,
+      0
+    )
+
+    return {
+      status: 'success',
+      reason: 'period_aggregates_refreshed',
+      periodsUpdated,
+      memberTelemetryRows,
+      memberWeaponRows,
+      clanSynergyRows,
+    }
+  } catch (error) {
+    return {
+      status: 'failed',
+      reason: error instanceof Error ? error.message : 'telemetry_aggregate_refresh_failed',
+      periodsUpdated: 0,
+      memberTelemetryRows: 0,
+      memberWeaponRows: 0,
+      clanSynergyRows: 0,
+    }
+  }
 }
 
 async function recalculateStatsDaily() {
@@ -340,6 +505,8 @@ async function runDailyClanSync() {
         const clanImportedMatches = result?.importedMatches ?? result?.importedCount ?? 0
         const errorsCount = result?.errorsCount ?? result?.errors?.length ?? 0
         const isPartialSync = result?.status === 'partial' || errorsCount > 0
+        const telemetrySync = await runTelemetryBatchForClan(clan.id)
+        const telemetryAggregateSync = await runTelemetryAggregateRefreshForClan(clan.id, telemetrySync)
         syncedClans += 1
         importedMatches += clanImportedMatches
         failureTracker.set(clan.id, 0)
@@ -358,6 +525,8 @@ async function runDailyClanSync() {
               importedMatches: clanImportedMatches,
               errorsCount,
               errorsPreview: result?.errorsPreview ?? result?.errors?.slice(0, 5),
+              telemetrySync,
+              telemetryAggregateSync,
               statsSync: {
                 status: 'skipped',
                 reason: 'partial_import',
@@ -377,6 +546,8 @@ async function runDailyClanSync() {
             message: 'Daily sync completed: no new matches, stats recalculation skipped.',
             details: {
               importedMatches: clanImportedMatches,
+              telemetrySync,
+              telemetryAggregateSync,
               statsSync: {
                 status: 'skipped',
                 reason: 'no_new_matches',
@@ -401,6 +572,8 @@ async function runDailyClanSync() {
             message: `Daily sync completed: ${clanImportedMatches} imported match(es), but stats recalculation failed.`,
             details: {
               importedMatches: clanImportedMatches,
+              telemetrySync,
+              telemetryAggregateSync,
               statsSync: {
                 status: 'failed',
                 reason: statsErrorMessage,
@@ -419,6 +592,8 @@ async function runDailyClanSync() {
           message: `Daily sync completed: ${clanImportedMatches} imported match(es). Stats recalculated automatically.`,
           details: {
             importedMatches: clanImportedMatches,
+            telemetrySync,
+            telemetryAggregateSync,
             statsSync: {
               status: 'success',
               reason: 'post_import_recalc',

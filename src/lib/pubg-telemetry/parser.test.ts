@@ -88,6 +88,81 @@ describe('parseTelemetrySnapshot', () => {
       'Telemetry stream ended before closing JSON array'
     )
   })
+
+  it('extracts member and weapon stats from nested PUBG event actors', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogPlayerPosition',
+        character: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+      },
+      {
+        _T: 'LogPlayerTakeDamage',
+        attacker: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        victim: {
+          accountId: 'player_victim',
+          name: 'VictimName',
+        },
+        damage: 37,
+        damageTypeCategory: 'Damage_BlueZone',
+        damageCauserName: 'WeapM416_C',
+      },
+      {
+        _T: 'LogPlayerRevive',
+        reviver: {
+          accountId: 'player_support',
+          name: 'SupportName',
+        },
+        victim: {
+          accountId: 'player_victim',
+          name: 'VictimName',
+        },
+      },
+      {
+        _T: 'LogPlayerKillV2',
+        killer: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        victim: {
+          accountId: 'player_victim',
+          name: 'VictimName',
+        },
+        killerDamageInfo: {
+          damageCauserName: 'WeapM416_C',
+          damageReason: 'HeadShot',
+        },
+      },
+    ])
+
+    const attacker = result.memberStats.find((entry) => entry.memberKey === 'player_attacker')
+    const victim = result.memberStats.find((entry) => entry.memberKey === 'player_victim')
+    const support = result.memberStats.find((entry) => entry.memberKey === 'player_support')
+    const weapon = result.weaponStats.find((entry) => entry.weaponName === 'WeapM416_C')
+
+    expect(attacker).toBeDefined()
+    expect(attacker?.positionEvents).toBe(1)
+    expect(attacker?.damageDealt).toBe(37)
+    expect(attacker?.kills).toBe(1)
+    expect(attacker?.headshots).toBe(1)
+
+    expect(victim).toBeDefined()
+    expect(victim?.deaths).toBe(1)
+    expect(victim?.blueZoneHits).toBe(1)
+
+    expect(support).toBeDefined()
+    expect(support?.revives).toBe(1)
+
+    expect(weapon).toBeDefined()
+    expect(weapon?.kills).toBe(1)
+    expect(weapon?.headshots).toBe(1)
+    expect(weapon?.damageDealt).toBe(37)
+  })
 })
 
 describe('parseTelemetrySnapshot golden integration set', () => {

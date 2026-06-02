@@ -10,6 +10,7 @@ import {
 } from '@/lib/cron-observability'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
+import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
@@ -17,6 +18,7 @@ import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
 type CronAction =
   | 'sync_matches'
   | 'sync_stats'
+  | 'sync_telemetry_aggregates'
   | 'sync_lifetime_stats'
   | 'generate_weekly_report'
   | 'generate_monthly_report'
@@ -46,6 +48,7 @@ function parseAction(value: unknown): CronAction | null {
   if (
     value === 'sync_matches' ||
     value === 'sync_stats' ||
+    value === 'sync_telemetry_aggregates' ||
     value === 'sync_lifetime_stats' ||
     value === 'generate_weekly_report' ||
     value === 'generate_monthly_report'
@@ -375,6 +378,45 @@ export async function POST(
         ok: true,
         action,
         message: 'Synchronisation des stats terminee',
+      })
+    }
+
+    if (action === 'sync_telemetry_aggregates') {
+      const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(parsedClanId)
+      const memberTelemetryRows = aggregateResult.summaries.reduce(
+        (sum, summary) => sum + summary.memberTelemetryRows,
+        0
+      )
+      const memberWeaponRows = aggregateResult.summaries.reduce(
+        (sum, summary) => sum + summary.memberWeaponRows,
+        0
+      )
+      const clanSynergyRows = aggregateResult.summaries.reduce(
+        (sum, summary) => sum + summary.clanSynergyRows,
+        0
+      )
+
+      await finishCronExecution({
+        id: executionLog.id,
+        startedAt: executionLog.startedAt,
+        status: 'success',
+        message: `Recalcul telemetry termine: ${aggregateResult.summaries.length} periode(s), ${memberTelemetryRows} rows membre, ${clanSynergyRows} rows synergie.`,
+        details: {
+          summaries: aggregateResult.summaries,
+          memberTelemetryRows,
+          memberWeaponRows,
+          clanSynergyRows,
+        },
+      })
+
+      return NextResponse.json({
+        ok: true,
+        action,
+        periodsUpdated: aggregateResult.summaries.length,
+        memberTelemetryRows,
+        memberWeaponRows,
+        clanSynergyRows,
+        message: `Recalcul telemetry termine: ${aggregateResult.summaries.length} periode(s) mises a jour.`,
       })
     }
 

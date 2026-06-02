@@ -408,7 +408,7 @@ Rollback:
 - Tests unitaires + intégration
 - Monitoring et runbook de prod
 
-## Verification d'avancement (basee sur nos echanges + code au 01/06/2026)
+## Verification d'avancement (basee sur nos echanges + code au 02/06/2026)
 
 Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 
@@ -417,12 +417,15 @@ Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 - [x] Extraction de l'URL telemetry asset depuis le match (`src/lib/pubg.ts`, `fetchMatchDetailsWithTelemetryAsset`).
 - [x] Client CDN telemetry avec garde-fous (`src/lib/pubg-telemetry/client.ts`: timeout, limite taille, validation URL).
 - [x] Parser minimal (`src/lib/pubg-telemetry/parser.ts`) avec summary/weaponStats/memberStats.
+- [x] Correctif parser sur fixtures reelles: extraction des identites joueur depuis objets imbriques (`killer/attacker/victim/reviver/character`) + detection arme/headshot via `*DamageInfo` (`src/lib/pubg-telemetry/parser.ts`).
 - [x] Snapshot DB par match (`SquadMatchTelemetry`) avec relation 1:1 et index status/updatedAt.
 - [x] Declenchement manuel Owner (`POST /api/clans/[clanId]/telemetry/sync-selected`).
 - [x] UI de selection sur la page session + bouton de recuperation manuelle.
 - [x] Exposition telemetry dans l'API matchs (`GET /api/clans/[clanId]/matches`) et affichage dans la liste des matchs.
 - [x] Page provisoire d'observabilite recoveries (`/clans/[clanId]/telemetry/recoveries`) + API associee.
 - [x] Corpus reel valide: 20 fixtures capturees (`.telemetry-captured`) parsees en tests avec budget 2000 ms (`avgParseMs=359.3`, `p95ParseMs=508`).
+- [x] Validation live (02/06/2026): recuperation manuelle 15/15 puis recalcul force `sync_telemetry_aggregates` OK (`periodsUpdated=3`, `memberTelemetryRows=18`, `clanSynergyRows=27`).
+- [x] Validation UI live (02/06/2026): `Synergies > Telemetry` et `Carte playstyle clan` affichent des donnees non vides apres sync + recalcul.
 
 ### Ce qui est partiellement livre
 
@@ -435,12 +438,13 @@ Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 - [x] Job backlog + orchestrateur generique (`src/lib/pubg-telemetry/backlog.ts`, `index.ts`, `job.ts`) en place.
 - [x] Integration cron telemetry initiale en place dans `runDailyClanSync` (gatee par `TELEMETRY_SYNC_ENABLED`).
 - [x] Champs de reprise avances (`attemptCount`, `lastAttemptAt`, `nextRetryAt`) ajoutes dans `SquadMatchTelemetry`.
-- [~] Agregats periodiques dedies implementes partiellement: tables `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats` + recalcul periodique cron; alimentation `MemberWeaponStats` reste limitee par le snapshot parser v1.
+- [~] Agregats periodiques dedies implementes partiellement: tables `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats` + recalcul periodique cron; la collecte des cles joueurs (memberStats/synergies/playstyle) est corrigee sur parser v1, l'enrichissement metier fin reste a faire.
 - [~] APIs telemetry partiellement livrees: clan `/telemetry/weapons`, `/telemetry/synergies`, `/telemetry/playstyle`, `/telemetry/circles`, `/telemetry/heatmap`, `/telemetry/vehicles`, `/telemetry/loot`, `/telemetry/observability` + membre `/telemetry/weapons`, `/telemetry/playstyle`, `/telemetry/circles` disponibles; reste surtout l'enrichissement metier des endpoints et la chaleur geospatiale fine.
 - [x] Pages produit telemetry ciblees implementees: `/clans/[clanId]/stats/weapons`, `/clans/[clanId]/stats/heatmap-kills`, `/members/[id]/weapons`.
 - [x] Carte playstyle clan ajoutee sur `/clans/[clanId]/stats` (filtres `week|month|all`, moyennes et tops par axe).
 - [x] Extension synergies livree sur `/clans/[clanId]/matches`: onglet `Telemetry` ajoute au bloc `Synergies` avec chargement API `/api/clans/[clanId]/telemetry/synergies`.
 - [x] Onglet `Synergies > Telemetry` enrichi avec indicateur global de qualite (score combine revive/co-kills/shared damage) + KPIs de volume.
+- [~] Telemetry membre: endpoint `/api/members/[id]/telemetry/playstyle` alimente, mais la page `/members/[id]/weapons` reste vide tant que l'attribution arme-par-membre n'est pas implementee (limite parser v1).
 - [x] Parsing streaming JSON pur (sans `JSON.parse` global) implemente.
 - [x] Suite de tests telemetry: socle unitaire livre, integration corpus reel validee (20 fixtures).
 
@@ -474,8 +478,8 @@ Critere de sortie P2:
 
 ### P3 - UI telemetry ciblee
 
-- [ ] Livrer pages clan weapons + heatmap + extension synergies telemetry.
-- [ ] Livrer page membre weapons + bloc playstyle/zone.
+- [x] Livrer pages clan weapons + heatmap + extension synergies telemetry.
+- [~] Livrer page membre weapons + bloc playstyle/zone (page weapons livree, playstyle membre expose en API; enrichissement UI metier restant selon parser v1).
 - [ ] Conserver la page provisoire recoveries comme console ops (ou la migrer en settings/ops).
 
 Critere de sortie P3:

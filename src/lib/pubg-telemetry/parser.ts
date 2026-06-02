@@ -70,15 +70,104 @@ function getEventType(event: TelemetryEvent) {
   return typeof rawType === 'string' ? rawType : 'Unknown'
 }
 
-function getMemberKey(event: TelemetryEvent, keys: string[]) {
-  for (const key of keys) {
-    const value = event[key]
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim()
+function getStringValue(value: unknown) {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function getValueByPath(root: unknown, path: string) {
+  let cursor: unknown = root
+
+  for (const segment of path.split('.')) {
+    if (!cursor || typeof cursor !== 'object') {
+      return undefined
+    }
+
+    cursor = (cursor as Record<string, unknown>)[segment]
+  }
+
+  return cursor
+}
+
+function getFirstStringFromPaths(root: unknown, paths: string[]) {
+  for (const path of paths) {
+    const value = getStringValue(getValueByPath(root, path))
+    if (value) {
+      return value
     }
   }
 
   return null
+}
+
+function getKillerKey(event: TelemetryEvent) {
+  return getFirstStringFromPaths(event, [
+    'killer.accountId',
+    'killer.name',
+    'attacker.accountId',
+    'attacker.name',
+    'finisher.accountId',
+    'finisher.name',
+    'dBNOMaker.accountId',
+    'dBNOMaker.name',
+    'killerName',
+    'attackerName',
+    'playerId',
+    'accountId',
+  ])
+}
+
+function getVictimKey(event: TelemetryEvent) {
+  return getFirstStringFromPaths(event, [
+    'victim.accountId',
+    'victim.name',
+    'target.accountId',
+    'target.name',
+    'victimName',
+    'targetName',
+    'playerId',
+  ])
+}
+
+function getReviverKey(event: TelemetryEvent) {
+  return getFirstStringFromPaths(event, [
+    'reviver.accountId',
+    'reviver.name',
+    'reviverName',
+    'helperName',
+  ])
+}
+
+function getCharacterKey(event: TelemetryEvent) {
+  return getFirstStringFromPaths(event, ['character.accountId', 'character.name', 'accountId', 'playerId'])
+}
+
+function isHeadshotKill(event: TelemetryEvent) {
+  if (event.headshot === true || event.isHeadshot === true) {
+    return true
+  }
+
+  const damageReason = getFirstStringFromPaths(event, [
+    'killerDamageInfo.damageReason',
+    'finishDamageInfo.damageReason',
+    'dBNODamageInfo.damageReason',
+    'damageReason',
+  ])
+
+  return damageReason?.toLowerCase().includes('headshot') === true
+}
+
+function isBlueZoneDamage(event: TelemetryEvent) {
+  const category = getFirstStringFromPaths(event, ['damageTypeCategory'])
+  if (!category) {
+    return false
+  }
+
+  return category.toLowerCase().includes('bluezone')
 }
 
 function getWeaponName(event: TelemetryEvent) {
@@ -87,6 +176,9 @@ function getWeaponName(event: TelemetryEvent) {
     event.weapon,
     event.weaponName,
     event.damageCauserName,
+    getValueByPath(event, 'killerDamageInfo.damageCauserName'),
+    getValueByPath(event, 'finishDamageInfo.damageCauserName'),
+    getValueByPath(event, 'dBNODamageInfo.damageCauserName'),
     getObjectProperty(item, 'weaponName'),
     getObjectProperty(item, 'name'),
   ]
@@ -182,10 +274,10 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   accumulator.eventTypes.add(eventType)
   accumulator.summary.totalEvents += 1
 
-  const killerKey = getMemberKey(event, ['killerName', 'killer', 'attackerName', 'attacker', 'playerId'])
-  const victimKey = getMemberKey(event, ['victimName', 'victim', 'targetName', 'target', 'playerId'])
-  const reviveKey = getMemberKey(event, ['reviverName', 'reviver', 'helperName'])
-  const knockedKey = getMemberKey(event, ['victimName', 'victim', 'targetName', 'target'])
+  const killerKey = getKillerKey(event)
+  const victimKey = getVictimKey(event)
+  const reviveKey = getReviverKey(event)
+  const actorKey = getCharacterKey(event)
   const weaponName = getWeaponName(event)
   const damage = getDamageValue(event)
 
@@ -197,11 +289,15 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
     if (victimKey) {
       getOrCreateMemberStats(accumulator.memberStats, victimKey).deaths += 1
     }
+    const wasHeadshot = isHeadshotKill(event)
+    if (killerKey && wasHeadshot) {
+      getOrCreateMemberStats(accumulator.memberStats, killerKey).headshots += 1
+    }
     if (weaponName) {
       const weapon = getOrCreateWeaponStats(accumulator.weaponStats, weaponName)
       weapon.kills += 1
       weapon.damageDealt += damage
-      if (event.headshot === true || event.isHeadshot === true) {
+      if (wasHeadshot) {
         weapon.headshots += 1
       }
     }
@@ -221,9 +317,6 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
     if (killerKey) {
       getOrCreateMemberStats(accumulator.memberStats, killerKey).knockouts += 1
     }
-    if (knockedKey) {
-      getOrCreateMemberStats(accumulator.memberStats, knockedKey).deaths += 0
-    }
     return
   }
 
@@ -236,6 +329,9 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       const weapon = getOrCreateWeaponStats(accumulator.weaponStats, weaponName)
       weapon.damageDealt += damage
     }
+    if (victimKey && isBlueZoneDamage(event)) {
+      getOrCreateMemberStats(accumulator.memberStats, victimKey).blueZoneHits += 1
+    }
     return
   }
 
@@ -246,8 +342,8 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogVehicleRide' || eventType === 'LogVehicleLeave' || eventType === 'LogVehicleDestroy') {
     accumulator.summary.vehicleEvents += 1
-    if (killerKey) {
-      const member = getOrCreateMemberStats(accumulator.memberStats, killerKey)
+    if (actorKey) {
+      const member = getOrCreateMemberStats(accumulator.memberStats, actorKey)
       if (eventType === 'LogVehicleRide') {
         member.vehicleRideEvents += 1
       }
@@ -260,8 +356,8 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogPlayerPosition') {
     accumulator.summary.positionEvents += 1
-    if (killerKey) {
-      getOrCreateMemberStats(accumulator.memberStats, killerKey).positionEvents += 1
+    if (actorKey) {
+      getOrCreateMemberStats(accumulator.memberStats, actorKey).positionEvents += 1
     }
     return
   }

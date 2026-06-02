@@ -406,3 +406,30 @@ La fonction `getMatch` dans `pubg.ts` renvoie déjà `relationships.assets` (via
 - Le JSON brut de télémétrie ne doit jamais être stocké en DB (volume). Seuls les agrégats calculés.
 - Les heatmaps de positions nécessitent un système de coordonnées par carte (mapping x/y PUBG → overlay SVG) : travail supplémentaire non trivial.
 - L'URL télémétrie dans la réponse `getMatch` est dans `included` (type `asset`) — à extraire dans `resolveMatch` si besoin côté `pubg.ts`.
+
+---
+
+## Mise à jour implementation (02/06/2026)
+
+Cette section synchronise ce document avec l'etat reel valide en environnement local.
+
+### Valide en live
+
+- Recuperation manuelle telemetry sur session: 15 succes, 0 echec, 15 matchs traites.
+- Recalcul force des agregats via `sync_telemetry_aggregates` execute avec succes.
+- Resultat recalcul observe: `periodsUpdated=3`, `memberTelemetryRows=18`, `clanSynergyRows=27`, `memberWeaponRows=0`.
+- UI clan confirmee non vide apres sync + recalcul:
+  - `/clans/[clanId]/matches` -> onglet `Synergies > Telemetry` rempli (KPI + tops).
+  - `/clans/[clanId]/stats` -> carte `playstyle clan` remplie.
+
+### Etat membre (important)
+
+- Endpoint membre playstyle alimente (`/api/members/[id]/telemetry/playstyle`) avec stats individuelles.
+- Endpoint/page armes membre (`/api/members/[id]/telemetry/weapons`, `/members/[id]/weapons`) restent vides dans l'etat actuel.
+- Cause connue: parser v1 ne produit pas encore une attribution arme-par-membre exploitable pour `MemberWeaponStats`.
+
+### Correctif parser confirme
+
+- Les events reels PUBG utilisent majoritairement des objets imbriques (`killer`, `attacker`, `victim`, `reviver`, `character`) avec `accountId`/`name`.
+- Le parser a ete corrige pour extraire ces champs imbriques et la detection arme/headshot via `*DamageInfo`.
+- Effet attendu confirme: blocs synergies/playstyle de nouveau alimentes apres recuperation + recalcul.

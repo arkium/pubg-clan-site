@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 export type CronActionKey =
   | 'sync_matches'
   | 'sync_stats'
+  | 'sync_telemetry_aggregates'
   | 'sync_lifetime_stats'
   | 'generate_weekly_report'
   | 'generate_monthly_report'
@@ -23,6 +24,7 @@ export type CronSource = 'manual' | 'scheduler' | 'system'
 export const CRON_ACTION_LABELS: Record<CronActionKey, string> = {
   sync_matches: 'Sync matchs',
   sync_stats: 'Sync stats',
+  sync_telemetry_aggregates: 'Recalcul telemetry aggregates',
   sync_lifetime_stats: 'Sync stats lifetime',
   generate_weekly_report: 'Rapport hebdo',
   generate_monthly_report: 'Rapport mensuel',

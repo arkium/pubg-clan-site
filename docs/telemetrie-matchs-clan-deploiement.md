@@ -381,6 +381,10 @@ Cibles:
 4. Vérifier observabilité 48h.
 5. Activer globalement.
 
+Runbook detaille:
+
+- voir `docs/telemetrie-rollout.md` pour la sequence executable (preflight, dry-run opere, pilote automatise, extension globale, rollback).
+
 Rollback:
 
 - Couper TELEMETRY_SYNC_ENABLED.
@@ -426,27 +430,29 @@ Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 - [x] Corpus reel valide: 20 fixtures capturees (`.telemetry-captured`) parsees en tests avec budget 2000 ms (`avgParseMs=359.3`, `p95ParseMs=508`).
 - [x] Validation live (02/06/2026): recuperation manuelle 15/15 puis recalcul force `sync_telemetry_aggregates` OK (`periodsUpdated=3`, `memberTelemetryRows=18`, `clanSynergyRows=27`).
 - [x] Validation UI live (02/06/2026): `Synergies > Telemetry` et `Carte playstyle clan` affichent des donnees non vides apres sync + recalcul.
+- [x] TEL-202 (03/06/2026): batch telemetry priorise `failed -> pending -> rebuild(parserVersion)` et expose le suivi `queued.{failed,pending,rebuild}` + `reprocessed` dans le resultat de job.
+- [x] TEL-203 (03/06/2026): endpoints telemetry clan/membre harmonises sur un contrat commun `ok + meta + data` avec compatibilite descendante (champs legacy conserves).
 
 ### Ce qui est partiellement livre
 
 - [x] Phase 0 - Preparation: migrations telemetry OK, feature flag `TELEMETRY_SYNC_ENABLED` branche au flux runtime.
 - [x] Phase 1 - Ingestion/parsing minimal: disponible en mode manuel et automatise via cron telemetry.
-- [~] Observabilite: vue recoveries disponible et metriques techniques batch/cron ajoutees (`bytesDownloaded`, `fetchMatchMs`, `downloadAssetMs`, `parseMs`, `persistMs`), mais pas encore de series de metriques consolidees type dashboard/time-series.
+- [~] Observabilite: vue recoveries disponible et metriques techniques batch/cron ajoutees (`bytesDownloaded`, `fetchMatchMs`, `downloadAssetMs`, `parseMs`, `persistMs`); dashboard observability 24h/7j/30j/all livre sur l'endpoint/page recoveries (totaux, p95, alertes seuils), reste a brancher si besoin vers une vraie serie temporelle externe.
 
 ### Ce qui reste a faire (ecart principal avec cette doc)
 
 - [x] Job backlog + orchestrateur generique (`src/lib/pubg-telemetry/backlog.ts`, `index.ts`, `job.ts`) en place.
 - [x] Integration cron telemetry initiale en place dans `runDailyClanSync` (gatee par `TELEMETRY_SYNC_ENABLED`).
 - [x] Champs de reprise avances (`attemptCount`, `lastAttemptAt`, `nextRetryAt`) ajoutes dans `SquadMatchTelemetry`.
-- [~] Agregats periodiques dedies implementes partiellement: tables `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats` + recalcul periodique cron; la collecte des cles joueurs (memberStats/synergies/playstyle) est corrigee sur parser v1, l'enrichissement metier fin reste a faire.
+- [~] Agregats periodiques dedies implementes partiellement: tables `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats` + recalcul periodique cron; l'attribution arme-par-membre est implementee dans le parser v2 (weapons embarques dans `memberStats`), reste a faire: reprocess parserVersion + enrichissement metier fin.
 - [~] APIs telemetry partiellement livrees: clan `/telemetry/weapons`, `/telemetry/synergies`, `/telemetry/playstyle`, `/telemetry/circles`, `/telemetry/heatmap`, `/telemetry/vehicles`, `/telemetry/loot`, `/telemetry/observability` + membre `/telemetry/weapons`, `/telemetry/playstyle`, `/telemetry/circles` disponibles; reste surtout l'enrichissement metier des endpoints et la chaleur geospatiale fine.
 - [x] Pages produit telemetry ciblees implementees: `/clans/[clanId]/stats/weapons`, `/clans/[clanId]/stats/heatmap-kills`, `/members/[id]/weapons`.
 - [x] Carte playstyle clan ajoutee sur `/clans/[clanId]/stats` (filtres `week|month|all`, moyennes et tops par axe).
 - [x] Extension synergies livree sur `/clans/[clanId]/matches`: onglet `Telemetry` ajoute au bloc `Synergies` avec chargement API `/api/clans/[clanId]/telemetry/synergies`.
 - [x] Onglet `Synergies > Telemetry` enrichi avec indicateur global de qualite (score combine revive/co-kills/shared damage) + KPIs de volume.
-- [~] Telemetry membre: endpoint `/api/members/[id]/telemetry/playstyle` alimente, mais la page `/members/[id]/weapons` reste vide tant que l'attribution arme-par-membre n'est pas implementee (limite parser v1).
+- [~] Telemetry membre: endpoint `/api/members/[id]/telemetry/playstyle` alimente; attribution arme-par-membre implementee cote parser/aggregats (v2), reste a faire: rerun/rebuild des snapshots pour remplir `MemberWeaponStats` sur l'historique.
 - [x] Parsing streaming JSON pur (sans `JSON.parse` global) implemente.
-- [x] Suite de tests telemetry: socle unitaire livre, integration corpus reel validee (20 fixtures).
+- [x] Suite de tests telemetry: socle unitaire livre, integration corpus reel validee (20 fixtures), tests de contrats API harmonises ajoutes (member weapons + observability clan) et test d'idempotence du recalcul d'agregats telemetry ajoute.
 
 ## Roadmap actualisee (priorites)
 
@@ -467,7 +473,7 @@ Critere de sortie P1:
 ### P2 - Agregats et APIs metier
 
 - [x] Ajouter tables agregats periodiques (`MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats`).
-- [~] Alimenter week/month/all depuis snapshots match (member telemetry + synergies OK, member weapons limite par parser v1).
+- [~] Alimenter week/month/all depuis snapshots match (member telemetry + synergies OK, member weapons disponibles sur snapshots parser v2; backlog de reprocessing v1 -> v2 a executer).
 - [~] Exposer APIs clan/membre telemetry de la section "APIs a creer" (clan weapons/synergies/playstyle/circles/heatmap/vehicles/loot + membre weapons/playstyle/circles livres, reste a completer).
 
 Critere de sortie P2:
@@ -479,8 +485,8 @@ Critere de sortie P2:
 ### P3 - UI telemetry ciblee
 
 - [x] Livrer pages clan weapons + heatmap + extension synergies telemetry.
-- [~] Livrer page membre weapons + bloc playstyle/zone (page weapons livree, playstyle membre expose en API; enrichissement UI metier restant selon parser v1).
-- [ ] Conserver la page provisoire recoveries comme console ops (ou la migrer en settings/ops).
+- [~] Livrer page membre weapons + bloc playstyle/zone (page weapons livree avec etats loading/empty/error + retry + liens ops; bloc dashboard playstyle/discipline zone branche sur l'API membre avec filtres periode alignes; enrichissement UI metier restant selon parser v1).
+- [x] Conserver la page recoveries comme console ops officielle et ajouter un acces direct Owner depuis Ops Cron/navigation.
 
 Critere de sortie P3:
 
@@ -491,7 +497,7 @@ Critere de sortie P3:
 
 - [x] Passer a un parser JSON streaming reel.
 - [x] Ajouter tests unitaires + integration sur corpus reel (10-20 matchs): socle unitaire livre, corpus reel valide sur 20 fixtures reelles.
-- [~] Instrumenter metriques telemetry (`matches.scanned/parsed/failed`, `fetch.ms`, `parse.ms`, `asset.bytes`) : metriques exposees dans les resultats batch/cron, reste a brancher vers un tableau de bord/series de temps.
+- [~] Instrumenter metriques telemetry (`matches.scanned/parsed/failed`, `fetch.ms`, `parse.ms`, `asset.bytes`) : metriques exposees dans les resultats batch/cron et dashboard observability UI (totaux, p95, alertes), reste a brancher vers une serie de temps externe si necessaire.
 - [ ] Executer rollout progressif (flag off -> dry-run -> clan pilote -> global).
 
 Critere de sortie P4:
@@ -499,6 +505,343 @@ Critere de sortie P4:
 - stabilite prouvee sur 48h mini,
 - observabilite suffisante pour diagnostiquer sans SQL manuel,
 - procedure de rollback validee.
+
+## Plan d'action executable en tickets (ordre recommande)
+
+Objectif de ce plan: transformer les ecarts restants en tickets concrets, livrables par lot court, sans regressions du pipeline deja en prod technique.
+
+### Lot A - P2 donnees metier (priorite haute)
+
+Ticket A1 - Attribution armes par membre (parser v2)
+
+- Scope:
+  - enrichir le parser pour relier chaque evenement arme au bon membre du clan de facon deterministe,
+  - gerer les cas ambigus (noms manquants, bots, events incomplets) avec une strategie explicite,
+  - versionner le parser en `v2` et conserver compatibilite lecture `v1`.
+- Fichiers cibles:
+  - `src/lib/pubg-telemetry/parser.ts`
+  - `src/lib/pubg-telemetry/types.ts`
+  - tests telemetry associes.
+- Definition of Done:
+  - `/members/[id]/weapons` retourne des donnees non vides sur echantillon reel,
+  - taux d'evenements armes non attribues mesure et trace,
+  - aucune regression sur revives/co-kills/playstyle existants.
+
+Ticket A2 - Rebuild controle des snapshots parserVersion
+
+- Scope:
+  - ajouter un job de requeue/rebuild pour matchs `success` en `v1` lors d'un passage `v2`,
+  - limiter le debit (batch borne) et conserver idempotence,
+  - journaliser progression et erreurs.
+- Fichiers cibles:
+  - `src/lib/pubg-telemetry/backlog.ts`
+  - `src/lib/pubg-telemetry/job.ts`
+  - orchestration cron telemetry.
+- Definition of Done:
+  - backlog parserVersion obsolete vide apres execution,
+  - aucun doublon d'agregats periodiques,
+  - execution interrompable et reprenable sans perte.
+- Etat: implementation job/backlog livree (priorisation + comptage reprocess), execution de rattrapage globale a lancer en environnement cible.
+
+Ticket A3 - Enrichissement endpoints telemetry (clan/membre)
+
+- Scope:
+  - completer les payloads metier des endpoints `weapons/circles/vehicles/loot/heatmap`,
+  - uniformiser formats de reponse (tri, pagination, bornes),
+  - documenter contrats JSON stables.
+- Fichiers cibles:
+  - routes `src/app/api/clans/[clanId]/telemetry/*`
+  - routes `src/app/api/members/[id]/telemetry/*`
+  - docs API.
+- Definition of Done:
+  - toutes les routes de la section "APIs a creer" renvoient des donnees exploitables,
+  - p95 < 300 ms sur dataset moyen,
+  - tests integration API verts.
+
+### Lot B - P3 UI produit (priorite haute)
+
+Ticket B1 - Finalisation page membre weapons
+
+- Scope:
+  - afficher les statistiques armes reellement alimentees par A1,
+  - gerer etats vide/loading/erreur propres,
+  - ajouter filtres periode coherents avec le reste du produit.
+- Fichiers cibles:
+  - page membre stats weapons,
+  - composants telemetry membre associes.
+- Definition of Done:
+  - page non vide sur clan pilote,
+  - coherence responsive desktop/mobile,
+  - pas de warning runtime/client.
+
+Ticket B2 - Bloc playstyle/zone sur dashboard membre
+
+- Scope:
+  - integrer les KPIs playstyle + discipline zone sur le dashboard membre,
+  - harmoniser wording/legendes avec la page clan stats.
+- Definition of Done:
+  - composant visible et alimente en `week|month|all`,
+  - UX validee sur echantillon membres actifs/inactifs.
+
+Ticket B3 - Decision produit sur recoveries
+
+- Scope:
+  - trancher: conserver `/telemetry/recoveries` comme console ops officielle,
+  - ajuster navigation + droits (Owner/Admin) avec acces direct depuis Ops Cron.
+- Definition of Done:
+  - un seul parcours ops supporte officiellement,
+  - lien present dans l'UI admin cible.
+- Etat: livre (acces Owner ajoute dans la navigation et lien rapide depuis `/clans/[clanId]/settings/cron`).
+
+### Lot C - P4 observabilite, qualite, rollout (priorite haute)
+
+Ticket C1 - Dashboard metriques telemetry
+
+- Scope:
+  - brancher les metriques existantes vers une serie temporelle,
+  - afficher: scanned/parsed/failed, latences fetch/parse/aggregate, volumes bytes,
+  - fournir une vue 24h/7d/30d.
+- Definition of Done:
+  - dashboard consultable sans SQL manuel,
+  - seuils d'alerte definis pour `failed` et latence p95.
+
+Ticket C2 - Durcissement tests non-regression
+
+- Scope:
+  - ajouter tests de non-regression parser v2 sur corpus reel,
+  - verifier idempotence rebuild + recalcul agregats,
+  - ajouter tests de contrat API telemetry.
+- Definition of Done:
+  - pipeline CI telemetry vert,
+  - rapport de couverture stable sur modules critiques telemetry.
+
+Ticket C3 - Rollout progressif opere
+
+- Scope:
+  - appliquer sequence `flag off -> dry-run -> pilote -> global`,
+  - suivre 48h mini sur pilote avec check-list incidents,
+  - valider rollback operationnel.
+- Definition of Done:
+  - journal de rollout renseigne,
+  - aucun incident bloquant non resolu avant activation globale.
+
+## Ordre d'execution propose (sprintable)
+
+1. A1 puis A2 (fermer la source de verite data armes + migration parserVersion).
+2. A3 en parallele de B1/B2 (APIs metier puis consommation UI).
+3. B3 (decision produit recoveries) avant gel UI.
+4. C1 puis C2 (observabilite et qualite avant exposition large).
+5. C3 (rollout pilote puis global).
+
+## Jalons de validation
+
+- Jalon J1 (fin Lot A): donnees armes membre fiables + endpoints telemetry complets.
+- Jalon J2 (fin Lot B): parcours UI clan/membre complet et coherent.
+- Jalon J3 (fin Lot C): observabilite exploitable + rollout valide en production.
+
+## Backlog sprint (pret a copier GitHub/Jira)
+
+Convention:
+
+- Estimation: S (1-2 j), M (3-5 j), L (5-8 j)
+- Priorite: P0 (critique), P1 (haute), P2 (normale)
+- Type: `feature`, `tech`, `ops`, `qa`
+
+### Epic E1 - Fiabilite data telemetry (P2)
+
+Ticket TEL-201 - Parser v2 attribution armes par membre
+
+- Type: `feature`
+- Priorite: P0
+- Estimation: L
+- Dependances: aucune
+- Description:
+  - enrichir la resolution d'identite joueur sur evenements armes,
+  - tracer les evenements non attribues,
+  - incrementer `TELEMETRY_PARSER_VERSION` vers `v2`.
+- Critere d'acceptation:
+  - endpoint membre weapons retourne des donnees sur fixtures reelles,
+  - taux non attribue visible en metriques,
+  - tests parser existants restent verts.
+
+Ticket TEL-202 - Rebuild controle snapshots parserVersion
+
+- Type: `tech`
+- Priorite: P0
+- Estimation: M
+- Dependances: TEL-201
+- Description:
+  - requeue des snapshots `success` version obsolete,
+  - traitement batche limite et reprenable,
+  - suivi d'avancement par lot.
+- Critere d'acceptation:
+  - backlog obsolete vide apres execution,
+  - aucune duplication d'agregats,
+  - reprise correcte apres interruption.
+- Etat: implementation job/backlog livree (priorisation + comptage reprocess), execution de rattrapage globale a lancer en environnement cible.
+
+Preflight execution reelle (runbook rapide):
+
+1. Verifier que la base cible contient les tables telemetry (`SquadMatchTelemetry`, `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats`).
+2. Verifier qu'au moins un clan actif est present dans `Clan`.
+3. Verifier que le worker cron a `TELEMETRY_SYNC_ENABLED=true`.
+4. Verifier que `TELEMETRY_PARSER_VERSION=v2` est actif sur le worker cron.
+
+Checks SQL minimaux:
+
+```sql
+SELECT id, name, isActive FROM Clan ORDER BY id LIMIT 10;
+SHOW TABLES LIKE 'SquadMatchTelemetry';
+SELECT status, parserVersion, COUNT(*)
+FROM SquadMatchTelemetry
+GROUP BY status, parserVersion
+ORDER BY status, parserVersion;
+```
+
+Critere go/no-go:
+
+- si `Clan` est vide ou `SquadMatchTelemetry` absent: ne pas lancer le backfill (appliquer migrations / pointer la bonne DB d'abord),
+- si `parserVersion=v1` majoritaire: lancer le batch TEL-202 puis recalcul periodique telemetry.
+
+Ticket TEL-203 - Contrats API telemetry homogenes
+
+- Type: `feature`
+- Priorite: P1
+- Estimation: M
+- Dependances: TEL-201
+- Description:
+  - homogeniser payloads et bornes sur clan/membre,
+  - normaliser tri/pagination/periode,
+  - documenter schemas de reponse.
+- Critere d'acceptation:
+  - routes telemetry de la doc toutes alimentees,
+  - p95 endpoint cible < 300 ms dataset moyen,
+  - tests integration API verts.
+- Etat: contrat commun livre sur les routes telemetry existantes (meta/data + legacy), enrichissement metier fin des payloads encore a poursuivre selon priorites produit.
+
+### Epic E2 - Finition UI telemetry (P3)
+
+Ticket TEL-301 - Finaliser page membre weapons
+
+- Type: `feature`
+- Priorite: P0
+- Estimation: M
+- Dependances: TEL-201, TEL-203
+- Description:
+  - brancher la data v2,
+  - etats loading/empty/error,
+  - filtres `week|month|all` coherents.
+- Critere d'acceptation:
+  - page exploitable sur clan pilote,
+  - rendu correct desktop/mobile,
+  - pas de warning React runtime.
+- Etat: avancement significatif livre (gestion loading/empty/error, retry et filtres periode harmonises); reste conditionne par le rerun/rebuild parser v2 sur l'historique pour garantir des donnees pleines sur toutes periodes.
+
+Ticket TEL-302 - Bloc playstyle/zone dashboard membre
+
+- Type: `feature`
+- Priorite: P1
+- Estimation: S
+- Dependances: TEL-203
+- Description:
+  - afficher KPIs playstyle + discipline zone,
+  - harmoniser labels avec page clan stats.
+- Critere d'acceptation:
+  - bloc visible et alimente pour `week|month|all`,
+  - UX validee sur profils membre heterogenes.
+- Etat: implemente (bloc playstyle + discipline zone ajoute sur `/members/[id]/dashboard`, connecte a `/api/members/[id]/telemetry/playstyle` avec periode synchronisee sur les stats principales).
+
+Ticket TEL-303 - Decision produit recoveries + navigation ops
+
+- Type: `ops`
+- Priorite: P1
+- Estimation: S
+- Dependances: aucune
+- Description:
+  - arbitrer maintien ou migration page recoveries,
+  - fixer emplacement navigation et permissions.
+- Critere d'acceptation:
+  - un seul point d'entree ops officiel,
+  - documentation ops et menu aligns.
+- Etat: livre (recoveries conservee comme console ops officielle + menu Owner + lien depuis Ops Cron).
+
+### Epic E3 - Observabilite et rollout (P4)
+
+Ticket TEL-401 - Dashboard metriques telemetry
+
+- Type: `ops`
+- Priorite: P0
+- Estimation: M
+- Dependances: TEL-202
+- Description:
+  - publier series temporelles `scanned/parsed/failed`, latences, bytes,
+  - fournir vues 24h/7d/30d,
+  - definir seuils d'alerte.
+- Critere d'acceptation:
+  - dashboard accessible sans SQL,
+  - alertes minimales configurees.
+- Etat: implemente (endpoint `/api/clans/[clanId]/telemetry/observability` enrichi avec health/p95/alertes, dashboard affiche sur `/clans/[clanId]/telemetry/recoveries`).
+
+Ticket TEL-402 - Durcissement suite de tests telemetry
+
+- Type: `qa`
+- Priorite: P1
+- Estimation: M
+- Dependances: TEL-201, TEL-203
+- Description:
+  - non-regression parser v2 sur corpus reel,
+  - tests idempotence rebuild,
+  - tests contrats API.
+- Critere d'acceptation:
+  - pipeline CI telemetry vert,
+  - couverture stable sur modules critiques.
+- Etat: solide premier durcissement livre (tests de contrats API pour `member/weapons` et `clan/observability` + test d'idempotence du recalcul `period-aggregates`; socle parser/job deja vert). Extensions possibles ensuite sur rebuild de bout en bout si necessaire.
+
+Ticket TEL-403 - Rollout pilote puis global
+
+- Type: `ops`
+- Priorite: P0
+- Estimation: M
+- Dependances: TEL-401, TEL-402, TEL-301
+- Description:
+  - sequence `flag off -> dry-run -> pilote -> global`,
+  - surveillance 48h,
+  - validation procedure rollback.
+- Critere d'acceptation:
+  - journal de rollout complete,
+  - zero incident bloquant ouvert avant global.
+- Etat: runbook dedie redige dans `docs/telemetrie-rollout.md`; execution operationnelle a mener sur l'environnement cible.
+
+## Proposition de planning (2 sprints)
+
+Sprint S1:
+
+- TEL-201
+- TEL-202
+- TEL-203
+- TEL-303 (done)
+
+Objectif S1: fiabiliser la donnee telemetry et stabiliser les contrats API.
+
+Sprint S2:
+
+- TEL-301
+- TEL-302
+- TEL-401
+- TEL-402
+- TEL-403
+
+Objectif S2: finaliser l'experience UI, poser l'observabilite production et acter le rollout.
+
+## Vue dependances rapide
+
+- TEL-201 -> TEL-202
+- TEL-201 -> TEL-203
+- TEL-203 -> TEL-301
+- TEL-203 -> TEL-302
+- TEL-202 -> TEL-401
+- TEL-201 + TEL-203 -> TEL-402
+- TEL-301 + TEL-401 + TEL-402 -> TEL-403
 
 ## Exemple de bloc fun en bas de page
 

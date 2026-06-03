@@ -46,6 +46,148 @@ type SortKey = 'updatedAt' | 'status' | 'bytesDownloaded'
 type SortDirection = 'asc' | 'desc'
 type KpiWindow = '24h' | '7d' | '30d' | 'all'
 
+type TelemetryObservabilitySeriesRow = {
+  id: string
+  startedAt: string
+  finishedAt: string | null
+  cronStatus: string
+  durationMs: number | null
+  telemetry: {
+    status: string
+    reason: string | null
+    scanned: number
+    parsed: number
+    failed: number
+    skipped: number
+    bytesDownloaded: number
+    fetchMatchMs: number
+    downloadAssetMs: number
+    parseMs: number
+    persistMs: number
+  }
+}
+
+type TelemetryObservabilityPayload = {
+  ok: boolean
+  data?: {
+    summary?: {
+      runs: number
+      scanned: number
+      parsed: number
+      failed: number
+      skipped: number
+      bytesDownloaded: number
+      fetchMatchMs: number
+      downloadAssetMs: number
+      parseMs: number
+      persistMs: number
+    }
+    health?: {
+      runsWithTelemetry: number
+      successRate: number
+      failedRate: number
+      thresholds: {
+        failedRateMax: number
+        parseP95MaxMs: number
+      }
+      alerts: Array<{
+        key: string
+        label: string
+        value: number
+        threshold: number
+        status: 'ok' | 'warning'
+      }>
+    }
+    latency?: {
+      p95: {
+        fetchMatchMs: number
+        downloadAssetMs: number
+        parseMs: number
+        persistMs: number
+      }
+    }
+    series?: TelemetryObservabilitySeriesRow[]
+  }
+  summary?: {
+    runs: number
+    scanned: number
+    parsed: number
+    failed: number
+    skipped: number
+    bytesDownloaded: number
+    fetchMatchMs: number
+    downloadAssetMs: number
+    parseMs: number
+    persistMs: number
+  }
+  health?: {
+    runsWithTelemetry: number
+    successRate: number
+    failedRate: number
+    thresholds: {
+      failedRateMax: number
+      parseP95MaxMs: number
+    }
+    alerts: Array<{
+      key: string
+      label: string
+      value: number
+      threshold: number
+      status: 'ok' | 'warning'
+    }>
+  }
+  latency?: {
+    p95: {
+      fetchMatchMs: number
+      downloadAssetMs: number
+      parseMs: number
+      persistMs: number
+    }
+  }
+  series?: TelemetryObservabilitySeriesRow[]
+  error?: { message?: string }
+}
+
+type NormalizedTelemetryObservability = {
+  summary: {
+    runs: number
+    scanned: number
+    parsed: number
+    failed: number
+    skipped: number
+    bytesDownloaded: number
+    fetchMatchMs: number
+    downloadAssetMs: number
+    parseMs: number
+    persistMs: number
+  }
+  health: {
+    runsWithTelemetry: number
+    successRate: number
+    failedRate: number
+    thresholds: {
+      failedRateMax: number
+      parseP95MaxMs: number
+    }
+    alerts: Array<{
+      key: string
+      label: string
+      value: number
+      threshold: number
+      status: 'ok' | 'warning'
+    }>
+  }
+  latency: {
+    p95: {
+      fetchMatchMs: number
+      downloadAssetMs: number
+      parseMs: number
+      persistMs: number
+    }
+  }
+  series: TelemetryObservabilitySeriesRow[]
+}
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -107,6 +249,18 @@ function formatDurationMinutes(value: number | null) {
   }
 
   return `${Math.round(value)} min`
+}
+
+function formatMilliseconds(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '-'
+  }
+
+  if (value < 1000) {
+    return `${Math.round(value)} ms`
+  }
+
+  return `${(value / 1000).toFixed(2)} s`
 }
 
 function median(values: number[]) {
@@ -193,6 +347,48 @@ function statusClass(status: 'success' | 'failed' | 'pending') {
   }
 
   return 'border-amber-200 bg-amber-50 text-amber-800'
+}
+
+function healthAlertClass(status: 'ok' | 'warning') {
+  if (status === 'ok') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800'
+  }
+
+  return 'border-amber-200 bg-amber-50 text-amber-800'
+}
+
+function extractObservabilityError(payload: unknown) {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+
+  const typed = payload as { error?: unknown }
+  if (!typed.error || typeof typed.error !== 'object') {
+    return null
+  }
+
+  const errorMessage = (typed.error as { message?: unknown }).message
+  return typeof errorMessage === 'string' && errorMessage.trim() ? errorMessage : null
+}
+
+function normalizeObservabilityPayload(
+  payload: TelemetryObservabilityPayload
+): NormalizedTelemetryObservability | null {
+  const summary = payload.data?.summary ?? payload.summary
+  const health = payload.data?.health ?? payload.health
+  const latency = payload.data?.latency ?? payload.latency
+  const series = payload.data?.series ?? payload.series
+
+  if (!summary || !health || !latency || !Array.isArray(series)) {
+    return null
+  }
+
+  return {
+    summary,
+    health,
+    latency,
+    series,
+  }
 }
 
 function escapeCsvValue(value: string | number | boolean | null | undefined) {
@@ -289,6 +485,11 @@ export default function TelemetryRecoveriesPage() {
   const [secondarySortKey, setSecondarySortKey] = useState<SortKey | 'none'>('status')
   const [secondarySortDirection, setSecondarySortDirection] = useState<SortDirection>('asc')
   const [kpiWindow, setKpiWindow] = useState<KpiWindow>('7d')
+  const [observabilityWindow, setObservabilityWindow] = useState<KpiWindow>('7d')
+  const [loadingObservability, setLoadingObservability] = useState(false)
+  const [observabilityError, setObservabilityError] = useState<string | null>(null)
+  const [observabilityPayload, setObservabilityPayload] =
+    useState<NormalizedTelemetryObservability | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -335,6 +536,52 @@ export default function TelemetryRecoveriesPage() {
     [router]
   )
 
+  const loadObservability = useCallback(
+    async (currentClanId: number, window: KpiWindow) => {
+      try {
+        setLoadingObservability(true)
+        setObservabilityError(null)
+
+        const response = await fetch(
+          `/api/clans/${currentClanId}/telemetry/observability?window=${window}&limit=200`,
+          {
+            cache: 'no-store',
+          }
+        )
+
+        const data = (await response.json().catch(() => null)) as TelemetryObservabilityPayload | null
+
+        if (!response.ok || !data || !data.ok) {
+          if (response.status === 401 || response.status === 403) {
+            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/telemetry/recoveries`)}`)
+            return
+          }
+
+          const message = extractObservabilityError(data) ?? 'Chargement du dashboard observability impossible'
+          setObservabilityPayload(null)
+          setObservabilityError(message)
+          return
+        }
+
+        const normalized = normalizeObservabilityPayload(data)
+        if (!normalized) {
+          setObservabilityPayload(null)
+          setObservabilityError('Format de reponse observability invalide')
+          return
+        }
+
+        setObservabilityPayload(normalized)
+        setObservabilityError(null)
+      } catch {
+        setObservabilityPayload(null)
+        setObservabilityError('Chargement du dashboard observability impossible')
+      } finally {
+        setLoadingObservability(false)
+      }
+    },
+    [router]
+  )
+
   useEffect(() => {
     if (!clanId) {
       return
@@ -342,6 +589,14 @@ export default function TelemetryRecoveriesPage() {
 
     void loadRecoveries(clanId)
   }, [clanId, loadRecoveries])
+
+  useEffect(() => {
+    if (!clanId) {
+      return
+    }
+
+    void loadObservability(clanId, observabilityWindow)
+  }, [clanId, loadObservability, observabilityWindow])
 
   const filteredRows = useMemo(() => {
     if (!payload) {
@@ -475,6 +730,7 @@ export default function TelemetryRecoveriesPage() {
               if (!clanId) return
               setRefreshing(true)
               void loadRecoveries(clanId)
+              void loadObservability(clanId, observabilityWindow)
             }}
             disabled={refreshing}
             className="app-btn app-btn--md app-btn--secondary"
@@ -560,6 +816,181 @@ export default function TelemetryRecoveriesPage() {
               </p>
             </article>
             </div>
+          </section>
+
+          <section className="app-panel p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <h2 className="text-lg font-semibold text-slate-900">Dashboard observability</h2>
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Fenetre
+                <select
+                  value={observabilityWindow}
+                  onChange={(event) => setObservabilityWindow(event.target.value as KpiWindow)}
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
+                >
+                  <option value="24h">24 heures</option>
+                  <option value="7d">7 jours</option>
+                  <option value="30d">30 jours</option>
+                  <option value="all">Tout l'historique</option>
+                </select>
+              </label>
+            </div>
+
+            {loadingObservability ? (
+              <p className="mt-3 text-sm text-slate-600">Chargement du dashboard observability...</p>
+            ) : null}
+
+            {observabilityError ? (
+              <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {observabilityError}
+              </p>
+            ) : null}
+
+            {!loadingObservability && !observabilityError && observabilityPayload ? (
+              <>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Runs</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900">{observabilityPayload.summary.runs}</p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Scanned</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900">{observabilityPayload.summary.scanned}</p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Parsed</p>
+                    <p className="mt-2 text-2xl font-bold text-emerald-700">{observabilityPayload.summary.parsed}</p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Failed</p>
+                    <p className="mt-2 text-2xl font-bold text-rose-700">{observabilityPayload.summary.failed}</p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Bytes telecharges</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-900">
+                      {formatBytes(observabilityPayload.summary.bytesDownloaded)}
+                    </p>
+                  </article>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Fetch p95</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">
+                      {formatMilliseconds(observabilityPayload.latency.p95.fetchMatchMs)}
+                    </p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Download p95</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">
+                      {formatMilliseconds(observabilityPayload.latency.p95.downloadAssetMs)}
+                    </p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Parse p95</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">
+                      {formatMilliseconds(observabilityPayload.latency.p95.parseMs)}
+                    </p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Persist p95</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">
+                      {formatMilliseconds(observabilityPayload.latency.p95.persistMs)}
+                    </p>
+                  </article>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Runs telemetry</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">
+                      {observabilityPayload.health.runsWithTelemetry}
+                    </p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Taux succes</p>
+                    <p className="mt-2 text-xl font-semibold text-emerald-700">
+                      {formatPercent(observabilityPayload.health.successRate)}
+                    </p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Taux echec</p>
+                    <p className="mt-2 text-xl font-semibold text-rose-700">
+                      {formatPercent(observabilityPayload.health.failedRate)}
+                    </p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Seuil parse p95</p>
+                    <p className="mt-2 text-xl font-semibold text-slate-900">
+                      {formatMilliseconds(observabilityPayload.health.thresholds.parseP95MaxMs)}
+                    </p>
+                  </article>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {observabilityPayload.health.alerts.map((alert) => (
+                    <article
+                      key={alert.key}
+                      className={`rounded-lg border px-3 py-2 text-sm ${healthAlertClass(alert.status)}`}
+                    >
+                      <p className="font-semibold">{alert.label}</p>
+                      <p className="text-xs">
+                        Valeur: {alert.key === 'parse_p95_ms' ? formatMilliseconds(alert.value) : formatPercent(alert.value)}
+                        {' · '}Seuil:{' '}
+                        {alert.key === 'parse_p95_ms'
+                          ? formatMilliseconds(alert.threshold)
+                          : formatPercent(alert.threshold)}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="app-table-shell mt-4 overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-2 py-2">Run</th>
+                        <th className="px-2 py-2">Statut telemetry</th>
+                        <th className="px-2 py-2 text-right">Scanned</th>
+                        <th className="px-2 py-2 text-right">Parsed</th>
+                        <th className="px-2 py-2 text-right">Failed</th>
+                        <th className="px-2 py-2 text-right">Bytes</th>
+                        <th className="px-2 py-2 text-right">Parse</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {observabilityPayload.series.slice(0, 8).map((row) => (
+                        <tr key={row.id} className="app-table-row align-top">
+                          <td className="px-2 py-2 text-slate-700">{formatDateTime(row.startedAt)}</td>
+                          <td className="px-2 py-2">
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                                row.telemetry.status === 'success'
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                  : row.telemetry.failed > 0
+                                    ? 'border-rose-200 bg-rose-50 text-rose-800'
+                                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                              }`}
+                            >
+                              {row.telemetry.status}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">{row.telemetry.scanned}</td>
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">{row.telemetry.parsed}</td>
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">{row.telemetry.failed}</td>
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">
+                            {formatBytes(row.telemetry.bytesDownloaded)}
+                          </td>
+                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">
+                            {formatMilliseconds(row.telemetry.parseMs)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
           </section>
 
           <section className="app-panel p-4">

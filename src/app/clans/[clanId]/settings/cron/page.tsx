@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -370,6 +371,17 @@ export default function CronSettingsPage() {
             <p className="mt-1 text-sm text-slate-600">
               Lance une action et controle le resultat immediatement dans l historique.
             </p>
+
+            {clanId ? (
+              <p className="mt-2 text-sm text-slate-600">
+                <Link
+                  href={`/clans/${clanId}/telemetry/recoveries`}
+                  className="font-semibold text-emerald-700 underline-offset-2 hover:text-emerald-800 hover:underline"
+                >
+                  Ouvrir la console recoveries telemetry
+                </Link>
+              </p>
+            ) : null}
 
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <button

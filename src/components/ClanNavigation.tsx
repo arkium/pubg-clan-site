@@ -250,6 +250,14 @@ function renderNavIcon(label: string) {
     )
   }
 
+  if (label === 'Recoveries telemetry') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 3.2a6.8 6.8 0 1 0 6.8 6.8h-1.6A5.2 5.2 0 1 1 10 4.8V3.2Zm.8 3H9.2v4.6l3.8 2.3.8-1.3-3-1.8V6.2Zm4.7-1 .9.9-2.1 2.1-.9-.9 2.1-2.1Z" />
+      </svg>
+    )
+  }
+
   if (label === 'Changer de clan') {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
@@ -512,6 +520,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
   const ownerLinks: SubmenuItem[] = [
     { label: 'Ouvrir Ops Cron', href: '/settings/cron', tone: 'emerald' },
+    { label: 'Recoveries telemetry', href: clanId ? `/clans/${clanId}/telemetry/recoveries` : '/clans', tone: 'emerald' },
     { label: 'Test email', href: '/settings/email-delivery', tone: 'emerald' },
     { label: 'Monitoring PUBG API', href: '/settings/pubg-api', tone: 'emerald' },
     { label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false },

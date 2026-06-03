@@ -12,6 +12,16 @@ type TelemetryMemberStats = {
   vehicleRideEvents: number
   vehicleLeaveEvents: number
   positionEvents: number
+  weapons: TelemetryMemberWeaponStats[]
+}
+
+type TelemetryMemberWeaponStats = {
+  weaponName: string
+  kills: number
+  headshots: number
+  damageDealt: number
+  killDistanceTotal: number
+  killDistanceCount: number
 }
 
 type TelemetryWeaponStats = {
@@ -24,6 +34,7 @@ type TelemetryWeaponStats = {
 type TelemetryAccumulator = {
   memberStats: Map<string, TelemetryMemberStats>
   weaponStats: Map<string, TelemetryWeaponStats>
+  memberWeaponStats: Map<string, Map<string, TelemetryMemberWeaponStats>>
   eventTypes: Set<string>
   summary: {
     totalEvents: number
@@ -203,6 +214,31 @@ function getDamageValue(event: TelemetryEvent) {
   return 0
 }
 
+function getFirstNumberFromPaths(root: unknown, paths: string[]) {
+  for (const path of paths) {
+    const value = getValueByPath(root, path)
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+  }
+
+  return null
+}
+
+function getKillDistance(event: TelemetryEvent) {
+  return getFirstNumberFromPaths(event, [
+    'distance',
+    'distanceByVictimToKiller',
+    'distanceByAttackerToTarget',
+    'killerDamageInfo.distance',
+    'killerDamageInfo.distanceByVictimToKiller',
+    'finishDamageInfo.distance',
+    'finishDamageInfo.distanceByVictimToKiller',
+    'dBNODamageInfo.distance',
+    'dBNODamageInfo.distanceByVictimToKiller',
+  ])
+}
+
 function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, memberKey: string) {
   const existing = stats.get(memberKey)
   if (existing) {
@@ -221,6 +257,7 @@ function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, member
     vehicleRideEvents: 0,
     vehicleLeaveEvents: 0,
     positionEvents: 0,
+    weapons: [],
   }
 
   stats.set(memberKey, created)
@@ -244,10 +281,48 @@ function getOrCreateWeaponStats(stats: Map<string, TelemetryWeaponStats>, weapon
   return created
 }
 
+function getOrCreateMemberWeaponStats(
+  statsByMember: Map<string, Map<string, TelemetryMemberWeaponStats>>,
+  memberKey: string,
+  weaponName: string
+) {
+  const existingByMember = statsByMember.get(memberKey)
+  if (existingByMember) {
+    const existing = existingByMember.get(weaponName)
+    if (existing) {
+      return existing
+    }
+
+    const created: TelemetryMemberWeaponStats = {
+      weaponName,
+      kills: 0,
+      headshots: 0,
+      damageDealt: 0,
+      killDistanceTotal: 0,
+      killDistanceCount: 0,
+    }
+    existingByMember.set(weaponName, created)
+    return created
+  }
+
+  const created: TelemetryMemberWeaponStats = {
+    weaponName,
+    kills: 0,
+    headshots: 0,
+    damageDealt: 0,
+    killDistanceTotal: 0,
+    killDistanceCount: 0,
+  }
+
+  statsByMember.set(memberKey, new Map([[weaponName, created]]))
+  return created
+}
+
 function createTelemetryAccumulator(): TelemetryAccumulator {
   return {
     memberStats: new Map<string, TelemetryMemberStats>(),
     weaponStats: new Map<string, TelemetryWeaponStats>(),
+    memberWeaponStats: new Map<string, Map<string, TelemetryMemberWeaponStats>>(),
     eventTypes: new Set<string>(),
     summary: {
       totalEvents: 0,
@@ -280,6 +355,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   const actorKey = getCharacterKey(event)
   const weaponName = getWeaponName(event)
   const damage = getDamageValue(event)
+  const killDistance = getKillDistance(event)
 
   if (eventType === 'LogPlayerKill' || eventType === 'LogPlayerKillV2') {
     accumulator.summary.killEvents += 1
@@ -299,6 +375,25 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       weapon.damageDealt += damage
       if (wasHeadshot) {
         weapon.headshots += 1
+      }
+
+      if (killerKey) {
+        const memberWeapon = getOrCreateMemberWeaponStats(
+          accumulator.memberWeaponStats,
+          killerKey,
+          weaponName
+        )
+
+        memberWeapon.kills += 1
+        memberWeapon.damageDealt += damage
+        if (wasHeadshot) {
+          memberWeapon.headshots += 1
+        }
+
+        if (typeof killDistance === 'number' && Number.isFinite(killDistance) && killDistance >= 0) {
+          memberWeapon.killDistanceTotal += killDistance
+          memberWeapon.killDistanceCount += 1
+        }
       }
     }
     return
@@ -328,6 +423,15 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
     if (weaponName) {
       const weapon = getOrCreateWeaponStats(accumulator.weaponStats, weaponName)
       weapon.damageDealt += damage
+
+      if (killerKey) {
+        const memberWeapon = getOrCreateMemberWeaponStats(
+          accumulator.memberWeaponStats,
+          killerKey,
+          weaponName
+        )
+        memberWeapon.damageDealt += damage
+      }
     }
     if (victimKey && isBlueZoneDamage(event)) {
       getOrCreateMemberStats(accumulator.memberStats, victimKey).blueZoneHits += 1
@@ -373,6 +477,35 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 }
 
 function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTelemetrySnapshot {
+  const memberStats = Array.from(accumulator.memberStats.values())
+    .map((member) => {
+      const weapons = Array.from(
+        accumulator.memberWeaponStats.get(member.memberKey)?.values() ?? []
+      ).sort((left, right) => {
+        if (right.kills !== left.kills) {
+          return right.kills - left.kills
+        }
+        if (right.damageDealt !== left.damageDealt) {
+          return right.damageDealt - left.damageDealt
+        }
+        return left.weaponName.localeCompare(right.weaponName)
+      })
+
+      return {
+        ...member,
+        weapons,
+      }
+    })
+    .sort((left, right) => {
+      if (right.kills !== left.kills) {
+        return right.kills - left.kills
+      }
+      if (right.damageDealt !== left.damageDealt) {
+        return right.damageDealt - left.damageDealt
+      }
+      return left.memberKey.localeCompare(right.memberKey)
+    })
+
   return {
     summary: {
       ...accumulator.summary,
@@ -384,15 +517,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
       }
       return right.damageDealt - left.damageDealt
     }),
-    memberStats: Array.from(accumulator.memberStats.values()).sort((left, right) => {
-      if (right.kills !== left.kills) {
-        return right.kills - left.kills
-      }
-      if (right.damageDealt !== left.damageDealt) {
-        return right.damageDealt - left.damageDealt
-      }
-      return left.memberKey.localeCompare(right.memberKey)
-    }),
+    memberStats,
   }
 }
 

@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -81,7 +85,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -158,28 +164,45 @@ export async function GET(
       phaseChangeEvents: 0,
     }
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      period,
-      periodKey,
-      circles: {
-        trackedMembers: Number(memberSummary.trackedMembers),
-        matchesPlayed: Number(memberSummary.matchesPlayed),
-        avgBlueZoneHits: Number(memberSummary.avgBlueZoneHits),
-        avgCircleDelaySeconds: Number(memberSummary.avgCircleDelaySeconds),
-        avgZoneDisciplineScore: Number(memberSummary.avgZoneDisciplineScore),
-        snapshots: Number(snapshotSummary.snapshots),
-        blueZoneEvents: Number(snapshotSummary.blueZoneEvents),
-        phaseChangeEvents: Number(snapshotSummary.phaseChangeEvents),
-      },
-    })
+    const circles = {
+      trackedMembers: Number(memberSummary.trackedMembers),
+      matchesPlayed: Number(memberSummary.matchesPlayed),
+      avgBlueZoneHits: Number(memberSummary.avgBlueZoneHits),
+      avgCircleDelaySeconds: Number(memberSummary.avgCircleDelaySeconds),
+      avgZoneDisciplineScore: Number(memberSummary.avgZoneDisciplineScore),
+      snapshots: Number(snapshotSummary.snapshots),
+      blueZoneEvents: Number(snapshotSummary.blueZoneEvents),
+      phaseChangeEvents: Number(snapshotSummary.phaseChangeEvents),
+    }
+
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: circles.trackedMembers,
+        },
+        {
+          circles,
+        },
+        {
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          circles,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry circles failed:', error)
-    return NextResponse.json({ error: 'Failed to load telemetry circles' }, { status: 500 })
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry circles'), {
+      status: 500,
+    })
   }
 }

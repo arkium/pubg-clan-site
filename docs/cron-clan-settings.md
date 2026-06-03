@@ -16,6 +16,7 @@ Ce document explique la page Owner `/clans/[clanId]/settings/cron` :
 - Les actions manuelles portent sur le clan courant (`clanId` de l'URL).
 - Les crons planifies tournent pour tous les clans actifs (`Clan.isActive = true`).
 - L'observabilite est geree via la table `CronExecution` (`startCronExecution` / `finishCronExecution`).
+- L'entree ops officielle pour le suivi telemetry est `/clans/[clanId]/telemetry/recoveries` (accessible depuis le menu Owner et depuis la page cron).
 
 ## Fichiers principaux
 
@@ -317,3 +318,14 @@ Synthese rapide:
 - Surveiller les `partial` et les echec repetes dans l'historique.
 - Ajuster `CLAN_MATCH_SYNC_TIMEZONE` (ex: `Europe/Paris`) si les horaires metier ne sont pas UTC.
 - Traiter les warnings de configuration avant de considerer la supervision comme fiable.
+
+## Rollout telemetry
+
+Pour le rollout telemetry progressif (TEL-403), la page cron sert de point de controle pendant les etapes pilote/global, mais l'execution detaillee est documentee dans `docs/telemetrie-rollout.md`.
+
+Usage recommande pendant le rollout:
+
+- utiliser `/clans/[clanId]/settings/cron` pour verifier les runs `daily_sync`,
+- utiliser `/clans/[clanId]/telemetry/recoveries` pour les metriques telemetry, p95 et alertes,
+- conserver un seul worker cron actif pendant toute la phase pilote,
+- en cas d'incident, couper d'abord `TELEMETRY_SYNC_ENABLED` avant toute action plus intrusive.

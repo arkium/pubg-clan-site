@@ -22,6 +22,16 @@ type SnapshotMemberStatsRow = {
   knockouts: number
   blueZoneHits: number
   damageDealt: number
+  weapons: SnapshotMemberWeaponStatsRow[]
+}
+
+type SnapshotMemberWeaponStatsRow = {
+  weaponName: string
+  kills: number
+  headshots: number
+  damageDealt: number
+  killDistanceTotal: number
+  killDistanceCount: number
 }
 
 type SquadMatchTelemetryRow = {
@@ -53,6 +63,15 @@ type PairSynergyAggregate = {
   reviveCount: number
   coKillCount: number
   sharedDamageEvents: number
+}
+
+type MemberWeaponAggregate = {
+  kills: number
+  headshots: number
+  damageDealt: number
+  killDistanceTotal: number
+  killDistanceCount: number
+  matchCount: number
 }
 
 type TelemetryAggregateDelegates = {
@@ -176,6 +195,38 @@ function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberStatsRow[] {
       knockouts: asFiniteNumber(row.knockouts),
       blueZoneHits: asFiniteNumber(row.blueZoneHits),
       damageDealt: asFiniteNumber(row.damageDealt),
+      weapons: parseSnapshotMemberWeaponStatsRows(row.weapons),
+    })
+  }
+
+  return rows
+}
+
+function parseSnapshotMemberWeaponStatsRows(raw: unknown): SnapshotMemberWeaponStatsRow[] {
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  const rows: SnapshotMemberWeaponStatsRow[] = []
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+
+    const row = entry as Record<string, unknown>
+    const weaponName = typeof row.weaponName === 'string' ? row.weaponName.trim() : ''
+    if (weaponName.length === 0) {
+      continue
+    }
+
+    rows.push({
+      weaponName,
+      kills: asFiniteNumber(row.kills),
+      headshots: asFiniteNumber(row.headshots),
+      damageDealt: asFiniteNumber(row.damageDealt),
+      killDistanceTotal: asFiniteNumber(row.killDistanceTotal),
+      killDistanceCount: asFiniteNumber(row.killDistanceCount),
     })
   }
 
@@ -255,6 +306,47 @@ function getOrCreatePairAggregate(
   return created
 }
 
+function buildMemberWeaponKey(memberId: number, weaponName: string): string {
+  return `${memberId}:${weaponName}`
+}
+
+function parseMemberWeaponKey(memberWeaponKey: string): { memberId: number; weaponName: string } {
+  const separatorIndex = memberWeaponKey.indexOf(':')
+  if (separatorIndex < 0) {
+    return {
+      memberId: Number(memberWeaponKey),
+      weaponName: '',
+    }
+  }
+
+  return {
+    memberId: Number(memberWeaponKey.slice(0, separatorIndex)),
+    weaponName: memberWeaponKey.slice(separatorIndex + 1),
+  }
+}
+
+function getOrCreateMemberWeaponAggregate(
+  map: Map<string, MemberWeaponAggregate>,
+  memberWeaponKey: string
+): MemberWeaponAggregate {
+  const existing = map.get(memberWeaponKey)
+  if (existing) {
+    return existing
+  }
+
+  const created: MemberWeaponAggregate = {
+    kills: 0,
+    headshots: 0,
+    damageDealt: 0,
+    killDistanceTotal: 0,
+    killDistanceCount: 0,
+    matchCount: 0,
+  }
+
+  map.set(memberWeaponKey, created)
+  return created
+}
+
 async function recalculateTelemetryPeriodForClan(
   clanId: number,
   period: StatsPeriod,
@@ -305,6 +397,7 @@ async function recalculateTelemetryPeriodForClan(
 
   const memberAggregates = new Map<number, MemberTelemetryAggregate>()
   const pairAggregates = new Map<string, PairSynergyAggregate>()
+  const memberWeaponAggregates = new Map<string, MemberWeaponAggregate>()
 
   for (const snapshot of snapshots) {
     const memberKeyToId = new Map<string, number>()
@@ -331,6 +424,7 @@ async function recalculateTelemetryPeriodForClan(
     const memberRows = parseSnapshotMemberStatsRows(snapshot.memberStats)
     const memberIdsSeenInMatch = new Set<number>()
     const matchMemberRows = new Map<number, SnapshotMemberStatsRow>()
+    const memberWeaponKeysSeenInMatch = new Set<string>()
 
     for (const row of memberRows) {
       const memberId = memberKeyToId.get(normalizeKey(row.memberKey) ?? '')
@@ -347,11 +441,36 @@ async function recalculateTelemetryPeriodForClan(
 
       memberIdsSeenInMatch.add(memberId)
       matchMemberRows.set(memberId, row)
+
+      for (const weaponRow of row.weapons) {
+        const memberWeaponKey = buildMemberWeaponKey(memberId, weaponRow.weaponName)
+        const memberWeaponAggregate = getOrCreateMemberWeaponAggregate(
+          memberWeaponAggregates,
+          memberWeaponKey
+        )
+
+        memberWeaponAggregate.kills += weaponRow.kills
+        memberWeaponAggregate.headshots += weaponRow.headshots
+        memberWeaponAggregate.damageDealt += weaponRow.damageDealt
+        memberWeaponAggregate.killDistanceTotal += weaponRow.killDistanceTotal
+        memberWeaponAggregate.killDistanceCount += weaponRow.killDistanceCount
+
+        const wasUsedInMatch =
+          weaponRow.kills > 0 || weaponRow.headshots > 0 || weaponRow.damageDealt > 0
+        if (wasUsedInMatch) {
+          memberWeaponKeysSeenInMatch.add(memberWeaponKey)
+        }
+      }
     }
 
     for (const memberId of memberIdsSeenInMatch) {
       const aggregate = getOrCreateMemberAggregate(memberAggregates, memberId)
       aggregate.matchesPlayed += 1
+    }
+
+    for (const memberWeaponKey of memberWeaponKeysSeenInMatch) {
+      const aggregate = getOrCreateMemberWeaponAggregate(memberWeaponAggregates, memberWeaponKey)
+      aggregate.matchCount += 1
     }
 
     const dedupedClanMembers = Array.from(new Set(clanMemberIdsForMatch)).sort((left, right) => left - right)
@@ -431,8 +550,27 @@ async function recalculateTelemetryPeriodForClan(
     }
   })
 
-  // Snapshot v1 does not include per-member weapon attribution; table is kept in sync but empty.
-  const memberWeaponRows: Array<Record<string, unknown>> = []
+  const memberWeaponRows = Array.from(memberWeaponAggregates.entries()).map(
+    ([memberWeaponKey, aggregate]) => {
+      const { memberId, weaponName } = parseMemberWeaponKey(memberWeaponKey)
+
+      const avgDistance =
+        aggregate.killDistanceCount > 0
+          ? Number((aggregate.killDistanceTotal / aggregate.killDistanceCount).toFixed(2))
+          : 0
+
+      return {
+        memberId,
+        period: periodKey,
+        periodType: period,
+        weaponName,
+        kills: aggregate.kills,
+        headshots: aggregate.headshots,
+        avgDistance,
+        matchCount: aggregate.matchCount,
+      }
+    }
+  )
 
   await prisma.$transaction(async () => {
     await telemetryDelegates.memberTelemetryStats.deleteMany({

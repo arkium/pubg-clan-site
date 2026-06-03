@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -52,7 +56,9 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid member id', 'INVALID_MEMBER_ID'), {
+        status: 400,
+      })
     }
 
     const member = await prisma.clanMember.findUnique({
@@ -61,7 +67,9 @@ export async function GET(
     })
 
     if (!member) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return NextResponse.json(buildTelemetryErrorResponse('Member not found', 'MEMBER_NOT_FOUND'), {
+        status: 404,
+      })
     }
 
     const period = parsePeriod(new URL(request.url).searchParams.get('period'))
@@ -88,27 +96,46 @@ export async function GET(
       ORDER BY kills DESC, headshots DESC, matchCount DESC
     `)
 
-    return NextResponse.json({
-      ok: true,
-      member: {
-        id: member.id,
-        displayName: member.displayName,
-        clanId: member.clanId,
-      },
-      period,
-      periodKey,
-      count: rows.length,
-      rows,
-      note:
-        rows.length === 0
-          ? 'Aucune ligne disponible actuellement. Le parser v1 ne fournit pas encore une attribution arme par membre.'
-          : null,
-    })
-  } catch (error) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    const memberPayload = {
+      id: member.id,
+      displayName: member.displayName,
+      clanId: member.clanId,
     }
 
-    return NextResponse.json({ error: 'Failed to load member telemetry weapons' }, { status: 500 })
+    const note =
+      rows.length === 0 ? 'Aucune ligne disponible actuellement pour cette periode.' : null
+
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'member',
+          memberId: member.id,
+          period,
+          periodKey,
+          count: rows.length,
+        },
+        {
+          member: memberPayload,
+          rows,
+          note,
+        },
+        {
+          member: memberPayload,
+          period,
+          periodKey,
+          count: rows.length,
+          rows,
+          note,
+        }
+      )
+    )
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+    }
+
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load member telemetry weapons'), {
+      status: 500,
+    })
   }
 }

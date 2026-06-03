@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -31,6 +32,34 @@ type MemberWeaponsResponse = {
   note: string | null
 }
 
+type MemberWeaponsContractResponse = {
+  ok: boolean
+  meta?: {
+    period?: TelemetryPeriod
+    periodKey?: string
+    count?: number
+  }
+  data?: {
+    member?: {
+      id: number
+      displayName: string
+      clanId: number | null
+    }
+    rows?: MemberWeaponRow[]
+    note?: string | null
+  }
+  member?: {
+    id: number
+    displayName: string
+    clanId: number | null
+  }
+  period?: TelemetryPeriod
+  periodKey?: string
+  count?: number
+  rows?: MemberWeaponRow[]
+  note?: string | null
+}
+
 const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
   { value: 'week', label: 'Semaine' },
   { value: 'month', label: 'Mois' },
@@ -58,6 +87,56 @@ function formatMeters(value: number) {
   return `${value.toFixed(1)} m`
 }
 
+function extractErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== 'object') {
+    return fallback
+  }
+
+  if ('error' in payload) {
+    const errorValue = (payload as { error?: unknown }).error
+    if (typeof errorValue === 'string' && errorValue.trim()) {
+      return errorValue
+    }
+
+    if (
+      errorValue &&
+      typeof errorValue === 'object' &&
+      'message' in errorValue &&
+      typeof (errorValue as { message?: unknown }).message === 'string'
+    ) {
+      return (errorValue as { message: string }).message
+    }
+  }
+
+  return fallback
+}
+
+function normalizeWeaponsPayload(
+  payload: MemberWeaponsContractResponse,
+  fallbackPeriod: TelemetryPeriod
+): MemberWeaponsResponse | null {
+  const period = payload.meta?.period ?? payload.period ?? fallbackPeriod
+  const periodKey = payload.meta?.periodKey ?? payload.periodKey
+  const count = payload.meta?.count ?? payload.count
+  const member = payload.data?.member ?? payload.member
+  const rows = payload.data?.rows ?? payload.rows
+  const note = payload.data?.note ?? payload.note ?? null
+
+  if (!member || !periodKey || typeof count !== 'number' || !Array.isArray(rows)) {
+    return null
+  }
+
+  return {
+    ok: true,
+    member,
+    period,
+    periodKey,
+    count,
+    rows,
+    note,
+  }
+}
+
 export default function MemberWeaponsPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
@@ -66,6 +145,7 @@ export default function MemberWeaponsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MemberWeaponsResponse | null>(null)
+  const [reloadNonce, setReloadNonce] = useState(0)
 
   useEffect(() => {
     if (!memberId) {
@@ -83,14 +163,20 @@ export default function MemberWeaponsPage() {
           cache: 'no-store',
         })
 
-        const data = (await response.json()) as MemberWeaponsResponse | { error?: string }
+        const data = (await response.json()) as MemberWeaponsContractResponse
 
         if (!response.ok) {
-          throw new Error('error' in data ? data.error : 'Impossible de charger les stats armes du membre')
+          throw new Error(extractErrorMessage(data, 'Impossible de charger les stats armes du membre'))
+        }
+
+        const normalized = normalizeWeaponsPayload(data, period)
+
+        if (!normalized) {
+          throw new Error('Format de reponse telemetry invalide')
         }
 
         if (!cancelled) {
-          setPayload(data as MemberWeaponsResponse)
+          setPayload(normalized)
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -113,7 +199,7 @@ export default function MemberWeaponsPage() {
     return () => {
       cancelled = true
     }
-  }, [memberId, period])
+  }, [memberId, period, reloadNonce])
 
   if (!memberId) {
     return (
@@ -138,7 +224,10 @@ export default function MemberWeaponsPage() {
       <section className="mb-6 rounded border border-gray-200 bg-white p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Periode</p>
         <SegmentedControl
-          options={PERIOD_OPTIONS}
+          options={PERIOD_OPTIONS.map((option) => ({
+            ...option,
+            disabled: loading,
+          }))}
           value={period}
           onChange={setPeriod}
           size="sm"
@@ -148,7 +237,18 @@ export default function MemberWeaponsPage() {
       </section>
 
       {loading ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <section className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => setReloadNonce((current) => current + 1)}
+            className="app-btn app-btn--sm app-btn--secondary mt-3"
+          >
+            Reessayer
+          </button>
+        </section>
+      ) : null}
       {!loading && !error && payload?.note ? (
         <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {payload.note}
@@ -188,7 +288,25 @@ export default function MemberWeaponsPage() {
             </div>
           </section>
         ) : (
-          <p className="text-sm text-gray-600">Aucune donnee armes pour cette periode.</p>
+          <section className="rounded border border-slate-200 bg-white p-4 text-sm text-slate-700">
+            <p>Aucune donnee armes pour cette periode.</p>
+            {payload?.member.clanId ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href={`/clans/${payload.member.clanId}/settings/cron`}
+                  className="app-btn app-btn--sm app-btn--secondary"
+                >
+                  Ouvrir Ops Cron
+                </Link>
+                <Link
+                  href={`/clans/${payload.member.clanId}/telemetry/recoveries`}
+                  className="app-btn app-btn--sm app-btn--secondary"
+                >
+                  Voir Recoveries telemetry
+                </Link>
+              </div>
+            ) : null}
+          </section>
         )
       ) : null}
     </main>

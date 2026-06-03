@@ -14,6 +14,12 @@ export type TelemetryBacklogMatch = {
   id: string
   pubgMatchId: string
   members: TelemetryBacklogMember[]
+  telemetry: {
+    status: 'success' | 'failed' | 'pending'
+    parserVersion: string | null
+    attemptCount: number
+    nextRetryAt: Date | null
+  } | null
 }
 
 type ListSquadMatchesNeedingTelemetryOptions = {
@@ -99,6 +105,14 @@ export async function listSquadMatchesNeedingTelemetry(
     },
     take: normalizeLimit(limit),
     include: {
+      telemetry: {
+        select: {
+          status: true,
+          parserVersion: true,
+          attemptCount: true,
+          nextRetryAt: true,
+        },
+      },
       members: {
         include: {
           member: {
@@ -120,6 +134,17 @@ export async function listSquadMatchesNeedingTelemetry(
   return matches.map((match) => ({
     id: match.id,
     pubgMatchId: match.pubgMatchId,
+    telemetry: match.telemetry
+      ? {
+          status:
+            match.telemetry.status === 'success' || match.telemetry.status === 'failed'
+              ? match.telemetry.status
+              : 'pending',
+          parserVersion: match.telemetry.parserVersion,
+          attemptCount: match.telemetry.attemptCount,
+          nextRetryAt: match.telemetry.nextRetryAt,
+        }
+      : null,
     members: match.members,
   }))
 }

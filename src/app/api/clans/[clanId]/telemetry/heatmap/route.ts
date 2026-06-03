@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -90,7 +94,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -143,28 +149,50 @@ export async function GET(
 
     const totalMatches = rows.reduce((sum, row) => sum + Number(row.matches), 0)
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      period,
-      periodKey,
-      selectedMap: mapName,
-      totalMatches,
-      maps: rows.map((row) => ({
-        mapName: row.mapName,
-        matches: Number(row.matches),
-        killEvents: Number(row.killEvents),
-        positionEvents: Number(row.positionEvents),
-      })),
-      note:
-        'Heatmap geospatiale fine non disponible avec parser v1: endpoint expose une base map-level pour preparer la couche UI et les filtres.',
-    })
+    const maps = rows.map((row) => ({
+      mapName: row.mapName,
+      matches: Number(row.matches),
+      killEvents: Number(row.killEvents),
+      positionEvents: Number(row.positionEvents),
+    }))
+
+    const note =
+      'Heatmap geospatiale fine non disponible avec parser v1: endpoint expose une base map-level pour preparer la couche UI et les filtres.'
+
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: maps.length,
+        },
+        {
+          selectedMap: mapName,
+          totalMatches,
+          maps,
+          note,
+        },
+        {
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          selectedMap: mapName,
+          totalMatches,
+          maps,
+          note,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry heatmap failed:', error)
-    return NextResponse.json({ error: 'Failed to load telemetry heatmap' }, { status: 500 })
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry heatmap'), {
+      status: 500,
+    })
   }
 }

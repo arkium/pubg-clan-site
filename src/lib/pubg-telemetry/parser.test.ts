@@ -133,6 +133,7 @@ describe('parseTelemetrySnapshot', () => {
           accountId: 'player_victim',
           name: 'VictimName',
         },
+        distance: 124.5,
         killerDamageInfo: {
           damageCauserName: 'WeapM416_C',
           damageReason: 'HeadShot',
@@ -162,6 +163,14 @@ describe('parseTelemetrySnapshot', () => {
     expect(weapon?.kills).toBe(1)
     expect(weapon?.headshots).toBe(1)
     expect(weapon?.damageDealt).toBe(37)
+
+    const attackerWeapon = attacker?.weapons.find((entry) => entry.weaponName === 'WeapM416_C')
+    expect(attackerWeapon).toBeDefined()
+    expect(attackerWeapon?.kills).toBe(1)
+    expect(attackerWeapon?.headshots).toBe(1)
+    expect(attackerWeapon?.damageDealt).toBe(37)
+    expect(attackerWeapon?.killDistanceTotal).toBe(124.5)
+    expect(attackerWeapon?.killDistanceCount).toBe(1)
   })
 })
 

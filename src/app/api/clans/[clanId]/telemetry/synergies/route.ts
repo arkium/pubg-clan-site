@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -53,7 +57,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -94,20 +100,35 @@ export async function GET(
       ORDER BY sts.reviveCount DESC, sts.coKillCount DESC, sts.sharedDamageEvents DESC
     `)
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      period,
-      periodKey,
-      count: rows.length,
-      rows,
-    })
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: rows.length,
+        },
+        {
+          rows,
+        },
+        {
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: rows.length,
+          rows,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry synergies failed:', error)
-    return NextResponse.json({ error: 'Failed to load telemetry synergies' }, { status: 500 })
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry synergies'), {
+      status: 500,
+    })
   }
 }

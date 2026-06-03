@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -27,7 +31,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -122,46 +128,63 @@ export async function GET(
       }
     )
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      limit,
-      summary: {
-        total: rows.length,
-        success: counts.success,
-        failed: counts.failed,
-        pending: counts.pending,
-        withParsedPayload: counts.withParsedPayload,
-      },
-      rows: rows.map((row) => ({
-        id: row.id,
-        squadMatchId: row.squadMatchId,
-        pubgMatchId: row.pubgMatchId,
-        gameMode: row.gameMode,
-        mapName: row.mapName,
-        placement: row.placement,
-        squadCreatedAt: row.squadCreatedAt.toISOString(),
-        status: row.status === 'success' || row.status === 'failed' ? row.status : 'pending',
-        parserVersion: row.parserVersion,
-        parsedAt: row.parsedAt.toISOString(),
-        sourceGeneratedAt: row.sourceGeneratedAt?.toISOString() ?? null,
-        contentLength: row.contentLength,
-        bytesDownloaded: row.bytesDownloaded,
-        errorCode: row.errorCode,
-        errorMessage: row.errorMessage,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-        hasParsedPayload: row.hasParsedPayload === 1,
-      })),
-    })
+    const summary = {
+      total: rows.length,
+      success: counts.success,
+      failed: counts.failed,
+      pending: counts.pending,
+      withParsedPayload: counts.withParsedPayload,
+    }
+
+    const normalizedRows = rows.map((row) => ({
+      id: row.id,
+      squadMatchId: row.squadMatchId,
+      pubgMatchId: row.pubgMatchId,
+      gameMode: row.gameMode,
+      mapName: row.mapName,
+      placement: row.placement,
+      squadCreatedAt: row.squadCreatedAt.toISOString(),
+      status: row.status === 'success' || row.status === 'failed' ? row.status : 'pending',
+      parserVersion: row.parserVersion,
+      parsedAt: row.parsedAt.toISOString(),
+      sourceGeneratedAt: row.sourceGeneratedAt?.toISOString() ?? null,
+      contentLength: row.contentLength,
+      bytesDownloaded: row.bytesDownloaded,
+      errorCode: row.errorCode,
+      errorMessage: row.errorMessage,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      hasParsedPayload: row.hasParsedPayload === 1,
+    }))
+
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          limit,
+          count: normalizedRows.length,
+        },
+        {
+          summary,
+          rows: normalizedRows,
+        },
+        {
+          clanId: parsedClanId,
+          limit,
+          summary,
+          rows: normalizedRows,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry recoveries status failed:', error)
     return NextResponse.json(
-      { error: 'Failed to load telemetry recoveries status' },
+      buildTelemetryErrorResponse('Failed to load telemetry recoveries status'),
       { status: 500 }
     )
   }

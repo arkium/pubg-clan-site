@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -53,7 +57,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -95,24 +101,43 @@ export async function GET(
       ORDER BY ws.kills DESC, ws.headshots DESC, ws.matchCount DESC
     `)
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      period,
-      periodKey,
-      count: rows.length,
-      rows,
-      note:
-        rows.length === 0
-          ? 'Aucune ligne disponible actuellement. Le parser v1 ne fournit pas encore une attribution arme par membre.'
-          : null,
-    })
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: rows.length,
+        },
+        {
+          rows,
+          note:
+            rows.length === 0
+              ? 'Aucune ligne disponible actuellement pour cette periode.'
+              : null,
+        },
+        {
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: rows.length,
+          rows,
+          note:
+            rows.length === 0
+              ? 'Aucune ligne disponible actuellement pour cette periode.'
+              : null,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry weapons failed:', error)
-    return NextResponse.json({ error: 'Failed to load telemetry weapons' }, { status: 500 })
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry weapons'), {
+      status: 500,
+    })
   }
 }

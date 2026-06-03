@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 import { requireRole } from '@/middleware/auth-permission'
 
 type TimeWindow = '24h' | '7d' | '30d' | 'all'
@@ -83,6 +87,17 @@ function asTelemetrySyncDetails(value: unknown): TelemetrySyncDetails | null {
   return telemetrySync as TelemetrySyncDetails
 }
 
+function percentile(values: number[], ratio: number) {
+  if (values.length === 0) {
+    return 0
+  }
+
+  const sorted = [...values].sort((a, b) => a - b)
+  const normalizedRatio = Math.min(Math.max(ratio, 0), 1)
+  const index = Math.min(sorted.length - 1, Math.ceil(sorted.length * normalizedRatio) - 1)
+  return sorted[Math.max(0, index)]
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -92,7 +107,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -187,20 +204,106 @@ export async function GET(
       }
     )
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      window,
-      limit,
-      summary,
-      series: rows,
-    })
+    const runsWithTelemetry = rows.filter((row) => row.telemetry.status !== 'unknown')
+    const successfulRuns = runsWithTelemetry.filter((row) => row.telemetry.status === 'success').length
+    const failedRuns = runsWithTelemetry.filter((row) => row.telemetry.failed > 0).length
+
+    const successRate =
+      runsWithTelemetry.length > 0 ? (successfulRuns / runsWithTelemetry.length) * 100 : 0
+    const failedRate =
+      runsWithTelemetry.length > 0 ? (failedRuns / runsWithTelemetry.length) * 100 : 0
+
+    const p95 = {
+      fetchMatchMs: percentile(
+        rows.map((row) => row.telemetry.fetchMatchMs).filter((value) => value > 0),
+        0.95
+      ),
+      downloadAssetMs: percentile(
+        rows.map((row) => row.telemetry.downloadAssetMs).filter((value) => value > 0),
+        0.95
+      ),
+      parseMs: percentile(
+        rows.map((row) => row.telemetry.parseMs).filter((value) => value > 0),
+        0.95
+      ),
+      persistMs: percentile(
+        rows.map((row) => row.telemetry.persistMs).filter((value) => value > 0),
+        0.95
+      ),
+    }
+
+    const thresholds = {
+      failedRateMax: 5,
+      parseP95MaxMs: 3000,
+    }
+
+    const alerts = [
+      {
+        key: 'failed_rate',
+        label: 'Taux runs en echec',
+        value: failedRate,
+        threshold: thresholds.failedRateMax,
+        status: failedRate <= thresholds.failedRateMax ? 'ok' : 'warning',
+      },
+      {
+        key: 'parse_p95_ms',
+        label: 'Latence parse p95',
+        value: p95.parseMs,
+        threshold: thresholds.parseP95MaxMs,
+        status: p95.parseMs <= thresholds.parseP95MaxMs ? 'ok' : 'warning',
+      },
+    ] as const
+
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          window,
+          limit,
+          count: rows.length,
+        },
+        {
+          summary,
+          health: {
+            runsWithTelemetry: runsWithTelemetry.length,
+            successRate,
+            failedRate,
+            thresholds,
+            alerts,
+          },
+          latency: {
+            p95,
+          },
+          series: rows,
+        },
+        {
+          clanId: parsedClanId,
+          window,
+          limit,
+          summary,
+          health: {
+            runsWithTelemetry: runsWithTelemetry.length,
+            successRate,
+            failedRate,
+            thresholds,
+            alerts,
+          },
+          latency: {
+            p95,
+          },
+          series: rows,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry observability failed:', error)
-    return NextResponse.json({ error: 'Failed to load telemetry observability' }, { status: 500 })
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry observability'), {
+      status: 500,
+    })
   }
 }

@@ -41,6 +41,8 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Données exploitables depuis l'API télémétrie PUBG, idées de stats, contraintes techniques et modèle de stockage
 - [Déploiement télémétrie matchs clan](telemetrie-matchs-clan-deploiement.md)
   - Plan complet de livraison: lib télémétrie, migrations Prisma, cron, APIs, UI, observabilité, rollout et rollback
+- [Runbook rollout telemetry](telemetrie-rollout.md)
+  - Sequence operationnelle TEL-403: preflight, dry-run, pilote, global, journal et rollback
 - [Récupération assets télémétrie](telemetrie-recuperation-assets.md)
   - Fonctions à coder pour extraire l'URL asset, télécharger en streaming et brancher l'ingestion sur les matchs existants
 

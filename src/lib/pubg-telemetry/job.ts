@@ -17,8 +17,14 @@ export type SyncTelemetryBatchOptions = {
 export type SyncTelemetryBatchResult = {
   scanned: number
   parsed: number
+  reprocessed: number
   failed: number
   skipped: number
+  queued: {
+    failed: number
+    pending: number
+    rebuild: number
+  }
   durationMs: number
   metrics: {
     bytesDownloaded: number
@@ -36,10 +42,15 @@ function logTelemetryBatchStep(payload: {
   durationMs?: number
   scanned?: number
   parsed?: number
+  reprocessed?: number
   failed?: number
   skipped?: number
+  queuedFailed?: number
+  queuedPending?: number
+  queuedRebuild?: number
   squadMatchId?: string
   pubgMatchId?: string
+  queueReason?: 'failed' | 'pending' | 'rebuild'
   errorCode?: string
   retryAttempt?: number
   retryDelayMs?: number
@@ -55,10 +66,15 @@ function logTelemetryBatchStep(payload: {
     durationMs: payload.durationMs ?? null,
     scanned: payload.scanned ?? null,
     parsed: payload.parsed ?? null,
+    reprocessed: payload.reprocessed ?? null,
     failed: payload.failed ?? null,
     skipped: payload.skipped ?? null,
+    queuedFailed: payload.queuedFailed ?? null,
+    queuedPending: payload.queuedPending ?? null,
+    queuedRebuild: payload.queuedRebuild ?? null,
     squadMatchId: payload.squadMatchId ?? null,
     pubgMatchId: payload.pubgMatchId ?? null,
+    queueReason: payload.queueReason ?? null,
     errorCode: payload.errorCode ?? null,
     retryAttempt: payload.retryAttempt ?? null,
     retryDelayMs: payload.retryDelayMs ?? null,
@@ -165,6 +181,36 @@ function getRetryDelayMs(baseDelayMs: number, retryAttempt: number) {
   return Math.min(baseDelayMs * 2 ** (retryAttempt - 1), 10_000)
 }
 
+type BacklogReason = 'failed' | 'pending' | 'rebuild'
+
+function resolveBacklogReason(match: Awaited<ReturnType<typeof listSquadMatchesNeedingTelemetry>>[number], parserVersion: string): BacklogReason {
+  if (!match.telemetry) {
+    return 'pending'
+  }
+
+  if (match.telemetry.status === 'failed') {
+    return 'failed'
+  }
+
+  if ((match.telemetry.parserVersion ?? '') !== parserVersion) {
+    return 'rebuild'
+  }
+
+  return 'pending'
+}
+
+function getBacklogReasonPriority(reason: BacklogReason) {
+  if (reason === 'failed') {
+    return 0
+  }
+
+  if (reason === 'pending') {
+    return 1
+  }
+
+  return 2
+}
+
 export async function syncTelemetryBatchForRecentSquadMatches(
   options: SyncTelemetryBatchOptions
 ): Promise<SyncTelemetryBatchResult> {
@@ -178,10 +224,44 @@ export async function syncTelemetryBatchForRecentSquadMatches(
     retryMax,
   })
 
+  const backlogWithReason = backlog
+    .map((match) => ({
+      match,
+      reason: resolveBacklogReason(match, parserVersion),
+    }))
+    .sort((left, right) => {
+      const priorityDiff = getBacklogReasonPriority(left.reason) - getBacklogReasonPriority(right.reason)
+      if (priorityDiff !== 0) {
+        return priorityDiff
+      }
+
+      return 0
+    })
+
+  const prioritizedBacklog = backlogWithReason.map((entry) => entry.match)
+  const backlogReasonByMatchId = new Map(
+    backlogWithReason.map((entry) => [entry.match.id, entry.reason])
+  )
+
+  const queued = backlogWithReason.reduce(
+    (acc, entry) => {
+      acc[entry.reason] += 1
+      return acc
+    },
+    {
+      failed: 0,
+      pending: 0,
+      rebuild: 0,
+    }
+  )
+
   logTelemetryBatchStep({
     step: 'batch-start',
     clanId,
-    scanned: backlog.length,
+    scanned: prioritizedBacklog.length,
+    queuedFailed: queued.failed,
+    queuedPending: queued.pending,
+    queuedRebuild: queued.rebuild,
   })
 
   const timeoutMs = resolveTimeoutMs(options.timeoutMs)
@@ -191,17 +271,19 @@ export async function syncTelemetryBatchForRecentSquadMatches(
   const results: SyncTelemetryForSquadMatchResult[] = []
   let nextIndex = 0
   let skipped = 0
+  let reprocessed = 0
 
   async function workerLoop() {
     while (true) {
       const currentIndex = nextIndex
       nextIndex += 1
 
-      if (currentIndex >= backlog.length) {
+      if (currentIndex >= prioritizedBacklog.length) {
         return
       }
 
-      const match = backlog[currentIndex]
+      const match = prioritizedBacklog[currentIndex]
+      const queueReason = backlogReasonByMatchId.get(match.id) ?? 'pending'
       const candidateMember = match.members.find((entry) => !!entry.member.pubgAccountId)
 
       if (!candidateMember?.member.pubgAccountId) {
@@ -228,6 +310,7 @@ export async function syncTelemetryBatchForRecentSquadMatches(
           clanId,
           squadMatchId: match.id,
           pubgMatchId: match.pubgMatchId,
+          queueReason,
           errorCode: 'PUBG_ACCOUNT_ID_MISSING',
         })
         skipped += 1
@@ -274,11 +357,15 @@ export async function syncTelemetryBatchForRecentSquadMatches(
         })
       }
 
+      if (syncResult.status === 'success' && queueReason === 'rebuild') {
+        reprocessed += 1
+      }
+
       results.push(syncResult)
     }
   }
 
-  const workerCount = Math.min(normalizeConcurrency(options.concurrency), Math.max(1, backlog.length))
+  const workerCount = Math.min(normalizeConcurrency(options.concurrency), Math.max(1, prioritizedBacklog.length))
   await Promise.all(Array.from({ length: workerCount }, () => workerLoop()))
 
   const parsed = results.filter((item) => item.status === 'success').length
@@ -306,10 +393,14 @@ export async function syncTelemetryBatchForRecentSquadMatches(
     step: 'batch-complete',
     clanId,
     durationMs,
-    scanned: backlog.length,
+    scanned: prioritizedBacklog.length,
     parsed,
+    reprocessed,
     failed,
     skipped,
+    queuedFailed: queued.failed,
+    queuedPending: queued.pending,
+    queuedRebuild: queued.rebuild,
     bytesDownloaded: metrics.bytesDownloaded,
     fetchMatchMs: metrics.fetchMatchMs,
     downloadAssetMs: metrics.downloadAssetMs,
@@ -318,10 +409,12 @@ export async function syncTelemetryBatchForRecentSquadMatches(
   })
 
   return {
-    scanned: backlog.length,
+    scanned: prioritizedBacklog.length,
     parsed,
+    reprocessed,
     failed,
     skipped,
+    queued,
     durationMs,
     metrics,
     results,

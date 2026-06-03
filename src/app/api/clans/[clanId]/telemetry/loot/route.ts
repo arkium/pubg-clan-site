@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import {
+  buildTelemetryErrorResponse,
+  buildTelemetrySuccessResponse,
+} from '@/lib/pubg-telemetry/api-contract'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -81,7 +85,9 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+        status: 400,
+      })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -125,23 +131,40 @@ export async function GET(
     const snapshots = Number(summary.snapshots)
     const itemUseEvents = Number(summary.itemUseEvents)
 
-    return NextResponse.json({
-      ok: true,
-      clanId: parsedClanId,
-      period,
-      periodKey,
-      loot: {
-        snapshots,
-        itemUseEvents,
-        avgItemUseEventsPerMatch: snapshots > 0 ? Number((itemUseEvents / snapshots).toFixed(2)) : 0,
-      },
-    })
+    const loot = {
+      snapshots,
+      itemUseEvents,
+      avgItemUseEventsPerMatch: snapshots > 0 ? Number((itemUseEvents / snapshots).toFixed(2)) : 0,
+    }
+
+    return NextResponse.json(
+      buildTelemetrySuccessResponse(
+        {
+          scope: 'clan',
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          count: snapshots,
+        },
+        {
+          loot,
+        },
+        {
+          clanId: parsedClanId,
+          period,
+          periodKey,
+          loot,
+        }
+      )
+    )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry loot failed:', error)
-    return NextResponse.json({ error: 'Failed to load telemetry loot' }, { status: 500 })
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry loot'), {
+      status: 500,
+    })
   }
 }

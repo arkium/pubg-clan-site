@@ -41,6 +41,7 @@ describe('syncTelemetryBatchForRecentSquadMatches retry/backoff', () => {
       {
         id: 'squad_1',
         pubgMatchId: 'match_1',
+        telemetry: null,
         members: [
           {
             memberId: 1,
@@ -102,6 +103,7 @@ describe('syncTelemetryBatchForRecentSquadMatches retry/backoff', () => {
       {
         id: 'squad_2',
         pubgMatchId: 'match_2',
+        telemetry: null,
         members: [
           {
             memberId: 2,
@@ -153,6 +155,96 @@ describe('syncTelemetryBatchForRecentSquadMatches retry/backoff', () => {
       clanId: 9,
       parserVersion: 'v2',
       retryMax: 2,
+    })
+  })
+
+  it('prioritizes failed, then pending, then rebuild candidates', async () => {
+    mockedListBacklog.mockResolvedValue([
+      {
+        id: 'squad_rebuild',
+        pubgMatchId: 'match_rebuild',
+        telemetry: {
+          status: 'success',
+          parserVersion: 'v1',
+          attemptCount: 0,
+          nextRetryAt: null,
+        },
+        members: [
+          {
+            memberId: 10,
+            member: {
+              id: 10,
+              clanId: 7,
+              pubgAccountId: 'account.player.10',
+              platformShard: 'steam',
+            },
+          },
+        ],
+      },
+      {
+        id: 'squad_failed',
+        pubgMatchId: 'match_failed',
+        telemetry: {
+          status: 'failed',
+          parserVersion: 'v1',
+          attemptCount: 1,
+          nextRetryAt: null,
+        },
+        members: [
+          {
+            memberId: 11,
+            member: {
+              id: 11,
+              clanId: 7,
+              pubgAccountId: 'account.player.11',
+              platformShard: 'steam',
+            },
+          },
+        ],
+      },
+      {
+        id: 'squad_pending',
+        pubgMatchId: 'match_pending',
+        telemetry: null,
+        members: [
+          {
+            memberId: 12,
+            member: {
+              id: 12,
+              clanId: 7,
+              pubgAccountId: 'account.player.12',
+              platformShard: 'steam',
+            },
+          },
+        ],
+      },
+    ])
+
+    mockedSyncTelemetry.mockImplementation(async (input) => ({
+      squadMatchId: input.squadMatchId,
+      pubgMatchId: input.pubgMatchId,
+      status: 'success',
+      bytesDownloaded: 10,
+      contentLength: 10,
+      errorCode: null,
+      errorMessage: null,
+      durationMs: 3,
+    }))
+
+    const result = await syncTelemetryBatchForRecentSquadMatches({
+      maxMatchesPerRun: 10,
+      concurrency: 1,
+      clanId: 7,
+      parserVersion: 'v2',
+    })
+
+    const orderedSquadIds = mockedSyncTelemetry.mock.calls.map((call) => call[0].squadMatchId)
+    expect(orderedSquadIds).toEqual(['squad_failed', 'squad_pending', 'squad_rebuild'])
+    expect(result.reprocessed).toBe(1)
+    expect(result.queued).toEqual({
+      failed: 1,
+      pending: 1,
+      rebuild: 1,
     })
   })
 })

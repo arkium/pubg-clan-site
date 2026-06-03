@@ -134,6 +134,40 @@ Critere de sortie:
 - performance cron compatible avec la fenetre de traitement,
 - journal de rollout complete.
 
+### Checklist run-par-run (pilote auto)
+
+Utiliser cette checklist a chaque run `daily_sync` pendant la fenetre pilote.
+
+Run 1 (apres activation):
+
+1. Verifier dans `/clans/[clanId]/settings/cron` qu'une execution `daily_sync` recente existe.
+2. Verifier le statut telemetry du run (attendu: `success`, `partial` controle ou `skipped` explique).
+3. Verifier dans `/clans/[clanId]/telemetry/recoveries` qu'il n'y a pas de pic d'echecs immediat.
+4. Noter les valeurs de base: scanned, parsed, failed, p95 parse/download, rate-limit remaining.
+
+Run 2:
+
+1. Comparer `failedRate` au run 1 (attendu: stable ou en baisse).
+2. Verifier que le backlog `failed`/`rebuild` n'augmente pas brutalement.
+3. Verifier qu'aucune alerte seuil n'apparait de maniere persistante.
+4. Verifier que les vues produit critiques restent alimentees:
+	- `/members/[id]/dashboard`
+	- `/members/[id]/weapons`
+	- `/clans/[clanId]/stats`
+
+Run 3:
+
+1. Confirmer l'absence d'incident bloquant ouvert.
+2. Confirmer que les temps de run cron restent compatibles avec la fenetre planifiee.
+3. Confirmer que la marge rate-limit PUBG reste exploitable (pas de derive vers 429).
+4. Valider la decision: continuer pilote, augmenter palier, ou rollback.
+
+Decision rapide apres 3 runs:
+
+- Continuer pilote si les indicateurs sont stables.
+- Rester au meme palier si la marge rate-limit est faible.
+- Rollback immediat (`TELEMETRY_SYNC_ENABLED=false`) si echec systemique ou derive nette des alertes.
+
 ## Etape 3 - Extension globale progressive
 
 Objectif: etendre l'activation a tous les clans actifs sans changer brutalement le debit.

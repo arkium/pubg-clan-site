@@ -184,6 +184,27 @@ function looksLocalUrl(value: string) {
   }
 }
 
+function parsePositiveInteger(value: string | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
+    return null
+  }
+
+  return parsed
+}
+
+function normalizeBooleanEnv(value: string | undefined) {
+  if (value === 'true' || value === 'false') {
+    return value
+  }
+
+  return null
+}
+
 async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
   const nodeEnv = process.env.NODE_ENV ?? 'development'
   const enableCron = process.env.ENABLE_CRON_JOBS
@@ -294,6 +315,135 @@ async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
   return checks
 }
 
+function getTelemetryEnvChecks(): CronConfigCheck[] {
+  const telemetrySyncEnabledRaw = process.env.TELEMETRY_SYNC_ENABLED
+  const telemetrySyncEnabled = normalizeBooleanEnv(telemetrySyncEnabledRaw)
+
+  const telemetryCaptureFixturesRaw = process.env.TELEMETRY_CAPTURE_FIXTURES
+  const telemetryCaptureFixtures = normalizeBooleanEnv(telemetryCaptureFixturesRaw)
+
+  const telemetryMaxMatchesRaw = process.env.TELEMETRY_MAX_MATCHES_PER_RUN
+  const telemetryMaxMatches = parsePositiveInteger(telemetryMaxMatchesRaw)
+
+  const telemetryConcurrencyRaw = process.env.TELEMETRY_SYNC_CONCURRENCY
+  const telemetryConcurrency = parsePositiveInteger(telemetryConcurrencyRaw)
+
+  const telemetryRetryMaxRaw = process.env.TELEMETRY_RETRY_MAX
+  const telemetryRetryMax = parsePositiveInteger(telemetryRetryMaxRaw)
+
+  const telemetryFetchTimeoutRaw = process.env.TELEMETRY_FETCH_TIMEOUT_MS
+  const telemetryFetchTimeout = parsePositiveInteger(telemetryFetchTimeoutRaw)
+
+  const telemetryMaxAssetSizeMbRaw = process.env.TELEMETRY_MAX_ASSET_SIZE_MB
+  const telemetryMaxAssetSizeMb = parsePositiveInteger(telemetryMaxAssetSizeMbRaw)
+
+  const telemetryCaptureMaxBytesRaw = process.env.TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES
+  const telemetryCaptureMaxBytes = parsePositiveInteger(telemetryCaptureMaxBytesRaw)
+
+  const telemetryParserVersion = process.env.TELEMETRY_PARSER_VERSION?.trim() ?? ''
+  const telemetryCaptureDir = process.env.TELEMETRY_CAPTURE_FIXTURES_DIR?.trim() ?? ''
+
+  return [
+    {
+      key: 'telemetry_sync_enabled',
+      label: 'TELEMETRY_SYNC_ENABLED',
+      status: telemetrySyncEnabled ? 'ok' : 'warning',
+      value: telemetrySyncEnabledRaw ?? '(non defini)',
+      hint: telemetrySyncEnabled
+        ? telemetrySyncEnabled === 'true'
+          ? 'Sync telemetry automatique activee.'
+          : 'Sync telemetry automatique desactivee.'
+        : 'Definir explicitement true|false pour eviter les ambiguites de deploiement.',
+    },
+    {
+      key: 'telemetry_parser_version',
+      label: 'TELEMETRY_PARSER_VERSION',
+      status: telemetryParserVersion ? 'ok' : 'warning',
+      value: telemetryParserVersion || '(non defini, fallback v1)',
+      hint: telemetryParserVersion
+        ? undefined
+        : 'Definir une version explicite pour piloter les rebuilds parserVersion.',
+    },
+    {
+      key: 'telemetry_max_matches_per_run',
+      label: 'TELEMETRY_MAX_MATCHES_PER_RUN',
+      status: telemetryMaxMatchesRaw && !telemetryMaxMatches ? 'error' : 'ok',
+      value: telemetryMaxMatchesRaw ?? '(non defini, fallback 50)',
+      hint:
+        telemetryMaxMatchesRaw && !telemetryMaxMatches
+          ? 'Valeur invalide: attendu entier > 0.'
+          : undefined,
+    },
+    {
+      key: 'telemetry_sync_concurrency',
+      label: 'TELEMETRY_SYNC_CONCURRENCY',
+      status: telemetryConcurrencyRaw && !telemetryConcurrency ? 'error' : 'ok',
+      value: telemetryConcurrencyRaw ?? '(non defini, fallback 2)',
+      hint:
+        telemetryConcurrencyRaw && !telemetryConcurrency
+          ? 'Valeur invalide: attendu entier > 0.'
+          : undefined,
+    },
+    {
+      key: 'telemetry_retry_max',
+      label: 'TELEMETRY_RETRY_MAX',
+      status: telemetryRetryMaxRaw && !telemetryRetryMax ? 'error' : 'ok',
+      value: telemetryRetryMaxRaw ?? '(non defini, fallback 2)',
+      hint:
+        telemetryRetryMaxRaw && !telemetryRetryMax
+          ? 'Valeur invalide: attendu entier > 0.'
+          : undefined,
+    },
+    {
+      key: 'telemetry_fetch_timeout_ms',
+      label: 'TELEMETRY_FETCH_TIMEOUT_MS',
+      status: telemetryFetchTimeoutRaw && !telemetryFetchTimeout ? 'error' : 'ok',
+      value: telemetryFetchTimeoutRaw ?? '(non defini, fallback 30000)',
+      hint:
+        telemetryFetchTimeoutRaw && !telemetryFetchTimeout
+          ? 'Valeur invalide: attendu entier > 0 (millisecondes).'
+          : undefined,
+    },
+    {
+      key: 'telemetry_max_asset_size_mb',
+      label: 'TELEMETRY_MAX_ASSET_SIZE_MB',
+      status: telemetryMaxAssetSizeMbRaw && !telemetryMaxAssetSizeMb ? 'error' : 'ok',
+      value: telemetryMaxAssetSizeMbRaw ?? '(non defini, fallback 250)',
+      hint:
+        telemetryMaxAssetSizeMbRaw && !telemetryMaxAssetSizeMb
+          ? 'Valeur invalide: attendu entier > 0 (Mo).'
+          : undefined,
+    },
+    {
+      key: 'telemetry_capture_fixtures',
+      label: 'TELEMETRY_CAPTURE_FIXTURES',
+      status: telemetryCaptureFixtures ? 'ok' : 'warning',
+      value: telemetryCaptureFixturesRaw ?? '(non defini)',
+      hint: telemetryCaptureFixtures
+        ? telemetryCaptureFixtures === 'true'
+          ? 'Mode debug actif: a desactiver hors capture manuelle de fixtures.'
+          : 'Mode capture fixtures desactive (recommande par defaut).'
+        : 'Definir explicitement true|false pour controler le mode capture fixtures.',
+    },
+    {
+      key: 'telemetry_capture_fixtures_dir',
+      label: 'TELEMETRY_CAPTURE_FIXTURES_DIR',
+      status: telemetryCaptureDir ? 'ok' : 'warning',
+      value: telemetryCaptureDir || '(non defini, fallback .telemetry-captured)',
+    },
+    {
+      key: 'telemetry_capture_fixture_max_bytes',
+      label: 'TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES',
+      status: telemetryCaptureMaxBytesRaw && !telemetryCaptureMaxBytes ? 'error' : 'ok',
+      value: telemetryCaptureMaxBytesRaw ?? '(non defini, fallback 52428800)',
+      hint:
+        telemetryCaptureMaxBytesRaw && !telemetryCaptureMaxBytes
+          ? 'Valeur invalide: attendu entier > 0 (octets).'
+          : undefined,
+    },
+  ]
+}
+
 function getScheduleChecks(): CronConfigCheck[] {
   const checks = [
     {
@@ -321,6 +471,16 @@ function getScheduleChecks(): CronConfigCheck[] {
       label: 'MONTHLY_REPORT_GENERATION_CRON',
       value: process.env.MONTHLY_REPORT_GENERATION_CRON ?? '0 8 1 * *',
     },
+    {
+      key: 'clan_online_reminder_cron',
+      label: 'CLAN_ONLINE_REMINDER_CRON',
+      value: process.env.CLAN_ONLINE_REMINDER_CRON ?? '0 18 * * *',
+    },
+    {
+      key: 'weekly_report_reminder_cron',
+      label: 'WEEKLY_REPORT_REMINDER_CRON',
+      value: process.env.WEEKLY_REPORT_REMINDER_CRON ?? '0 9 * * *',
+    },
   ]
 
   return checks.map((entry) => ({
@@ -336,7 +496,8 @@ function getScheduleChecks(): CronConfigCheck[] {
 
 export async function getCronConfigurationChecks() {
   const envChecks = await getCronEnvChecks()
-  return [...envChecks, ...getScheduleChecks()]
+  const telemetryEnvChecks = getTelemetryEnvChecks()
+  return [...envChecks, ...telemetryEnvChecks, ...getScheduleChecks()]
 }
 
 export async function startCronExecution(params: {

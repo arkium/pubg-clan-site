@@ -546,7 +546,7 @@ export default function MatchTelemetryDetailPage() {
       .map(([teamId, members], index) => ({
         id: `team-${teamId}`,
         title: `Team #${index}`,
-        teamId,
+        teamId: teamId as number | null,
         members,
       }))
 

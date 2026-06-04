@@ -567,6 +567,7 @@ async function recalculateTelemetryPeriodForClan(
         kills: aggregate.kills,
         headshots: aggregate.headshots,
         avgDistance,
+        totalDamage: Number(aggregate.damageDealt.toFixed(2)),
         matchCount: aggregate.matchCount,
       }
     }

@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -174,11 +173,6 @@ export default function ClanTelemetryHeatmapKillsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Heatmap kills clan</h1>
             <p className="text-sm text-gray-600">Vue map-level pour preparer la couche geospatiale detaillee.</p>
             <ClanSectionNav clanId={clanId} />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/clans/${clanId}/stats/weapons`} className="app-btn app-btn--sm app-btn--secondary">
-              Stats armes
-            </Link>
           </div>
         </div>
       </header>

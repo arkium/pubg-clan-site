@@ -7,8 +7,21 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
+
+type SnapshotWeaponRow = {
+  weaponName: string
+  killDistanceTotal: number
+  killDistanceCount: number
+  killDistanceMax?: number
+}
+
+type SnapshotMemberRow = {
+  memberKey: string
+  weapons: SnapshotWeaponRow[]
+}
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -48,6 +61,127 @@ function toPeriodKey(period: TelemetryPeriod, now = new Date()) {
   return `week-${now.getFullYear()}-${String(getIsoWeek(now)).padStart(2, '0')}`
 }
 
+function getPeriodBounds(period: TelemetryPeriod, now = new Date()) {
+  if (period === 'all') {
+    return {
+      startDate: new Date(0),
+      endDate: new Date('9999-12-31T23:59:59.999Z'),
+    }
+  }
+
+  if (period === 'month') {
+    return {
+      startDate: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+      endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+    }
+  }
+
+  const day = now.getDay()
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+  const monday = new Date(now)
+  monday.setDate(diff)
+  monday.setHours(0, 0, 0, 0)
+
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  sunday.setHours(23, 59, 59, 999)
+
+  return {
+    startDate: monday,
+    endDate: sunday,
+  }
+}
+
+function normalizeKey(value: string | null | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
+
+function asFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberRow[] {
+  if (typeof raw === 'string') {
+    try {
+      return parseSnapshotMemberStatsRows(JSON.parse(raw))
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  const rows: SnapshotMemberRow[] = []
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+
+    const row = entry as Record<string, unknown>
+    const memberKey = typeof row.memberKey === 'string' ? row.memberKey.trim() : ''
+    if (!memberKey) {
+      continue
+    }
+
+    const weaponsSource = Array.isArray(row.weapons) ? row.weapons : []
+    const weapons: SnapshotWeaponRow[] = []
+
+    for (const weaponEntry of weaponsSource) {
+      if (!weaponEntry || typeof weaponEntry !== 'object') {
+        continue
+      }
+
+      const weapon = weaponEntry as Record<string, unknown>
+      const weaponName = typeof weapon.weaponName === 'string' ? weapon.weaponName.trim() : ''
+      if (!weaponName) {
+        continue
+      }
+
+      weapons.push({
+        weaponName,
+        killDistanceTotal: asFiniteNumber(weapon.killDistanceTotal),
+        killDistanceCount: asFiniteNumber(weapon.killDistanceCount),
+        killDistanceMax: asFiniteNumber(weapon.killDistanceMax),
+      })
+    }
+
+    rows.push({
+      memberKey,
+      weapons,
+    })
+  }
+
+  return rows
+}
+
+function resolveWeaponDistanceMax(weapon: SnapshotWeaponRow) {
+  if (typeof weapon.killDistanceMax === 'number' && weapon.killDistanceMax > 0) {
+    return weapon.killDistanceMax
+  }
+
+  if (weapon.killDistanceCount === 1 && weapon.killDistanceTotal > 0) {
+    return weapon.killDistanceTotal
+  }
+
+  return null
+}
+
+function centimetersToMeters(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return value / 100
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -72,8 +206,9 @@ export async function GET(
     const url = new URL(request.url)
     const period = parsePeriod(url.searchParams.get('period'))
     const periodKey = toPeriodKey(period)
+    const bounds = getPeriodBounds(period)
 
-    const rows = await prisma.$queryRaw<
+    const rowsRaw = await prisma.$queryRaw<
       Array<{
         memberId: number
         displayName: string
@@ -82,6 +217,7 @@ export async function GET(
         kills: number
         headshots: number
         avgDistance: number
+        totalDamage: number
         matchCount: number
       }>
     >(Prisma.sql`
@@ -93,6 +229,7 @@ export async function GET(
         ws.kills,
         ws.headshots,
         ws.avgDistance,
+        ws.totalDamage,
         ws.matchCount
       FROM MemberWeaponStats ws
       INNER JOIN ClanMember cm ON cm.id = ws.memberId
@@ -100,6 +237,108 @@ export async function GET(
         AND ws.period = ${periodKey}
       ORDER BY ws.kills DESC, ws.headshots DESC, ws.matchCount DESC
     `)
+
+    const snapshots = await prisma.squadMatchTelemetry.findMany({
+      where: {
+        status: 'success',
+        squadMatch: {
+          createdAt: {
+            gte: bounds.startDate,
+            lte: bounds.endDate,
+          },
+          members: {
+            some: {
+              member: {
+                clanId: parsedClanId,
+              },
+            },
+          },
+        },
+      },
+      select: {
+        memberStats: true,
+        squadMatch: {
+          select: {
+            members: {
+              select: {
+                member: {
+                  select: {
+                    id: true,
+                    clanId: true,
+                    pubgPlayerName: true,
+                    pubgAccountId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const maxDistanceByMemberWeapon = new Map<string, number>()
+
+    for (const snapshot of snapshots) {
+      const keyToMemberId = new Map<string, number>()
+
+      for (const entry of snapshot.squadMatch.members) {
+        const member = entry.member
+        if (member.clanId !== parsedClanId) {
+          continue
+        }
+
+        const normalizedAccountId = normalizeKey(member.pubgAccountId)
+        if (normalizedAccountId) {
+          keyToMemberId.set(normalizedAccountId, member.id)
+        }
+
+        const normalizedPlayerName = normalizeKey(member.pubgPlayerName)
+        if (normalizedPlayerName) {
+          keyToMemberId.set(normalizedPlayerName, member.id)
+        }
+      }
+
+      const memberRows = parseSnapshotMemberStatsRows(snapshot.memberStats)
+      for (const memberRow of memberRows) {
+        const memberId = keyToMemberId.get(normalizeKey(memberRow.memberKey) ?? '')
+        if (!memberId) {
+          continue
+        }
+
+        for (const weapon of memberRow.weapons) {
+          const maxDistance = resolveWeaponDistanceMax(weapon)
+          if (maxDistance === null) {
+            continue
+          }
+
+          const mapKey = `${memberId}:${weapon.weaponName}`
+          const existing = maxDistanceByMemberWeapon.get(mapKey)
+          if (typeof existing !== 'number' || maxDistance > existing) {
+            maxDistanceByMemberWeapon.set(mapKey, maxDistance)
+          }
+        }
+      }
+    }
+
+    const weaponLabels = await getWeaponLabels()
+    const rows = rowsRaw.map((row) => {
+      const avgDistanceMeters = centimetersToMeters(row.avgDistance)
+      const inferredMaxDistanceCm = maxDistanceByMemberWeapon.get(`${row.memberId}:${row.weaponName}`)
+      const inferredMaxDistanceMeters =
+        typeof inferredMaxDistanceCm === 'number'
+          ? centimetersToMeters(inferredMaxDistanceCm)
+          : null
+
+      return {
+        ...row,
+        avgDistance: avgDistanceMeters,
+        maxDistance:
+          typeof inferredMaxDistanceMeters === 'number'
+            ? Math.max(inferredMaxDistanceMeters, avgDistanceMeters)
+            : null,
+        weaponLabel: weaponDisplayName(row.weaponName, weaponLabels),
+      }
+    })
 
     return NextResponse.json(
       buildTelemetrySuccessResponse(
@@ -112,6 +351,7 @@ export async function GET(
         },
         {
           rows,
+          weaponLabels,
           note:
             rows.length === 0
               ? 'Aucune ligne disponible actuellement pour cette periode.'
@@ -123,6 +363,7 @@ export async function GET(
           periodKey,
           count: rows.length,
           rows,
+          weaponLabels,
           note:
             rows.length === 0
               ? 'Aucune ligne disponible actuellement pour cette periode.'

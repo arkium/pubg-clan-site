@@ -7,6 +7,7 @@ import {
   isTelemetryJsonFieldUnsupportedError,
   normalizeErrorMessage,
 } from '@/lib/pubg-telemetry/persistence-payload'
+import { persistTelemetryJsonFieldsWithSql } from '@/lib/pubg-telemetry/persistence-fallback'
 import { prisma } from '@/lib/prisma'
 
 export type SyncTelemetryForSquadMatchInput = {
@@ -244,6 +245,20 @@ export async function syncTelemetryForSquadMatch(
           ...successBasePayload,
         },
       })
+
+      try {
+        await persistTelemetryJsonFieldsWithSql({
+          squadMatchId: input.squadMatchId,
+          parsed,
+        })
+      } catch (fallbackError) {
+        console.warn('[TelemetrySync][FallbackSql] Unable to persist telemetry JSON fields', {
+          squadMatchId: input.squadMatchId,
+          pubgMatchId: input.pubgMatchId,
+          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        })
+      }
+
       persistMs = Date.now() - persistStartedAt
       logTelemetryStep({
         step: 'persist-snapshot',

@@ -488,6 +488,8 @@ export default function TelemetryRecoveriesPage() {
   const [observabilityWindow, setObservabilityWindow] = useState<KpiWindow>('7d')
   const [loadingObservability, setLoadingObservability] = useState(false)
   const [observabilityError, setObservabilityError] = useState<string | null>(null)
+  const [backfillLoading, setBackfillLoading] = useState(false)
+  const [backfillMessage, setBackfillMessage] = useState<string | null>(null)
   const [observabilityPayload, setObservabilityPayload] =
     useState<NormalizedTelemetryObservability | null>(null)
 
@@ -581,6 +583,57 @@ export default function TelemetryRecoveriesPage() {
     },
     [router]
   )
+
+  const runNullJsonBackfill = useCallback(async () => {
+    if (!clanId) {
+      return
+    }
+
+    try {
+      setBackfillLoading(true)
+      setBackfillMessage(null)
+
+      const response = await fetch(`/api/clans/${clanId}/telemetry/backfill-null-json`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          limit: 150,
+          dryRun: false,
+        }),
+      })
+
+      const data = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            candidateCount?: number
+            processedCount?: number
+            successCount?: number
+            failedCount?: number
+            batchCount?: number
+          }
+        | null
+
+      if (!response.ok || !data?.ok) {
+        setBackfillMessage(data?.error ?? 'Echec du backfill telemetry null JSON.')
+        return
+      }
+
+      setBackfillMessage(
+        `Backfill termine: ${data.successCount ?? 0} succes, ${data.failedCount ?? 0} echec(s), ${data.processedCount ?? 0}/${data.candidateCount ?? 0} traite(s), ${data.batchCount ?? 0} batch(s).`
+      )
+
+      setRefreshing(true)
+      void loadRecoveries(clanId)
+      void loadObservability(clanId, observabilityWindow)
+    } catch {
+      setBackfillMessage('Echec du backfill telemetry null JSON.')
+    } finally {
+      setBackfillLoading(false)
+    }
+  }, [clanId, loadObservability, loadRecoveries, observabilityWindow])
 
   useEffect(() => {
     if (!clanId) {
@@ -738,6 +791,17 @@ export default function TelemetryRecoveriesPage() {
             {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              void runNullJsonBackfill()
+            }}
+            disabled={backfillLoading}
+            className="app-btn app-btn--md app-btn--secondary"
+          >
+            {backfillLoading ? 'Backfill en cours...' : 'Backfill JSON manquants'}
+          </button>
+
           {clanId ? (
             <Link
               href={`/clans/${clanId}/matches?period=week`}
@@ -747,6 +811,8 @@ export default function TelemetryRecoveriesPage() {
             </Link>
           ) : null}
         </div>
+
+        {backfillMessage ? <p className="mt-3 text-sm text-amber-700">{backfillMessage}</p> : null}
       </header>
 
       {error ? <section className="app-panel p-4 text-sm text-rose-800">{error}</section> : null}

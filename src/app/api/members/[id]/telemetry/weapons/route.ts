@@ -6,8 +6,21 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
+
+type SnapshotWeaponRow = {
+  weaponName: string
+  killDistanceTotal: number
+  killDistanceCount: number
+  killDistanceMax?: number
+}
+
+type SnapshotMemberRow = {
+  memberKey: string
+  weapons: SnapshotWeaponRow[]
+}
 
 function parseMemberId(id: string) {
   const memberId = Number(id)
@@ -47,6 +60,127 @@ function toPeriodKey(period: TelemetryPeriod, now = new Date()) {
   return `week-${now.getFullYear()}-${String(getIsoWeek(now)).padStart(2, '0')}`
 }
 
+function getPeriodBounds(period: TelemetryPeriod, now = new Date()) {
+  if (period === 'all') {
+    return {
+      startDate: new Date(0),
+      endDate: new Date('9999-12-31T23:59:59.999Z'),
+    }
+  }
+
+  if (period === 'month') {
+    return {
+      startDate: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+      endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+    }
+  }
+
+  const day = now.getDay()
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+  const monday = new Date(now)
+  monday.setDate(diff)
+  monday.setHours(0, 0, 0, 0)
+
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  sunday.setHours(23, 59, 59, 999)
+
+  return {
+    startDate: monday,
+    endDate: sunday,
+  }
+}
+
+function normalizeKey(value: string | null | undefined) {
+  if (!value) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
+
+function asFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberRow[] {
+  if (typeof raw === 'string') {
+    try {
+      return parseSnapshotMemberStatsRows(JSON.parse(raw))
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  const rows: SnapshotMemberRow[] = []
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+
+    const row = entry as Record<string, unknown>
+    const memberKey = typeof row.memberKey === 'string' ? row.memberKey.trim() : ''
+    if (!memberKey) {
+      continue
+    }
+
+    const weaponsSource = Array.isArray(row.weapons) ? row.weapons : []
+    const weapons: SnapshotWeaponRow[] = []
+
+    for (const weaponEntry of weaponsSource) {
+      if (!weaponEntry || typeof weaponEntry !== 'object') {
+        continue
+      }
+
+      const weapon = weaponEntry as Record<string, unknown>
+      const weaponName = typeof weapon.weaponName === 'string' ? weapon.weaponName.trim() : ''
+      if (!weaponName) {
+        continue
+      }
+
+      weapons.push({
+        weaponName,
+        killDistanceTotal: asFiniteNumber(weapon.killDistanceTotal),
+        killDistanceCount: asFiniteNumber(weapon.killDistanceCount),
+        killDistanceMax: asFiniteNumber(weapon.killDistanceMax),
+      })
+    }
+
+    rows.push({
+      memberKey,
+      weapons,
+    })
+  }
+
+  return rows
+}
+
+function resolveWeaponDistanceMax(weapon: SnapshotWeaponRow) {
+  if (typeof weapon.killDistanceMax === 'number' && weapon.killDistanceMax > 0) {
+    return weapon.killDistanceMax
+  }
+
+  if (weapon.killDistanceCount === 1 && weapon.killDistanceTotal > 0) {
+    return weapon.killDistanceTotal
+  }
+
+  return null
+}
+
+function centimetersToMeters(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+
+  return value / 100
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -63,7 +197,7 @@ export async function GET(
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
-      select: { id: true, displayName: true, clanId: true },
+      select: { id: true, displayName: true, clanId: true, pubgAccountId: true, pubgPlayerName: true },
     })
 
     if (!member) {
@@ -74,8 +208,9 @@ export async function GET(
 
     const period = parsePeriod(new URL(request.url).searchParams.get('period'))
     const periodKey = toPeriodKey(period)
+    const bounds = getPeriodBounds(period)
 
-    const rows = await prisma.$queryRaw<
+    const rowsRaw = await prisma.$queryRaw<
       Array<{
         weaponName: string
         kills: number
@@ -95,6 +230,80 @@ export async function GET(
         AND period = ${periodKey}
       ORDER BY kills DESC, headshots DESC, matchCount DESC
     `)
+
+    const snapshots = await prisma.squadMatchTelemetry.findMany({
+      where: {
+        status: 'success',
+        squadMatch: {
+          createdAt: {
+            gte: bounds.startDate,
+            lte: bounds.endDate,
+          },
+          members: {
+            some: {
+              memberId,
+            },
+          },
+        },
+      },
+      select: {
+        memberStats: true,
+      },
+    })
+
+    const targetKeys = new Set<string>()
+    const normalizedAccountId = normalizeKey(member.pubgAccountId)
+    if (normalizedAccountId) {
+      targetKeys.add(normalizedAccountId)
+    }
+    const normalizedPlayerName = normalizeKey(member.pubgPlayerName)
+    if (normalizedPlayerName) {
+      targetKeys.add(normalizedPlayerName)
+    }
+
+    const maxDistanceByWeapon = new Map<string, number>()
+
+    for (const snapshot of snapshots) {
+      const memberRows = parseSnapshotMemberStatsRows(snapshot.memberStats)
+      const matchedMemberRows = memberRows.filter((row) => {
+        const normalizedKey = normalizeKey(row.memberKey)
+        return !!normalizedKey && targetKeys.has(normalizedKey)
+      })
+
+      for (const memberRow of matchedMemberRows) {
+        for (const weapon of memberRow.weapons) {
+          const maxDistance = resolveWeaponDistanceMax(weapon)
+          if (maxDistance === null) {
+            continue
+          }
+
+          const existing = maxDistanceByWeapon.get(weapon.weaponName)
+          if (typeof existing !== 'number' || maxDistance > existing) {
+            maxDistanceByWeapon.set(weapon.weaponName, maxDistance)
+          }
+        }
+      }
+    }
+
+    const weaponLabels = await getWeaponLabels()
+    const rows = rowsRaw.map((row) => {
+      const avgDistanceMeters = centimetersToMeters(row.avgDistance)
+      const inferredMaxDistanceCm = maxDistanceByWeapon.get(row.weaponName)
+      const inferredMaxDistanceMeters =
+        typeof inferredMaxDistanceCm === 'number'
+          ? centimetersToMeters(inferredMaxDistanceCm)
+          : null
+
+      return {
+        ...row,
+        avgDistance: avgDistanceMeters,
+        maxDistance:
+          typeof inferredMaxDistanceMeters === 'number'
+            ? Math.max(inferredMaxDistanceMeters, avgDistanceMeters)
+            : null,
+        weaponLabel: weaponDisplayName(row.weaponName, weaponLabels),
+      }
+    })
 
     const memberPayload = {
       id: member.id,
@@ -117,6 +326,7 @@ export async function GET(
         {
           member: memberPayload,
           rows,
+          weaponLabels,
           note,
         },
         {
@@ -125,6 +335,7 @@ export async function GET(
           periodKey,
           count: rows.length,
           rows,
+          weaponLabels,
           note,
         }
       )

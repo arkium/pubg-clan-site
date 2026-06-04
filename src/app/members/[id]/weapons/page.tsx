@@ -12,9 +12,11 @@ type TelemetryPeriod = 'week' | 'month' | 'all'
 
 type MemberWeaponRow = {
   weaponName: string
+  weaponLabel?: string
   kills: number
   headshots: number
   avgDistance: number
+  maxDistance?: number | null
   matchCount: number
 }
 
@@ -31,6 +33,9 @@ type MemberWeaponsResponse = {
   rows: MemberWeaponRow[]
   note: string | null
 }
+
+type SortKey = 'weapon' | 'kills' | 'headshotRate' | 'avgDistance' | 'maxDistance' | 'matchCount'
+type SortDirection = 'asc' | 'desc'
 
 type MemberWeaponsContractResponse = {
   ok: boolean
@@ -85,6 +90,14 @@ function formatPercent(value: number) {
 
 function formatMeters(value: number) {
   return `${value.toFixed(1)} m`
+}
+
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, 'fr-FR', { sensitivity: 'base' })
+}
+
+function compareNumber(left: number, right: number) {
+  return left - right
 }
 
 function extractErrorMessage(payload: unknown, fallback: string) {
@@ -146,6 +159,98 @@ export default function MemberWeaponsPage() {
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MemberWeaponsResponse | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
+  const [sortKey, setSortKey] = useState<SortKey>('kills')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  const podiumByWeapon = useMemo(() => {
+    const rows = payload?.rows ?? []
+    const topByKills = [...rows]
+      .sort((left, right) => {
+        if (right.kills !== left.kills) {
+          return right.kills - left.kills
+        }
+
+        return (left.weaponLabel ?? left.weaponName).localeCompare(
+          right.weaponLabel ?? right.weaponName,
+          'fr-FR',
+          { sensitivity: 'base' }
+        )
+      })
+      .slice(0, 3)
+
+    return new Map(topByKills.map((row, index) => [row.weaponName, index + 1]))
+  }, [payload?.rows])
+
+  const sortedRows = useMemo(() => {
+    const rows = payload?.rows ?? []
+    const factor = sortDirection === 'asc' ? 1 : -1
+
+    return [...rows].sort((left, right) => {
+      if (sortKey === 'weapon') {
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName) * factor
+      }
+
+      if (sortKey === 'kills') {
+        const compare = compareNumber(left.kills, right.kills)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'headshotRate') {
+        const leftRate = left.kills > 0 ? (left.headshots / left.kills) * 100 : 0
+        const rightRate = right.kills > 0 ? (right.headshots / right.kills) * 100 : 0
+        const compare = compareNumber(leftRate, rightRate)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'avgDistance') {
+        const compare = compareNumber(left.avgDistance, right.avgDistance)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'maxDistance') {
+        const leftValue = typeof left.maxDistance === 'number' ? left.maxDistance : -1
+        const rightValue = typeof right.maxDistance === 'number' ? right.maxDistance : -1
+        const compare = compareNumber(leftValue, rightValue)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      const compare = compareNumber(left.matchCount, right.matchCount)
+      if (compare !== 0) {
+        return compare * factor
+      }
+      return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+    })
+  }, [payload?.rows, sortDirection, sortKey])
+
+  function handleSortClick(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(nextKey)
+    setSortDirection(nextKey === 'weapon' ? 'asc' : 'desc')
+  }
+
+  function sortLabel(key: SortKey) {
+    if (sortKey !== key) {
+      return ''
+    }
+
+    return sortDirection === 'asc' ? ' ▲' : ' ▼'
+  }
 
   useEffect(() => {
     if (!memberId) {
@@ -257,28 +362,70 @@ export default function MemberWeaponsPage() {
 
       {!loading && !error ? (
         payload && payload.rows.length > 0 ? (
-          <section className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
-            <div className="overflow-x-auto">
+          <section className="app-panel p-4">
+            <div className="app-table-shell overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <thead className="app-table-head text-left text-xs uppercase tracking-wide">
                   <tr>
-                    <th className="px-3 py-2">Arme</th>
-                    <th className="px-3 py-2 text-right">Kills</th>
-                    <th className="px-3 py-2 text-right">Headshots %</th>
-                    <th className="px-3 py-2 text-right">Distance moyenne</th>
-                    <th className="px-3 py-2 text-right">Matchs</th>
+                    <th className="px-3 py-2">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('weapon')}>
+                        Arme{sortLabel('weapon')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('kills')}>
+                        Kills{sortLabel('kills')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('headshotRate')}>
+                        Headshots %{sortLabel('headshotRate')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
+                        Distance moyenne{sortLabel('avgDistance')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('maxDistance')}>
+                        Distance max{sortLabel('maxDistance')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('matchCount')}>
+                        Matchs{sortLabel('matchCount')}
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {payload.rows.map((row) => {
+                  {sortedRows.map((row) => {
                     const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
+                    const podiumRank = podiumByWeapon.get(row.weaponName)
+                    const podiumTone =
+                      podiumRank === 1
+                        ? 'app-podium-badge--gold'
+                        : podiumRank === 2
+                          ? 'app-podium-badge--silver'
+                          : 'app-podium-badge--bronze'
 
                     return (
-                      <tr key={row.weaponName} className="border-t border-gray-100">
-                        <td className="px-3 py-2 text-gray-900">{row.weaponName}</td>
+                      <tr key={row.weaponName} className="app-table-row">
+                        <td className="px-3 py-2 text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <span>{row.weaponLabel ?? row.weaponName}</span>
+                            {podiumRank ? (
+                              <span className={`app-podium-badge ${podiumTone}`}>
+                                #{podiumRank}
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.matchCount)}</td>
                       </tr>
                     )

@@ -1,6 +1,7 @@
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import Link from 'next/link'
 
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
@@ -16,14 +17,6 @@ interface SquadMatchListProps {
   selectable?: boolean
   selectedMatchIds?: string[]
   onToggleMatchSelection?: (matchId: string) => void
-}
-
-function formatMatchDate(value: string) {
-  const date = new Date(value)
-  return date.toLocaleString('fr-FR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
 }
 
 function formatMatchDay(value: string) {
@@ -329,6 +322,15 @@ export default function SquadMatchList({
                   <p className="mt-1 line-clamp-3">{match.telemetry.errorMessage}</p>
                 </div>
               ) : null}
+
+              <div className="mt-3">
+                <Link
+                  href={`/clans/${clanId}/matches/${match.id}/telemetry?period=${period}&fromDate=${match.createdAt.slice(0, 10)}`}
+                  className="app-btn app-btn--sm app-btn--secondary inline-flex"
+                >
+                  Voir la telemetrie complete
+                </Link>
+              </div>
             </li>
           )
         })}

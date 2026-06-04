@@ -235,8 +235,16 @@ La page agrège via `getCronOverview(clanId)`:
 `getCronConfigurationChecks()` controle:
 
 - variables runtime (`ENABLE_CRON_JOBS`, `ENABLE_CRON_BOOTSTRAP`, `DATABASE_URL`, etc.),
+- variables telemetry (`TELEMETRY_SYNC_ENABLED`, `TELEMETRY_PARSER_VERSION`, `TELEMETRY_MAX_MATCHES_PER_RUN`, `TELEMETRY_SYNC_CONCURRENCY`, `TELEMETRY_RETRY_MAX`, `TELEMETRY_FETCH_TIMEOUT_MS`, `TELEMETRY_MAX_ASSET_SIZE_MB`, `TELEMETRY_CAPTURE_FIXTURES`, `TELEMETRY_CAPTURE_FIXTURES_DIR`, `TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES`),
+- variables reminders cron (`CLAN_ONLINE_REMINDER_CRON`, `WEEKLY_REPORT_REMINDER_CRON`),
 - integrite des expressions cron,
 - hints de remediation.
+
+Les checks appliquent des validations simples:
+
+- booleens explicites (`true|false`) pour les flags,
+- entiers strictement positifs pour les bornes telemetry,
+- fallback et statut (`ok|warning|error`) affiches dans la table.
 
 ### Bloc rate limit PUBG API (snapshot)
 

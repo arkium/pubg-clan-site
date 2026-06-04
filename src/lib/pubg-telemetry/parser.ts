@@ -2,6 +2,8 @@ type TelemetryEvent = Record<string, unknown>
 
 type TelemetryMemberStats = {
   memberKey: string
+  teamId?: number
+  teamPlacement?: number
   kills: number
   headshots: number
   damageDealt: number
@@ -22,6 +24,7 @@ type TelemetryMemberWeaponStats = {
   damageDealt: number
   killDistanceTotal: number
   killDistanceCount: number
+  killDistanceMax: number
 }
 
 type TelemetryWeaponStats = {
@@ -35,6 +38,7 @@ type TelemetryAccumulator = {
   memberStats: Map<string, TelemetryMemberStats>
   weaponStats: Map<string, TelemetryWeaponStats>
   memberWeaponStats: Map<string, Map<string, TelemetryMemberWeaponStats>>
+  teamPlacements: Map<number, number>
   eventTypes: Set<string>
   summary: {
     totalEvents: number
@@ -239,6 +243,27 @@ function getKillDistance(event: TelemetryEvent) {
   ])
 }
 
+function getKillerTeamId(event: TelemetryEvent) {
+  return getFirstNumberFromPaths(event, [
+    'killer.teamId',
+    'attacker.teamId',
+    'finisher.teamId',
+    'dBNOMaker.teamId',
+  ])
+}
+
+function getVictimTeamId(event: TelemetryEvent) {
+  return getFirstNumberFromPaths(event, ['victim.teamId', 'target.teamId'])
+}
+
+function getReviverTeamId(event: TelemetryEvent) {
+  return getFirstNumberFromPaths(event, ['reviver.teamId'])
+}
+
+function getCharacterTeamId(event: TelemetryEvent) {
+  return getFirstNumberFromPaths(event, ['character.teamId', 'teamId'])
+}
+
 function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, memberKey: string) {
   const existing = stats.get(memberKey)
   if (existing) {
@@ -262,6 +287,89 @@ function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, member
 
   stats.set(memberKey, created)
   return created
+}
+
+function getOrCreateMemberStatsWithTeam(
+  stats: Map<string, TelemetryMemberStats>,
+  memberKey: string,
+  teamId: number | null,
+  teamPlacements: Map<number, number>
+) {
+  const member = getOrCreateMemberStats(stats, memberKey)
+
+  if (
+    typeof teamId === 'number' &&
+    Number.isFinite(teamId) &&
+    teamId >= 0 &&
+    typeof member.teamId !== 'number'
+  ) {
+    member.teamId = teamId
+  }
+
+  if (typeof member.teamId === 'number') {
+    const placement = teamPlacements.get(member.teamId)
+    if (typeof placement === 'number' && Number.isFinite(placement) && placement > 0) {
+      member.teamPlacement = placement
+    }
+  }
+
+  return member
+}
+
+function updateTeamPlacementsFromMatchEnd(
+  event: TelemetryEvent,
+  teamPlacements: Map<number, number>,
+  memberStats: Map<string, TelemetryMemberStats>
+) {
+  const arrayCandidates: unknown[] = [
+    getValueByPath(event, 'gameResultOnFinished.results'),
+    getValueByPath(event, 'gameResult.results'),
+    getObjectProperty(event, 'results'),
+    getObjectProperty(event, 'characters'),
+  ]
+
+  for (const candidate of arrayCandidates) {
+    if (!Array.isArray(candidate)) {
+      continue
+    }
+
+    for (const entry of candidate) {
+      const teamId = getFirstNumberFromPaths(entry, ['teamId', 'character.teamId'])
+      const ranking = getFirstNumberFromPaths(entry, ['rank', 'ranking', 'gameResult.rank', 'gameResult.ranking'])
+
+      if (
+        typeof teamId === 'number' &&
+        Number.isFinite(teamId) &&
+        teamId >= 0 &&
+        typeof ranking === 'number' &&
+        Number.isFinite(ranking) &&
+        ranking > 0
+      ) {
+        const existing = teamPlacements.get(teamId)
+        if (typeof existing !== 'number' || ranking < existing) {
+          teamPlacements.set(teamId, ranking)
+        }
+      }
+
+      const memberKey = getFirstStringFromPaths(entry, [
+        'accountId',
+        'character.accountId',
+        'name',
+        'character.name',
+      ])
+
+      if (memberKey) {
+        const member = getOrCreateMemberStatsWithTeam(memberStats, memberKey, teamId, teamPlacements)
+        if (
+          typeof ranking === 'number' &&
+          Number.isFinite(ranking) &&
+          ranking > 0
+        ) {
+          member.teamPlacement = ranking
+        }
+      }
+    }
+  }
 }
 
 function getOrCreateWeaponStats(stats: Map<string, TelemetryWeaponStats>, weaponName: string) {
@@ -300,6 +408,7 @@ function getOrCreateMemberWeaponStats(
       damageDealt: 0,
       killDistanceTotal: 0,
       killDistanceCount: 0,
+      killDistanceMax: 0,
     }
     existingByMember.set(weaponName, created)
     return created
@@ -312,6 +421,7 @@ function getOrCreateMemberWeaponStats(
     damageDealt: 0,
     killDistanceTotal: 0,
     killDistanceCount: 0,
+    killDistanceMax: 0,
   }
 
   statsByMember.set(memberKey, new Map([[weaponName, created]]))
@@ -323,6 +433,7 @@ function createTelemetryAccumulator(): TelemetryAccumulator {
     memberStats: new Map<string, TelemetryMemberStats>(),
     weaponStats: new Map<string, TelemetryWeaponStats>(),
     memberWeaponStats: new Map<string, Map<string, TelemetryMemberWeaponStats>>(),
+    teamPlacements: new Map<number, number>(),
     eventTypes: new Set<string>(),
     summary: {
       totalEvents: 0,
@@ -353,21 +464,45 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   const victimKey = getVictimKey(event)
   const reviveKey = getReviverKey(event)
   const actorKey = getCharacterKey(event)
+  const killerTeamId = getKillerTeamId(event)
+  const victimTeamId = getVictimTeamId(event)
+  const reviveTeamId = getReviverTeamId(event)
+  const actorTeamId = getCharacterTeamId(event)
   const weaponName = getWeaponName(event)
   const damage = getDamageValue(event)
   const killDistance = getKillDistance(event)
 
+  if (eventType === 'LogMatchEnd') {
+    updateTeamPlacementsFromMatchEnd(event, accumulator.teamPlacements, accumulator.memberStats)
+    return
+  }
+
   if (eventType === 'LogPlayerKill' || eventType === 'LogPlayerKillV2') {
     accumulator.summary.killEvents += 1
     if (killerKey) {
-      getOrCreateMemberStats(accumulator.memberStats, killerKey).kills += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        killerKey,
+        killerTeamId,
+        accumulator.teamPlacements
+      ).kills += 1
     }
     if (victimKey) {
-      getOrCreateMemberStats(accumulator.memberStats, victimKey).deaths += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        victimKey,
+        victimTeamId,
+        accumulator.teamPlacements
+      ).deaths += 1
     }
     const wasHeadshot = isHeadshotKill(event)
     if (killerKey && wasHeadshot) {
-      getOrCreateMemberStats(accumulator.memberStats, killerKey).headshots += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        killerKey,
+        killerTeamId,
+        accumulator.teamPlacements
+      ).headshots += 1
     }
     if (weaponName) {
       const weapon = getOrCreateWeaponStats(accumulator.weaponStats, weaponName)
@@ -393,6 +528,9 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         if (typeof killDistance === 'number' && Number.isFinite(killDistance) && killDistance >= 0) {
           memberWeapon.killDistanceTotal += killDistance
           memberWeapon.killDistanceCount += 1
+          if (killDistance > memberWeapon.killDistanceMax) {
+            memberWeapon.killDistanceMax = killDistance
+          }
         }
       }
     }
@@ -402,7 +540,12 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   if (eventType === 'LogPlayerRevive') {
     accumulator.summary.reviveEvents += 1
     if (reviveKey) {
-      getOrCreateMemberStats(accumulator.memberStats, reviveKey).revives += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        reviveKey,
+        reviveTeamId,
+        accumulator.teamPlacements
+      ).revives += 1
     }
     return
   }
@@ -410,7 +553,12 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   if (eventType === 'LogPlayerMakeGroggy') {
     accumulator.summary.knockoutEvents += 1
     if (killerKey) {
-      getOrCreateMemberStats(accumulator.memberStats, killerKey).knockouts += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        killerKey,
+        killerTeamId,
+        accumulator.teamPlacements
+      ).knockouts += 1
     }
     return
   }
@@ -418,7 +566,12 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   if (eventType === 'LogPlayerTakeDamage') {
     accumulator.summary.damageEvents += 1
     if (killerKey) {
-      getOrCreateMemberStats(accumulator.memberStats, killerKey).damageDealt += damage
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        killerKey,
+        killerTeamId,
+        accumulator.teamPlacements
+      ).damageDealt += damage
     }
     if (weaponName) {
       const weapon = getOrCreateWeaponStats(accumulator.weaponStats, weaponName)
@@ -434,7 +587,12 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       }
     }
     if (victimKey && isBlueZoneDamage(event)) {
-      getOrCreateMemberStats(accumulator.memberStats, victimKey).blueZoneHits += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        victimKey,
+        victimTeamId,
+        accumulator.teamPlacements
+      ).blueZoneHits += 1
     }
     return
   }
@@ -447,7 +605,12 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   if (eventType === 'LogVehicleRide' || eventType === 'LogVehicleLeave' || eventType === 'LogVehicleDestroy') {
     accumulator.summary.vehicleEvents += 1
     if (actorKey) {
-      const member = getOrCreateMemberStats(accumulator.memberStats, actorKey)
+      const member = getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        actorKey,
+        actorTeamId,
+        accumulator.teamPlacements
+      )
       if (eventType === 'LogVehicleRide') {
         member.vehicleRideEvents += 1
       }
@@ -461,7 +624,12 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   if (eventType === 'LogPlayerPosition') {
     accumulator.summary.positionEvents += 1
     if (actorKey) {
-      getOrCreateMemberStats(accumulator.memberStats, actorKey).positionEvents += 1
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        actorKey,
+        actorTeamId,
+        accumulator.teamPlacements
+      ).positionEvents += 1
     }
     return
   }
@@ -477,6 +645,17 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 }
 
 function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTelemetrySnapshot {
+  for (const member of accumulator.memberStats.values()) {
+    if (typeof member.teamId !== 'number') {
+      continue
+    }
+
+    const placement = accumulator.teamPlacements.get(member.teamId)
+    if (typeof placement === 'number' && Number.isFinite(placement) && placement > 0) {
+      member.teamPlacement = placement
+    }
+  }
+
   const memberStats = Array.from(accumulator.memberStats.values())
     .map((member) => {
       const weapons = Array.from(

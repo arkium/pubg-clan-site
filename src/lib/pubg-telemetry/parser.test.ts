@@ -96,6 +96,7 @@ describe('parseTelemetrySnapshot', () => {
         character: {
           accountId: 'player_attacker',
           name: 'AttackerName',
+          teamId: 7,
         },
       },
       {
@@ -103,10 +104,12 @@ describe('parseTelemetrySnapshot', () => {
         attacker: {
           accountId: 'player_attacker',
           name: 'AttackerName',
+          teamId: 7,
         },
         victim: {
           accountId: 'player_victim',
           name: 'VictimName',
+          teamId: 11,
         },
         damage: 37,
         damageTypeCategory: 'Damage_BlueZone',
@@ -117,10 +120,12 @@ describe('parseTelemetrySnapshot', () => {
         reviver: {
           accountId: 'player_support',
           name: 'SupportName',
+          teamId: 7,
         },
         victim: {
           accountId: 'player_victim',
           name: 'VictimName',
+          teamId: 11,
         },
       },
       {
@@ -128,15 +133,32 @@ describe('parseTelemetrySnapshot', () => {
         killer: {
           accountId: 'player_attacker',
           name: 'AttackerName',
+          teamId: 7,
         },
         victim: {
           accountId: 'player_victim',
           name: 'VictimName',
+          teamId: 11,
         },
         distance: 124.5,
         killerDamageInfo: {
           damageCauserName: 'WeapM416_C',
           damageReason: 'HeadShot',
+        },
+      },
+      {
+        _T: 'LogMatchEnd',
+        gameResultOnFinished: {
+          results: [
+            {
+              teamId: 7,
+              rank: 2,
+            },
+            {
+              teamId: 11,
+              rank: 5,
+            },
+          ],
         },
       },
     ])
@@ -151,13 +173,19 @@ describe('parseTelemetrySnapshot', () => {
     expect(attacker?.damageDealt).toBe(37)
     expect(attacker?.kills).toBe(1)
     expect(attacker?.headshots).toBe(1)
+    expect(attacker?.teamId).toBe(7)
+    expect(attacker?.teamPlacement).toBe(2)
 
     expect(victim).toBeDefined()
     expect(victim?.deaths).toBe(1)
     expect(victim?.blueZoneHits).toBe(1)
+    expect(victim?.teamId).toBe(11)
+    expect(victim?.teamPlacement).toBe(5)
 
     expect(support).toBeDefined()
     expect(support?.revives).toBe(1)
+    expect(support?.teamId).toBe(7)
+    expect(support?.teamPlacement).toBe(2)
 
     expect(weapon).toBeDefined()
     expect(weapon?.kills).toBe(1)
@@ -171,6 +199,7 @@ describe('parseTelemetrySnapshot', () => {
     expect(attackerWeapon?.damageDealt).toBe(37)
     expect(attackerWeapon?.killDistanceTotal).toBe(124.5)
     expect(attackerWeapon?.killDistanceCount).toBe(1)
+    expect(attackerWeapon?.killDistanceMax).toBe(124.5)
   })
 })
 

@@ -11,6 +11,25 @@ Mettre en production un pipeline télémétrie qui:
 3. Stocke uniquement des agrégats en base.
 4. Expose des APIs et des vues pour les nouveaux indicateurs (armes, synergies, style de jeu, positionnement, cercles, loot, véhicules).
 
+## Statut rapide (04/06/2026)
+
+Ce resume est base sur verification du repo (code + routes + pages + schema Prisma).
+
+Deja en place dans le repo:
+
+- Pipeline telemetry (client CDN, parser streaming, persistence snapshot, backlog/job, retry/backoff).
+- Tables Prisma telemetry (`SquadMatchTelemetry`, `MemberWeaponStats`, `MemberTelemetryStats`, `ClanSynergyTelemetryStats`).
+- Cron telemetry branche (gate par `TELEMETRY_SYNC_ENABLED`).
+- Endpoints clan/membre telemetry de la doc (weapons, synergies, playstyle, circles, heatmap, vehicles, loot, observability).
+- Pages UI deja livrees (weapons clan/membre, heatmap-kills, recoveries, bloc playstyle).
+- Tests telemetry (parser, job, contrats API, idempotence agregats).
+
+Principal reste a faire:
+
+- Executer le rollout reel sur environnement cible (pilote puis global), car c'est operationnel et non un manque de code.
+- Lancer le reprocessing parserVersion sur l'historique si des snapshots `v1` restent en base.
+- Finaliser les enrichissements metier fins (payloads/visuels) selon priorites produit.
+
 ## Périmètre fonctionnel
 
 Les points a couvrir en livraison:
@@ -391,16 +410,67 @@ Rollback:
 - Conserver snapshots existants en lecture seule.
 - Désactiver endpoints UI telemetry si nécessaire.
 
-## Checklist opérationnelle
+## Checklist de suivi de deploiement
 
-- Migration Prisma appliquée
-- Variables d'env renseignées
-- Feature flag configuré
-- Cron telemetry actif
-- Endpoints telemetry testés
-- UI telemetry validée desktop/mobile
-- Dashboard d'observabilité en place
-- Procédure rollback documentée
+Utiliser cette checklist comme feuille de route runbook. Cocher uniquement avec preuve (log, capture, SQL, page UI).
+
+### A. Verification repo (fait une fois)
+
+- [x] Tables telemetry presentes dans `prisma/schema.prisma`.
+- [x] Job telemetry present et branche dans le cron.
+- [x] Endpoints telemetry clan/membre presents.
+- [x] Pages UI telemetry presentes.
+- [x] Runbook present: `docs/telemetrie-rollout.md`.
+
+### B. Preflight environnement cible (go/no-go)
+
+- [ ] `DATABASE_URL` pointe vers la bonne base cible.
+- [ ] Migrations appliquees (`npx prisma migrate deploy`) sur l'environnement cible.
+- [ ] `TELEMETRY_SYNC_ENABLED=true` sur le worker cron actif.
+- [ ] `TELEMETRY_PARSER_VERSION=v2` actif sur le worker cron.
+- [ ] `TELEMETRY_MAX_MATCHES_PER_RUN` et `TELEMETRY_SYNC_CONCURRENCY` renseignes.
+- [ ] Page `/clans/[clanId]/settings/cron` sans erreur bloquante sur checks telemetry.
+- [ ] Verification SQL: presence de `Clan` actif et de la table `SquadMatchTelemetry`.
+- [ ] Decision go/no-go prise et notee.
+
+### C. Execution pilote (1 clan)
+
+- [ ] Dry-run execute selon `docs/telemetrie-rollout.md`.
+- [ ] Run pilote lance avec telemetry activee.
+- [ ] Resultat run: `telemetry.scanned > 0`.
+- [ ] Resultat run: `telemetry.failed` sous le seuil accepte.
+- [ ] Si snapshots `v1` majoritaires: batch reprocess TEL-202 execute.
+- [ ] Recalcul `sync_telemetry_aggregates` execute apres reprocess.
+- [ ] UI validee sur le clan pilote:
+  - [ ] `/clans/[clanId]/stats/weapons`
+  - [ ] `/clans/[clanId]/stats/heatmap-kills`
+  - [ ] `/members/[id]/weapons`
+  - [ ] `/clans/[clanId]/telemetry/recoveries`
+- [ ] Observation 48h complete sans incident bloquant.
+
+### D. Extension globale
+
+- [ ] Activation globale planifiee (fenetre + responsable).
+- [ ] Parametres telemetry confirmes sur tous les workers cron.
+- [ ] Activation globale executee.
+- [ ] Monitoring 24h/7j valide (failed rate, p95 parse, bytes).
+- [ ] Aucune regression API/UI critique constatee.
+
+### E. Rollback (pret a executer)
+
+- [ ] Procedure rollback verifiee dans `docs/telemetrie-rollout.md`.
+- [ ] Action immediate connue: basculer `TELEMETRY_SYNC_ENABLED=false`.
+- [ ] Canal d'alerte et responsable de decision identifies.
+
+### F. Journal de suivi (a remplir)
+
+- [ ] Date/heure:
+- [ ] Environnement:
+- [ ] Operateur:
+- [ ] Actions executees:
+- [ ] Resultats cles (scanned/parsed/failed, p95):
+- [ ] Decision (continuer / rollback / corriger):
+- [ ] Prochaine etape:
 
 ## Livrables attendus
 
@@ -412,7 +482,30 @@ Rollback:
 - Tests unitaires + intégration
 - Monitoring et runbook de prod
 
-## Verification d'avancement (basee sur nos echanges + code au 02/06/2026)
+## Dernieres mises a jour (03/06/2026)
+
+- Runbook TEL-403 complete dans docs/telemetrie-rollout.md avec journal local preflight, dry-run opere, verification post-run manuel et checklist run-par-run pilote.
+- Page cron enrichie pour afficher les checks de configuration telemetry et reminders cron, avec validation des booleens et bornes numeriques.
+- Roadmap TEL-403 mise a jour avec l'etat reel: preparation documentaire terminee, execution pilote/global restante sur environnement cible.
+
+### Check implementation (tracabilite fichiers/lignes)
+
+- src/lib/cron-observability.ts:318
+  - ajout de la fonction getTelemetryEnvChecks() pour exposer les variables TELEMETRY_* dans les checks cron.
+- src/lib/cron-observability.ts:475
+  - ajout des checks reminders cron CLAN_ONLINE_REMINDER_CRON et WEEKLY_REPORT_REMINDER_CRON.
+- src/lib/cron-observability.ts:497
+  - aggregation finale getCronConfigurationChecks() etendue pour inclure env cron + env telemetry + schedules.
+- docs/cron-clan-settings.md:238
+  - documentation explicite des variables telemetry affichees sur la page /clans/[clanId]/settings/cron.
+- docs/cron-clan-settings.md:245
+  - documentation des regles de validation (true|false, entier > 0, statuts ok/warning/error).
+- docs/telemetrie-rollout.md:61
+  - journal local renseigne avec la verification post-run manuel (4 matchs importes, statut success).
+- docs/telemetrie-rollout.md:137
+  - checklist run-par-run pilote auto ajoutee (runs 1, 2, 3 et decision rapide).
+
+## Verification d'avancement (basee sur verification repo au 04/06/2026)
 
 Cette section met a jour l'etat reel par rapport au plan ci-dessus.
 
@@ -810,7 +903,11 @@ Ticket TEL-403 - Rollout pilote puis global
 - Critere d'acceptation:
   - journal de rollout complete,
   - zero incident bloquant ouvert avant global.
-- Etat: runbook dedie redige dans `docs/telemetrie-rollout.md`; execution operationnelle a mener sur l'environnement cible.
+- Etat: progression confirmee.
+  - runbook dedie redige et complete (`docs/telemetrie-rollout.md`) avec checklist run-par-run pilote,
+  - journal local renseigne (preflight + dry-run opere + verification post-run manuel),
+  - page cron enrichie pour afficher les checks `.env` telemetry et reminders cron,
+  - execution operationnelle pilote/global restant a mener sur l'environnement cible.
 
 ## Proposition de planning (2 sprints)
 

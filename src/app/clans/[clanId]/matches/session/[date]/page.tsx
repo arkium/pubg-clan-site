@@ -230,6 +230,7 @@ export default function ClanSessionDatePage() {
         },
         body: JSON.stringify({
           squadMatchIds: selectedMatchIds,
+          recalculateAggregates: true,
         }),
       })
 
@@ -240,6 +241,14 @@ export default function ClanSessionDatePage() {
             successCount?: number
             failedCount?: number
             processedCount?: number
+            aggregatesRecalculated?: boolean
+            aggregates?: {
+              periodsUpdated?: number
+              memberTelemetryRows?: number
+              memberWeaponRows?: number
+              clanSynergyRows?: number
+            } | null
+            aggregatesWarning?: string | null
             captureEnabled?: boolean
             captureMaxBytes?: number
             results?: Array<{
@@ -300,8 +309,16 @@ export default function ClanSessionDatePage() {
         captureNotes.push(...captureErrorEntries.slice(0, 10))
       }
 
+      const aggregatePart = payload.aggregatesRecalculated
+        ? payload.aggregates
+          ? ` Agrégats recalculés: ${payload.aggregates.memberWeaponRows ?? 0} lignes armes membre, ${payload.aggregates.memberTelemetryRows ?? 0} lignes membres, ${payload.aggregates.clanSynergyRows ?? 0} lignes synergies (${payload.aggregates.periodsUpdated ?? 0} période(s)).`
+          : payload.aggregatesWarning
+            ? ` Recalcul des agrégats en échec: ${payload.aggregatesWarning}.`
+            : ' Recalcul des agrégats demandé, sans détail de retour.'
+        : ''
+
       setTelemetrySyncMessage(
-        `Récupération terminée: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).`
+        `Récupération terminée: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).${aggregatePart}`
       )
       setTelemetrySyncErrors(failedEntries)
       setTelemetrySyncCaptureNotes(captureNotes)

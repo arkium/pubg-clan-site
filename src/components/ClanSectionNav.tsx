@@ -19,6 +19,22 @@ type NavItem = {
 function renderClanSectionIcon(label: string) {
   const iconClass = 'h-4 w-4 shrink-0'
 
+  if (label === 'Stats armes') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M3 10.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 10.5Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 13.5Zm0-6a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 7.5Zm6-2.25A.75.75 0 0 1 9.75 4.5h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 9 5.25Zm.75 3.75a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 4a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Heatmap kills') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12A6 6 0 0 1 10 4Zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z" />
+      </svg>
+    )
+  }
+
   if (label === 'Membres') {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
@@ -64,13 +80,18 @@ function renderClanSectionIcon(label: string) {
 
 export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
   const pathname = usePathname()
+  const statsRootHref = `/clans/${clanId}/stats`
 
   const items: NavItem[] = [
     { label: 'Membres', href: `/clans/${clanId}/members`, icon: renderClanSectionIcon('Membres') },
     { label: 'Matchs', href: `/clans/${clanId}/matches`, icon: renderClanSectionIcon('Matchs') },
-    { label: 'Stats', href: `/clans/${clanId}/stats`, icon: renderClanSectionIcon('Stats') },
+    { label: 'Stats', href: statsRootHref, icon: renderClanSectionIcon('Stats') },
     { label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
     { label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },
+  ]
+  const statsSubmenuItems = [
+    { label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
+    { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
   ]
 
   const activeItem = items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? items[0]
@@ -94,7 +115,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
         className="w-full max-w-xs"
       />
 
-      <nav className="hidden flex-wrap gap-2 md:flex" aria-label="Navigation du clan">
+      <nav className="hidden flex-wrap items-center gap-2 md:flex" aria-label="Navigation du clan">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
 
@@ -105,6 +126,26 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
               aria-current={active ? 'page' : undefined}
               className={`clan-section-nav-link ${
                 active ? 'clan-section-nav-link--active shadow-sm' : ''
+              }`}
+            >
+              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
+                {item.icon}
+              </span>
+              {item.label}
+            </Link>
+          )
+        })}
+
+        {statsSubmenuItems.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              className={`clan-submenu-link ${
+                active ? 'clan-submenu-link--active shadow-sm' : ''
               }`}
             >
               <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">

@@ -75,7 +75,7 @@ type SyncTelemetryFromStreamInput = {
   squadMatchId: string
   stream: ReadableStream<Uint8Array>
   contentLength: number | null
-  sourceGeneratedAt?: Date | null
+  sourceGeneratedAt?: string | null
 }
 
 export async function syncTelemetryForSquadMatchFromStream(
@@ -209,7 +209,7 @@ export async function syncTelemetryForSquadMatchFromStream(
         nextRetryAt: null,
         parserVersion,
         parsedAt: now,
-        sourceGeneratedAt: input.sourceGeneratedAt ?? null,
+        sourceGeneratedAt: input.sourceGeneratedAt ? new Date(input.sourceGeneratedAt) : null,
         contentLength: input.contentLength,
         bytesDownloaded: 0,
         errorCode: 'TELEMETRY_IMPORT_FAILED',
@@ -223,7 +223,7 @@ export async function syncTelemetryForSquadMatchFromStream(
         nextRetryAt: null,
         parserVersion,
         parsedAt: now,
-        sourceGeneratedAt: input.sourceGeneratedAt ?? null,
+        sourceGeneratedAt: input.sourceGeneratedAt ? new Date(input.sourceGeneratedAt) : null,
         contentLength: input.contentLength,
         bytesDownloaded: 0,
         errorCode: 'TELEMETRY_IMPORT_FAILED',

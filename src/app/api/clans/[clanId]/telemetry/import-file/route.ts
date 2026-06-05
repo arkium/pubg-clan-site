@@ -78,7 +78,7 @@ export async function POST(
       squadMatchId,
       stream: fileValue.stream() as ReadableStream<Uint8Array>,
       contentLength: fileValue.size,
-      sourceGeneratedAt,
+      sourceGeneratedAt: sourceGeneratedAt?.toISOString() ?? null,
     })
 
     let aggregateSummary:

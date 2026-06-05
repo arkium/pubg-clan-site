@@ -22,8 +22,15 @@ function sanitizeFileSegment(value: string) {
 function resolveCaptureOutputDir() {
   const configuredDir = process.env.TELEMETRY_CAPTURE_FIXTURES_DIR?.trim()
   return configuredDir && configuredDir.length > 0
-    ? path.resolve(process.cwd(), configuredDir)
-    : path.join(process.cwd(), 'src', 'lib', 'pubg-telemetry', '__fixtures__', 'captured')
+    ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), configuredDir)
+    : path.join(
+        /*turbopackIgnore: true*/ process.cwd(),
+        'src',
+        'lib',
+        'pubg-telemetry',
+        '__fixtures__',
+        'captured'
+      )
 }
 
 export async function POST(
@@ -123,7 +130,7 @@ export async function POST(
       }
 
       for (const fileName of matchFileTargets) {
-        await unlink(path.join(captureDir, fileName))
+        await unlink(path.join(/*turbopackIgnore: true*/ captureDir, fileName))
         deletedFileCount += 1
       }
     } catch {

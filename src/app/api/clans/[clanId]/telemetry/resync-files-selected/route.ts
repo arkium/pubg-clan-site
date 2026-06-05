@@ -21,8 +21,8 @@ function sanitizeFileSegment(value: string) {
 function resolveCaptureDirectory() {
   const configuredDir = process.env.TELEMETRY_CAPTURE_FIXTURES_DIR?.trim()
   return configuredDir && configuredDir.length > 0
-    ? path.resolve(process.cwd(), configuredDir)
-    : path.join(process.cwd(), '.telemetry-captured')
+    ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), configuredDir)
+    : path.join(/*turbopackIgnore: true*/ process.cwd(), '.telemetry-captured')
 }
 
 async function findLatestCapturedFileForSquadMatch(
@@ -46,7 +46,7 @@ async function findLatestCapturedFileForSquadMatch(
   let bestFile: { filePath: string; size: number; mtimeMs: number } | null = null
 
   for (const fileName of candidates) {
-    const filePath = path.join(captureDir, fileName)
+    const filePath = path.join(/*turbopackIgnore: true*/ captureDir, fileName)
     try {
       const details = await stat(filePath)
       if (!details.isFile()) {

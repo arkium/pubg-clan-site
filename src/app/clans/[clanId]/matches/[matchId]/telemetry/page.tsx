@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
@@ -43,13 +43,19 @@ type TelemetryMemberStat = {
   memberKey: string
   teamId?: number
   teamPlacement?: number
+  firstKillPhase: number
   kills: number
   headshots: number
   damageDealt: number
+  damageTaken: number
+  onFootDistanceMeters: number
+  vehicleDistanceMeters: number
   revives: number
   knockouts: number
   deaths: number
   blueZoneHits: number
+  circleDelaySeconds: number
+  circleDelayPercent: number
   vehicleRideEvents: number
   vehicleLeaveEvents: number
   positionEvents: number
@@ -235,6 +241,18 @@ function formatBytes(value: number | null) {
   return `${value} o`
 }
 
+function formatSeconds(value: number) {
+  return `${Math.max(0, value).toFixed(1)} s`
+}
+
+function formatPercent(value: number) {
+  return `${Math.max(0, value).toFixed(1)}%`
+}
+
+function formatMeters(value: number) {
+  return `${Math.max(0, value).toFixed(0)} m`
+}
+
 function telemetryTone(status: TelemetryStatus) {
   if (status === 'success') {
     return 'border-emerald-200 bg-emerald-100 text-emerald-900'
@@ -343,13 +361,19 @@ function toTelemetryMemberStats(value: unknown): TelemetryMemberStat[] {
         memberKey: asString(source.memberKey, 'Unknown'),
         teamId: asOptionalNumber(source.teamId),
         teamPlacement: asOptionalNumber(source.teamPlacement),
+        firstKillPhase: asNumber(source.firstKillPhase),
         kills: asNumber(source.kills),
         headshots: asNumber(source.headshots),
         damageDealt: asNumber(source.damageDealt),
+        damageTaken: asNumber(source.damageTaken),
+        onFootDistanceMeters: asNumber(source.onFootDistanceMeters),
+        vehicleDistanceMeters: asNumber(source.vehicleDistanceMeters),
         revives: asNumber(source.revives),
         knockouts: asNumber(source.knockouts),
         deaths: asNumber(source.deaths),
         blueZoneHits: asNumber(source.blueZoneHits),
+        circleDelaySeconds: asNumber(source.circleDelaySeconds),
+        circleDelayPercent: asNumber(source.circleDelayPercent),
         vehicleRideEvents: asNumber(source.vehicleRideEvents),
         vehicleLeaveEvents: asNumber(source.vehicleLeaveEvents),
         positionEvents: asNumber(source.positionEvents),
@@ -382,6 +406,9 @@ export default function MatchTelemetryDetailPage() {
   const [reloadNonce, setReloadNonce] = useState(0)
   const [resyncLoading, setResyncLoading] = useState(false)
   const [resyncMessage, setResyncMessage] = useState('')
+  const [fileImportLoading, setFileImportLoading] = useState(false)
+  const [fileImportMessage, setFileImportMessage] = useState('')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (!hasValidParams || !clanId || !matchId) {
@@ -468,6 +495,53 @@ export default function MatchTelemetryDetailPage() {
       setResyncMessage('Echec resync telemetry.')
     } finally {
       setResyncLoading(false)
+    }
+  }
+
+  async function runFileImport(file: File) {
+    if (!clanId || !matchId) {
+      return
+    }
+
+    try {
+      setFileImportLoading(true)
+      setFileImportMessage('')
+
+      const formData = new FormData()
+      formData.append('squadMatchId', matchId)
+      formData.append('recalculateAggregates', 'false')
+      formData.append('file', file)
+
+      const response = await fetch(`/api/clans/${clanId}/telemetry/import-file`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            successCount?: number
+            failedCount?: number
+          }
+        | null
+
+      if (!response.ok || !data?.ok) {
+        setFileImportMessage(data?.error ?? 'Echec import fichier telemetry.')
+        return
+      }
+
+      setFileImportMessage(
+        `Import terminé: ${data.successCount ?? 0} succès, ${data.failedCount ?? 0} échec(s).`
+      )
+      setReloadNonce((current) => current + 1)
+    } catch {
+      setFileImportMessage('Echec import fichier telemetry.')
+    } finally {
+      setFileImportLoading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
   }
 
@@ -609,14 +683,37 @@ export default function MatchTelemetryDetailPage() {
                   type="button"
                   onClick={runResyncMatch}
                   className="app-btn app-btn--sm app-btn--secondary"
-                  disabled={resyncLoading}
+                  disabled={resyncLoading || fileImportLoading}
                 >
                   {resyncLoading ? 'Resync en cours...' : 'Resync ce match'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="app-btn app-btn--sm app-btn--secondary"
+                  disabled={resyncLoading || fileImportLoading}
+                >
+                  {fileImportLoading ? 'Import en cours...' : 'Importer fichier telemetry'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,.jsonl,application/json,text/plain"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (!file) {
+                      return
+                    }
+
+                    void runFileImport(file)
+                  }}
+                />
               </div>
             </div>
 
             {resyncMessage ? <p className="mt-2 text-sm text-amber-700">{resyncMessage}</p> : null}
+            {fileImportMessage ? <p className="mt-2 text-sm text-amber-700">{fileImportMessage}</p> : null}
 
             {hasMissingPersistedJson ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -799,7 +896,7 @@ export default function MatchTelemetryDetailPage() {
             {memberStats.length > 0 ? (
               <div className="mt-3 space-y-3">
                 <p className="text-xs text-slate-500">
-                  Legende: Tetes=headshots, Knocks=ennemis a terre, Zone bleue=degats zone, Vehicule=actions vehicule, Positions=events de position.
+                  Legende: First contact=cercle du premier kill, Degats recus=pression subie, Pied/Vehicule=distance parcourue, Zone bleue=degats zone, Retard cercle=secondes hors safe zone, % hors zone=part du match hors safe zone.
                 </p>
                 {groupedMemberStats.map((group) => {
                   const parsedTeamPlacement =
@@ -856,6 +953,12 @@ export default function MatchTelemetryDetailPage() {
                                 <p className="mt-1 break-all text-[10px] text-slate-500">Source parser: {resolved.accountId}</p>
                               ) : null}
                               <div className="mt-2 flex flex-wrap gap-1 text-xs text-slate-700">
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">First contact P{member.firstKillPhase > 0 ? member.firstKillPhase : '-'}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Degats recus {Math.round(member.damageTaken)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Pied {formatMeters(member.onFootDistanceMeters)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Vehicule {formatMeters(member.vehicleDistanceMeters)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Retard cercle {formatSeconds(member.circleDelaySeconds)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Hors zone {formatPercent(member.circleDelayPercent)}</span>
                                 <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Tetes {member.headshots}</span>
                                 <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Knocks {member.knockouts}</span>
                                 <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Zone bleue {member.blueZoneHits}</span>

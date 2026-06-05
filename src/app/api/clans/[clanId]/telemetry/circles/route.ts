@@ -111,6 +111,9 @@ export async function GET(
         matchesPlayed: number
         avgBlueZoneHits: number
         avgCircleDelaySeconds: number
+        avgVehicleRideEvents: number
+        avgVehicleLeaveEvents: number
+        avgPositionEvents: number
         avgZoneDisciplineScore: number
       }>
     >(Prisma.sql`
@@ -119,6 +122,9 @@ export async function GET(
         COALESCE(SUM(mts.matchesPlayed), 0) AS matchesPlayed,
         COALESCE(AVG(mts.avgBlueZoneHits), 0) AS avgBlueZoneHits,
         COALESCE(AVG(mts.avgCircleDelaySeconds), 0) AS avgCircleDelaySeconds,
+        COALESCE(AVG(mts.avgVehicleRideEvents), 0) AS avgVehicleRideEvents,
+        COALESCE(AVG(mts.avgVehicleLeaveEvents), 0) AS avgVehicleLeaveEvents,
+        COALESCE(AVG(mts.avgPositionEvents), 0) AS avgPositionEvents,
         COALESCE(AVG(mts.zoneDisciplineScore), 0) AS avgZoneDisciplineScore
       FROM MemberTelemetryStats mts
       INNER JOIN ClanMember cm ON cm.id = mts.memberId
@@ -155,6 +161,9 @@ export async function GET(
       matchesPlayed: 0,
       avgBlueZoneHits: 0,
       avgCircleDelaySeconds: 0,
+      avgVehicleRideEvents: 0,
+      avgVehicleLeaveEvents: 0,
+      avgPositionEvents: 0,
       avgZoneDisciplineScore: 0,
     }
 
@@ -169,6 +178,9 @@ export async function GET(
       matchesPlayed: Number(memberSummary.matchesPlayed),
       avgBlueZoneHits: Number(memberSummary.avgBlueZoneHits),
       avgCircleDelaySeconds: Number(memberSummary.avgCircleDelaySeconds),
+      avgVehicleRideEvents: Number(memberSummary.avgVehicleRideEvents),
+      avgVehicleLeaveEvents: Number(memberSummary.avgVehicleLeaveEvents),
+      avgPositionEvents: Number(memberSummary.avgPositionEvents),
       avgZoneDisciplineScore: Number(memberSummary.avgZoneDisciplineScore),
       snapshots: Number(snapshotSummary.snapshots),
       blueZoneEvents: Number(snapshotSummary.blueZoneEvents),

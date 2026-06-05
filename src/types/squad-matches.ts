@@ -35,9 +35,13 @@ export interface SquadMatchTelemetryMemberStat {
   memberKey: string
   teamId?: number
   teamPlacement?: number
+  firstKillPhase: number
   kills: number
   headshots: number
   damageDealt: number
+  damageTaken: number
+  onFootDistanceMeters: number
+  vehicleDistanceMeters: number
   revives: number
   knockouts: number
   deaths: number

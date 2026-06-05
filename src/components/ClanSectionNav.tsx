@@ -94,8 +94,9 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
     { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
   ]
 
-  const activeItem = items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? items[0]
-  const mobileItems: MobileDropdownNavItem[] = items.map((item) => ({
+  const activeStatsItem = statsSubmenuItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+  const activeItem = activeStatsItem ?? items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? items[0]
+  const mobileItems: MobileDropdownNavItem[] = [...items, ...statsSubmenuItems].map((item) => ({
     key: item.href,
     href: item.href,
     label: item.label,
@@ -135,7 +136,9 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
             </Link>
           )
         })}
+      </nav>
 
+      <div className="mt-3 hidden flex-wrap gap-2 md:flex" aria-label="Statistiques du clan">
         {statsSubmenuItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
 
@@ -144,8 +147,8 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={`clan-submenu-link ${
-                active ? 'clan-submenu-link--active shadow-sm' : ''
+              className={`clan-section-nav-link ${
+                active ? 'clan-section-nav-link--active shadow-sm' : ''
               }`}
             >
               <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
@@ -155,7 +158,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
             </Link>
           )
         })}
-      </nav>
+      </div>
     </div>
   )
 }

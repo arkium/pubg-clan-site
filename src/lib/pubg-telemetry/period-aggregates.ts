@@ -17,11 +17,20 @@ export type RecalculateTelemetryPeriodAggregatesResult = {
 
 type SnapshotMemberStatsRow = {
   memberKey: string
+  firstKillPhase: number
   kills: number
   revives: number
   knockouts: number
+  damageTaken: number
+  onFootDistanceMeters: number
+  vehicleDistanceMeters: number
   blueZoneHits: number
+  circleDelaySeconds: number
+  circleDelayPercent: number
   damageDealt: number
+  vehicleRideEvents: number
+  vehicleLeaveEvents: number
+  positionEvents: number
   weapons: SnapshotMemberWeaponStatsRow[]
 }
 
@@ -32,6 +41,7 @@ type SnapshotMemberWeaponStatsRow = {
   damageDealt: number
   killDistanceTotal: number
   killDistanceCount: number
+  killDistanceMax: number
 }
 
 type SquadMatchTelemetryRow = {
@@ -52,11 +62,21 @@ type SquadMatchTelemetryRow = {
 
 type MemberTelemetryAggregate = {
   matchesPlayed: number
+  totalFirstKillPhase: number
+  firstKillPhaseSampleCount: number
   totalKills: number
   totalRevives: number
   totalKnockouts: number
+  totalDamageTaken: number
+  totalOnFootDistanceMeters: number
+  totalVehicleDistanceMeters: number
   totalBlueZoneHits: number
+  totalCircleDelaySeconds: number
+  totalCircleDelayPercent: number
   totalDamageDealt: number
+  totalVehicleRideEvents: number
+  totalVehicleLeaveEvents: number
+  totalPositionEvents: number
 }
 
 type PairSynergyAggregate = {
@@ -71,6 +91,7 @@ type MemberWeaponAggregate = {
   damageDealt: number
   killDistanceTotal: number
   killDistanceCount: number
+  killDistanceMax: number
   matchCount: number
 }
 
@@ -190,11 +211,20 @@ function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberStatsRow[] {
 
     rows.push({
       memberKey,
+      firstKillPhase: asFiniteNumber(row.firstKillPhase),
       kills: asFiniteNumber(row.kills),
       revives: asFiniteNumber(row.revives),
       knockouts: asFiniteNumber(row.knockouts),
+      damageTaken: asFiniteNumber(row.damageTaken),
+      onFootDistanceMeters: asFiniteNumber(row.onFootDistanceMeters),
+      vehicleDistanceMeters: asFiniteNumber(row.vehicleDistanceMeters),
       blueZoneHits: asFiniteNumber(row.blueZoneHits),
+      circleDelaySeconds: asFiniteNumber(row.circleDelaySeconds),
+      circleDelayPercent: asFiniteNumber(row.circleDelayPercent),
       damageDealt: asFiniteNumber(row.damageDealt),
+      vehicleRideEvents: asFiniteNumber(row.vehicleRideEvents),
+      vehicleLeaveEvents: asFiniteNumber(row.vehicleLeaveEvents),
+      positionEvents: asFiniteNumber(row.positionEvents),
       weapons: parseSnapshotMemberWeaponStatsRows(row.weapons),
     })
   }
@@ -227,6 +257,7 @@ function parseSnapshotMemberWeaponStatsRows(raw: unknown): SnapshotMemberWeaponS
       damageDealt: asFiniteNumber(row.damageDealt),
       killDistanceTotal: asFiniteNumber(row.killDistanceTotal),
       killDistanceCount: asFiniteNumber(row.killDistanceCount),
+      killDistanceMax: asFiniteNumber(row.killDistanceMax),
     })
   }
 
@@ -276,11 +307,21 @@ function getOrCreateMemberAggregate(
 
   const created: MemberTelemetryAggregate = {
     matchesPlayed: 0,
+    totalFirstKillPhase: 0,
+    firstKillPhaseSampleCount: 0,
     totalKills: 0,
     totalRevives: 0,
     totalKnockouts: 0,
+    totalDamageTaken: 0,
+    totalOnFootDistanceMeters: 0,
+    totalVehicleDistanceMeters: 0,
     totalBlueZoneHits: 0,
+    totalCircleDelaySeconds: 0,
+    totalCircleDelayPercent: 0,
     totalDamageDealt: 0,
+    totalVehicleRideEvents: 0,
+    totalVehicleLeaveEvents: 0,
+    totalPositionEvents: 0,
   }
 
   map.set(memberId, created)
@@ -340,6 +381,7 @@ function getOrCreateMemberWeaponAggregate(
     damageDealt: 0,
     killDistanceTotal: 0,
     killDistanceCount: 0,
+    killDistanceMax: 0,
     matchCount: 0,
   }
 
@@ -433,11 +475,23 @@ async function recalculateTelemetryPeriodForClan(
       }
 
       const aggregate = getOrCreateMemberAggregate(memberAggregates, memberId)
+      if (row.firstKillPhase > 0) {
+        aggregate.totalFirstKillPhase += row.firstKillPhase
+        aggregate.firstKillPhaseSampleCount += 1
+      }
       aggregate.totalKills += row.kills
       aggregate.totalRevives += row.revives
       aggregate.totalKnockouts += row.knockouts
+      aggregate.totalDamageTaken += row.damageTaken
+      aggregate.totalOnFootDistanceMeters += row.onFootDistanceMeters
+      aggregate.totalVehicleDistanceMeters += row.vehicleDistanceMeters
       aggregate.totalBlueZoneHits += row.blueZoneHits
+      aggregate.totalCircleDelaySeconds += row.circleDelaySeconds
+      aggregate.totalCircleDelayPercent += row.circleDelayPercent
       aggregate.totalDamageDealt += row.damageDealt
+      aggregate.totalVehicleRideEvents += row.vehicleRideEvents
+      aggregate.totalVehicleLeaveEvents += row.vehicleLeaveEvents
+      aggregate.totalPositionEvents += row.positionEvents
 
       memberIdsSeenInMatch.add(memberId)
       matchMemberRows.set(memberId, row)
@@ -454,6 +508,9 @@ async function recalculateTelemetryPeriodForClan(
         memberWeaponAggregate.damageDealt += weaponRow.damageDealt
         memberWeaponAggregate.killDistanceTotal += weaponRow.killDistanceTotal
         memberWeaponAggregate.killDistanceCount += weaponRow.killDistanceCount
+        if (weaponRow.killDistanceMax > memberWeaponAggregate.killDistanceMax) {
+          memberWeaponAggregate.killDistanceMax = weaponRow.killDistanceMax
+        }
 
         const wasUsedInMatch =
           weaponRow.kills > 0 || weaponRow.headshots > 0 || weaponRow.damageDealt > 0
@@ -511,6 +568,12 @@ async function recalculateTelemetryPeriodForClan(
 
   const memberTelemetryRows = Array.from(memberAggregates.entries()).map(([memberId, aggregate]) => {
     const matchesPlayed = Math.max(aggregate.matchesPlayed, 1)
+    const avgCircleDelayPercent = Number((aggregate.totalCircleDelayPercent / matchesPlayed).toFixed(2))
+    const avgSafeZonePresencePercent = Number((100 - avgCircleDelayPercent).toFixed(2))
+    const avgFirstContactPhase =
+      aggregate.firstKillPhaseSampleCount > 0
+        ? Number((aggregate.totalFirstKillPhase / aggregate.firstKillPhaseSampleCount).toFixed(2))
+        : 0
 
     const aggressionRaw =
       aggregate.totalKills * 8 +
@@ -530,7 +593,16 @@ async function recalculateTelemetryPeriodForClan(
       supportScore: clampScore(supportRaw),
       zoneDisciplineScore: clampScore(zoneDisciplineRaw),
       avgBlueZoneHits: Number((aggregate.totalBlueZoneHits / matchesPlayed).toFixed(2)),
-      avgCircleDelaySeconds: 0,
+      avgFirstContactPhase,
+      avgCircleDelaySeconds: Number((aggregate.totalCircleDelaySeconds / matchesPlayed).toFixed(2)),
+      avgCircleDelayPercent,
+      avgSafeZonePresencePercent,
+      avgOnFootDistanceMeters: Number((aggregate.totalOnFootDistanceMeters / matchesPlayed).toFixed(2)),
+      avgVehicleDistanceMeters: Number((aggregate.totalVehicleDistanceMeters / matchesPlayed).toFixed(2)),
+      avgDamageTaken: Number((aggregate.totalDamageTaken / matchesPlayed).toFixed(2)),
+      avgVehicleRideEvents: Number((aggregate.totalVehicleRideEvents / matchesPlayed).toFixed(2)),
+      avgVehicleLeaveEvents: Number((aggregate.totalVehicleLeaveEvents / matchesPlayed).toFixed(2)),
+      avgPositionEvents: Number((aggregate.totalPositionEvents / matchesPlayed).toFixed(2)),
       matchesPlayed: aggregate.matchesPlayed,
     }
   })
@@ -559,6 +631,9 @@ async function recalculateTelemetryPeriodForClan(
           ? Number((aggregate.killDistanceTotal / aggregate.killDistanceCount).toFixed(2))
           : 0
 
+      const maxDistance =
+        aggregate.killDistanceMax > 0 ? Number(aggregate.killDistanceMax.toFixed(2)) : 0
+
       return {
         memberId,
         period: periodKey,
@@ -567,6 +642,7 @@ async function recalculateTelemetryPeriodForClan(
         kills: aggregate.kills,
         headshots: aggregate.headshots,
         avgDistance,
+        maxDistance,
         totalDamage: Number(aggregate.damageDealt.toFixed(2)),
         matchCount: aggregate.matchCount,
       }

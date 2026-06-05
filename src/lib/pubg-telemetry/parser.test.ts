@@ -92,12 +92,43 @@ describe('parseTelemetrySnapshot', () => {
   it('extracts member and weapon stats from nested PUBG event actors', () => {
     const result = parseTelemetrySnapshot([
       {
+        _T: 'LogGameStatePeriodically',
+        gameState: {
+          safetyZonePosition: { x: 0, y: 0 },
+          safetyZoneRadius: 300,
+        },
+      },
+      {
         _T: 'LogPlayerPosition',
         character: {
           accountId: 'player_attacker',
           name: 'AttackerName',
           teamId: 7,
+          location: { x: 0, y: 0 },
         },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        character: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+          teamId: 7,
+          location: { x: 30, y: 0 },
+          isInVehicle: false,
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        character: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+          teamId: 7,
+          location: { x: 100, y: 0 },
+          isInVehicle: true,
+        },
+      },
+      {
+        _T: 'LogPhaseChange',
       },
       {
         _T: 'LogPlayerTakeDamage',
@@ -169,8 +200,11 @@ describe('parseTelemetrySnapshot', () => {
     const weapon = result.weaponStats.find((entry) => entry.weaponName === 'WeapM416_C')
 
     expect(attacker).toBeDefined()
-    expect(attacker?.positionEvents).toBe(1)
+    expect(attacker?.positionEvents).toBe(3)
+    expect(attacker?.firstKillPhase).toBe(2)
     expect(attacker?.damageDealt).toBe(37)
+    expect(attacker?.onFootDistanceMeters).toBe(30)
+    expect(attacker?.vehicleDistanceMeters).toBe(70)
     expect(attacker?.kills).toBe(1)
     expect(attacker?.headshots).toBe(1)
     expect(attacker?.teamId).toBe(7)
@@ -178,6 +212,7 @@ describe('parseTelemetrySnapshot', () => {
 
     expect(victim).toBeDefined()
     expect(victim?.deaths).toBe(1)
+    expect(victim?.damageTaken).toBe(37)
     expect(victim?.blueZoneHits).toBe(1)
     expect(victim?.teamId).toBe(11)
     expect(victim?.teamPlacement).toBe(5)
@@ -200,6 +235,101 @@ describe('parseTelemetrySnapshot', () => {
     expect(attackerWeapon?.killDistanceTotal).toBe(124.5)
     expect(attackerWeapon?.killDistanceCount).toBe(1)
     expect(attackerWeapon?.killDistanceMax).toBe(124.5)
+  })
+
+  it('accumulates circle delay seconds when player stays outside safe zone between position events', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogGameStatePeriodically',
+        elapsedTime: 0,
+        gameState: {
+          safetyZonePosition: { x: 0, y: 0 },
+          safetyZoneRadius: 100,
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 10,
+        character: {
+          accountId: 'player_circle',
+          location: { x: 50, y: 0 },
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 20,
+        character: {
+          accountId: 'player_circle',
+          location: { x: 150, y: 0 },
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 35,
+        character: {
+          accountId: 'player_circle',
+          location: { x: 170, y: 0 },
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 40,
+        character: {
+          accountId: 'player_circle',
+          location: { x: 80, y: 0 },
+        },
+      },
+    ])
+
+    const circlePlayer = result.memberStats.find((entry) => entry.memberKey === 'player_circle')
+
+    expect(circlePlayer).toBeDefined()
+    expect(circlePlayer?.positionEvents).toBe(4)
+    expect(circlePlayer?.circleDelaySeconds).toBe(20)
+    expect(circlePlayer?.circleDelayPercent).toBe(66.7)
+  })
+
+  it('supports LogGameStatePeriodic alias for zone snapshots', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogGameStatePeriodic',
+        elapsedTime: 0,
+        gameState: {
+          safetyZonePosition: { x: 0, y: 0 },
+          safetyZoneRadius: 100,
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 10,
+        character: {
+          accountId: 'player_circle_alias',
+          location: { x: 50, y: 0 },
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 20,
+        character: {
+          accountId: 'player_circle_alias',
+          location: { x: 150, y: 0 },
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 30,
+        character: {
+          accountId: 'player_circle_alias',
+          location: { x: 170, y: 0 },
+        },
+      },
+    ])
+
+    const circlePlayer = result.memberStats.find((entry) => entry.memberKey === 'player_circle_alias')
+
+    expect(result.summary.blueZoneEvents).toBe(1)
+    expect(circlePlayer?.circleDelaySeconds).toBe(10)
+    expect(circlePlayer?.circleDelayPercent).toBe(50)
   })
 })
 

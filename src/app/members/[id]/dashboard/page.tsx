@@ -24,7 +24,16 @@ type TelemetryPlaystyleStats = {
   supportScore: number
   zoneDisciplineScore: number
   avgBlueZoneHits: number
+  avgFirstContactPhase: number
   avgCircleDelaySeconds: number
+  avgCircleDelayPercent: number
+  avgSafeZonePresencePercent: number
+  avgOnFootDistanceMeters: number
+  avgVehicleDistanceMeters: number
+  avgDamageTaken: number
+    avgVehicleRideEvents: number
+    avgVehicleLeaveEvents: number
+    avgPositionEvents: number
   matchesPlayed: number
 }
 
@@ -48,8 +57,16 @@ function formatTelemetryScore(value: number) {
   return Math.max(0, value).toFixed(1)
 }
 
+function formatTelemetryPercent(value: number) {
+  return `${formatTelemetryScore(value)}%`
+}
+
 function formatSeconds(value: number) {
   return `${Math.max(0, value).toFixed(1)} s`
+}
+
+function formatMeters(value: number) {
+  return `${Math.max(0, value).toFixed(0)} m`
 }
 
 function getTelemetryErrorMessage(payload: unknown, fallback: string) {
@@ -210,41 +227,101 @@ export default function DashboardPage() {
           {!loadingTelemetry && !telemetryError ? (
             telemetryStats ? (
               <div className="space-y-4 px-4 py-4">
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <article className="rounded border border-red-200 bg-red-50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-red-700">Agressivite</p>
+                    <p className="text-xs uppercase tracking-wide text-red-700">Agressivite (%)</p>
                     <p className="mt-1 text-xl font-semibold text-red-900">
-                      {formatTelemetryScore(telemetryStats.aggressionScore)}
+                      {formatTelemetryPercent(telemetryStats.aggressionScore)}
                     </p>
                   </article>
                   <article className="rounded border border-sky-200 bg-sky-50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-sky-700">Support</p>
+                    <p className="text-xs uppercase tracking-wide text-sky-700">Support (%)</p>
                     <p className="mt-1 text-xl font-semibold text-sky-900">
-                      {formatTelemetryScore(telemetryStats.supportScore)}
+                      {formatTelemetryPercent(telemetryStats.supportScore)}
                     </p>
                   </article>
                   <article className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-emerald-700">Discipline zone</p>
+                    <p className="text-xs uppercase tracking-wide text-emerald-700">Discipline zone (%)</p>
                     <p className="mt-1 text-xl font-semibold text-emerald-900">
-                      {formatTelemetryScore(telemetryStats.zoneDisciplineScore)}
+                      {formatTelemetryPercent(telemetryStats.zoneDisciplineScore)}
                     </p>
                   </article>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-gray-600">Blue zone hits moyens</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Blue zone hits moyens (evt / match)</p>
                     <p className="mt-1 text-lg font-semibold text-gray-900">
                       {formatTelemetryScore(telemetryStats.avgBlueZoneHits)}
                     </p>
                   </article>
                   <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-gray-600">Retard cercle moyen</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-600">First contact moyen (phase)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgFirstContactPhase)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Retard cercle moyen (s)</p>
                     <p className="mt-1 text-lg font-semibold text-gray-900">
                       {formatSeconds(telemetryStats.avgCircleDelaySeconds)}
                     </p>
                   </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Temps hors zone moyen (%)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryPercent(telemetryStats.avgCircleDelayPercent)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Presence safe zone moyenne (%)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryPercent(telemetryStats.avgSafeZonePresencePercent)}
+                    </p>
+                  </article>
                 </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Distance a pied moyenne</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatMeters(telemetryStats.avgOnFootDistanceMeters)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Distance vehicule moyenne</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatMeters(telemetryStats.avgVehicleDistanceMeters)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Degats recus moyens</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgDamageTaken)}
+                    </p>
+                  </article>
+                </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Montee vehicule (evt / match)</p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">
+                        {formatTelemetryScore(telemetryStats.avgVehicleRideEvents)}
+                      </p>
+                    </article>
+                    <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Sortie vehicule (evt / match)</p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">
+                        {formatTelemetryScore(telemetryStats.avgVehicleLeaveEvents)}
+                      </p>
+                    </article>
+                    <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Positions observees (evt / match)</p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">
+                        {formatTelemetryScore(telemetryStats.avgPositionEvents)}
+                      </p>
+                    </article>
+                  </div>
 
                 <p className="text-xs text-gray-500">
                   Matchs analyses sur la periode: {telemetryStats.matchesPlayed}

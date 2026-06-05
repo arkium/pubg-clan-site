@@ -48,6 +48,20 @@ function toPeriodKey(period: TelemetryPeriod, now = new Date()) {
   return `week-${now.getFullYear()}-${String(getIsoWeek(now)).padStart(2, '0')}`
 }
 
+function isUnknownCircleColumns(error: unknown) {
+  return (
+    error instanceof Error &&
+    (
+      error.message.includes('avgCircleDelayPercent') ||
+      error.message.includes('avgSafeZonePresencePercent') ||
+      error.message.includes('avgFirstContactPhase') ||
+      error.message.includes('avgOnFootDistanceMeters') ||
+      error.message.includes('avgVehicleDistanceMeters') ||
+      error.message.includes('avgDamageTaken')
+    )
+  )
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -73,35 +87,128 @@ export async function GET(
     const period = parsePeriod(url.searchParams.get('period'))
     const periodKey = toPeriodKey(period)
 
-    const rows = await prisma.$queryRaw<
-      Array<{
-        memberId: number
-        displayName: string
-        pubgPlayerName: string
-        aggressionScore: number
-        supportScore: number
-        zoneDisciplineScore: number
-        avgBlueZoneHits: number
-        avgCircleDelaySeconds: number
-        matchesPlayed: number
-      }>
-    >(Prisma.sql`
-      SELECT
-        mts.memberId,
-        cm.displayName,
-        cm.pubgPlayerName,
-        mts.aggressionScore,
-        mts.supportScore,
-        mts.zoneDisciplineScore,
-        mts.avgBlueZoneHits,
-        mts.avgCircleDelaySeconds,
-        mts.matchesPlayed
-      FROM MemberTelemetryStats mts
-      INNER JOIN ClanMember cm ON cm.id = mts.memberId
-      WHERE cm.clanId = ${parsedClanId}
-        AND mts.period = ${periodKey}
-      ORDER BY mts.aggressionScore DESC, mts.supportScore DESC, mts.matchesPlayed DESC
-    `)
+    let rows: Array<{
+      memberId: number
+      displayName: string
+      pubgPlayerName: string
+      aggressionScore: number
+      supportScore: number
+      zoneDisciplineScore: number
+      avgBlueZoneHits: number
+      avgFirstContactPhase: number
+      avgCircleDelaySeconds: number
+      avgCircleDelayPercent: number
+      avgSafeZonePresencePercent: number
+      avgOnFootDistanceMeters: number
+      avgVehicleDistanceMeters: number
+      avgDamageTaken: number
+      avgVehicleRideEvents: number
+      avgVehicleLeaveEvents: number
+      avgPositionEvents: number
+      matchesPlayed: number
+    }>
+
+    try {
+      rows = await prisma.$queryRaw<
+        Array<{
+          memberId: number
+          displayName: string
+          pubgPlayerName: string
+          aggressionScore: number
+          supportScore: number
+          zoneDisciplineScore: number
+          avgBlueZoneHits: number
+          avgFirstContactPhase: number
+          avgCircleDelaySeconds: number
+          avgCircleDelayPercent: number
+          avgSafeZonePresencePercent: number
+          avgOnFootDistanceMeters: number
+          avgVehicleDistanceMeters: number
+          avgDamageTaken: number
+          avgVehicleRideEvents: number
+          avgVehicleLeaveEvents: number
+          avgPositionEvents: number
+          matchesPlayed: number
+        }>
+      >(Prisma.sql`
+        SELECT
+          mts.memberId,
+          cm.displayName,
+          cm.pubgPlayerName,
+          mts.aggressionScore,
+          mts.supportScore,
+          mts.zoneDisciplineScore,
+          mts.avgBlueZoneHits,
+          mts.avgFirstContactPhase,
+          mts.avgCircleDelaySeconds,
+          mts.avgCircleDelayPercent,
+          mts.avgSafeZonePresencePercent,
+          mts.avgOnFootDistanceMeters,
+          mts.avgVehicleDistanceMeters,
+          mts.avgDamageTaken,
+          mts.avgVehicleRideEvents,
+          mts.avgVehicleLeaveEvents,
+          mts.avgPositionEvents,
+          mts.matchesPlayed
+        FROM MemberTelemetryStats mts
+        INNER JOIN ClanMember cm ON cm.id = mts.memberId
+        WHERE cm.clanId = ${parsedClanId}
+          AND mts.period = ${periodKey}
+        ORDER BY mts.aggressionScore DESC, mts.supportScore DESC, mts.matchesPlayed DESC
+      `)
+    } catch (queryError) {
+      if (!isUnknownCircleColumns(queryError)) {
+        throw queryError
+      }
+
+      rows = await prisma.$queryRaw<
+        Array<{
+          memberId: number
+          displayName: string
+          pubgPlayerName: string
+          aggressionScore: number
+          supportScore: number
+          zoneDisciplineScore: number
+          avgBlueZoneHits: number
+          avgFirstContactPhase: number
+          avgCircleDelaySeconds: number
+          avgCircleDelayPercent: number
+          avgSafeZonePresencePercent: number
+          avgOnFootDistanceMeters: number
+          avgVehicleDistanceMeters: number
+          avgDamageTaken: number
+          avgVehicleRideEvents: number
+          avgVehicleLeaveEvents: number
+          avgPositionEvents: number
+          matchesPlayed: number
+        }>
+      >(Prisma.sql`
+        SELECT
+          mts.memberId,
+          cm.displayName,
+          cm.pubgPlayerName,
+          mts.aggressionScore,
+          mts.supportScore,
+          mts.zoneDisciplineScore,
+          mts.avgBlueZoneHits,
+          0 AS avgFirstContactPhase,
+          mts.avgCircleDelaySeconds,
+          0 AS avgCircleDelayPercent,
+          100 AS avgSafeZonePresencePercent,
+          0 AS avgOnFootDistanceMeters,
+          0 AS avgVehicleDistanceMeters,
+          0 AS avgDamageTaken,
+          mts.avgVehicleRideEvents,
+          mts.avgVehicleLeaveEvents,
+          mts.avgPositionEvents,
+          mts.matchesPlayed
+        FROM MemberTelemetryStats mts
+        INNER JOIN ClanMember cm ON cm.id = mts.memberId
+        WHERE cm.clanId = ${parsedClanId}
+          AND mts.period = ${periodKey}
+        ORDER BY mts.aggressionScore DESC, mts.supportScore DESC, mts.matchesPlayed DESC
+      `)
+    }
 
     return NextResponse.json(
       buildTelemetrySuccessResponse(

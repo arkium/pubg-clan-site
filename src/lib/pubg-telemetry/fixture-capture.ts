@@ -7,7 +7,6 @@ const DEFAULT_CAPTURE_MAX_BYTES = 10 * 1024 * 1024
 const HARD_CAPTURE_MAX_BYTES = 50 * 1024 * 1024
 
 const SENSITIVE_STRING_KEYS = new Set([
-  'accountId',
   'playerId',
   'characterId',
   'killerName',

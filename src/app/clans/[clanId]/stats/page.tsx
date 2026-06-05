@@ -19,7 +19,16 @@ type ClanPlaystyleRow = {
   supportScore: number
   zoneDisciplineScore: number
   avgBlueZoneHits: number
+  avgFirstContactPhase: number
   avgCircleDelaySeconds: number
+  avgCircleDelayPercent: number
+  avgSafeZonePresencePercent: number
+  avgOnFootDistanceMeters: number
+  avgVehicleDistanceMeters: number
+  avgDamageTaken: number
+  avgVehicleRideEvents: number
+  avgVehicleLeaveEvents: number
+  avgPositionEvents: number
   matchesPlayed: number
 }
 
@@ -227,6 +236,38 @@ function formatTelemetryScore(value: number) {
   return Math.max(0, value).toFixed(1)
 }
 
+function formatTelemetryPercent(value: number) {
+  return `${formatTelemetryScore(value)}%`
+}
+
+function formatTelemetryMeters(value: number) {
+  return `${Math.max(0, value).toFixed(0)} m`
+}
+
+function getTelemetryErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== 'object') {
+    return fallback
+  }
+
+  if ('error' in payload) {
+    const errorValue = (payload as { error?: unknown }).error
+    if (
+      errorValue &&
+      typeof errorValue === 'object' &&
+      'message' in errorValue &&
+      typeof (errorValue as { message?: unknown }).message === 'string'
+    ) {
+      return (errorValue as { message: string }).message
+    }
+
+    if (typeof errorValue === 'string') {
+      return errorValue
+    }
+  }
+
+  return fallback
+}
+
 function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
   if (rows.length === 0) {
     return {
@@ -234,7 +275,16 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
       support: 0,
       zoneDiscipline: 0,
       avgBlueZoneHits: 0,
+      avgFirstContactPhase: 0,
       avgCircleDelaySeconds: 0,
+      avgCircleDelayPercent: 0,
+      avgSafeZonePresencePercent: 0,
+      avgOnFootDistanceMeters: 0,
+      avgVehicleDistanceMeters: 0,
+      avgDamageTaken: 0,
+      avgVehicleRideEvents: 0,
+      avgVehicleLeaveEvents: 0,
+      avgPositionEvents: 0,
     }
   }
 
@@ -244,7 +294,16 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
       acc.support += row.supportScore
       acc.zoneDiscipline += row.zoneDisciplineScore
       acc.avgBlueZoneHits += row.avgBlueZoneHits
+      acc.avgFirstContactPhase += row.avgFirstContactPhase
       acc.avgCircleDelaySeconds += row.avgCircleDelaySeconds
+      acc.avgCircleDelayPercent += row.avgCircleDelayPercent
+      acc.avgSafeZonePresencePercent += row.avgSafeZonePresencePercent
+      acc.avgOnFootDistanceMeters += row.avgOnFootDistanceMeters
+      acc.avgVehicleDistanceMeters += row.avgVehicleDistanceMeters
+      acc.avgDamageTaken += row.avgDamageTaken
+        acc.avgVehicleRideEvents += row.avgVehicleRideEvents
+        acc.avgVehicleLeaveEvents += row.avgVehicleLeaveEvents
+        acc.avgPositionEvents += row.avgPositionEvents
       return acc
     },
     {
@@ -252,7 +311,16 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
       support: 0,
       zoneDiscipline: 0,
       avgBlueZoneHits: 0,
+      avgFirstContactPhase: 0,
       avgCircleDelaySeconds: 0,
+        avgCircleDelayPercent: 0,
+        avgSafeZonePresencePercent: 0,
+        avgOnFootDistanceMeters: 0,
+        avgVehicleDistanceMeters: 0,
+        avgDamageTaken: 0,
+        avgVehicleRideEvents: 0,
+        avgVehicleLeaveEvents: 0,
+        avgPositionEvents: 0,
     }
   )
 
@@ -261,8 +329,25 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
     support: totals.support / rows.length,
     zoneDiscipline: totals.zoneDiscipline / rows.length,
     avgBlueZoneHits: totals.avgBlueZoneHits / rows.length,
+    avgFirstContactPhase: totals.avgFirstContactPhase / rows.length,
     avgCircleDelaySeconds: totals.avgCircleDelaySeconds / rows.length,
+      avgCircleDelayPercent: totals.avgCircleDelayPercent / rows.length,
+      avgSafeZonePresencePercent: totals.avgSafeZonePresencePercent / rows.length,
+      avgOnFootDistanceMeters: totals.avgOnFootDistanceMeters / rows.length,
+      avgVehicleDistanceMeters: totals.avgVehicleDistanceMeters / rows.length,
+      avgDamageTaken: totals.avgDamageTaken / rows.length,
+      avgVehicleRideEvents: totals.avgVehicleRideEvents / rows.length,
+      avgVehicleLeaveEvents: totals.avgVehicleLeaveEvents / rows.length,
+      avgPositionEvents: totals.avgPositionEvents / rows.length,
   }
+}
+
+function hasZoneDelayCoverage(rows: ClanPlaystyleRow[]) {
+  if (rows.length === 0) {
+    return false
+  }
+
+  return rows.some((row) => row.avgCircleDelaySeconds > 0 || row.avgCircleDelayPercent > 0)
 }
 
 function computeMetric(metric: MetricDefinition, members: ClanMemberLifetime[]): MetricComputed {
@@ -410,11 +495,11 @@ export default function ClanStatsPage() {
         const response = await fetch(`/api/clans/${clanId}/telemetry/playstyle?period=${telemetryPeriod}`, {
           cache: 'no-store',
         })
-        const payload = (await response.json()) as ClanPlaystyleResponse | { error?: string }
+        const payload = (await response.json()) as ClanPlaystyleResponse | { error?: unknown }
 
         if (!response.ok) {
           throw new Error(
-            'error' in payload ? payload.error : 'Impossible de charger la telemetrie playstyle du clan'
+            getTelemetryErrorMessage(payload, 'Impossible de charger la telemetrie playstyle du clan')
           )
         }
 
@@ -454,6 +539,7 @@ export default function ClanStatsPage() {
   }, [data])
 
   const playstyleAverages = useMemo(() => computePlaystyleAverages(playstyleRows), [playstyleRows])
+  const zoneDelayCoverage = useMemo(() => hasZoneDelayCoverage(playstyleRows), [playstyleRows])
   const playstyleTopAggressive = useMemo(
     () => [...playstyleRows].sort((a, b) => b.aggressionScore - a.aggressionScore).slice(0, 3),
     [playstyleRows]
@@ -520,31 +606,77 @@ export default function ClanStatsPage() {
               {!loadingPlaystyle && !playstyleError ? (
                 playstyleRows.length > 0 ? (
                   <>
-                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
                       <article className="rounded border border-red-200 bg-red-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-red-700">Agressivite moyenne</p>
-                        <p className="mt-1 text-xl font-semibold text-red-900">{formatTelemetryScore(playstyleAverages.aggression)}</p>
+                        <p className="text-xs uppercase tracking-wide text-red-700">Agressivite moyenne (%)</p>
+                        <p className="mt-1 text-xl font-semibold text-red-900">{formatTelemetryPercent(playstyleAverages.aggression)}</p>
                       </article>
                       <article className="rounded border border-sky-200 bg-sky-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-sky-700">Support moyen</p>
-                        <p className="mt-1 text-xl font-semibold text-sky-900">{formatTelemetryScore(playstyleAverages.support)}</p>
+                        <p className="text-xs uppercase tracking-wide text-sky-700">Support moyen (%)</p>
+                        <p className="mt-1 text-xl font-semibold text-sky-900">{formatTelemetryPercent(playstyleAverages.support)}</p>
                       </article>
                       <article className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-emerald-700">Discipline zone moyenne</p>
-                        <p className="mt-1 text-xl font-semibold text-emerald-900">{formatTelemetryScore(playstyleAverages.zoneDiscipline)}</p>
+                        <p className="text-xs uppercase tracking-wide text-emerald-700">Discipline zone moyenne (%)</p>
+                        <p className="mt-1 text-xl font-semibold text-emerald-900">{formatTelemetryPercent(playstyleAverages.zoneDiscipline)}</p>
                       </article>
                     </div>
 
-                    <div className="mb-4 grid gap-3 sm:grid-cols-2">
+                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
                       <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Blue zone hits moyens</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Blue zone hits moyens (evt / match)</p>
                         <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgBlueZoneHits)}</p>
                       </article>
                       <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Retard cercle moyen</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatSeconds(playstyleAverages.avgCircleDelaySeconds)}</p>
+                        <p className="text-xs uppercase tracking-wide text-gray-600">First contact moyen (phase)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgFirstContactPhase)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Retard cercle moyen (s)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">
+                          {zoneDelayCoverage ? formatSeconds(playstyleAverages.avgCircleDelaySeconds) : 'N/D'}
+                        </p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Temps hors zone moyen (%)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">
+                          {zoneDelayCoverage ? formatTelemetryPercent(playstyleAverages.avgCircleDelayPercent) : 'N/D'}
+                        </p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Presence safe zone moyenne (%)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryPercent(playstyleAverages.avgSafeZonePresencePercent)}</p>
                       </article>
                     </div>
+
+                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Distance a pied moyenne</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryMeters(playstyleAverages.avgOnFootDistanceMeters)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Distance vehicule moyenne</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryMeters(playstyleAverages.avgVehicleDistanceMeters)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Degats recus moyens</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgDamageTaken)}</p>
+                      </article>
+                    </div>
+
+                      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                        <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-gray-600">Montee vehicule (evt / match)</p>
+                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleRideEvents)}</p>
+                        </article>
+                        <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-gray-600">Sortie vehicule (evt / match)</p>
+                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleLeaveEvents)}</p>
+                        </article>
+                        <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-gray-600">Positions observees (evt / match)</p>
+                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgPositionEvents)}</p>
+                        </article>
+                      </div>
 
                     <div className="grid gap-3 md:grid-cols-3">
                       <article className="rounded border border-gray-200 p-3">
@@ -553,7 +685,7 @@ export default function ClanStatsPage() {
                           {playstyleTopAggressive.map((entry) => (
                             <li key={`agg:${entry.memberId}`} className="flex items-center justify-between gap-2">
                               <span className="truncate">{entry.displayName}</span>
-                              <span className="font-semibold text-red-700">{formatTelemetryScore(entry.aggressionScore)}</span>
+                              <span className="font-semibold text-red-700">{formatTelemetryPercent(entry.aggressionScore)}</span>
                             </li>
                           ))}
                         </ul>
@@ -564,7 +696,7 @@ export default function ClanStatsPage() {
                           {playstyleTopSupport.map((entry) => (
                             <li key={`sup:${entry.memberId}`} className="flex items-center justify-between gap-2">
                               <span className="truncate">{entry.displayName}</span>
-                              <span className="font-semibold text-sky-700">{formatTelemetryScore(entry.supportScore)}</span>
+                              <span className="font-semibold text-sky-700">{formatTelemetryPercent(entry.supportScore)}</span>
                             </li>
                           ))}
                         </ul>
@@ -575,7 +707,7 @@ export default function ClanStatsPage() {
                           {playstyleTopDiscipline.map((entry) => (
                             <li key={`disc:${entry.memberId}`} className="flex items-center justify-between gap-2">
                               <span className="truncate">{entry.displayName}</span>
-                              <span className="font-semibold text-emerald-700">{formatTelemetryScore(entry.zoneDisciplineScore)}</span>
+                              <span className="font-semibold text-emerald-700">{formatTelemetryPercent(entry.zoneDisciplineScore)}</span>
                             </li>
                           ))}
                         </ul>

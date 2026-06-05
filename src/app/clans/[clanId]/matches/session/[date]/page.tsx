@@ -120,6 +120,40 @@ function buildModePerformance(matches: SquadMatch[]) {
   return [modes.duo, modes.trio, modes.squad]
 }
 
+function compactWhitespace(value: string) {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function summarizeAggregateWarning(rawWarning: string): { summary: string; details: string | null } {
+  const normalized = compactWhitespace(rawWarning)
+  if (normalized.length === 0) {
+    return {
+      summary: 'Recalcul des agrégats en échec.',
+      details: null,
+    }
+  }
+
+  const unknownArgumentMatch = rawWarning.match(/Unknown argument\s+[`']?([A-Za-z0-9_]+)[`']?/)
+  if (unknownArgumentMatch) {
+    return {
+      summary: `Recalcul des agrégats en échec: client Prisma non synchronisé (${unknownArgumentMatch[1]}).`,
+      details: rawWarning,
+    }
+  }
+
+  if (normalized.length <= 220) {
+    return {
+      summary: normalized.endsWith('.') ? normalized : `${normalized}.`,
+      details: null,
+    }
+  }
+
+  return {
+    summary: `${normalized.slice(0, 217)}...`,
+    details: rawWarning,
+  }
+}
+
 export default function ClanSessionDatePage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -132,8 +166,15 @@ export default function ClanSessionDatePage() {
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([])
   const [telemetrySyncLoading, setTelemetrySyncLoading] = useState(false)
   const [telemetrySyncMessage, setTelemetrySyncMessage] = useState<string | null>(null)
+  const [telemetrySyncAggregateDetails, setTelemetrySyncAggregateDetails] = useState<string | null>(null)
   const [telemetrySyncErrors, setTelemetrySyncErrors] = useState<string[]>([])
   const [telemetrySyncCaptureNotes, setTelemetrySyncCaptureNotes] = useState<string[]>([])
+  const [telemetryFetchFilesLoading, setTelemetryFetchFilesLoading] = useState(false)
+  const [telemetryFetchFilesMessage, setTelemetryFetchFilesMessage] = useState<string | null>(null)
+  const [telemetryFileSyncLoading, setTelemetryFileSyncLoading] = useState(false)
+  const [telemetryFileSyncMessage, setTelemetryFileSyncMessage] = useState<string | null>(null)
+  const [telemetryFileSyncTone, setTelemetryFileSyncTone] = useState<'success' | 'warning' | 'error'>('warning')
+  const [telemetryFileSyncErrors, setTelemetryFileSyncErrors] = useState<string[]>([])
   const [telemetryClearLoading, setTelemetryClearLoading] = useState(false)
   const [telemetryClearMessage, setTelemetryClearMessage] = useState<string | null>(null)
 
@@ -166,8 +207,13 @@ export default function ClanSessionDatePage() {
   useEffect(() => {
     setSelectedMatchIds([])
     setTelemetrySyncMessage(null)
+    setTelemetrySyncAggregateDetails(null)
     setTelemetrySyncErrors([])
     setTelemetrySyncCaptureNotes([])
+    setTelemetryFetchFilesMessage(null)
+    setTelemetryFileSyncMessage(null)
+    setTelemetryFileSyncTone('warning')
+    setTelemetryFileSyncErrors([])
     setTelemetryClearMessage(null)
   }, [date, gameMode, period])
 
@@ -267,6 +313,7 @@ export default function ClanSessionDatePage() {
 
       if (!response.ok || !payload?.ok) {
         setTelemetrySyncMessage(payload?.error ?? 'Echec de la récupération télémétrie.')
+        setTelemetrySyncAggregateDetails(null)
         return
       }
 
@@ -309,23 +356,31 @@ export default function ClanSessionDatePage() {
         captureNotes.push(...captureErrorEntries.slice(0, 10))
       }
 
+      let aggregateDetails: string | null = null
+
       const aggregatePart = payload.aggregatesRecalculated
         ? payload.aggregates
           ? ` Agrégats recalculés: ${payload.aggregates.memberWeaponRows ?? 0} lignes armes membre, ${payload.aggregates.memberTelemetryRows ?? 0} lignes membres, ${payload.aggregates.clanSynergyRows ?? 0} lignes synergies (${payload.aggregates.periodsUpdated ?? 0} période(s)).`
           : payload.aggregatesWarning
-            ? ` Recalcul des agrégats en échec: ${payload.aggregatesWarning}.`
+            ? (() => {
+                const warning = summarizeAggregateWarning(payload.aggregatesWarning)
+                aggregateDetails = warning.details
+                return ` ${warning.summary}`
+              })()
             : ' Recalcul des agrégats demandé, sans détail de retour.'
         : ''
 
       setTelemetrySyncMessage(
-        `Récupération terminée: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).${aggregatePart}`
+        `Resync URL terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).${aggregatePart}`
       )
+      setTelemetrySyncAggregateDetails(aggregateDetails)
       setTelemetrySyncErrors(failedEntries)
       setTelemetrySyncCaptureNotes(captureNotes)
       setTelemetryClearMessage(null)
       refresh()
     } catch {
-      setTelemetrySyncMessage('Echec de la récupération télémétrie.')
+      setTelemetrySyncMessage('Echec du resync URL télémétrie.')
+      setTelemetrySyncAggregateDetails(null)
     } finally {
       setTelemetrySyncLoading(false)
     }
@@ -370,6 +425,7 @@ export default function ClanSessionDatePage() {
         `Suppression terminée: ${payload.deletedCount ?? 0} télémétrie OK effacée(s), ${payload.deletedFileCount ?? 0} fichier(s) capturé(s) supprimé(s), ${payload.alreadyMissingCount ?? 0} déjà absente(s), ${payload.outOfScopeCount ?? 0} hors périmètre.`
       )
       setTelemetrySyncMessage(null)
+      setTelemetrySyncAggregateDetails(null)
       setTelemetrySyncErrors([])
       setTelemetrySyncCaptureNotes([])
       refresh()
@@ -377,6 +433,144 @@ export default function ClanSessionDatePage() {
       setTelemetryClearMessage('Echec de la suppression télémétrie OK.')
     } finally {
       setTelemetryClearLoading(false)
+    }
+  }
+
+  async function runResyncTelemetryFromImportedFiles() {
+    if (!clanId) {
+      return
+    }
+
+    if (selectedMatchIds.length === 0) {
+      setTelemetryFileSyncMessage('Sélectionnez au moins 1 match avant le resync fichiers.')
+      setTelemetryFileSyncTone('error')
+      return
+    }
+
+    try {
+      setTelemetryFileSyncLoading(true)
+      setTelemetryFileSyncMessage(null)
+      setTelemetryFileSyncTone('warning')
+      setTelemetryFileSyncErrors([])
+
+      const response = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          squadMatchIds: selectedMatchIds,
+        }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            successCount?: number
+            failedCount?: number
+            missingFiles?: string[]
+            oversizedFiles?: string[]
+            maxResyncFileBytes?: number
+            results?: Array<{
+              squadMatchId: string
+              status: 'success' | 'failed'
+              errorCode?: string | null
+              errorMessage?: string | null
+            }>
+          }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        setTelemetryFileSyncMessage(payload?.error ?? 'Echec du resync fichiers telemetry.')
+        setTelemetryFileSyncTone('error')
+        return
+      }
+
+      const missing = payload.missingFiles ?? []
+      const oversized = payload.oversizedFiles ?? []
+      const failedEntries = (payload.results ?? [])
+        .filter((entry) => entry.status === 'failed')
+        .map((entry) => `${entry.squadMatchId}: ${entry.errorMessage ?? 'erreur inconnue'}`)
+
+      const missingPart = missing.length > 0
+        ? ` Fichiers manquants: ${missing.length} (${missing.slice(0, 5).join(', ')}).`
+        : ''
+      const oversizedPart = oversized.length > 0
+        ? ` Fichiers trop volumineux: ${oversized.length} (${oversized.slice(0, 5).join(', ')})${payload.maxResyncFileBytes ? `, limite ${(payload.maxResyncFileBytes / (1024 * 1024)).toFixed(1)} Mo` : ''}.`
+        : ''
+
+      setTelemetryFileSyncMessage(
+        `Resync fichiers terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s).${missingPart}${oversizedPart}`
+      )
+      if ((payload.failedCount ?? 0) > 0 || missing.length > 0 || oversized.length > 0) {
+        setTelemetryFileSyncTone('warning')
+      } else {
+        setTelemetryFileSyncTone('success')
+      }
+      setTelemetryFileSyncErrors(failedEntries)
+      setTelemetrySyncMessage(null)
+      setTelemetrySyncAggregateDetails(null)
+      setTelemetrySyncErrors([])
+      setTelemetrySyncCaptureNotes([])
+      setTelemetryClearMessage(null)
+      refresh()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setTelemetryFileSyncMessage(`Echec du resync fichiers telemetry. ${message}`)
+      setTelemetryFileSyncTone('error')
+    } finally {
+      setTelemetryFileSyncLoading(false)
+    }
+  }
+
+  async function runFetchTelemetryFilesFromPubg() {
+    if (!clanId || selectedMatchIds.length === 0) {
+      return
+    }
+
+    try {
+      setTelemetryFetchFilesLoading(true)
+      setTelemetryFetchFilesMessage(null)
+
+      const response = await fetch(`/api/clans/${clanId}/telemetry/fetch-files-selected`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          squadMatchIds: selectedMatchIds,
+        }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean
+            error?: string
+            successCount?: number
+            failedCount?: number
+            capturedCount?: number
+            captureEnabled?: boolean
+          }
+        | null
+
+      if (!response.ok || !payload?.ok) {
+        setTelemetryFetchFilesMessage(payload?.error ?? 'Echec du téléchargement des fichiers telemetry depuis PUBG.')
+        return
+      }
+
+      const disabledPart = payload.captureEnabled === false
+        ? ' Capture désactivée (TELEMETRY_CAPTURE_FIXTURES=false).'
+        : ''
+
+      setTelemetryFetchFilesMessage(
+        `Téléchargement PUBG terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.capturedCount ?? 0} fichier(s) capturé(s).${disabledPart}`
+      )
+      setTelemetryFileSyncMessage(null)
+    } catch {
+      setTelemetryFetchFilesMessage('Echec du téléchargement des fichiers telemetry depuis PUBG.')
+    } finally {
+      setTelemetryFetchFilesLoading(false)
     }
   }
 
@@ -537,12 +731,12 @@ export default function ClanSessionDatePage() {
           <section className="mt-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Récupération télémétrie manuelle</h2>
             <p className="mt-1 text-sm text-gray-600">
-              Sélectionnez des matchs ci-dessus puis lancez la récupération sans passer par le cron.
+              Deux modes: resync fichiers (import local) ou resync URL PUBG sans chargement fichier via stream.
             </p>
             <div className="mt-3">
               <Link
                 href={`/clans/${clanId}/telemetry/recoveries`}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                className="app-btn app-btn--md app-btn--secondary"
               >
                 Ouvrir le suivi des récupérations
               </Link>
@@ -552,40 +746,120 @@ export default function ClanSessionDatePage() {
               <button
                 type="button"
                 onClick={selectAllSessionMatches}
-                className="app-btn app-btn--xs app-btn--secondary"
-                disabled={telemetrySyncLoading || sessionMatches.length === 0}
+                className="app-btn app-btn--md app-btn--secondary"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryFileSyncLoading ||
+                  sessionMatches.length === 0
+                }
               >
                 Tout sélectionner
               </button>
               <button
                 type="button"
                 onClick={clearSelectedSessionMatches}
-                className="app-btn app-btn--xs app-btn--secondary"
-                disabled={telemetrySyncLoading || selectedMatchIds.length === 0}
+                className="app-btn app-btn--md app-btn--secondary"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryFileSyncLoading ||
+                  selectedMatchIds.length === 0
+                }
               >
-                Vider la sélection
+                Vider sélection
+              </button>
+              <button
+                type="button"
+                onClick={runFetchTelemetryFilesFromPubg}
+                className="app-btn app-btn--md app-btn--secondary"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading ||
+                  selectedMatchIds.length === 0
+                }
+              >
+                {telemetryFetchFilesLoading
+                  ? 'Import PUBG en cours...'
+                  : `Import fichiers (${selectedMatchIds.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={runResyncTelemetryFromImportedFiles}
+                className="app-btn app-btn--md app-btn--primary"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading ||
+                  selectedMatchIds.length === 0
+                }
+              >
+                {telemetryFileSyncLoading
+                  ? 'Resync fichiers en cours...'
+                  : `Resync sélection (${selectedMatchIds.length})`}
               </button>
               <button
                 type="button"
                 onClick={runManualTelemetrySync}
-                className="app-btn app-btn--xs app-btn--primary"
-                disabled={telemetrySyncLoading || telemetryClearLoading || selectedMatchIds.length === 0}
+                className="app-btn app-btn--md app-btn--secondary"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading ||
+                  selectedMatchIds.length === 0
+                }
               >
                 {telemetrySyncLoading
-                  ? 'Récupération en cours...'
-                  : `Lancer récupération (${selectedMatchIds.length})`}
+                  ? 'Resync URL en cours...'
+                  : `Resync URL (${selectedMatchIds.length})`}
               </button>
               <button
                 type="button"
                 onClick={runClearTelemetryOk}
-                className="app-btn app-btn--xs app-btn--danger"
-                disabled={telemetrySyncLoading || telemetryClearLoading || selectedMatchIds.length === 0}
+                className="app-btn app-btn--md app-btn--danger"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading ||
+                  selectedMatchIds.length === 0
+                }
               >
                 {telemetryClearLoading
                   ? 'Suppression en cours...'
-                  : `Effacer télémétrie OK (${selectedMatchIds.length})`}
+                  : `Effacer fichiers télémétrie (${selectedMatchIds.length})`}
               </button>
             </div>
+
+            {telemetryFetchFilesMessage ? (
+              <p className="mt-3 text-sm text-amber-700">{telemetryFetchFilesMessage}</p>
+            ) : null}
+
+            {telemetryFileSyncMessage ? (
+              <p
+                className={`mt-3 text-sm ${
+                  telemetryFileSyncTone === 'success'
+                    ? 'font-medium text-emerald-700'
+                    : telemetryFileSyncTone === 'error'
+                      ? 'text-rose-700'
+                      : 'text-amber-700'
+                }`}
+              >
+                {telemetryFileSyncMessage}
+              </p>
+            ) : null}
+
+            {telemetryFileSyncErrors.length > 0 ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-700">
+                {telemetryFileSyncErrors.slice(0, 10).map((errorLine) => (
+                  <li key={errorLine}>{errorLine}</li>
+                ))}
+              </ul>
+            ) : null}
 
             {telemetryClearMessage ? (
               <p className="mt-3 text-sm text-amber-700">{telemetryClearMessage}</p>
@@ -593,6 +867,15 @@ export default function ClanSessionDatePage() {
 
             {telemetrySyncMessage ? (
               <p className="mt-3 text-sm text-gray-700">{telemetrySyncMessage}</p>
+            ) : null}
+
+            {telemetrySyncAggregateDetails ? (
+              <details className="mt-2 rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">
+                <summary className="cursor-pointer font-medium text-gray-800">Voir détail technique</summary>
+                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px]">
+                  {telemetrySyncAggregateDetails}
+                </pre>
+              </details>
             ) : null}
 
             {telemetrySyncErrors.length > 0 ? (

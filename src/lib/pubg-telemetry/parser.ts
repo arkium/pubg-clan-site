@@ -4,17 +4,43 @@ type TelemetryMemberStats = {
   memberKey: string
   teamId?: number
   teamPlacement?: number
+  firstKillPhase: number
   kills: number
   headshots: number
   damageDealt: number
+  damageTaken: number
+  onFootDistanceMeters: number
+  vehicleDistanceMeters: number
   revives: number
   knockouts: number
   deaths: number
   blueZoneHits: number
+  circleDelaySeconds: number
+  circleDelayPercent: number
   vehicleRideEvents: number
   vehicleLeaveEvents: number
   positionEvents: number
   weapons: TelemetryMemberWeaponStats[]
+}
+
+type ZoneState = {
+  x: number
+  y: number
+  radius: number
+}
+
+type MemberCircleTiming = {
+  lastTimestampSeconds: number | null
+  lastOutside: boolean | null
+  accumulatedObservedSeconds: number
+  accumulatedOutsideSeconds: number
+}
+
+type MemberPositionTracking = {
+  x: number
+  y: number
+  hasVehicleContext: boolean
+  inVehicle: boolean
 }
 
 type TelemetryMemberWeaponStats = {
@@ -38,6 +64,10 @@ type TelemetryAccumulator = {
   memberStats: Map<string, TelemetryMemberStats>
   weaponStats: Map<string, TelemetryWeaponStats>
   memberWeaponStats: Map<string, Map<string, TelemetryMemberWeaponStats>>
+  memberCircleTimings: Map<string, MemberCircleTiming>
+  memberPositionTracking: Map<string, MemberPositionTracking>
+  latestZoneState: ZoneState | null
+  currentPhase: number
   teamPlacements: Map<number, number>
   eventTypes: Set<string>
   summary: {
@@ -229,6 +259,114 @@ function getFirstNumberFromPaths(root: unknown, paths: string[]) {
   return null
 }
 
+function getTimestampSeconds(event: TelemetryEvent) {
+  const elapsedSeconds = getFirstNumberFromPaths(event, [
+    'elapsedTime',
+    'common.elapsedTime',
+    'gameState.elapsedTime',
+  ])
+  if (typeof elapsedSeconds === 'number' && Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+    return elapsedSeconds
+  }
+
+  const timestampString = getFirstStringFromPaths(event, ['_D', 'timestamp', 'eventTime'])
+  if (!timestampString) {
+    return null
+  }
+
+  const parsedMillis = Date.parse(timestampString)
+  if (!Number.isFinite(parsedMillis) || parsedMillis < 0) {
+    return null
+  }
+
+  return parsedMillis / 1000
+}
+
+function getZoneStateFromEvent(event: TelemetryEvent): ZoneState | null {
+  const x = getFirstNumberFromPaths(event, [
+    'gameState.safetyZonePosition.x',
+    'safetyZonePosition.x',
+  ])
+  const y = getFirstNumberFromPaths(event, [
+    'gameState.safetyZonePosition.y',
+    'safetyZonePosition.y',
+  ])
+  const radius = getFirstNumberFromPaths(event, ['gameState.safetyZoneRadius', 'safetyZoneRadius'])
+
+  if (
+    typeof x !== 'number' ||
+    !Number.isFinite(x) ||
+    typeof y !== 'number' ||
+    !Number.isFinite(y) ||
+    typeof radius !== 'number' ||
+    !Number.isFinite(radius) ||
+    radius <= 0
+  ) {
+    return null
+  }
+
+  return { x, y, radius }
+}
+
+function getCharacterLocation(event: TelemetryEvent): { x: number; y: number } | null {
+  const x = getFirstNumberFromPaths(event, ['character.location.x', 'location.x'])
+  const y = getFirstNumberFromPaths(event, ['character.location.y', 'location.y'])
+
+  if (
+    typeof x !== 'number' ||
+    !Number.isFinite(x) ||
+    typeof y !== 'number' ||
+    !Number.isFinite(y)
+  ) {
+    return null
+  }
+
+  return { x, y }
+}
+
+function isOutsideSafeZone(location: { x: number; y: number }, zone: ZoneState) {
+  const dx = location.x - zone.x
+  const dy = location.y - zone.y
+  const distanceSquared = dx * dx + dy * dy
+  return distanceSquared > zone.radius * zone.radius
+}
+
+function getVehicleContextFromPositionEvent(event: TelemetryEvent):
+  | { hasVehicleContext: true; inVehicle: boolean }
+  | { hasVehicleContext: false } {
+  const isInVehicle = getValueByPath(event, 'character.isInVehicle') ?? getValueByPath(event, 'isInVehicle')
+  if (typeof isInVehicle === 'boolean') {
+    return { hasVehicleContext: true, inVehicle: isInVehicle }
+  }
+
+  const vehicleInfo = getValueByPath(event, 'character.vehicle') ?? getValueByPath(event, 'vehicle')
+  if (vehicleInfo && typeof vehicleInfo === 'object') {
+    return { hasVehicleContext: true, inVehicle: true }
+  }
+
+  return { hasVehicleContext: false }
+}
+
+function getOrCreateMemberCircleTiming(
+  timings: Map<string, MemberCircleTiming>,
+  memberKey: string
+): MemberCircleTiming {
+  const existing = timings.get(memberKey)
+  if (existing) {
+    return existing
+  }
+
+  const created: MemberCircleTiming = {
+    lastTimestampSeconds: null,
+    lastOutside: null,
+    accumulatedObservedSeconds: 0,
+    accumulatedOutsideSeconds: 0,
+  }
+
+  timings.set(memberKey, created)
+  return created
+}
+
 function getKillDistance(event: TelemetryEvent) {
   return getFirstNumberFromPaths(event, [
     'distance',
@@ -272,13 +410,19 @@ function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, member
 
   const created: TelemetryMemberStats = {
     memberKey,
+    firstKillPhase: 0,
     kills: 0,
     headshots: 0,
     damageDealt: 0,
+    damageTaken: 0,
+    onFootDistanceMeters: 0,
+    vehicleDistanceMeters: 0,
     revives: 0,
     knockouts: 0,
     deaths: 0,
     blueZoneHits: 0,
+    circleDelaySeconds: 0,
+    circleDelayPercent: 0,
     vehicleRideEvents: 0,
     vehicleLeaveEvents: 0,
     positionEvents: 0,
@@ -433,6 +577,10 @@ function createTelemetryAccumulator(): TelemetryAccumulator {
     memberStats: new Map<string, TelemetryMemberStats>(),
     weaponStats: new Map<string, TelemetryWeaponStats>(),
     memberWeaponStats: new Map<string, Map<string, TelemetryMemberWeaponStats>>(),
+    memberCircleTimings: new Map<string, MemberCircleTiming>(),
+    memberPositionTracking: new Map<string, MemberPositionTracking>(),
+    latestZoneState: null,
+    currentPhase: 1,
     teamPlacements: new Map<number, number>(),
     eventTypes: new Set<string>(),
     summary: {
@@ -471,6 +619,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   const weaponName = getWeaponName(event)
   const damage = getDamageValue(event)
   const killDistance = getKillDistance(event)
+  const timestampSeconds = getTimestampSeconds(event)
 
   if (eventType === 'LogMatchEnd') {
     updateTeamPlacementsFromMatchEnd(event, accumulator.teamPlacements, accumulator.memberStats)
@@ -480,12 +629,16 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   if (eventType === 'LogPlayerKill' || eventType === 'LogPlayerKillV2') {
     accumulator.summary.killEvents += 1
     if (killerKey) {
-      getOrCreateMemberStatsWithTeam(
+      const killerStats = getOrCreateMemberStatsWithTeam(
         accumulator.memberStats,
         killerKey,
         killerTeamId,
         accumulator.teamPlacements
-      ).kills += 1
+      )
+      killerStats.kills += 1
+      if (killerStats.firstKillPhase <= 0) {
+        killerStats.firstKillPhase = Math.max(1, accumulator.currentPhase)
+      }
     }
     if (victimKey) {
       getOrCreateMemberStatsWithTeam(
@@ -594,6 +747,14 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         accumulator.teamPlacements
       ).blueZoneHits += 1
     }
+    if (victimKey) {
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        victimKey,
+        victimTeamId,
+        accumulator.teamPlacements
+      ).damageTaken += damage
+    }
     return
   }
 
@@ -630,17 +791,97 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         actorTeamId,
         accumulator.teamPlacements
       ).positionEvents += 1
+
+      const timing = getOrCreateMemberCircleTiming(accumulator.memberCircleTimings, actorKey)
+      const location = getCharacterLocation(event)
+      const movementContext = getVehicleContextFromPositionEvent(event)
+
+      if (location) {
+        const previous = accumulator.memberPositionTracking.get(actorKey)
+        if (previous) {
+          const dx = location.x - previous.x
+          const dy = location.y - previous.y
+          const distance = Math.sqrt(dx * dx + dy * dy)
+          if (Number.isFinite(distance) && distance > 0) {
+            const inVehicle = movementContext.hasVehicleContext
+              ? movementContext.inVehicle
+              : previous.hasVehicleContext
+                ? previous.inVehicle
+                : false
+
+            const member = getOrCreateMemberStatsWithTeam(
+              accumulator.memberStats,
+              actorKey,
+              actorTeamId,
+              accumulator.teamPlacements
+            )
+
+            if (inVehicle) {
+              member.vehicleDistanceMeters += distance
+            } else {
+              member.onFootDistanceMeters += distance
+            }
+          }
+        }
+
+        accumulator.memberPositionTracking.set(actorKey, {
+          x: location.x,
+          y: location.y,
+          hasVehicleContext: movementContext.hasVehicleContext
+            ? true
+            : previous?.hasVehicleContext ?? false,
+          inVehicle: movementContext.hasVehicleContext
+            ? movementContext.inVehicle
+            : previous?.inVehicle ?? false,
+        })
+      }
+
+      const outsideSafeZone =
+        location && accumulator.latestZoneState
+          ? isOutsideSafeZone(location, accumulator.latestZoneState)
+          : null
+
+      if (
+        typeof timestampSeconds === 'number' &&
+        Number.isFinite(timestampSeconds) &&
+        timestampSeconds >= 0 &&
+        typeof timing.lastTimestampSeconds === 'number' &&
+        Number.isFinite(timing.lastTimestampSeconds) &&
+        timestampSeconds >= timing.lastTimestampSeconds &&
+        timing.lastOutside !== null
+      ) {
+        const delta = timestampSeconds - timing.lastTimestampSeconds
+        timing.accumulatedObservedSeconds += delta
+        if (timing.lastOutside === true) {
+          timing.accumulatedOutsideSeconds += delta
+        }
+      }
+
+      if (
+        typeof timestampSeconds === 'number' &&
+        Number.isFinite(timestampSeconds) &&
+        timestampSeconds >= 0
+      ) {
+        timing.lastTimestampSeconds = timestampSeconds
+      }
+
+      timing.lastOutside = outsideSafeZone
     }
     return
   }
 
-  if (eventType === 'LogGameStatePeriodically') {
+  if (eventType === 'LogGameStatePeriodically' || eventType === 'LogGameStatePeriodic') {
     accumulator.summary.blueZoneEvents += 1
+    const zoneState = getZoneStateFromEvent(event)
+    if (zoneState) {
+      accumulator.latestZoneState = zoneState
+    }
     return
   }
 
   if (eventType === 'LogPhaseChange') {
     accumulator.summary.phaseChangeEvents += 1
+    accumulator.currentPhase += 1
   }
 }
 
@@ -658,6 +899,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
 
   const memberStats = Array.from(accumulator.memberStats.values())
     .map((member) => {
+      const circleTiming = accumulator.memberCircleTimings.get(member.memberKey)
       const weapons = Array.from(
         accumulator.memberWeaponStats.get(member.memberKey)?.values() ?? []
       ).sort((left, right) => {
@@ -672,6 +914,19 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
 
       return {
         ...member,
+        damageTaken: Number(member.damageTaken.toFixed(2)),
+        onFootDistanceMeters: Number(member.onFootDistanceMeters.toFixed(2)),
+        vehicleDistanceMeters: Number(member.vehicleDistanceMeters.toFixed(2)),
+        circleDelaySeconds: Number((circleTiming?.accumulatedOutsideSeconds ?? 0).toFixed(2)),
+        circleDelayPercent:
+          circleTiming && circleTiming.accumulatedObservedSeconds > 0
+            ? Number(
+                (
+                  (circleTiming.accumulatedOutsideSeconds / circleTiming.accumulatedObservedSeconds) *
+                  100
+                ).toFixed(1)
+              )
+            : 0,
         weapons,
       }
     })

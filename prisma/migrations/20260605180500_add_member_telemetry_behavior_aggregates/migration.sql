@@ -1,0 +1,5 @@
+ALTER TABLE `MemberTelemetryStats`
+  ADD COLUMN `avgFirstContactPhase` DOUBLE NOT NULL DEFAULT 0,
+  ADD COLUMN `avgOnFootDistanceMeters` DOUBLE NOT NULL DEFAULT 0,
+  ADD COLUMN `avgVehicleDistanceMeters` DOUBLE NOT NULL DEFAULT 0,
+  ADD COLUMN `avgDamageTaken` DOUBLE NOT NULL DEFAULT 0;

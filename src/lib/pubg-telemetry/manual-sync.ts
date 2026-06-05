@@ -15,7 +15,7 @@ import {
 import { persistTelemetryJsonFieldsWithSql } from '@/lib/pubg-telemetry/persistence-fallback'
 import { prisma } from '@/lib/prisma'
 
-type ManualTelemetrySyncItemResult = {
+export type ManualTelemetrySyncItemResult = {
   squadMatchId: string
   pubgMatchId: string
   status: 'success' | 'failed'
@@ -68,6 +68,179 @@ function getTelemetryParserVersion() {
 function sanitizeSquadMatchIds(ids: string[]) {
   const unique = Array.from(new Set(ids.map((id) => id.trim()).filter((id) => id.length > 0)))
   return unique.slice(0, 50)
+}
+
+type SyncTelemetryFromStreamInput = {
+  clanId: number
+  squadMatchId: string
+  stream: ReadableStream<Uint8Array>
+  contentLength: number | null
+  sourceGeneratedAt?: Date | null
+}
+
+export async function syncTelemetryForSquadMatchFromStream(
+  input: SyncTelemetryFromStreamInput
+): Promise<ManualTelemetrySyncItemResult> {
+  const parserVersion = getTelemetryParserVersion()
+  const maxAssetSizeBytes = getTelemetryMaxAssetSizeBytes()
+
+  const squadMatchId = input.squadMatchId.trim()
+  if (!squadMatchId) {
+    return {
+      squadMatchId: input.squadMatchId,
+      pubgMatchId: 'unknown',
+      status: 'failed',
+      bytesDownloaded: 0,
+      contentLength: input.contentLength,
+      errorCode: 'SQUAD_MATCH_ID_INVALID',
+      errorMessage: 'Squad match id is required',
+    }
+  }
+
+  const match = await prisma.squadMatch.findFirst({
+    where: {
+      id: squadMatchId,
+      members: {
+        some: {
+          member: {
+            clanId: input.clanId,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      pubgMatchId: true,
+    },
+  })
+
+  if (!match) {
+    return {
+      squadMatchId,
+      pubgMatchId: 'unknown',
+      status: 'failed',
+      bytesDownloaded: 0,
+      contentLength: input.contentLength,
+      errorCode: 'SQUAD_MATCH_NOT_FOUND',
+      errorMessage: 'Squad match not found for this clan',
+    }
+  }
+
+  try {
+    const { snapshot: parsed, bytesRead } = await parseTelemetrySnapshotFromStream(
+      input.stream,
+      maxAssetSizeBytes
+    )
+
+    const successBasePayload = buildTelemetrySuccessBasePayload({
+      parserVersion,
+      parsedAt: new Date(),
+      telemetryGeneratedAt: input.sourceGeneratedAt ?? null,
+      contentLength: input.contentLength,
+      bytesDownloaded: bytesRead,
+    })
+
+    const successPayloadWithJson = buildTelemetrySuccessPayloadWithJson(successBasePayload, parsed)
+
+    try {
+      await (prisma.squadMatchTelemetry as unknown as {
+        upsert: (args: {
+          where: { squadMatchId: string }
+          update: Record<string, unknown>
+          create: Record<string, unknown>
+        }) => Promise<unknown>
+      }).upsert({
+        where: { squadMatchId: match.id },
+        update: successPayloadWithJson,
+        create: {
+          squadMatchId: match.id,
+          ...successPayloadWithJson,
+        },
+      })
+    } catch (persistError) {
+      if (!isTelemetryJsonFieldUnsupportedError(persistError)) {
+        throw persistError
+      }
+
+      await prisma.squadMatchTelemetry.upsert({
+        where: { squadMatchId: match.id },
+        update: successBasePayload,
+        create: {
+          squadMatchId: match.id,
+          ...successBasePayload,
+        },
+      })
+
+      try {
+        await persistTelemetryJsonFieldsWithSql({
+          squadMatchId: match.id,
+          parsed,
+        })
+      } catch (fallbackError) {
+        console.warn('[TelemetrySync][FallbackSql] Unable to persist telemetry JSON fields', {
+          squadMatchId: match.id,
+          pubgMatchId: match.pubgMatchId,
+          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        })
+      }
+    }
+
+    return {
+      squadMatchId: match.id,
+      pubgMatchId: match.pubgMatchId,
+      status: 'success',
+      bytesDownloaded: bytesRead,
+      contentLength: input.contentLength,
+      errorCode: null,
+      errorMessage: null,
+    }
+  } catch (error) {
+    const message = normalizeErrorMessage(error instanceof Error ? error.message : String(error))
+    const now = new Date()
+
+    await prisma.squadMatchTelemetry.upsert({
+      where: { squadMatchId: match.id },
+      update: {
+        status: 'failed',
+        attemptCount: {
+          increment: 1,
+        },
+        lastAttemptAt: now,
+        nextRetryAt: null,
+        parserVersion,
+        parsedAt: now,
+        sourceGeneratedAt: input.sourceGeneratedAt ?? null,
+        contentLength: input.contentLength,
+        bytesDownloaded: 0,
+        errorCode: 'TELEMETRY_IMPORT_FAILED',
+        errorMessage: message,
+      },
+      create: {
+        squadMatchId: match.id,
+        status: 'failed',
+        attemptCount: 1,
+        lastAttemptAt: now,
+        nextRetryAt: null,
+        parserVersion,
+        parsedAt: now,
+        sourceGeneratedAt: input.sourceGeneratedAt ?? null,
+        contentLength: input.contentLength,
+        bytesDownloaded: 0,
+        errorCode: 'TELEMETRY_IMPORT_FAILED',
+        errorMessage: message,
+      },
+    })
+
+    return {
+      squadMatchId: match.id,
+      pubgMatchId: match.pubgMatchId,
+      status: 'failed',
+      bytesDownloaded: 0,
+      contentLength: input.contentLength,
+      errorCode: 'TELEMETRY_IMPORT_FAILED',
+      errorMessage: message,
+    }
+  }
 }
 
 export async function syncTelemetryForSelectedSquadMatches(
@@ -449,6 +622,188 @@ export async function syncTelemetryForSelectedSquadMatches(
         captureBytesRead,
         captureWasTruncated,
         captureError: captureErrorMessage,
+      })
+    }
+  }
+
+  const successCount = results.filter((item) => item.status === 'success').length
+  const failedCount = results.length - successCount
+
+  return {
+    requestedCount: squadMatchIds.length,
+    selectedCount: sanitizedIds.length,
+    processedCount: results.length,
+    successCount,
+    failedCount,
+    skippedCount: Math.max(0, squadMatchIds.length - sanitizedIds.length),
+    captureEnabled,
+    captureMaxBytes,
+    results,
+  }
+}
+
+export async function fetchTelemetryFilesForSelectedSquadMatches(
+  clanId: number,
+  squadMatchIds: string[]
+): Promise<ManualTelemetrySyncResult> {
+  const sanitizedIds = sanitizeSquadMatchIds(squadMatchIds)
+  const captureEnabled = isTelemetryFixtureCaptureEnabled()
+  const captureMaxBytes = getTelemetryFixtureCaptureMaxBytes()
+
+  if (sanitizedIds.length === 0) {
+    return {
+      requestedCount: squadMatchIds.length,
+      selectedCount: 0,
+      processedCount: 0,
+      successCount: 0,
+      failedCount: 0,
+      skippedCount: 0,
+      captureEnabled,
+      captureMaxBytes,
+      results: [],
+    }
+  }
+
+  if (!captureEnabled) {
+    return {
+      requestedCount: squadMatchIds.length,
+      selectedCount: sanitizedIds.length,
+      processedCount: sanitizedIds.length,
+      successCount: 0,
+      failedCount: sanitizedIds.length,
+      skippedCount: Math.max(0, squadMatchIds.length - sanitizedIds.length),
+      captureEnabled,
+      captureMaxBytes,
+      results: sanitizedIds.map((squadMatchId) => ({
+        squadMatchId,
+        pubgMatchId: 'unknown',
+        status: 'failed',
+        bytesDownloaded: 0,
+        contentLength: null,
+        errorCode: 'CAPTURE_DISABLED',
+        errorMessage: 'Telemetry capture is disabled (TELEMETRY_CAPTURE_FIXTURES=false)',
+      })),
+    }
+  }
+
+  const matches = await prisma.squadMatch.findMany({
+    where: {
+      id: { in: sanitizedIds },
+      members: {
+        some: {
+          member: {
+            clanId,
+          },
+        },
+      },
+    },
+    include: {
+      members: {
+        include: {
+          member: {
+            select: {
+              id: true,
+              pubgAccountId: true,
+              platformShard: true,
+            },
+          },
+        },
+        orderBy: {
+          memberId: 'asc',
+        },
+      },
+    },
+  })
+
+  const timeoutMs = getTelemetryTimeoutMs()
+  const maxAssetSizeBytes = getTelemetryMaxAssetSizeBytes()
+  const foundIds = new Set(matches.map((match) => match.id))
+  const missingIds = sanitizedIds.filter((id) => !foundIds.has(id))
+
+  const results: ManualTelemetrySyncItemResult[] = []
+
+  for (const missingId of missingIds) {
+    results.push({
+      squadMatchId: missingId,
+      pubgMatchId: 'unknown',
+      status: 'failed',
+      bytesDownloaded: 0,
+      contentLength: null,
+      errorCode: 'SQUAD_MATCH_NOT_FOUND',
+      errorMessage: 'Squad match not found for this clan',
+    })
+  }
+
+  for (const match of matches) {
+    const candidateMember = match.members.find((entry) => !!entry.member.pubgAccountId)
+
+    if (!candidateMember?.member.pubgAccountId) {
+      results.push({
+        squadMatchId: match.id,
+        pubgMatchId: match.pubgMatchId,
+        status: 'failed',
+        bytesDownloaded: 0,
+        contentLength: null,
+        errorCode: 'PUBG_ACCOUNT_ID_MISSING',
+        errorMessage: 'No clan member with PUBG account id found for this squad match',
+      })
+      continue
+    }
+
+    try {
+      const matchDetails = await fetchMatchDetailsWithTelemetryAsset(
+        match.pubgMatchId,
+        candidateMember.member.pubgAccountId,
+        candidateMember.member.platformShard
+      )
+
+      if (!matchDetails.telemetryAssetUrl) {
+        results.push({
+          squadMatchId: match.id,
+          pubgMatchId: match.pubgMatchId,
+          status: 'failed',
+          bytesDownloaded: 0,
+          contentLength: null,
+          errorCode: 'ASSET_URL_MISSING',
+          errorMessage: 'No telemetry asset URL returned by PUBG API for this match',
+        })
+        continue
+      }
+
+      const downloaded = await downloadTelemetryFromAsset(matchDetails.telemetryAssetUrl, {
+        timeoutMs,
+        maxAssetSizeBytes,
+      })
+
+      const capture = await captureTelemetryFixtureFromStream({
+        stream: downloaded.stream,
+        squadMatchId: match.id,
+        pubgMatchId: match.pubgMatchId,
+      })
+
+      results.push({
+        squadMatchId: match.id,
+        pubgMatchId: match.pubgMatchId,
+        status: 'success',
+        bytesDownloaded: capture.bytesRead,
+        contentLength: downloaded.contentLength,
+        errorCode: null,
+        errorMessage: null,
+        captureFilePath: capture.filePath,
+        captureEventCount: capture.eventCount,
+        captureBytesRead: capture.bytesRead,
+        captureWasTruncated: capture.wasTruncated,
+      })
+    } catch (error) {
+      const message = normalizeErrorMessage(error instanceof Error ? error.message : String(error))
+      results.push({
+        squadMatchId: match.id,
+        pubgMatchId: match.pubgMatchId,
+        status: 'failed',
+        bytesDownloaded: 0,
+        contentLength: null,
+        errorCode: 'TELEMETRY_CAPTURE_FAILED',
+        errorMessage: message,
       })
     }
   }

@@ -47,6 +47,20 @@ function toPeriodKey(period: TelemetryPeriod, now = new Date()) {
   return `week-${now.getFullYear()}-${String(getIsoWeek(now)).padStart(2, '0')}`
 }
 
+function isUnknownCircleColumns(error: unknown) {
+  return (
+    error instanceof Error &&
+    (
+      error.message.includes('avgCircleDelayPercent') ||
+      error.message.includes('avgSafeZonePresencePercent') ||
+      error.message.includes('avgFirstContactPhase') ||
+      error.message.includes('avgOnFootDistanceMeters') ||
+      error.message.includes('avgVehicleDistanceMeters') ||
+      error.message.includes('avgDamageTaken')
+    )
+  )
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -75,28 +89,111 @@ export async function GET(
     const period = parsePeriod(new URL(request.url).searchParams.get('period'))
     const periodKey = toPeriodKey(period)
 
-    const rows = await prisma.$queryRaw<
-      Array<{
-        aggressionScore: number
-        supportScore: number
-        zoneDisciplineScore: number
-        avgBlueZoneHits: number
-        avgCircleDelaySeconds: number
-        matchesPlayed: number
-      }>
-    >(Prisma.sql`
-      SELECT
-        aggressionScore,
-        supportScore,
-        zoneDisciplineScore,
-        avgBlueZoneHits,
-        avgCircleDelaySeconds,
-        matchesPlayed
-      FROM MemberTelemetryStats
-      WHERE memberId = ${memberId}
-        AND period = ${periodKey}
-      LIMIT 1
-    `)
+    let rows: Array<{
+      aggressionScore: number
+      supportScore: number
+      zoneDisciplineScore: number
+      avgBlueZoneHits: number
+      avgFirstContactPhase: number
+      avgCircleDelaySeconds: number
+      avgCircleDelayPercent: number
+      avgSafeZonePresencePercent: number
+      avgOnFootDistanceMeters: number
+      avgVehicleDistanceMeters: number
+      avgDamageTaken: number
+      avgVehicleRideEvents: number
+      avgVehicleLeaveEvents: number
+      avgPositionEvents: number
+      matchesPlayed: number
+    }>
+
+    try {
+      rows = await prisma.$queryRaw<
+        Array<{
+          aggressionScore: number
+          supportScore: number
+          zoneDisciplineScore: number
+          avgBlueZoneHits: number
+          avgFirstContactPhase: number
+          avgCircleDelaySeconds: number
+          avgCircleDelayPercent: number
+          avgSafeZonePresencePercent: number
+          avgOnFootDistanceMeters: number
+          avgVehicleDistanceMeters: number
+          avgDamageTaken: number
+          avgVehicleRideEvents: number
+          avgVehicleLeaveEvents: number
+          avgPositionEvents: number
+          matchesPlayed: number
+        }>
+      >(Prisma.sql`
+        SELECT
+          aggressionScore,
+          supportScore,
+          zoneDisciplineScore,
+          avgBlueZoneHits,
+          avgFirstContactPhase,
+          avgCircleDelaySeconds,
+          avgCircleDelayPercent,
+          avgSafeZonePresencePercent,
+          avgOnFootDistanceMeters,
+          avgVehicleDistanceMeters,
+          avgDamageTaken,
+          avgVehicleRideEvents,
+          avgVehicleLeaveEvents,
+          avgPositionEvents,
+          matchesPlayed
+        FROM MemberTelemetryStats
+        WHERE memberId = ${memberId}
+          AND period = ${periodKey}
+        LIMIT 1
+      `)
+    } catch (queryError) {
+      if (!isUnknownCircleColumns(queryError)) {
+        throw queryError
+      }
+
+      rows = await prisma.$queryRaw<
+        Array<{
+          aggressionScore: number
+          supportScore: number
+          zoneDisciplineScore: number
+          avgBlueZoneHits: number
+          avgFirstContactPhase: number
+          avgCircleDelaySeconds: number
+          avgCircleDelayPercent: number
+          avgSafeZonePresencePercent: number
+          avgOnFootDistanceMeters: number
+          avgVehicleDistanceMeters: number
+          avgDamageTaken: number
+          avgVehicleRideEvents: number
+          avgVehicleLeaveEvents: number
+          avgPositionEvents: number
+          matchesPlayed: number
+        }>
+      >(Prisma.sql`
+        SELECT
+          aggressionScore,
+          supportScore,
+          zoneDisciplineScore,
+          avgBlueZoneHits,
+          0 AS avgFirstContactPhase,
+          avgCircleDelaySeconds,
+          0 AS avgCircleDelayPercent,
+          100 AS avgSafeZonePresencePercent,
+          0 AS avgOnFootDistanceMeters,
+          0 AS avgVehicleDistanceMeters,
+          0 AS avgDamageTaken,
+          avgVehicleRideEvents,
+          avgVehicleLeaveEvents,
+          avgPositionEvents,
+          matchesPlayed
+        FROM MemberTelemetryStats
+        WHERE memberId = ${memberId}
+          AND period = ${periodKey}
+        LIMIT 1
+      `)
+    }
 
     const stats = rows[0] ?? null
 

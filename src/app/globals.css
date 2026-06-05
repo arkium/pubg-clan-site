@@ -1732,18 +1732,22 @@ body[data-app-theme] .app-table-row:hover {
   color: var(--theme-ui-text-secondary);
 }
 
-.app-btn--secondary:hover {
+.app-btn--secondary:hover:not(:disabled) {
   background-color: var(--theme-ui-hover);
 }
 
 .app-btn--primary {
-  border-color: rgb(15 23 42 / 0.9);
+  border-color: rgb(30 41 59 / 0.9);
   background-color: rgb(15 23 42 / 1);
   color: rgb(255 255 255 / 1);
 }
 
-.app-btn--primary:hover {
+.app-btn--primary:hover:not(:disabled) {
   background-color: rgb(30 41 59 / 1);
+}
+
+html[data-app-theme='dark'] .app-btn--primary {
+  border-color: rgb(71 85 105 / 0.95);
 }
 
 .app-btn--danger {
@@ -1752,7 +1756,7 @@ body[data-app-theme] .app-table-row:hover {
   color: rgb(159 18 57 / 1);
 }
 
-.app-btn--danger:hover {
+.app-btn--danger:hover:not(:disabled) {
   background-color: rgb(255 228 230 / 1);
 }
 
@@ -1762,7 +1766,7 @@ body[data-app-theme] .app-table-row:hover {
   color: rgb(255 255 255 / 1);
 }
 
-.app-btn--danger-solid:hover {
+.app-btn--danger-solid:hover:not(:disabled) {
   background-color: rgb(190 24 63 / 1);
 }
 
@@ -1772,7 +1776,7 @@ html[data-app-theme='dark'] .app-btn--danger {
   color: rgb(253 164 175 / 1);
 }
 
-html[data-app-theme='dark'] .app-btn--danger:hover {
+html[data-app-theme='dark'] .app-btn--danger:hover:not(:disabled) {
   background-color: rgb(127 29 29 / 0.45);
 }
 

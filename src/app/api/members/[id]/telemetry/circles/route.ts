@@ -79,6 +79,9 @@ export async function GET(
       Array<{
         avgBlueZoneHits: number
         avgCircleDelaySeconds: number
+        avgVehicleRideEvents: number
+        avgVehicleLeaveEvents: number
+        avgPositionEvents: number
         zoneDisciplineScore: number
         matchesPlayed: number
       }>
@@ -86,6 +89,9 @@ export async function GET(
       SELECT
         avgBlueZoneHits,
         avgCircleDelaySeconds,
+        avgVehicleRideEvents,
+        avgVehicleLeaveEvents,
+        avgPositionEvents,
         zoneDisciplineScore,
         matchesPlayed
       FROM MemberTelemetryStats

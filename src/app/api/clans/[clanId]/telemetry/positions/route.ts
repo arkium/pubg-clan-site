@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
+import { getPhaseLabels } from '@/lib/phase-label-service'
 import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
@@ -76,6 +77,7 @@ type SelectedHeatmapData = {
   deaths: HeatmapCell[]
   note: string
   mapLabels: Record<string, string>
+  phaseLabels: Record<string, string>
 }
 
 type TelemetryRow = {
@@ -181,7 +183,7 @@ function parsePhase(value: string | null): PhaseFilter {
   }
 
   const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 1) {
+  if (!Number.isFinite(parsed) || parsed <= 0) {
     return 'all'
   }
 
@@ -411,6 +413,7 @@ export async function GET(
     })
 
     const mapLabels = await getMapLabels()
+    const phaseLabels = await getPhaseLabels()
     const selectedMap = mapName && maps.some((entry) => entry.mapName === mapName)
       ? mapName
       : maps[0]?.mapName ?? null
@@ -439,7 +442,7 @@ export async function GET(
         if (pointMemberKey) {
           members.set(pointMemberKey, (members.get(pointMemberKey) ?? 0) + 1)
         }
-        if (pointPhase !== null && Number.isInteger(pointPhase) && pointPhase > 0) {
+        if (pointPhase !== null && Number.isFinite(pointPhase) && pointPhase > 0) {
           phases.add(pointPhase)
         }
 
@@ -468,7 +471,7 @@ export async function GET(
         if (segmentMemberKey) {
           members.set(segmentMemberKey, (members.get(segmentMemberKey) ?? 0) + 1)
         }
-        if (segmentPhase !== null && Number.isInteger(segmentPhase) && segmentPhase > 0) {
+        if (segmentPhase !== null && Number.isFinite(segmentPhase) && segmentPhase > 0) {
           phases.add(segmentPhase)
         }
 
@@ -504,7 +507,7 @@ export async function GET(
         if (pointMemberKey) {
           members.set(pointMemberKey, (members.get(pointMemberKey) ?? 0) + 1)
         }
-        if (pointPhase !== null && Number.isInteger(pointPhase) && pointPhase > 0) {
+        if (pointPhase !== null && Number.isFinite(pointPhase) && pointPhase > 0) {
           phases.add(pointPhase)
         }
 
@@ -537,6 +540,13 @@ export async function GET(
       })
 
     const selectedMemberKey = memberKey && members.has(memberKey) ? memberKey : null
+    for (const key of Object.keys(phaseLabels)) {
+      const numeric = Number(key)
+      if (Number.isFinite(numeric) && numeric > 0) {
+        phases.add(numeric)
+      }
+    }
+
     const phaseOptions = Array.from(phases.values()).sort((left, right) => left - right)
     const selectedPhase =
       phaseFilter !== 'all' && phases.has(phaseFilter)
@@ -572,6 +582,7 @@ export async function GET(
       deaths: sortCells(deaths),
       note,
       mapLabels,
+      phaseLabels,
     }
 
     return NextResponse.json(

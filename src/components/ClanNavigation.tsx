@@ -515,6 +515,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             tone: 'neutral' as const,
           },
           {
+            label: 'Alias phases PUBG',
+            href: '/settings/phase-labels',
+            tone: 'neutral' as const,
+          },
+          {
             label: 'Accueil login',
             href: '/settings/login-welcome',
             tone: 'neutral' as const,

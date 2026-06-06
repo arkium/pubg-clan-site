@@ -48,6 +48,109 @@ describe('parseTelemetrySnapshot', () => {
     expect(ak?.damageDealt).toBe(135)
   })
 
+  it('counts shots fired and landed hits from weapon telemetry events', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogWeaponFireCount',
+        character: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        weaponId: 'WeapM416_C',
+        fireCount: 1,
+      },
+      {
+        _T: 'LogWeaponFireCount',
+        character: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        weaponId: 'WeapM416_C',
+        fireCount: 3,
+      },
+      {
+        _T: 'LogPlayerTakeDamage',
+        attacker: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        victim: {
+          accountId: 'player_victim',
+          name: 'VictimName',
+        },
+        damage: 42,
+        damageCauserName: 'WeapM416_C',
+      },
+    ])
+
+    const weapon = result.weaponStats.find((entry) => entry.weaponName === 'WeapM416_C')
+    const attackerWeapon = result.memberStats
+      .find((entry) => entry.memberKey === 'player_attacker')
+      ?.weapons.find((entry) => entry.weaponName === 'WeapM416_C')
+
+    expect(weapon).toBeDefined()
+    expect(weapon?.shotsFired).toBe(3)
+    expect(weapon?.hitsLanded).toBe(1)
+
+    expect(attackerWeapon).toBeDefined()
+    expect(attackerWeapon?.shotsFired).toBe(3)
+    expect(attackerWeapon?.hitsLanded).toBe(1)
+  })
+
+  it('normalizes Item_Weapon identifiers so shots and hits merge on one weapon row', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogPlayerAttack',
+        attackType: 'Weapon',
+        fireWeaponStackCount: 10,
+        attacker: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        weapon: {
+          itemId: 'Item_Weapon_MP5K_C',
+          category: 'Weapon',
+          subCategory: 'Main',
+        },
+      },
+      {
+        _T: 'LogPlayerTakeDamage',
+        attacker: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        victim: {
+          accountId: 'player_victim',
+          name: 'VictimName',
+        },
+        damage: 18,
+        damageCauserName: 'WeapMP5K_C',
+      },
+      {
+        _T: 'LogPlayerKillV2',
+        killer: {
+          accountId: 'player_attacker',
+          name: 'AttackerName',
+        },
+        victim: {
+          accountId: 'player_victim',
+          name: 'VictimName',
+        },
+        killerDamageInfo: {
+          damageCauserName: 'WeapMP5K_C',
+        },
+      },
+    ])
+
+    expect(result.weaponStats.find((entry) => entry.weaponName === 'Item_Weapon_MP5K_C')).toBeUndefined()
+
+    const weapon = result.weaponStats.find((entry) => entry.weaponName === 'WeapMP5K_C')
+    expect(weapon).toBeDefined()
+    expect(weapon?.shotsFired).toBe(10)
+    expect(weapon?.hitsLanded).toBe(1)
+    expect(weapon?.kills).toBe(1)
+  })
+
   it('rejects non-array payloads', () => {
     expect(() => parseTelemetrySnapshot({})).toThrow(
       'Telemetry payload must be an array of events'

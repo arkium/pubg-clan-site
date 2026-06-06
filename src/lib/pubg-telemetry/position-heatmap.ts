@@ -31,6 +31,9 @@ type MapBounds = {
   height: number
 }
 
+// PUBG telemetry coordinates are expressed in centimeters on world bounds that do not
+// always match the marketed map sizes exactly. Keep telemetry-native bounds for precise
+// projection on our current map assets.
 const DEFAULT_BOUNDS: MapBounds = { width: 819200, height: 819200 }
 
 const MAP_BOUNDS: Record<string, MapBounds> = {

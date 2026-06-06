@@ -13,6 +13,7 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
   const positionSamplesJson = JSON.stringify(input.parsed.positionSamples)
   const trajectorySegmentsJson = JSON.stringify(input.parsed.trajectorySegments)
   const deathSamplesJson = JSON.stringify(input.parsed.deathSamples)
+  const phaseSnapshotsJson = JSON.stringify(input.parsed.phaseSnapshots)
 
   await prisma.$executeRaw(
     Prisma.sql`
@@ -24,6 +25,7 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
         positionSamples = ${positionSamplesJson},
         trajectorySegments = ${trajectorySegmentsJson},
         deathSamples = ${deathSamplesJson},
+        phaseSnapshots = ${phaseSnapshotsJson},
         updatedAt = NOW()
       WHERE squadMatchId = ${input.squadMatchId}
     `

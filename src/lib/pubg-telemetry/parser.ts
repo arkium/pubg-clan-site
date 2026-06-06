@@ -51,6 +51,15 @@ type ZoneState = {
   radius: number
 }
 
+export type TelemetryPhaseSnapshot = {
+  isGame: number
+  timestampSeconds: number
+  numAlivePlayers: number
+  numAliveTeams: number
+  safetyZoneRadiusMeters: number
+  poisonGasWarningRadiusMeters: number
+}
+
 type MemberCircleTiming = {
   lastTimestampSeconds: number | null
   lastOutside: boolean | null
@@ -72,6 +81,8 @@ type TelemetryMemberWeaponStats = {
   kills: number
   headshots: number
   damageDealt: number
+  shotsFired: number
+  hitsLanded: number
   killDistanceTotal: number
   killDistanceCount: number
   killDistanceMax: number
@@ -82,6 +93,8 @@ type TelemetryWeaponStats = {
   kills: number
   headshots: number
   damageDealt: number
+  shotsFired: number
+  hitsLanded: number
 }
 
 type TelemetryAccumulator = {
@@ -90,13 +103,16 @@ type TelemetryAccumulator = {
   memberWeaponStats: Map<string, Map<string, TelemetryMemberWeaponStats>>
   memberCircleTimings: Map<string, MemberCircleTiming>
   memberPositionTracking: Map<string, MemberPositionTracking>
+  memberWeaponFireCounts: Map<string, number>
   latestZoneState: ZoneState | null
   currentPhase: number
+  currentIsGame: number | null
   teamPlacements: Map<number, number>
   eventTypes: Set<string>
   positionSamples: TelemetryPositionSample[]
   trajectorySegments: TelemetryTrajectorySegment[]
   deathSamples: TelemetryPositionSample[]
+  phaseSnapshots: TelemetryPhaseSnapshot[]
   summary: {
     totalEvents: number
     killEvents: number
@@ -138,6 +154,7 @@ export type ParsedTelemetrySnapshot = {
   positionSamples: TelemetryPositionSample[]
   trajectorySegments: TelemetryTrajectorySegment[]
   deathSamples: TelemetryPositionSample[]
+  phaseSnapshots: TelemetryPhaseSnapshot[]
 }
 
 function getEventType(event: TelemetryEvent) {
@@ -260,11 +277,62 @@ function getWeaponName(event: TelemetryEvent) {
 
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate.trim()
+      return normalizeWeaponIdentifier(candidate.trim())
     }
   }
 
   return null
+}
+
+function normalizeWeaponIdentifier(weaponName: string) {
+  if (weaponName.startsWith('Item_Weapon_')) {
+    return `Weap${weaponName.slice('Item_Weapon_'.length)}`
+  }
+
+  return weaponName
+}
+
+function getFiringWeaponName(event: TelemetryEvent) {
+  const weaponName = getFirstStringFromPaths(event, ['weapon.itemId', 'weapon.weaponId', 'weaponId'])
+  return weaponName ? normalizeWeaponIdentifier(weaponName) : null
+}
+
+function isCountableWeaponName(weaponName: string | null) {
+  if (!weaponName) {
+    return false
+  }
+
+  const normalized = weaponName.toLowerCase()
+  if (!normalized.startsWith('item_weapon_') && !normalized.startsWith('weap')) {
+    return false
+  }
+
+  return !normalized.includes('snowball')
+    && !normalized.includes('throw')
+    && !normalized.includes('grenade')
+    && !normalized.includes('molotov')
+    && !normalized.includes('smoke')
+    && !normalized.includes('flare')
+    && !normalized.includes('debuff')
+    && !normalized.includes('effectactor')
+}
+
+function isCountableAttackWeapon(event: TelemetryEvent) {
+  const attackType = getFirstStringFromPaths(event, ['attackType'])
+  if (attackType && attackType.toLowerCase() !== 'weapon') {
+    return false
+  }
+
+  const weapon = getObjectProperty(event, 'weapon')
+  const category = getFirstStringFromPaths(weapon, ['category'])
+  const subCategory = getFirstStringFromPaths(weapon, ['subCategory'])
+
+  if (subCategory?.toLowerCase() === 'throwable') {
+    return false
+  }
+
+  const weaponName = getFiringWeaponName(event)
+  return isCountableWeaponName(weaponName) && category !== 'Equipment'
 }
 
 function getDamageValue(event: TelemetryEvent) {
@@ -595,6 +663,8 @@ function getOrCreateWeaponStats(stats: Map<string, TelemetryWeaponStats>, weapon
     kills: 0,
     headshots: 0,
     damageDealt: 0,
+    shotsFired: 0,
+    hitsLanded: 0,
   }
 
   stats.set(weaponName, created)
@@ -618,6 +688,8 @@ function getOrCreateMemberWeaponStats(
       kills: 0,
       headshots: 0,
       damageDealt: 0,
+      shotsFired: 0,
+      hitsLanded: 0,
       killDistanceTotal: 0,
       killDistanceCount: 0,
       killDistanceMax: 0,
@@ -631,6 +703,8 @@ function getOrCreateMemberWeaponStats(
     kills: 0,
     headshots: 0,
     damageDealt: 0,
+    shotsFired: 0,
+    hitsLanded: 0,
     killDistanceTotal: 0,
     killDistanceCount: 0,
     killDistanceMax: 0,
@@ -647,13 +721,16 @@ function createTelemetryAccumulator(): TelemetryAccumulator {
     memberWeaponStats: new Map<string, Map<string, TelemetryMemberWeaponStats>>(),
     memberCircleTimings: new Map<string, MemberCircleTiming>(),
     memberPositionTracking: new Map<string, MemberPositionTracking>(),
+    memberWeaponFireCounts: new Map<string, number>(),
     latestZoneState: null,
     currentPhase: 1,
+    currentIsGame: null,
     teamPlacements: new Map<number, number>(),
     eventTypes: new Set<string>(),
     positionSamples: [],
     trajectorySegments: [],
     deathSamples: [],
+    phaseSnapshots: [],
     summary: {
       totalEvents: 0,
       killEvents: 0,
@@ -688,9 +765,16 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   const reviveTeamId = getReviverTeamId(event)
   const actorTeamId = getCharacterTeamId(event)
   const weaponName = getWeaponName(event)
+  const firingWeaponName = getFiringWeaponName(event)
   const damage = getDamageValue(event)
   const killDistance = getKillDistance(event)
   const timestampSeconds = getTimestampSeconds(event)
+  const samplePhase =
+    typeof accumulator.currentIsGame === 'number' &&
+    Number.isFinite(accumulator.currentIsGame) &&
+    accumulator.currentIsGame > 0
+      ? accumulator.currentIsGame
+      : Math.max(1, accumulator.currentPhase)
 
   if (eventType === 'LogMatchEnd') {
     updateTeamPlacementsFromMatchEnd(event, accumulator.teamPlacements, accumulator.memberStats)
@@ -724,7 +808,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         accumulator.deathSamples.push({
           memberKey: victimKey,
           teamId: victimTeamId ?? undefined,
-          phase: accumulator.currentPhase,
+          phase: samplePhase,
           timestampSeconds,
           x: deathLocation.x,
           y: deathLocation.y,
@@ -821,6 +905,10 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           weaponName
         )
         memberWeapon.damageDealt += damage
+        if (victimKey && killerKey !== victimKey) {
+          weapon.hitsLanded += 1
+          memberWeapon.hitsLanded += 1
+        }
       }
     }
     if (victimKey && isBlueZoneDamage(event)) {
@@ -839,6 +927,44 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         accumulator.teamPlacements
       ).damageTaken += damage
     }
+    return
+  }
+
+  if (eventType === 'LogPlayerAttack' || eventType === 'LogWeaponFireCount') {
+    const fireCount = getFirstNumberFromPaths(event, ['fireWeaponStackCount', 'fireCount'])
+    const firingActorKey = eventType === 'LogPlayerAttack' ? getKillerKey(event) : getCharacterKey(event)
+    const weaponId = getFiringWeaponName(event)
+
+    if (
+      firingActorKey &&
+      weaponId &&
+      (eventType === 'LogWeaponFireCount' ? isCountableWeaponName(weaponId) : isCountableAttackWeapon(event)) &&
+      typeof fireCount === 'number' &&
+      Number.isFinite(fireCount) &&
+      fireCount > 0
+    ) {
+      const actorWeaponKey = `${firingActorKey}:${weaponId}`
+      const previousFireCount = accumulator.memberWeaponFireCounts.get(actorWeaponKey)
+      const delta =
+        typeof previousFireCount === 'number' && previousFireCount >= 0 && fireCount >= previousFireCount
+          ? fireCount - previousFireCount
+          : fireCount
+
+      if (delta > 0) {
+        const memberWeapon = getOrCreateMemberWeaponStats(
+          accumulator.memberWeaponStats,
+          firingActorKey,
+          weaponId
+        )
+        const weapon = getOrCreateWeaponStats(accumulator.weaponStats, weaponId)
+
+        memberWeapon.shotsFired += delta
+        weapon.shotsFired += delta
+      }
+
+      accumulator.memberWeaponFireCounts.set(actorWeaponKey, fireCount)
+    }
+
     return
   }
 
@@ -928,7 +1054,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           accumulator.positionSamples.push({
             memberKey: actorKey,
             teamId: actorTeamId ?? undefined,
-            phase: accumulator.currentPhase,
+            phase: samplePhase,
             timestampSeconds: typeof timestampSeconds === 'number' && Number.isFinite(timestampSeconds) ? timestampSeconds : null,
             x: location.x,
             y: location.y,
@@ -941,7 +1067,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
             accumulator.trajectorySegments.push({
               memberKey: actorKey,
               teamId: actorTeamId ?? undefined,
-              phase: accumulator.currentPhase,
+              phase: samplePhase,
               timestampStart: tracking.lastSampleTimestampSeconds,
               timestampEnd: typeof timestampSeconds === 'number' && Number.isFinite(timestampSeconds) ? timestampSeconds : null,
               fromX: tracking.lastSampleLocation.x,
@@ -998,6 +1124,37 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
     const zoneState = getZoneStateFromEvent(event)
     if (zoneState) {
       accumulator.latestZoneState = zoneState
+    }
+
+    // Capture phase snapshot for visualisation
+    const ts = getTimestampSeconds(event)
+    const isGame = getFirstNumberFromPaths(event, ['gameState.isGame', 'common.isGame', 'isGame'])
+    const numAlivePlayers = getFirstNumberFromPaths(event, ['gameState.numAlivePlayers', 'numAlivePlayers']) ?? 0
+    const numAliveTeams = getFirstNumberFromPaths(event, ['gameState.numAliveTeams', 'numAliveTeams']) ?? 0
+    const safeRadius = getFirstNumberFromPaths(event, ['gameState.safetyZoneRadius', 'safetyZoneRadius']) ?? 0
+    const poisonRadius = getFirstNumberFromPaths(event, ['gameState.poisonGasWarningRadius', 'poisonGasWarningRadius']) ?? 0
+    if (
+      typeof ts === 'number' && Number.isFinite(ts) && ts >= 0 &&
+      typeof isGame === 'number' && Number.isFinite(isGame)
+    ) {
+      accumulator.currentIsGame = isGame
+      const last = accumulator.phaseSnapshots.at(-1)
+      const isNewPhase = !last || last.isGame !== isGame
+      // Gap uses relative offset from first snapshot timestamp
+      const firstTs = accumulator.phaseSnapshots[0]?.timestampSeconds ?? ts
+      const relTs = ts - firstTs
+      const lastRelTs = last ? last.timestampSeconds - firstTs : -Infinity
+      const gapOk = !last || relTs - lastRelTs >= 5
+      if (isNewPhase || gapOk) {
+        accumulator.phaseSnapshots.push({
+          isGame,
+          timestampSeconds: ts,
+          numAlivePlayers,
+          numAliveTeams,
+          safetyZoneRadiusMeters: safeRadius,
+          poisonGasWarningRadiusMeters: poisonRadius,
+        })
+      }
     }
     return
   }
@@ -1078,6 +1235,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     positionSamples: accumulator.positionSamples,
     trajectorySegments: accumulator.trajectorySegments,
     deathSamples: accumulator.deathSamples,
+    phaseSnapshots: accumulator.phaseSnapshots,
   }
 }
 

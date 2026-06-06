@@ -9,6 +9,7 @@ import AppSelectField from '@/components/ui/AppSelectField'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 
 import { mapDisplayName } from '@/lib/map-label-service'
+import { isGameLabel } from '@/lib/phase-label-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type HeatmapView = 'predilection' | 'rotation' | 'rotation-lines' | 'death'
@@ -59,6 +60,7 @@ type PositionsHeatmapResponse = {
   deaths: HeatmapCell[]
   gridSize: number
   mapLabels: Record<string, string>
+  phaseLabels: Record<string, string>
   note: string | null
 }
 
@@ -115,7 +117,12 @@ function opacityFor(ratio: number) {
 }
 
 function phaseLabel(value: PhaseFilter) {
-  return value === 'all' ? 'Toutes' : `Phase ${value}`
+  return value === 'all' ? 'Toutes' : `Phase ${value}`  // replaced dynamically via phaseLabelFrom
+}
+
+function phaseLabelFrom(value: PhaseFilter, labels: Record<string, string>) {
+  if (value === 'all') return 'Toutes les phases'
+  return isGameLabel(Number(value), labels)
 }
 
 export default function ClanPositionsHeatmapPage() {
@@ -268,7 +275,7 @@ export default function ClanPositionsHeatmapPage() {
           <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs text-slate-100">
             <p>Carte: {selectedMapLabel}</p>
             <p>Membre: {selectedMemberLabel}</p>
-            <p>Phase: {phaseLabel(phase)}</p>
+            <p>Phase: {phaseLabelFrom(phase, payload?.phaseLabels ?? {})}</p>
           </div>
         </div>
         <div className="mt-3">
@@ -327,13 +334,13 @@ export default function ClanPositionsHeatmapPage() {
               }
 
               const parsed = Number(value)
-              setPhase(Number.isInteger(parsed) && parsed > 0 ? parsed : 'all')
+              setPhase(Number.isFinite(parsed) && parsed > 0 ? parsed : 'all')
             }}
             options={[
               { value: 'all', label: 'Toutes les phases' },
               ...(payload?.phases ?? []).map((entry) => ({
                 value: String(entry),
-                label: `Phase ${entry}`,
+                label: phaseLabelFrom(entry, payload?.phaseLabels ?? {}),
               })),
             ]}
           />

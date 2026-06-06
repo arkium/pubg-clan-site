@@ -337,6 +337,7 @@ model SquadMatchTelemetry {
   positionSamples   Json?
   trajectorySegments Json?
   deathSamples      Json?
+  phaseSnapshots    Json?
   errorCode         String?
   errorMessage   String?   @db.Text
 
@@ -387,6 +388,8 @@ model MemberWeaponStats {
   weaponName   String
   kills        Int   @default(0)
   headshots    Int   @default(0)
+  shotsFired   Int   @default(0)
+  hitsLanded   Int   @default(0)
   avgDistance  Float @default(0)
   maxDistance  Float @default(0)
   totalDamage  Float @default(0)

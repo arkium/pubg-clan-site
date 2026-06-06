@@ -65,5 +65,6 @@ export function buildTelemetrySuccessPayloadWithJson(
     positionSamples: parsed.positionSamples,
     trajectorySegments: parsed.trajectorySegments,
     deathSamples: parsed.deathSamples,
+    phaseSnapshots: parsed.phaseSnapshots,
   }
 }

@@ -16,6 +16,9 @@ type ClanWeaponRow = {
   weaponLabel?: string
   kills: number
   headshots: number
+  shotsFired: number
+  hitsLanded: number
+  accuracy: number
   avgDistance: number
   maxDistance?: number | null
   totalDamage?: number | null
@@ -32,7 +35,7 @@ type ClanWeaponsResponse = {
   note: string | null
 }
 
-type SortKey = 'player' | 'weapon' | 'kills' | 'headshotRate' | 'avgDistance' | 'maxDistance' | 'totalDamage' | 'matchCount'
+type SortKey = 'player' | 'weapon' | 'kills' | 'headshotRate' | 'shotsFired' | 'hitsLanded' | 'accuracy' | 'avgDistance' | 'maxDistance' | 'totalDamage' | 'matchCount'
 type SortDirection = 'asc' | 'desc'
 
 const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
@@ -135,6 +138,30 @@ export default function ClanTelemetryWeaponsPage() {
         const leftRate = left.kills > 0 ? (left.headshots / left.kills) * 100 : 0
         const rightRate = right.kills > 0 ? (right.headshots / right.kills) * 100 : 0
         const compare = compareNumber(leftRate, rightRate)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'shotsFired') {
+        const compare = compareNumber(left.shotsFired, right.shotsFired)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'hitsLanded') {
+        const compare = compareNumber(left.hitsLanded, right.hitsLanded)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'accuracy') {
+        const compare = compareNumber(left.accuracy, right.accuracy)
         if (compare !== 0) {
           return compare * factor
         }
@@ -311,6 +338,21 @@ export default function ClanTelemetryWeaponsPage() {
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('shotsFired')}>
+                        Tirs{sortLabel('shotsFired')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('hitsLanded')}>
+                        Touches{sortLabel('hitsLanded')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
+                        Precision{sortLabel('accuracy')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
                       <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
                         Distance moyenne{sortLabel('avgDistance')}
                       </button>
@@ -358,6 +400,9 @@ export default function ClanTelemetryWeaponsPage() {
                         </td>
                         <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.shotsFired)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.hitsLanded)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.accuracy)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>

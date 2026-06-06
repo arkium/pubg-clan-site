@@ -15,6 +15,9 @@ type MemberWeaponRow = {
   weaponLabel?: string
   kills: number
   headshots: number
+  shotsFired: number
+  hitsLanded: number
+  accuracy: number
   avgDistance: number
   maxDistance?: number | null
   matchCount: number
@@ -34,7 +37,7 @@ type MemberWeaponsResponse = {
   note: string | null
 }
 
-type SortKey = 'weapon' | 'kills' | 'headshotRate' | 'avgDistance' | 'maxDistance' | 'matchCount'
+type SortKey = 'weapon' | 'kills' | 'headshotRate' | 'shotsFired' | 'hitsLanded' | 'accuracy' | 'avgDistance' | 'maxDistance' | 'matchCount'
 type SortDirection = 'asc' | 'desc'
 
 type MemberWeaponsContractResponse = {
@@ -202,6 +205,30 @@ export default function MemberWeaponsPage() {
         const leftRate = left.kills > 0 ? (left.headshots / left.kills) * 100 : 0
         const rightRate = right.kills > 0 ? (right.headshots / right.kills) * 100 : 0
         const compare = compareNumber(leftRate, rightRate)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'shotsFired') {
+        const compare = compareNumber(left.shotsFired, right.shotsFired)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'hitsLanded') {
+        const compare = compareNumber(left.hitsLanded, right.hitsLanded)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
+      }
+
+      if (sortKey === 'accuracy') {
+        const compare = compareNumber(left.accuracy, right.accuracy)
         if (compare !== 0) {
           return compare * factor
         }
@@ -383,6 +410,21 @@ export default function MemberWeaponsPage() {
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('shotsFired')}>
+                        Tirs{sortLabel('shotsFired')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('hitsLanded')}>
+                        Touches{sortLabel('hitsLanded')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
+                        Precision{sortLabel('accuracy')}
+                      </button>
+                    </th>
+                    <th className="px-3 py-2 text-right">
                       <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
                         Distance moyenne{sortLabel('avgDistance')}
                       </button>
@@ -424,6 +466,9 @@ export default function MemberWeaponsPage() {
                         </td>
                         <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.shotsFired)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.hitsLanded)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.accuracy)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.matchCount)}</td>

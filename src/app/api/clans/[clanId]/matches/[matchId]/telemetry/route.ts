@@ -6,6 +6,7 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { getPhaseLabels } from '@/lib/phase-label-service'
 import { getWeaponLabels } from '@/lib/weapon-label-service'
 
 function parseClanId(value: string) {
@@ -41,6 +42,7 @@ type MatchTelemetryRow = {
   positionSamples: unknown
   trajectorySegments: unknown
   deathSamples: unknown
+  phaseSnapshots: unknown
   telemetryCreatedAt: Date
   telemetryUpdatedAt: Date
 }
@@ -94,6 +96,7 @@ export async function GET(
         t.positionSamples,
         t.trajectorySegments,
         t.deathSamples,
+        t.phaseSnapshots,
         t.createdAt AS telemetryCreatedAt,
         t.updatedAt AS telemetryUpdatedAt
       FROM SquadMatch sm
@@ -147,6 +150,7 @@ export async function GET(
     const telemetryStatus = row.status === 'success' || row.status === 'failed' ? row.status : 'pending'
 
     const weaponLabels = await getWeaponLabels()
+    const phaseLabels = await getPhaseLabels()
     const memberIdentityMap = Object.fromEntries(
       members
         .filter((entry) => !!entry.member.pubgAccountId)
@@ -193,10 +197,12 @@ export async function GET(
         positionSamples: row.positionSamples,
         trajectorySegments: row.trajectorySegments,
         deathSamples: row.deathSamples,
+        phaseSnapshots: row.phaseSnapshots,
         createdAt: row.telemetryCreatedAt.toISOString(),
         updatedAt: row.telemetryUpdatedAt.toISOString(),
       },
       weaponLabels,
+      phaseLabels,
       memberIdentityMap,
     }
 

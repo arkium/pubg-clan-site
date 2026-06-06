@@ -86,22 +86,19 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
     { label: 'Membres', href: `/clans/${clanId}/members`, icon: renderClanSectionIcon('Membres') },
     { label: 'Matchs', href: `/clans/${clanId}/matches`, icon: renderClanSectionIcon('Matchs') },
     { label: 'Stats', href: statsRootHref, icon: renderClanSectionIcon('Stats') },
-    { label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
-    { label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },
-  ]
-  const statsSubmenuItems = [
     { label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
     { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
     { label: 'Positions', href: `${statsRootHref}/positions`, icon: renderClanSectionIcon('Positions') },
+    { label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
+    { label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },
   ]
 
-  const activeStatsItem = statsSubmenuItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-  const activeItem = activeStatsItem ?? items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? items[0]
-  const mobileItems: MobileDropdownNavItem[] = [...items, ...statsSubmenuItems].map((item) => ({
+  const activeItem = items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? items[0]
+  const mobileItems: MobileDropdownNavItem[] = items.map((item) => ({
     key: item.href,
     href: item.href,
     label: item.label,
-    active: pathname === item.href || pathname.startsWith(`${item.href}/`),
+    active: item.label === 'Stats' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
     icon: item.icon,
   }))
 
@@ -119,7 +116,9 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
 
       <nav className="hidden flex-wrap items-center gap-2 md:flex" aria-label="Navigation du clan">
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+          const active = item.label === 'Stats'
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(`${item.href}/`)
 
           return (
             <Link
@@ -138,28 +137,6 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
           )
         })}
       </nav>
-
-      <div className="mt-3 hidden flex-wrap gap-2 md:flex" aria-label="Statistiques du clan">
-        {statsSubmenuItems.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              aria-current={active ? 'page' : undefined}
-              className={`clan-section-nav-link ${
-                active ? 'clan-section-nav-link--active shadow-sm' : ''
-              }`}
-            >
-              <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          )
-        })}
-      </div>
     </div>
   )
 }

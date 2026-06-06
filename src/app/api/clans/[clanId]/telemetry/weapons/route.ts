@@ -216,6 +216,8 @@ export async function GET(
         weaponName: string
         kills: number
         headshots: number
+        shotsFired: number
+        hitsLanded: number
         avgDistance: number
         maxDistance: number
         totalDamage: number
@@ -229,6 +231,8 @@ export async function GET(
         ws.weaponName,
         ws.kills,
         ws.headshots,
+        ws.shotsFired,
+        ws.hitsLanded,
         ws.avgDistance,
         ws.maxDistance,
         ws.totalDamage,
@@ -326,6 +330,8 @@ export async function GET(
     const rows = rowsRaw.map((row) => {
       const avgDistanceMeters = centimetersToMeters(row.avgDistance)
       const storedMaxDistanceMeters = centimetersToMeters(row.maxDistance)
+      const shotsFired = Number.isFinite(row.shotsFired) ? row.shotsFired : 0
+      const hitsLanded = Number.isFinite(row.hitsLanded) ? row.hitsLanded : 0
       const inferredMaxDistanceCm = maxDistanceByMemberWeapon.get(`${row.memberId}:${row.weaponName}`)
       const inferredMaxDistanceMeters =
         typeof inferredMaxDistanceCm === 'number'
@@ -341,6 +347,9 @@ export async function GET(
           typeof resolvedMaxDistanceMeters === 'number'
             ? Math.max(resolvedMaxDistanceMeters, avgDistanceMeters)
             : null,
+        shotsFired,
+        hitsLanded,
+        accuracy: shotsFired > 0 ? (hitsLanded / shotsFired) * 100 : 0,
         weaponLabel: weaponDisplayName(row.weaponName, weaponLabels),
       }
     })

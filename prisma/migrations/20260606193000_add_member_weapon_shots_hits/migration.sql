@@ -1,0 +1,3 @@
+ALTER TABLE `MemberWeaponStats`
+  ADD COLUMN `shotsFired` INT NOT NULL DEFAULT 0,
+  ADD COLUMN `hitsLanded` INT NOT NULL DEFAULT 0;

@@ -39,6 +39,8 @@ type SnapshotMemberWeaponStatsRow = {
   kills: number
   headshots: number
   damageDealt: number
+  shotsFired: number
+  hitsLanded: number
   killDistanceTotal: number
   killDistanceCount: number
   killDistanceMax: number
@@ -89,6 +91,8 @@ type MemberWeaponAggregate = {
   kills: number
   headshots: number
   damageDealt: number
+  shotsFired: number
+  hitsLanded: number
   killDistanceTotal: number
   killDistanceCount: number
   killDistanceMax: number
@@ -255,6 +259,8 @@ function parseSnapshotMemberWeaponStatsRows(raw: unknown): SnapshotMemberWeaponS
       kills: asFiniteNumber(row.kills),
       headshots: asFiniteNumber(row.headshots),
       damageDealt: asFiniteNumber(row.damageDealt),
+      shotsFired: asFiniteNumber(row.shotsFired),
+      hitsLanded: asFiniteNumber(row.hitsLanded),
       killDistanceTotal: asFiniteNumber(row.killDistanceTotal),
       killDistanceCount: asFiniteNumber(row.killDistanceCount),
       killDistanceMax: asFiniteNumber(row.killDistanceMax),
@@ -379,6 +385,8 @@ function getOrCreateMemberWeaponAggregate(
     kills: 0,
     headshots: 0,
     damageDealt: 0,
+    shotsFired: 0,
+    hitsLanded: 0,
     killDistanceTotal: 0,
     killDistanceCount: 0,
     killDistanceMax: 0,
@@ -506,6 +514,8 @@ async function recalculateTelemetryPeriodForClan(
         memberWeaponAggregate.kills += weaponRow.kills
         memberWeaponAggregate.headshots += weaponRow.headshots
         memberWeaponAggregate.damageDealt += weaponRow.damageDealt
+        memberWeaponAggregate.shotsFired += weaponRow.shotsFired
+        memberWeaponAggregate.hitsLanded += weaponRow.hitsLanded
         memberWeaponAggregate.killDistanceTotal += weaponRow.killDistanceTotal
         memberWeaponAggregate.killDistanceCount += weaponRow.killDistanceCount
         if (weaponRow.killDistanceMax > memberWeaponAggregate.killDistanceMax) {
@@ -641,6 +651,8 @@ async function recalculateTelemetryPeriodForClan(
         weaponName,
         kills: aggregate.kills,
         headshots: aggregate.headshots,
+        shotsFired: aggregate.shotsFired,
+        hitsLanded: aggregate.hitsLanded,
         avgDistance,
         maxDistance,
         totalDamage: Number(aggregate.damageDealt.toFixed(2)),

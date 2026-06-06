@@ -215,8 +215,11 @@ export async function GET(
         weaponName: string
         kills: number
         headshots: number
+        shotsFired: number
+        hitsLanded: number
         avgDistance: number
         maxDistance: number
+        totalDamage: number
         matchCount: number
       }>
     >(Prisma.sql`
@@ -224,8 +227,11 @@ export async function GET(
         weaponName,
         kills,
         headshots,
+        shotsFired,
+        hitsLanded,
         avgDistance,
         maxDistance,
+        totalDamage,
         matchCount
       FROM MemberWeaponStats
       WHERE memberId = ${memberId}
@@ -291,6 +297,8 @@ export async function GET(
     const rows = rowsRaw.map((row) => {
       const avgDistanceMeters = centimetersToMeters(row.avgDistance)
       const storedMaxDistanceMeters = centimetersToMeters(row.maxDistance)
+      const shotsFired = Number.isFinite(row.shotsFired) ? row.shotsFired : 0
+      const hitsLanded = Number.isFinite(row.hitsLanded) ? row.hitsLanded : 0
       const inferredMaxDistanceCm = maxDistanceByWeapon.get(row.weaponName)
       const inferredMaxDistanceMeters =
         typeof inferredMaxDistanceCm === 'number'
@@ -306,6 +314,9 @@ export async function GET(
           typeof resolvedMaxDistanceMeters === 'number'
             ? Math.max(resolvedMaxDistanceMeters, avgDistanceMeters)
             : null,
+        shotsFired,
+        hitsLanded,
+        accuracy: shotsFired > 0 ? (hitsLanded / shotsFired) * 100 : 0,
         weaponLabel: weaponDisplayName(row.weaponName, weaponLabels),
       }
     })

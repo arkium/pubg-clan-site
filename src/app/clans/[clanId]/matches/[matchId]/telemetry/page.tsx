@@ -8,6 +8,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import ClanSectionNav from '@/components/ClanSectionNav'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 
 type TelemetryStatus = 'success' | 'failed' | 'pending'
@@ -108,10 +109,12 @@ type MatchTelemetryResponse = {
       positionSamples: unknown
       trajectorySegments: unknown
       deathSamples: unknown
+      phaseSnapshots: unknown
       createdAt: string
       updatedAt: string
     }
     weaponLabels?: Record<string, string>
+    phaseLabels?: Record<string, string>
     memberIdentityMap?: Record<string, string>
   }
   error?: {
@@ -338,8 +341,217 @@ function toMapPercent(mapName: string, x: number, y: number) {
   }
 }
 
+function toMapPercentUnclamped(mapName: string, x: number, y: number) {
+  const bounds = getMapBounds(mapName)
+  return {
+    x: (x / bounds.width) * 100,
+    y: (y / bounds.height) * 100,
+  }
+}
+
+function isWithinMapBounds(percent: { x: number; y: number }) {
+  return percent.x >= 0 && percent.x <= 100 && percent.y >= 0 && percent.y <= 100
+}
+
 function mapAssetPath(mapName: string) {
   return `/maps/pubg/${mapName}.webp`
+}
+
+type PhaseSnapshot = {
+  isGame: number
+  timestampSeconds: number
+  numAlivePlayers: number
+  numAliveTeams: number
+  safetyZoneRadiusMeters: number
+  poisonGasWarningRadiusMeters: number
+}
+
+function toPhaseSnapshots(value: unknown): PhaseSnapshot[] {
+  const parsed = parseUnknownJson(value)
+  if (!Array.isArray(parsed)) return []
+  return parsed
+    .filter((entry): entry is Record<string, unknown> => !!asRecord(entry))
+    .map((entry) => ({
+      isGame: asNumber(entry.isGame),
+      timestampSeconds: asNumber(entry.timestampSeconds),
+      numAlivePlayers: asNumber(entry.numAlivePlayers),
+      numAliveTeams: asNumber(entry.numAliveTeams),
+      // PUBG telemetry radii are in centimeters; convert to meters for UI.
+      safetyZoneRadiusMeters: Math.max(0, asNumber(entry.safetyZoneRadiusMeters)) / 100,
+      poisonGasWarningRadiusMeters: Math.max(0, asNumber(entry.poisonGasWarningRadiusMeters)) / 100,
+    }))
+    .filter((s) => s.timestampSeconds >= 0)
+}
+
+function phaseType(isGame: number): 'stable' | 'shrinking' | 'pre' {
+  if (isGame < 1) return 'pre'
+  return Number.isInteger(isGame) ? 'stable' : 'shrinking'
+}
+
+function formatElapsed(seconds: number) {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}m${String(s).padStart(2, '0')}s`
+}
+
+function formatDistanceMeters(meters: number) {
+  if (!Number.isFinite(meters) || meters <= 0) {
+    return '0 m'
+  }
+
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)} km`
+  }
+
+  return `${Math.round(meters)} m`
+}
+
+function isSamePhase(left: number, right: number) {
+  return Math.abs(left - right) < 0.01
+}
+
+function formatPhaseFilterLabel(phase: number, labels: Record<string, string>) {
+  const alias = isGameLabel(phase, labels)
+
+  if (phase < 1) {
+    return `${alias} (${phase.toFixed(1)})`
+  }
+
+  if (Number.isInteger(phase)) {
+    return `${alias} (${phase.toFixed(0)})`
+  }
+
+  return `${alias} (${phase.toFixed(1)})`
+}
+
+// Derive one representative row per distinct isGame value (first occurrence)
+function buildPhaseTable(snapshots: PhaseSnapshot[]): PhaseSnapshot[] {
+  const seen = new Map<number, PhaseSnapshot>()
+  for (const snap of snapshots) {
+    if (!seen.has(snap.isGame)) seen.set(snap.isGame, snap)
+  }
+  return Array.from(seen.values()).sort((a, b) => a.timestampSeconds - b.timestampSeconds)
+}
+
+// Build a downsampled series for charts: keep first of each distinct isGame + ~1 per 15s max
+function buildChartSeries(snapshots: PhaseSnapshot[]): PhaseSnapshot[] {
+  if (snapshots.length === 0) return []
+  const out: PhaseSnapshot[] = [snapshots[0]]
+  for (const snap of snapshots.slice(1)) {
+    const prev = out.at(-1)!
+    if (prev.isGame !== snap.isGame || snap.timestampSeconds - prev.timestampSeconds >= 15) {
+      out.push(snap)
+    }
+  }
+  return out
+}
+
+function SvgLineChart({
+  series,
+  lines,
+  height = 140,
+}: {
+  series: PhaseSnapshot[]
+  lines: Array<{
+    getValue: (s: PhaseSnapshot) => number
+    stroke: string
+    fill?: string
+    dashed?: boolean
+    label: string
+  }>
+  height?: number
+}) {
+  if (series.length < 2) return <p className="text-xs text-slate-500">Pas assez de données.</p>
+
+  const W = 600
+  const H = height
+  const PAD = { top: 8, right: 8, bottom: 24, left: 44 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  const minT = series[0].timestampSeconds
+  const maxT = series.at(-1)!.timestampSeconds
+  const allValues = lines.flatMap(({ getValue }) => series.map(getValue))
+  const minV = 0
+  const maxV = Math.max(...allValues, 1)
+
+  const tx = (t: number) => PAD.left + ((t - minT) / Math.max(maxT - minT, 1)) * innerW
+  const ty = (v: number) => PAD.top + innerH - ((v - minV) / Math.max(maxV - minV, 1)) * innerH
+
+  // X axis ticks: ~6 evenly spaced
+  const tickCount = 6
+  const xTicks = Array.from({ length: tickCount }, (_, i) =>
+    minT + (i / (tickCount - 1)) * (maxT - minT)
+  )
+  // Y axis ticks: 4
+  const yTicks = Array.from({ length: 4 }, (_, i) => minV + (i / 3) * (maxV - minV))
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full overflow-visible"
+      style={{ height }}
+    >
+      {/* Grid lines */}
+      {yTicks.map((v) => (
+        <line
+          key={v}
+          x1={PAD.left} y1={ty(v)} x2={W - PAD.right} y2={ty(v)}
+          stroke="currentColor" strokeOpacity={0.12} strokeWidth={0.7}
+          className="text-slate-500"
+        />
+      ))}
+      {/* Y axis labels */}
+      {yTicks.map((v) => (
+        <text key={v} x={PAD.left - 4} y={ty(v) + 4} textAnchor="end"
+          className="text-[9px] fill-slate-400" fontSize={9}>
+          {v >= 1000 ? `${(v / 1000).toFixed(0)}k` : Math.round(v)}
+        </text>
+      ))}
+      {/* X axis labels */}
+      {xTicks.map((t) => (
+        <text key={t} x={tx(t)} y={H - 2} textAnchor="middle"
+          className="text-[8px] fill-slate-400" fontSize={8}>
+          {formatElapsed(t - minT)}
+        </text>
+      ))}
+
+      {lines.map(({ getValue, stroke, fill, dashed, label }) => {
+        const pts = series.map((s) => `${tx(s.timestampSeconds).toFixed(1)},${ty(getValue(s)).toFixed(1)}`).join(' ')
+        const closeArea = fill
+          ? ` ${tx(series.at(-1)!.timestampSeconds).toFixed(1)},${ty(0).toFixed(1)} ${tx(series[0].timestampSeconds).toFixed(1)},${ty(0).toFixed(1)}`
+          : ''
+        return (
+          <g key={label}>
+            {fill && (
+              <polygon
+                points={pts + closeArea}
+                fill={fill} fillOpacity={0.15}
+              />
+            )}
+            <polyline
+              points={pts}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={1.5}
+              strokeDasharray={dashed ? '4 3' : undefined}
+            />
+            {series
+              .filter((s) => phaseType(s.isGame) !== 'pre')
+              .filter((_, i) => i % Math.ceil(series.length / 20) === 0 || i === series.length - 1)
+              .map((s) => (
+                <circle
+                  key={s.timestampSeconds}
+                  cx={tx(s.timestampSeconds)} cy={ty(getValue(s))} r={2.5}
+                  fill={phaseType(s.isGame) === 'shrinking' ? '#f97316' : stroke}
+                  stroke="white" strokeWidth={0.8}
+                />
+              ))}
+          </g>
+        )
+      })}
+    </svg>
+  )
 }
 
 function telemetryTone(status: TelemetryStatus) {
@@ -497,6 +709,7 @@ export default function MatchTelemetryDetailPage() {
   const [resyncMessage, setResyncMessage] = useState('')
   const [fileImportLoading, setFileImportLoading] = useState(false)
   const [fileImportMessage, setFileImportMessage] = useState('')
+  const [rawPhaseFilter, setRawPhaseFilter] = useState<'all' | number>('all')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -657,6 +870,7 @@ export default function MatchTelemetryDetailPage() {
   const match = payload?.match
   const telemetry = payload?.telemetry
   const weaponLabels = payload?.weaponLabels
+  const phaseLabels = payload?.phaseLabels ?? {}
   const memberIdentityMap = payload?.memberIdentityMap
 
   const summary = toTelemetrySummary(telemetry?.summary)
@@ -665,6 +879,106 @@ export default function MatchTelemetryDetailPage() {
   const positionSamples = toTelemetryPositionSamples(telemetry?.positionSamples)
   const trajectorySegments = toTelemetryTrajectorySegments(telemetry?.trajectorySegments)
   const deathSamples = toTelemetryPositionSamples(telemetry?.deathSamples)
+  const phaseSnapshots = toPhaseSnapshots(telemetry?.phaseSnapshots)
+
+  const rawPhaseOptions = useMemo(() => {
+    const phases = new Set<number>()
+    for (const point of positionSamples) {
+      if (Number.isFinite(point.phase) && point.phase > 0) {
+        phases.add(point.phase)
+      }
+    }
+    for (const segment of trajectorySegments) {
+      if (Number.isFinite(segment.phase) && segment.phase > 0) {
+        phases.add(segment.phase)
+      }
+    }
+    for (const point of deathSamples) {
+      if (Number.isFinite(point.phase) && point.phase > 0) {
+        phases.add(point.phase)
+      }
+    }
+    return Array.from(phases.values()).sort((a, b) => a - b)
+  }, [positionSamples, trajectorySegments, deathSamples])
+
+  useEffect(() => {
+    if (rawPhaseFilter === 'all') {
+      return
+    }
+
+    if (!rawPhaseOptions.some((phase) => isSamePhase(phase, rawPhaseFilter))) {
+      setRawPhaseFilter('all')
+    }
+  }, [rawPhaseFilter, rawPhaseOptions])
+
+  const filteredPositionSamples = useMemo(() => {
+    if (rawPhaseFilter === 'all') {
+      return positionSamples
+    }
+
+    return positionSamples.filter((point) => isSamePhase(point.phase, rawPhaseFilter))
+  }, [positionSamples, rawPhaseFilter])
+
+  const filteredTrajectorySegments = useMemo(() => {
+    if (rawPhaseFilter === 'all') {
+      return trajectorySegments
+    }
+
+    return trajectorySegments.filter((segment) => isSamePhase(segment.phase, rawPhaseFilter))
+  }, [trajectorySegments, rawPhaseFilter])
+
+  const filteredDeathSamples = useMemo(() => {
+    if (rawPhaseFilter === 'all') {
+      return deathSamples
+    }
+
+    return deathSamples.filter((point) => isSamePhase(point.phase, rawPhaseFilter))
+  }, [deathSamples, rawPhaseFilter])
+
+  const filteredInBoundsPositionSamples = useMemo(() => {
+    if (!match?.mapName) {
+      return filteredPositionSamples
+    }
+    return filteredPositionSamples.filter((point) =>
+      isWithinMapBounds(toMapPercentUnclamped(match.mapName, point.x, point.y))
+    )
+  }, [filteredPositionSamples, match?.mapName])
+
+  const filteredInBoundsDeathSamples = useMemo(() => {
+    if (!match?.mapName) {
+      return filteredDeathSamples
+    }
+    return filteredDeathSamples.filter((point) =>
+      isWithinMapBounds(toMapPercentUnclamped(match.mapName, point.x, point.y))
+    )
+  }, [filteredDeathSamples, match?.mapName])
+
+  const filteredInBoundsTrajectorySegments = useMemo(() => {
+    if (!match?.mapName) {
+      return filteredTrajectorySegments
+    }
+    return filteredTrajectorySegments.filter((segment) => {
+      const from = toMapPercentUnclamped(match.mapName, segment.fromX, segment.fromY)
+      const to = toMapPercentUnclamped(match.mapName, segment.toX, segment.toY)
+      return isWithinMapBounds(from) && isWithinMapBounds(to)
+    })
+  }, [filteredTrajectorySegments, match?.mapName])
+
+  const outOfBoundsSummary = useMemo(() => {
+    return {
+      points: filteredPositionSamples.length - filteredInBoundsPositionSamples.length,
+      deaths: filteredDeathSamples.length - filteredInBoundsDeathSamples.length,
+      segments: filteredTrajectorySegments.length - filteredInBoundsTrajectorySegments.length,
+    }
+  }, [
+    filteredPositionSamples.length,
+    filteredInBoundsPositionSamples.length,
+    filteredDeathSamples.length,
+    filteredInBoundsDeathSamples.length,
+    filteredTrajectorySegments.length,
+    filteredInBoundsTrajectorySegments.length,
+  ])
+
   const clanAccountIds = useMemo(() => {
     return new Set(
       Object.keys(memberIdentityMap ?? {}).map((accountId) => normalizeAccountId(accountId))
@@ -1132,23 +1446,183 @@ export default function MatchTelemetryDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
+            <h2 className="text-lg font-semibold text-slate-900">Phases du match (cercles)</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Évolution des zones, joueurs en vie et équipes par phase. Points orange = transition (rétrécissement actif), bleus = phase stable.
+            </p>
+            {match.mapName ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Échelle carte {match.mapName}: {(getMapBounds(match.mapName).width / 100).toFixed(0)} m × {(getMapBounds(match.mapName).height / 100).toFixed(0)} m
+              </p>
+            ) : null}
+
+            {phaseSnapshots.length < 2 ? (
+              <p className="mt-3 text-sm text-slate-500">
+                Aucune donnée de phases disponible. Resynchrisez ce match après la migration.
+              </p>
+            ) : (
+              <>
+                {/* Chart: players alive */}
+                <div className="mt-4">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Joueurs en vie</p>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <SvgLineChart
+                      series={buildChartSeries(phaseSnapshots)}
+                      height={140}
+                      lines={[
+                        {
+                          getValue: (s) => s.numAlivePlayers,
+                          stroke: '#3b82f6',
+                          fill: '#3b82f6',
+                          label: 'Joueurs',
+                        },
+                      ]}
+                    />
+                    <div className="mt-1 flex gap-3 text-[10px] text-slate-500">
+                      <span className="flex items-center gap-1"><span className="inline-block h-2 w-3 rounded-sm bg-blue-500/70" /> Phase stable (cercle fixe)</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-orange-400" /> Phase transition (rétrécissement)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chart: zone radii */}
+                <div className="mt-4">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Rayons des zones</p>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <SvgLineChart
+                      series={buildChartSeries(phaseSnapshots)}
+                      height={140}
+                      lines={[
+                        {
+                          getValue: (s) => s.safetyZoneRadiusMeters,
+                          stroke: '#10b981',
+                          fill: '#10b981',
+                          label: 'Zone safe',
+                        },
+                        {
+                          getValue: (s) => s.poisonGasWarningRadiusMeters,
+                          stroke: '#f97316',
+                          dashed: true,
+                          label: 'Zone poison',
+                        },
+                      ]}
+                    />
+                    <div className="mt-1 flex gap-3 text-[10px] text-slate-500">
+                      <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-4 bg-emerald-500" /> Zone safe</span>
+                      <span className="flex items-center gap-1"><span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-orange-400" /> Zone poison (avertissement)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phase table */}
+                <div className="mt-4">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Tableau des phases — {buildPhaseTable(phaseSnapshots).length} états distincts
+                  </p>
+                  <p className="mb-2 text-xs text-slate-500">
+                    Les phases entières (isGame = 1, 2…) = cercle stable. Les phases .5 (1.5, 2.5…) = transition en rétrécissement actif.
+                  </p>
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2">Phase (isGame)</th>
+                          <th className="px-3 py-2">Type</th>
+                          <th className="px-3 py-2">Début</th>
+                          <th className="px-3 py-2 text-right">Joueurs</th>
+                          <th className="px-3 py-2 text-right">Équipes</th>
+                          <th className="px-3 py-2 text-right">Rayon safe</th>
+                          <th className="px-3 py-2 text-right">Rayon poison</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {buildPhaseTable(phaseSnapshots).map((snap) => {
+                          const type = phaseType(snap.isGame)
+                          const minT = phaseSnapshots[0]?.timestampSeconds ?? 0
+                          return (
+                            <tr key={snap.isGame} className="border-t border-slate-100">
+                              <td className="px-3 py-2 font-medium text-slate-900">
+                                Phase {snap.isGame % 1 === 0
+                                  ? snap.isGame
+                                  : `${Math.floor(snap.isGame)}→${Math.ceil(snap.isGame)}`}
+                              </td>
+                              <td className="px-3 py-2">
+                                {type === 'pre' ? (
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">pré-partie</span>
+                                ) : type === 'shrinking' ? (
+                                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">rétrécissement</span>
+                                ) : (
+                                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">stable</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 tabular-nums text-slate-700">{formatElapsed(snap.timestampSeconds - minT)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums font-semibold text-slate-900">{snap.numAlivePlayers}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-slate-700">{snap.numAliveTeams}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-slate-700">{formatDistanceMeters(snap.safetyZoneRadiusMeters)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-slate-700">{formatDistanceMeters(snap.poisonGasWarningRadiusMeters)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+          </section>
+
+          <section className="app-panel p-4 md:p-5">
             <h2 className="text-lg font-semibold text-slate-900">Positions brutes parser (intermediaire)</h2>
             <p className="mt-1 text-sm text-slate-600">
               Verification directe des champs positionSamples / trajectorySegments / deathSamples pour ce match.
             </p>
 
+            <div className="mt-3 max-w-sm">
+              <label className="block text-sm text-slate-700" htmlFor="raw-phase-filter">
+                Filtre phase
+              </label>
+              <select
+                id="raw-phase-filter"
+                className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={rawPhaseFilter === 'all' ? 'all' : String(rawPhaseFilter)}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value === 'all') {
+                    setRawPhaseFilter('all')
+                    return
+                  }
+
+                  const parsed = Number(value)
+                  setRawPhaseFilter(Number.isFinite(parsed) && parsed > 0 ? parsed : 'all')
+                }}
+              >
+                <option value="all">Toutes les phases</option>
+                {rawPhaseOptions.map((phase) => (
+                  <option key={phase} value={String(phase)}>
+                    {formatPhaseFilterLabel(phase, phaseLabels)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {outOfBoundsSummary.points > 0 || outOfBoundsSummary.deaths > 0 || outOfBoundsSummary.segments > 0 ? (
+              <p className="mt-2 text-xs text-amber-700">
+                Hors bornes carte (masqués): {outOfBoundsSummary.points} points, {outOfBoundsSummary.segments} segments, {outOfBoundsSummary.deaths} morts.
+              </p>
+            ) : null}
+
             <dl className="mt-3 grid gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                 <dt className="text-xs uppercase tracking-wide text-slate-500">positionSamples</dt>
-                <dd className="mt-1 text-lg font-semibold text-slate-900">{positionSamples.length}</dd>
+                <dd className="mt-1 text-lg font-semibold text-slate-900">{filteredPositionSamples.length}</dd>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                 <dt className="text-xs uppercase tracking-wide text-slate-500">trajectorySegments</dt>
-                <dd className="mt-1 text-lg font-semibold text-slate-900">{trajectorySegments.length}</dd>
+                <dd className="mt-1 text-lg font-semibold text-slate-900">{filteredTrajectorySegments.length}</dd>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                 <dt className="text-xs uppercase tracking-wide text-slate-500">deathSamples</dt>
-                <dd className="mt-1 text-lg font-semibold text-slate-900">{deathSamples.length}</dd>
+                <dd className="mt-1 text-lg font-semibold text-slate-900">{filteredDeathSamples.length}</dd>
               </div>
             </dl>
 
@@ -1159,16 +1633,16 @@ export default function MatchTelemetryDetailPage() {
                     src={mapAssetPath(match.mapName)}
                     alt={`Carte ${match.mapName}`}
                     fill
-                    className="object-cover opacity-80"
+                    className="object-fill opacity-80"
                     unoptimized
                     sizes="(max-width: 1024px) 100vw, 60vw"
                   />
                   <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
 
                   <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {trajectorySegments.slice(0, 1200).map((segment, index) => {
-                      const from = toMapPercent(match.mapName, segment.fromX, segment.fromY)
-                      const to = toMapPercent(match.mapName, segment.toX, segment.toY)
+                    {filteredInBoundsTrajectorySegments.slice(0, 1200).map((segment, index) => {
+                      const from = toMapPercentUnclamped(match.mapName, segment.fromX, segment.fromY)
+                      const to = toMapPercentUnclamped(match.mapName, segment.toX, segment.toY)
                       return (
                         <line
                           key={`seg-${index}`}
@@ -1185,8 +1659,8 @@ export default function MatchTelemetryDetailPage() {
                   </svg>
 
                   <div className="absolute inset-0">
-                    {positionSamples.slice(0, 2000).map((point, index) => {
-                      const pos = toMapPercent(match.mapName, point.x, point.y)
+                    {filteredInBoundsPositionSamples.slice(0, 2000).map((point, index) => {
+                      const pos = toMapPercentUnclamped(match.mapName, point.x, point.y)
                       return (
                         <span
                           key={`pos-${index}`}
@@ -1196,8 +1670,8 @@ export default function MatchTelemetryDetailPage() {
                         />
                       )
                     })}
-                    {deathSamples.slice(0, 400).map((point, index) => {
-                      const pos = toMapPercent(match.mapName, point.x, point.y)
+                    {filteredInBoundsDeathSamples.slice(0, 400).map((point, index) => {
+                      const pos = toMapPercentUnclamped(match.mapName, point.x, point.y)
                       return (
                         <span
                           key={`death-${index}`}
@@ -1216,13 +1690,13 @@ export default function MatchTelemetryDetailPage() {
               <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Apercu positionSamples</p>
                 <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(positionSamples.slice(0, 40), null, 2)}
+                  {JSON.stringify(filteredPositionSamples.slice(0, 40), null, 2)}
                 </pre>
               </article>
               <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Apercu deathSamples</p>
                 <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(deathSamples.slice(0, 40), null, 2)}
+                  {JSON.stringify(filteredDeathSamples.slice(0, 40), null, 2)}
                 </pre>
               </article>
             </div>

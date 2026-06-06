@@ -23,9 +23,15 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('Unknown argument `summary`') ||
     message.includes('Unknown argument `weaponStats`') ||
     message.includes('Unknown argument `memberStats`') ||
+    message.includes('Unknown argument `positionSamples`') ||
+    message.includes('Unknown argument `trajectorySegments`') ||
+    message.includes('Unknown argument `deathSamples`') ||
     message.includes('summary does not exist') ||
     message.includes('weaponStats does not exist') ||
-    message.includes('memberStats does not exist')
+    message.includes('memberStats does not exist') ||
+    message.includes('positionSamples does not exist') ||
+    message.includes('trajectorySegments does not exist') ||
+    message.includes('deathSamples does not exist')
   )
 }
 
@@ -56,5 +62,8 @@ export function buildTelemetrySuccessPayloadWithJson(
     summary: parsed.summary,
     weaponStats: parsed.weaponStats,
     memberStats: parsed.memberStats,
+    positionSamples: parsed.positionSamples,
+    trajectorySegments: parsed.trajectorySegments,
+    deathSamples: parsed.deathSamples,
   }
 }

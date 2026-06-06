@@ -38,6 +38,9 @@ type MatchTelemetryRow = {
   summary: unknown
   weaponStats: unknown
   memberStats: unknown
+  positionSamples: unknown
+  trajectorySegments: unknown
+  deathSamples: unknown
   telemetryCreatedAt: Date
   telemetryUpdatedAt: Date
 }
@@ -88,6 +91,9 @@ export async function GET(
         t.summary,
         t.weaponStats,
         t.memberStats,
+        t.positionSamples,
+        t.trajectorySegments,
+        t.deathSamples,
         t.createdAt AS telemetryCreatedAt,
         t.updatedAt AS telemetryUpdatedAt
       FROM SquadMatch sm
@@ -184,6 +190,9 @@ export async function GET(
         summary: row.summary,
         weaponStats: row.weaponStats,
         memberStats: row.memberStats,
+        positionSamples: row.positionSamples,
+        trajectorySegments: row.trajectorySegments,
+        deathSamples: row.deathSamples,
         createdAt: row.telemetryCreatedAt.toISOString(),
         updatedAt: row.telemetryUpdatedAt.toISOString(),
       },

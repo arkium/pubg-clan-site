@@ -25,7 +25,8 @@ export default function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   const sizeClass = size === 'sm' ? 'app-segmented-control__item--sm' : 'app-segmented-control__item--xs'
   const wrapClass = wrap ? 'flex-wrap' : ''
-  const widthClass = fullWidthOnMobile ? 'w-full sm:w-auto sm:flex-nowrap' : ''
+  const widthClass = fullWidthOnMobile ? 'w-full sm:w-auto' : ''
+  const nowrapClass = fullWidthOnMobile && !wrap ? 'sm:flex-nowrap' : ''
 
   return (
     <div
@@ -33,6 +34,7 @@ export default function SegmentedControl<T extends string>({
         'app-segmented-control inline-flex rounded border border-gray-200 p-0.5',
         wrapClass,
         widthClass,
+        nowrapClass,
         className ?? '',
       ]
         .filter(Boolean)

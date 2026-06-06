@@ -27,7 +27,7 @@ function renderClanSectionIcon(label: string) {
     )
   }
 
-  if (label === 'Heatmap kills') {
+  if (label === 'Heatmap kills' || label === 'Positions') {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
         <path fill="currentColor" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12A6 6 0 0 1 10 4Zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z" />
@@ -92,6 +92,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
   const statsSubmenuItems = [
     { label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
     { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
+    { label: 'Positions', href: `${statsRootHref}/positions`, icon: renderClanSectionIcon('Positions') },
   ]
 
   const activeStatsItem = statsSubmenuItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))

@@ -23,6 +23,28 @@ type TelemetryMemberStats = {
   weapons: TelemetryMemberWeaponStats[]
 }
 
+type TelemetryPositionSample = {
+  memberKey: string
+  teamId?: number
+  phase: number
+  timestampSeconds: number | null
+  x: number
+  y: number
+  inVehicle: boolean
+}
+
+type TelemetryTrajectorySegment = {
+  memberKey: string
+  teamId?: number
+  phase: number
+  timestampStart: number | null
+  timestampEnd: number | null
+  fromX: number
+  fromY: number
+  toX: number
+  toY: number
+}
+
 type ZoneState = {
   x: number
   y: number
@@ -41,6 +63,8 @@ type MemberPositionTracking = {
   y: number
   hasVehicleContext: boolean
   inVehicle: boolean
+  lastSampleTimestampSeconds: number | null
+  lastSampleLocation: { x: number; y: number } | null
 }
 
 type TelemetryMemberWeaponStats = {
@@ -70,6 +94,9 @@ type TelemetryAccumulator = {
   currentPhase: number
   teamPlacements: Map<number, number>
   eventTypes: Set<string>
+  positionSamples: TelemetryPositionSample[]
+  trajectorySegments: TelemetryTrajectorySegment[]
+  deathSamples: TelemetryPositionSample[]
   summary: {
     totalEvents: number
     killEvents: number
@@ -108,6 +135,9 @@ export type ParsedTelemetrySnapshot = {
   }
   weaponStats: TelemetryWeaponStats[]
   memberStats: TelemetryMemberStats[]
+  positionSamples: TelemetryPositionSample[]
+  trajectorySegments: TelemetryTrajectorySegment[]
+  deathSamples: TelemetryPositionSample[]
 }
 
 function getEventType(event: TelemetryEvent) {
@@ -308,9 +338,13 @@ function getZoneStateFromEvent(event: TelemetryEvent): ZoneState | null {
   return { x, y, radius }
 }
 
-function getCharacterLocation(event: TelemetryEvent): { x: number; y: number } | null {
-  const x = getFirstNumberFromPaths(event, ['character.location.x', 'location.x'])
-  const y = getFirstNumberFromPaths(event, ['character.location.y', 'location.y'])
+function getLocationFromPaths(
+  event: TelemetryEvent,
+  xPaths: string[],
+  yPaths: string[]
+): { x: number; y: number } | null {
+  const x = getFirstNumberFromPaths(event, xPaths)
+  const y = getFirstNumberFromPaths(event, yPaths)
 
   if (
     typeof x !== 'number' ||
@@ -322,6 +356,18 @@ function getCharacterLocation(event: TelemetryEvent): { x: number; y: number } |
   }
 
   return { x, y }
+}
+
+function getCharacterLocation(event: TelemetryEvent): { x: number; y: number } | null {
+  return getLocationFromPaths(event, ['character.location.x', 'location.x'], ['character.location.y', 'location.y'])
+}
+
+function getVictimLocation(event: TelemetryEvent): { x: number; y: number } | null {
+  return getLocationFromPaths(
+    event,
+    ['victim.character.location.x', 'victim.location.x', 'target.character.location.x', 'target.location.x'],
+    ['victim.character.location.y', 'victim.location.y', 'target.character.location.y', 'target.location.y']
+  )
 }
 
 function isOutsideSafeZone(location: { x: number; y: number }, zone: ZoneState) {
@@ -364,6 +410,28 @@ function getOrCreateMemberCircleTiming(
   }
 
   timings.set(memberKey, created)
+  return created
+}
+
+function getOrCreateMemberPositionTracking(
+  tracking: Map<string, MemberPositionTracking>,
+  memberKey: string
+): MemberPositionTracking {
+  const existing = tracking.get(memberKey)
+  if (existing) {
+    return existing
+  }
+
+  const created: MemberPositionTracking = {
+    x: 0,
+    y: 0,
+    hasVehicleContext: false,
+    inVehicle: false,
+    lastSampleTimestampSeconds: null,
+    lastSampleLocation: null,
+  }
+
+  tracking.set(memberKey, created)
   return created
 }
 
@@ -583,6 +651,9 @@ function createTelemetryAccumulator(): TelemetryAccumulator {
     currentPhase: 1,
     teamPlacements: new Map<number, number>(),
     eventTypes: new Set<string>(),
+    positionSamples: [],
+    trajectorySegments: [],
+    deathSamples: [],
     summary: {
       totalEvents: 0,
       killEvents: 0,
@@ -647,6 +718,19 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         victimTeamId,
         accumulator.teamPlacements
       ).deaths += 1
+
+      const deathLocation = getVictimLocation(event)
+      if (deathLocation) {
+        accumulator.deathSamples.push({
+          memberKey: victimKey,
+          teamId: victimTeamId ?? undefined,
+          phase: accumulator.currentPhase,
+          timestampSeconds,
+          x: deathLocation.x,
+          y: deathLocation.y,
+          inVehicle: false,
+        })
+      }
     }
     const wasHeadshot = isHeadshotKill(event)
     if (killerKey && wasHeadshot) {
@@ -793,6 +877,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       ).positionEvents += 1
 
       const timing = getOrCreateMemberCircleTiming(accumulator.memberCircleTimings, actorKey)
+      const tracking = getOrCreateMemberPositionTracking(accumulator.memberPositionTracking, actorKey)
       const location = getCharacterLocation(event)
       const movementContext = getVehicleContextFromPositionEvent(event)
 
@@ -824,16 +909,54 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           }
         }
 
-        accumulator.memberPositionTracking.set(actorKey, {
-          x: location.x,
-          y: location.y,
-          hasVehicleContext: movementContext.hasVehicleContext
-            ? true
-            : previous?.hasVehicleContext ?? false,
-          inVehicle: movementContext.hasVehicleContext
-            ? movementContext.inVehicle
-            : previous?.inVehicle ?? false,
-        })
+        tracking.x = location.x
+        tracking.y = location.y
+        tracking.hasVehicleContext = movementContext.hasVehicleContext
+          ? true
+          : previous?.hasVehicleContext ?? false
+        tracking.inVehicle = movementContext.hasVehicleContext
+          ? movementContext.inVehicle
+          : previous?.inVehicle ?? false
+
+        const shouldSamplePosition =
+          tracking.lastSampleTimestampSeconds === null ||
+          (typeof timestampSeconds === 'number' &&
+            Number.isFinite(timestampSeconds) &&
+            timestampSeconds >= tracking.lastSampleTimestampSeconds + 10)
+
+        if (shouldSamplePosition) {
+          accumulator.positionSamples.push({
+            memberKey: actorKey,
+            teamId: actorTeamId ?? undefined,
+            phase: accumulator.currentPhase,
+            timestampSeconds: typeof timestampSeconds === 'number' && Number.isFinite(timestampSeconds) ? timestampSeconds : null,
+            x: location.x,
+            y: location.y,
+            inVehicle: movementContext.hasVehicleContext
+              ? movementContext.inVehicle
+              : previous?.inVehicle ?? false,
+          })
+
+          if (tracking.lastSampleLocation) {
+            accumulator.trajectorySegments.push({
+              memberKey: actorKey,
+              teamId: actorTeamId ?? undefined,
+              phase: accumulator.currentPhase,
+              timestampStart: tracking.lastSampleTimestampSeconds,
+              timestampEnd: typeof timestampSeconds === 'number' && Number.isFinite(timestampSeconds) ? timestampSeconds : null,
+              fromX: tracking.lastSampleLocation.x,
+              fromY: tracking.lastSampleLocation.y,
+              toX: location.x,
+              toY: location.y,
+            })
+          }
+
+          tracking.lastSampleTimestampSeconds =
+            typeof timestampSeconds === 'number' && Number.isFinite(timestampSeconds)
+              ? timestampSeconds
+              : tracking.lastSampleTimestampSeconds
+          tracking.lastSampleLocation = { x: location.x, y: location.y }
+        }
       }
 
       const outsideSafeZone =
@@ -952,6 +1075,9 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
       return right.damageDealt - left.damageDealt
     }),
     memberStats,
+    positionSamples: accumulator.positionSamples,
+    trajectorySegments: accumulator.trajectorySegments,
+    deathSamples: accumulator.deathSamples,
   }
 }
 

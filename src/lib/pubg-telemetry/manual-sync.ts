@@ -23,6 +23,9 @@ export type ManualTelemetrySyncItemResult = {
   contentLength: number | null
   errorCode: string | null
   errorMessage: string | null
+  positionSamplesCount?: number
+  trajectorySegmentsCount?: number
+  deathSamplesCount?: number
   captureFilePath?: string
   captureEventCount?: number
   captureBytesRead?: number
@@ -193,6 +196,9 @@ export async function syncTelemetryForSquadMatchFromStream(
       contentLength: input.contentLength,
       errorCode: null,
       errorMessage: null,
+      positionSamplesCount: parsed.positionSamples.length,
+      trajectorySegmentsCount: parsed.trajectorySegments.length,
+      deathSamplesCount: parsed.deathSamples.length,
     }
   } catch (error) {
     const message = normalizeErrorMessage(error instanceof Error ? error.message : String(error))

@@ -472,11 +472,25 @@ export default function ClanSessionDatePage() {
             missingFiles?: string[]
             oversizedFiles?: string[]
             maxResyncFileBytes?: number
+            aggregatesRecalculated?: boolean
+            aggregates?: {
+              periodsUpdated: number
+              memberTelemetryRows: number
+              memberWeaponRows: number
+              clanSynergyRows: number
+            } | null
+            aggregatesWarning?: string | null
             results?: Array<{
               squadMatchId: string
+              pubgMatchId?: string
               status: 'success' | 'failed'
+              bytesDownloaded?: number
+              contentLength?: number | null
               errorCode?: string | null
               errorMessage?: string | null
+              positionSamplesCount?: number
+              trajectorySegmentsCount?: number
+              deathSamplesCount?: number
             }>
           }
         | null
@@ -489,9 +503,44 @@ export default function ClanSessionDatePage() {
 
       const missing = payload.missingFiles ?? []
       const oversized = payload.oversizedFiles ?? []
+      const successResults = (payload.results ?? []).filter((entry) => entry.status === 'success')
       const failedEntries = (payload.results ?? [])
         .filter((entry) => entry.status === 'failed')
         .map((entry) => `${entry.squadMatchId}: ${entry.errorMessage ?? 'erreur inconnue'}`)
+
+      const totalBytes = successResults.reduce((acc, entry) => acc + (entry.bytesDownloaded ?? 0), 0)
+      const bytesLabel = totalBytes >= 1024 * 1024
+        ? `${(totalBytes / (1024 * 1024)).toFixed(1)} Mo`
+        : totalBytes >= 1024
+          ? `${Math.round(totalBytes / 1024)} Ko`
+          : `${totalBytes} o`
+
+      const matchLines = successResults
+        .slice(0, 5)
+        .map((entry) => {
+          const id = entry.pubgMatchId && entry.pubgMatchId !== 'unknown'
+            ? entry.pubgMatchId.slice(0, 8) + '…'
+            : entry.squadMatchId.slice(0, 8) + '…'
+          const size = entry.bytesDownloaded
+            ? entry.bytesDownloaded >= 1024 * 1024
+              ? `${(entry.bytesDownloaded / (1024 * 1024)).toFixed(1)} Mo`
+              : `${Math.round(entry.bytesDownloaded / 1024)} Ko`
+            : '?'
+          const pos = typeof entry.positionSamplesCount === 'number'
+            ? ` pos:${entry.positionSamplesCount} traj:${entry.trajectorySegmentsCount ?? 0} morts:${entry.deathSamplesCount ?? 0}`
+            : ''
+          return `${id} (${size}${pos})`
+        })
+        .join(', ')
+
+      const matchesPart = successResults.length > 0
+        ? ` Matchs: ${matchLines}${successResults.length > 5 ? ` +${successResults.length - 5}` : ''}.`
+        : ''
+      const bytesPart = totalBytes > 0 ? ` Total parsé: ${bytesLabel}.` : ''
+
+      const aggPart = payload.aggregates
+        ? ` Agrégats: ${payload.aggregates.periodsUpdated} période(s), ${payload.aggregates.memberTelemetryRows} lignes membre, ${payload.aggregates.memberWeaponRows} lignes arme.`
+        : ''
 
       const missingPart = missing.length > 0
         ? ` Fichiers manquants: ${missing.length} (${missing.slice(0, 5).join(', ')}).`
@@ -501,7 +550,7 @@ export default function ClanSessionDatePage() {
         : ''
 
       setTelemetryFileSyncMessage(
-        `Resync fichiers terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s).${missingPart}${oversizedPart}`
+        `Resync fichiers terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s).${matchesPart}${bytesPart}${aggPart}${missingPart}${oversizedPart}`
       )
       if ((payload.failedCount ?? 0) > 0 || missing.length > 0 || oversized.length > 0) {
         setTelemetryFileSyncTone('warning')

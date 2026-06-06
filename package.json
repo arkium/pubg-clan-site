@@ -8,6 +8,7 @@
   "scripts": {
     "predev": "node -e \"const major=parseInt(process.versions.node.split('.')[0],10); if(major>=24){console.error('Node 24 detecte. Utilise Node 22.22.3 (voir .nvmrc).'); process.exit(1)}\"",
     "dev": "next dev --webpack",
+    "dev-mem": "SET NODE_OPTIONS=--max-old-space-size=4096 && next dev --webpack",
     "dev:turbopack": "next dev",
     "build": "next build",
     "postbuild": "node scripts/copy-standalone-assets.mjs",

@@ -331,10 +331,13 @@ model SquadMatchTelemetry {
   sourceGeneratedAt DateTime?
   contentLength  Int?
   bytesDownloaded Int?
-  summary        Json?
-  weaponStats    Json?
-  memberStats    Json?
-  errorCode      String?
+  summary           Json?
+  weaponStats       Json?
+  memberStats       Json?
+  positionSamples   Json?
+  trajectorySegments Json?
+  deathSamples      Json?
+  errorCode         String?
   errorMessage   String?   @db.Text
 
   createdAt DateTime @default(now())

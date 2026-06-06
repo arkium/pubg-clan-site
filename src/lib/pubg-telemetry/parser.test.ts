@@ -331,6 +331,85 @@ describe('parseTelemetrySnapshot', () => {
     expect(circlePlayer?.circleDelaySeconds).toBe(10)
     expect(circlePlayer?.circleDelayPercent).toBe(50)
   })
+
+  it('exports position, trajectory and death samples for heatmaps', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 5,
+        character: {
+          accountId: 'player_heatmap',
+          teamId: 4,
+          location: { x: 100, y: 200 },
+          isInVehicle: false,
+        },
+      },
+      {
+        _T: 'LogPlayerPosition',
+        elapsedTime: 18,
+        character: {
+          accountId: 'player_heatmap',
+          teamId: 4,
+          location: { x: 130, y: 260 },
+          isInVehicle: true,
+        },
+      },
+      {
+        _T: 'LogPlayerKillV2',
+        killer: {
+          accountId: 'player_heatmap',
+          teamId: 4,
+        },
+        victim: {
+          accountId: 'victim_heatmap',
+          teamId: 8,
+          location: { x: 500, y: 600 },
+        },
+      },
+    ])
+
+    expect(result.positionSamples).toHaveLength(2)
+    expect(result.positionSamples[0]).toMatchObject({
+      memberKey: 'player_heatmap',
+      teamId: 4,
+      phase: 1,
+      timestampSeconds: 5,
+      x: 100,
+      y: 200,
+      inVehicle: false,
+    })
+    expect(result.positionSamples[1]).toMatchObject({
+      memberKey: 'player_heatmap',
+      teamId: 4,
+      phase: 1,
+      timestampSeconds: 18,
+      x: 130,
+      y: 260,
+      inVehicle: true,
+    })
+    expect(result.trajectorySegments).toHaveLength(1)
+    expect(result.trajectorySegments[0]).toMatchObject({
+      memberKey: 'player_heatmap',
+      teamId: 4,
+      phase: 1,
+      timestampStart: 5,
+      timestampEnd: 18,
+      fromX: 100,
+      fromY: 200,
+      toX: 130,
+      toY: 260,
+    })
+    expect(result.deathSamples).toHaveLength(1)
+    expect(result.deathSamples[0]).toMatchObject({
+      memberKey: 'victim_heatmap',
+      teamId: 8,
+      phase: 1,
+      timestampSeconds: null,
+      x: 500,
+      y: 600,
+      inVehicle: false,
+    })
+  })
 })
 
 describe('parseTelemetrySnapshot golden integration set', () => {

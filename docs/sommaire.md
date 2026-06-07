@@ -52,6 +52,8 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Mode manuel et batch robuste, enqueue/check status, CLI, worker avec memory protection (Phase 2)
 - [Télémétrie - Trois modes de récupération](TELEMETRY_SYNC_MODES.md)
   - Direct Sync (rapide), Capture seule (sauvegarde), Queue Resync (async worker) - guide de décision et comparaison
+- [Télémétrie - Interface de sélection depuis matchs](TELEMETRY_MATCHES_SESSION_INTERFACE.md)
+  - Intégration des 3 modes directement sur page /clans/[id]/matches/session/[date] avec tabbed UI
 - [Télémétrie Capture & Resync Workflow](TELEMETRY_CAPTURE_AND_RESYNC_WORKFLOW.md)
   - Workflow deux phases: capture depuis PUBG API → resync depuis fichiers locaux
 - [Télémétrie Phase 2 Guide](TELEMETRY_PHASE2_GUIDE.md)

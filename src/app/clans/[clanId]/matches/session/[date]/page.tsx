@@ -231,6 +231,8 @@ type FileResyncResponse = {
   results?: FileResyncResultEntry[]
 }
 
+type TelemetrySyncMode = 'direct' | 'capture' | 'queue'
+
 type FileImportResponse = {
   ok?: boolean
   error?: string
@@ -327,6 +329,7 @@ export default function ClanSessionDatePage() {
   const [resetBeforeResync, setResetBeforeResync] = useState(true)
   const [telemetryClearLoading, setTelemetryClearLoading] = useState(false)
   const [telemetryClearMessage, setTelemetryClearMessage] = useState<string | null>(null)
+  const [telemetrySyncMode, setTelemetrySyncMode] = useState<TelemetrySyncMode>('direct')
 
   useEffect(() => {
     if (!clanId) {
@@ -1372,11 +1375,94 @@ export default function ClanSessionDatePage() {
           />
 
           <section className="mt-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Récupération télémétrie manuelle</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Deux modes: resync fichiers (import local) ou resync URL PUBG sans chargement fichier via stream.
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">Récupération télémétrie manuelle</h2>
+              <p className="mt-1 text-sm text-gray-600">Trois modes de récupération adapté à vos besoins.</p>
+            </div>
+
+            {/* Mode selection cards */}
+            <div className="mb-6 grid gap-4 md:grid-cols-3">
+              {/* Direct Sync */}
+              <div
+                onClick={() => setTelemetrySyncMode('direct')}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+                  telemetrySyncMode === 'direct'
+                    ? 'border-green-500 bg-green-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold text-lg">⚡ Direct Sync</h3>
+                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Rapide</span>
+                </div>
+                <p className="text-sm text-gray-700 mb-3">
+                  Télécharge depuis PUBG, capture et traite en une seule opération.
+                </p>
+                <ul className="text-xs text-gray-600 space-y-1 mb-3">
+                  <li>✓ Résultat immédiat</li>
+                  <li>✓ Pas de fichiers locaux</li>
+                  <li>⚠ Peut timeout si gros batch</li>
+                </ul>
+                <div className="text-xs text-gray-500">
+                  Reco: &lt;50 matchs
+                </div>
+              </div>
+
+              {/* Capture Only */}
+              <div
+                onClick={() => setTelemetrySyncMode('capture')}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+                  telemetrySyncMode === 'capture'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold text-lg">📁 Capture seule</h3>
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Stockage</span>
+                </div>
+                <p className="text-sm text-gray-700 mb-3">
+                  Télécharge et sauvegarde localement (sans traitement).
+                </p>
+                <ul className="text-xs text-gray-600 space-y-1 mb-3">
+                  <li>✓ Non-bloquant</li>
+                  <li>✓ Fichiers conservés</li>
+                  <li>✓ Rejouer anytime</li>
+                </ul>
+                <div className="text-xs text-gray-500">
+                  Reco: 50-1000 matchs
+                </div>
+              </div>
+
+              {/* Queue Resync */}
+              <div
+                onClick={() => setTelemetrySyncMode('queue')}
+                className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+                  telemetrySyncMode === 'queue'
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold text-lg">🔄 Queue Resync</h3>
+                  <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Worker</span>
+                </div>
+                <p className="text-sm text-gray-700 mb-3">
+                  Traite fichiers capturés (worker asynchrone).
+                </p>
+                <ul className="text-xs text-gray-600 space-y-1 mb-3">
+                  <li>✓ Non-bloquant</li>
+                  <li>✓ Scalable</li>
+                  <li>✓ Reprise auto</li>
+                </ul>
+                <div className="text-xs text-gray-500">
+                  Reco: 100+ matchs
+                </div>
+              </div>
+            </div>
+
+            {/* Runtime status */}
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
               {runtimeStatus ? (
                 <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
                   Serveur dev actif - PID {runtimeStatus.pid} - uptime {formatRuntimeUptime(runtimeStatus.uptimeSec)}
@@ -1393,109 +1479,283 @@ export default function ClanSessionDatePage() {
                 </span>
               ) : null}
             </div>
-            <div className="mt-3">
-              <Link
-                href={`/clans/${clanId}/telemetry/recoveries`}
-                className="app-btn app-btn--md app-btn--secondary"
-              >
-                Ouvrir le suivi des récupérations
-              </Link>
+
+            {/* Selection controls */}
+            <div className="mb-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">{selectedMatchIds.length} match(s) sélectionné(s)</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllSessionMatches}
+                  className="app-btn app-btn--sm app-btn--secondary"
+                  disabled={
+                    telemetrySyncLoading ||
+                    telemetryFetchFilesLoading ||
+                    telemetryFileSyncLoading ||
+                    sessionMatches.length === 0
+                  }
+                >
+                  Tout sélectionner
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSelectedSessionMatches}
+                  className="app-btn app-btn--sm app-btn--secondary"
+                  disabled={
+                    telemetrySyncLoading ||
+                    telemetryFetchFilesLoading ||
+                    telemetryFileSyncLoading ||
+                    selectedMatchIds.length === 0
+                  }
+                >
+                  Vider sélection
+                </button>
+                <Link
+                  href={`/clans/${clanId}/telemetry/recoveries`}
+                  className="app-btn app-btn--sm app-btn--secondary"
+                >
+                  Suivi récupérations
+                </Link>
+              </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={selectAllSessionMatches}
-                className="app-btn app-btn--md app-btn--secondary"
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryFileSyncLoading ||
-                  sessionMatches.length === 0
-                }
+            {/* Mode-specific content */}
+            {telemetrySyncMode === 'direct' && (
+              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-4">
+                <h3 className="font-semibold text-green-900 mb-2">Mode Direct Sync</h3>
+                <p className="text-sm text-green-800 mb-3">
+                  Télécharge les matchs sélectionnés depuis PUBG API, les capture localement ET les traite en une seule opération.
+                </p>
+                <button
+                  type="button"
+                  onClick={runManualTelemetrySync}
+                  className="app-btn app-btn--md app-btn--primary"
+                  disabled={
+                    telemetrySyncLoading ||
+                    telemetryFetchFilesLoading ||
+                    telemetryClearLoading ||
+                    telemetryFileSyncLoading ||
+                    selectedMatchIds.length === 0
+                  }
+                >
+                  {telemetrySyncLoading
+                    ? 'Resync URL en cours...'
+                    : `Direct Sync (${selectedMatchIds.length} matchs)`}
+                </button>
+                <label className="mt-3 inline-flex items-start gap-2 text-xs text-green-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    checked={forceResync}
+                    onChange={(event) => setForceResync(event.target.checked)}
+                    disabled={telemetrySyncLoading}
+                  />
+                  <span>Forcer le resync même si déjà Parser OK (mode dev)</span>
+                </label>
+              </div>
+            )}
+
+            {telemetrySyncMode === 'capture' && (
+              <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">Mode Capture seule</h3>
+                <p className="text-sm text-blue-800 mb-3">
+                  Télécharge et sauvegarde les matchs localement dans <code className="bg-white px-1 rounded text-xs">.telemetry-captured/</code> sans les traiter.
+                </p>
+                <button
+                  type="button"
+                  onClick={runFetchTelemetryFilesFromPubg}
+                  className="app-btn app-btn--md app-btn--primary"
+                  disabled={
+                    telemetrySyncLoading ||
+                    telemetryFetchFilesLoading ||
+                    telemetryClearLoading ||
+                    telemetryFileSyncLoading ||
+                    selectedMatchIds.length === 0 ||
+                    telemetryFileStatusLoading ||
+                    importEligibleIds.length === 0
+                  }
+                >
+                  {telemetryFetchFilesLoading
+                    ? 'Capture en cours...'
+                    : `Capturer fichiers (${importEligibleIds.length})`}
+                </button>
+                <p className="mt-2 text-xs text-blue-700">
+                  Ensuite: utilisez le mode "Queue Resync" pour traiter les fichiers capturés.
+                </p>
+              </div>
+            )}
+
+            {telemetrySyncMode === 'queue' && (
+              <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 p-4">
+                <h3 className="font-semibold text-purple-900 mb-2">Mode Queue Resync</h3>
+                <p className="text-sm text-purple-800 mb-3">
+                  Enqueue les matchs pour traitement asynchrone par le worker. Non-bloquant et scalable.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={enqueueResyncTelemetryFromImportedFiles}
+                    className="app-btn app-btn--md app-btn--primary"
+                    disabled={
+                      telemetrySyncLoading ||
+                      telemetryFetchFilesLoading ||
+                      telemetryClearLoading ||
+                      telemetryFileSyncLoading ||
+                      telemetryFileQueueLoading ||
+                      selectedMatchIds.length === 0
+                    }
+                  >
+                    {telemetryFileQueueLoading
+                      ? 'Mise en file...'
+                      : `Enqueue Resync (${selectedMatchIds.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runResyncTelemetryFromImportedFiles}
+                    className="app-btn app-btn--md app-btn--secondary"
+                    disabled={
+                      telemetrySyncLoading ||
+                      telemetryFetchFilesLoading ||
+                      telemetryClearLoading ||
+                      telemetryFileSyncLoading ||
+                      selectedMatchIds.length === 0
+                    }
+                  >
+                    {telemetryFileSyncLoading
+                      ? 'Resync fichiers en cours...'
+                      : `Resync immédiat (${selectedMatchIds.length})`}
+                  </button>
+                </div>
+                <label className="inline-flex items-start gap-2 text-xs text-purple-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    checked={resetBeforeResync}
+                    onChange={(event) => setResetBeforeResync(event.target.checked)}
+                    disabled={
+                      telemetrySyncLoading ||
+                      telemetryFetchFilesLoading ||
+                      telemetryClearLoading ||
+                      telemetryFileSyncLoading
+                    }
+                  />
+                  <span>Réinitialiser DB avant resync (recommandé en dev)</span>
+                </label>
+                <p className="mt-2 text-xs text-purple-700">
+                  Lancez <code className="bg-white px-1 rounded">npm run telemetry:worker</code> dans un terminal séparé pour traiter les jobs.
+                </p>
+              </div>
+            )}
+
+            {/* Messages and logs */}
+            {telemetryFetchFilesMessage && telemetrySyncMode === 'capture' ? (
+              <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-sm text-blue-800">{telemetryFetchFilesMessage}</p>
+              </div>
+            ) : null}
+
+            {telemetryFileQueueMessage && telemetrySyncMode === 'queue' ? (
+              <div className="mb-4 p-3 rounded-lg bg-purple-50 border border-purple-200">
+                <p className="text-sm text-purple-800">{telemetryFileQueueMessage}</p>
+              </div>
+            ) : null}
+
+            {telemetrySyncMessage && telemetrySyncMode === 'direct' ? (
+              <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200">
+                <p className="text-sm text-green-800">{telemetrySyncMessage}</p>
+              </div>
+            ) : null}
+
+            {telemetryFileSyncMessage && telemetrySyncMode === 'queue' ? (
+              <div
+                className={`mb-4 p-3 rounded-lg border ${
+                  telemetryFileSyncTone === 'success'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : telemetryFileSyncTone === 'error'
+                      ? 'bg-rose-50 border-rose-200'
+                      : 'bg-amber-50 border-amber-200'
+                }`}
               >
-                Tout sélectionner
-              </button>
-              <button
-                type="button"
-                onClick={clearSelectedSessionMatches}
-                className="app-btn app-btn--md app-btn--secondary"
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryFileSyncLoading ||
-                  selectedMatchIds.length === 0
-                }
-              >
-                Vider sélection
-              </button>
-              <button
-                type="button"
-                onClick={runFetchTelemetryFilesFromPubg}
-                className="app-btn app-btn--md app-btn--secondary"
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryClearLoading ||
-                  telemetryFileSyncLoading ||
-                  selectedMatchIds.length === 0 ||
-                  telemetryFileStatusLoading ||
-                  importEligibleIds.length === 0
-                }
-              >
-                {telemetryFetchFilesLoading
-                  ? 'Import PUBG en cours...'
-                  : `Import fichiers (${importEligibleIds.length})`}
-              </button>
-              <button
-                type="button"
-                onClick={runResyncTelemetryFromImportedFiles}
-                className="app-btn app-btn--md app-btn--primary"
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryClearLoading ||
-                  telemetryFileSyncLoading ||
-                  selectedMatchIds.length === 0
-                }
-              >
-                {telemetryFileSyncLoading
-                  ? 'Resync fichiers en cours...'
-                  : `Resync sélection (${selectedMatchIds.length})`}
-              </button>
-              <button
-                type="button"
-                onClick={enqueueResyncTelemetryFromImportedFiles}
-                className="app-btn app-btn--md app-btn--secondary"
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryClearLoading ||
-                  telemetryFileSyncLoading ||
-                  telemetryFileQueueLoading ||
-                  selectedMatchIds.length === 0
-                }
-              >
-                {telemetryFileQueueLoading
-                  ? 'Mise en file worker...'
-                  : `Queue worker (${selectedMatchIds.length})`}
-              </button>
-              <button
-                type="button"
-                onClick={runManualTelemetrySync}
-                className="app-btn app-btn--md app-btn--secondary"
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryClearLoading ||
-                  telemetryFileSyncLoading ||
-                  selectedMatchIds.length === 0
-                }
-              >
-                {telemetrySyncLoading
-                  ? 'Resync URL en cours...'
-                  : `Resync URL (${selectedMatchIds.length})`}
-              </button>
+                <p
+                  className={`text-sm ${
+                    telemetryFileSyncTone === 'success'
+                      ? 'text-emerald-800 font-medium'
+                      : telemetryFileSyncTone === 'error'
+                        ? 'text-rose-800'
+                        : 'text-amber-800'
+                  }`}
+                >
+                  {telemetryFileSyncMessage}
+                </p>
+              </div>
+            ) : null}
+
+            {telemetryClearMessage ? (
+              <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-sm text-amber-800">{telemetryClearMessage}</p>
+              </div>
+            ) : null}
+
+            {telemetrySyncCaptureNotes.length > 0 && telemetrySyncMode === 'direct' ? (
+              <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                <p className="text-xs font-medium text-amber-900 mb-2">Notes de capture:</p>
+                <ul className="text-xs text-amber-800 space-y-1 list-disc pl-5">
+                  {telemetrySyncCaptureNotes.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {telemetrySyncErrors.length > 0 && telemetrySyncMode === 'direct' ? (
+              <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200">
+                <p className="text-xs font-medium text-rose-900 mb-2">Erreurs:</p>
+                <ul className="text-xs text-rose-800 space-y-1 list-disc pl-5">
+                  {telemetrySyncErrors.slice(0, 5).map((errorLine) => (
+                    <li key={errorLine}>{errorLine}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {telemetryFileSyncProgress && telemetrySyncMode === 'queue' ? (
+              <div className="mb-4 p-3 rounded-lg bg-sky-50 border border-sky-200">
+                <p className="text-xs text-sky-900">
+                  Progression: {telemetryFileSyncProgress.completed}/{telemetryFileSyncProgress.total}
+                  {' '}| ✓ {telemetryFileSyncProgress.success} | ✗ {telemetryFileSyncProgress.failed}
+                </p>
+                {telemetryFileSyncProgress.currentMatchId ? (
+                  <p className="text-xs font-medium text-sky-900 mt-1">
+                    En cours: {telemetryFileSyncProgress.currentMatchId}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {telemetryFileSyncLogs.length > 0 && telemetrySyncMode === 'queue' ? (
+              <div className="mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
+                <p className="text-xs font-medium text-gray-900 mb-2">Logs:</p>
+                <ul className="text-xs text-gray-700 space-y-1 max-h-40 overflow-y-auto list-disc pl-5">
+                  {telemetryFileSyncLogs.slice(-20).map((line, index) => (
+                    <li key={`${index}-${line}`}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {telemetryFileSyncErrors.length > 0 && telemetrySyncMode === 'queue' ? (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200">
+                <p className="text-xs font-medium text-rose-900 mb-2">Erreurs:</p>
+                <ul className="text-xs text-rose-800 space-y-1 list-disc pl-5">
+                  {telemetryFileSyncErrors.slice(0, 5).map((errorLine) => (
+                    <li key={errorLine}>{errorLine}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {/* Danger zone */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
               <button
                 type="button"
                 onClick={runClearTelemetryOk}
@@ -1510,139 +1770,12 @@ export default function ClanSessionDatePage() {
               >
                 {telemetryClearLoading
                   ? 'Suppression en cours...'
-                  : `Effacer fichiers télémétrie (${selectedMatchIds.length})`}
+                  : `⚠ Effacer télémétrie (${selectedMatchIds.length})`}
               </button>
-            </div>
-
-            <label className="mt-2 inline-flex items-start gap-2 text-xs text-gray-700">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                checked={forceResync}
-                onChange={(event) => setForceResync(event.target.checked)}
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryClearLoading ||
-                  telemetryFileSyncLoading
-                }
-              />
-              <span>
-                Forcer le resync des matchs déjà Parser OK (mode développement). La sécurité reste active: lot max {SAFE_RESYNC_BATCH_LIMIT} + reprise automatique.
-              </span>
-            </label>
-
-            <label className="mt-2 inline-flex items-start gap-2 text-xs text-gray-700">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                checked={resetBeforeResync}
-                onChange={(event) => setResetBeforeResync(event.target.checked)}
-                disabled={
-                  telemetrySyncLoading ||
-                  telemetryFetchFilesLoading ||
-                  telemetryClearLoading ||
-                  telemetryFileSyncLoading
-                }
-              />
-              <span>
-                Réinitialiser la ligne télémétrie DB avant resync (recommandé en développement pour éviter les updates cumulés). Les fichiers locaux capturés sont conservés.
-              </span>
-            </label>
-
-            <p className="mt-2 text-xs text-gray-600">
-              Matchs resyncables (fichier local disponible ou inconnu): {resyncEligibleCount}/{sessionMatches.length}
-            </p>
-            <p className="mt-1 text-xs text-gray-600">
-              Resync sécurisé: traitement par lot max {SAFE_RESYNC_BATCH_LIMIT} et reprise automatique sur les restants.
-            </p>
-            {telemetryFileQueueMessage ? (
-              <p className="mt-2 text-xs text-gray-700">{telemetryFileQueueMessage}</p>
-            ) : null}
-            <p className="mt-1 text-xs text-gray-600">
-              Matchs importables (fichier local manquant): {sessionMatches.filter((match) => (telemetryFileStatusByMatchId[match.id] ?? 'unknown') === 'missing').length}/{sessionMatches.length}
-            </p>
-
-            {telemetryFetchFilesMessage ? (
-              <p className="mt-3 text-sm text-amber-700">{telemetryFetchFilesMessage}</p>
-            ) : null}
-
-            {telemetryFileSyncMessage ? (
-              <p
-                className={`mt-3 text-sm ${
-                  telemetryFileSyncTone === 'success'
-                    ? 'font-medium text-emerald-700'
-                    : telemetryFileSyncTone === 'error'
-                      ? 'text-rose-700'
-                      : 'text-amber-700'
-                }`}
-              >
-                {telemetryFileSyncMessage}
+              <p className="mt-2 text-xs text-gray-600">
+                Supprime les fichiers capturés ET les données télémétrie du sélection. Cette action est irréversible.
               </p>
-            ) : null}
-
-            {telemetryFileSyncLoading && telemetryFileSyncProgress ? (
-              <div className="mt-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-                <p>
-                  Progression: {telemetryFileSyncProgress.completed}/{telemetryFileSyncProgress.total}
-                  {' '}| OK {telemetryFileSyncProgress.success} | KO {telemetryFileSyncProgress.failed}
-                </p>
-                {telemetryFileSyncProgress.currentMatchId ? (
-                  <p className="mt-1 font-medium">
-                    Match en cours: {telemetryFileSyncProgress.currentMatchId}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {telemetryFileSyncLogs.length > 0 ? (
-              <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-5 text-xs text-gray-700">
-                {telemetryFileSyncLogs.slice(-30).map((line, index) => (
-                  <li key={`${index}-${line}`}>{line}</li>
-                ))}
-              </ul>
-            ) : null}
-
-            {telemetryFileSyncErrors.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-700">
-                {telemetryFileSyncErrors.slice(0, 10).map((errorLine) => (
-                  <li key={errorLine}>{errorLine}</li>
-                ))}
-              </ul>
-            ) : null}
-
-            {telemetryClearMessage ? (
-              <p className="mt-3 text-sm text-amber-700">{telemetryClearMessage}</p>
-            ) : null}
-
-            {telemetrySyncMessage ? (
-              <p className="mt-3 text-sm text-gray-700">{telemetrySyncMessage}</p>
-            ) : null}
-
-            {telemetrySyncAggregateDetails ? (
-              <details className="mt-2 rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">
-                <summary className="cursor-pointer font-medium text-gray-800">Voir détail technique</summary>
-                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px]">
-                  {telemetrySyncAggregateDetails}
-                </pre>
-              </details>
-            ) : null}
-
-            {telemetrySyncErrors.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-700">
-                {telemetrySyncErrors.slice(0, 10).map((errorLine) => (
-                  <li key={errorLine}>{errorLine}</li>
-                ))}
-              </ul>
-            ) : null}
-
-            {telemetrySyncCaptureNotes.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-700">
-                {telemetrySyncCaptureNotes.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            ) : null}
+            </div>
           </section>
         </>
       ) : null}

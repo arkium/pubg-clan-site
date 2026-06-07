@@ -50,6 +50,10 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Queue persistante, worker dédié hors process web, endpoint runtime PID/uptime et usage opératoire conseillé
 - [Télémétrie batch - Phase 1-2](TELEMETRY_BATCH_README.md)
   - Mode manuel et batch robuste, enqueue/check status, CLI, worker avec memory protection (Phase 2)
+- [Télémétrie - Trois modes de récupération](TELEMETRY_SYNC_MODES.md)
+  - Direct Sync (rapide), Capture seule (sauvegarde), Queue Resync (async worker) - guide de décision et comparaison
+- [Télémétrie Capture & Resync Workflow](TELEMETRY_CAPTURE_AND_RESYNC_WORKFLOW.md)
+  - Workflow deux phases: capture depuis PUBG API → resync depuis fichiers locaux
 - [Télémétrie Phase 2 Guide](TELEMETRY_PHASE2_GUIDE.md)
   - Memory monitoring, backpressure controller, dead letter queue, worker health tracking
 - [Télémétrie Phase 3 Guide](TELEMETRY_PHASE3_GUIDE.md)

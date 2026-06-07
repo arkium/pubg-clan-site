@@ -7,9 +7,12 @@
   },
   "scripts": {
     "predev": "node -e \"const major=parseInt(process.versions.node.split('.')[0],10); if(major>=24){console.error('Node 24 detecte. Utilise Node 22.22.3 (voir .nvmrc).'); process.exit(1)}\"",
-    "dev": "next dev --webpack",
+    "dev": "node --max-old-space-size=8192 ./node_modules/next/dist/bin/next dev --webpack",
     "dev-mem": "SET NODE_OPTIONS=--max-old-space-size=4096 && next dev --webpack",
     "dev:turbopack": "next dev",
+    "telemetry:worker": "tsx scripts/telemetry-resync-worker.ts",
+    "telemetry:worker:once": "tsx scripts/telemetry-resync-worker.ts --once",
+    "telemetry:batch": "tsx scripts/telemetry-batch.ts",
     "build": "next build",
     "postbuild": "node scripts/copy-standalone-assets.mjs",
     "start": "next start",
@@ -41,6 +44,7 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "tsx": "^4.20.5",
     "vitest": "^2.1.9"
   }
 }

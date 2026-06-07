@@ -17,6 +17,7 @@ interface SquadMatchListProps {
   selectable?: boolean
   selectedMatchIds?: string[]
   onToggleMatchSelection?: (matchId: string) => void
+  telemetryFileStatusByMatchId?: Record<string, 'available' | 'missing' | 'oversized' | 'unknown'>
 }
 
 function formatMatchDay(value: string) {
@@ -40,7 +41,7 @@ function resultTone(isWin: boolean) {
     : 'border-rose-200 bg-rose-100 text-rose-900'
 }
 
-function telemetryTone(status: 'success' | 'failed' | 'pending') {
+function parserTelemetryTone(status: 'success' | 'failed' | 'pending') {
   if (status === 'success') {
     return 'border-emerald-200 bg-emerald-100 text-emerald-900'
   }
@@ -52,16 +53,48 @@ function telemetryTone(status: 'success' | 'failed' | 'pending') {
   return 'border-amber-200 bg-amber-100 text-amber-900'
 }
 
-function telemetryLabel(status: 'success' | 'failed' | 'pending') {
+function parserTelemetryLabel(status: 'success' | 'failed' | 'pending') {
   if (status === 'success') {
-    return 'Télémétrie OK'
+    return 'Parser OK'
   }
 
   if (status === 'failed') {
-    return 'Télémétrie KO'
+    return 'Parser KO'
   }
 
-  return 'Télémétrie en attente'
+  return 'Parser en attente'
+}
+
+function fileStatusTone(status: 'available' | 'missing' | 'oversized' | 'unknown') {
+  if (status === 'available') {
+    return 'border-sky-200 bg-sky-100 text-sky-900'
+  }
+
+  if (status === 'missing') {
+    return 'border-rose-200 bg-rose-100 text-rose-900'
+  }
+
+  if (status === 'oversized') {
+    return 'border-amber-200 bg-amber-100 text-amber-900'
+  }
+
+  return 'border-gray-200 bg-gray-100 text-gray-700'
+}
+
+function fileStatusLabel(status: 'available' | 'missing' | 'oversized' | 'unknown') {
+  if (status === 'available') {
+    return 'Fichier local OK'
+  }
+
+  if (status === 'missing') {
+    return 'Fichier local manquant'
+  }
+
+  if (status === 'oversized') {
+    return 'Fichier local trop lourd'
+  }
+
+  return 'Fichier local inconnu'
 }
 
 function formatDuration(totalSeconds: number) {
@@ -108,6 +141,7 @@ export default function SquadMatchList({
   selectable = false,
   selectedMatchIds,
   onToggleMatchSelection,
+  telemetryFileStatusByMatchId,
 }: SquadMatchListProps) {
   const latestMatches = matches.slice(0, limit)
   const selectedIds = new Set(selectedMatchIds ?? [])
@@ -142,6 +176,7 @@ export default function SquadMatchList({
           const memberNames = match.members.map((member) => member.displayName)
           const telemetryStatus = match.telemetry?.status ?? 'pending'
           const telemetryBytes = formatTelemetryBytes(match.telemetry?.bytesDownloaded)
+          const localFileStatus = telemetryFileStatusByMatchId?.[match.id] ?? 'unknown'
 
           return (
             <li
@@ -149,7 +184,7 @@ export default function SquadMatchList({
               id={`match-${match.id}`}
               className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition duration-200 hover:shadow-md"
             >
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-col gap-2">
                 <div className="min-w-0">
                   {selectable ? (
                     <label className="mb-2 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700">
@@ -172,13 +207,16 @@ export default function SquadMatchList({
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                <div className="flex w-full flex-wrap gap-1.5">
                   <TeamModeBadge mode={teamMode} className="shadow-sm" />
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${resultTone(match.isWin)}`}>
                     {match.isWin ? 'Victoire' : 'Défaite'}
                   </span>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${telemetryTone(telemetryStatus)}`}>
-                    {telemetryLabel(telemetryStatus)}
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${parserTelemetryTone(telemetryStatus)}`}>
+                    {parserTelemetryLabel(telemetryStatus)}
+                  </span>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${fileStatusTone(localFileStatus)}`}>
+                    {fileStatusLabel(localFileStatus)}
                   </span>
                 </div>
               </div>

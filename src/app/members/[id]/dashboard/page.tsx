@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 
 import { usePlayerDashboard, usePlayerMatches } from '@/hooks/usePlayerDashboard'
@@ -31,10 +31,29 @@ type TelemetryPlaystyleStats = {
   avgOnFootDistanceMeters: number
   avgVehicleDistanceMeters: number
   avgDamageTaken: number
-    avgVehicleRideEvents: number
-    avgVehicleLeaveEvents: number
-    avgPositionEvents: number
+  avgHealsUsed: number
+  avgHealAmount: number
+  avgBoostsUsed: number
+  maxVehicleSpeedKph: number
+  avgVehicleRideEvents: number
+  avgVehicleLeaveEvents: number
+  avgPositionEvents: number
   matchesPlayed: number
+}
+
+type TelemetryComparisonPeriod = 'week' | 'month' | 'all'
+
+type TelemetryComparisonSortKey = TelemetryComparisonPeriod
+
+type TelemetryComparisonSortDirection = 'asc' | 'desc'
+
+type TelemetryComparisonData = Record<TelemetryComparisonPeriod, TelemetryPlaystyleStats | null>
+
+type TelemetryComparisonMetric = {
+  key: string
+  label: string
+  getValue: (stats: TelemetryPlaystyleStats) => number
+  format: (value: number) => string
 }
 
 type MemberTelemetryPlaystyleResponse = {
@@ -53,6 +72,14 @@ type MemberTelemetryPlaystyleResponse = {
   }
 }
 
+const TELEMETRY_COMPARISON_PERIODS: TelemetryComparisonPeriod[] = ['week', 'month', 'all']
+
+const TELEMETRY_COMPARISON_PERIOD_LABELS: Record<TelemetryComparisonPeriod, string> = {
+  week: 'Semaine',
+  month: 'Mois',
+  all: 'Tous',
+}
+
 function formatTelemetryScore(value: number) {
   return Math.max(0, value).toFixed(1)
 }
@@ -68,6 +95,127 @@ function formatSeconds(value: number) {
 function formatMeters(value: number) {
   return `${Math.max(0, value).toFixed(0)} m`
 }
+
+function formatTelemetryCount(value: number) {
+  return Math.max(0, Math.round(value)).toLocaleString('fr-FR')
+}
+
+const TELEMETRY_COMPARISON_METRICS: TelemetryComparisonMetric[] = [
+  {
+    key: 'aggressionScore',
+    label: 'Agressivite (%)',
+    getValue: (stats) => stats.aggressionScore,
+    format: formatTelemetryPercent,
+  },
+  {
+    key: 'supportScore',
+    label: 'Support (%)',
+    getValue: (stats) => stats.supportScore,
+    format: formatTelemetryPercent,
+  },
+  {
+    key: 'zoneDisciplineScore',
+    label: 'Discipline zone (%)',
+    getValue: (stats) => stats.zoneDisciplineScore,
+    format: formatTelemetryPercent,
+  },
+  {
+    key: 'avgBlueZoneHits',
+    label: 'Blue zone hits (evt/match)',
+    getValue: (stats) => stats.avgBlueZoneHits,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgFirstContactPhase',
+    label: 'First contact (phase)',
+    getValue: (stats) => stats.avgFirstContactPhase,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgCircleDelaySeconds',
+    label: 'Retard cercle (s)',
+    getValue: (stats) => stats.avgCircleDelaySeconds,
+    format: formatSeconds,
+  },
+  {
+    key: 'avgCircleDelayPercent',
+    label: 'Temps hors zone (%)',
+    getValue: (stats) => stats.avgCircleDelayPercent,
+    format: formatTelemetryPercent,
+  },
+  {
+    key: 'avgSafeZonePresencePercent',
+    label: 'Presence safe zone (%)',
+    getValue: (stats) => stats.avgSafeZonePresencePercent,
+    format: formatTelemetryPercent,
+  },
+  {
+    key: 'avgOnFootDistanceMeters',
+    label: 'Distance a pied',
+    getValue: (stats) => stats.avgOnFootDistanceMeters,
+    format: formatMeters,
+  },
+  {
+    key: 'avgVehicleDistanceMeters',
+    label: 'Distance vehicule',
+    getValue: (stats) => stats.avgVehicleDistanceMeters,
+    format: formatMeters,
+  },
+  {
+    key: 'avgDamageTaken',
+    label: 'Degats recus',
+    getValue: (stats) => stats.avgDamageTaken,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgHealsUsed',
+    label: 'Soins utilises (moy/match)',
+    getValue: (stats) => stats.avgHealsUsed,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgHealAmount',
+    label: 'HP soignes (moy/match)',
+    getValue: (stats) => stats.avgHealAmount,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgBoostsUsed',
+    label: 'Boosts utilises (moy/match)',
+    getValue: (stats) => stats.avgBoostsUsed,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'maxVehicleSpeedKph',
+    label: 'Vitesse max vehicule (km/h)',
+    getValue: (stats) => stats.maxVehicleSpeedKph,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgVehicleRideEvents',
+    label: 'Montee vehicule (evt/match)',
+    getValue: (stats) => stats.avgVehicleRideEvents,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgVehicleLeaveEvents',
+    label: 'Sortie vehicule (evt/match)',
+    getValue: (stats) => stats.avgVehicleLeaveEvents,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'avgPositionEvents',
+    label: 'Positions observees (evt/match)',
+    getValue: (stats) => stats.avgPositionEvents,
+    format: formatTelemetryScore,
+  },
+  {
+    key: 'matchesPlayed',
+    label: 'Matchs analyses',
+    getValue: (stats) => stats.matchesPlayed,
+    format: formatTelemetryCount,
+  },
+]
 
 function getTelemetryErrorMessage(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== 'object') {
@@ -101,6 +249,17 @@ export default function DashboardPage() {
   const [telemetryStats, setTelemetryStats] = useState<TelemetryPlaystyleStats | null>(null)
   const [loadingTelemetry, setLoadingTelemetry] = useState(false)
   const [telemetryError, setTelemetryError] = useState('')
+  const [telemetryComparison, setTelemetryComparison] = useState<TelemetryComparisonData>({
+    week: null,
+    month: null,
+    all: null,
+  })
+  const [loadingTelemetryComparison, setLoadingTelemetryComparison] = useState(false)
+  const [telemetryComparisonError, setTelemetryComparisonError] = useState('')
+  const [telemetryComparisonSortKey, setTelemetryComparisonSortKey] =
+    useState<TelemetryComparisonSortKey>('week')
+  const [telemetryComparisonSortDirection, setTelemetryComparisonSortDirection] =
+    useState<TelemetryComparisonSortDirection>('desc')
   const MATCH_LIMIT = 10
 
   const { data, loading, error } = usePlayerDashboard(memberId, period)
@@ -158,6 +317,135 @@ export default function DashboardPage() {
       cancelled = true
     }
   }, [memberId, period])
+
+  useEffect(() => {
+    if (!memberId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadTelemetryComparison() {
+      try {
+        setLoadingTelemetryComparison(true)
+        setTelemetryComparisonError('')
+
+        const settled = await Promise.allSettled(
+          TELEMETRY_COMPARISON_PERIODS.map(async (comparisonPeriod) => {
+            const response = await fetch(
+              `/api/members/${memberId}/telemetry/playstyle?period=${comparisonPeriod}`,
+              {
+                cache: 'no-store',
+              }
+            )
+
+            const payload = (await response.json()) as MemberTelemetryPlaystyleResponse
+
+            if (!response.ok) {
+              throw new Error(
+                getTelemetryErrorMessage(
+                  payload,
+                  `Impossible de charger la telemetrie playstyle (${TELEMETRY_COMPARISON_PERIOD_LABELS[comparisonPeriod]})`
+                )
+              )
+            }
+
+            return {
+              period: comparisonPeriod,
+              stats: payload.data?.stats ?? payload.stats ?? null,
+            }
+          })
+        )
+
+        if (cancelled) {
+          return
+        }
+
+        const nextComparison: TelemetryComparisonData = {
+          week: null,
+          month: null,
+          all: null,
+        }
+
+        const errors: string[] = []
+
+        for (const result of settled) {
+          if (result.status === 'fulfilled') {
+            nextComparison[result.value.period] = result.value.stats
+          } else {
+            const reason =
+              result.reason instanceof Error
+                ? result.reason.message
+                : 'Erreur de chargement telemetry comparaison'
+            errors.push(reason)
+          }
+        }
+
+        setTelemetryComparison(nextComparison)
+
+        if (errors.length > 0 && errors.length < TELEMETRY_COMPARISON_PERIODS.length) {
+          setTelemetryComparisonError('Certaines periodes de comparaison n\'ont pas pu etre chargees.')
+        } else if (errors.length === TELEMETRY_COMPARISON_PERIODS.length) {
+          setTelemetryComparisonError('Impossible de charger la comparaison telemetry.')
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setTelemetryComparison({
+            week: null,
+            month: null,
+            all: null,
+          })
+          setTelemetryComparisonError(
+            loadError instanceof Error ? loadError.message : 'Impossible de charger la comparaison telemetry.'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingTelemetryComparison(false)
+        }
+      }
+    }
+
+    void loadTelemetryComparison()
+
+    return () => {
+      cancelled = true
+    }
+  }, [memberId])
+
+  const telemetryComparisonRows = useMemo(() => {
+    const rows = TELEMETRY_COMPARISON_METRICS.map((metric) => ({
+      metric,
+      values: {
+        week: telemetryComparison.week ? metric.getValue(telemetryComparison.week) : null,
+        month: telemetryComparison.month ? metric.getValue(telemetryComparison.month) : null,
+        all: telemetryComparison.all ? metric.getValue(telemetryComparison.all) : null,
+      },
+    }))
+
+    const direction = telemetryComparisonSortDirection === 'asc' ? 1 : -1
+
+    return rows.sort((left, right) => {
+      const leftValue = left.values[telemetryComparisonSortKey] ?? Number.NEGATIVE_INFINITY
+      const rightValue = right.values[telemetryComparisonSortKey] ?? Number.NEGATIVE_INFINITY
+
+      if (leftValue === rightValue) {
+        return left.metric.label.localeCompare(right.metric.label, 'fr-FR')
+      }
+
+      return (leftValue - rightValue) * direction
+    })
+  }, [telemetryComparison, telemetryComparisonSortDirection, telemetryComparisonSortKey])
+
+  function toggleTelemetryComparisonSort(nextKey: TelemetryComparisonSortKey) {
+    if (telemetryComparisonSortKey === nextKey) {
+      setTelemetryComparisonSortDirection((current) => (current === 'desc' ? 'asc' : 'desc'))
+      return
+    }
+
+    setTelemetryComparisonSortKey(nextKey)
+    setTelemetryComparisonSortDirection('desc')
+  }
 
   if (!memberId) {
     return (
@@ -302,26 +590,53 @@ export default function DashboardPage() {
                   </article>
                 </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Soins utilises (moy / match)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgHealsUsed)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">HP soignes (moy / match)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgHealAmount)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Boosts utilises (moy / match)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgBoostsUsed)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-600">Vitesse max vehicule (km/h)</p>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.maxVehicleSpeedKph)}
+                    </p>
+                  </article>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-600">Montee vehicule (evt / match)</p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {formatTelemetryScore(telemetryStats.avgVehicleRideEvents)}
-                      </p>
-                    </article>
-                    <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgVehicleRideEvents)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-600">Sortie vehicule (evt / match)</p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {formatTelemetryScore(telemetryStats.avgVehicleLeaveEvents)}
-                      </p>
-                    </article>
-                    <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgVehicleLeaveEvents)}
+                    </p>
+                  </article>
+                  <article className="rounded border border-gray-200 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-600">Positions observees (evt / match)</p>
-                      <p className="mt-1 text-lg font-semibold text-gray-900">
-                        {formatTelemetryScore(telemetryStats.avgPositionEvents)}
-                      </p>
-                    </article>
-                  </div>
+                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                      {formatTelemetryScore(telemetryStats.avgPositionEvents)}
+                    </p>
+                  </article>
+                </div>
 
                 <p className="text-xs text-gray-500">
                   Matchs analyses sur la periode: {telemetryStats.matchesPlayed}
@@ -332,6 +647,71 @@ export default function DashboardPage() {
                 Aucune donnee telemetry playstyle pour cette periode.
               </p>
             )
+          ) : null}
+        </section>
+
+        <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-200 px-4 py-3">
+            <h2 className="text-lg font-semibold text-gray-900">Comparaison telemetry multi-periodes</h2>
+            <p className="text-xs text-gray-500">Tri: clique sur Semaine, Mois ou Tous.</p>
+          </div>
+
+          {loadingTelemetryComparison ? (
+            <p className="px-4 py-5 text-sm text-gray-600">Chargement de la comparaison telemetry...</p>
+          ) : null}
+
+          {!loadingTelemetryComparison && telemetryComparisonError ? (
+            <p className="px-4 py-5 text-sm text-amber-700">{telemetryComparisonError}</p>
+          ) : null}
+
+          {!loadingTelemetryComparison && !telemetryComparisonError ? (
+            <div className="overflow-x-auto px-2 py-2 sm:px-4 sm:py-4">
+              <table className="min-w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th scope="col" className="px-3 py-2">Metrique</th>
+                    {TELEMETRY_COMPARISON_PERIODS.map((comparisonPeriod) => {
+                      const isActive = telemetryComparisonSortKey === comparisonPeriod
+                      const arrow =
+                        isActive && telemetryComparisonSortDirection === 'desc' ? '↓' : isActive ? '↑' : ''
+
+                      return (
+                        <th scope="col" key={comparisonPeriod} className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleTelemetryComparisonSort(comparisonPeriod)}
+                            className={`inline-flex items-center gap-1 rounded px-1 py-0.5 ${
+                              isActive ? 'bg-slate-100 font-semibold text-slate-800' : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                            title={`Trier par ${TELEMETRY_COMPARISON_PERIOD_LABELS[comparisonPeriod]}`}
+                          >
+                            <span>{TELEMETRY_COMPARISON_PERIOD_LABELS[comparisonPeriod]}</span>
+                            <span className="w-3 text-center">{arrow}</span>
+                          </button>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {telemetryComparisonRows.map((row) => (
+                    <tr key={row.metric.key} className="border-b border-gray-100 last:border-b-0">
+                      <th scope="row" className="px-3 py-2 text-left font-medium text-gray-900">
+                        {row.metric.label}
+                      </th>
+                      {TELEMETRY_COMPARISON_PERIODS.map((comparisonPeriod) => {
+                        const value = row.values[comparisonPeriod]
+                        return (
+                          <td key={`${row.metric.key}:${comparisonPeriod}`} className="px-3 py-2 text-gray-700">
+                            {value === null ? 'N/D' : row.metric.format(value)}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </section>
 

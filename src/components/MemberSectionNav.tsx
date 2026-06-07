@@ -19,6 +19,49 @@ type NavItem = {
   href: string
 }
 
+type MemberSeasonStatsRow = {
+  seasonId: string
+  rankedTier: string | null
+  rankedSubTier: string | null
+  rankedBestTier: string | null
+  rankedBestSubTier: string | null
+}
+
+type MemberSeasonStatsResponse = {
+  seasons: MemberSeasonStatsRow[]
+}
+
+const RANKED_TIER_CLASS: Record<string, string> = {
+  Bronze: 'border-amber-700/40 bg-amber-50 text-amber-800',
+  Silver: 'border-slate-400/40 bg-slate-50 text-slate-700',
+  Gold: 'border-yellow-500/40 bg-yellow-50 text-yellow-800',
+  Platinum: 'border-cyan-500/40 bg-cyan-50 text-cyan-800',
+  Diamond: 'border-blue-500/40 bg-blue-50 text-blue-800',
+  Master: 'border-fuchsia-500/40 bg-fuchsia-50 text-fuchsia-800',
+}
+
+function formatTier(tier: string | null, subTier: string | null) {
+  if (!tier) {
+    return 'Non classe'
+  }
+
+  if (!subTier) {
+    return tier
+  }
+
+  return `${tier} ${subTier}`
+}
+
+function formatSeasonShort(seasonId: string | null | undefined) {
+  if (!seasonId) {
+    return null
+  }
+
+  const segments = seasonId.split('.')
+  const shortId = segments[segments.length - 1] ?? seasonId
+  return `Saison ${shortId}`
+}
+
 function renderMemberNavIcon(label: string) {
   if (label === 'Tableau de bord') {
     return (
@@ -43,6 +86,14 @@ function renderMemberNavIcon(label: string) {
           fill="currentColor"
           d="M10 2.25a7.75 7.75 0 1 0 0 15.5 7.75 7.75 0 0 0 0-15.5Zm5.97 7h-2.22a12.6 12.6 0 0 0-1.08-4.07 6.28 6.28 0 0 1 3.3 4.07ZM10 3.72c.65.78 1.78 2.48 2.2 5.53H7.8c.42-3.05 1.55-4.75 2.2-5.53Zm-2.67 1.46a12.6 12.6 0 0 0-1.08 4.07H4.03a6.28 6.28 0 0 1 3.3-4.07ZM3.74 10.75h2.48c.08 1.52.43 2.9.95 4.07a6.28 6.28 0 0 1-3.43-4.07Zm4.06 0h4.4c-.42 3.05-1.55 4.75-2.2 5.53-.65-.78-1.78-2.48-2.2-5.53Zm4.87 4.07c.52-1.17.87-2.55.95-4.07h2.48a6.28 6.28 0 0 1-3.43 4.07Z"
         />
+      </svg>
+    )
+  }
+
+  if (label === 'Drop zones') {
+    return (
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+        <path fill="currentColor" d="M10 2.5a5.5 5.5 0 0 0-5.5 5.5c0 3.95 4.5 8.77 5.5 9.78 1-.99 5.5-5.83 5.5-9.78A5.5 5.5 0 0 0 10 2.5Zm0 7.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
       </svg>
     )
   }
@@ -94,6 +145,7 @@ export default function MemberSectionNav({
   const [memberName, setMemberName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [pubgName, setPubgName] = useState('')
+  const [seasonBadge, setSeasonBadge] = useState<MemberSeasonStatsRow | null>(null)
 
   useEffect(() => {
     if (!showMemberIdentity) {
@@ -138,11 +190,44 @@ export default function MemberSectionNav({
     }
   }, [memberId, showMemberIdentity])
 
+  useEffect(() => {
+    if (!showMemberIdentity) {
+      setSeasonBadge(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadSeasonBadge() {
+      try {
+        const response = await fetch(`/api/members/${memberId}/season-stats`, { cache: 'no-store' })
+        const payload = (await response.json()) as MemberSeasonStatsResponse | { error?: string }
+
+        if (!response.ok || cancelled || !('seasons' in payload) || !Array.isArray(payload.seasons)) {
+          return
+        }
+
+        setSeasonBadge(payload.seasons[0] ?? null)
+      } catch {
+        if (!cancelled) {
+          setSeasonBadge(null)
+        }
+      }
+    }
+
+    void loadSeasonBadge()
+
+    return () => {
+      cancelled = true
+    }
+  }, [memberId, showMemberIdentity])
+
   const items: NavItem[] = [
     { label: 'Tableau de bord', href: `/members/${memberId}/dashboard` },
     { label: 'Stats globales', href: `/members/${memberId}/stats` },
     { label: 'Armes', href: `/members/${memberId}/weapons` },
     { label: 'Cartes', href: `/members/${memberId}/map-stats` },
+    { label: 'Drop zones', href: `/members/${memberId}/drop-zones` },
     { label: 'Calendrier', href: `/members/${memberId}/heatmap` },
     { label: 'Matchs', href: `/members/${memberId}/matches` },
     { label: 'Notifications', href: `/members/${memberId}/notifications` },
@@ -150,6 +235,12 @@ export default function MemberSectionNav({
   const normalizedDisplayName = memberName.trim().toLowerCase()
   const normalizedPubgName = pubgName.trim().toLowerCase()
   const showPubgAlias = Boolean(pubgName.trim()) && normalizedPubgName !== normalizedDisplayName
+  const currentTier = formatTier(seasonBadge?.rankedTier ?? null, seasonBadge?.rankedSubTier ?? null)
+  const bestTier = formatTier(seasonBadge?.rankedBestTier ?? null, seasonBadge?.rankedBestSubTier ?? null)
+  const seasonLabel = formatSeasonShort(seasonBadge?.seasonId)
+  const tierClass = seasonBadge?.rankedTier
+    ? RANKED_TIER_CLASS[seasonBadge.rankedTier] ?? 'border-gray-300 bg-gray-50 text-gray-700'
+    : 'border-gray-300 bg-gray-50 text-gray-700'
   const activeItem = items.find((item) => pathname === item.href) ?? items[0]
   const mobileItems: MobileDropdownNavItem[] = items.map((item) => ({
     key: item.href,
@@ -186,6 +277,21 @@ export default function MemberSectionNav({
                 <p className="truncate text-base font-bold text-gray-900">{memberName || `Joueur #${memberId}`}</p>
                 {showPubgAlias ? (
                   <p className="truncate text-xs text-gray-500">@{pubgName}</p>
+                ) : null}
+                {seasonBadge ? (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tierClass}`}>
+                      Ranked: {currentTier}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-medium text-gray-700">
+                      Best: {bestTier}
+                    </span>
+                    {seasonLabel ? (
+                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800">
+                        {seasonLabel}
+                      </span>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </div>

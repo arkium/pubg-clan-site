@@ -56,7 +56,11 @@ function isUnknownCircleColumns(error: unknown) {
       error.message.includes('avgFirstContactPhase') ||
       error.message.includes('avgOnFootDistanceMeters') ||
       error.message.includes('avgVehicleDistanceMeters') ||
-      error.message.includes('avgDamageTaken')
+      error.message.includes('avgDamageTaken') ||
+      error.message.includes('avgHealsUsed') ||
+      error.message.includes('avgHealAmount') ||
+      error.message.includes('avgBoostsUsed') ||
+      error.message.includes('maxVehicleSpeedKph')
     )
   )
 }
@@ -101,6 +105,10 @@ export async function GET(
       avgOnFootDistanceMeters: number
       avgVehicleDistanceMeters: number
       avgDamageTaken: number
+      avgHealsUsed: number
+      avgHealAmount: number
+      avgBoostsUsed: number
+      maxVehicleSpeedKph: number
       avgVehicleRideEvents: number
       avgVehicleLeaveEvents: number
       avgPositionEvents: number
@@ -121,6 +129,10 @@ export async function GET(
           avgOnFootDistanceMeters: number
           avgVehicleDistanceMeters: number
           avgDamageTaken: number
+          avgHealsUsed: number
+          avgHealAmount: number
+          avgBoostsUsed: number
+          maxVehicleSpeedKph: number
           avgVehicleRideEvents: number
           avgVehicleLeaveEvents: number
           avgPositionEvents: number
@@ -139,6 +151,10 @@ export async function GET(
           avgOnFootDistanceMeters,
           avgVehicleDistanceMeters,
           avgDamageTaken,
+          avgHealsUsed,
+          avgHealAmount,
+          avgBoostsUsed,
+          maxVehicleSpeedKph,
           avgVehicleRideEvents,
           avgVehicleLeaveEvents,
           avgPositionEvents,
@@ -166,6 +182,10 @@ export async function GET(
           avgOnFootDistanceMeters: number
           avgVehicleDistanceMeters: number
           avgDamageTaken: number
+          avgHealsUsed: number
+          avgHealAmount: number
+          avgBoostsUsed: number
+          maxVehicleSpeedKph: number
           avgVehicleRideEvents: number
           avgVehicleLeaveEvents: number
           avgPositionEvents: number
@@ -184,6 +204,10 @@ export async function GET(
           0 AS avgOnFootDistanceMeters,
           0 AS avgVehicleDistanceMeters,
           0 AS avgDamageTaken,
+          0 AS avgHealsUsed,
+          0 AS avgHealAmount,
+          0 AS avgBoostsUsed,
+          0 AS maxVehicleSpeedKph,
           avgVehicleRideEvents,
           avgVehicleLeaveEvents,
           avgPositionEvents,

@@ -1,3 +1,6 @@
+import path from 'node:path'
+import { readdir } from 'node:fs/promises'
+
 import { NextResponse } from 'next/server'
 
 import { fetchTelemetryFilesForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
@@ -6,6 +9,41 @@ import { requireRole } from '@/middleware/auth-permission'
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function sanitizeFileSegment(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+}
+
+function resolveCaptureDirectory() {
+  const configuredDir = process.env.TELEMETRY_CAPTURE_FIXTURES_DIR?.trim()
+  return configuredDir && configuredDir.length > 0
+    ? path.resolve(process.cwd(), configuredDir)
+    : path.join(process.cwd(), '.telemetry-captured')
+}
+
+async function findAlreadyCapturedMatchIds(squadMatchIds: string[]) {
+  const captureDir = resolveCaptureDirectory()
+
+  let files: string[] = []
+  try {
+    files = await readdir(captureDir)
+  } catch {
+    return {
+      captureDir,
+      alreadyCapturedMatchIds: [] as string[],
+    }
+  }
+
+  const alreadyCapturedMatchIds = squadMatchIds.filter((squadMatchId) => {
+    const suffix = `-${sanitizeFileSegment(squadMatchId)}.json`
+    return files.some((fileName) => fileName.endsWith(suffix))
+  })
+
+  return {
+    captureDir,
+    alreadyCapturedMatchIds,
+  }
 }
 
 export async function POST(
@@ -41,7 +79,30 @@ export async function POST(
       return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
-    const result = await fetchTelemetryFilesForSelectedSquadMatches(parsedClanId, squadMatchIds)
+    const { captureDir, alreadyCapturedMatchIds } = await findAlreadyCapturedMatchIds(squadMatchIds)
+    const alreadyCapturedSet = new Set(alreadyCapturedMatchIds)
+    const idsToFetch = squadMatchIds.filter((id) => !alreadyCapturedSet.has(id))
+
+    if (idsToFetch.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        clanId: parsedClanId,
+        requestedCount: squadMatchIds.length,
+        processedCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        skippedExistingCount: alreadyCapturedMatchIds.length,
+        alreadyCapturedMatchIds,
+        captureDirectory: captureDir,
+        captureEnabled: true,
+        captureMaxBytes: null,
+        capturedCount: 0,
+        captureErrorCount: 0,
+        results: [],
+      })
+    }
+
+    const result = await fetchTelemetryFilesForSelectedSquadMatches(parsedClanId, idsToFetch)
 
     const capturedCount = result.results.filter((item) => !!item.captureFilePath).length
     const captureErrorCount = result.results.filter((item) => !!item.captureError).length
@@ -49,10 +110,13 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       clanId: parsedClanId,
-      requestedCount: result.requestedCount,
+      requestedCount: squadMatchIds.length,
       processedCount: result.processedCount,
       successCount: result.successCount,
       failedCount: result.failedCount,
+      skippedExistingCount: alreadyCapturedMatchIds.length,
+      alreadyCapturedMatchIds,
+      captureDirectory: captureDir,
       captureEnabled: result.captureEnabled,
       captureMaxBytes: result.captureMaxBytes,
       capturedCount,

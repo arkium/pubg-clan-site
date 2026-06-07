@@ -1,78 +1,15 @@
-import { createReadStream } from 'node:fs'
-import { readdir, stat } from 'node:fs/promises'
-import path from 'node:path'
-import { Readable } from 'node:stream'
 import { NextResponse } from 'next/server'
 
-import { syncTelemetryForSquadMatchFromStream } from '@/lib/pubg-telemetry/manual-sync'
+import type { ManualTelemetrySyncItemResult } from '@/lib/pubg-telemetry/manual-sync'
 import { getTelemetryFixtureCaptureMaxBytes } from '@/lib/pubg-telemetry/fixture-capture'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
+import { resolveCaptureDirectory, resyncTelemetryFromCapturedFile } from '@/lib/pubg-telemetry/resync-files'
+import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-function sanitizeFileSegment(value: string) {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-}
-
-function resolveCaptureDirectory() {
-  const configuredDir = process.env.TELEMETRY_CAPTURE_FIXTURES_DIR?.trim()
-  return configuredDir && configuredDir.length > 0
-    ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), configuredDir)
-    : path.join(/*turbopackIgnore: true*/ process.cwd(), '.telemetry-captured')
-}
-
-async function findLatestCapturedFileForSquadMatch(
-  captureDir: string,
-  squadMatchId: string
-): Promise<{ filePath: string; size: number } | null> {
-  const fileSuffix = `-${sanitizeFileSegment(squadMatchId)}.json`
-
-  let files: string[] = []
-  try {
-    files = await readdir(captureDir)
-  } catch {
-    return null
-  }
-
-  const candidates = files.filter((fileName) => fileName.endsWith(fileSuffix))
-  if (candidates.length === 0) {
-    return null
-  }
-
-  let bestFile: { filePath: string; size: number; mtimeMs: number } | null = null
-
-  for (const fileName of candidates) {
-    const filePath = path.join(/*turbopackIgnore: true*/ captureDir, fileName)
-    try {
-      const details = await stat(filePath)
-      if (!details.isFile()) {
-        continue
-      }
-
-      if (!bestFile || details.mtimeMs > bestFile.mtimeMs) {
-        bestFile = {
-          filePath,
-          size: details.size,
-          mtimeMs: details.mtimeMs,
-        }
-      }
-    } catch {
-      // Ignore inaccessible candidate and continue.
-    }
-  }
-
-  if (!bestFile) {
-    return null
-  }
-
-  return {
-    filePath: bestFile.filePath,
-    size: bestFile.size,
-  }
 }
 
 export async function POST(
@@ -95,8 +32,94 @@ export async function POST(
     }
 
     const body = (await request.json().catch(() => null)) as
-      | { squadMatchIds?: unknown; recalculateAggregates?: unknown }
+      | {
+          squadMatchIds?: unknown
+          recalculateAggregates?: unknown
+          validateOnly?: unknown
+          onlyRecalculateAggregates?: unknown
+          resetBeforeSync?: unknown
+        }
       | null
+
+    const shouldRecalculateAggregates = body?.recalculateAggregates !== false
+    const validateOnly = body?.validateOnly === true
+    const onlyRecalculateAggregates = body?.onlyRecalculateAggregates === true
+    const resetBeforeSync = body?.resetBeforeSync === true
+
+    if (onlyRecalculateAggregates) {
+      if (!shouldRecalculateAggregates) {
+        return NextResponse.json({
+          ok: true,
+          clanId: parsedClanId,
+          aggregatesRecalculated: false,
+          aggregates: null,
+          aggregatesWarning: null,
+          requestedCount: 0,
+          processedCount: 0,
+          successCount: 0,
+          failedCount: 0,
+          missingFiles: [],
+          oversizedFiles: [],
+          maxResyncFileBytes: getTelemetryFixtureCaptureMaxBytes(),
+          captureDirectory: resolveCaptureDirectory(),
+          results: [],
+        })
+      }
+
+      let aggregateSummary:
+        | {
+            periodsUpdated: number
+            memberTelemetryRows: number
+            memberWeaponRows: number
+            clanSynergyRows: number
+          }
+        | null = null
+      let aggregateWarning: string | null = null
+
+      try {
+        const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(parsedClanId)
+        aggregateSummary = {
+          periodsUpdated: aggregateResult.summaries.length,
+          memberTelemetryRows: aggregateResult.summaries.reduce(
+            (sum, summary) => sum + summary.memberTelemetryRows,
+            0
+          ),
+          memberWeaponRows: aggregateResult.summaries.reduce(
+            (sum, summary) => sum + summary.memberWeaponRows,
+            0
+          ),
+          clanSynergyRows: aggregateResult.summaries.reduce(
+            (sum, summary) => sum + summary.clanSynergyRows,
+            0
+          ),
+        }
+      } catch (aggregateError) {
+        aggregateWarning =
+          aggregateError instanceof Error
+            ? aggregateError.message
+            : 'Recalcul des aggregates telemetry en echec'
+      }
+
+      return NextResponse.json({
+        ok: true,
+        clanId: parsedClanId,
+        validateOnly: false,
+        onlyRecalculateAggregates: true,
+        canProceed: true,
+        aggregatesRecalculated: true,
+        aggregates: aggregateSummary,
+        aggregatesWarning: aggregateWarning,
+        requestedCount: 0,
+        processedCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        missingFiles: [],
+        oversizedFiles: [],
+        maxResyncFileBytes: getTelemetryFixtureCaptureMaxBytes(),
+        captureDirectory: resolveCaptureDirectory(),
+        results: [],
+      })
+    }
 
     if (!Array.isArray(body?.squadMatchIds)) {
       return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
@@ -105,7 +128,6 @@ export async function POST(
     const squadMatchIds = body.squadMatchIds.filter(
       (value): value is string => typeof value === 'string'
     )
-    const shouldRecalculateAggregates = body?.recalculateAggregates !== false
 
     if (squadMatchIds.length === 0) {
       return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
@@ -113,54 +135,62 @@ export async function POST(
 
     const captureDir = resolveCaptureDirectory()
     const maxResyncFileBytes = getTelemetryFixtureCaptureMaxBytes()
+
+    if (resetBeforeSync && !validateOnly) {
+      await prisma.squadMatchTelemetry.deleteMany({
+        where: {
+          squadMatchId: {
+            in: squadMatchIds,
+          },
+        },
+      })
+    }
+
     const missingFiles: string[] = []
     const oversizedFiles: string[] = []
-    const results: Array<Awaited<ReturnType<typeof syncTelemetryForSquadMatchFromStream>>> = []
+    const results: ManualTelemetrySyncItemResult[] = []
 
     for (const squadMatchId of squadMatchIds) {
-      const capturedFile = await findLatestCapturedFileForSquadMatch(captureDir, squadMatchId)
-      if (!capturedFile) {
+      const syncFromFile = await resyncTelemetryFromCapturedFile({
+        clanId: parsedClanId,
+        squadMatchId,
+        captureDir,
+        maxResyncFileBytes,
+      })
+
+      if (syncFromFile.status === 'missing') {
         missingFiles.push(squadMatchId)
         continue
       }
 
-      if (capturedFile.size > maxResyncFileBytes) {
+      if (syncFromFile.status === 'oversized') {
         oversizedFiles.push(squadMatchId)
         results.push({
           squadMatchId,
           pubgMatchId: 'unknown',
           status: 'failed',
           bytesDownloaded: 0,
-          contentLength: capturedFile.size,
+          contentLength: syncFromFile.size,
           errorCode: 'CAPTURE_FILE_TOO_LARGE',
-          errorMessage: `Captured file exceeds size limit (${capturedFile.size} > ${maxResyncFileBytes} bytes)`,
+          errorMessage: `Captured file exceeds size limit (${syncFromFile.size} > ${maxResyncFileBytes} bytes)`,
         })
         continue
       }
 
-      try {
-        const nodeStream = createReadStream(capturedFile.filePath)
-        const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>
-
-        const syncResult = await syncTelemetryForSquadMatchFromStream({
-          clanId: parsedClanId,
-          squadMatchId,
-          stream: webStream,
-          contentLength: capturedFile.size,
-        })
-
-        results.push(syncResult)
-      } catch (error) {
+      if (validateOnly) {
         results.push({
           squadMatchId,
           pubgMatchId: 'unknown',
-          status: 'failed',
-          bytesDownloaded: 0,
-          contentLength: capturedFile.size,
-          errorCode: 'FILE_RESYNC_FAILED',
-          errorMessage: error instanceof Error ? error.message : String(error),
+          status: 'success',
+          bytesDownloaded: syncFromFile.size,
+          contentLength: syncFromFile.size,
+          errorCode: null,
+          errorMessage: null,
         })
+        continue
       }
+
+      results.push(syncFromFile.result)
     }
 
     const successCount = results.filter((result) => result.status === 'success').length
@@ -176,7 +206,7 @@ export async function POST(
       | null = null
     let aggregateWarning: string | null = null
 
-    if (shouldRecalculateAggregates) {
+    if (shouldRecalculateAggregates && !validateOnly) {
       try {
         const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(parsedClanId)
         aggregateSummary = {
@@ -205,7 +235,11 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       clanId: parsedClanId,
-      aggregatesRecalculated: shouldRecalculateAggregates,
+      validateOnly,
+      onlyRecalculateAggregates: false,
+      canProceed: missingFiles.length === 0 && oversizedFiles.length === 0,
+      resetBeforeSync,
+      aggregatesRecalculated: shouldRecalculateAggregates && !validateOnly,
       aggregates: aggregateSummary,
       aggregatesWarning: aggregateWarning,
       requestedCount: squadMatchIds.length,

@@ -40,7 +40,7 @@ const MAP_BOUNDS: Record<string, MapBounds> = {
   Baltic_Main: { width: 819200, height: 819200 },
   Desert_Main: { width: 819200, height: 819200 },
   Savage_Main: { width: 409600, height: 409600 },
-  DihorOtok_Main: { width: 614400, height: 614400 },
+  DihorOtok_Main: { width: 819200, height: 819200 },
   Range_Main: { width: 819200, height: 819200 },
   Summerland_Main: { width: 204800, height: 204800 },
   Tiger_Main: { width: 819200, height: 819200 },

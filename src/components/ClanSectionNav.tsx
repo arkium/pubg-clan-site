@@ -35,6 +35,14 @@ function renderClanSectionIcon(label: string) {
     )
   }
 
+  if (label === 'Drop zones') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 2.5a5.5 5.5 0 0 0-5.5 5.5c0 3.95 4.5 8.77 5.5 9.78 1-.99 5.5-5.83 5.5-9.78A5.5 5.5 0 0 0 10 2.5Zm0 7.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z" />
+      </svg>
+    )
+  }
+
   if (label === 'Membres') {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
@@ -75,6 +83,14 @@ function renderClanSectionIcon(label: string) {
     )
   }
 
+  if (label === 'Awards') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M5 3.5A1.5 1.5 0 0 0 3.5 5v2A3.5 3.5 0 0 0 7 10.5h.3A2.75 2.75 0 0 0 9.25 12v1.76l-1.9.63a.75.75 0 0 0 .24 1.46h4.82a.75.75 0 0 0 .24-1.46l-1.9-.63V12a2.75 2.75 0 0 0 1.95-1.5H13A3.5 3.5 0 0 0 16.5 7V5A1.5 1.5 0 0 0 15 3.5H5Zm0 1.5H7v4H7A2 2 0 0 1 5 7V5Zm8 0h2v2a2 2 0 0 1-2 2h-.01V5Z" />
+      </svg>
+    )
+  }
+
   return null
 }
 
@@ -89,6 +105,8 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
     { label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
     { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
     { label: 'Positions', href: `${statsRootHref}/positions`, icon: renderClanSectionIcon('Positions') },
+    { label: 'Drop zones', href: `/clans/${clanId}/telemetry/drop-zones`, icon: renderClanSectionIcon('Drop zones') },
+    { label: 'Awards', href: `/clans/${clanId}/awards`, icon: renderClanSectionIcon('Awards') },
     { label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
     { label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },
   ]

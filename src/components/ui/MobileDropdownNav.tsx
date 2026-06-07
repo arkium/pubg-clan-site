@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 export type MobileDropdownNavItem = {
   key: string
-  label: string
+  label: string | ReactNode
   href?: string
   onSelect?: () => void
   active?: boolean

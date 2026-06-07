@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
-import { requireRole } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import {
   buildTelemetryErrorResponse,
@@ -31,7 +30,7 @@ type HeatmapCell = {
 
 const GRID_SIZE = 40
 
-function parseClanId(value: string) {
+function parseMemberId(value: string) {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
@@ -102,20 +101,37 @@ function parseLandingSamples(raw: unknown): LandingSampleRow[] {
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ clanId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { clanId } = await params
-    const parsedClanId = parseClanId(clanId)
+    const { id } = await params
+    const memberId = parseMemberId(id)
 
-    if (!parsedClanId) {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
-        status: 400,
-      })
+    if (!memberId) {
+      return NextResponse.json(
+        buildTelemetryErrorResponse('Invalid member id', 'INVALID_MEMBER_ID'),
+        {
+          status: 400,
+        }
+      )
     }
 
-    const roleError = await requireRole(['Owner'])(request, { clanId: parsedClanId })
-    if (roleError) return roleError
+    const member = await prisma.clanMember.findUnique({
+      where: { id: memberId },
+      select: {
+        id: true,
+        displayName: true,
+        pubgAccountId: true,
+        pubgPlayerName: true,
+        clanId: true,
+      },
+    })
+
+    if (!member) {
+      return NextResponse.json(buildTelemetryErrorResponse('Member not found', 'MEMBER_NOT_FOUND'), {
+        status: 404,
+      })
+    }
 
     const url = new URL(request.url)
     const period = parsePeriod(url.searchParams.get('period'))
@@ -128,10 +144,6 @@ export async function GET(
     type RawRow = {
       squadMatchId: string
       mapName: string
-      memberId: number
-      memberName: string
-      pubgAccountId: string | null
-      pubgPlayerName: string
       landingSamples: unknown
     }
 
@@ -139,30 +151,25 @@ export async function GET(
       SELECT
         t.squadMatchId,
         sm.mapName,
-        cm.id AS memberId,
-        cm.displayName AS memberName,
-        cm.pubgAccountId,
-        cm.pubgPlayerName,
         t.landingSamples
       FROM SquadMatchTelemetry t
       INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
       INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
-      INNER JOIN ClanMember cm ON cm.id = sdm.memberId
       WHERE t.status = 'success'
         AND t.landingSamples IS NOT NULL
-        AND cm.clanId = ${parsedClanId}
+        AND sdm.memberId = ${memberId}
         ${dateFilter}
       ORDER BY sm.createdAt DESC
     `)
 
     const landingPoints: LandingPoint[] = []
     const heatmapMap = new Map<string, number>()
+    const accountId = member.pubgAccountId?.toLowerCase()
+    const playerName = member.pubgPlayerName?.toLowerCase()
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
       const samples = parseLandingSamples(row.landingSamples)
-      const accountId = row.pubgAccountId?.toLowerCase()
-      const playerName = row.pubgPlayerName?.toLowerCase()
 
       for (const sample of samples as LandingSampleRow[]) {
         const memberKey =
@@ -173,13 +180,13 @@ export async function GET(
         const y = typeof sample.y === 'number' ? sample.y : null
         if (x === null || y === null) continue
 
-        const bounds = getMapBounds(mapName)
-        const xPct = clamp01(x / bounds.width) * 100
-        const yPct = clamp01(y / bounds.height) * 100
+        const mapBounds = getMapBounds(mapName)
+        const xPct = clamp01(x / mapBounds.width) * 100
+        const yPct = clamp01(y / mapBounds.height) * 100
 
         landingPoints.push({
-          memberId: row.memberId,
-          memberName: row.memberName,
+          memberId: member.id,
+          memberName: member.displayName,
           matchId: row.squadMatchId,
           mapName,
           x,
@@ -208,19 +215,24 @@ export async function GET(
     return NextResponse.json(
       buildTelemetrySuccessResponse(
         {
-          scope: 'clan',
-          clanId: parsedClanId,
+          scope: 'member',
+          memberId,
           period,
           periodKey,
           count: landingPoints.length,
         },
         {
+          member: {
+            id: member.id,
+            displayName: member.displayName,
+            clanId: member.clanId,
+          },
           gridSize: GRID_SIZE,
           points: landingPoints,
           heatmap: heatmapCells,
         },
         {
-          clanId: parsedClanId,
+          memberId,
           period,
           periodKey,
           total: landingPoints.length,
@@ -232,8 +244,7 @@ export async function GET(
       return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
-    console.error('Drop zones telemetry failed:', error)
-    return NextResponse.json(buildTelemetryErrorResponse('Failed to load drop zones'), {
+    return NextResponse.json(buildTelemetryErrorResponse('Failed to load member drop zones'), {
       status: 500,
     })
   }

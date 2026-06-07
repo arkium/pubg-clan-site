@@ -12,6 +12,7 @@ Cette page centralise la documentation du projet sur une seule vue.
 - Tableaux du site: inventaire complet des vues tabulaires
 - Composants UI: composants réutilisables et conventions
 - Uniformisation UI: charte visuelle globale
+- Resync worker runtime: queue dediee, worker separe et badge PID runtime
 
 ## Index par document
 
@@ -45,6 +46,8 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Sequence operationnelle TEL-403: preflight, dry-run, pilote, global, journal et rollback
 - [Récupération assets télémétrie](telemetrie-recuperation-assets.md)
   - Fonctions à coder pour extraire l'URL asset, télécharger en streaming et brancher l'ingestion sur les matchs existants
+- [Resync worker et runtime dev](resync-worker-runtime.md)
+  - Queue persistante, worker dédié hors process web, endpoint runtime PID/uptime et usage opératoire conseillé
 
 ## Parcours recommandé
 

@@ -26,6 +26,10 @@ type ClanPlaystyleRow = {
   avgOnFootDistanceMeters: number
   avgVehicleDistanceMeters: number
   avgDamageTaken: number
+  avgHealsUsed: number
+  avgHealAmount: number
+  avgBoostsUsed: number
+  maxVehicleSpeedKph: number
   avgVehicleRideEvents: number
   avgVehicleLeaveEvents: number
   avgPositionEvents: number
@@ -282,6 +286,10 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
       avgOnFootDistanceMeters: 0,
       avgVehicleDistanceMeters: 0,
       avgDamageTaken: 0,
+      avgHealsUsed: 0,
+      avgHealAmount: 0,
+      avgBoostsUsed: 0,
+      maxVehicleSpeedKph: 0,
       avgVehicleRideEvents: 0,
       avgVehicleLeaveEvents: 0,
       avgPositionEvents: 0,
@@ -301,9 +309,13 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
       acc.avgOnFootDistanceMeters += row.avgOnFootDistanceMeters
       acc.avgVehicleDistanceMeters += row.avgVehicleDistanceMeters
       acc.avgDamageTaken += row.avgDamageTaken
-        acc.avgVehicleRideEvents += row.avgVehicleRideEvents
-        acc.avgVehicleLeaveEvents += row.avgVehicleLeaveEvents
-        acc.avgPositionEvents += row.avgPositionEvents
+      acc.avgHealsUsed += row.avgHealsUsed
+      acc.avgHealAmount += row.avgHealAmount
+      acc.avgBoostsUsed += row.avgBoostsUsed
+      acc.maxVehicleSpeedKph += row.maxVehicleSpeedKph
+      acc.avgVehicleRideEvents += row.avgVehicleRideEvents
+      acc.avgVehicleLeaveEvents += row.avgVehicleLeaveEvents
+      acc.avgPositionEvents += row.avgPositionEvents
       return acc
     },
     {
@@ -318,6 +330,10 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
         avgOnFootDistanceMeters: 0,
         avgVehicleDistanceMeters: 0,
         avgDamageTaken: 0,
+        avgHealsUsed: 0,
+        avgHealAmount: 0,
+        avgBoostsUsed: 0,
+        maxVehicleSpeedKph: 0,
         avgVehicleRideEvents: 0,
         avgVehicleLeaveEvents: 0,
         avgPositionEvents: 0,
@@ -336,6 +352,10 @@ function computePlaystyleAverages(rows: ClanPlaystyleRow[]) {
       avgOnFootDistanceMeters: totals.avgOnFootDistanceMeters / rows.length,
       avgVehicleDistanceMeters: totals.avgVehicleDistanceMeters / rows.length,
       avgDamageTaken: totals.avgDamageTaken / rows.length,
+      avgHealsUsed: totals.avgHealsUsed / rows.length,
+      avgHealAmount: totals.avgHealAmount / rows.length,
+      avgBoostsUsed: totals.avgBoostsUsed / rows.length,
+      maxVehicleSpeedKph: totals.maxVehicleSpeedKph / rows.length,
       avgVehicleRideEvents: totals.avgVehicleRideEvents / rows.length,
       avgVehicleLeaveEvents: totals.avgVehicleLeaveEvents / rows.length,
       avgPositionEvents: totals.avgPositionEvents / rows.length,
@@ -663,20 +683,39 @@ export default function ClanStatsPage() {
                       </article>
                     </div>
 
-                      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                        <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-gray-600">Montee vehicule (evt / match)</p>
-                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleRideEvents)}</p>
-                        </article>
-                        <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-gray-600">Sortie vehicule (evt / match)</p>
-                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleLeaveEvents)}</p>
-                        </article>
-                        <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-gray-600">Positions observees (evt / match)</p>
-                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgPositionEvents)}</p>
-                        </article>
-                      </div>
+                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Soins utilises (moy / match)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgHealsUsed)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">HP soignes (moy / match)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgHealAmount)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Boosts utilises (moy / match)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgBoostsUsed)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Vitesse max vehicule (km/h)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.maxVehicleSpeedKph)}</p>
+                      </article>
+                    </div>
+
+                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Montee vehicule (evt / match)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleRideEvents)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Sortie vehicule (evt / match)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleLeaveEvents)}</p>
+                      </article>
+                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
+                        <p className="text-xs uppercase tracking-wide text-gray-600">Positions observees (evt / match)</p>
+                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgPositionEvents)}</p>
+                      </article>
+                    </div>
 
                     <div className="grid gap-3 md:grid-cols-3">
                       <article className="rounded border border-gray-200 p-3">

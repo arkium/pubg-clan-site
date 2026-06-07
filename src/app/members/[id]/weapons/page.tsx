@@ -68,6 +68,30 @@ type MemberWeaponsContractResponse = {
   note?: string | null
 }
 
+type WeaponMasteryEntry = {
+  id: number
+  memberId: number
+  weaponId: string
+  weaponName: string
+  kills: number
+  headshots: number
+  knockouts: number
+  shots: number
+  hits: number
+  damage: number
+  level: number
+  xpTotal: number
+  tier: number
+  lastRefreshedAt: string
+}
+
+type WeaponMasteryResponse = {
+  memberId: number
+  weapons: WeaponMasteryEntry[]
+}
+
+type MasterySortKey = 'weapon' | 'kills' | 'headshots' | 'headshotRate' | 'accuracy' | 'damage' | 'level'
+
 const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
   { value: 'week', label: 'Semaine' },
   { value: 'month', label: 'Mois' },
@@ -93,6 +117,15 @@ function formatPercent(value: number) {
 
 function formatMeters(value: number) {
   return `${value.toFixed(1)} m`
+}
+
+function formatDateTime(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+
+  return parsed.toLocaleString('fr-FR')
 }
 
 function compareText(left: string, right: string) {
@@ -164,6 +197,31 @@ export default function MemberWeaponsPage() {
   const [reloadNonce, setReloadNonce] = useState(0)
   const [sortKey, setSortKey] = useState<SortKey>('kills')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [masteryRows, setMasteryRows] = useState<WeaponMasteryEntry[]>([])
+  const [masteryLoading, setMasteryLoading] = useState(true)
+  const [masteryRefreshing, setMasteryRefreshing] = useState(false)
+  const [masteryError, setMasteryError] = useState('')
+  const [masterySortKey, setMasterySortKey] = useState<MasterySortKey>('kills')
+  const [masterySortDirection, setMasterySortDirection] = useState<SortDirection>('desc')
+
+  const latestMasteryRefreshAt = useMemo(() => {
+    if (masteryRows.length === 0) {
+      return null
+    }
+
+    let latest: string | null = null
+    let latestTime = -Infinity
+
+    for (const row of masteryRows) {
+      const timestamp = new Date(row.lastRefreshedAt).getTime()
+      if (!Number.isNaN(timestamp) && timestamp > latestTime) {
+        latestTime = timestamp
+        latest = row.lastRefreshedAt
+      }
+    }
+
+    return latest
+  }, [masteryRows])
 
   const podiumByWeapon = useMemo(() => {
     const rows = payload?.rows ?? []
@@ -279,6 +337,162 @@ export default function MemberWeaponsPage() {
     return sortDirection === 'asc' ? ' ▲' : ' ▼'
   }
 
+  const sortedMasteryRows = useMemo(() => {
+    const factor = masterySortDirection === 'asc' ? 1 : -1
+
+    return [...masteryRows].sort((left, right) => {
+      if (masterySortKey === 'weapon') {
+        return compareText(left.weaponName, right.weaponName) * factor
+      }
+
+      if (masterySortKey === 'kills') {
+        const compare = compareNumber(left.kills, right.kills)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponName, right.weaponName)
+      }
+
+      if (masterySortKey === 'headshots') {
+        const compare = compareNumber(left.headshots, right.headshots)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponName, right.weaponName)
+      }
+
+      if (masterySortKey === 'headshotRate') {
+        const leftRate = left.kills > 0 ? (left.headshots / left.kills) * 100 : 0
+        const rightRate = right.kills > 0 ? (right.headshots / right.kills) * 100 : 0
+        const compare = compareNumber(leftRate, rightRate)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponName, right.weaponName)
+      }
+
+      if (masterySortKey === 'accuracy') {
+        const leftAcc = left.shots > 0 ? (left.hits / left.shots) * 100 : 0
+        const rightAcc = right.shots > 0 ? (right.hits / right.shots) * 100 : 0
+        const compare = compareNumber(leftAcc, rightAcc)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponName, right.weaponName)
+      }
+
+      if (masterySortKey === 'damage') {
+        const compare = compareNumber(left.damage, right.damage)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponName, right.weaponName)
+      }
+
+      const compare = compareNumber(left.level, right.level)
+      if (compare !== 0) {
+        return compare * factor
+      }
+      return compareText(left.weaponName, right.weaponName)
+    })
+  }, [masteryRows, masterySortDirection, masterySortKey])
+
+  function handleMasterySortClick(nextKey: MasterySortKey) {
+    if (masterySortKey === nextKey) {
+      setMasterySortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setMasterySortKey(nextKey)
+    setMasterySortDirection(nextKey === 'weapon' ? 'asc' : 'desc')
+  }
+
+  function masterySortLabel(key: MasterySortKey) {
+    if (masterySortKey !== key) {
+      return ''
+    }
+
+    return masterySortDirection === 'asc' ? ' ▲' : ' ▼'
+  }
+
+  useEffect(() => {
+    if (!memberId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadWeaponMastery() {
+      try {
+        setMasteryLoading(true)
+        setMasteryError('')
+
+        const response = await fetch(`/api/members/${memberId}/weapon-mastery`, {
+          cache: 'no-store',
+        })
+
+        const payload = (await response.json()) as WeaponMasteryResponse | { error?: string }
+
+        if (!response.ok || !('weapons' in payload) || !Array.isArray(payload.weapons)) {
+          throw new Error(
+            'error' in payload && typeof payload.error === 'string'
+              ? payload.error
+              : 'Impossible de charger la maitrise armes'
+          )
+        }
+
+        if (!cancelled) {
+          setMasteryRows(payload.weapons)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMasteryRows([])
+          setMasteryError(
+            error instanceof Error ? error.message : 'Impossible de charger la maitrise armes'
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setMasteryLoading(false)
+        }
+      }
+    }
+
+    void loadWeaponMastery()
+
+    return () => {
+      cancelled = true
+    }
+  }, [memberId, reloadNonce])
+
+  async function refreshWeaponMastery() {
+    if (!memberId) {
+      return
+    }
+
+    try {
+      setMasteryRefreshing(true)
+      setMasteryError('')
+
+      const response = await fetch(`/api/members/${memberId}/weapon-mastery`, {
+        method: 'POST',
+      })
+      const payload = (await response.json()) as { error?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Rafraichissement de la maitrise impossible')
+      }
+
+      setReloadNonce((current) => current + 1)
+    } catch (error) {
+      setMasteryError(
+        error instanceof Error ? error.message : 'Rafraichissement de la maitrise impossible'
+      )
+    } finally {
+      setMasteryRefreshing(false)
+    }
+  }
+
   useEffect(() => {
     if (!memberId) {
       return
@@ -366,6 +580,110 @@ export default function MemberWeaponsPage() {
           fullWidthOnMobile
           className="w-full sm:w-auto"
         />
+      </section>
+
+      <section className="mb-6 app-panel p-4">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Maitrise armes (carriere)</h2>
+            <p className="text-sm text-gray-600">
+              Source PUBG weapon mastery: kills, precision, degats et niveau global par arme.
+            </p>
+            {latestMasteryRefreshAt ? (
+              <p className="mt-1 text-xs text-gray-500">
+                Derniere synchro: {formatDateTime(latestMasteryRefreshAt)}
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="app-btn app-btn--sm app-btn--secondary"
+            disabled={masteryLoading || masteryRefreshing}
+            onClick={() => {
+              void refreshWeaponMastery()
+            }}
+          >
+            {masteryRefreshing ? 'Rafraichissement...' : 'Rafraichir'}
+          </button>
+        </div>
+
+        {masteryError ? (
+          <p className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {masteryError}
+          </p>
+        ) : null}
+
+        {masteryLoading ? (
+          <p className="text-sm text-gray-600">Chargement de la maitrise armes...</p>
+        ) : null}
+
+        {!masteryLoading && masteryRows.length === 0 ? (
+          <p className="text-sm text-gray-600">Aucune donnee de maitrise disponible.</p>
+        ) : null}
+
+        {!masteryLoading && masteryRows.length > 0 ? (
+          <div className="app-table-shell overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="app-table-head text-left text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-3 py-2">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('weapon')}>
+                      Arme{masterySortLabel('weapon')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('kills')}>
+                      Kills{masterySortLabel('kills')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('headshots')}>
+                      Headshots{masterySortLabel('headshots')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('headshotRate')}>
+                      Headshot %{masterySortLabel('headshotRate')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('accuracy')}>
+                      Precision %{masterySortLabel('accuracy')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('damage')}>
+                      Degats{masterySortLabel('damage')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('level')}>
+                      Niveau{masterySortLabel('level')}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMasteryRows.map((row) => {
+                  const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
+                  const accuracy = row.shots > 0 ? (row.hits / row.shots) * 100 : 0
+
+                  return (
+                    <tr key={row.weaponId} className="app-table-row">
+                      <td className="px-3 py-2 text-gray-900">{row.weaponName}</td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatPercent(accuracy)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(Math.round(row.damage))}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.level)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
 
       {loading ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}

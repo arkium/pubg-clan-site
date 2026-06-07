@@ -154,6 +154,132 @@ function summarizeAggregateWarning(rawWarning: string): { summary: string; detai
   }
 }
 
+function buildNetworkAwareErrorMessage(prefix: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const normalizedMessage = message.toLowerCase()
+  const isNetworkFetchError =
+    normalizedMessage.includes('failed to fetch') ||
+    normalizedMessage.includes('networkerror') ||
+    normalizedMessage.includes('network request failed')
+
+  return isNetworkFetchError
+    ? `${prefix} Le serveur semble indisponible (verifiez que npm run dev est actif).`
+    : `${prefix} ${message}`
+}
+
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
+  }
+
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} Ko`
+  }
+
+  return `${bytes} o`
+}
+
+function formatRuntimeUptime(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+
+  return `${seconds}s`
+}
+
+type FileResyncResultEntry = {
+  squadMatchId: string
+  pubgMatchId?: string
+  status: 'success' | 'failed'
+  bytesDownloaded?: number
+  contentLength?: number | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  positionSamplesCount?: number
+  trajectorySegmentsCount?: number
+  deathSamplesCount?: number
+}
+
+type FileResyncResponse = {
+  ok?: boolean
+  error?: string
+  successCount?: number
+  failedCount?: number
+  missingFiles?: string[]
+  oversizedFiles?: string[]
+  maxResyncFileBytes?: number
+  validateOnly?: boolean
+  onlyRecalculateAggregates?: boolean
+  canProceed?: boolean
+  resetBeforeSync?: boolean
+  aggregatesRecalculated?: boolean
+  aggregates?: {
+    periodsUpdated: number
+    memberTelemetryRows: number
+    memberWeaponRows: number
+    clanSynergyRows: number
+  } | null
+  aggregatesWarning?: string | null
+  results?: FileResyncResultEntry[]
+}
+
+type FileImportResponse = {
+  ok?: boolean
+  error?: string
+  successCount?: number
+  failedCount?: number
+  capturedCount?: number
+  skippedExistingCount?: number
+  alreadyCapturedMatchIds?: string[]
+  captureEnabled?: boolean
+}
+
+type FileResyncQueueResponse = {
+  ok?: boolean
+  error?: string
+  queuedCount?: number
+  alreadyQueuedCount?: number
+  queuedMatchIds?: string[]
+  alreadyQueuedMatchIds?: string[]
+}
+
+type RuntimeStatusResponse = {
+  ok?: boolean
+  runtime?: {
+    pid?: number
+    nodeVersion?: string
+    uptimeSec?: number
+    hostname?: string
+  }
+}
+
+const SAFE_RESYNC_BATCH_LIMIT = 1
+
+function getResyncResumeStorageKey(
+  clanId: number,
+  date: string,
+  period: string,
+  gameMode?: string
+) {
+  return `telemetry-resync-resume:${clanId}:${date}:${period}:${gameMode ?? 'all'}`
+}
+
+function isNonRetryableResyncError(message: string | null | undefined) {
+  const normalized = (message ?? '').toLowerCase()
+  return (
+    normalized.includes('invalid json object event') ||
+    normalized.includes('argumentpath.concat is not a constructor')
+  )
+}
+
 export default function ClanSessionDatePage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -174,7 +300,31 @@ export default function ClanSessionDatePage() {
   const [telemetryFileSyncLoading, setTelemetryFileSyncLoading] = useState(false)
   const [telemetryFileSyncMessage, setTelemetryFileSyncMessage] = useState<string | null>(null)
   const [telemetryFileSyncTone, setTelemetryFileSyncTone] = useState<'success' | 'warning' | 'error'>('warning')
+  const [telemetryFileQueueLoading, setTelemetryFileQueueLoading] = useState(false)
+  const [telemetryFileQueueMessage, setTelemetryFileQueueMessage] = useState<string | null>(null)
   const [telemetryFileSyncErrors, setTelemetryFileSyncErrors] = useState<string[]>([])
+  const [telemetryFileSyncProgress, setTelemetryFileSyncProgress] = useState<{
+    total: number
+    completed: number
+    currentMatchId: string | null
+    success: number
+    failed: number
+  } | null>(null)
+  const [telemetryFileSyncLogs, setTelemetryFileSyncLogs] = useState<string[]>([])
+  const [telemetryFileStatusByMatchId, setTelemetryFileStatusByMatchId] = useState<
+    Record<string, 'available' | 'missing' | 'oversized' | 'unknown'>
+  >({})
+  const [telemetryFileStatusLoading, setTelemetryFileStatusLoading] = useState(false)
+  const [runtimeStatus, setRuntimeStatus] = useState<{
+    pid: number
+    nodeVersion: string
+    uptimeSec: number
+    hostname: string
+    checkedAt: number
+  } | null>(null)
+  const [runtimeStatusError, setRuntimeStatusError] = useState<string | null>(null)
+  const [forceResync, setForceResync] = useState(false)
+  const [resetBeforeResync, setResetBeforeResync] = useState(true)
   const [telemetryClearLoading, setTelemetryClearLoading] = useState(false)
   const [telemetryClearMessage, setTelemetryClearMessage] = useState<string | null>(null)
 
@@ -204,6 +354,26 @@ export default function ClanSessionDatePage() {
     return squads.filter((match) => match.createdAt.slice(0, 10) === date)
   }, [date, squads])
 
+  const sessionMatchIds = useMemo(() => sessionMatches.map((match) => match.id), [sessionMatches])
+
+  const resyncEligibleCount = useMemo(
+    () =>
+      sessionMatches.filter((match) => {
+        const status = telemetryFileStatusByMatchId[match.id] ?? 'unknown'
+        return status !== 'missing' && status !== 'oversized'
+      }).length,
+    [sessionMatches, telemetryFileStatusByMatchId]
+  )
+
+  const importEligibleIds = useMemo(
+    () =>
+      selectedMatchIds.filter((matchId) => {
+        const status = telemetryFileStatusByMatchId[matchId] ?? 'unknown'
+        return status === 'missing'
+      }),
+    [selectedMatchIds, telemetryFileStatusByMatchId]
+  )
+
   useEffect(() => {
     setSelectedMatchIds([])
     setTelemetrySyncMessage(null)
@@ -213,9 +383,170 @@ export default function ClanSessionDatePage() {
     setTelemetryFetchFilesMessage(null)
     setTelemetryFileSyncMessage(null)
     setTelemetryFileSyncTone('warning')
+    setTelemetryFileQueueMessage(null)
     setTelemetryFileSyncErrors([])
+    setTelemetryFileSyncProgress(null)
+    setTelemetryFileSyncLogs([])
+    setTelemetryFileStatusByMatchId({})
+    setForceResync(false)
+    setResetBeforeResync(true)
     setTelemetryClearMessage(null)
   }, [date, gameMode, period])
+
+  useEffect(() => {
+    if (!clanId || !date || typeof window === 'undefined') {
+      return
+    }
+
+    const key = getResyncResumeStorageKey(clanId, date, period, gameMode)
+    const raw = window.localStorage.getItem(key)
+    if (!raw) {
+      return
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as { remainingIds?: string[] } | null
+      if (!parsed?.remainingIds || !Array.isArray(parsed.remainingIds)) {
+        window.localStorage.removeItem(key)
+        return
+      }
+
+      const validIds = parsed.remainingIds.filter((id): id is string => typeof id === 'string')
+      if (validIds.length === 0) {
+        window.localStorage.removeItem(key)
+        return
+      }
+
+      setSelectedMatchIds(validIds)
+      setTelemetryFileSyncMessage(
+        `Reprise détectée après interruption: ${validIds.length} match(s) restant(s) présélectionné(s).`
+      )
+      setTelemetryFileSyncTone('warning')
+    } catch {
+      window.localStorage.removeItem(key)
+    }
+  }, [clanId, date, gameMode, period])
+
+  useEffect(() => {
+    if (!clanId || sessionMatchIds.length === 0) {
+      setTelemetryFileStatusByMatchId({})
+      return
+    }
+
+    let cancelled = false
+
+    async function loadLocalTelemetryFileStatuses() {
+      setTelemetryFileStatusLoading(true)
+      const initialStatusMap = Object.fromEntries(
+        sessionMatchIds.map((matchId) => [matchId, 'unknown' as const])
+      )
+      setTelemetryFileStatusByMatchId(initialStatusMap)
+
+      try {
+        const response = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            squadMatchIds: sessionMatchIds,
+            validateOnly: true,
+            recalculateAggregates: false,
+          }),
+        })
+
+        const payload = (await response.json().catch(() => null)) as FileResyncResponse | null
+
+        if (cancelled || !response.ok || !payload?.ok) {
+          return
+        }
+
+        const nextStatusMap: Record<string, 'available' | 'missing' | 'oversized' | 'unknown'> = {
+          ...initialStatusMap,
+        }
+
+        for (const result of payload.results ?? []) {
+          if (result.status === 'success') {
+            nextStatusMap[result.squadMatchId] = 'available'
+          }
+        }
+
+        for (const missingId of payload.missingFiles ?? []) {
+          nextStatusMap[missingId] = 'missing'
+        }
+
+        for (const oversizedId of payload.oversizedFiles ?? []) {
+          nextStatusMap[oversizedId] = 'oversized'
+        }
+
+        setTelemetryFileStatusByMatchId(nextStatusMap)
+      } catch {
+        // Keep unknown statuses on preflight failure.
+      } finally {
+        if (!cancelled) {
+          setTelemetryFileStatusLoading(false)
+        }
+      }
+    }
+
+    void loadLocalTelemetryFileStatuses()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clanId, sessionMatchIds])
+
+  useEffect(() => {
+    if (!clanId) {
+      setRuntimeStatus(null)
+      setRuntimeStatusError(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadRuntimeStatus() {
+      try {
+        const response = await fetch(`/api/clans/${clanId}/dev/runtime-status`, {
+          method: 'GET',
+          cache: 'no-store',
+        })
+
+        const payload = (await response.json().catch(() => null)) as RuntimeStatusResponse | null
+        if (cancelled) {
+          return
+        }
+
+        if (!response.ok || !payload?.ok || !payload.runtime?.pid) {
+          setRuntimeStatusError('Statut runtime indisponible')
+          return
+        }
+
+        setRuntimeStatus({
+          pid: payload.runtime.pid,
+          nodeVersion: payload.runtime.nodeVersion ?? 'inconnue',
+          uptimeSec: payload.runtime.uptimeSec ?? 0,
+          hostname: payload.runtime.hostname ?? 'n/a',
+          checkedAt: Date.now(),
+        })
+        setRuntimeStatusError(null)
+      } catch {
+        if (!cancelled) {
+          setRuntimeStatusError('Statut runtime indisponible')
+        }
+      }
+    }
+
+    void loadRuntimeStatus()
+    const timer = window.setInterval(() => {
+      void loadRuntimeStatus()
+    }, 20000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [clanId])
 
   const sessionStats = useMemo(() => buildSessionStats(sessionMatches), [sessionMatches])
   const modePerformance = useMemo(() => buildModePerformance(sessionMatches), [sessionMatches])
@@ -378,8 +709,10 @@ export default function ClanSessionDatePage() {
       setTelemetrySyncCaptureNotes(captureNotes)
       setTelemetryClearMessage(null)
       refresh()
-    } catch {
-      setTelemetrySyncMessage('Echec du resync URL télémétrie.')
+    } catch (error) {
+      setTelemetrySyncMessage(
+        buildNetworkAwareErrorMessage('Echec du resync URL télémétrie.', error)
+      )
       setTelemetrySyncAggregateDetails(null)
     } finally {
       setTelemetrySyncLoading(false)
@@ -429,15 +762,17 @@ export default function ClanSessionDatePage() {
       setTelemetrySyncErrors([])
       setTelemetrySyncCaptureNotes([])
       refresh()
-    } catch {
-      setTelemetryClearMessage('Echec de la suppression télémétrie OK.')
+    } catch (error) {
+      setTelemetryClearMessage(
+        buildNetworkAwareErrorMessage('Echec de la suppression télémétrie OK.', error)
+      )
     } finally {
       setTelemetryClearLoading(false)
     }
   }
 
   async function runResyncTelemetryFromImportedFiles() {
-    if (!clanId) {
+    if (!clanId || !date) {
       return
     }
 
@@ -447,134 +782,390 @@ export default function ClanSessionDatePage() {
       return
     }
 
+    const matchById = new Map(sessionMatches.map((match) => [match.id, match]))
+    const alreadySucceededIds = selectedMatchIds.filter(
+      (matchId) => matchById.get(matchId)?.telemetry?.status === 'success'
+    )
+    const candidateIds = forceResync
+      ? selectedMatchIds
+      : selectedMatchIds.filter((matchId) => !alreadySucceededIds.includes(matchId))
+
+    if (candidateIds.length === 0) {
+      setTelemetryFileSyncMessage(
+        'Aucun match à resync: la sélection est déjà en Parser OK. Activez "Forcer le resync" pour retraiter en mode développement.'
+      )
+      setTelemetryFileSyncTone('warning')
+      return
+    }
+
+    const runBatchIds = candidateIds.slice(0, SAFE_RESYNC_BATCH_LIMIT)
+    const deferredIds = candidateIds.slice(SAFE_RESYNC_BATCH_LIMIT)
+
     try {
       setTelemetryFileSyncLoading(true)
       setTelemetryFileSyncMessage(null)
       setTelemetryFileSyncTone('warning')
       setTelemetryFileSyncErrors([])
+      setTelemetryFileSyncLogs([])
 
-      const response = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
+      const preflightResponse = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          squadMatchIds: selectedMatchIds,
+          squadMatchIds: runBatchIds,
+          validateOnly: true,
+          recalculateAggregates: false,
         }),
       })
 
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            ok?: boolean
-            error?: string
-            successCount?: number
-            failedCount?: number
-            missingFiles?: string[]
-            oversizedFiles?: string[]
-            maxResyncFileBytes?: number
-            aggregatesRecalculated?: boolean
-            aggregates?: {
-              periodsUpdated: number
-              memberTelemetryRows: number
-              memberWeaponRows: number
-              clanSynergyRows: number
-            } | null
-            aggregatesWarning?: string | null
-            results?: Array<{
-              squadMatchId: string
-              pubgMatchId?: string
-              status: 'success' | 'failed'
-              bytesDownloaded?: number
-              contentLength?: number | null
-              errorCode?: string | null
-              errorMessage?: string | null
-              positionSamplesCount?: number
-              trajectorySegmentsCount?: number
-              deathSamplesCount?: number
-            }>
-          }
+      const preflightPayload = (await preflightResponse.json().catch(() => null)) as
+        | FileResyncResponse
         | null
 
-      if (!response.ok || !payload?.ok) {
-        setTelemetryFileSyncMessage(payload?.error ?? 'Echec du resync fichiers telemetry.')
+      if (!preflightResponse.ok || !preflightPayload?.ok) {
+        setTelemetryFileSyncMessage(preflightPayload?.error ?? 'Echec de la prevalidation des fichiers telemetry.')
         setTelemetryFileSyncTone('error')
         return
       }
 
-      const missing = payload.missingFiles ?? []
-      const oversized = payload.oversizedFiles ?? []
-      const successResults = (payload.results ?? []).filter((entry) => entry.status === 'success')
-      const failedEntries = (payload.results ?? [])
-        .filter((entry) => entry.status === 'failed')
-        .map((entry) => `${entry.squadMatchId}: ${entry.errorMessage ?? 'erreur inconnue'}`)
+      const preflightMissing = preflightPayload.missingFiles ?? []
+      const preflightOversized = preflightPayload.oversizedFiles ?? []
 
-      const totalBytes = successResults.reduce((acc, entry) => acc + (entry.bytesDownloaded ?? 0), 0)
-      const bytesLabel = totalBytes >= 1024 * 1024
-        ? `${(totalBytes / (1024 * 1024)).toFixed(1)} Mo`
-        : totalBytes >= 1024
-          ? `${Math.round(totalBytes / 1024)} Ko`
-          : `${totalBytes} o`
+      if (preflightMissing.length > 0 || preflightOversized.length > 0) {
+        const missingPart = preflightMissing.length > 0
+          ? `Fichiers manquants: ${preflightMissing.length} (${preflightMissing.slice(0, 5).join(', ')}). `
+          : ''
+        const oversizedPart = preflightOversized.length > 0
+          ? `Fichiers trop volumineux: ${preflightOversized.length}${preflightPayload.maxResyncFileBytes ? `, limite ${formatBytes(preflightPayload.maxResyncFileBytes)}` : ''}.`
+          : ''
 
-      const matchLines = successResults
-        .slice(0, 5)
-        .map((entry) => {
-          const id = entry.pubgMatchId && entry.pubgMatchId !== 'unknown'
-            ? entry.pubgMatchId.slice(0, 8) + '…'
-            : entry.squadMatchId.slice(0, 8) + '…'
-          const size = entry.bytesDownloaded
-            ? entry.bytesDownloaded >= 1024 * 1024
-              ? `${(entry.bytesDownloaded / (1024 * 1024)).toFixed(1)} Mo`
-              : `${Math.round(entry.bytesDownloaded / 1024)} Ko`
-            : '?'
-          const pos = typeof entry.positionSamplesCount === 'number'
-            ? ` pos:${entry.positionSamplesCount} traj:${entry.trajectorySegmentsCount ?? 0} morts:${entry.deathSamplesCount ?? 0}`
-            : ''
-          return `${id} (${size}${pos})`
-        })
-        .join(', ')
-
-      const matchesPart = successResults.length > 0
-        ? ` Matchs: ${matchLines}${successResults.length > 5 ? ` +${successResults.length - 5}` : ''}.`
-        : ''
-      const bytesPart = totalBytes > 0 ? ` Total parsé: ${bytesLabel}.` : ''
-
-      const aggPart = payload.aggregates
-        ? ` Agrégats: ${payload.aggregates.periodsUpdated} période(s), ${payload.aggregates.memberTelemetryRows} lignes membre, ${payload.aggregates.memberWeaponRows} lignes arme.`
-        : ''
-
-      const missingPart = missing.length > 0
-        ? ` Fichiers manquants: ${missing.length} (${missing.slice(0, 5).join(', ')}).`
-        : ''
-      const oversizedPart = oversized.length > 0
-        ? ` Fichiers trop volumineux: ${oversized.length} (${oversized.slice(0, 5).join(', ')})${payload.maxResyncFileBytes ? `, limite ${(payload.maxResyncFileBytes / (1024 * 1024)).toFixed(1)} Mo` : ''}.`
-        : ''
-
-      setTelemetryFileSyncMessage(
-        `Resync fichiers terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s).${matchesPart}${bytesPart}${aggPart}${missingPart}${oversizedPart}`
-      )
-      if ((payload.failedCount ?? 0) > 0 || missing.length > 0 || oversized.length > 0) {
-        setTelemetryFileSyncTone('warning')
-      } else {
-        setTelemetryFileSyncTone('success')
+        setTelemetryFileSyncMessage(`Resync bloqué par sécurité. ${missingPart}${oversizedPart}`.trim())
+        setTelemetryFileSyncTone('error')
+        return
       }
-      setTelemetryFileSyncErrors(failedEntries)
+
+      let successCount = 0
+      let failedCount = 0
+      const allResults: FileResyncResultEntry[] = []
+      const allErrors: string[] = []
+      const runLogs: string[] = []
+      const failedIdsRetriable: string[] = []
+      const failedIdsNonRetryable: string[] = []
+      let interruptedReason: string | null = null
+      let lastProcessedIndex = -1
+
+      setTelemetryFileSyncProgress({
+        total: runBatchIds.length,
+        completed: 0,
+        currentMatchId: runBatchIds[0] ?? null,
+        success: 0,
+        failed: 0,
+      })
+
+      for (let index = 0; index < runBatchIds.length; index += 1) {
+        const squadMatchId = runBatchIds[index]
+        setTelemetryFileSyncProgress((current) =>
+          current
+            ? {
+                ...current,
+                currentMatchId: squadMatchId,
+              }
+            : current
+        )
+
+          try {
+            const response = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({
+                squadMatchIds: [squadMatchId],
+                recalculateAggregates: false,
+                resetBeforeSync: resetBeforeResync,
+              }),
+            })
+
+            const payload = (await response.json().catch(() => null)) as FileResyncResponse | null
+
+            if (!response.ok || !payload?.ok) {
+            failedCount += 1
+              failedIdsRetriable.push(squadMatchId)
+              const line = `${squadMatchId}: ${payload?.error ?? 'erreur API resync fichiers'}`
+            allErrors.push(line)
+            runLogs.push(`KO ${line}`)
+            } else {
+              const result = payload.results?.[0]
+              if (!result || result.status === 'failed') {
+                failedCount += 1
+                const errorMessage = result?.errorMessage ?? 'erreur inconnue'
+                const nonRetryable = isNonRetryableResyncError(errorMessage)
+                if (nonRetryable) {
+                  failedIdsNonRetryable.push(squadMatchId)
+                } else {
+                  failedIdsRetriable.push(squadMatchId)
+                }
+                const line = `${squadMatchId}: ${errorMessage}`
+                allErrors.push(line)
+                runLogs.push(`${nonRetryable ? 'KO DEFINITIF' : 'KO'} ${line}`)
+                if (result) {
+                  allResults.push(result)
+                }
+              } else {
+                successCount += 1
+                allResults.push(result)
+                const size = typeof result.bytesDownloaded === 'number' ? ` (${formatBytes(result.bytesDownloaded)})` : ''
+                const pos = typeof result.positionSamplesCount === 'number'
+                  ? ` pos:${result.positionSamplesCount} traj:${result.trajectorySegmentsCount ?? 0} morts:${result.deathSamplesCount ?? 0}`
+                  : ''
+                runLogs.push(`OK ${squadMatchId}${size}${pos}`)
+            }
+          }
+          } catch (requestError) {
+            interruptedReason = buildNetworkAwareErrorMessage('Interruption resync fichiers.', requestError)
+            runLogs.push(`INTERRUPTION ${squadMatchId}: serveur indisponible`) 
+            allErrors.push(`${squadMatchId}: interruption (serveur indisponible)`)
+            break
+        }
+
+          lastProcessedIndex = index
+
+        setTelemetryFileSyncLogs([...runLogs])
+        setTelemetryFileSyncProgress((current) =>
+          current
+            ? {
+                ...current,
+                completed: index + 1,
+                success: successCount,
+                failed: failedCount,
+              }
+            : current
+        )
+
+        await new Promise((resolve) => setTimeout(resolve, 600))
+      }
+
+      const unprocessedIds = runBatchIds.slice(lastProcessedIndex + 1)
+      const remainingIds = Array.from(
+        new Set([...failedIdsRetriable, ...unprocessedIds, ...deferredIds])
+      )
+
+      let aggregatePayload: FileResyncResponse | null = null
+      if (!interruptedReason && successCount > 0 && remainingIds.length === 0) {
+        const aggregateResponse = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            onlyRecalculateAggregates: true,
+          }),
+        })
+
+        aggregatePayload = (await aggregateResponse.json().catch(() => null)) as
+          | FileResyncResponse
+          | null
+      }
+
+      const totalBytes = allResults
+        .filter((entry) => entry.status === 'success')
+        .reduce((acc, entry) => acc + (entry.bytesDownloaded ?? 0), 0)
+      const bytesPart = totalBytes > 0 ? ` Total parsé: ${formatBytes(totalBytes)}.` : ''
+
+      const aggPart = aggregatePayload?.aggregates
+        ? ` Agrégats: ${aggregatePayload.aggregates.periodsUpdated} période(s), ${aggregatePayload.aggregates.memberTelemetryRows} lignes membre, ${aggregatePayload.aggregates.memberWeaponRows} lignes arme.`
+        : aggregatePayload?.aggregatesWarning
+          ? ` Recalcul agrégats en warning: ${aggregatePayload.aggregatesWarning}`
+          : ''
+
+      const remainingPart = remainingIds.length > 0
+        ? ` Restants à traiter: ${remainingIds.length}.`
+        : ''
+      const deferredPart = deferredIds.length > 0
+        ? ` Lot sécurisé: ${runBatchIds.length}/${candidateIds.length} traité(s) sur ce lancement.`
+        : ''
+      const forcePart = forceResync ? ' Mode forcé actif.' : ''
+      const resetPart = resetBeforeResync ? ' Réinitialisation DB avant chaque match active.' : ''
+      const nonRetryablePart = failedIdsNonRetryable.length > 0
+        ? ` ${failedIdsNonRetryable.length} erreur(s) non relançable(s) retirée(s) de la reprise auto.`
+        : ''
+      const aggregateDeferredPart = !interruptedReason && successCount > 0 && remainingIds.length > 0
+        ? ' Recalcul des agrégats différé jusqu\'à la fin de tous les lots.'
+        : ''
+
+      if (interruptedReason) {
+        setTelemetryFileSyncMessage(
+          `Resync interrompu: ${successCount} succès, ${failedCount} échec(s) avant interruption.${remainingPart}${forcePart}${resetPart}${nonRetryablePart} Relancez pour reprendre.`
+        )
+        setTelemetryFileSyncTone('error')
+      } else {
+        setTelemetryFileSyncMessage(
+          `Resync fichiers terminé: ${successCount} succès, ${failedCount} échec(s).${bytesPart}${aggPart}${deferredPart}${remainingPart}${aggregateDeferredPart}${forcePart}${resetPart}${nonRetryablePart}`
+        )
+        setTelemetryFileSyncTone(failedCount > 0 || remainingIds.length > 0 ? 'warning' : 'success')
+      }
+      setTelemetryFileSyncErrors(allErrors)
+      setTelemetryFileSyncLogs([...runLogs])
+
+      if (remainingIds.length > 0) {
+        setSelectedMatchIds(remainingIds)
+        if (typeof window !== 'undefined') {
+          const key = getResyncResumeStorageKey(clanId, date, period, gameMode)
+          window.localStorage.setItem(key, JSON.stringify({ remainingIds }))
+        }
+      } else if (typeof window !== 'undefined') {
+        const key = getResyncResumeStorageKey(clanId, date, period, gameMode)
+        window.localStorage.removeItem(key)
+      }
+
       setTelemetrySyncMessage(null)
       setTelemetrySyncAggregateDetails(null)
       setTelemetrySyncErrors([])
       setTelemetrySyncCaptureNotes([])
       setTelemetryClearMessage(null)
-      refresh()
+      setTelemetryFileSyncProgress((current) =>
+        current
+          ? {
+              ...current,
+              currentMatchId: null,
+            }
+          : current
+      )
+      if (!interruptedReason) {
+        refresh()
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      setTelemetryFileSyncMessage(`Echec du resync fichiers telemetry. ${message}`)
+      setTelemetryFileSyncMessage(
+        buildNetworkAwareErrorMessage('Echec du resync fichiers telemetry.', error)
+      )
       setTelemetryFileSyncTone('error')
     } finally {
+      setTelemetryFileSyncProgress((current) =>
+        current
+          ? {
+              ...current,
+              currentMatchId: null,
+            }
+          : current
+      )
       setTelemetryFileSyncLoading(false)
+    }
+  }
+
+  async function enqueueResyncTelemetryFromImportedFiles() {
+    if (!clanId || !date) {
+      return
+    }
+
+    if (selectedMatchIds.length === 0) {
+      setTelemetryFileQueueMessage('Selectionnez au moins 1 match avant la mise en file worker.')
+      return
+    }
+
+    const matchById = new Map(sessionMatches.map((match) => [match.id, match]))
+    const alreadySucceededIds = selectedMatchIds.filter(
+      (matchId) => matchById.get(matchId)?.telemetry?.status === 'success'
+    )
+    const candidateIds = forceResync
+      ? selectedMatchIds
+      : selectedMatchIds.filter((matchId) => !alreadySucceededIds.includes(matchId))
+
+    if (candidateIds.length === 0) {
+      setTelemetryFileQueueMessage(
+        'Aucun match a enfiler: la selection est deja en Parser OK. Activez "Forcer le resync" pour retraiter.'
+      )
+      return
+    }
+
+    try {
+      setTelemetryFileQueueLoading(true)
+      setTelemetryFileQueueMessage(null)
+
+      const preflightResponse = await fetch(`/api/clans/${clanId}/telemetry/resync-files-selected`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          squadMatchIds: candidateIds,
+          validateOnly: true,
+          recalculateAggregates: false,
+        }),
+      })
+
+      const preflightPayload = (await preflightResponse.json().catch(() => null)) as
+        | FileResyncResponse
+        | null
+
+      if (!preflightResponse.ok || !preflightPayload?.ok) {
+        setTelemetryFileQueueMessage(
+          preflightPayload?.error ?? 'Echec de la prevalidation avant mise en file worker.'
+        )
+        return
+      }
+
+      const preflightMissing = preflightPayload.missingFiles ?? []
+      const preflightOversized = preflightPayload.oversizedFiles ?? []
+
+      if (preflightMissing.length > 0 || preflightOversized.length > 0) {
+        const missingPart = preflightMissing.length > 0
+          ? `Fichiers manquants: ${preflightMissing.length}. `
+          : ''
+        const oversizedPart = preflightOversized.length > 0
+          ? `Fichiers trop volumineux: ${preflightOversized.length}${preflightPayload.maxResyncFileBytes ? `, limite ${formatBytes(preflightPayload.maxResyncFileBytes)}` : ''}.`
+          : ''
+
+        setTelemetryFileQueueMessage(`Mise en file bloquee. ${missingPart}${oversizedPart}`.trim())
+        return
+      }
+
+      const queueResponse = await fetch(`/api/clans/${clanId}/telemetry/resync-files-queue`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          squadMatchIds: candidateIds,
+          resetBeforeSync: resetBeforeResync,
+          recalculateAggregates: true,
+        }),
+      })
+
+      const queuePayload = (await queueResponse.json().catch(() => null)) as
+        | FileResyncQueueResponse
+        | null
+
+      if (!queueResponse.ok || !queuePayload?.ok) {
+        setTelemetryFileQueueMessage(queuePayload?.error ?? 'Echec de la mise en file worker.')
+        return
+      }
+
+      const queuedCount = queuePayload.queuedCount ?? 0
+      const alreadyQueuedCount = queuePayload.alreadyQueuedCount ?? 0
+      const resetPart = resetBeforeResync ? ' reset DB actif.' : ''
+
+      setTelemetryFileQueueMessage(
+        `Queue worker: ${queuedCount} job(s) ajoute(s), ${alreadyQueuedCount} deja en cours/file.${resetPart} Lancez \`npm run telemetry:worker\` pour traiter hors serveur web.`
+      )
+      setTelemetryFileSyncMessage(null)
+    } catch (error) {
+      setTelemetryFileQueueMessage(
+        buildNetworkAwareErrorMessage('Echec de la mise en file worker.', error)
+      )
+    } finally {
+      setTelemetryFileQueueLoading(false)
     }
   }
 
   async function runFetchTelemetryFilesFromPubg() {
     if (!clanId || selectedMatchIds.length === 0) {
+      return
+    }
+
+    if (importEligibleIds.length === 0) {
+      setTelemetryFetchFilesMessage('Import bloqué: aucun match sélectionné sans fichier local manquant.')
       return
     }
 
@@ -588,19 +1179,12 @@ export default function ClanSessionDatePage() {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          squadMatchIds: selectedMatchIds,
+          squadMatchIds: importEligibleIds,
         }),
       })
 
       const payload = (await response.json().catch(() => null)) as
-        | {
-            ok?: boolean
-            error?: string
-            successCount?: number
-            failedCount?: number
-            capturedCount?: number
-            captureEnabled?: boolean
-          }
+        | FileImportResponse
         | null
 
       if (!response.ok || !payload?.ok) {
@@ -611,13 +1195,22 @@ export default function ClanSessionDatePage() {
       const disabledPart = payload.captureEnabled === false
         ? ' Capture désactivée (TELEMETRY_CAPTURE_FIXTURES=false).'
         : ''
+      const skippedExistingPart = (payload.skippedExistingCount ?? 0) > 0
+        ? ` ${payload.skippedExistingCount} fichier(s) déjà présent(s) ignoré(s).`
+        : ''
 
       setTelemetryFetchFilesMessage(
-        `Téléchargement PUBG terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.capturedCount ?? 0} fichier(s) capturé(s).${disabledPart}`
+        `Téléchargement PUBG terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.capturedCount ?? 0} fichier(s) capturé(s).${skippedExistingPart}${disabledPart}`
       )
       setTelemetryFileSyncMessage(null)
-    } catch {
-      setTelemetryFetchFilesMessage('Echec du téléchargement des fichiers telemetry depuis PUBG.')
+      refresh()
+    } catch (error) {
+      setTelemetryFetchFilesMessage(
+        buildNetworkAwareErrorMessage(
+          'Echec du téléchargement des fichiers telemetry depuis PUBG.',
+          error
+        )
+      )
     } finally {
       setTelemetryFetchFilesLoading(false)
     }
@@ -775,6 +1368,7 @@ export default function ClanSessionDatePage() {
             selectable
             selectedMatchIds={selectedMatchIds}
             onToggleMatchSelection={toggleMatchSelection}
+            telemetryFileStatusByMatchId={telemetryFileStatusByMatchId}
           />
 
           <section className="mt-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
@@ -782,6 +1376,23 @@ export default function ClanSessionDatePage() {
             <p className="mt-1 text-sm text-gray-600">
               Deux modes: resync fichiers (import local) ou resync URL PUBG sans chargement fichier via stream.
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              {runtimeStatus ? (
+                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
+                  Serveur dev actif - PID {runtimeStatus.pid} - uptime {formatRuntimeUptime(runtimeStatus.uptimeSec)}
+                </span>
+              ) : null}
+              {runtimeStatus ? (
+                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-gray-700">
+                  {runtimeStatus.nodeVersion} - {runtimeStatus.hostname}
+                </span>
+              ) : null}
+              {runtimeStatusError ? (
+                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                  {runtimeStatusError}
+                </span>
+              ) : null}
+            </div>
             <div className="mt-3">
               <Link
                 href={`/clans/${clanId}/telemetry/recoveries`}
@@ -827,12 +1438,14 @@ export default function ClanSessionDatePage() {
                   telemetryFetchFilesLoading ||
                   telemetryClearLoading ||
                   telemetryFileSyncLoading ||
-                  selectedMatchIds.length === 0
+                  selectedMatchIds.length === 0 ||
+                  telemetryFileStatusLoading ||
+                  importEligibleIds.length === 0
                 }
               >
                 {telemetryFetchFilesLoading
                   ? 'Import PUBG en cours...'
-                  : `Import fichiers (${selectedMatchIds.length})`}
+                  : `Import fichiers (${importEligibleIds.length})`}
               </button>
               <button
                 type="button"
@@ -849,6 +1462,23 @@ export default function ClanSessionDatePage() {
                 {telemetryFileSyncLoading
                   ? 'Resync fichiers en cours...'
                   : `Resync sélection (${selectedMatchIds.length})`}
+              </button>
+              <button
+                type="button"
+                onClick={enqueueResyncTelemetryFromImportedFiles}
+                className="app-btn app-btn--md app-btn--secondary"
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading ||
+                  telemetryFileQueueLoading ||
+                  selectedMatchIds.length === 0
+                }
+              >
+                {telemetryFileQueueLoading
+                  ? 'Mise en file worker...'
+                  : `Queue worker (${selectedMatchIds.length})`}
               </button>
               <button
                 type="button"
@@ -884,6 +1514,55 @@ export default function ClanSessionDatePage() {
               </button>
             </div>
 
+            <label className="mt-2 inline-flex items-start gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={forceResync}
+                onChange={(event) => setForceResync(event.target.checked)}
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading
+                }
+              />
+              <span>
+                Forcer le resync des matchs déjà Parser OK (mode développement). La sécurité reste active: lot max {SAFE_RESYNC_BATCH_LIMIT} + reprise automatique.
+              </span>
+            </label>
+
+            <label className="mt-2 inline-flex items-start gap-2 text-xs text-gray-700">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={resetBeforeResync}
+                onChange={(event) => setResetBeforeResync(event.target.checked)}
+                disabled={
+                  telemetrySyncLoading ||
+                  telemetryFetchFilesLoading ||
+                  telemetryClearLoading ||
+                  telemetryFileSyncLoading
+                }
+              />
+              <span>
+                Réinitialiser la ligne télémétrie DB avant resync (recommandé en développement pour éviter les updates cumulés). Les fichiers locaux capturés sont conservés.
+              </span>
+            </label>
+
+            <p className="mt-2 text-xs text-gray-600">
+              Matchs resyncables (fichier local disponible ou inconnu): {resyncEligibleCount}/{sessionMatches.length}
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              Resync sécurisé: traitement par lot max {SAFE_RESYNC_BATCH_LIMIT} et reprise automatique sur les restants.
+            </p>
+            {telemetryFileQueueMessage ? (
+              <p className="mt-2 text-xs text-gray-700">{telemetryFileQueueMessage}</p>
+            ) : null}
+            <p className="mt-1 text-xs text-gray-600">
+              Matchs importables (fichier local manquant): {sessionMatches.filter((match) => (telemetryFileStatusByMatchId[match.id] ?? 'unknown') === 'missing').length}/{sessionMatches.length}
+            </p>
+
             {telemetryFetchFilesMessage ? (
               <p className="mt-3 text-sm text-amber-700">{telemetryFetchFilesMessage}</p>
             ) : null}
@@ -900,6 +1579,28 @@ export default function ClanSessionDatePage() {
               >
                 {telemetryFileSyncMessage}
               </p>
+            ) : null}
+
+            {telemetryFileSyncLoading && telemetryFileSyncProgress ? (
+              <div className="mt-3 rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                <p>
+                  Progression: {telemetryFileSyncProgress.completed}/{telemetryFileSyncProgress.total}
+                  {' '}| OK {telemetryFileSyncProgress.success} | KO {telemetryFileSyncProgress.failed}
+                </p>
+                {telemetryFileSyncProgress.currentMatchId ? (
+                  <p className="mt-1 font-medium">
+                    Match en cours: {telemetryFileSyncProgress.currentMatchId}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {telemetryFileSyncLogs.length > 0 ? (
+              <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-auto pl-5 text-xs text-gray-700">
+                {telemetryFileSyncLogs.slice(-30).map((line, index) => (
+                  <li key={`${index}-${line}`}>{line}</li>
+                ))}
+              </ul>
             ) : null}
 
             {telemetryFileSyncErrors.length > 0 ? (

@@ -13,6 +13,7 @@ export type CronActionKey =
   | 'daily_sync'
   | 'daily_stats_recalc'
   | 'daily_lifetime_stats_sync'
+  | 'daily_season_stats_sync'
   | 'weekly_report_auto'
   | 'monthly_report_auto'
   | 'challenge_processing'
@@ -31,6 +32,7 @@ export const CRON_ACTION_LABELS: Record<CronActionKey, string> = {
   daily_sync: 'Sync quotidien clans',
   daily_stats_recalc: 'Recalcul stats quotidien',
   daily_lifetime_stats_sync: 'Sync lifetime quotidienne',
+  daily_season_stats_sync: 'Sync season stats quotidienne',
   weekly_report_auto: 'Generation auto rapport hebdo',
   monthly_report_auto: 'Generation auto rapport mensuel',
   challenge_processing: 'Traitement des challenges',

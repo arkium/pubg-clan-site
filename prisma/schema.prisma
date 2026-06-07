@@ -48,6 +48,8 @@ model ClanMember {
 
   matches                Match[]
   lifetimeStats          MemberLifetimeStats?
+  seasonStats            MemberSeasonStats[]
+  weaponMastery          MemberWeaponMastery[]
   squadMembers           SquadMember[]
   playerStats            PlayerStats[]
   memberWeaponStats      MemberWeaponStats[]
@@ -307,11 +309,24 @@ model SquadMember {
   memberId Int
   member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  kills     Int
-  damage    Float
-  assists   Int
-  revives   Int
-  placement Int
+  kills          Int
+  damage         Float
+  assists        Int
+  revives        Int
+  placement      Int
+  knockouts      Int   @default(0)
+  headshotKills  Int   @default(0)
+  timeSurvived   Int   @default(0)
+  rideDistance   Float @default(0)
+  walkDistance   Float @default(0)
+  swimDistance   Float @default(0)
+  boosts         Int   @default(0)
+  heals          Int   @default(0)
+  vehicleDestroys Int  @default(0)
+  roadKills      Int   @default(0)
+  longestKill    Float @default(0)
+  teamKills      Int   @default(0)
+  weaponsAcquired Int  @default(0)
 
   @@unique([squadMatchId, memberId])
   @@map("SquadMember")
@@ -337,6 +352,7 @@ model SquadMatchTelemetry {
   positionSamples   Json?
   trajectorySegments Json?
   deathSamples      Json?
+  landingSamples    Json?
   phaseSnapshots    Json?
   errorCode         String?
   errorMessage   String?   @db.Text
@@ -425,6 +441,10 @@ model MemberTelemetryStats {
   avgVehicleRideEvents Float @default(0)
   avgVehicleLeaveEvents Float @default(0)
   avgPositionEvents   Float @default(0)
+  avgHealsUsed        Float @default(0)
+  avgHealAmount       Float @default(0)
+  avgBoostsUsed       Float @default(0)
+  maxVehicleSpeedKph  Float @default(0)
   matchesPlayed       Int   @default(0)
 
   createdAt DateTime @default(now())
@@ -500,6 +520,71 @@ model ReportSection {
   content     Json
 
   @@map("ReportSection")
+}
+
+model MemberSeasonStats {
+  id       Int        @id @default(autoincrement())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  seasonId String
+
+  // Ranked mode (best squad/duo/solo mode found)
+  rankedGameMode    String?
+  rankedTier        String?
+  rankedSubTier     String?
+  rankedPoints      Float   @default(0)
+  rankedBestTier    String?
+  rankedBestSubTier String?
+  rankedBestPoints  Float   @default(0)
+  rankedKills       Int     @default(0)
+  rankedDamage      Float   @default(0)
+  rankedWins        Int     @default(0)
+  rankedMatches     Int     @default(0)
+  rankedAssists     Int     @default(0)
+  rankedRevives     Int     @default(0)
+
+  // Normal mode (squad aggregated)
+  normalKills   Int   @default(0)
+  normalDamage  Float @default(0)
+  normalWins    Int   @default(0)
+  normalLosses  Int   @default(0)
+  normalAssists Int   @default(0)
+  normalRevives Int   @default(0)
+  normalMatches Int   @default(0)
+
+  lastRefreshedAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([memberId, seasonId])
+  @@map("MemberSeasonStats")
+}
+
+model MemberWeaponMastery {
+  id       Int        @id @default(autoincrement())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  weaponId   String
+  weaponName String
+
+  kills     Int   @default(0)
+  headshots Int   @default(0)
+  knockouts Int   @default(0)
+  shots     Int   @default(0)
+  hits      Int   @default(0)
+  damage    Float @default(0)
+  level     Int   @default(0)
+  xpTotal   Int   @default(0)
+  tier      Int   @default(0)
+
+  lastRefreshedAt DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([memberId, weaponId])
+  @@map("MemberWeaponMastery")
 }
 
 model MemberLifetimeStats {

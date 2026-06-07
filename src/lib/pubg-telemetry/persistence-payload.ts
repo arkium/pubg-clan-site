@@ -26,12 +26,14 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('Unknown argument `positionSamples`') ||
     message.includes('Unknown argument `trajectorySegments`') ||
     message.includes('Unknown argument `deathSamples`') ||
+    message.includes('Unknown argument `landingSamples`') ||
     message.includes('summary does not exist') ||
     message.includes('weaponStats does not exist') ||
     message.includes('memberStats does not exist') ||
     message.includes('positionSamples does not exist') ||
     message.includes('trajectorySegments does not exist') ||
-    message.includes('deathSamples does not exist')
+    message.includes('deathSamples does not exist') ||
+    message.includes('landingSamples does not exist')
   )
 }
 
@@ -65,6 +67,7 @@ export function buildTelemetrySuccessPayloadWithJson(
     positionSamples: parsed.positionSamples,
     trajectorySegments: parsed.trajectorySegments,
     deathSamples: parsed.deathSamples,
+    landingSamples: parsed.landingSamples,
     phaseSnapshots: parsed.phaseSnapshots,
   }
 }

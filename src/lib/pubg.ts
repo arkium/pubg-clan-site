@@ -157,6 +157,17 @@ type ParticipantStats = {
   headshotKills?: number
   revives?: number
   winPlace?: number
+  timeSurvived?: number
+  rideDistance?: number
+  walkDistance?: number
+  swimDistance?: number
+  boosts?: number
+  heals?: number
+  vehicleDestroys?: number
+  roadKills?: number
+  longestKill?: number
+  teamKills?: number
+  weaponsAcquired?: number
 }
 
 type PubgAssetAttributes = {
@@ -218,6 +229,17 @@ export type ResolvedPubgMatch = {
       headshotKills: number
       revives: number
       position: number
+      timeSurvived: number
+      rideDistance: number
+      walkDistance: number
+      swimDistance: number
+      boosts: number
+      heals: number
+      vehicleDestroys: number
+      roadKills: number
+      longestKill: number
+      teamKills: number
+      weaponsAcquired: number
     }>
   }>
   stats: {
@@ -265,6 +287,17 @@ function resolveRosterParticipants(
         headshotKills: stats.headshotKills ?? 0,
         revives: stats.revives ?? 0,
         position: stats.winPlace ?? 0,
+        timeSurvived: stats.timeSurvived ?? 0,
+        rideDistance: stats.rideDistance ?? 0,
+        walkDistance: stats.walkDistance ?? 0,
+        swimDistance: stats.swimDistance ?? 0,
+        boosts: stats.boosts ?? 0,
+        heals: stats.heals ?? 0,
+        vehicleDestroys: stats.vehicleDestroys ?? 0,
+        roadKills: stats.roadKills ?? 0,
+        longestKill: stats.longestKill ?? 0,
+        teamKills: stats.teamKills ?? 0,
+        weaponsAcquired: stats.weaponsAcquired ?? 0,
       }
     })
     .filter((participant): participant is NonNullable<typeof participant> => participant !== null)
@@ -641,6 +674,278 @@ export async function fetchLifetimeStats(
       weaponsPicked: toNumber(sourceStats.weaponsAcquired),
       damageGiven: toNumber(sourceStats.damageDealt),
     },
+  }
+}
+
+type PubgSeasonsResponse = {
+  data?: Array<{
+    id?: string
+    attributes?: {
+      isCurrentSeason?: boolean
+      isOffseason?: boolean
+    }
+  }>
+}
+
+type PubgRankedTier = {
+  tier?: string
+  subTier?: string
+}
+
+type PubgRankedGameModeStats = {
+  currentTier?: PubgRankedTier
+  currentRankPoint?: number
+  bestTier?: PubgRankedTier
+  bestRankPoint?: number
+  kills?: number
+  damageDealt?: number
+  roundsPlayed?: number
+  wins?: number
+  assists?: number
+  revives?: number
+}
+
+type PubgNormalGameModeStats = {
+  kills?: number
+  damageDealt?: number
+  wins?: number
+  losses?: number
+  assists?: number
+  revives?: number
+  roundsPlayed?: number
+}
+
+type PubgRankedSeasonResponse = {
+  data?: {
+    attributes?: {
+      rankedGameModeStats?: Record<string, PubgRankedGameModeStats>
+    }
+  }
+}
+
+type PubgNormalSeasonResponse = {
+  data?: {
+    attributes?: {
+      gameModeStats?: Record<string, PubgNormalGameModeStats>
+    }
+  }
+}
+
+export type PubgCurrentSeason = {
+  seasonId: string
+  isCurrentSeason: boolean
+  isOffseason: boolean
+}
+
+type PubgWeaponMasteryStatsTotal = {
+  kills?: number
+  headShots?: number
+  defeats?: number
+  groggies?: number
+  damage?: number
+  shots?: number
+  hits?: number
+}
+
+type PubgWeaponMasteryItem = {
+  XPTotal?: number
+  LevelCurrent?: number
+  TierCurrent?: number
+  StatsTotal?: PubgWeaponMasteryStatsTotal
+}
+
+type PubgWeaponMasteryResponse = {
+  data?: {
+    attributes?: {
+      weaponsummary?: Record<string, PubgWeaponMasteryItem>
+    }
+  }
+}
+
+export type PubgWeaponMasteryEntry = {
+  weaponId: string
+  weaponName: string
+  kills: number
+  headshots: number
+  knockouts: number
+  shots: number
+  hits: number
+  damage: number
+  level: number
+  xpTotal: number
+  tier: number
+}
+
+export type PubgPlayerRankedStats = {
+  tier: string | null
+  subTier: string | null
+  currentRankPoints: number
+  bestTier: string | null
+  bestSubTier: string | null
+  bestRankPoints: number
+  kills: number
+  damageDealt: number
+  roundsPlayed: number
+  wins: number
+  assists: number
+  revives: number
+  gameMode: string
+}
+
+export type PubgPlayerSeasonStats = {
+  kills: number
+  damageDealt: number
+  wins: number
+  losses: number
+  assists: number
+  revives: number
+  roundsPlayed: number
+}
+
+export async function fetchCurrentSeason(shard: string = 'steam'): Promise<PubgCurrentSeason | null> {
+  ensurePubgApiKey()
+  const response = await queuedPubgGet<PubgSeasonsResponse>(`/shards/${shard}/seasons`)
+  const seasons = response.data.data
+
+  if (!Array.isArray(seasons)) {
+    return null
+  }
+
+  const current = seasons.find((season) => season.attributes?.isCurrentSeason === true)
+
+  if (!current?.id) {
+    return null
+  }
+
+  return {
+    seasonId: current.id,
+    isCurrentSeason: true,
+    isOffseason: current.attributes?.isOffseason === true,
+  }
+}
+
+const SQUAD_RANKED_MODES = ['squad-fpp', 'squad', 'duo-fpp', 'duo', 'solo-fpp', 'solo']
+
+export async function fetchPlayerRankedStats(
+  playerId: string,
+  shard: string = 'steam',
+  seasonId: string
+): Promise<PubgPlayerRankedStats | null> {
+  ensurePubgApiKey()
+
+  try {
+    const response = await queuedPubgGet<PubgRankedSeasonResponse>(
+      `/shards/${shard}/players/${playerId}/seasons/${seasonId}/ranked`
+    )
+
+    const modeStats = response.data.data?.attributes?.rankedGameModeStats
+
+    if (!modeStats) {
+      return null
+    }
+
+    for (const mode of SQUAD_RANKED_MODES) {
+      const stats = modeStats[mode]
+      if (!stats || !stats.currentTier?.tier) {
+        continue
+      }
+
+      return {
+        tier: stats.currentTier.tier ?? null,
+        subTier: stats.currentTier.subTier ?? null,
+        currentRankPoints: toNumber(stats.currentRankPoint),
+        bestTier: stats.bestTier?.tier ?? null,
+        bestSubTier: stats.bestTier?.subTier ?? null,
+        bestRankPoints: toNumber(stats.bestRankPoint),
+        kills: toNumber(stats.kills),
+        damageDealt: toNumber(stats.damageDealt),
+        roundsPlayed: toNumber(stats.roundsPlayed),
+        wins: toNumber(stats.wins),
+        assists: toNumber(stats.assists),
+        revives: toNumber(stats.revives),
+        gameMode: mode,
+      }
+    }
+
+    return null
+  } catch (error: unknown) {
+    const status = (error as { status?: number }).status
+    if (status === 404 || status === 422) {
+      return null
+    }
+    throw error
+  }
+}
+
+export async function fetchPlayerSeasonStats(
+  playerId: string,
+  shard: string = 'steam',
+  seasonId: string
+): Promise<PubgPlayerSeasonStats> {
+  ensurePubgApiKey()
+  const response = await queuedPubgGet<PubgNormalSeasonResponse>(
+    `/shards/${shard}/players/${playerId}/seasons/${seasonId}`
+  )
+
+  const gameModeStats = response.data.data?.attributes?.gameModeStats ?? {}
+  const sourceStats =
+    gameModeStats.squad ?? gameModeStats['squad-fpp'] ?? (Object.keys(gameModeStats).length > 0 ? aggregateGameModeStats(gameModeStats as Record<string, PubgGameModeStats>) : {})
+
+  return {
+    kills: toNumber((sourceStats as PubgGameModeStats).kills),
+    damageDealt: toNumber((sourceStats as PubgGameModeStats).damageDealt),
+    wins: toNumber((sourceStats as PubgGameModeStats).wins),
+    losses: toNumber((sourceStats as PubgGameModeStats).losses),
+    assists: toNumber((sourceStats as PubgGameModeStats).assists),
+    revives: toNumber((sourceStats as PubgGameModeStats).revives),
+    roundsPlayed: toNumber(
+      ((sourceStats as PubgGameModeStats).wins ?? 0) + ((sourceStats as PubgGameModeStats).losses ?? 0)
+    ),
+  }
+}
+
+function deriveWeaponName(weaponId: string): string {
+  return weaponId
+    .replace(/^Item_Weapon_/i, '')
+    .replace(/_C$/i, '')
+    .replace(/_/g, ' ')
+    .trim()
+}
+
+export async function fetchWeaponMastery(
+  playerId: string,
+  shard: string = 'steam'
+): Promise<PubgWeaponMasteryEntry[]> {
+  ensurePubgApiKey()
+
+  try {
+    const response = await queuedPubgGet<PubgWeaponMasteryResponse>(
+      `/shards/${shard}/players/${playerId}/weapon_mastery`
+    )
+
+    const summary = response.data.data?.attributes?.weaponsummary ?? {}
+
+    return Object.entries(summary).map(([weaponId, data]) => ({
+      weaponId,
+      weaponName: deriveWeaponName(weaponId),
+      kills: data.StatsTotal?.kills ?? 0,
+      headshots: data.StatsTotal?.headShots ?? 0,
+      knockouts: data.StatsTotal?.defeats ?? 0,
+      shots: data.StatsTotal?.shots ?? 0,
+      hits: data.StatsTotal?.hits ?? 0,
+      damage: data.StatsTotal?.damage ?? 0,
+      level: data.LevelCurrent ?? 0,
+      xpTotal: data.XPTotal ?? 0,
+      tier: data.TierCurrent ?? 0,
+    }))
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('404') || error.message.includes('422'))
+    ) {
+      return []
+    }
+    throw error
   }
 }
 

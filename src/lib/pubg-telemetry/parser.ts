@@ -20,6 +20,10 @@ type TelemetryMemberStats = {
   vehicleRideEvents: number
   vehicleLeaveEvents: number
   positionEvents: number
+  healsUsed: number
+  healAmountTotal: number
+  boostsUsed: number
+  maxVehicleSpeedKph: number
   weapons: TelemetryMemberWeaponStats[]
 }
 
@@ -112,6 +116,7 @@ type TelemetryAccumulator = {
   positionSamples: TelemetryPositionSample[]
   trajectorySegments: TelemetryTrajectorySegment[]
   deathSamples: TelemetryPositionSample[]
+  landingSamples: TelemetryPositionSample[]
   phaseSnapshots: TelemetryPhaseSnapshot[]
   summary: {
     totalEvents: number
@@ -154,6 +159,7 @@ export type ParsedTelemetrySnapshot = {
   positionSamples: TelemetryPositionSample[]
   trajectorySegments: TelemetryTrajectorySegment[]
   deathSamples: TelemetryPositionSample[]
+  landingSamples: TelemetryPositionSample[]
   phaseSnapshots: TelemetryPhaseSnapshot[]
 }
 
@@ -562,6 +568,10 @@ function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, member
     vehicleRideEvents: 0,
     vehicleLeaveEvents: 0,
     positionEvents: 0,
+    healsUsed: 0,
+    healAmountTotal: 0,
+    boostsUsed: 0,
+    maxVehicleSpeedKph: 0,
     weapons: [],
   }
 
@@ -730,6 +740,7 @@ function createTelemetryAccumulator(): TelemetryAccumulator {
     positionSamples: [],
     trajectorySegments: [],
     deathSamples: [],
+    landingSamples: [],
     phaseSnapshots: [],
     summary: {
       totalEvents: 0,
@@ -970,6 +981,43 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogItemUse') {
     accumulator.summary.itemUseEvents += 1
+    if (actorKey) {
+      const itemId = getFirstStringFromPaths(event, ['item.itemId', 'itemId'])
+      if (itemId) {
+        const lower = itemId.toLowerCase()
+        const isBoost =
+          lower.includes('boost') ||
+          lower.includes('energy') ||
+          lower.includes('adrenaline') ||
+          lower.includes('painkiller')
+        if (isBoost) {
+          getOrCreateMemberStatsWithTeam(
+            accumulator.memberStats,
+            actorKey,
+            actorTeamId,
+            accumulator.teamPlacements
+          ).boostsUsed += 1
+        }
+      }
+    }
+    return
+  }
+
+  if (eventType === 'LogHeal') {
+    accumulator.summary.itemUseEvents += 1
+    if (actorKey) {
+      const healAmount = getFirstNumberFromPaths(event, ['healAmount', 'amount', 'restoreHealth'])
+      const member = getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        actorKey,
+        actorTeamId,
+        accumulator.teamPlacements
+      )
+      member.healsUsed += 1
+      if (typeof healAmount === 'number' && Number.isFinite(healAmount) && healAmount > 0) {
+        member.healAmountTotal += healAmount
+      }
+    }
     return
   }
 
@@ -987,6 +1035,28 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       }
       if (eventType === 'LogVehicleLeave') {
         member.vehicleLeaveEvents += 1
+        const speed = getFirstNumberFromPaths(event, ['maxSpeed', 'vehicle.maxSpeed'])
+        if (typeof speed === 'number' && Number.isFinite(speed) && speed > member.maxVehicleSpeedKph) {
+          member.maxVehicleSpeedKph = speed
+        }
+      }
+    }
+    return
+  }
+
+  if (eventType === 'LogParachuteLanding') {
+    if (actorKey) {
+      const location = getCharacterLocation(event)
+      if (location) {
+        accumulator.landingSamples.push({
+          memberKey: actorKey,
+          teamId: actorTeamId ?? undefined,
+          phase: 0,
+          timestampSeconds,
+          x: location.x,
+          y: location.y,
+          inVehicle: false,
+        })
       }
     }
     return
@@ -1197,6 +1267,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
         damageTaken: Number(member.damageTaken.toFixed(2)),
         onFootDistanceMeters: Number(member.onFootDistanceMeters.toFixed(2)),
         vehicleDistanceMeters: Number(member.vehicleDistanceMeters.toFixed(2)),
+        healAmountTotal: Number(member.healAmountTotal.toFixed(2)),
         circleDelaySeconds: Number((circleTiming?.accumulatedOutsideSeconds ?? 0).toFixed(2)),
         circleDelayPercent:
           circleTiming && circleTiming.accumulatedObservedSeconds > 0
@@ -1235,6 +1306,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     positionSamples: accumulator.positionSamples,
     trajectorySegments: accumulator.trajectorySegments,
     deathSamples: accumulator.deathSamples,
+    landingSamples: accumulator.landingSamples,
     phaseSnapshots: accumulator.phaseSnapshots,
   }
 }

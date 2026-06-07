@@ -31,6 +31,10 @@ type SnapshotMemberStatsRow = {
   vehicleRideEvents: number
   vehicleLeaveEvents: number
   positionEvents: number
+  healsUsed: number
+  healAmountTotal: number
+  boostsUsed: number
+  maxVehicleSpeedKph: number
   weapons: SnapshotMemberWeaponStatsRow[]
 }
 
@@ -79,6 +83,10 @@ type MemberTelemetryAggregate = {
   totalVehicleRideEvents: number
   totalVehicleLeaveEvents: number
   totalPositionEvents: number
+  totalHealsUsed: number
+  totalHealAmount: number
+  totalBoostsUsed: number
+  maxVehicleSpeedKph: number
 }
 
 type PairSynergyAggregate = {
@@ -229,6 +237,10 @@ function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberStatsRow[] {
       vehicleRideEvents: asFiniteNumber(row.vehicleRideEvents),
       vehicleLeaveEvents: asFiniteNumber(row.vehicleLeaveEvents),
       positionEvents: asFiniteNumber(row.positionEvents),
+      healsUsed: asFiniteNumber(row.healsUsed),
+      healAmountTotal: asFiniteNumber(row.healAmountTotal),
+      boostsUsed: asFiniteNumber(row.boostsUsed),
+      maxVehicleSpeedKph: asFiniteNumber(row.maxVehicleSpeedKph),
       weapons: parseSnapshotMemberWeaponStatsRows(row.weapons),
     })
   }
@@ -328,6 +340,10 @@ function getOrCreateMemberAggregate(
     totalVehicleRideEvents: 0,
     totalVehicleLeaveEvents: 0,
     totalPositionEvents: 0,
+    totalHealsUsed: 0,
+    totalHealAmount: 0,
+    totalBoostsUsed: 0,
+    maxVehicleSpeedKph: 0,
   }
 
   map.set(memberId, created)
@@ -500,6 +516,12 @@ async function recalculateTelemetryPeriodForClan(
       aggregate.totalVehicleRideEvents += row.vehicleRideEvents
       aggregate.totalVehicleLeaveEvents += row.vehicleLeaveEvents
       aggregate.totalPositionEvents += row.positionEvents
+      aggregate.totalHealsUsed += row.healsUsed
+      aggregate.totalHealAmount += row.healAmountTotal
+      aggregate.totalBoostsUsed += row.boostsUsed
+      if (row.maxVehicleSpeedKph > aggregate.maxVehicleSpeedKph) {
+        aggregate.maxVehicleSpeedKph = row.maxVehicleSpeedKph
+      }
 
       memberIdsSeenInMatch.add(memberId)
       matchMemberRows.set(memberId, row)
@@ -613,6 +635,10 @@ async function recalculateTelemetryPeriodForClan(
       avgVehicleRideEvents: Number((aggregate.totalVehicleRideEvents / matchesPlayed).toFixed(2)),
       avgVehicleLeaveEvents: Number((aggregate.totalVehicleLeaveEvents / matchesPlayed).toFixed(2)),
       avgPositionEvents: Number((aggregate.totalPositionEvents / matchesPlayed).toFixed(2)),
+      avgHealsUsed: Number((aggregate.totalHealsUsed / matchesPlayed).toFixed(2)),
+      avgHealAmount: Number((aggregate.totalHealAmount / matchesPlayed).toFixed(2)),
+      avgBoostsUsed: Number((aggregate.totalBoostsUsed / matchesPlayed).toFixed(2)),
+      maxVehicleSpeedKph: Number(aggregate.maxVehicleSpeedKph.toFixed(1)),
       matchesPlayed: aggregate.matchesPlayed,
     }
   })

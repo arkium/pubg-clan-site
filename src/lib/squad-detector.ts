@@ -237,6 +237,19 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
       assists: number
       revives: number
       placement: number
+      knockouts: number
+      headshotKills: number
+      timeSurvived: number
+      rideDistance: number
+      walkDistance: number
+      swimDistance: number
+      boosts: number
+      heals: number
+      vehicleDestroys: number
+      roadKills: number
+      longestKill: number
+      teamKills: number
+      weaponsAcquired: number
     }>
   } | null = null
 
@@ -256,6 +269,19 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
           assists: participant.assists,
           revives: participant.revives,
           placement: participant.position,
+          knockouts: participant.knockouts,
+          headshotKills: participant.headshotKills,
+          timeSurvived: participant.timeSurvived,
+          rideDistance: participant.rideDistance,
+          walkDistance: participant.walkDistance,
+          swimDistance: participant.swimDistance,
+          boosts: participant.boosts,
+          heals: participant.heals,
+          vehicleDestroys: participant.vehicleDestroys,
+          roadKills: participant.roadKills,
+          longestKill: participant.longestKill,
+          teamKills: participant.teamKills,
+          weaponsAcquired: participant.weaponsAcquired,
         }
       })
       .filter((member): member is NonNullable<typeof member> => member !== null)
@@ -309,6 +335,19 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
           assists: member.assists,
           revives: member.revives,
           placement: member.placement,
+          knockouts: member.knockouts,
+          headshotKills: member.headshotKills,
+          timeSurvived: member.timeSurvived,
+          rideDistance: member.rideDistance,
+          walkDistance: member.walkDistance,
+          swimDistance: member.swimDistance,
+          boosts: member.boosts,
+          heals: member.heals,
+          vehicleDestroys: member.vehicleDestroys,
+          roadKills: member.roadKills,
+          longestKill: member.longestKill,
+          teamKills: member.teamKills,
+          weaponsAcquired: member.weaponsAcquired,
         })),
       },
     },

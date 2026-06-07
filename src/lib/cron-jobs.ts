@@ -5,6 +5,13 @@ import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
+import {
+  fetchCurrentSeason,
+  fetchPlayerRankedStats,
+  fetchPlayerSeasonStats,
+  fetchWeaponMastery,
+  searchPlayerByName,
+} from '@/lib/pubg'
 import { syncTelemetryBatchForRecentSquadMatches } from '@/lib/pubg-telemetry/job'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
@@ -14,6 +21,7 @@ const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
 const STATS_RECALC_SCHEDULE = process.env.CLAN_STATS_RECALC_CRON ?? '0 3 * * *'
 const LIFETIME_STATS_SYNC_SCHEDULE = process.env.CLAN_LIFETIME_STATS_SYNC_CRON ?? '0 4 * * *'
+const SEASON_STATS_SYNC_SCHEDULE = process.env.CLAN_SEASON_STATS_SYNC_CRON ?? '0 5 * * *'
 const CLAN_ONLINE_REMINDER_SCHEDULE =
   process.env.CLAN_ONLINE_REMINDER_CRON ?? '0 18 * * *'
 const WEEKLY_REPORT_REMINDER_SCHEDULE =
@@ -67,6 +75,8 @@ const globalForCron = globalThis as typeof globalThis & {
   statsRecalcInProgress?: boolean
   lifetimeStatsSyncCronTask?: ScheduledTask
   lifetimeStatsSyncInProgress?: boolean
+  seasonStatsSyncCronTask?: ScheduledTask
+  seasonStatsSyncInProgress?: boolean
   clanReminderCronTask?: ScheduledTask
   reportReminderCronTask?: ScheduledTask
   weeklyReportCronTask?: ScheduledTask
@@ -487,6 +497,247 @@ async function syncLifetimeStatsDaily() {
   }
 }
 
+async function syncClanSeasonStats(clanId: number) {
+  const members = await prisma.clanMember.findMany({
+    where: { clanId, isActive: true },
+    select: { id: true, pubgPlayerName: true, pubgAccountId: true, platformShard: true },
+  })
+
+  const errors: string[] = []
+  let refreshedCount = 0
+
+  const shardGroups = new Map<string, typeof members>()
+  for (const member of members) {
+    const shard = member.platformShard
+    if (!shardGroups.has(shard)) shardGroups.set(shard, [])
+    shardGroups.get(shard)!.push(member)
+  }
+
+  for (const [shard, shardMembers] of shardGroups) {
+    const currentSeason = await fetchCurrentSeason(shard)
+    if (!currentSeason) {
+      errors.push(`No current season found for shard ${shard}`)
+      continue
+    }
+
+    for (const member of shardMembers) {
+      try {
+        let playerId = member.pubgAccountId
+        if (!playerId) {
+          const player = await searchPlayerByName(member.pubgPlayerName, shard)
+          if (!player?.accountId) {
+            errors.push(`Member ${member.id} (${member.pubgPlayerName}): PUBG account not found`)
+            continue
+          }
+          playerId = player.accountId
+          await prisma.clanMember.update({ where: { id: member.id }, data: { pubgAccountId: playerId } })
+        }
+
+        const [ranked, normal] = await Promise.all([
+          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId),
+          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId),
+        ])
+
+        const now = new Date()
+        const seasonData = {
+          rankedGameMode: ranked?.gameMode ?? null,
+          rankedTier: ranked?.tier ?? null,
+          rankedSubTier: ranked?.subTier ?? null,
+          rankedPoints: ranked?.currentRankPoints ?? 0,
+          rankedBestTier: ranked?.bestTier ?? null,
+          rankedBestSubTier: ranked?.bestSubTier ?? null,
+          rankedBestPoints: ranked?.bestRankPoints ?? 0,
+          rankedKills: ranked?.kills ?? 0,
+          rankedDamage: ranked?.damageDealt ?? 0,
+          rankedWins: ranked?.wins ?? 0,
+          rankedMatches: ranked?.roundsPlayed ?? 0,
+          rankedAssists: ranked?.assists ?? 0,
+          rankedRevives: ranked?.revives ?? 0,
+          normalKills: normal.kills,
+          normalDamage: normal.damageDealt,
+          normalWins: normal.wins,
+          normalLosses: normal.losses,
+          normalAssists: normal.assists,
+          normalRevives: normal.revives,
+          normalMatches: normal.wins + normal.losses,
+          lastRefreshedAt: now,
+        }
+
+        await prisma.memberSeasonStats.upsert({
+          where: { memberId_seasonId: { memberId: member.id, seasonId: currentSeason.seasonId } },
+          update: seasonData,
+          create: { memberId: member.id, seasonId: currentSeason.seasonId, ...seasonData },
+        })
+
+        refreshedCount += 1
+      } catch (error) {
+        errors.push(
+          `Member ${member.id} (${member.pubgPlayerName}): ${error instanceof Error ? error.message : 'unknown error'}`
+        )
+      }
+    }
+  }
+
+  return { refreshedCount, membersTotal: members.length, errors }
+}
+
+async function syncClanWeaponMastery(clanId: number) {
+  const members = await prisma.clanMember.findMany({
+    where: { clanId, isActive: true },
+    select: { id: true, pubgPlayerName: true, pubgAccountId: true, platformShard: true },
+  })
+
+  const errors: string[] = []
+  let refreshedCount = 0
+
+  for (const member of members) {
+    try {
+      let playerId = member.pubgAccountId
+      if (!playerId) {
+        const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard)
+        if (!player?.accountId) {
+          errors.push(`Member ${member.id} (${member.pubgPlayerName}): PUBG account not found`)
+          continue
+        }
+        playerId = player.accountId
+        await prisma.clanMember.update({ where: { id: member.id }, data: { pubgAccountId: playerId } })
+      }
+
+      const entries = await fetchWeaponMastery(playerId, member.platformShard)
+      if (entries.length === 0) {
+        refreshedCount += 1
+        continue
+      }
+
+      const now = new Date()
+      await prisma.$transaction(
+        entries.map((entry) =>
+          prisma.memberWeaponMastery.upsert({
+            where: { memberId_weaponId: { memberId: member.id, weaponId: entry.weaponId } },
+            update: {
+              weaponName: entry.weaponName,
+              kills: entry.kills,
+              headshots: entry.headshots,
+              knockouts: entry.knockouts,
+              shots: entry.shots,
+              hits: entry.hits,
+              damage: entry.damage,
+              level: entry.level,
+              xpTotal: entry.xpTotal,
+              tier: entry.tier,
+              lastRefreshedAt: now,
+            },
+            create: {
+              memberId: member.id,
+              weaponId: entry.weaponId,
+              weaponName: entry.weaponName,
+              kills: entry.kills,
+              headshots: entry.headshots,
+              knockouts: entry.knockouts,
+              shots: entry.shots,
+              hits: entry.hits,
+              damage: entry.damage,
+              level: entry.level,
+              xpTotal: entry.xpTotal,
+              tier: entry.tier,
+              lastRefreshedAt: now,
+            },
+          })
+        )
+      )
+
+      refreshedCount += 1
+    } catch (error) {
+      errors.push(
+        `Member ${member.id} (${member.pubgPlayerName}): ${error instanceof Error ? error.message : 'unknown error'}`
+      )
+    }
+  }
+
+  return { refreshedCount, membersTotal: members.length, errors }
+}
+
+async function syncSeasonStatsDaily() {
+  if (globalForCron.seasonStatsSyncInProgress) {
+    console.warn('[Cron] Season stats sync skipped because a previous run is still in progress')
+    return
+  }
+
+  globalForCron.seasonStatsSyncInProgress = true
+  const startedAt = new Date()
+  console.info(`[Cron] Daily season stats sync started at ${startedAt.toISOString()}`)
+
+  try {
+    const activeClans = await prisma.clan.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { id: 'asc' },
+    })
+
+    if (activeClans.length === 0) {
+      console.info('[Cron] No active clans found for season stats sync')
+      return
+    }
+
+    for (const clan of activeClans) {
+      const execution = await startCronExecution({
+        clanId: clan.id,
+        action: 'daily_season_stats_sync',
+        source: 'scheduler',
+      })
+
+      try {
+        const [result, masteryResult] = await Promise.all([
+          syncClanSeasonStats(clan.id),
+          syncClanWeaponMastery(clan.id),
+        ])
+        const hasErrors = result.errors.length > 0 || masteryResult.errors.length > 0
+        const allErrors = [...result.errors, ...masteryResult.errors]
+
+        console.info(
+          `[Cron] Season stats sync for clan "${clan.name}" (${clan.id}): ${result.refreshedCount}/${result.membersTotal} refreshed, mastery: ${masteryResult.refreshedCount}/${masteryResult.membersTotal}`
+        )
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: hasErrors ? 'partial' : 'success',
+          message: hasErrors
+            ? `Season/mastery sync partial: season ${result.refreshedCount}/${result.membersTotal}, mastery ${masteryResult.refreshedCount}/${masteryResult.membersTotal}`
+            : `Season/mastery sync completed: ${result.refreshedCount}/${result.membersTotal} members`,
+          details: {
+            seasonRefreshed: result.refreshedCount,
+            masteryRefreshed: masteryResult.refreshedCount,
+            membersTotal: result.membersTotal,
+            errorsPreview: allErrors.slice(0, 10),
+          },
+        })
+      } catch (error) {
+        console.error(
+          `[Cron] Failed to sync season stats for clan "${clan.name}" (${clan.id})`,
+          error
+        )
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Season stats sync failed',
+        }).catch(() => undefined)
+      }
+    }
+
+    const finishedAt = new Date()
+    console.info(
+      `[Cron] Daily season stats sync finished at ${finishedAt.toISOString()} - processed ${activeClans.length} clans`
+    )
+  } catch (error) {
+    console.error('[Cron] Daily season stats sync failed before processing clans', error)
+  } finally {
+    globalForCron.seasonStatsSyncInProgress = false
+  }
+}
+
 async function runDailyClanSync() {
   if (globalForCron.clanSyncInProgress) {
     console.warn('[Cron] Daily clan sync skipped because a previous run is still in progress')
@@ -890,6 +1141,16 @@ export function initCronJobs() {
     }
   )
 
+  globalForCron.seasonStatsSyncCronTask = cron.schedule(
+    SEASON_STATS_SYNC_SCHEDULE,
+    async () => {
+      await syncSeasonStatsDaily()
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
+  )
+
   globalForCron.clanReminderCronTask = cron.schedule(
     CLAN_ONLINE_REMINDER_SCHEDULE,
     async () => {
@@ -950,6 +1211,9 @@ export function initCronJobs() {
   )
   console.info(
     `[Cron] Daily lifetime stats sync scheduled with "${LIFETIME_STATS_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  )
+  console.info(
+    `[Cron] Daily season stats sync scheduled with "${SEASON_STATS_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
   )
   console.info(
     `[Cron] Clan online reminders scheduled with "${CLAN_ONLINE_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`

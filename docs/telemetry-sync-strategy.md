@@ -1,20 +1,209 @@
 # Stratégie de synchronisation télémétrie - Mode manuel & batch robuste
 
-## Analyse de l'état actuel
+**Statut**: ✅ Phase 1, 2, 3 COMPLÉTÉES (commit Phase 3: 33cc613)
 
-### ✅ Points forts
-- Queue persistante basée sur `CronExecution` (pas de perte de jobs)
-- Worker dédié en process séparé (isole les charges lourdes)
-- Déduplication (même match pas reenfilé)
-- Gestion des erreurs avec statuts (queued → running → success/failed)
+## Analyse de l'état initial (résolu)
 
-### ❌ Points faibles
-1. **Pas de mode manuel interactif** : UI affiche les boutons mais retour au client peu informatif
-2. **Pas de monitoring en temps réel** : l'utilisateur ne sait pas ce qui se passe
-3. **Pas de limite mémoire** : worker traite job par job sans GC
-4. **Pas de retry intelligent** : un job échoué reste en failed
-5. **Agrégats recalculés 1 fois/match** : inefficace si plusieurs matches changent
-6. **Pas de batch groupé** : idéal pour cold-start après ajout d'agrégats
+### ✅ Points forts (implémentés)
+- Queue persistante basée sur `CronExecution` ✅
+- Worker dédié en process séparé ✅
+- Déduplication (même match pas reenfilé) ✅
+- Gestion des erreurs avec statuts ✅
+
+### ✅ Points faibles (RÉSOLUS)
+
+#### Phase 1 ✅ FAIT
+- ✅ Mode manuel interactif avec UI
+- ✅ Monitoring en temps réel via API
+- ✅ Endpoint POST /sync-batch-manual
+- ✅ Status query en temps réel
+- ✅ CLI batch processor
+
+#### Phase 2 ✅ FAIT
+- ✅ Protection mémoire: MemoryMonitor + BackpressureController
+- ✅ GC configuration (opt-in avec TELEMETRY_WORKER_GC_ENABLED)
+- ✅ Dead letter queue pour jobs définitifs
+- ✅ Worker health monitoring
+- ✅ Retry logic avec backoff exponentiel
+
+#### Phase 3 ✅ FAIT
+- ✅ Dashboard monitoring en temps réel
+- ✅ Erreurs browsable et filtrable
+- ✅ Queue cleanup endpoint (reorder, stale cleanup)
+- ✅ Batch size tuning automatique
+- ✅ Metrics export (JSON + Prometheus)
+
+## Architecture implémentée
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    INTERFACE WEB                             │
+├─────────────────────────────────────────────────────────────┤
+│  [Batch manual]  [Monitor]  [Errors]  [Cleanup]             │
+│  /telemetry/sync-batch-manual                               │
+│  /telemetry/dashboard                                       │
+│  /telemetry/errors                                          │
+└──────────────────────────┬────────────────────────────────────┘
+                           │
+┌─────────────────────────────────────────────────────────────┐
+│              API ENDPOINTS (Phase 1-3)                       │
+│  • POST /sync-batch-manual      (enqueue + status)          │
+│  • GET  /sync-batch-manual      (query status)              │
+│  • POST /dead-letter            (dead letter management)    │
+│  • POST /recalc-aggregates-batch (batch recalc)             │
+│  • POST /queue-cleanup          (priority, cleanup, cancel) │
+│  • GET  /metrics                (JSON + Prometheus)         │
+└──────────────────────────┬────────────────────────────────────┘
+                           │ CronExecution table
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    QUEUE PERSISTANTE                         │
+│  Statuts: queued → running → success/failed → dead-letter  │
+│  Memory monitoring: MemoryMonitor + BackpressureController │
+└──────────────────────────┬────────────────────────────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+        ▼                  ▼                  ▼
+   [Worker Loop]    [Worker Once]     [Batch Cleanup]
+   (continuous)     (one-shot mode)   (priority/stale)
+   (memory-safe)    (via npm run)     (queue mgmt)
+```
+
+## Phases implémentées
+
+### ✅ Phase 1: Mode manuel avec monitoring (COMPLÈTE)
+
+**Fichiers créés:**
+- `src/app/api/clans/[clanId]/telemetry/sync-batch-manual/route.ts` ✅
+- `src/app/clans/[clanId]/telemetry/sync-batch-manual/page.tsx` ✅
+- `scripts/telemetry-batch.ts` ✅
+- `src/lib/pubg-telemetry/resync-queue.ts` ✅
+
+**Flux:**
+```
+POST /api/clans/1/telemetry/sync-batch-manual
+  → enqueue jobs atomiquement
+  → retour JSON avec jobIds
+  → GET status en polling 30s
+  → Dashboard affiche progression
+```
+
+**Commandes:**
+```bash
+npm run telemetry:batch -- --clan 1
+npm run telemetry:batch -- --check --clan 1
+npm run telemetry:worker:once
+```
+
+### ✅ Phase 2: Protection mémoire (COMPLÈTE)
+
+**Fichiers créés:**
+- `src/lib/pubg-telemetry/memory-monitor.ts` ✅
+- `src/lib/pubg-telemetry/worker-backpressure.ts` ✅
+- `src/lib/pubg-telemetry/worker-health.ts` ✅
+- `src/app/api/clans/[clanId]/telemetry/dead-letter/route.ts` ✅
+
+**Features:**
+- Memory monitoring: track heap % usage
+- Backpressure: pause if heap > 80%, critical if > 95%
+- GC integration: optional explicit GC after jobs
+- Health tracking: jobs/success/fail/duration/peak memory
+- Dead letter queue: failed jobs >1h old
+
+**Env vars:**
+```bash
+TELEMETRY_WORKER_GC_ENABLED=true
+TELEMETRY_WORKER_MEMORY_THRESHOLD_PCT=80
+TELEMETRY_WORKER_MEMORY_CRITICAL_PCT=95
+```
+
+### ✅ Phase 3: Dashboard & Queue Management (COMPLÈTE)
+
+**Fichiers créés:**
+- `src/app/clans/[clanId]/telemetry/dashboard/page.tsx` ✅
+- `src/app/clans/[clanId]/telemetry/errors/page.tsx` ✅
+- `src/app/api/clans/[clanId]/telemetry/queue-cleanup/route.ts` ✅
+- `src/app/api/clans/[clanId]/telemetry/metrics/route.ts` ✅
+- `src/lib/pubg-telemetry/queue-priority.ts` ✅
+- `src/lib/pubg-telemetry/batch-tuner.ts` ✅
+- `src/lib/pubg-telemetry/stale-cleanup.ts` ✅
+
+**Features:**
+- Dashboard: queue stats, success/failure rates, quick actions
+- Errors page: browse failed jobs, time filtering, manual retry
+- Queue cleanup: reorder by priority, delete stale jobs
+- Batch tuning: auto-adjust batch size under pressure
+- Metrics export: JSON + Prometheus formats
+
+## Configuration d'environnement (implémentée)
+
+```env
+# Worker settings (Phase 1-2)
+TELEMETRY_RESYNC_WORKER_POLL_MS=2000
+TELEMETRY_RESYNC_WORKER_ID=worker-prod-1
+
+# Memory protection (Phase 2)
+TELEMETRY_WORKER_GC_ENABLED=false          # opt-in
+TELEMETRY_WORKER_MEMORY_THRESHOLD_PCT=80
+TELEMETRY_WORKER_MEMORY_CRITICAL_PCT=95
+
+# Optional: Node.js
+NODE_OPTIONS='--expose-gc'
+```
+
+## Commandes disponibles
+
+```bash
+# Phase 1: Batch enqueue
+npm run telemetry:batch -- --clan 1
+npm run telemetry:batch -- --clan 1 --all-matches
+npm run telemetry:batch -- --all-clans
+npm run telemetry:batch -- --check --clan 1
+
+# Phase 1: Worker
+npm run telemetry:worker              # Boucle infini
+npm run telemetry:worker:once         # Une seule fois
+
+# Phase 2: Avec monitoring
+npm run telemetry:worker:monitored    # GC enabled
+npm run telemetry:worker:gc           # --expose-gc
+
+# Phase 2: Dead letter
+npm run telemetry:batch -- --dead-letter --clan 1
+npm run telemetry:batch -- --retry-dead-letter job-id --clan 1
+
+# Phase 3: Queue management
+curl -X POST http://localhost:3000/api/clans/1/telemetry/queue-cleanup \
+  -H "Content-Type: application/json" \
+  -d '{"action": "reorder-priority"}'
+
+# Phase 3: Metrics
+curl http://localhost:3000/api/clans/1/telemetry/metrics
+curl 'http://localhost:3000/api/clans/1/telemetry/metrics?format=prometheus'
+```
+
+## Test Checklist (VALIDÉ)
+
+- ✅ Phase 1: endpoint sync-batch-manual works
+- ✅ Phase 1: CLI batch processor enqueues jobs
+- ✅ Phase 1: Status query returns accurate counts
+- ✅ Phase 2: MemoryMonitor tracks heap usage
+- ✅ Phase 2: BackpressureController pauses on high pressure
+- ✅ Phase 2: Dead letter queue collects old failed jobs
+- ✅ Phase 3: Dashboard displays queue metrics
+- ✅ Phase 3: Errors page filters and retries
+- ✅ Phase 3: Queue cleanup reorders and deletes
+- ✅ Phase 3: Metrics export works (JSON + Prometheus)
+- ✅ Build: All pages compile without errors
+
+## Documentation
+
+- ✅ [TELEMETRY_BATCH_README.md](TELEMETRY_BATCH_README.md) - Overview Phase 1-3
+- ✅ [TELEMETRY_PHASE2_GUIDE.md](TELEMETRY_PHASE2_GUIDE.md) - Memory protection details
+- ✅ [TELEMETRY_PHASE3_GUIDE.md](TELEMETRY_PHASE3_GUIDE.md) - Dashboard & monitoring
+- ✅ [TELEMETRY_PRODUCTION_GUIDE.md](TELEMETRY_PRODUCTION_GUIDE.md) - Deployment strategies
+
 
 ## Problèmes à résoudre
 

@@ -52,8 +52,12 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Mode manuel et batch robuste, enqueue/check status, CLI, worker avec memory protection (Phase 2)
 - [Télémétrie Phase 2 Guide](TELEMETRY_PHASE2_GUIDE.md)
   - Memory monitoring, backpressure controller, dead letter queue, worker health tracking
+- [Télémétrie Phase 3 Guide](TELEMETRY_PHASE3_GUIDE.md)
+  - Dashboard monitoring, error browsing, queue cleanup, metrics export
 - [Télémétrie Production Guide](TELEMETRY_PRODUCTION_GUIDE.md)
   - Déploiement production (Kubernetes, VPS, systemd), troubleshooting, monitoring, scenarios d'urgence
+- [Télémétrie Status Complet](TELEMETRY_STATUS_COMPLETE.md)
+  - Statut Phase 1-3, ce qui reste à faire, roadmap, recommandations
 
 ## Parcours recommandé
 

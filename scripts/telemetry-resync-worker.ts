@@ -8,6 +8,8 @@ import {
   claimNextTelemetryResyncQueueJob,
   finishTelemetryResyncQueueJobFailed,
   finishTelemetryResyncQueueJobSuccess,
+  getTelemetryResyncQueueStats,
+  recoverStuckTelemetryResyncJobs,
 } from '@/lib/pubg-telemetry/resync-queue'
 import {
   resolveCaptureDirectory,
@@ -57,7 +59,8 @@ function resolveMemoryCriticalPercent(): number {
 }
 
 function resolveGcEnabled(): boolean {
-  return process.env.TELEMETRY_WORKER_GC_ENABLED === 'true'
+  if (process.env.TELEMETRY_WORKER_GC_ENABLED === 'false') return false
+  return typeof global.gc === 'function'
 }
 
 async function processOneJob(
@@ -73,6 +76,15 @@ async function processOneJob(
       if (!job) {
         return null
       }
+
+      console.info('[TelemetryResyncWorker] job claimed', {
+        workerId,
+        jobId: job.id,
+        clanId: job.clanId,
+        squadMatchId: job.details.squadMatchId,
+        resetBeforeSync: job.details.resetBeforeSync,
+        recalculateAggregates: job.details.recalculateAggregates,
+      })
 
       const captureDir = resolveCaptureDirectory()
       const maxResyncFileBytes = getTelemetryFixtureCaptureMaxBytes()
@@ -120,6 +132,10 @@ async function processOneJob(
             },
             `Captured file exceeds size limit (${syncFromFile.size} > ${maxResyncFileBytes})`
           )
+          return true
+        }
+
+        if (syncFromFile.status !== 'processed') {
           return true
         }
 
@@ -202,6 +218,16 @@ async function processOneJob(
           `Telemetry file resync success (${job.details.squadMatchId})`
         )
 
+        const queue = await getTelemetryResyncQueueStats({ clanId: job.clanId })
+        console.info('[TelemetryResyncWorker] job success', {
+          workerId,
+          jobId: job.id,
+          clanId: job.clanId,
+          squadMatchId: job.details.squadMatchId,
+          durationMs: Date.now() - startTime,
+          queue,
+        })
+
         return true
       } catch (error) {
         await finishTelemetryResyncQueueJobFailed(
@@ -215,6 +241,17 @@ async function processOneJob(
           },
           error instanceof Error ? error.message : String(error)
         )
+
+        const queue = await getTelemetryResyncQueueStats({ clanId: job.clanId })
+        console.error('[TelemetryResyncWorker] job failed', {
+          workerId,
+          jobId: job.id,
+          clanId: job.clanId,
+          squadMatchId: job.details.squadMatchId,
+          durationMs: Date.now() - startTime,
+          error: error instanceof Error ? error.message : String(error),
+          queue,
+        })
 
         return true
       }
@@ -250,6 +287,11 @@ async function main() {
     gcEnabled,
   })
 
+  const recovered = await recoverStuckTelemetryResyncJobs(workerId)
+  if (recovered > 0) {
+    console.warn('[TelemetryResyncWorker] recovered stuck jobs', { workerId, recovered })
+  }
+
   const monitor = new MemoryMonitor({
     thresholdPercent: memoryThresholdPercent,
     criticalThresholdPercent: memoryCriticalPercent,
@@ -268,12 +310,20 @@ async function main() {
   // Log metrics every 30s in background
   if (!once) {
     metricsLogInterval = setInterval(() => {
-      const metrics = health.getMetrics()
-      const bpStatus = backpressure.getStatus()
-      console.info('[TelemetryResyncWorker] metrics', {
-        ...metrics,
-        memoryTrend: health.getMemoryTrend(),
-        pressure: bpStatus,
+      void (async () => {
+        const metrics = health.getMetrics()
+        const bpStatus = backpressure.getStatus()
+        const queue = await getTelemetryResyncQueueStats()
+        console.info('[TelemetryResyncWorker] metrics', {
+          ...metrics,
+          memoryTrend: health.getMemoryTrend(),
+          pressure: bpStatus,
+          queue,
+        })
+      })().catch((error) => {
+        console.warn('[TelemetryResyncWorker] metrics snapshot failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
     }, 30000)
   }
@@ -317,6 +367,22 @@ async function main() {
     })
   }
 }
+
+process.on('uncaughtException', (error) => {
+  console.error('[TelemetryResyncWorker] uncaughtException', {
+    error: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  })
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[TelemetryResyncWorker] unhandledRejection', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  })
+  process.exit(1)
+})
 
 void main().catch(async (error) => {
   console.error('[TelemetryResyncWorker] fatal', {

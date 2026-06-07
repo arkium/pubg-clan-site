@@ -116,7 +116,6 @@ export async function syncTelemetryForSquadMatchFromStream(
       pubgMatchId: true,
     },
   })
-
   if (!match) {
     return {
       squadMatchId,

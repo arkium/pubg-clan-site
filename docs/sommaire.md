@@ -48,6 +48,8 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Fonctions à coder pour extraire l'URL asset, télécharger en streaming et brancher l'ingestion sur les matchs existants
 - [Resync worker et runtime dev](resync-worker-runtime.md)
   - Queue persistante, worker dédié hors process web, endpoint runtime PID/uptime et usage opératoire conseillé
+- [Worker télémétrie — crash silencieux et correctifs](telemetry-worker-crash-fix.md)
+  - Bug `Readable.toWeb()` Node.js 22 sur streams séquentiels, recovery des jobs bloqués, adaptateur stream manuel
 - [Télémétrie batch - Phase 1-2](TELEMETRY_BATCH_README.md)
   - Mode manuel et batch robuste, enqueue/check status, CLI, worker avec memory protection (Phase 2)
 - [Télémétrie - Trois modes de récupération](TELEMETRY_SYNC_MODES.md)

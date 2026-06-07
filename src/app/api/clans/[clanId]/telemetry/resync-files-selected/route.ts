@@ -156,6 +156,7 @@ export async function POST(
         squadMatchId,
         captureDir,
         maxResyncFileBytes,
+        validateOnly,
       })
 
       if (syncFromFile.status === 'missing') {
@@ -177,7 +178,7 @@ export async function POST(
         continue
       }
 
-      if (validateOnly) {
+      if (syncFromFile.status === 'validated') {
         results.push({
           squadMatchId,
           pubgMatchId: 'unknown',

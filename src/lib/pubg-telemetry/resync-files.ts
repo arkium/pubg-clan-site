@@ -1,9 +1,28 @@
 import { createReadStream } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { Readable } from 'node:stream'
+import type { Readable } from 'node:stream'
 
 import { syncTelemetryForSquadMatchFromStream } from '@/lib/pubg-telemetry/manual-sync'
+
+function nodeReadableToWebStream(readable: Readable): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      readable.on('data', (chunk: Buffer | Uint8Array) => {
+        controller.enqueue(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk))
+        readable.pause()
+      })
+      readable.on('end', () => controller.close())
+      readable.on('error', (err) => controller.error(err))
+    },
+    pull() {
+      readable.resume()
+    },
+    cancel() {
+      readable.destroy()
+    },
+  })
+}
 
 function sanitizeFileSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
@@ -73,6 +92,10 @@ export type ResyncFromCapturedFileResult =
       size: number
     }
   | {
+      status: 'validated'
+      size: number
+    }
+  | {
       status: 'processed'
       size: number
       result: Awaited<ReturnType<typeof syncTelemetryForSquadMatchFromStream>>
@@ -83,6 +106,7 @@ export async function resyncTelemetryFromCapturedFile(input: {
   squadMatchId: string
   captureDir: string
   maxResyncFileBytes: number
+  validateOnly?: boolean
 }): Promise<ResyncFromCapturedFileResult> {
   const capturedFile = await findLatestCapturedFileForSquadMatch(input.captureDir, input.squadMatchId)
   if (!capturedFile) {
@@ -96,8 +120,12 @@ export async function resyncTelemetryFromCapturedFile(input: {
     }
   }
 
-  const nodeStream = createReadStream(capturedFile.filePath)
-  const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>
+  if (input.validateOnly) {
+    return { status: 'validated', size: capturedFile.size }
+  }
+
+  const nodeStream = createReadStream(capturedFile.filePath, { highWaterMark: 64 * 1024 })
+  const webStream = nodeReadableToWebStream(nodeStream)
   const result = await syncTelemetryForSquadMatchFromStream({
     clanId: input.clanId,
     squadMatchId: input.squadMatchId,

@@ -251,6 +251,14 @@ type FileResyncQueueResponse = {
   alreadyQueuedCount?: number
   queuedMatchIds?: string[]
   alreadyQueuedMatchIds?: string[]
+  queue?: {
+    queued?: number
+    running?: number
+    remaining?: number
+    success?: number
+    failed?: number
+    total?: number
+  }
 }
 
 type RuntimeStatusResponse = {
@@ -261,6 +269,27 @@ type RuntimeStatusResponse = {
     uptimeSec?: number
     hostname?: string
   }
+}
+
+type QueueLiveStatusResponse = {
+  ok?: boolean
+  error?: string
+  queue?: {
+    queued?: number
+    running?: number
+    success?: number
+    failed?: number
+    total?: number
+  }
+  recentJobs?: Array<{
+    id: string
+    status: string
+    message: string | null
+    createdAt: string
+    startedAt: string | null
+    finishedAt: string | null
+    duration: number | null
+  }>
 }
 
 const SAFE_RESYNC_BATCH_LIMIT = 1
@@ -330,6 +359,24 @@ export default function ClanSessionDatePage() {
   const [telemetryClearLoading, setTelemetryClearLoading] = useState(false)
   const [telemetryClearMessage, setTelemetryClearMessage] = useState<string | null>(null)
   const [telemetrySyncMode, setTelemetrySyncMode] = useState<TelemetrySyncMode>('direct')
+  const [queueLiveStatus, setQueueLiveStatus] = useState<{
+    queued: number
+    running: number
+    remaining: number
+    success: number
+    failed: number
+    total: number
+    updatedAt: number
+    recentJobs: Array<{
+      id: string
+      status: string
+      message: string | null
+      createdAt: string
+      finishedAt: string | null
+    }>
+  } | null>(null)
+  const [queueLiveStatusLoading, setQueueLiveStatusLoading] = useState(false)
+  const [queueLiveStatusError, setQueueLiveStatusError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -550,6 +597,82 @@ export default function ClanSessionDatePage() {
       window.clearInterval(timer)
     }
   }, [clanId])
+
+  useEffect(() => {
+    if (!clanId || telemetrySyncMode !== 'queue') {
+      setQueueLiveStatus(null)
+      setQueueLiveStatusError(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadQueueLiveStatus(initialLoad: boolean) {
+      if (initialLoad) {
+        setQueueLiveStatusLoading(true)
+      }
+
+      try {
+        const response = await fetch(`/api/clans/${clanId}/telemetry/sync-batch-manual`, {
+          method: 'GET',
+          cache: 'no-store',
+        })
+
+        const payload = (await response.json().catch(() => null)) as QueueLiveStatusResponse | null
+
+        if (cancelled) {
+          return
+        }
+
+        if (!response.ok || !payload?.ok) {
+          setQueueLiveStatusError(payload?.error ?? 'Statut de file indisponible')
+          return
+        }
+
+        const queued = payload.queue?.queued ?? 0
+        const running = payload.queue?.running ?? 0
+        const success = payload.queue?.success ?? 0
+        const failed = payload.queue?.failed ?? 0
+        const total = payload.queue?.total ?? queued + running + success + failed
+
+        setQueueLiveStatus({
+          queued,
+          running,
+          remaining: queued + running,
+          success,
+          failed,
+          total,
+          updatedAt: Date.now(),
+          recentJobs: (payload.recentJobs ?? []).slice(0, 5).map((job) => ({
+            id: job.id,
+            status: job.status,
+            message: job.message,
+            createdAt: job.createdAt,
+            finishedAt: job.finishedAt,
+          })),
+        })
+        setQueueLiveStatusError(null)
+      } catch {
+        if (!cancelled) {
+          setQueueLiveStatusError('Statut de file indisponible')
+        }
+      } finally {
+        if (!cancelled && initialLoad) {
+          setQueueLiveStatusLoading(false)
+        }
+      }
+    }
+
+    void loadQueueLiveStatus(true)
+    const timer = window.setInterval(() => {
+      void loadQueueLiveStatus(false)
+    }, 5000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [clanId, telemetrySyncMode])
 
   const sessionStats = useMemo(() => buildSessionStats(sessionMatches), [sessionMatches])
   const modePerformance = useMemo(() => buildModePerformance(sessionMatches), [sessionMatches])
@@ -1077,7 +1200,7 @@ export default function ClanSessionDatePage() {
 
     if (candidateIds.length === 0) {
       setTelemetryFileQueueMessage(
-        'Aucun match a enfiler: la selection est deja en Parser OK. Activez "Forcer le resync" pour retraiter.'
+        'Aucun match à mettre en file: la sélection est déjà en "Parser OK". Activez "Forcer le resync" pour retraiter.'
       )
       return
     }
@@ -1147,10 +1270,15 @@ export default function ClanSessionDatePage() {
 
       const queuedCount = queuePayload.queuedCount ?? 0
       const alreadyQueuedCount = queuePayload.alreadyQueuedCount ?? 0
-      const resetPart = resetBeforeResync ? ' reset DB actif.' : ''
+      const queueQueued = queuePayload.queue?.queued ?? 0
+      const queueRunning = queuePayload.queue?.running ?? 0
+      const queueRemaining = queuePayload.queue?.remaining ?? queueQueued + queueRunning
+      const queueSuccess = queuePayload.queue?.success ?? 0
+      const queueFailed = queuePayload.queue?.failed ?? 0
+      const resetPart = resetBeforeResync ? ' Option "Réinitialiser DB" active.' : ''
 
       setTelemetryFileQueueMessage(
-        `Queue worker: ${queuedCount} job(s) ajoute(s), ${alreadyQueuedCount} deja en cours/file.${resetPart} Lancez \`npm run telemetry:worker\` pour traiter hors serveur web.`
+        `Mise en file terminée: ${queuedCount} job(s) ajouté(s), ${alreadyQueuedCount} déjà en file ou en cours. Restant à traiter: ${queueRemaining} (${queueQueued} en attente, ${queueRunning} en cours). Historique: ${queueSuccess} succès, ${queueFailed} échec(s).${resetPart} Lancez \`npm run telemetry:worker\` dans un terminal séparé pour exécuter la file.`
       )
       setTelemetryFileSyncMessage(null)
     } catch (error) {
@@ -1587,9 +1715,9 @@ export default function ClanSessionDatePage() {
 
             {telemetrySyncMode === 'queue' && (
               <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 p-4">
-                <h3 className="font-semibold text-purple-900 mb-2">Mode Queue Resync</h3>
+                <h3 className="font-semibold text-purple-900 mb-2">Mode File (Queue) Resync</h3>
                 <p className="text-sm text-purple-800 mb-3">
-                  Enqueue les matchs pour traitement asynchrone par le worker. Non-bloquant et scalable.
+                  Ajoute les matchs dans une file traitée en asynchrone par le worker. Non bloquant et scalable.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
@@ -1607,7 +1735,7 @@ export default function ClanSessionDatePage() {
                   >
                     {telemetryFileQueueLoading
                       ? 'Mise en file...'
-                      : `Enqueue Resync (${selectedMatchIds.length})`}
+                      : `Mettre en file (${selectedMatchIds.length})`}
                   </button>
                   <button
                     type="button"
@@ -1644,6 +1772,62 @@ export default function ClanSessionDatePage() {
                 <p className="mt-2 text-xs text-purple-700">
                   Lancez <code className="bg-white px-1 rounded">npm run telemetry:worker</code> dans un terminal séparé pour traiter les jobs.
                 </p>
+
+                <div className="mt-3 rounded-lg border border-purple-200 bg-white/70 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-purple-900">Etat de la file en direct</p>
+                    <p className="text-[11px] text-purple-700">Actualisation auto: 5s</p>
+                  </div>
+
+                  {queueLiveStatusLoading && !queueLiveStatus ? (
+                    <p className="mt-2 text-xs text-purple-700">Chargement du statut...</p>
+                  ) : null}
+
+                  {queueLiveStatus ? (
+                    <>
+                      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded border border-purple-200 bg-purple-50 px-2 py-1 text-purple-900">
+                          Restants: <strong>{queueLiveStatus.remaining}</strong>
+                        </div>
+                        <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sky-900">
+                          En attente: <strong>{queueLiveStatus.queued}</strong>
+                        </div>
+                        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">
+                          En cours: <strong>{queueLiveStatus.running}</strong>
+                        </div>
+                        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-900">
+                          Succès: <strong>{queueLiveStatus.success}</strong>
+                        </div>
+                        <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-rose-900">
+                          Echecs: <strong>{queueLiveStatus.failed}</strong>
+                        </div>
+                        <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-900">
+                          Total: <strong>{queueLiveStatus.total}</strong>
+                        </div>
+                      </div>
+
+                      <p className="mt-2 text-[11px] text-purple-700">
+                        Derniere mise a jour: {new Date(queueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}
+                      </p>
+
+                      {queueLiveStatus.recentJobs.length > 0 ? (
+                        <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-purple-800">
+                          {queueLiveStatus.recentJobs.map((job) => (
+                            <li key={job.id} className="rounded border border-purple-100 bg-purple-50/60 px-2 py-1">
+                              <span className="font-medium">{job.status.toUpperCase()}</span>
+                              {' - '}
+                              {job.message ?? 'Sans message'}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {queueLiveStatusError ? (
+                    <p className="mt-2 text-xs text-amber-800">{queueLiveStatusError}</p>
+                  ) : null}
+                </div>
               </div>
             )}
 

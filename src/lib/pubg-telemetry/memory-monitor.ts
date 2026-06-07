@@ -1,10 +1,13 @@
 export interface MemoryMetrics {
   heapUsed: number
   heapTotal: number
+  heapSizeLimit: number
   external: number
   percentUsed: number
   timestamp: Date
 }
+
+import { getHeapStatistics } from 'node:v8'
 
 export class MemoryMonitor {
   private readonly threshold: number
@@ -28,11 +31,13 @@ export class MemoryMonitor {
     const heapUsed = mem.heapUsed
     const heapTotal = mem.heapTotal
     const external = mem.external ?? 0
-    const percentUsed = (heapUsed / heapTotal) * 100
+    const heapSizeLimit = getHeapStatistics().heap_size_limit
+    const percentUsed = (heapUsed / heapSizeLimit) * 100
 
     return {
       heapUsed,
       heapTotal,
+      heapSizeLimit,
       external,
       percentUsed,
       timestamp: new Date(),
@@ -96,8 +101,8 @@ export class MemoryMonitor {
   formatMetrics(metrics?: MemoryMetrics): string {
     const m = metrics ?? this.getMetrics()
     const heapMB = (m.heapUsed / 1024 / 1024).toFixed(1)
-    const totalMB = (m.heapTotal / 1024 / 1024).toFixed(1)
+    const limitMB = (m.heapSizeLimit / 1024 / 1024).toFixed(0)
 
-    return `${heapMB}MB / ${totalMB}MB (${m.percentUsed.toFixed(1)}%)`
+    return `${heapMB}MB / ${limitMB}MB (${m.percentUsed.toFixed(1)}%)`
   }
 }

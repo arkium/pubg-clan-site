@@ -1,6 +1,368 @@
 # Télémétrie - Mode manuel et batch robuste
 
-**Statut**: Phase 1 implémentée (mode manuel + batch CLI)
+**Statut**: Phase 2 implémentée (mode manuel + batch CLI + memory protection)
+
+## Quick Start
+
+### 1. Mode web interactif (UI)
+```bash
+# Page dédiée batch:
+1. Aller à /clans/1/telemetry/sync-batch-manual
+2. Ajouter les match IDs
+3. Configurer options (reset/recalc)
+4. Cliquer "Enqueue sync"
+5. Cliquer "Check status" pour voir progression
+```
+
+### 2. Mode CLI (batch script)
+```bash
+# Sync clan spécifique (matches récents)
+npm run telemetry:batch -- --clan 1
+
+# Sync clan (ALL matches qui manquent télémétrie)
+npm run telemetry:batch -- --clan 1 --all-matches
+
+# Sync tous les clans
+npm run telemetry:batch -- --all-clans
+
+# Recalc agrégats après ajout de colonnes
+npm run telemetry:batch -- --clan 1 --recalc-aggregates-only
+
+# Vérifier le status de la queue
+npm run telemetry:batch -- --check --clan 1
+
+# Lister les jobs en dead letter queue (Phase 2)
+npm run telemetry:batch -- --dead-letter --clan 1
+
+# Relancer un job depuis dead letter (Phase 2)
+npm run telemetry:batch -- --retry-dead-letter job-id-1 job-id-2 --clan 1
+```
+
+### 3. Worker (process séparé)
+```bash
+# Mode boucle (polling toutes les 2s, avec monitoring mémoire)
+npm run telemetry:worker
+
+# Mode une seule fois
+npm run telemetry:worker:once
+
+# Mode avec GC explicitee (Phase 2)
+TELEMETRY_WORKER_GC_ENABLED=true npm run telemetry:worker:monitored
+
+# Mode avec --expose-gc pour introspection
+npm run telemetry:worker:gc
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│   Interface utilisateur             │
+│  • Page /clans/[id]/telemetry/sync-batch-manual
+│  • API endpoints                    │
+└──────────────┬──────────────────────┘
+               │
+               ├─→ POST /api/.../sync-batch-manual
+               │   (enqueue + get status)
+               │
+               ├─→ GET /api/.../sync-batch-manual
+               │   (query queue status)
+               │
+               ├─→ GET/POST /api/.../dead-letter
+               │   (manage permanently failed jobs)
+               │
+               └─→ POST /api/.../recalc-aggregates-batch
+                   (recalc one/all clans)
+                   
+               ↓
+         
+         CronExecution table (queue)
+         Status: queued → running → success/failed
+         Dead letter: jobs > 1hr old with no retry
+         
+               ↓
+               
+    ┌─────────────────────────────────┐
+    │  Worker Process (séparé)        │
+    │  • MemoryMonitor (Phase 2)      │
+    │  • BackpressureController (P2)  │
+    │  • WorkerHealthMonitor (Phase 2)|
+    │  • Claim 1 job atomiquement     │
+    │  • Process 1 match              │
+    │  • Retry with backoff           │
+    │  • Recalc aggregates            │
+    └─────────────────────────────────┘
+```
+
+## Endpoints disponibles
+
+### Sync batch manuel
+```bash
+POST /api/clans/{clanId}/telemetry/sync-batch-manual
+
+Request:
+{
+  "squadMatchIds": ["match1", "match2"],
+  "resetBeforeSync": false,           # Reset télémétrie avant resync
+  "recalculateAggregates": true,      # Recalc après sync
+  "batchLabel": "Manual sync June 7"
+}
+
+Response:
+{
+  "ok": true,
+  "batchId": "uuid",
+  "enqueue": {
+    "queuedCount": 2,
+    "alreadyQueuedCount": 0
+  },
+  "queue": {
+    "pendingCount": 5,      # Total en attente
+    "successCount": 42,
+    "failedCount": 1
+  },
+  "wsUrl": "/api/clans/1/telemetry/sync-batch-ws"
+}
+```
+
+### Status batch
+```bash
+GET /api/clans/{clanId}/telemetry/sync-batch-manual
+
+Response:
+{
+  "ok": true,
+  "queue": {
+    "queued": 3,
+    "running": 1,
+    "success": 42,
+    "failed": 1,
+    "total": 47
+  },
+  "recentJobs": [
+    {
+      "id": "job-uuid",
+      "status": "running",
+      "message": "...",
+      "duration": 45.2
+    }
+  ]
+}
+```
+
+### Dead Letter Queue (Phase 2)
+```bash
+GET /api/clans/{clanId}/telemetry/dead-letter
+# Lists permanently failed jobs (>1hr old)
+
+POST /api/clans/{clanId}/telemetry/dead-letter
+# Body: { "jobIds": ["job-id-1", "job-id-2"] }
+# Resets jobs to queued status for retry
+```
+
+### Recalc agrégats
+```bash
+POST /api/clans/{clanId}/telemetry/recalc-aggregates-batch
+
+Request (single clan):
+{ "scope": "clan" }
+
+Response:
+{
+  "ok": true,
+  "clanId": 1,
+  "periodsUpdated": 12,
+  "totalRowsUpdated": 456,
+  "durationMs": 3200
+}
+```
+
+## Cas d'usage
+
+### 1. Après ajout de nouvelles colonnes d'agrégats
+```bash
+# Recalc tous les clans sans resync
+npm run telemetry:batch -- --all-clans --recalc-aggregates-only
+
+# Ou via API
+curl -X POST http://localhost:3000/api/clans/1/telemetry/recalc-aggregates-batch \
+  -H "Content-Type: application/json" \
+  -d '{"scope": "all-clans"}'
+```
+
+### 2. Test manuel avant production
+```bash
+# 1. Enqueue pour 1 clan
+npm run telemetry:batch -- --clan 1
+
+# 2. Vérifier status
+npm run telemetry:batch -- --check --clan 1
+
+# 3. Lancer worker (autre terminal) avec monitoring mémoire
+TELEMETRY_WORKER_GC_ENABLED=true npm run telemetry:worker:monitored
+
+# 4. Vérifier résultats
+npm run telemetry:batch -- --check --clan 1
+```
+
+### 3. Gestion des jobs échoués (Phase 2)
+```bash
+# Voir les jobs en dead letter queue
+npm run telemetry:batch -- --dead-letter --clan 1
+
+# Après avoir fixé le problème (ex: API back up)
+npm run telemetry:batch -- --retry-dead-letter job-id-1 job-id-2 --clan 1
+```
+
+### 4. Production: Cron toutes les 6h
+```bash
+# En crontab:
+0 */6 * * * cd /app && npm run telemetry:batch -- --all-clans >> /var/log/telemetry-batch.log 2>&1
+
+# Avec monitoring mémoire (Phase 2):
+0 */6 * * * cd /app && TELEMETRY_WORKER_GC_ENABLED=true npm run telemetry:worker
+```
+
+## Variables d'environnement
+
+```env
+# Worker - Phase 1
+TELEMETRY_RESYNC_WORKER_POLL_MS=2000      # Poll delay (default: 2000)
+TELEMETRY_RESYNC_WORKER_ID=worker-prod-1  # Worker identifier
+
+# Worker - Phase 2 (NEW: Memory Protection)
+TELEMETRY_WORKER_GC_ENABLED=true                    # Force explicit GC (default: false)
+TELEMETRY_WORKER_MEMORY_THRESHOLD_PCT=80           # High pressure trigger (default: 80)
+TELEMETRY_WORKER_MEMORY_CRITICAL_PCT=95            # Critical pause trigger (default: 95)
+TELEMETRY_WORKER_HEAP_MAX_MB=1024                  # Max heap size
+
+# Node.js
+NODE_OPTIONS='--expose-gc'                          # Expose gc() for manual collection
+```
+
+## Statut queue
+
+| Statut | Signification |
+|--------|---------------|
+| `queued` | En attente d'être traité |
+| `running` | Actuellement en cours |
+| `success` | Complété avec succès |
+| `failed` | Échoué (après retries, peut aller en dead letter) |
+| `stale` | Timeout ou abandonné (Phase 3) |
+
+## Monitoring
+
+### Via CLI
+```bash
+npm run telemetry:batch -- --check
+npm run telemetry:batch -- --check --clan 1 --verbose
+
+# Phase 2: voir les metrics du worker (logs toutes les 30s)
+npm run telemetry:worker:monitored
+```
+
+### Via Web
+```bash
+# Status endpoint
+GET /api/clans/1/telemetry/sync-batch-manual
+
+# Dead letter queue (Phase 2)
+GET /api/clans/1/telemetry/dead-letter
+```
+
+### Logs
+```bash
+tail -f logs/telemetry-*.log
+# Ou: journalctl -u telemetry-worker -f
+```
+
+## Troubleshooting
+
+### Worker ne traite pas les jobs
+```bash
+# Vérifier que le worker tourne
+ps aux | grep "telemetry:worker"
+
+# Vérifier le polling
+npm run telemetry:worker
+
+# Vérifier la queue DB
+SELECT * FROM CronExecution 
+WHERE action='telemetry_resync_file' 
+ORDER BY createdAt DESC LIMIT 10;
+```
+
+### Mémoire qui augmente (Phase 2 fix)
+```bash
+# Vérifier les metrics du worker (logs toutes les 30s si enabled)
+TELEMETRY_WORKER_GC_ENABLED=true npm run telemetry:worker:monitored
+
+# Forcer GC après 1 batch
+npm run telemetry:worker:gc
+
+# Si mémoire toujours haute: réduire batch size
+TELEMETRY_RESYNC_BATCH_SIZE=2 npm run telemetry:worker
+```
+
+### Dead letter queue empile (Phase 2)
+```bash
+# Lister les jobs échoués
+npm run telemetry:batch -- --dead-letter --clan 1
+
+# Vérifier les erreurs dans DB
+SELECT id, message, details FROM CronExecution 
+WHERE clanId=1 
+AND action='telemetry_resync_file' 
+AND status='failed'
+AND finishedAt < NOW() - INTERVAL 1 HOUR
+ORDER BY finishedAt DESC;
+
+# Après résoudre le problème, relancer
+npm run telemetry:batch -- --retry-dead-letter job-id --clan 1
+```
+
+## Roadmap
+
+### ✅ Phase 1 (TERMINÉ)
+- [x] Endpoint sync-batch-manual
+- [x] Endpoint recalc-aggregates-batch
+- [x] CLI telemetry-batch
+- [x] Status query
+- [x] Web UI for manual sync
+
+### ✅ Phase 2 (TERMINÉ)
+- [x] MemoryMonitor (heap tracking)
+- [x] BackpressureController (pause on high memory)
+- [x] WorkerHealthMonitor (metrics tracking)
+- [x] Dead letter queue (failed jobs > 1hr)
+- [x] Dead letter CLI + API
+- [x] Retry functionality
+- [x] Memory metrics logging
+
+### 📋 Phase 3 (EN COURS)
+- [ ] Dashboard monitoring UI
+- [ ] Queue cleanup endpoint
+- [ ] TTL pour jobs stale (>24h)
+- [ ] Detailed error logs page
+- [ ] Metrics export (Prometheus)
+- [ ] Queue priority system (recent first)
+- [ ] Automatic batch size tuning under pressure
+
+## Documentation additionnelle
+
+- [TELEMETRY_PHASE2_GUIDE.md](TELEMETRY_PHASE2_GUIDE.md) - Guide complet Phase 2
+- [TELEMETRY_PRODUCTION_GUIDE.md](TELEMETRY_PRODUCTION_GUIDE.md) - Déploiement production
+- [telemetry-sync-strategy.md](telemetry-sync-strategy.md) - Architecture et stratégie
+
+## Notes techniques
+
+- Queue utilise `CronExecution` existante (réutilisation)
+- Worker se claim atomiquement 1 job à la fois (pas de race condition)
+- Agrégats recalculés **après** chaque sync si demandé
+- Phase 2: Memory monitoring active par défaut, GC opt-in
+- Phase 2: Backpressure ralentit job claiming si mémoire haute
+- Phase 2: Dead letter queue filtre jobs >1hr sans retry
+
 
 ## Quick Start
 

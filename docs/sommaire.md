@@ -48,6 +48,12 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Fonctions à coder pour extraire l'URL asset, télécharger en streaming et brancher l'ingestion sur les matchs existants
 - [Resync worker et runtime dev](resync-worker-runtime.md)
   - Queue persistante, worker dédié hors process web, endpoint runtime PID/uptime et usage opératoire conseillé
+- [Télémétrie batch - Phase 1-2](TELEMETRY_BATCH_README.md)
+  - Mode manuel et batch robuste, enqueue/check status, CLI, worker avec memory protection (Phase 2)
+- [Télémétrie Phase 2 Guide](TELEMETRY_PHASE2_GUIDE.md)
+  - Memory monitoring, backpressure controller, dead letter queue, worker health tracking
+- [Télémétrie Production Guide](TELEMETRY_PRODUCTION_GUIDE.md)
+  - Déploiement production (Kubernetes, VPS, systemd), troubleshooting, monitoring, scenarios d'urgence
 
 ## Parcours recommandé
 

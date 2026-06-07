@@ -14,6 +14,9 @@ import {
   resyncTelemetryFromCapturedFile,
 } from '@/lib/pubg-telemetry/resync-files'
 import { prisma } from '@/lib/prisma'
+import { MemoryMonitor } from '@/lib/pubg-telemetry/memory-monitor'
+import { BackpressureController } from '@/lib/pubg-telemetry/worker-backpressure'
+import { WorkerHealthMonitor } from '@/lib/pubg-telemetry/worker-health'
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -37,183 +40,282 @@ function resolveWorkerId() {
   return `pid-${process.pid}`
 }
 
-async function processOneJob(workerId: string) {
-  const job = await claimNextTelemetryResyncQueueJob(workerId)
-  if (!job) {
-    return false
+function resolveMemoryThresholdPercent(): number {
+  const value = Number(process.env.TELEMETRY_WORKER_MEMORY_THRESHOLD_PCT ?? '80')
+  if (!Number.isFinite(value) || value < 50 || value > 100) {
+    return 80
   }
+  return Math.floor(value)
+}
 
-  const captureDir = resolveCaptureDirectory()
-  const maxResyncFileBytes = getTelemetryFixtureCaptureMaxBytes()
+function resolveMemoryCriticalPercent(): number {
+  const value = Number(process.env.TELEMETRY_WORKER_MEMORY_CRITICAL_PCT ?? '95')
+  if (!Number.isFinite(value) || value < 70 || value > 100) {
+    return 95
+  }
+  return Math.floor(value)
+}
 
-  try {
-    if (job.details.resetBeforeSync) {
-      await prisma.squadMatchTelemetry.deleteMany({
-        where: {
+function resolveGcEnabled(): boolean {
+  return process.env.TELEMETRY_WORKER_GC_ENABLED === 'true'
+}
+
+async function processOneJob(
+  workerId: string,
+  backpressure: BackpressureController,
+  health: WorkerHealthMonitor
+): Promise<{ processed: boolean; durationMs: number }> {
+  const startTime = Date.now()
+
+  const jobResult = await backpressure.processWithBackpressure(
+    async () => {
+      const job = await claimNextTelemetryResyncQueueJob(workerId)
+      if (!job) {
+        return null
+      }
+
+      const captureDir = resolveCaptureDirectory()
+      const maxResyncFileBytes = getTelemetryFixtureCaptureMaxBytes()
+
+      try {
+        if (job.details.resetBeforeSync) {
+          await prisma.squadMatchTelemetry.deleteMany({
+            where: {
+              squadMatchId: job.details.squadMatchId,
+            },
+          })
+        }
+
+        const syncFromFile = await resyncTelemetryFromCapturedFile({
+          clanId: job.clanId,
           squadMatchId: job.details.squadMatchId,
-        },
-      })
-    }
-
-    const syncFromFile = await resyncTelemetryFromCapturedFile({
-      clanId: job.clanId,
-      squadMatchId: job.details.squadMatchId,
-      captureDir,
-      maxResyncFileBytes,
-    })
-
-    if (syncFromFile.status === 'missing') {
-      await finishTelemetryResyncQueueJobFailed(
-        job.id,
-        {
-          squadMatchId: job.details.squadMatchId,
-          status: 'missing',
-          resetBeforeSync: job.details.resetBeforeSync,
-          recalculateAggregates: job.details.recalculateAggregates,
-        },
-        'Captured telemetry file is missing'
-      )
-      return true
-    }
-
-    if (syncFromFile.status === 'oversized') {
-      await finishTelemetryResyncQueueJobFailed(
-        job.id,
-        {
-          squadMatchId: job.details.squadMatchId,
-          status: 'oversized',
-          fileSize: syncFromFile.size,
+          captureDir,
           maxResyncFileBytes,
-          resetBeforeSync: job.details.resetBeforeSync,
-          recalculateAggregates: job.details.recalculateAggregates,
-        },
-        `Captured file exceeds size limit (${syncFromFile.size} > ${maxResyncFileBytes})`
-      )
-      return true
-    }
+        })
 
-    const syncResult = syncFromFile.result
+        if (syncFromFile.status === 'missing') {
+          await finishTelemetryResyncQueueJobFailed(
+            job.id,
+            {
+              squadMatchId: job.details.squadMatchId,
+              status: 'missing',
+              resetBeforeSync: job.details.resetBeforeSync,
+              recalculateAggregates: job.details.recalculateAggregates,
+            },
+            'Captured telemetry file is missing'
+          )
+          return true
+        }
 
-    if (syncResult.status === 'failed') {
-      await finishTelemetryResyncQueueJobFailed(
-        job.id,
-        {
+        if (syncFromFile.status === 'oversized') {
+          await finishTelemetryResyncQueueJobFailed(
+            job.id,
+            {
+              squadMatchId: job.details.squadMatchId,
+              status: 'oversized',
+              fileSize: syncFromFile.size,
+              maxResyncFileBytes,
+              resetBeforeSync: job.details.resetBeforeSync,
+              recalculateAggregates: job.details.recalculateAggregates,
+            },
+            `Captured file exceeds size limit (${syncFromFile.size} > ${maxResyncFileBytes})`
+          )
+          return true
+        }
+
+        const syncResult = syncFromFile.result
+
+        if (syncResult.status === 'failed') {
+          await finishTelemetryResyncQueueJobFailed(
+            job.id,
+            {
+              squadMatchId: job.details.squadMatchId,
+              status: syncResult.status,
+              errorCode: syncResult.errorCode,
+              errorMessage: syncResult.errorMessage,
+              bytesDownloaded: syncResult.bytesDownloaded,
+              contentLength: syncResult.contentLength,
+              resetBeforeSync: job.details.resetBeforeSync,
+              recalculateAggregates: job.details.recalculateAggregates,
+            },
+            `Telemetry file resync failed: ${syncResult.errorMessage ?? 'unknown error'}`
+          )
+          return true
+        }
+
+        let aggregates:
+          | {
+              periodsUpdated: number
+              memberTelemetryRows: number
+              memberWeaponRows: number
+              clanSynergyRows: number
+            }
+          | null = null
+        let aggregatesWarning: string | null = null
+
+        if (job.details.recalculateAggregates) {
+          try {
+            const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(
+              job.clanId
+            )
+            aggregates = {
+              periodsUpdated: aggregateResult.summaries.length,
+              memberTelemetryRows: aggregateResult.summaries.reduce(
+                (sum, summary) => sum + summary.memberTelemetryRows,
+                0
+              ),
+              memberWeaponRows: aggregateResult.summaries.reduce(
+                (sum, summary) => sum + summary.memberWeaponRows,
+                0
+              ),
+              clanSynergyRows: aggregateResult.summaries.reduce(
+                (sum, summary) => sum + summary.clanSynergyRows,
+                0
+              ),
+            }
+          } catch (aggregateError) {
+            aggregatesWarning =
+              aggregateError instanceof Error
+                ? aggregateError.message
+                : 'Recalcul des aggregates telemetry en echec'
+          }
+        }
+
+        const details: Prisma.JsonObject = {
           squadMatchId: job.details.squadMatchId,
           status: syncResult.status,
-          errorCode: syncResult.errorCode,
-          errorMessage: syncResult.errorMessage,
+          pubgMatchId: syncResult.pubgMatchId,
           bytesDownloaded: syncResult.bytesDownloaded,
           contentLength: syncResult.contentLength,
+          positionSamplesCount: syncResult.positionSamplesCount ?? null,
+          trajectorySegmentsCount: syncResult.trajectorySegmentsCount ?? null,
+          deathSamplesCount: syncResult.deathSamplesCount ?? null,
           resetBeforeSync: job.details.resetBeforeSync,
           recalculateAggregates: job.details.recalculateAggregates,
-        },
-        `Telemetry file resync failed: ${syncResult.errorMessage ?? 'unknown error'}`
-      )
-      return true
-    }
-
-    let aggregates:
-      | {
-          periodsUpdated: number
-          memberTelemetryRows: number
-          memberWeaponRows: number
-          clanSynergyRows: number
+          aggregates,
+          aggregatesWarning,
         }
-      | null = null
-    let aggregatesWarning: string | null = null
 
-    if (job.details.recalculateAggregates) {
-      try {
-        const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(job.clanId)
-        aggregates = {
-          periodsUpdated: aggregateResult.summaries.length,
-          memberTelemetryRows: aggregateResult.summaries.reduce(
-            (sum, summary) => sum + summary.memberTelemetryRows,
-            0
-          ),
-          memberWeaponRows: aggregateResult.summaries.reduce(
-            (sum, summary) => sum + summary.memberWeaponRows,
-            0
-          ),
-          clanSynergyRows: aggregateResult.summaries.reduce(
-            (sum, summary) => sum + summary.clanSynergyRows,
-            0
-          ),
-        }
-      } catch (aggregateError) {
-        aggregatesWarning =
-          aggregateError instanceof Error
-            ? aggregateError.message
-            : 'Recalcul des aggregates telemetry en echec'
+        await finishTelemetryResyncQueueJobSuccess(
+          job.id,
+          details,
+          `Telemetry file resync success (${job.details.squadMatchId})`
+        )
+
+        return true
+      } catch (error) {
+        await finishTelemetryResyncQueueJobFailed(
+          job.id,
+          {
+            squadMatchId: job.details.squadMatchId,
+            status: 'exception',
+            resetBeforeSync: job.details.resetBeforeSync,
+            recalculateAggregates: job.details.recalculateAggregates,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+          error instanceof Error ? error.message : String(error)
+        )
+
+        return true
       }
-    }
+    },
+    `job-${Date.now()}`,
+    workerId
+  )
 
-    const details: Prisma.JsonObject = {
-      squadMatchId: job.details.squadMatchId,
-      status: syncResult.status,
-      pubgMatchId: syncResult.pubgMatchId,
-      bytesDownloaded: syncResult.bytesDownloaded,
-      contentLength: syncResult.contentLength,
-      positionSamplesCount: syncResult.positionSamplesCount ?? null,
-      trajectorySegmentsCount: syncResult.trajectorySegmentsCount ?? null,
-      deathSamplesCount: syncResult.deathSamplesCount ?? null,
-      resetBeforeSync: job.details.resetBeforeSync,
-      recalculateAggregates: job.details.recalculateAggregates,
-      aggregates,
-      aggregatesWarning,
-    }
+  const durationMs = Date.now() - startTime
+  const processed = jobResult !== null
 
-    await finishTelemetryResyncQueueJobSuccess(
-      job.id,
-      details,
-      `Telemetry file resync success (${job.details.squadMatchId})`
-    )
-
-    return true
-  } catch (error) {
-    await finishTelemetryResyncQueueJobFailed(
-      job.id,
-      {
-        squadMatchId: job.details.squadMatchId,
-        status: 'exception',
-        resetBeforeSync: job.details.resetBeforeSync,
-        recalculateAggregates: job.details.recalculateAggregates,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      },
-      error instanceof Error ? error.message : String(error)
-    )
-
-    return true
+  if (processed) {
+    health.recordJobEnd(jobResult === true, durationMs)
   }
+
+  return { processed, durationMs }
 }
 
 async function main() {
   const workerId = resolveWorkerId()
   const once = process.argv.includes('--once')
   const pollDelayMs = resolvePollDelayMs()
+  const memoryThresholdPercent = resolveMemoryThresholdPercent()
+  const memoryCriticalPercent = resolveMemoryCriticalPercent()
+  const gcEnabled = resolveGcEnabled()
 
   console.info('[TelemetryResyncWorker] started', {
     workerId,
     once,
     pollDelayMs,
+    memoryThresholdPercent,
+    memoryCriticalPercent,
+    gcEnabled,
   })
 
-  while (true) {
-    const processed = await processOneJob(workerId)
+  const monitor = new MemoryMonitor({
+    thresholdPercent: memoryThresholdPercent,
+    criticalThresholdPercent: memoryCriticalPercent,
+    gcEnabled,
+  })
 
-    if (!processed) {
-      if (once) {
-        break
-      }
-      await sleep(pollDelayMs)
-      continue
-    }
+  const backpressure = new BackpressureController(monitor, {
+    highPressureDelayMs: 5000,
+    criticalPauseDelayMs: 2000,
+  })
+
+  const health = new WorkerHealthMonitor()
+
+  let metricsLogInterval: NodeJS.Timeout | null = null
+
+  // Log metrics every 30s in background
+  if (!once) {
+    metricsLogInterval = setInterval(() => {
+      const metrics = health.getMetrics()
+      const bpStatus = backpressure.getStatus()
+      console.info('[TelemetryResyncWorker] metrics', {
+        ...metrics,
+        memoryTrend: health.getMemoryTrend(),
+        pressure: bpStatus,
+      })
+    }, 30000)
   }
 
-  await prisma.$disconnect()
-  console.info('[TelemetryResyncWorker] stopped', {
-    workerId,
-  })
+  try {
+    while (true) {
+      const { processed } = await processOneJob(workerId, backpressure, health)
+
+      if (!processed) {
+        if (once) {
+          break
+        }
+        await sleep(pollDelayMs)
+        continue
+      }
+    }
+  } catch (fatalError) {
+    console.error('[TelemetryResyncWorker] fatal error', {
+      error: fatalError instanceof Error ? fatalError.message : String(fatalError),
+    })
+
+    // Try to log final metrics
+    const finalMetrics = health.getMetrics()
+    console.info('[TelemetryResyncWorker] final metrics', finalMetrics)
+
+    if (metricsLogInterval) {
+      clearInterval(metricsLogInterval)
+    }
+
+    throw fatalError
+  } finally {
+    if (metricsLogInterval) {
+      clearInterval(metricsLogInterval)
+    }
+
+    await prisma.$disconnect()
+    const finalMetrics = health.getMetrics()
+    console.info('[TelemetryResyncWorker] stopped', {
+      workerId,
+      ...finalMetrics,
+    })
+  }
 }
 
 void main().catch(async (error) => {

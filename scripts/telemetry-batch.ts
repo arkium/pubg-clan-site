@@ -24,10 +24,15 @@ interface BatchArgs {
   resetBefore?: boolean
   check?: boolean
   verbose?: boolean
+  deadLetter?: boolean
+  retryDeadLetter?: string[]
+  workerMetrics?: boolean
 }
 
 function parseArgs(): BatchArgs {
-  const args: BatchArgs = {}
+  const args: BatchArgs = {
+    retryDeadLetter: [],
+  }
 
   for (let i = 2; i < process.argv.length; i++) {
     const arg = process.argv[i]
@@ -46,6 +51,15 @@ function parseArgs(): BatchArgs {
       args.resetBefore = true
     } else if (arg === '--check') {
       args.check = true
+    } else if (arg === '--dead-letter') {
+      args.deadLetter = true
+    } else if (arg === '--retry-dead-letter' && process.argv[i + 1]) {
+      // Collect all remaining args as job IDs
+      while (i + 1 < process.argv.length && !process.argv[i + 1].startsWith('--')) {
+        args.retryDeadLetter!.push(process.argv[++i])
+      }
+    } else if (arg === '--worker-metrics') {
+      args.workerMetrics = true
     } else if (arg === '--verbose' || arg === '-v') {
       args.verbose = true
     }
@@ -64,6 +78,59 @@ function log(message: string, level: 'info' | 'warn' | 'error' | 'debug' = 'info
   }[level]
 
   console.log(`[${timestamp}] ${prefix} ${message}`)
+}
+
+async function getDeadLetterJobs(clanId: number) {
+  const deadLetterJobs = await prisma.cronExecution.findMany({
+    where: {
+      clanId,
+      action: 'telemetry_resync_file',
+      status: 'failed',
+    },
+    select: {
+      id: true,
+      message: true,
+      createdAt: true,
+      finishedAt: true,
+      details: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  })
+
+  // Filter to old failed jobs (older than 1 hour)
+  const filtered = deadLetterJobs.filter((job) => {
+    if (!job.finishedAt) return false
+    const ageMs = Date.now() - job.finishedAt.getTime()
+    const oneHourMs = 60 * 60 * 1000
+    return ageMs > oneHourMs
+  })
+
+  return filtered
+}
+
+async function retryDeadLetterJobs(clanId: number, jobIds: string[]) {
+  if (jobIds.length === 0) {
+    log('No job IDs provided', 'warn')
+    return
+  }
+
+  const updated = await prisma.cronExecution.updateMany({
+    where: {
+      id: { in: jobIds },
+      clanId,
+      action: 'telemetry_resync_file',
+      status: 'failed',
+    },
+    data: {
+      status: 'queued',
+      message: 'Retried from dead letter queue',
+      startedAt: new Date(),
+      finishedAt: null,
+    },
+  })
+
+  log(`Retried ${updated.count} jobs from dead letter queue`)
 }
 
 async function getMatchesToSync(clanId: number, onlyRecent = false): Promise<string[]> {
@@ -148,6 +215,42 @@ async function main() {
 
   if (args.verbose) {
     log('Arguments: ' + JSON.stringify(args), 'debug')
+  }
+
+  if (args.deadLetter) {
+    if (!args.clan) {
+      log('Error: --dead-letter requires --clan', 'error')
+      process.exit(1)
+    }
+
+    log(`Fetching dead letter queue for clan ${args.clan}...`)
+    const deadLetterJobs = await getDeadLetterJobs(args.clan)
+
+    if (deadLetterJobs.length === 0) {
+      log('No dead letter jobs found')
+      return
+    }
+
+    log(`Found ${deadLetterJobs.length} dead letter jobs:`)
+    deadLetterJobs.forEach((job, idx) => {
+      const msg = job.message || '(no message)'
+      const age = job.finishedAt
+        ? Math.floor((Date.now() - job.finishedAt.getTime()) / 1000) + 's ago'
+        : 'unknown'
+      console.log(`  ${idx + 1}. ${job.id} - ${msg} (${age})`)
+    })
+    return
+  }
+
+  if (args.retryDeadLetter && args.retryDeadLetter.length > 0) {
+    if (!args.clan) {
+      log('Error: --retry-dead-letter requires --clan', 'error')
+      process.exit(1)
+    }
+
+    log(`Retrying ${args.retryDeadLetter.length} dead letter jobs for clan ${args.clan}...`)
+    await retryDeadLetterJobs(args.clan, args.retryDeadLetter)
+    return
   }
 
   if (args.check) {

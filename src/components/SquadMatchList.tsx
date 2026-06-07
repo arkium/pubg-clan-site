@@ -363,7 +363,7 @@ export default function SquadMatchList({
 
               <div className="mt-3">
                 <Link
-                  href={`/clans/${clanId}/matches/${match.id}/telemetry?period=${period}&fromDate=${match.createdAt.slice(0, 10)}`}
+                  href={`/clans/${clanId}/telemetry/matches/${match.id}/telemetry?period=${period}&fromDate=${match.createdAt.slice(0, 10)}`}
                   className="app-btn app-btn--sm app-btn--secondary inline-flex"
                 >
                   Voir la telemetrie complete

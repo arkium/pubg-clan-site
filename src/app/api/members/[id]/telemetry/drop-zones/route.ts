@@ -184,17 +184,25 @@ export async function GET(
         const xPct = clamp01(x / mapBounds.width) * 100
         const yPct = clamp01(y / mapBounds.height) * 100
 
-        landingPoints.push({
-          memberId: member.id,
-          memberName: member.displayName,
-          matchId: row.squadMatchId,
-          mapName,
-          x,
-          y,
-          xPct: Number(xPct.toFixed(2)),
-          yPct: Number(yPct.toFixed(2)),
-        })
+        // Landing points: only this member's own landing spot
+        const isMember =
+          (accountId !== undefined && memberKey === accountId) ||
+          (playerName !== undefined && memberKey === playerName)
 
+        if (isMember) {
+          landingPoints.push({
+            memberId: member.id,
+            memberName: member.displayName,
+            matchId: row.squadMatchId,
+            mapName,
+            x,
+            y,
+            xPct: Number(xPct.toFixed(2)),
+            yPct: Number(yPct.toFixed(2)),
+          })
+        }
+
+        // Heatmap: all players including opponents
         const xIndex = Math.min(Math.floor((xPct / 100) * GRID_SIZE), GRID_SIZE - 1)
         const yIndex = Math.min(Math.floor((yPct / 100) * GRID_SIZE), GRID_SIZE - 1)
         const cellKey = `${mapName}:${xIndex}:${yIndex}`

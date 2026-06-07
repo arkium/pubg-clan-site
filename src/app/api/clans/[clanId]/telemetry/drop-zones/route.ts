@@ -157,12 +157,15 @@ export async function GET(
 
     const landingPoints: LandingPoint[] = []
     const heatmapMap = new Map<string, number>()
+    // Heatmap must process each match only once — SQL returns one row per (member × match)
+    const processedHeatmapMatchIds = new Set<string>()
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
       const samples = parseLandingSamples(row.landingSamples)
       const accountId = row.pubgAccountId?.toLowerCase()
       const playerName = row.pubgPlayerName?.toLowerCase()
+      const matchAlreadyProcessed = processedHeatmapMatchIds.has(row.squadMatchId)
 
       for (const sample of samples as LandingSampleRow[]) {
         const memberKey =
@@ -173,26 +176,38 @@ export async function GET(
         const y = typeof sample.y === 'number' ? sample.y : null
         if (x === null || y === null) continue
 
-        const bounds = getMapBounds(mapName)
-        const xPct = clamp01(x / bounds.width) * 100
-        const yPct = clamp01(y / bounds.height) * 100
+        const mapBounds = getMapBounds(mapName)
+        const xPct = clamp01(x / mapBounds.width) * 100
+        const yPct = clamp01(y / mapBounds.height) * 100
 
-        landingPoints.push({
-          memberId: row.memberId,
-          memberName: row.memberName,
-          matchId: row.squadMatchId,
-          mapName,
-          x,
-          y,
-          xPct: Number(xPct.toFixed(2)),
-          yPct: Number(yPct.toFixed(2)),
-        })
+        // Landing points: only the clan member's own landing, matched by PUBG account ID or player name
+        const isClanMember =
+          (accountId !== undefined && memberKey === accountId) ||
+          (playerName !== undefined && memberKey === playerName)
 
-        const xIndex = Math.min(Math.floor((xPct / 100) * GRID_SIZE), GRID_SIZE - 1)
-        const yIndex = Math.min(Math.floor((yPct / 100) * GRID_SIZE), GRID_SIZE - 1)
-        const cellKey = `${mapName}:${xIndex}:${yIndex}`
-        heatmapMap.set(cellKey, (heatmapMap.get(cellKey) ?? 0) + 1)
+        if (isClanMember) {
+          landingPoints.push({
+            memberId: row.memberId,
+            memberName: row.memberName,
+            matchId: row.squadMatchId,
+            mapName,
+            x,
+            y,
+            xPct: Number(xPct.toFixed(2)),
+            yPct: Number(yPct.toFixed(2)),
+          })
+        }
+
+        // Heatmap: all players including opponents, but each match processed only once
+        if (!matchAlreadyProcessed) {
+          const xIndex = Math.min(Math.floor((xPct / 100) * GRID_SIZE), GRID_SIZE - 1)
+          const yIndex = Math.min(Math.floor((yPct / 100) * GRID_SIZE), GRID_SIZE - 1)
+          const cellKey = `${mapName}:${xIndex}:${yIndex}`
+          heatmapMap.set(cellKey, (heatmapMap.get(cellKey) ?? 0) + 1)
+        }
       }
+
+      processedHeatmapMatchIds.add(row.squadMatchId)
     }
 
     const heatmapCells: HeatmapCell[] = Array.from(heatmapMap.entries()).map(([key, count]) => {

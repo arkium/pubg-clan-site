@@ -360,6 +360,7 @@ export async function GET(
 
     const labelByExactKey = new Map<string, string>()
     const labelByLowerKey = new Map<string, string>()
+    const clanMemberKeys = new Set<string>()
     for (const member of clanMembers) {
       const label = member.displayName || member.pubgPlayerName || member.pubgAccountId || 'Membre inconnu'
       const keys = [member.pubgAccountId, member.pubgPlayerName, member.displayName]
@@ -370,6 +371,8 @@ export async function GET(
         labelByExactKey.set(key, label)
         labelByLowerKey.set(key.toLowerCase(), label)
       }
+      if (member.pubgAccountId) clanMemberKeys.add(member.pubgAccountId.toLowerCase())
+      if (member.pubgPlayerName) clanMemberKeys.add(member.pubgPlayerName.toLowerCase())
     }
 
     function resolveMemberLabel(inputKey: string) {
@@ -439,9 +442,9 @@ export async function GET(
         const pointMemberKey = parseString(point.memberKey)
         const pointPhase = parseNumber(point.phase)
 
-        if (pointMemberKey) {
-          members.set(pointMemberKey, (members.get(pointMemberKey) ?? 0) + 1)
-        }
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+
+        members.set(pointMemberKey, (members.get(pointMemberKey) ?? 0) + 1)
         if (pointPhase !== null && Number.isFinite(pointPhase) && pointPhase > 0) {
           phases.add(pointPhase)
         }
@@ -468,9 +471,9 @@ export async function GET(
         const segmentMemberKey = parseString(segment.memberKey)
         const segmentPhase = parseNumber(segment.phase)
 
-        if (segmentMemberKey) {
-          members.set(segmentMemberKey, (members.get(segmentMemberKey) ?? 0) + 1)
-        }
+        if (!segmentMemberKey || !clanMemberKeys.has(segmentMemberKey.toLowerCase())) continue
+
+        members.set(segmentMemberKey, (members.get(segmentMemberKey) ?? 0) + 1)
         if (segmentPhase !== null && Number.isFinite(segmentPhase) && segmentPhase > 0) {
           phases.add(segmentPhase)
         }
@@ -504,9 +507,9 @@ export async function GET(
         const pointMemberKey = parseString(point.memberKey)
         const pointPhase = parseNumber(point.phase)
 
-        if (pointMemberKey) {
-          members.set(pointMemberKey, (members.get(pointMemberKey) ?? 0) + 1)
-        }
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+
+        members.set(pointMemberKey, (members.get(pointMemberKey) ?? 0) + 1)
         if (pointPhase !== null && Number.isFinite(pointPhase) && pointPhase > 0) {
           phases.add(pointPhase)
         }

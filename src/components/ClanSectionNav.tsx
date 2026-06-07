@@ -105,7 +105,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
     { label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
     { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
     { label: 'Positions', href: `${statsRootHref}/positions`, icon: renderClanSectionIcon('Positions') },
-    { label: 'Drop zones', href: `/clans/${clanId}/telemetry/drop-zones`, icon: renderClanSectionIcon('Drop zones') },
+    { label: 'Drop zones', href: `/clans/${clanId}/drop-zones`, icon: renderClanSectionIcon('Drop zones') },
     { label: 'Awards', href: `/clans/${clanId}/awards`, icon: renderClanSectionIcon('Awards') },
     { label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
     { label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },

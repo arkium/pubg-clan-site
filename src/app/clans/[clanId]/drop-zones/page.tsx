@@ -256,14 +256,14 @@ export default function ClanDropZonesPage() {
 
   if (!clanId) {
     return (
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+      <main className="app-container app-main">
         <p className="text-sm text-red-600">Clan invalide.</p>
       </main>
     )
   }
 
   return (
-    <main className="app-container app-main mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+    <main className="app-container app-main">
       <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -285,7 +285,6 @@ export default function ClanDropZonesPage() {
 
       <section className="app-panel mb-5 p-4">
         <div className="space-y-4">
-          {/* Ligne 1: Période et Affichage */}
           <div className="grid gap-4 grid-cols-2 items-start">
             <div className="min-w-0">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Periode</p>
@@ -312,7 +311,6 @@ export default function ClanDropZonesPage() {
             </div>
           </div>
 
-          {/* Ligne 2: Carte et Joueur - Desktop/Tablette uniquement */}
           <div className="hidden md:grid gap-4 grid-cols-2 items-start">
             <div className="min-w-0">
               <MobileDropdownNav
@@ -366,7 +364,17 @@ export default function ClanDropZonesPage() {
             </div>
           </div>
 
-          {/* Mobile uniquement */}
+          <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 text-xs text-slate-600">
+            <div>
+              <p className="font-semibold text-slate-700">Points</p>
+              <p>Atterrissage de chaque membre du clan — 1 point par match, coloré par joueur.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-700">Heatmap</p>
+              <p>Tous les joueurs de chaque match, adversaires compris — intensité = fréquence de la zone.</p>
+            </div>
+          </div>
+
           <div className="grid gap-4 md:hidden">
             <MobileDropdownNav
               id="drop-zones-carte-mobile"
@@ -425,67 +433,67 @@ export default function ClanDropZonesPage() {
         maps.length > 0 ? (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="relative aspect-square bg-slate-950">
-                {activeMap ? (
-                  <>
-                    <Image
-                      src={mapAssetPath(activeMap)}
-                      alt={mapDisplayName(activeMap, {})}
-                      fill
-                      className="object-cover opacity-85"
-                      sizes="(max-width: 1280px) 100vw, 70vw"
-                      unoptimized
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
-                  </>
-                ) : null}
+              {activeMap ? (
+                <>
+                  <Image
+                    src={mapAssetPath(activeMap)}
+                    alt={mapDisplayName(activeMap, {})}
+                    fill
+                    className="object-cover opacity-85"
+                    sizes="(max-width: 1280px) 100vw, 70vw"
+                    unoptimized
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
+                </>
+              ) : null}
 
-                <div className="absolute inset-0 overflow-hidden">
-                  {(viewMode === 'mix' || viewMode === 'heatmap')
-                    ? filteredHeatmap.map((cell) => {
-                    const ratio = maxHeat > 0 ? clamp01(cell.count / maxHeat) : 0
-                    const left = ((cell.xIndex + 0.5) / (payload.data.gridSize || 40)) * 100
-                    const top = ((cell.yIndex + 0.5) / (payload.data.gridSize || 40)) * 100
-                    const size = 22 + ratio * 36
+              <div className="absolute inset-0 overflow-hidden">
+                {(viewMode === 'mix' || viewMode === 'heatmap')
+                  ? filteredHeatmap.map((cell) => {
+                      const ratio = maxHeat > 0 ? clamp01(cell.count / maxHeat) : 0
+                      const left = ((cell.xIndex + 0.5) / (payload.data.gridSize || 40)) * 100
+                      const top = ((cell.yIndex + 0.5) / (payload.data.gridSize || 40)) * 100
+                      const size = 22 + ratio * 36
 
-                    return (
+                      return (
+                        <div
+                          key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
+                          className="absolute rounded-full"
+                          style={{
+                            left: `${left}%`,
+                            top: `${top}%`,
+                            width: `${size}px`,
+                            height: `${size}px`,
+                            transform: 'translate(-50%, -50%)',
+                            background:
+                              'radial-gradient(circle, rgba(255,93,93,0.7) 0%, rgba(255,142,67,0.45) 35%, rgba(255,142,67,0) 100%)',
+                            filter: 'blur(0.5px)',
+                            mixBlendMode: 'screen',
+                          }}
+                          title={`Cellule ${cell.xIndex}/${cell.yIndex} - ${cell.count}`}
+                        />
+                      )
+                    })
+                  : null}
+
+                {(viewMode === 'mix' || viewMode === 'points')
+                  ? filteredPoints.map((point, idx) => (
                       <div
-                        key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
-                        className="absolute rounded-full"
+                        key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
+                        className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
                         style={{
-                          left: `${left}%`,
-                          top: `${top}%`,
-                          width: `${size}px`,
-                          height: `${size}px`,
+                          left: `${point.xPct}%`,
+                          top: `${point.yPct}%`,
                           transform: 'translate(-50%, -50%)',
-                          background:
-                            'radial-gradient(circle, rgba(255,93,93,0.7) 0%, rgba(255,142,67,0.45) 35%, rgba(255,142,67,0) 100%)',
-                          filter: 'blur(0.5px)',
-                          mixBlendMode: 'screen',
+                          backgroundColor: hashColor(`${point.memberId}:${point.memberName}`),
                         }}
-                        title={`Cellule ${cell.xIndex}/${cell.yIndex} - ${cell.count}`}
+                        title={`${point.memberName} - ${mapDisplayName(point.mapName, {})}`}
                       />
-                    )
-                  })
-                    : null}
-
-                  {(viewMode === 'mix' || viewMode === 'points')
-                    ? filteredPoints.map((point, idx) => (
-                    <div
-                      key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
-                      className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
-                      style={{
-                        left: `${point.xPct}%`,
-                        top: `${point.yPct}%`,
-                        transform: 'translate(-50%, -50%)',
-                        backgroundColor: hashColor(`${point.memberId}:${point.memberName}`),
-                      }}
-                      title={`${point.memberName} - ${mapDisplayName(point.mapName, {})}`}
-                    />
-                  ))
-                    : null}
-                </div>
+                    ))
+                  : null}
               </div>
-            </section>
+            </div>
+          </section>
         ) : (
           <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>
         )

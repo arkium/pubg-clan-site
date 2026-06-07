@@ -469,9 +469,9 @@ export default function ClanDropZonesPage() {
                     : null}
 
                   {(viewMode === 'mix' || viewMode === 'points')
-                    ? filteredPoints.map((point) => (
+                    ? filteredPoints.map((point, idx) => (
                     <div
-                      key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}`}
+                      key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
                       className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
                       style={{
                         left: `${point.xPct}%`,

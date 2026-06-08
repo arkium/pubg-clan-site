@@ -13,13 +13,14 @@ export type ClanAward = {
   label: string
   description: string
   unit: string
-  winner: AwardWinner | null
+  top3: AwardWinner[]
 }
 
 export type ClanAwards = {
   clanId: number
   period: AwardPeriod
   periodKey: string
+  matchCount: number
   awards: ClanAward[]
 }
 
@@ -65,13 +66,14 @@ function getPeriodBounds(period: AwardPeriod, now = new Date()): { startDate: Da
   }
 }
 
-function topByTotal(
+function top3ByTotal(
   rows: Array<{ memberId: number; memberName: string; value: number }>
-): AwardWinner | null {
-  if (rows.length === 0) return null
-  const sorted = rows.slice().sort((a, b) => b.value - a.value)
-  const top = sorted[0]
-  return top.value > 0 ? { memberId: top.memberId, memberName: top.memberName, value: top.value } : null
+): AwardWinner[] {
+  return rows
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 3)
+    .map((r) => ({ memberId: r.memberId, memberName: r.memberName, value: r.value }))
 }
 
 export async function computeClanAwards(
@@ -88,6 +90,7 @@ export async function computeClanAwards(
     },
     select: {
       memberId: true,
+      squadMatchId: true,
       kills: true,
       damage: true,
       rideDistance: true,
@@ -155,6 +158,7 @@ export async function computeClanAwards(
   }
 
   const members = Array.from(byMember.values())
+  const matchCount = new Set(squadMembers.map((sm) => sm.squadMatchId)).size
 
   const awards: ClanAward[] = [
     {
@@ -162,79 +166,79 @@ export async function computeClanAwards(
       label: 'Le croc mort',
       description: 'Plus de kills sur la période',
       unit: 'kills',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.kills }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.kills }))),
     },
     {
       key: 'top_damage',
       label: 'La brute',
       description: 'Plus de dégâts infligés',
       unit: 'dégâts',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.damage) }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.damage) }))),
     },
     {
       key: 'jacky_tuning',
       label: 'JACKY TUNING',
       description: 'Plus de distance parcourue en véhicule',
       unit: 'm',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.rideDistance) }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.rideDistance) }))),
     },
     {
       key: 'le_rodeur',
       label: 'Le rôdeur',
       description: 'Plus de distance parcourue à pied',
       unit: 'm',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.walkDistance) }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.walkDistance) }))),
     },
     {
       key: 'brouteur_herbe',
       label: 'Le brouteur d\'herbe',
       description: 'Temps de survie total le plus long',
       unit: 's',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.timeSurvived }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.timeSurvived }))),
     },
     {
       key: 'alcoolique_dimanche',
       label: 'L\'alcoolique du dimanche',
       description: 'Plus de boosts consommés',
       unit: 'boosts',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.boosts }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.boosts }))),
     },
     {
       key: 'fou_hopital',
       label: 'Le fou de l\'hôpital',
       description: 'Plus de soins utilisés',
       unit: 'soins',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.heals }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.heals }))),
     },
     {
       key: 'destructeur',
       label: 'Le destructeur',
       description: 'Plus de véhicules détruits',
       unit: 'véhicules',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.vehicleDestroys }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.vehicleDestroys }))),
     },
     {
       key: 'le_sniper',
       label: 'Le sniper',
       description: 'Kill le plus long sur la période',
       unit: 'm',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.longestKill) }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: Math.round(m.longestKill) }))),
     },
     {
       key: 'collectionneur',
       label: 'Le collectionneur d\'armes',
       description: 'Plus d\'armes ramassées',
       unit: 'armes',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.weaponsAcquired }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.weaponsAcquired }))),
     },
     {
       key: 'brute_metal',
       label: 'La brute de métal',
       description: 'Plus de kills depuis un véhicule',
       unit: 'kills',
-      winner: topByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.roadKills }))),
+      top3: top3ByTotal(members.map((m) => ({ memberId: m.memberId, memberName: m.memberName, value: m.roadKills }))),
     },
   ]
 
-  return { clanId, period, periodKey, awards }
+  return { clanId, period, periodKey, matchCount, awards }
 }

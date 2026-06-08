@@ -20,13 +20,14 @@ type ClanAward = {
   label: string
   description: string
   unit: string
-  winner: AwardWinner | null
+  top3: AwardWinner[]
 }
 
 type ClanAwardsResponse = {
   clanId: number
   period: AwardPeriod
   periodKey: string
+  matchCount: number
   awards: ClanAward[]
 }
 
@@ -35,6 +36,8 @@ const PERIOD_OPTIONS: Array<{ value: AwardPeriod; label: string }> = [
   { value: 'month', label: 'Mois' },
   { value: 'all', label: 'All Time' },
 ]
+
+const MEDAL_BY_RANK = ['🥇', '🥈', '🥉'] as const
 
 const AWARD_EMOJI_BY_KEY: Record<string, string> = {
   top_killer: '💀',
@@ -235,6 +238,14 @@ export default function ClanAwardsPage() {
           fullWidthOnMobile
           className="w-full sm:w-auto"
         />
+        {!loading && payload ? (
+          <p className="mt-2 text-xs text-gray-500">
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+              {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
+            </span>
+            {' '}pris en compte
+          </p>
+        ) : null}
       </section>
 
       {loading ? (
@@ -246,7 +257,6 @@ export default function ClanAwardsPage() {
       {!loading && !error && payload ? (
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {payload.awards.map((award) => {
-            const winner = award.winner
             const emoji = AWARD_EMOJI_BY_KEY[award.key] ?? '🏅'
 
             return (
@@ -263,12 +273,18 @@ export default function ClanAwardsPage() {
 
                 <p className="text-sm text-gray-600">{award.description}</p>
 
-                {winner ? (
-                  <div className="app-panel-muted mt-4 space-y-1 p-3">
-                    <p className="text-xs uppercase tracking-wide text-gray-500">Gagnant</p>
-                    <p className="text-base font-semibold text-gray-900">{winner.memberName}</p>
-                    <p className="text-sm font-medium text-blue-700">{formatAwardValue(award, winner.value)}</p>
-                  </div>
+                {award.top3.length > 0 ? (
+                  <ol className="mt-4 overflow-hidden rounded-lg app-panel-muted">
+                    {award.top3.map((entry, index) => (
+                      <li key={entry.memberId} className="flex items-center gap-3 px-3 py-2.5">
+                        <span className="text-xl" aria-hidden="true">{MEDAL_BY_RANK[index]}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-gray-900">{entry.memberName}</p>
+                          <p className="text-sm font-medium text-blue-700">{formatAwardValue(award, entry.value)}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
                 ) : (
                   <div className="app-panel-muted mt-4 p-3 text-sm text-gray-600">
                     Pas de donnees sur cette periode.

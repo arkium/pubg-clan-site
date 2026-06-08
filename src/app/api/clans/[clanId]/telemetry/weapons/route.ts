@@ -8,6 +8,12 @@ import {
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
 import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
+import {
+  getCategoryLabels,
+  getWeaponCategories,
+  weaponCategoryCode,
+  weaponCategoryLabel,
+} from '@/lib/weapon-category-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -326,7 +332,11 @@ export async function GET(
       }
     }
 
-    const weaponLabels = await getWeaponLabels()
+    const [weaponLabels, weaponCategories, categoryLabels] = await Promise.all([
+      getWeaponLabels(),
+      getWeaponCategories(),
+      getCategoryLabels(),
+    ])
     const rows = rowsRaw.map((row) => {
       const avgDistanceMeters = centimetersToMeters(row.avgDistance)
       const storedMaxDistanceMeters = centimetersToMeters(row.maxDistance)
@@ -340,6 +350,7 @@ export async function GET(
       const resolvedMaxDistanceMeters =
         storedMaxDistanceMeters > 0 ? storedMaxDistanceMeters : inferredMaxDistanceMeters
 
+      const catCode = weaponCategoryCode(row.weaponName, weaponCategories)
       return {
         ...row,
         avgDistance: avgDistanceMeters,
@@ -351,6 +362,8 @@ export async function GET(
         hitsLanded,
         accuracy: shotsFired > 0 ? (hitsLanded / shotsFired) * 100 : 0,
         weaponLabel: weaponDisplayName(row.weaponName, weaponLabels),
+        weaponCategoryCode: catCode,
+        weaponCategoryLabel: weaponCategoryLabel(catCode, categoryLabels),
       }
     })
 
@@ -376,6 +389,8 @@ export async function GET(
           period,
           periodKey,
           count: rows.length,
+          matchCount: snapshots.length,
+          categoryLabels,
           rows,
           weaponLabels,
           note:

@@ -211,6 +211,9 @@ export default function WeaponLabelsSettingsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href="/settings/weapon-categories" className="app-btn app-btn--md app-btn--secondary">
+              Catégories armes
+            </Link>
             <Link href="/settings/map-labels" className="app-btn app-btn--md app-btn--secondary">
               Alias cartes
             </Link>

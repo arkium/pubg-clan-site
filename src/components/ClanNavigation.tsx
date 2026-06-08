@@ -523,6 +523,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             tone: 'neutral' as const,
           },
           {
+            label: 'Alias catégories armes PUBG',
+            href: '/settings/weapon-categories',
+            tone: 'neutral' as const,
+          },
+          {
             label: 'Alias phases PUBG',
             href: '/settings/phase-labels',
             tone: 'neutral' as const,

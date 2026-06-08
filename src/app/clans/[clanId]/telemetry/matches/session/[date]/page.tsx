@@ -1156,12 +1156,20 @@ export default function TelemetrySessionDatePage() {
                     {telemetryFileSyncLoading ? 'Resync fichiers en cours...' : `Resync immédiat (${selectedMatchIds.length})`}
                   </button>
                 </div>
-                <label className="inline-flex items-start gap-2 text-xs text-purple-700">
-                  <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                    checked={resetBeforeResync} onChange={(e) => setResetBeforeResync(e.target.checked)}
-                    disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading} />
-                  <span>Réinitialiser DB avant resync (recommandé en dev)</span>
-                </label>
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex items-start gap-2 text-xs text-purple-700">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      checked={resetBeforeResync} onChange={(e) => setResetBeforeResync(e.target.checked)}
+                      disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading} />
+                    <span>Réinitialiser DB avant resync (recommandé en dev)</span>
+                  </label>
+                  <label className="inline-flex items-start gap-2 text-xs text-purple-700">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      checked={forceResync} onChange={(e) => setForceResync(e.target.checked)}
+                      disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading} />
+                    <span>Forcer le resync même si déjà Parser OK</span>
+                  </label>
+                </div>
                 <p className="mt-2 text-xs text-purple-700">
                   Lancez <code className="bg-white px-1 rounded">npm run telemetry:worker</code> dans un terminal séparé pour traiter les jobs.
                 </p>

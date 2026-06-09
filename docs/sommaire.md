@@ -66,6 +66,14 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Déploiement production (Kubernetes, VPS, systemd), troubleshooting, monitoring, scenarios d'urgence
 - [Télémétrie Status Complet](TELEMETRY_STATUS_COMPLETE.md)
   - Statut Phase 1-3, ce qui reste à faire, roadmap, recommandations
+- [Season Stats — données et idées](season-stats.md)
+  - Données ranked/normal disponibles depuis l'API PUBG, ce qui est stocké/affiché, faisabilité page TOP 3, idées pour dynamiser le clan
+- [Lifetime Stats — données et idées](lifetime-stats.md)
+  - Données lifetime disponibles depuis l'API PUBG, ce qui est stocké/affiché, lacunes filtre par mode, conception pages membre et clan
+- [Leaderboards — deux systèmes, données et idées](leaderboards.md)
+  - Leaderboard interne clan (existant) vs leaderboard PUBG API mondial (top 500, non consommé), conception pages membre et clan
+- [Clans — endpoint PUBG API, données et idées](clans-endpoint.md)
+  - Données clan disponibles depuis l'API PUBG, lacune principale (auto-sync roster), conception pages membre et clan admin
 
 ## Parcours recommandé
 

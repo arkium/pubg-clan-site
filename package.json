@@ -19,7 +19,8 @@
     "postbuild": "node scripts/copy-standalone-assets.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test:telemetry": "vitest run"
+    "test:telemetry": "vitest run",
+    "sync:pubg-assets": "tsx scripts/sync-pubg-assets.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

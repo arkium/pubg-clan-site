@@ -229,6 +229,55 @@ type MapStatsPayload = {
   error?: string
 }
 
+function MapCardBanner({
+  mapName,
+  mapLabel,
+  matches,
+}: {
+  mapName: string
+  mapLabel: string
+  matches: number
+}) {
+  const [imgFailed, setImgFailed] = useState(false)
+
+  if (imgFailed) {
+    return (
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">Carte</p>
+          <h3 className="mt-1 text-xl font-semibold text-gray-900">{mapLabel}</h3>
+        </div>
+        <div className="flex min-w-[5.5rem] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 px-3 py-2 text-center shadow-sm ring-1 ring-slate-200/70">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Matchs</p>
+          <p className="mt-1 text-xl font-bold leading-none text-gray-900">{matches}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="-mx-4 -mt-4 mb-4 h-28 overflow-hidden rounded-t-2xl relative">
+      <img
+        src={`/maps/pubg/${mapName}.webp`}
+        alt={mapLabel}
+        className="h-full w-full object-cover"
+        onError={() => setImgFailed(true)}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-2 px-4 pb-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">Carte</p>
+          <h3 className="text-lg font-bold leading-tight text-white drop-shadow">{mapLabel}</h3>
+        </div>
+        <div className="flex shrink-0 flex-col items-center rounded-xl border border-white/20 bg-black/40 px-2.5 py-1.5 text-center backdrop-blur-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">Matchs</p>
+          <p className="text-lg font-bold leading-none text-white">{matches}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -786,18 +835,9 @@ export default function MemberMapStatsPage() {
             {sortedMapStats.map((entry) => (
               <article
                 key={entry.mapName}
-                className="map-stats-card rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-gray-50 p-4 shadow-sm"
+                className="map-stats-card overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-gray-50 p-4 shadow-sm"
               >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">Carte</p>
-                    <h3 className="mt-1 text-xl font-semibold text-gray-900">{entry.mapLabel}</h3>
-                  </div>
-                  <div className="flex min-w-[5.5rem] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 px-3 py-2 text-center shadow-sm ring-1 ring-slate-200/70">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Matchs</p>
-                    <p className="mt-1 text-xl font-bold leading-none text-gray-900">{entry.matches}</p>
-                  </div>
-                </div>
+                <MapCardBanner mapName={entry.mapName} mapLabel={entry.mapLabel} matches={entry.matches} />
 
                 <div className="grid grid-cols-2 gap-3">
                   <MetricTile label="Wins" value={entry.wins} icon="wins" tone="amber" />

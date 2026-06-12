@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { resolveGameMode } from '@/lib/pubg-assets'
 
 type TelemetryRecoveryRow = {
   id: string
@@ -1235,7 +1236,7 @@ export default function TelemetryRecoveriesPage() {
                       <td className="px-2 py-2 text-slate-700">
                         <p>{row.mapName}</p>
                         <p className="text-xs uppercase tracking-wide text-slate-500">
-                          {row.gameMode} · #{row.placement}
+                          {resolveGameMode(row.gameMode)} · #{row.placement}
                         </p>
                       </td>
                       <td className="px-2 py-2 text-slate-700">

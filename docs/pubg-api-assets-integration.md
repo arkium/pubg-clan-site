@@ -352,58 +352,157 @@ npm run sync:pubg-assets        # télécharge/met à jour les assets visuels
 
 ## Plan d'implémentation avec checklist
 
-### Phase 1 — Fondations (JSONs + script sync)
+### Phase 1 — Fondations (JSONs + script sync) ✅
 
-- [ ] Créer `src/lib/pubg-assets/` et y copier les JSONs prioritaires P1 :
+- [x] Créer `src/lib/pubg-assets/` et y copier les JSONs prioritaires P1 :
   - `dictionaries/damageCauserName.json`
   - `dictionaries/damageTypeCategory.json`
   - `dictionaries/mapName.json`
   - `enums/damageReason.json`
-- [ ] Créer `scripts/sync-pubg-assets.ts` — télécharge armes + véhicules + maps No_Text depuis raw GitHub
-- [ ] Ajouter `npm run sync:pubg-assets` dans `package.json`
-- [ ] Ajouter `public/icons/pubg/` au `.gitignore`
-- [ ] Créer `src/lib/pubg-assets/asset-url.ts` avec `weaponTelemetryToAssetName()`, `vehicleTelemetryToAssetName()`, `weaponIconUrl()`, `vehicleIconUrl()`
+- [x] Créer `scripts/sync-pubg-assets.ts` — télécharge armes + véhicules + maps No_Text depuis raw GitHub
+- [x] Ajouter `npm run sync:pubg-assets` dans `package.json`
+- [x] Ajouter `public/icons/pubg/` au `.gitignore`
+- [x] Créer `src/lib/pubg-assets/asset-url.ts` avec `weaponTelemetryToAssetName()`, `vehicleTelemetryToAssetName()`, `weaponIconUrl()`, `vehicleIconUrl()`
+- [x] Créer `src/lib/pubg-assets/index.ts` — point d'entrée unifié avec resolvers et re-exports
+- [x] Exécuté `npm run sync:pubg-assets` : **164 icônes armes + 38 icônes véhicules** téléchargés dans `public/icons/pubg/`
 
-### Phase 2 — Simplification des services labels (P1 quick wins)
+### Phase 2 — Simplification des services labels (P1 quick wins) ✅
 
-- [ ] **`weapon-label-service.ts`** : remplacer `DEFAULT_WEAPON_LABELS` par import de `damageCauserName.json` filtré sur clés `Weap*_C`
-- [ ] **`map-label-service.ts`** : remplacer `DEFAULT_MAP_LABELS` par import de `mapName.json`
-- [ ] **`weapon-categories.ts`** : supprimer les aliases `item_weapon_*_c` — ne conserver que les clés `Weap*_C` et les aliases courts pour résolution de catégorie
-- [ ] Exporter `DamageReason` type depuis `enums/damageReason.json` — remplacer les string literals dans le parser
+- [x] **`weapon-label-service.ts`** : `DEFAULT_WEAPON_LABELS` remplacé par `Object.fromEntries(damageCauserName.json filtré Weap*_C)` — couvre maintenant VSS, Lynx AMR, O12, R45, Mosin-Nagant et tous les variants named ; corrige UMP45 → UMP9 (nom officiel)
+- [x] **`map-label-service.ts`** : `DEFAULT_MAP_LABELS` remplacé par import direct de `mapName.json` — Baltic_Main passe à "Erangel (Remastered)" (nom officiel)
+- [x] **`weapon-categories.ts`** : aliases `item_weapon_*_c` supprimés — chaque entrée ne conserve que les alias courts (`'akm'`, `'scarl'`, `'m762'`…)
+- [x] `DamageReason` type exporté depuis `pubg-assets/index.ts` (Phase 1) — pas de string literals à remplacer dans le parser actuel (détection headshot via `.includes('headshot')` générique)
 
-### Phase 3 — Nouveaux services (P1-P2)
+### Phase 3 — Nouveaux services (P1-P2) ✅
 
-- [ ] Créer `src/lib/vehicle-label-service.ts` :
-  - Extrait les entrées véhicules de `damageCauserName.json` (clés `BP_*_C`, `Dacia_*`, `Uaz_*`, `Buggy_*`, `AquaRail_*`, `Boat_*`, etc.)
-  - Pattern identique aux autres label services (DB-backed avec DEFAULT_VEHICLE_LABELS)
-  - Exposer `vehicleDisplayName(id, labels)`
-- [ ] Créer `src/lib/damage-type-label-service.ts` à partir de `damageTypeCategory.json`
-- [ ] Créer `src/lib/game-mode-label-service.ts` à partir de `gameMode.json`
-- [ ] Intégrer `src/lib/pubg-assets/index.ts` comme point d'entrée unifié
+- [x] Créer `src/lib/vehicle-label-service.ts` : **91 entrées** extraites via `VEHICLE_KEY_PREFIXES` depuis `damageCauserName.json` — DB-backed, expose `vehicleDisplayName(id, labels)`
+- [x] Créer `src/lib/damage-type-label-service.ts` : wrapper pur sur `damageTypeCategory.json` — expose `damageTypeDisplayName(id)` (pas de customisation DB, labels système fixes)
+- [x] Créer `src/lib/game-mode-label-service.ts` : wrapper pur sur `gameMode.json` (40 modes) — expose `gameModeDisplayName(id)`
+- [x] `src/lib/pubg-assets/index.ts` mis à jour : `gameMode` dictionary + `resolveGameMode()` ajoutés
 
-### Phase 4 — Affichage visuel (P1)
+### Phase 4 — Affichage visuel (P1) ✅
 
-- [ ] Composant `WeaponIcon` : `<img src={weaponIconUrl(id)} alt={resolveWeaponName(id)} />` avec fallback texte si PNG absent
-- [ ] Composant `VehicleIcon` : même pattern
-- [ ] Intégrer `WeaponIcon` dans la page `/clans/[clanId]/stats/weapons/`
-- [ ] Intégrer `WeaponIcon` dans les tableaux kills/leaderboard si pertinent
+- [x] Composant `WeaponIcon` (`src/components/ui/WeaponIcon.tsx`) : `<img>` + `pubg-icon-filter` (inversion light/dark via CSS) + fallback `null` si PNG absent
+- [x] Composant `VehicleIcon` (`src/components/ui/VehicleIcon.tsx`) : même pattern
+- [x] Intégrer `WeaponIcon` dans la page `/clans/[clanId]/stats/weapons/` (mobile card + tableau desktop)
+- [x] Leaderboard/kills : pas de données armes → intégration non pertinente
+- [x] `globals.css` : règle `html[data-app-theme='light'] .pubg-icon-filter { filter: brightness(0); }` ajoutée
 
-### Phase 5 — Enrichissements (P2-P3)
+### Phase 5 — Enrichissements (P2-P3) ✅ (partiel)
 
-- [ ] Copier `enums/regionId.json` → intégrer les noms de zones dans la page drop zones
-- [ ] Copier `dictionaries/gameMode.json` → afficher les modes de jeu avec labels lisibles
-- [ ] Copier `enums/weatherId.json` — label météo sur les fiches de match
-- [ ] Copier `enums/item/category.json` + `subCategory.json` → types TypeScript
-- [ ] Copier `enums/vehicle/vehicleType.json` → groupement véhicules (terrestre/aérien/nautique)
-- [ ] Comparer `Assets/Maps/` avec images locales — migrer si meilleure qualité ou utiliser variants `No_Text` pour les heatmaps
-- [ ] Copier `seasons.json` → remplacer les IDs de saison hardcodés
+- [ ] `enums/telemetry/regionId.json` → intégrer les noms de zones dans la page drop zones (requiert refonte API + DB, reporté)
+- [x] `dictionaries/gameMode.json` → `resolveGameMode()` appliqué dans 3 pages (`matches/telemetry`, `telemetry/matches/telemetry`, `telemetry/recoveries`) — `squad-fpp` → `"Squad FPP"`
+- [ ] `enums/weatherId.json` — aucune donnée météo en DB actuellement, reporté
+- [x] `enums/telemetry/item/category.json` + `subCategory.json` → copiés dans `src/lib/pubg-assets/enums/item/`, types `ItemCategory` et `ItemSubCategory` exportés depuis `index.ts`
+- [x] `enums/telemetry/vehicle/vehicleType.json` → copié dans `src/lib/pubg-assets/enums/vehicle/`, type `VehicleType` exporté depuis `index.ts`
+- [ ] Comparer `Assets/Maps/` avec images locales — images webp actuelles suffisantes, reporté
+- [ ] `seasons.json` → saisons gérées dynamiquement via l'API PUBG, IDs non hardcodés, sans valeur ajoutée
 
-### Phase 6 — Bonus (P3-P4)
+### Phase 6 — Bonus (P3-P4) ✅ (partiel)
 
-- [ ] `dictionaries/itemId.json` + `Assets/Icons/CarePackage/` → future page care packages
-- [ ] `dictionaries/weaponMastery/medalName.json` → système de médailles en jeu
-- [ ] `survivalTitles.json` → affichage tier de survie
-- [ ] `Assets/MapSelection/` thumbnails → UI de sélection de map améliorée
+- [ ] `dictionaries/itemId.json` + `Assets/Icons/CarePackage/` → future page care packages (nécessite nouvelle page)
+- [x] `dictionaries/weaponMastery/medalName.json` → copié dans `src/lib/pubg-assets/dictionaries/weaponMastery/`, service `src/lib/medal-name-service.ts` créé : `resolveMedalName(id)`, `resolveMedalDescription(id)`, type `MedalId` exporté. Prêt pour affichage quand les données mastery incluront les médailles.
+- [x] `survivalTitles.json` → copié + restructuré dans `src/lib/pubg-assets/survivalTitles.json`, service `src/lib/survival-title-service.ts` créé : `survivalTitleFromPoints(sp)`, `survivalLevelFromPoints(sp)`, `formatSurvivalTitle(key)`. Prêt pour affichage quand `survivalPoints` sera ajouté au schéma DB.
+- [ ] `Assets/MapSelection/` thumbnails → 8/11 cartes seulement (Deston/Rondo/Taego absents), nommage incompatible avec convention `{mapKey}.webp` → reporté
+
+---
+
+## Points manquants et axes d'amélioration
+
+### Services créés mais non raccordés à l'UI
+
+| Service | Raison du blocage | Ce qui débloque |
+|---|---|---|
+| `survival-title-service.ts` | Champ `survivalPoints` absent du schéma DB | Ajouter `survivalPoints Int?` dans `MemberStats`, puis le remplir via l'API PUBG mastery |
+| `medal-name-service.ts` | Les médailles ne sont pas capturées dans les données mastery actuellement stockées | Étendre la réponse `/weapon-mastery` pour stocker `medals[]` par arme |
+| `VehicleIcon` (composant) | Créé mais non intégré dans aucune page | Intégrer quand une page affiche des kills/données véhicules |
+
+### Écarts de couverture connus
+
+#### `resolveWeaponName` vs mastery IDs
+
+`resolveWeaponName(id)` s'appuie sur `damageCauserName.json` dont les clés sont en format télémétrie `WeapAK47_C`. Les données **weapon mastery** utilisent le format `Item_Weapon_AK47_C`. Un appel `resolveWeaponName('Item_Weapon_AK47_C')` retourne l'ID brut au lieu du label.
+
+**Correction à apporter dans `src/lib/pubg-assets/index.ts` :**
+```typescript
+export function resolveWeaponName(id: string): string {
+  if (damageCauserName[id]) return damageCauserName[id]
+  // Mastery format: Item_Weapon_AK47_C → tenter WeapAK47_C
+  const telemetryKey = id.replace(/^Item_Weapon_/, 'Weap')
+  return damageCauserName[telemetryKey] ?? id
+}
+```
+
+#### `mapImageUrl()` vs `MapImage` — incohérence
+
+La fonction `mapImageUrl()` dans `asset-url.ts` génère des chemins `_Low_Res.png` (héritage). Les images en production sont en `.webp`. Le composant `MapImage` contourne le problème en construisant le chemin directement.
+
+**À corriger :** marquer `mapImageUrl()` `@deprecated` et toujours passer par `MapImage` en composant — ou mettre à jour la fonction pour retourner `.webp`.
+
+#### `survivalTitles.json` — doublon SURVIVOR / LONE SURVIVOR
+
+Les deux entrées partagent `title: 7` et les mêmes seuils (`minPoints: 6000, maxPoints: null`). Le service retournera toujours `LONE SURVIVOR` (itéré en premier). La distinction réelle dans le jeu n'est pas documentée dans le repo — à surveiller.
+
+### Intégrations visuelles non exploitées
+
+#### VehicleIcon — pages cibles potentielles
+
+Le composant est prêt mais inutilisé. Pages pertinentes à terme :
+- Future **page stats véhicules** (kills, distance parcourue par type)
+- Page analytics dégâts (si créée)
+- Kill feed dans le détail match
+
+#### MapImage — intégrations supplémentaires
+
+Actuellement : `/members/[id]/map-stats` et settings. Opportunités :
+- **Page détail match** : bandeau de la map en haut (`/clans/[clanId]/matches/[matchId]`)
+- **Sélecteur de map** dans les filtres (dropdown avec thumbnail)
+- **Page drop zones** si créée
+
+#### gameMode — filtres UI non résolus
+
+`resolveGameMode()` est appliqué dans l'affichage des résultats (telemetry, recoveries) mais pas nécessairement dans les `SegmentedControl` de filtres. Vérifier :
+- `/clans/[clanId]/matches` — filtre mode de jeu
+- `/members/[id]/matches` — idem
+
+### Assets `MapSelection/` — couverture incomplète
+
+Le dossier `Assets/MapSelection/` contient 8 thumbnails, **Deston/Rondo (Neon_Main)/Taego absents**. La convention de nommage du repo diffère de la convention `.webp` locale.
+
+Quand les 3 thumbnails manquants seront publiés :
+1. Comparer la convention de nommage
+2. Mettre à jour `scripts/sync-pubg-assets.ts` pour inclure `Assets/MapSelection/`
+3. Étendre `MapImage` avec un mode `thumbnail` ou créer `MapThumbnail`
+
+### Pages futures nécessitant de nouveaux assets
+
+| Feature | Assets requis | JSONs requis | Complexité |
+|---|---|---|---|
+| **Care packages** | `Assets/Icons/CarePackage/` | `dictionaries/telemetry/item/itemId.json` | Élevée (nouvelle page + parser events) |
+| **Stats véhicules** | `Assets/Vehicle/` ✅ déjà téléchargés | `dictionaries/telemetry/vehicle/vehicleId.json` | Moyenne |
+| **Drop zones nommées** | Aucun | `enums/telemetry/regionId.json` | Élevée (refonte API drop zones + DB) |
+| **Analytics dégâts** | Aucun | `dictionaries/damageTypeCategory.json` ✅ présent | Faible (service déjà créé) |
+| **Météo match** | Aucun | `enums/telemetry/weatherId.json` | Faible — bloqué par absence de la donnée en DB |
+
+### Schéma DB — champs à ajouter
+
+```prisma
+// prisma/schema.prisma
+
+model MemberStats {
+  // ...débloque survival-title-service.ts
+  survivalPoints Int?
+}
+
+// Table séparée pour les médailles (débloque medal-name-service.ts)
+model WeaponMasteryMedal {
+  id        Int           @id @default(autoincrement())
+  masteryId Int
+  medalId   String        // MedalFirstBlood, MedalLongshot, etc.
+  count     Int
+  mastery   WeaponMastery @relation(fields: [masteryId], references: [id])
+}
+```
 
 ---
 

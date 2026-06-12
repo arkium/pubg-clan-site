@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import WeaponIcon from '@/components/ui/WeaponIcon'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -670,7 +671,12 @@ export default function MemberWeaponsPage() {
 
                   return (
                     <tr key={row.weaponId} className="app-table-row">
-                      <td className="px-3 py-2 text-gray-900">{row.weaponName}</td>
+                      <td className="px-3 py-2 text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <WeaponIcon id={row.weaponId} label={row.weaponName} size="sm" />
+                          <span>{row.weaponName}</span>
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
@@ -774,6 +780,7 @@ export default function MemberWeaponsPage() {
                       <tr key={row.weaponName} className="app-table-row">
                         <td className="px-3 py-2 text-gray-900">
                           <div className="flex items-center gap-2">
+                            <WeaponIcon id={row.weaponName} size="sm" />
                             <span>{row.weaponLabel ?? row.weaponName}</span>
                             {podiumRank ? (
                               <span className={`app-podium-badge ${podiumTone}`}>

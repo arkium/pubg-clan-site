@@ -10,6 +10,7 @@ import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
+import { resolveGameMode } from '@/lib/pubg-assets'
 
 type TelemetryStatus = 'success' | 'failed' | 'pending'
 
@@ -1129,7 +1130,7 @@ export default function TelemetryMatchDetailPage() {
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <dt className="text-xs uppercase tracking-wide text-slate-500">Mode</dt>
-                <dd className="mt-1 font-semibold text-slate-900">{match.gameMode}</dd>
+                <dd className="mt-1 font-semibold text-slate-900">{resolveGameMode(match.gameMode)}</dd>
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <dt className="text-xs uppercase tracking-wide text-slate-500">Placement</dt>

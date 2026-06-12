@@ -1,53 +1,12 @@
 import { prisma } from '@/lib/prisma'
+import damageCauserNameData from '@/lib/pubg-assets/dictionaries/damageCauserName.json'
 
 const WEAPON_LABELS_KEY = 'pubg_weapon_labels'
 const MAX_LABEL_LENGTH = 50
 
-export const DEFAULT_WEAPON_LABELS: Record<string, string> = {
-  WeapAK47_C: 'AKM',
-  WeapBerylM762_C: 'Beryl M762',
-  WeapACE32_C: 'ACE32',
-  WeapGroza_C: 'Groza',
-  WeapM16A4_C: 'M16A4',
-  WeapAUG_C: 'AUG A3',
-  WeapHK416_C: 'M416',
-  'WeapSCAR-L_C': 'SCAR-L',
-  WeapQBZ95_C: 'QBZ95',
-  WeapG36C_C: 'G36C',
-  WeapK2_C: 'K2',
-  WeapMk47Mutant_C: 'Mk47 Mutant',
-  WeapMini14_C: 'Mini14',
-  WeapQBU88_C: 'QBU88',
-  WeapMk12_C: 'Mk12',
-  WeapM24_C: 'M24',
-  WeapKar98k_C: 'Kar98k',
-  WeapAWM_C: 'AWM',
-  WeapDragunov_C: 'Dragunov',
-  WeapSKS_C: 'SKS',
-  WeapFNFal_C: 'SLR',
-  WeapM249_C: 'M249',
-  WeapMG3_C: 'MG3',
-  WeapDP28_C: 'DP-28',
-  WeapMP5K_C: 'MP5K',
-  WeapMP9_C: 'MP9',
-  WeapUMP_C: 'UMP45',
-  WeapVector_C: 'Vector',
-  WeapBizonPP19_C: 'PP-19 Bizon',
-  WeapThompson_C: 'Tommy Gun',
-  WeapUZI_C: 'Micro UZI',
-  WeapP90_C: 'P90',
-  WeapSaiga12_C: 'S12K',
-  WeapDBS_C: 'DBS',
-  WeapWinchester_C: 'S1897',
-  WeapBerreta686_C: 'S686',
-  WeapSawnoff_C: 'Sawed-Off',
-  WeapPan_C: 'Poele',
-  WeapCrossbow_1_C: 'Arbalete',
-  WeapPanzerFaust100M1_C: 'Panzerfaust',
-  WeapGrenade_C: 'Grenade',
-  WeapMolotov_C: 'Molotov',
-  EsiGameModeBase_BattleRoyaleBP_C: 'Evenement systeme',
-}
+export const DEFAULT_WEAPON_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(damageCauserNameData).filter(([key]) => key.startsWith('Weap'))
+)
 
 function sanitizeLabel(raw: string, fallback: string) {
   const trimmed = raw.trim()

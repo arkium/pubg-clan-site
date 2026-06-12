@@ -1,20 +1,9 @@
 import { prisma } from '@/lib/prisma'
+import mapNameData from '@/lib/pubg-assets/dictionaries/mapName.json'
 
 const MAP_LABELS_KEY = 'pubg_map_labels'
 
-export const DEFAULT_MAP_LABELS: Record<string, string> = {
-  Baltic_Main: 'Erangel',
-  Savage_Main: 'Sanhok',
-  Desert_Main: 'Miramar',
-  DihorOtok_Main: 'Vikendi',
-  Range_Main: 'Camp Jackal',
-  Summerland_Main: 'Karakin',
-  Tiger_Main: 'Taego',
-  Kiki_Main: 'Deston',
-  Chimera_Main: 'Paramo',
-  Heaven_Main: 'Haven',
-  Neon_Main: 'Rondo',
-}
+export const DEFAULT_MAP_LABELS: Record<string, string> = mapNameData
 
 const MAX_LABEL_LENGTH = 40
 

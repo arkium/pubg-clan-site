@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import WeaponIcon from '@/components/ui/WeaponIcon'
 import {
   CATEGORY_CODES,
   DEFAULT_CATEGORY_LABELS,
@@ -197,19 +198,24 @@ export default function WeaponCategoriesSettingsPage() {
 
           <div className="app-panel-muted mt-4 grid gap-4 p-4 sm:p-5 md:grid-cols-2">
             {filteredKeys.map((key) => (
-              <label key={key} className="block text-sm font-medium text-gray-700">
-                {key}
-                <select
-                  value={weaponCategories[key] ?? DEFAULT_WEAPON_CATEGORIES[key] ?? 'Autre'}
-                  onChange={(e) => setWeaponCategories((prev) => ({ ...prev, [key]: e.target.value as CategoryCode }))}
-                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                >
-                  {CATEGORY_CODES.map((code) => (
-                    <option key={code} value={code}>
-                      {code} — {categoryLabels[code] ?? DEFAULT_CATEGORY_LABELS[code]}
-                    </option>
-                  ))}
-                </select>
+              <label key={key} className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                  <WeaponIcon id={key} size="xl" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate">{key}</span>
+                  <select
+                    value={weaponCategories[key] ?? DEFAULT_WEAPON_CATEGORIES[key] ?? 'Autre'}
+                    onChange={(e) => setWeaponCategories((prev) => ({ ...prev, [key]: e.target.value as CategoryCode }))}
+                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"
+                  >
+                    {CATEGORY_CODES.map((code) => (
+                      <option key={code} value={code}>
+                        {code} — {categoryLabels[code] ?? DEFAULT_CATEGORY_LABELS[code]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </label>
             ))}
             {filteredKeys.length === 0 ? (

@@ -1,0 +1,11 @@
+{
+  "UNKNOWN":       { "title": 0, "minPoints": 0,    "maxPoints": 0,    "hasLevels": false },
+  "BEGINNER":      { "title": 1, "minPoints": 1,    "maxPoints": 999,  "hasLevels": true  },
+  "NOVICE":        { "title": 2, "minPoints": 1000, "maxPoints": 1999, "hasLevels": true  },
+  "EXPERIENCED":   { "title": 3, "minPoints": 2000, "maxPoints": 2999, "hasLevels": true  },
+  "SKILLED":       { "title": 4, "minPoints": 3000, "maxPoints": 3999, "hasLevels": true  },
+  "SPECIALIST":    { "title": 5, "minPoints": 4000, "maxPoints": 4999, "hasLevels": true  },
+  "EXPERT":        { "title": 6, "minPoints": 5000, "maxPoints": 5999, "hasLevels": false },
+  "SURVIVOR":      { "title": 7, "minPoints": 6000, "maxPoints": null, "hasLevels": false },
+  "LONE SURVIVOR": { "title": 7, "minPoints": 6000, "maxPoints": null, "hasLevels": false }
+}

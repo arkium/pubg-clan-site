@@ -1835,3 +1835,8 @@ html[data-app-theme='dark'] .member-lifetime-stats-alert {
     transition: none !important;
   }
 }
+
+/* PUBG icons are white PNGs — invert to black in light mode so they're visible */
+html[data-app-theme='light'] .pubg-icon-filter {
+  filter: brightness(0);
+}

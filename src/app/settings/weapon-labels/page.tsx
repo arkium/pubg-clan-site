@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import WeaponIcon from '@/components/ui/WeaponIcon'
 
 const WEAPON_KEYS = [
   'WeapAK47_C',
@@ -262,21 +263,26 @@ export default function WeaponLabelsSettingsPage() {
           <div className="app-panel-muted p-4 sm:p-5">
             <div className="grid gap-4 md:grid-cols-2">
               {filteredKeys.map((weaponKey) => (
-                <label key={weaponKey} className="block text-sm font-medium text-gray-700">
-                  {weaponKey}
-                  <input
-                    type="text"
-                    value={labels[weaponKey] ?? ''}
-                    maxLength={50}
-                    onChange={(event) =>
-                      setLabels((current) => ({
-                        ...current,
-                        [weaponKey]: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                    placeholder={weaponKey}
-                  />
+                <label key={weaponKey} className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                    <WeaponIcon id={weaponKey} size="xl" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate">{weaponKey}</span>
+                    <input
+                      type="text"
+                      value={labels[weaponKey] ?? ''}
+                      maxLength={50}
+                      onChange={(event) =>
+                        setLabels((current) => ({
+                          ...current,
+                          [weaponKey]: event.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"
+                      placeholder={weaponKey}
+                    />
+                  </div>
                 </label>
               ))}
             </div>

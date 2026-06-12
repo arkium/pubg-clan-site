@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ClanSectionNav from '@/components/ClanSectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import WeaponIcon from '@/components/ui/WeaponIcon'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -450,7 +451,8 @@ export default function ClanTelemetryWeaponsPage() {
                     <div className="mb-3 flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-gray-900">{row.displayName}</p>
-                        <div className="mt-0.5 flex items-center gap-2">
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          <WeaponIcon id={row.weaponName} size="sm" />
                           <p className="truncate text-sm text-gray-600">{row.weaponLabel ?? row.weaponName}</p>
                           {podiumRank ? (
                             <span className={`app-podium-badge ${podiumTone} shrink-0`}>#{podiumRank}</span>
@@ -579,6 +581,7 @@ export default function ClanTelemetryWeaponsPage() {
                         </td>
                         <td className="px-3 py-2 text-gray-900">
                           <div className="flex items-center gap-2">
+                            <WeaponIcon id={row.weaponName} size="sm" />
                             <span>{row.weaponLabel ?? row.weaponName}</span>
                             {podiumRank ? (
                               <span className={`app-podium-badge ${podiumTone}`}>#{podiumRank}</span>

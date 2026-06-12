@@ -181,41 +181,100 @@ export default function ClanOverviewPage() {
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Bloc 1 — Fiche PUBG officielle */}
-          <section className="app-panel p-6">
-            <h2 className="mb-4 text-base font-semibold text-gray-900">Fiche PUBG officielle</h2>
-
+          <section className="app-panel relative overflow-hidden">
             {!pubg ? (
-              <p className="text-sm text-gray-500">
-                Aucune donnée PUBG — lancez une sync stats depuis les paramètres d&apos;abord.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-700">
-                    [{pubg.tag}]
-                  </span>
-                  <span className="text-xl font-bold text-gray-900">{pubg.name}</span>
-                </div>
-
-                <p className="font-mono text-xs text-gray-400">{pubg.clanId}</p>
-
-                <div className="flex flex-wrap gap-8">
-                  <Stat label="Membres PUBG officiel" value={String(pubg.memberCount ?? '—')} />
-                  <Stat label="Membres trackés" value={String(tracked?.membersCount ?? '—')} />
-                  {memberCountGap !== null && memberCountGap !== 0 && (
-                    <Stat
-                      label="Écart"
-                      value={`${memberCountGap > 0 ? '+' : ''}${memberCountGap}`}
-                      accent={Math.abs(memberCountGap) > 0}
-                    />
-                  )}
-                </div>
-
-                <p className="text-xs text-gray-500">
-                  Dernière sync :{' '}
-                  {fmtRelative((rawStats?.syncedAt as string | undefined) ?? null)}
+              <div className="p-6">
+                <h2 className="mb-2 text-base font-semibold text-gray-900">
+                  Fiche PUBG officielle
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Aucune donnée PUBG — lancez une sync stats depuis les paramètres d&apos;abord.
                 </p>
               </div>
+            ) : (
+              <>
+                <img
+                  src="/maps/pubg/Baltic_Main.webp"
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover object-[center_30%] opacity-70"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/55 to-black/85" />
+
+                <div className="relative px-6 py-5">
+                  {/* Identité du clan */}
+                  <div className="mb-5">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span className="rounded bg-amber-400 px-2 py-0.5 font-mono text-xs font-bold tracking-widest text-black">
+                        [{pubg.tag}]
+                      </span>
+                      <span className="font-mono text-xs text-white/40">{pubg.clanId}</span>
+                    </div>
+                    <h2 className="text-2xl font-bold leading-tight text-white drop-shadow">
+                      {pubg.name}
+                    </h2>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="flex flex-col items-center rounded-xl border border-t-4 border-white/15 border-t-blue-400 bg-white/10 px-3 py-4 backdrop-blur-sm">
+                      <p className="text-3xl font-bold tabular-nums text-white">
+                        {pubg.memberCount ?? '—'}
+                      </p>
+                      <p className="mt-1.5 text-center text-xs text-white/60">Membres PUBG</p>
+                    </div>
+
+                    <div className="flex flex-col items-center rounded-xl border border-t-4 border-white/15 border-t-emerald-400 bg-white/10 px-3 py-4 backdrop-blur-sm">
+                      <p className="text-3xl font-bold tabular-nums text-white">
+                        {tracked?.membersCount ?? '—'}
+                      </p>
+                      <p className="mt-1.5 text-center text-xs text-white/60">Trackés</p>
+                      {typeof pubg.memberCount === 'number' &&
+                        typeof tracked?.membersCount === 'number' &&
+                        pubg.memberCount > 0 && (
+                          <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-white/20">
+                            <div
+                              className="h-full rounded-full bg-emerald-400"
+                              style={{
+                                width: `${Math.min(100, (tracked.membersCount / pubg.memberCount) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                    </div>
+
+                    <div
+                      className={`flex flex-col items-center rounded-xl border border-t-4 border-white/15 bg-white/10 px-3 py-4 backdrop-blur-sm ${
+                        memberCountGap !== null && memberCountGap > 0
+                          ? 'border-t-amber-400'
+                          : 'border-t-white/20'
+                      }`}
+                    >
+                      <p
+                        className={`text-3xl font-bold tabular-nums ${
+                          memberCountGap !== null && memberCountGap > 0
+                            ? 'text-amber-400'
+                            : 'text-white'
+                        }`}
+                      >
+                        {memberCountGap === null
+                          ? '—'
+                          : memberCountGap > 0
+                            ? `+${memberCountGap}`
+                            : String(memberCountGap)}
+                      </p>
+                      <p className="mt-1.5 text-center text-xs text-white/60">Écart</p>
+                    </div>
+                  </div>
+
+                  {/* Badge sync */}
+                  <div className="mt-4">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/60 backdrop-blur-sm">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                      Sync {fmtRelative((rawStats?.syncedAt as string | undefined) ?? null)}
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
           </section>
 

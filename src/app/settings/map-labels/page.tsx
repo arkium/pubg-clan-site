@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import MapImage from '@/components/ui/MapImage'
 
 const MAP_KEYS = [
   'Baltic_Main',
@@ -185,21 +186,26 @@ export default function MapLabelsSettingsPage() {
           <div className="app-panel-muted p-4 sm:p-5">
             <div className="grid gap-4 md:grid-cols-2">
               {MAP_KEYS.map((mapKey) => (
-                <label key={mapKey} className="block text-sm font-medium text-gray-700">
-                  {mapKey}
-                  <input
-                    type="text"
-                    value={labels[mapKey] ?? ''}
-                    maxLength={40}
-                    onChange={(event) =>
-                      setLabels((current) => ({
-                        ...current,
-                        [mapKey]: event.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                    placeholder={mapKey}
-                  />
+                <label key={mapKey} className="flex items-center gap-3 text-sm font-medium text-gray-700">
+                  <div className="flex h-12 w-20 shrink-0 items-center justify-center">
+                    <MapImage mapKey={mapKey} className="h-12 w-20" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate">{mapKey}</span>
+                    <input
+                      type="text"
+                      value={labels[mapKey] ?? ''}
+                      maxLength={40}
+                      onChange={(event) =>
+                        setLabels((current) => ({
+                          ...current,
+                          [mapKey]: event.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"
+                      placeholder={mapKey}
+                    />
+                  </div>
                 </label>
               ))}
             </div>

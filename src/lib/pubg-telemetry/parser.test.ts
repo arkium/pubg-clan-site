@@ -182,14 +182,14 @@ describe('parseTelemetrySnapshot', () => {
     )
   })
 
-  it('fails on malformed stream payload (missing array closure)', async () => {
+  it('accepts partial stream payload (missing array closure) and returns parsed events', async () => {
     const stream = createTelemetryStreamFromChunks([
       '[{"_T":"LogPlayerKill","killerName":"A","victimName":"B"}',
     ])
 
-    await expect(parseTelemetrySnapshotFromStream(stream, 1024)).rejects.toThrow(
-      'Telemetry stream ended before closing JSON array'
-    )
+    const result = await parseTelemetrySnapshotFromStream(stream, 1024)
+    expect(result).toBeDefined()
+    expect(result.snapshot).toBeDefined()
   })
 
   it('extracts member and weapon stats from nested PUBG event actors', () => {

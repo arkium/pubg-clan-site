@@ -365,7 +365,13 @@ export type PubgClan = {
   name: string
   tag: string
   memberCount: number | null
+  memberIds: string[] | null
   raw: Record<string, unknown>
+}
+
+export type PubgClanMember = {
+  accountId: string
+  name: string | null
 }
 
 function pickString(...values: Array<unknown>) {
@@ -404,11 +410,17 @@ function normalizePubgClanResource(resource: PubgClanResource): PubgClan | null 
     attributes.clanMemberCount
   )
 
+  const membersRel = (resource.relationships?.members as { data?: { id?: string }[] } | undefined)
+  const memberIds = Array.isArray(membersRel?.data)
+    ? membersRel.data.map((m) => m.id).filter((id): id is string => typeof id === 'string')
+    : null
+
   return {
     id: resource.id,
     name,
     tag,
     memberCount,
+    memberIds: memberIds && memberIds.length > 0 ? memberIds : null,
     raw: {
       id: resource.id,
       type: resource.type ?? 'clan',
@@ -519,6 +531,29 @@ export async function fetchPubgClanById(clanId: string, shard: string = 'steam')
     const response = await queuedPubgGet<PubgClanLookupResponse>(`/shards/${shard}/clans/${clanId}`)
     const clan = extractClanResource(response.data)
     return clan ? normalizePubgClanResource(clan) : null
+  }
+}
+
+export async function fetchClanMembers(clanId: string, shard: string = 'steam'): Promise<PubgClanMember[]> {
+  ensurePubgApiKey()
+
+  try {
+    const response = await queuedPubgGet<{ data?: { id?: string; attributes?: { name?: string } }[] }>(
+      `/shards/${shard}/clans/${clanId}/members`
+    )
+
+    const members = response.data.data
+    if (!Array.isArray(members)) return []
+
+    return members
+      .filter((m) => typeof m.id === 'string')
+      .map((m) => ({
+        accountId: m.id as string,
+        name: pickString(m.attributes?.name) ?? null,
+      }))
+  } catch (error) {
+    console.error('[PUBG] Error fetching clan members', { clanId, shard, error })
+    throw error
   }
 }
 

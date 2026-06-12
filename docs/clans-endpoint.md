@@ -385,3 +385,43 @@ model Clan {
 | `src/app/api/clans/[clanId]/pubg-diff/route.ts` | Nouvelle route — diff membres |
 | `src/app/members/[id]/clan/page.tsx` | Nouvelle page membre — fiche clan du joueur |
 | `src/app/clans/[clanId]/overview/page.tsx` | Nouvelle page clan — dashboard PUBG + roster + diff |
+
+---
+
+## 11. Checklist d'avancement
+
+### Étape 1 — Consommer `relationships.members` (débloque tout le reste)
+
+- [x] Ajouter `memberIds: string[] | null` au type `PubgClan` (`src/lib/pubg.ts`)
+- [x] Extraire `relationships.members` dans `normalizePubgClanResource()` (`src/lib/pubg.ts`)
+- [x] Ajouter `fetchClanMembers(clanId, shard)` — appel dédié à `GET /clans/{clanId}/members` (`src/lib/pubg.ts`)
+
+### Étape 2 — Route diff backend
+
+- [x] Créer `/api/clans/[clanId]/pubg-diff/route.ts` — croise `fetchClanMembers()` avec `ClanMember.pubgAccountId` en DB
+- [x] Ajouter `syncClanMembership()` dans `src/lib/clan-service.ts` (logique diff PUBG vs site)
+
+### Étape 3 — Schéma DB (évolutions P1)
+
+- [x] Ajouter à `Clan` : `clanLevel Int?`, `clanPoints Int?`, `pubgCreatedAt DateTime?`, `pubgMemberCount Int?`, `pubgMembersSyncedAt DateTime?`
+- [x] Générer et appliquer la migration Prisma (`20260611120000_add_clan_pubg_fields`)
+- [x] Régénérer le client Prisma (`npx prisma generate`) — à faire après arrêt du serveur dev
+
+### Étape 4 — Page B : `/clans/[clanId]/overview`
+
+- [x] Bloc 1 — Fiche PUBG officielle + écart membres (depuis `clanStats.pubg`)
+- [x] Bloc 2 — Agrégats clan + top performers (depuis `clanStats.tracked`)
+- [x] Bloc 3 — Diff PUBG vs site (chargement à la demande via bouton)
+- [x] Bloc 4 — Roster membres actifs avec statuts
+
+### Étape 5 — Page A : `/members/[id]/clan`
+
+- [ ] Bloc 1 — Identité dans le clan (rôle, dates, liens)
+- [ ] Bloc 2 — Stats rapides all-time + position dans le clan
+- [ ] Bloc 3 — Statut d'appartenance au clan PUBG officiel (`fetchPlayerClan()`)
+
+### Étape 6 — Auto-sync (optionnel, choisir une option)
+
+- [ ] **Option A** — Bouton "Comparer avec le clan PUBG" (effort faible, recommandé en premier)
+- [ ] **Option B** — Cron de surveillance + notifications admin (effort moyen)
+- [ ] **Option C** — Sync automatique totale avec politique de consentement (effort élevé)

@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+
 import { prisma } from '@/lib/prisma'
 
 type StatsPeriod = 'week' | 'month' | 'all'
@@ -421,45 +423,78 @@ async function recalculateTelemetryPeriodForClan(
   const periodKey = getPeriodKey(period, referenceDate)
   const { startDate, endDate } = getPeriodBounds(period, referenceDate)
 
-  const snapshots = (await prisma.squadMatchTelemetry.findMany({
+  const matchInfoRows = await prisma.squadMatch.findMany({
     where: {
-      status: 'success',
-      squadMatch: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-        members: {
-          some: {
-            member: {
-              clanId,
-            },
+      createdAt: {
+        gte: startDate,
+        lte: endDate,
+      },
+      members: {
+        some: {
+          member: {
+            clanId,
           },
         },
       },
     },
     select: {
-      squadMatchId: true,
-      memberStats: true,
-      weaponStats: true,
-      squadMatch: {
+      id: true,
+      members: {
         select: {
-          members: {
+          member: {
             select: {
-              member: {
-                select: {
-                  id: true,
-                  clanId: true,
-                  pubgPlayerName: true,
-                  pubgAccountId: true,
-                },
-              },
+              id: true,
+              clanId: true,
+              pubgPlayerName: true,
+              pubgAccountId: true,
             },
           },
         },
       },
     },
-  })) as SquadMatchTelemetryRow[]
+  })
+
+  if (matchInfoRows.length === 0) {
+    return { period, periodKey, memberTelemetryRows: 0, memberWeaponRows: 0, clanSynergyRows: 0 }
+  }
+
+  const squadMatchIds = matchInfoRows.map((m) => m.id)
+
+  // Load JSON fields via raw SQL to use Node.js JSON.parse instead of Prisma's Rust parser.
+  // Prisma's in-process Rust engine can panic fatally when reading malformed JSON numbers from the DB.
+  type RawTelemetryRow = { squadMatchId: string; memberStats: string | null; weaponStats: string | null }
+  const rawRows = await prisma.$queryRaw<RawTelemetryRow[]>`
+    SELECT squadMatchId,
+           CAST(memberStats AS CHAR) AS memberStats,
+           CAST(weaponStats AS CHAR) AS weaponStats
+    FROM SquadMatchTelemetry
+    WHERE status = 'success'
+      AND squadMatchId IN (${Prisma.join(squadMatchIds)})
+  `
+
+  const telemetryByMatchId = new Map<string, { memberStats: unknown; weaponStats: unknown }>()
+  for (const row of rawRows) {
+    try {
+      telemetryByMatchId.set(row.squadMatchId, {
+        memberStats: row.memberStats ? JSON.parse(row.memberStats) : null,
+        weaponStats: row.weaponStats ? JSON.parse(row.weaponStats) : null,
+      })
+    } catch {
+      console.warn('[TelemetryAggregates] Skipping record with invalid JSON', { squadMatchId: row.squadMatchId })
+    }
+  }
+
+  const snapshots: SquadMatchTelemetryRow[] = matchInfoRows
+    .filter((m) => telemetryByMatchId.has(m.id))
+    .map((m) => {
+      const telemetry = telemetryByMatchId.get(m.id)!
+      return {
+        squadMatchId: m.id,
+        memberStats: telemetry.memberStats,
+        weaponStats: telemetry.weaponStats,
+        squadMatch: { members: m.members },
+      }
+    })
 
   const memberAggregates = new Map<number, MemberTelemetryAggregate>()
   const pairAggregates = new Map<string, PairSynergyAggregate>()

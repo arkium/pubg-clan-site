@@ -74,6 +74,8 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Leaderboard interne clan (existant) vs leaderboard PUBG API mondial (top 500, non consommé), conception pages membre et clan
 - [Clans — endpoint PUBG API, données et idées](clans-endpoint.md)
   - Données clan disponibles depuis l'API PUBG, lacune principale (auto-sync roster), conception pages membre et clan admin
+- [Intégration pubg/api-assets](pubg-api-assets-integration.md)
+  - Dictionnaires JSON officiels (armes, véhicules, dégâts, maps), icônes HUD, plan d'implémentation en 4 phases avec checklist
 
 ## Parcours recommandé
 

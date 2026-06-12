@@ -1469,8 +1469,10 @@ export async function parseTelemetrySnapshotFromStream(
     throw new Error('Telemetry stream ended before JSON object was fully parsed')
   }
 
+  // If the stream ended without ']' but all objects were cleanly parsed, the CDN
+  // served a truncated file. Accept what we have rather than discarding all events.
   if (!arrayClosed) {
-    throw new Error('Telemetry stream ended before closing JSON array')
+    console.warn('[TelemetryParser] Stream ended without closing JSON array bracket — using partial data', { bytesRead })
   }
 
   return {

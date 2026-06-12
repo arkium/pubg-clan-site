@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import {
+  fetchClanMembers,
   fetchLifetimeStats,
   fetchPlayerClan,
   fetchPubgClanById,
@@ -315,6 +316,113 @@ export async function syncTrackedClanStats(clanId: number) {
   })
 
   return updatedClan
+}
+
+export type ClanMembershipDiff = {
+  pubgClanId: string
+  shard: string
+  pubgMembersCount: number
+  matched: Array<{
+    accountId: string
+    pubgName: string | null
+    memberId: number
+    displayName: string
+  }>
+  inPubgOnly: Array<{
+    accountId: string
+    pubgName: string | null
+  }>
+  inSiteOnly: Array<{
+    memberId: number
+    displayName: string
+    pubgAccountId: string
+  }>
+  unverified: Array<{
+    memberId: number
+    displayName: string
+  }>
+}
+
+export async function syncClanMembership(clanId: number): Promise<ClanMembershipDiff> {
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: {
+      pubgClanId: true,
+      platformShard: true,
+      members: {
+        where: { isActive: true },
+        select: {
+          id: true,
+          displayName: true,
+          pubgAccountId: true,
+        },
+      },
+    },
+  })
+
+  if (!clan) {
+    throw new Error('Clan not found')
+  }
+
+  if (!clan.pubgClanId) {
+    throw new Error('Clan has no PUBG clan ID — sync stats first')
+  }
+
+  // Try the dedicated /members endpoint first (includes player names).
+  // If it fails (404 or unsupported shard), fall back to memberIds from the clan response.
+  let pubgMembers: Awaited<ReturnType<typeof fetchClanMembers>>
+
+  try {
+    pubgMembers = await fetchClanMembers(clan.pubgClanId, clan.platformShard)
+  } catch {
+    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard)
+    pubgMembers = (pubgClan?.memberIds ?? []).map((id) => ({ accountId: id, name: null }))
+  }
+
+  const pubgAccountIdSet = new Set(pubgMembers.map((m) => m.accountId))
+  const pubgMemberByAccountId = new Map(pubgMembers.map((m) => [m.accountId, m]))
+
+  const matched: ClanMembershipDiff['matched'] = []
+  const inSiteOnly: ClanMembershipDiff['inSiteOnly'] = []
+  const unverified: ClanMembershipDiff['unverified'] = []
+
+  for (const member of clan.members) {
+    if (!member.pubgAccountId) {
+      unverified.push({ memberId: member.id, displayName: member.displayName })
+      continue
+    }
+
+    if (pubgAccountIdSet.has(member.pubgAccountId)) {
+      const pubgMember = pubgMemberByAccountId.get(member.pubgAccountId)
+      matched.push({
+        accountId: member.pubgAccountId,
+        pubgName: pubgMember?.name ?? null,
+        memberId: member.id,
+        displayName: member.displayName,
+      })
+    } else {
+      inSiteOnly.push({
+        memberId: member.id,
+        displayName: member.displayName,
+        pubgAccountId: member.pubgAccountId,
+      })
+    }
+  }
+
+  const matchedAccountIds = new Set(matched.map((m) => m.accountId))
+  const inPubgOnly = pubgMembers
+    .filter((m) => !matchedAccountIds.has(m.accountId))
+    .map((m) => ({ accountId: m.accountId, pubgName: m.name }))
+
+  return {
+    pubgClanId: clan.pubgClanId,
+    shard: clan.platformShard,
+    pubgMembersCount: pubgMembers.length,
+    matched,
+    inPubgOnly,
+    inSiteOnly,
+    unverified,
+  }
 }
 
 export async function syncClanLifetimeStats(clanId: number) {

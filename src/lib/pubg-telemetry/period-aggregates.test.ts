@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  findMany: vi.fn(),
+  squadMatchFindMany: vi.fn(),
+  queryRaw: vi.fn(),
   transaction: vi.fn(),
   memberTelemetryDeleteMany: vi.fn(),
   memberTelemetryCreateMany: vi.fn(),
@@ -13,9 +14,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    squadMatchTelemetry: {
-      findMany: mocks.findMany,
+    squadMatch: {
+      findMany: mocks.squadMatchFindMany,
     },
+    $queryRaw: mocks.queryRaw,
     $transaction: mocks.transaction,
     memberTelemetryStats: {
       deleteMany: mocks.memberTelemetryDeleteMany,
@@ -36,7 +38,8 @@ import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetr
 
 describe('recalculateTelemetryPeriodAggregatesForClan', () => {
   beforeEach(() => {
-    mocks.findMany.mockReset()
+    mocks.squadMatchFindMany.mockReset()
+    mocks.queryRaw.mockReset()
     mocks.transaction.mockReset()
     mocks.memberTelemetryDeleteMany.mockReset()
     mocks.memberTelemetryCreateMany.mockReset()
@@ -55,88 +58,106 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
   })
 
   it('is idempotent for identical successful snapshots across all periods', async () => {
-    mocks.findMany.mockResolvedValue([
+    mocks.squadMatchFindMany.mockResolvedValue([
       {
-        squadMatchId: 'squad-1',
-        memberStats: [
+        id: 'squad-1',
+        members: [
           {
-            memberKey: 'account.a',
-            firstKillPhase: 2,
-            kills: 2,
-            revives: 1,
-            knockouts: 1,
-            damageTaken: 80,
-            onFootDistanceMeters: 1200,
-            vehicleDistanceMeters: 3400,
-            blueZoneHits: 1,
-            circleDelaySeconds: 18,
-            circleDelayPercent: 40,
-            damageDealt: 250,
-            vehicleRideEvents: 2,
-            vehicleLeaveEvents: 1,
-            positionEvents: 3,
-            weapons: [
-              {
-                weaponName: 'WeapM416_C',
-                kills: 2,
-                headshots: 1,
-                damageDealt: 250,
-                killDistanceTotal: 120,
-                killDistanceCount: 2,
-                killDistanceMax: 120,
-              },
-            ],
+            member: {
+              id: 101,
+              clanId: 7,
+              pubgPlayerName: 'PlayerA',
+              pubgAccountId: 'account.a',
+            },
           },
           {
-            memberKey: 'account.b',
-            firstKillPhase: 4,
-            kills: 1,
-            revives: 1,
-            knockouts: 0,
-            damageTaken: 120,
-            onFootDistanceMeters: 1800,
-            vehicleDistanceMeters: 900,
-            blueZoneHits: 0,
-            circleDelaySeconds: 6,
-            circleDelayPercent: 15,
-            damageDealt: 140,
-            vehicleRideEvents: 1,
-            vehicleLeaveEvents: 2,
-            positionEvents: 1,
-            weapons: [
-              {
-                weaponName: 'WeapAK47_C',
-                kills: 1,
-                headshots: 0,
-                damageDealt: 140,
-                killDistanceTotal: 30,
-                killDistanceCount: 1,
-                killDistanceMax: 30,
-              },
-            ],
+            member: {
+              id: 102,
+              clanId: 7,
+              pubgPlayerName: 'PlayerB',
+              pubgAccountId: 'account.b',
+            },
           },
         ],
-        weaponStats: [],
-        squadMatch: {
-          members: [
-            {
-              member: {
-                id: 101,
-                clanId: 7,
-                pubgPlayerName: 'PlayerA',
-                pubgAccountId: 'account.a',
-              },
-            },
-            {
-              member: {
-                id: 102,
-                clanId: 7,
-                pubgPlayerName: 'PlayerB',
-                pubgAccountId: 'account.b',
-              },
-            },
-          ],
-        },
+      },
+    ])
+
+    const memberStatsFixture = [
+      {
+        memberKey: 'account.a',
+        firstKillPhase: 2,
+        kills: 2,
+        revives: 1,
+        knockouts: 1,
+        damageTaken: 80,
+        onFootDistanceMeters: 1200,
+        vehicleDistanceMeters: 3400,
+        blueZoneHits: 1,
+        circleDelaySeconds: 18,
+        circleDelayPercent: 40,
+        damageDealt: 250,
+        vehicleRideEvents: 2,
+        vehicleLeaveEvents: 1,
+        positionEvents: 3,
+        healsUsed: 0,
+        healAmountTotal: 0,
+        boostsUsed: 0,
+        maxVehicleSpeedKph: 0,
+        weapons: [
+          {
+            weaponName: 'WeapM416_C',
+            kills: 2,
+            headshots: 1,
+            damageDealt: 250,
+            shotsFired: 0,
+            hitsLanded: 0,
+            killDistanceTotal: 120,
+            killDistanceCount: 2,
+            killDistanceMax: 120,
+          },
+        ],
+      },
+      {
+        memberKey: 'account.b',
+        firstKillPhase: 4,
+        kills: 1,
+        revives: 1,
+        knockouts: 0,
+        damageTaken: 120,
+        onFootDistanceMeters: 1800,
+        vehicleDistanceMeters: 900,
+        blueZoneHits: 0,
+        circleDelaySeconds: 6,
+        circleDelayPercent: 15,
+        damageDealt: 140,
+        vehicleRideEvents: 1,
+        vehicleLeaveEvents: 2,
+        positionEvents: 1,
+        healsUsed: 0,
+        healAmountTotal: 0,
+        boostsUsed: 0,
+        maxVehicleSpeedKph: 0,
+        weapons: [
+          {
+            weaponName: 'WeapAK47_C',
+            kills: 1,
+            headshots: 0,
+            damageDealt: 140,
+            shotsFired: 0,
+            hitsLanded: 0,
+            killDistanceTotal: 30,
+            killDistanceCount: 1,
+            killDistanceMax: 30,
+          },
+        ],
+      },
+    ]
+
+    mocks.queryRaw.mockResolvedValue([
+      {
+        squadMatchId: 'squad-1',
+        memberStats: JSON.stringify(memberStatsFixture),
+        weaponStats: JSON.stringify([]),
       },
     ])
 
@@ -210,6 +231,10 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           avgVehicleRideEvents: 2,
           avgVehicleLeaveEvents: 1,
           avgPositionEvents: 3,
+          avgHealsUsed: 0,
+          avgHealAmount: 0,
+          avgBoostsUsed: 0,
+          maxVehicleSpeedKph: 0,
           matchesPlayed: 1,
         },
         {
@@ -230,6 +255,10 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           avgVehicleRideEvents: 1,
           avgVehicleLeaveEvents: 2,
           avgPositionEvents: 1,
+          avgHealsUsed: 0,
+          avgHealAmount: 0,
+          avgBoostsUsed: 0,
+          maxVehicleSpeedKph: 0,
           matchesPlayed: 1,
         },
       ],
@@ -244,6 +273,8 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           weaponName: 'WeapM416_C',
           kills: 2,
           headshots: 1,
+          shotsFired: 0,
+          hitsLanded: 0,
           avgDistance: 60,
           maxDistance: 120,
           totalDamage: 250,
@@ -256,6 +287,8 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           weaponName: 'WeapAK47_C',
           kills: 1,
           headshots: 0,
+          shotsFired: 0,
+          hitsLanded: 0,
           avgDistance: 30,
           maxDistance: 30,
           totalDamage: 140,

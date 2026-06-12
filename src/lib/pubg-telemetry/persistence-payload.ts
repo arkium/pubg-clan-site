@@ -27,13 +27,15 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('Unknown argument `trajectorySegments`') ||
     message.includes('Unknown argument `deathSamples`') ||
     message.includes('Unknown argument `landingSamples`') ||
+    message.includes('Unknown argument `phaseSnapshots`') ||
     message.includes('summary does not exist') ||
     message.includes('weaponStats does not exist') ||
     message.includes('memberStats does not exist') ||
     message.includes('positionSamples does not exist') ||
     message.includes('trajectorySegments does not exist') ||
     message.includes('deathSamples does not exist') ||
-    message.includes('landingSamples does not exist')
+    message.includes('landingSamples does not exist') ||
+    message.includes('phaseSnapshots does not exist')
   )
 }
 
@@ -55,19 +57,30 @@ export function buildTelemetrySuccessBasePayload(input: BuildTelemetrySuccessBas
   }
 }
 
+// Converts NaN/Infinity/undefined within nested structures to null so Prisma's Rust
+// engine never receives non-JSON-serializable numbers when writing Json? fields.
+function sanitizeJsonForPrisma(value: unknown): unknown {
+  if (value === null || value === undefined) return null
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch {
+    return null
+  }
+}
+
 export function buildTelemetrySuccessPayloadWithJson(
   basePayload: ReturnType<typeof buildTelemetrySuccessBasePayload>,
   parsed: ParsedTelemetrySnapshot
 ) {
   return {
     ...basePayload,
-    summary: parsed.summary,
-    weaponStats: parsed.weaponStats,
-    memberStats: parsed.memberStats,
-    positionSamples: parsed.positionSamples,
-    trajectorySegments: parsed.trajectorySegments,
-    deathSamples: parsed.deathSamples,
-    landingSamples: parsed.landingSamples,
-    phaseSnapshots: parsed.phaseSnapshots,
+    summary: sanitizeJsonForPrisma(parsed.summary),
+    weaponStats: sanitizeJsonForPrisma(parsed.weaponStats),
+    memberStats: sanitizeJsonForPrisma(parsed.memberStats),
+    positionSamples: sanitizeJsonForPrisma(parsed.positionSamples),
+    trajectorySegments: sanitizeJsonForPrisma(parsed.trajectorySegments),
+    deathSamples: sanitizeJsonForPrisma(parsed.deathSamples),
+    landingSamples: sanitizeJsonForPrisma(parsed.landingSamples),
+    phaseSnapshots: sanitizeJsonForPrisma(parsed.phaseSnapshots),
   }
 }

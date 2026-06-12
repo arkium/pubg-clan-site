@@ -19,6 +19,14 @@ type NavItem = {
 function renderClanSectionIcon(label: string) {
   const iconClass = 'h-4 w-4 shrink-0'
 
+  if (label === 'Vue d\'ensemble') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z" />
+      </svg>
+    )
+  }
+
   if (label === 'Stats armes') {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
@@ -99,6 +107,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
   const statsRootHref = `/clans/${clanId}/stats`
 
   const items: NavItem[] = [
+    { label: 'Vue d\'ensemble', href: `/clans/${clanId}/overview`, icon: renderClanSectionIcon('Vue d\'ensemble') },
     { label: 'Membres', href: `/clans/${clanId}/members`, icon: renderClanSectionIcon('Membres') },
     { label: 'Matchs', href: `/clans/${clanId}/matches`, icon: renderClanSectionIcon('Matchs') },
     { label: 'Stats', href: statsRootHref, icon: renderClanSectionIcon('Stats') },

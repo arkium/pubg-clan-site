@@ -5,8 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
-import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 
@@ -147,12 +146,7 @@ export default function ClanDropZonesPage() {
         }
 
         if (!cancelled) {
-          const nextPayload = data as DropZonesResponse
-          setPayload(nextPayload)
-
-          if (!selectedMap && nextPayload.data.points.length > 0) {
-            setSelectedMap(nextPayload.data.points[0].mapName)
-          }
+          setPayload(data as DropZonesResponse)
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -196,20 +190,7 @@ export default function ClanDropZonesPage() {
       .sort((left, right) => left.name.localeCompare(right.name, 'fr-FR'))
   }, [payload?.data.points])
 
-  useEffect(() => {
-    if (maps.length === 0) {
-      if (selectedMap) {
-        setSelectedMap('')
-      }
-      return
-    }
-
-    if (!selectedMap || !maps.includes(selectedMap)) {
-      setSelectedMap(maps[0])
-    }
-  }, [maps, selectedMap])
-
-  const activeMap = selectedMap || maps[0] || ''
+  const activeMap = selectedMap && maps.includes(selectedMap) ? selectedMap : maps[0] || ''
 
   const filteredPoints = useMemo(() => {
     return (payload?.data.points ?? []).filter((point) => {
@@ -227,31 +208,8 @@ export default function ClanDropZonesPage() {
     return filteredHeatmap.reduce((max, cell) => Math.max(max, cell.count), 0)
   }, [filteredHeatmap])
 
-  const membersLegend = useMemo(() => {
-    const map = new Map<number, { id: number; name: string; color: string; points: number }>()
-
-    for (const point of filteredPoints) {
-      const current = map.get(point.memberId)
-      if (!current) {
-        map.set(point.memberId, {
-          id: point.memberId,
-          name: point.memberName,
-          color: hashColor(`${point.memberId}:${point.memberName}`),
-          points: 1,
-        })
-      } else {
-        current.points += 1
-      }
-    }
-
-    const totalPoints = Math.max(filteredPoints.length, 1)
-
-    return Array.from(map.values())
-      .map((entry) => ({
-        ...entry,
-        share: (entry.points / totalPoints) * 100,
-      }))
-      .sort((left, right) => right.points - left.points)
+  const displayedMatchCount = useMemo(() => {
+    return new Set(filteredPoints.map((point) => point.matchId)).size
   }, [filteredPoints])
 
   if (!clanId) {
@@ -285,38 +243,44 @@ export default function ClanDropZonesPage() {
 
       <section className="app-panel mb-5 p-4">
         <div className="space-y-4">
-          <div className="grid gap-4 grid-cols-2 items-start">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Periode</p>
-              <SegmentedControl
-                options={PERIOD_OPTIONS}
-                value={period}
-                onChange={setPeriod}
-                size="sm"
-                wrap
+              <MobileDropdownNav
+                id="drop-zones-period-filter"
+                label="Periode"
+                currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Selectionner'}
+                items={PERIOD_OPTIONS.map((option) => ({
+                  key: `period-${option.value}`,
+                  label: option.label,
+                  active: period === option.value,
+                  onSelect: () => setPeriod(option.value),
+                }))}
+                visibilityClass=""
                 className="w-full"
               />
             </div>
 
             <div className="min-w-0">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Affichage</p>
-              <SegmentedControl
-                options={VIEW_MODE_OPTIONS}
-                value={viewMode}
-                onChange={setViewMode}
-                size="sm"
-                wrap
+              <MobileDropdownNav
+                id="drop-zones-view-filter"
+                label="Affichage"
+                currentLabel={VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'}
+                items={VIEW_MODE_OPTIONS.map((option) => ({
+                  key: `view-${option.value}`,
+                  label: option.label,
+                  active: viewMode === option.value,
+                  onSelect: () => setViewMode(option.value),
+                }))}
+                visibilityClass=""
                 className="w-full"
               />
             </div>
-          </div>
 
-          <div className="hidden md:grid gap-4 grid-cols-2 items-start">
             <div className="min-w-0">
               <MobileDropdownNav
                 id="drop-zones-map-filter"
                 label="Carte"
-                currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Sélectionner'}
+                currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
                 items={maps.map((mapName) => ({
                   key: `map-${mapName}`,
                   label: mapDisplayName(mapName, {}),
@@ -340,22 +304,11 @@ export default function ClanDropZonesPage() {
                     active: selectedMemberId === null,
                     onSelect: () => setSelectedMemberId(null),
                   },
-                  ...membersLegend.map((entry) => ({
+                  ...members.map((entry) => ({
                     key: `member-${entry.id}`,
-                    label: (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-flex h-2 w-2 rounded-full"
-                            style={{ backgroundColor: entry.color }}
-                          />
-                          <span>{entry.name}</span>
-                        </div>
-                        <span className="text-xs text-slate-500">{formatNumber(entry.points)} • {entry.share.toFixed(1)}%</span>
-                      </div>
-                    ),
+                    label: entry.name,
                     active: selectedMemberId === entry.id,
-                    onSelect: () => setSelectedMemberId(selectedMemberId === entry.id ? null : entry.id),
+                    onSelect: () => setSelectedMemberId(entry.id),
                   })),
                 ]}
                 visibilityClass=""
@@ -375,54 +328,6 @@ export default function ClanDropZonesPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:hidden">
-            <MobileDropdownNav
-              id="drop-zones-carte-mobile"
-              label="Carte"
-              currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Sélectionner'}
-              items={maps.map((mapName) => ({
-                key: `map-${mapName}`,
-                label: mapDisplayName(mapName, {}),
-                active: activeMap === mapName,
-                onSelect: () => setSelectedMap(mapName),
-              }))}
-              visibilityClass=""
-              className="w-full"
-            />
-
-            <MobileDropdownNav
-              id="drop-zones-joueur-mobile"
-              label="Joueur"
-              currentLabel={selectedMemberId ? members.find(m => m.id === selectedMemberId)?.name ?? 'Joueur' : 'Tous'}
-              items={[
-                {
-                  key: 'member-all',
-                  label: 'Tous les joueurs',
-                  active: selectedMemberId === null,
-                  onSelect: () => setSelectedMemberId(null),
-                },
-                ...membersLegend.map((entry) => ({
-                  key: `member-${entry.id}`,
-                  label: (
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="inline-flex h-2 w-2 rounded-full"
-                          style={{ backgroundColor: entry.color }}
-                        />
-                        <span>{entry.name}</span>
-                      </div>
-                      <span className="text-xs text-slate-500">{formatNumber(entry.points)} • {entry.share.toFixed(1)}%</span>
-                    </div>
-                  ),
-                  active: selectedMemberId === entry.id,
-                  onSelect: () => setSelectedMemberId(selectedMemberId === entry.id ? null : entry.id),
-                })),
-              ]}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
         </div>
       </section>
 
@@ -432,6 +337,13 @@ export default function ClanDropZonesPage() {
       {!loading && !error && payload ? (
         maps.length > 0 ? (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
+              <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
+              <span className="text-slate-600">Points visibles: {formatNumber(filteredPoints.length)}</span>
+              <span className="text-slate-600">Cellules heatmap: {formatNumber(filteredHeatmap.length)}</span>
+            </div>
+
             <div className="relative aspect-square bg-slate-950">
               {activeMap ? (
                 <>

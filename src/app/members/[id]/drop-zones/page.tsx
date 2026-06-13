@@ -6,13 +6,14 @@ import { useEffect, useMemo, useState } from 'react'
 
 import MemberSectionNav from '@/components/MemberSectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import AppSelectField from '@/components/ui/AppSelectField'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type ViewMode = 'mix' | 'heatmap' | 'points'
+type DropZonesScope = 'self' | 'member' | 'clan' | 'best'
+type BestMode = 'duo' | 'trio' | 'squad'
 
 type LandingPoint = {
   memberId: number
@@ -38,12 +39,29 @@ type DropZonesResponse = {
     period: TelemetryPeriod
     periodKey: string
     count: number
+    scope?: DropZonesScope
+    scopeLabel?: string
+    targetMemberId?: number | null
+    bestMode?: BestMode
   }
   data: {
     member: {
       id: number
       displayName: string
       clanId: number | null
+    }
+    options?: {
+      members?: Array<{
+        id: number
+        displayName: string
+      }>
+      bestModes?: BestMode[]
+    }
+    selected?: {
+      memberId?: number
+      targetMemberId?: number | null
+      bestMode?: BestMode
+      period?: TelemetryPeriod
     }
     gridSize: number
     points: LandingPoint[]
@@ -61,6 +79,19 @@ const VIEW_MODE_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: 'mix', label: 'Mixte' },
   { value: 'heatmap', label: 'Heatmap' },
   { value: 'points', label: 'Points' },
+]
+
+const SCOPE_OPTIONS: Array<{ value: DropZonesScope; label: string }> = [
+  { value: 'self', label: 'Le joueur' },
+  { value: 'member', label: 'Un joueur specifique' },
+  { value: 'clan', label: 'Le clan' },
+  { value: 'best', label: 'Son meilleur duo/trio/squad' },
+]
+
+const BEST_MODE_OPTIONS: Array<{ value: BestMode; label: string }> = [
+  { value: 'duo', label: 'Meilleur duo' },
+  { value: 'trio', label: 'Meilleur trio' },
+  { value: 'squad', label: 'Meilleur squad' },
 ]
 
 function parseMemberId(value: string | string[] | undefined) {
@@ -114,6 +145,9 @@ export default function MemberDropZonesPage() {
 
   const [period, setPeriod] = useState<TelemetryPeriod>('week')
   const [viewMode, setViewMode] = useState<ViewMode>('mix')
+  const [scope, setScope] = useState<DropZonesScope>('self')
+  const [targetMemberId, setTargetMemberId] = useState<number | null>(null)
+  const [bestMode, setBestMode] = useState<BestMode>('duo')
   const [selectedMap, setSelectedMap] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -131,7 +165,17 @@ export default function MemberDropZonesPage() {
         setLoading(true)
         setError('')
 
-        const response = await fetch(`/api/members/${memberId}/telemetry/drop-zones?period=${period}`, {
+        const query = new URLSearchParams({
+          period,
+          scope,
+          bestMode,
+        })
+
+        if (scope === 'member' && targetMemberId) {
+          query.set('targetMemberId', String(targetMemberId))
+        }
+
+        const response = await fetch(`/api/members/${memberId}/telemetry/drop-zones?${query.toString()}`, {
           cache: 'no-store',
         })
         const data = (await response.json()) as DropZonesResponse | { error?: unknown }
@@ -141,7 +185,24 @@ export default function MemberDropZonesPage() {
         }
 
         if (!cancelled) {
-          setPayload(data as DropZonesResponse)
+          const nextPayload = data as DropZonesResponse
+          setPayload(nextPayload)
+
+          const apiScope = nextPayload.meta.scope
+          if (apiScope && apiScope !== scope) {
+            setScope(apiScope)
+          }
+
+          const apiBestMode = nextPayload.data.selected?.bestMode ?? nextPayload.meta.bestMode
+          if (apiBestMode) {
+            setBestMode(apiBestMode)
+          }
+
+          const apiTargetMemberId =
+            nextPayload.data.selected?.targetMemberId ?? nextPayload.meta.targetMemberId ?? null
+          if ((apiScope ?? scope) === 'member') {
+            setTargetMemberId(apiTargetMemberId)
+          }
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -164,7 +225,26 @@ export default function MemberDropZonesPage() {
     return () => {
       cancelled = true
     }
-  }, [memberId, period])
+  }, [bestMode, memberId, period, scope, targetMemberId])
+
+  const scopeLabelMap = useMemo<Record<DropZonesScope, string>>(
+    () => Object.fromEntries(SCOPE_OPTIONS.map((entry) => [entry.value, entry.label])) as Record<
+      DropZonesScope,
+      string
+    >,
+    []
+  )
+
+  const bestModeLabelMap = useMemo<Record<BestMode, string>>(
+    () => Object.fromEntries(BEST_MODE_OPTIONS.map((entry) => [entry.value, entry.label])) as Record<
+      BestMode,
+      string
+    >,
+    []
+  )
+
+  const memberOptions = payload?.data.options?.members ?? []
+  const selectedMemberOption = memberOptions.find((entry) => entry.id === targetMemberId)
 
   const maps = useMemo(() => {
     const names = new Set<string>()
@@ -174,20 +254,7 @@ export default function MemberDropZonesPage() {
     return Array.from(names).sort((left, right) => left.localeCompare(right, 'fr-FR'))
   }, [payload?.data.points])
 
-  useEffect(() => {
-    if (maps.length === 0) {
-      if (selectedMap) {
-        setSelectedMap('')
-      }
-      return
-    }
-
-    if (!selectedMap || !maps.includes(selectedMap)) {
-      setSelectedMap(maps[0])
-    }
-  }, [maps, selectedMap])
-
-  const activeMap = selectedMap || maps[0] || ''
+  const activeMap = selectedMap && maps.includes(selectedMap) ? selectedMap : maps[0] || ''
 
   const filteredPoints = useMemo(() => {
     return (payload?.data.points ?? []).filter((point) => point.mapName === activeMap)
@@ -200,6 +267,10 @@ export default function MemberDropZonesPage() {
   const maxHeat = useMemo(() => {
     return filteredHeatmap.reduce((max, cell) => Math.max(max, cell.count), 0)
   }, [filteredHeatmap])
+
+  const displayedMatchCount = useMemo(() => {
+    return new Set(filteredPoints.map((point) => point.matchId)).size
+  }, [filteredPoints])
 
   if (!memberId) {
     return (
@@ -214,7 +285,7 @@ export default function MemberDropZonesPage() {
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
           title="Drop zones"
-          subtitle="Positions d'atterrissage du joueur (points + heatmap) selon la periode."
+          subtitle="Positions d'atterrissage du joueur (points + zones d'influence) selon la période."
           showBackButton={false}
           framed={false}
         />
@@ -222,41 +293,123 @@ export default function MemberDropZonesPage() {
       </section>
 
       <section className="app-panel mb-5 p-4">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div className="min-w-0">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Periode</p>
-            <SegmentedControl
-              options={PERIOD_OPTIONS}
-              value={period}
-              onChange={setPeriod}
-              size="sm"
-              wrap
+            <MobileDropdownNav
+              id="member-drop-zones-scope-filter"
+              label="Filtre"
+              currentLabel={scopeLabelMap[scope]}
+              items={SCOPE_OPTIONS.map((option) => ({
+                key: `scope-${option.value}`,
+                label: option.label,
+                active: scope === option.value,
+                onSelect: () => {
+                  setScope(option.value)
+                  if (option.value !== 'member') {
+                    setTargetMemberId(null)
+                  }
+                },
+              }))}
+              visibilityClass=""
+              className="w-full"
+              leftIcon={(
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                  <path
+                    d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            />
+          </div>
+
+          {scope === 'member' ? (
+            <div className="min-w-0">
+              <MobileDropdownNav
+                id="member-drop-zones-target-member-filter"
+                label="Joueur"
+                currentLabel={selectedMemberOption?.displayName ?? 'Selectionner'}
+                items={memberOptions.map((entry) => ({
+                  key: `member-${entry.id}`,
+                  label: entry.displayName,
+                  active: targetMemberId === entry.id,
+                  onSelect: () => setTargetMemberId(entry.id),
+                }))}
+                visibilityClass=""
+                className="w-full"
+              />
+            </div>
+          ) : null}
+
+          {scope === 'best' ? (
+            <div className="min-w-0">
+              <MobileDropdownNav
+                id="member-drop-zones-best-mode-filter"
+                label="Formation"
+                currentLabel={bestModeLabelMap[bestMode]}
+                items={BEST_MODE_OPTIONS.map((option) => ({
+                  key: `best-${option.value}`,
+                  label: option.label,
+                  active: bestMode === option.value,
+                  onSelect: () => setBestMode(option.value),
+                }))}
+                visibilityClass=""
+                className="w-full"
+              />
+            </div>
+          ) : null}
+
+          <div className="min-w-0">
+            <MobileDropdownNav
+              id="member-drop-zones-period-filter"
+              label="Periode"
+              currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Selectionner'}
+              items={PERIOD_OPTIONS.map((option) => ({
+                key: `period-${option.value}`,
+                label: option.label,
+                active: period === option.value,
+                onSelect: () => setPeriod(option.value),
+              }))}
+              visibilityClass=""
               className="w-full"
             />
           </div>
 
           <div className="min-w-0">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Affichage</p>
-            <SegmentedControl
-              options={VIEW_MODE_OPTIONS}
-              value={viewMode}
-              onChange={setViewMode}
-              size="sm"
-              wrap
+            <MobileDropdownNav
+              id="member-drop-zones-view-filter"
+              label="Affichage"
+              currentLabel={
+                VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'
+              }
+              items={VIEW_MODE_OPTIONS.map((option) => ({
+                key: `view-${option.value}`,
+                label: option.label,
+                active: viewMode === option.value,
+                onSelect: () => setViewMode(option.value),
+              }))}
+              visibilityClass=""
               className="w-full"
             />
           </div>
 
-          <AppSelectField
-            id="member-drop-zones-map-filter"
-            label="Carte"
-            value={activeMap}
-            onChange={setSelectedMap}
-            options={maps.map((mapName) => ({
-              value: mapName,
-              label: mapDisplayName(mapName, {}),
-            }))}
-          />
+          <div className="min-w-0">
+            <MobileDropdownNav
+              id="member-drop-zones-map-filter"
+              label="Carte"
+              currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
+              items={maps.map((mapName) => ({
+                key: `map-${mapName}`,
+                label: mapDisplayName(mapName, {}),
+                active: activeMap === mapName,
+                onSelect: () => setSelectedMap(mapName),
+              }))}
+              visibilityClass=""
+              className="w-full"
+            />
+          </div>
         </div>
       </section>
 
@@ -266,6 +419,14 @@ export default function MemberDropZonesPage() {
       {!loading && !error ? (
         maps.length > 0 && payload ? (
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <span className="font-medium text-slate-800">Filtre: {payload?.meta.scopeLabel ?? scopeLabelMap[scope]}</span>
+              <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
+              <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
+              <span className="text-slate-600">Points visibles: {formatNumber(filteredPoints.length)}</span>
+              <span className="text-slate-600">Cellules heatmap: {formatNumber(filteredHeatmap.length)}</span>
+            </div>
+
             <div className="relative aspect-square bg-slate-950">
               {activeMap ? (
                 <>
@@ -325,12 +486,6 @@ export default function MemberDropZonesPage() {
                     ))
                   : null}
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-              <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
-              <span className="text-slate-600">Points visibles: {formatNumber(filteredPoints.length)}</span>
-              <span className="text-slate-600">Cellules heatmap: {formatNumber(filteredHeatmap.length)}</span>
             </div>
           </section>
         ) : (

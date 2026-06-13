@@ -538,27 +538,27 @@ export default function MemberMapStatsPage() {
   ]
 
   const periodLabelMap: Record<Period, string> = {
-    week: '7 jours',
-    month: '30 jours',
-    all: 'Tout',
+    week: 'Semaine',
+    month: 'Mois',
+    all: 'Tous',
   }
 
   const periodItems: MobileDropdownNavItem[] = [
     {
       key: 'week',
-      label: '7 jours',
+      label: 'Semaine',
       active: period === 'week',
       onSelect: () => setPeriod('week'),
     },
     {
       key: 'month',
-      label: '30 jours',
+      label: 'Mois',
       active: period === 'month',
       onSelect: () => setPeriod('month'),
     },
     {
       key: 'all',
-      label: 'Tout',
+      label: 'Tous',
       active: period === 'all',
       onSelect: () => setPeriod('all'),
     },

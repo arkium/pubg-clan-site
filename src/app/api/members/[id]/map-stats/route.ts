@@ -43,18 +43,32 @@ function parsePeriod(value: string | null): Period {
   return 'all'
 }
 
-function getPeriodStart(period: Period): Date | null {
+function getPeriodBounds(period: Period, now = new Date()) {
   if (period === 'all') {
     return null
   }
 
-  const now = new Date()
-
   if (period === 'week') {
-    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const day = now.getDay()
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+    const monday = new Date(now)
+    monday.setDate(diff)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    return {
+      startDate: monday,
+      endDate: sunday,
+    }
   }
 
-  return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  return {
+    startDate: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+    endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+  }
 }
 
 function getModeLabel(mode: BestMode) {
@@ -158,7 +172,7 @@ export async function GET(
     const scope = parseScope(searchParams.get('scope'))
     const bestMode = parseBestMode(searchParams.get('bestMode'))
     const period = parsePeriod(searchParams.get('period'))
-    const periodStart = getPeriodStart(period)
+    const periodBounds = getPeriodBounds(period)
     const targetMemberIdValue = searchParams.get('targetMemberId')
     const targetMemberId = targetMemberIdValue ? Number(targetMemberIdValue) : null
 
@@ -235,7 +249,9 @@ export async function GET(
             clanId: member.clanId,
             isActive: true,
           },
-          ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
+          ...(periodBounds
+            ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
+            : {}),
         },
         select: {
           mapName: true,
@@ -253,7 +269,9 @@ export async function GET(
     } else if (scope === 'best') {
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
-          ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
+          ...(periodBounds
+            ? { createdAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
+            : {}),
           members: {
             some: {
               memberId,
@@ -292,7 +310,9 @@ export async function GET(
           where: {
             memberId: { in: bestTeam.memberIds },
             pubgMatchId: { in: pubgMatchIds.map((entry) => entry.pubgMatchId) },
-            ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
+            ...(periodBounds
+              ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
+              : {}),
           },
           select: {
             mapName: true,
@@ -318,7 +338,9 @@ export async function GET(
       matchRows = await prisma.match.findMany({
         where: {
           memberId: effectiveMemberId,
-          ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
+          ...(periodBounds
+            ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
+            : {}),
         },
         select: {
           mapName: true,
@@ -420,7 +442,9 @@ export async function GET(
 
     const compositionSquadMatches = await prisma.squadMatch.findMany({
       where: {
-        ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
+        ...(periodBounds
+          ? { createdAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
+          : {}),
         members:
           scope === 'clan' && member.clanId
             ? {

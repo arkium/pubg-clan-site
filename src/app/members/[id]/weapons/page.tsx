@@ -560,7 +560,7 @@ export default function MemberWeaponsPage() {
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
-          title="Armes telemetry"
+          title="Vos armes"
           subtitle="Top armes, headshots et distance moyenne sur la periode selectionnee."
           showBackButton={false}
           framed={false}

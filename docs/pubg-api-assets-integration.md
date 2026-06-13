@@ -301,6 +301,14 @@ Total attendu : **~90 fichiers PNG**.
 npm run sync:pubg-assets        # télécharge/met à jour les assets visuels
 ```
 
+Important (production) : après un `npm run sync:pubg-assets`, il faut reconstruire et redémarrer l'application. Sinon les nouveaux fichiers de `public/icons/pubg/` ne sont pas forcément présents dans le runtime servi.
+
+```bash
+npm run sync:pubg-assets
+npm run build
+# puis redémarrer le process web (systemd/pm2 selon votre déploiement)
+```
+
 `/public/icons/pubg/` est ajouté au `.gitignore` — les assets visuels sont générés, pas versionnés. Les JSONs dans `src/lib/pubg-assets/` sont eux versionnés (source de vérité).
 
 ---

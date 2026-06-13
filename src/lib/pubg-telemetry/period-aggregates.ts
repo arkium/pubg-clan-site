@@ -462,15 +462,23 @@ async function recalculateTelemetryPeriodForClan(
 
   // Load JSON fields via raw SQL to use Node.js JSON.parse instead of Prisma's Rust parser.
   // Prisma's in-process Rust engine can panic fatally when reading malformed JSON numbers from the DB.
+  // Batched at 30 to avoid the Rust engine allocating a large contiguous block (38MB+ for 200+ matches
+  // causes a non-interceptable V8 Fatal Error after repeated runs due to native heap fragmentation).
   type RawTelemetryRow = { squadMatchId: string; memberStats: string | null; weaponStats: string | null }
-  const rawRows = await prisma.$queryRaw<RawTelemetryRow[]>`
-    SELECT squadMatchId,
-           CAST(memberStats AS CHAR) AS memberStats,
-           CAST(weaponStats AS CHAR) AS weaponStats
-    FROM SquadMatchTelemetry
-    WHERE status = 'success'
-      AND squadMatchId IN (${Prisma.join(squadMatchIds)})
-  `
+  const TELEMETRY_QUERY_BATCH_SIZE = 30
+  const rawRows: RawTelemetryRow[] = []
+  for (let i = 0; i < squadMatchIds.length; i += TELEMETRY_QUERY_BATCH_SIZE) {
+    const batchIds = squadMatchIds.slice(i, i + TELEMETRY_QUERY_BATCH_SIZE)
+    const batchRows = await prisma.$queryRaw<RawTelemetryRow[]>(Prisma.sql`
+      SELECT squadMatchId,
+             CAST(memberStats AS CHAR) AS memberStats,
+             CAST(weaponStats AS CHAR) AS weaponStats
+      FROM SquadMatchTelemetry
+      WHERE status = 'success'
+        AND squadMatchId IN (${Prisma.join(batchIds)})
+    `)
+    rawRows.push(...batchRows)
+  }
 
   const telemetryByMatchId = new Map<string, { memberStats: unknown; weaponStats: unknown }>()
   for (const row of rawRows) {

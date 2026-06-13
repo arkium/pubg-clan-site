@@ -145,6 +145,17 @@ npx prisma migrate deploy
 npm run build
 ```
 
+Important pour les assets PUBG (`/settings/weapon-labels`, pages telemetry armes/vehicules):
+
+- `public/icons/pubg/` est genere localement par `npm run sync:pubg-assets` et ignore par Git.
+- Apres une sync d'assets sur le serveur, il faut reconstruire puis redemarrer le worker web.
+
+```bash
+npm run sync:pubg-assets
+npm run build
+# puis redemarrer le service web (systemd/pm2)
+```
+
 Important pour le mode standalone:
 
 - le build copie automatiquement les assets statiques dans `.next/standalone`

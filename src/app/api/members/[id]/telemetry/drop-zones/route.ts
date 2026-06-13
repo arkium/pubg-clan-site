@@ -6,9 +6,11 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
-import { getMapBounds, clamp01 } from '@/lib/pubg-telemetry/position-heatmap'
+import { clamp01, getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
+type DropZonesScope = 'self' | 'member' | 'clan' | 'best'
+type BestMode = 'duo' | 'trio' | 'squad'
 
 type LandingPoint = {
   memberId: number
@@ -28,6 +30,18 @@ type HeatmapCell = {
   count: number
 }
 
+type LandingSampleRow = {
+  memberKey?: unknown
+  x?: unknown
+  y?: unknown
+}
+
+type RawRow = {
+  squadMatchId: string
+  mapName: string
+  landingSamples: unknown
+}
+
 const GRID_SIZE = 40
 
 function parseMemberId(value: string) {
@@ -38,6 +52,16 @@ function parseMemberId(value: string) {
 function parsePeriod(value: string | null): TelemetryPeriod {
   if (value === 'month' || value === 'all') return value
   return 'week'
+}
+
+function parseScope(value: string | null): DropZonesScope {
+  if (value === 'member' || value === 'clan' || value === 'best') return value
+  return 'self'
+}
+
+function parseBestMode(value: string | null): BestMode {
+  if (value === 'trio' || value === 'squad') return value
+  return 'duo'
 }
 
 function getIsoWeek(date: Date): number {
@@ -80,12 +104,6 @@ function getPeriodBounds(period: TelemetryPeriod, now = new Date()) {
   return { startDate: monday, endDate: sunday }
 }
 
-type LandingSampleRow = {
-  memberKey?: unknown
-  x?: unknown
-  y?: unknown
-}
-
 function parseLandingSamples(raw: unknown): LandingSampleRow[] {
   if (Array.isArray(raw)) return raw as LandingSampleRow[]
   if (typeof raw === 'string') {
@@ -99,6 +117,12 @@ function parseLandingSamples(raw: unknown): LandingSampleRow[] {
   return []
 }
 
+function normalizeMemberKey(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -108,12 +132,9 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json(
-        buildTelemetryErrorResponse('Invalid member id', 'INVALID_MEMBER_ID'),
-        {
-          status: 400,
-        }
-      )
+      return NextResponse.json(buildTelemetryErrorResponse('Invalid member id', 'INVALID_MEMBER_ID'), {
+        status: 400,
+      })
     }
 
     const member = await prisma.clanMember.findUnique({
@@ -135,43 +156,244 @@ export async function GET(
 
     const url = new URL(request.url)
     const period = parsePeriod(url.searchParams.get('period'))
+    const scope = parseScope(url.searchParams.get('scope'))
+    const bestMode = parseBestMode(url.searchParams.get('bestMode'))
+    const targetMemberIdValue = url.searchParams.get('targetMemberId')
+    const targetMemberId = targetMemberIdValue ? Number(targetMemberIdValue) : null
     const periodKey = toPeriodKey(period)
     const bounds = getPeriodBounds(period)
     const dateFilter = bounds
       ? Prisma.sql`AND sm.createdAt >= ${bounds.startDate} AND sm.createdAt <= ${bounds.endDate}`
       : Prisma.empty
 
-    type RawRow = {
-      squadMatchId: string
-      mapName: string
-      landingSamples: unknown
+    const clanMembers = member.clanId
+      ? await prisma.clanMember.findMany({
+          where: { clanId: member.clanId, isActive: true },
+          select: {
+            id: true,
+            displayName: true,
+            pubgAccountId: true,
+            pubgPlayerName: true,
+          },
+          orderBy: { displayName: 'asc' },
+        })
+      : [
+          {
+            id: member.id,
+            displayName: member.displayName,
+            pubgAccountId: member.pubgAccountId,
+            pubgPlayerName: member.pubgPlayerName,
+          },
+        ]
+
+    const memberOptions = clanMembers.map((entry) => ({
+      id: entry.id,
+      displayName: entry.displayName,
+    }))
+
+    const effectiveScope = scope === 'clan' && !member.clanId ? 'self' : scope
+    const effectiveMemberId =
+      effectiveScope === 'member' &&
+      targetMemberId &&
+      memberOptions.some((entry) => entry.id === targetMemberId)
+        ? targetMemberId
+        : memberId
+
+    let scopeLabel = `Drop zones de ${member.displayName}`
+    let selectedTargetMemberId: number | null = null
+    let rows: RawRow[] = []
+    const landingMemberIds = new Set<number>()
+
+    if (effectiveScope === 'member') {
+      selectedTargetMemberId = effectiveMemberId
+      const selectedMember = clanMembers.find((entry) => entry.id === effectiveMemberId)
+      scopeLabel = `Drop zones de ${selectedMember?.displayName ?? `Joueur #${effectiveMemberId}`}`
+      landingMemberIds.add(effectiveMemberId)
+
+      rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
+        SELECT
+          t.squadMatchId,
+          sm.mapName,
+          t.landingSamples
+        FROM SquadMatchTelemetry t
+        INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
+        INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
+        WHERE t.status = 'success'
+          AND t.landingSamples IS NOT NULL
+          AND sdm.memberId = ${effectiveMemberId}
+          ${dateFilter}
+        ORDER BY sm.createdAt DESC
+      `)
+    } else if (effectiveScope === 'clan') {
+      scopeLabel = 'Drop zones du clan'
+      const clanId = member.clanId
+      for (const clanMember of clanMembers) {
+        landingMemberIds.add(clanMember.id)
+      }
+
+      if (clanId) {
+        rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
+          SELECT DISTINCT
+            t.squadMatchId,
+            sm.mapName,
+            t.landingSamples
+          FROM SquadMatchTelemetry t
+          INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
+          INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
+          INNER JOIN ClanMember cm ON cm.id = sdm.memberId
+          WHERE t.status = 'success'
+            AND t.landingSamples IS NOT NULL
+            AND cm.clanId = ${clanId}
+            ${dateFilter}
+          ORDER BY sm.createdAt DESC
+        `)
+      }
+    } else if (effectiveScope === 'best') {
+      type TeamAggregate = {
+        teammateIds: number[]
+        matches: number
+        wins: number
+        placements: number
+        matchIds: string[]
+      }
+
+      const squadMatches = await prisma.squadMatch.findMany({
+        where: {
+          ...(bounds ? { createdAt: { gte: bounds.startDate, lte: bounds.endDate } } : {}),
+          members: {
+            some: { memberId },
+          },
+        },
+        select: {
+          id: true,
+          placement: true,
+          members: {
+            select: {
+              memberId: true,
+            },
+            orderBy: { memberId: 'asc' },
+          },
+        },
+      })
+
+      const aggregates = new Map<string, TeamAggregate>()
+
+      for (const match of squadMatches) {
+        const members = match.members
+        const isMatchingMode =
+          (bestMode === 'duo' && members.length === 2) ||
+          (bestMode === 'trio' && members.length === 3) ||
+          (bestMode === 'squad' && members.length >= 4)
+
+        if (!isMatchingMode) {
+          continue
+        }
+
+        const teammates = members.filter((entry) => entry.memberId !== memberId)
+        if (teammates.length === 0) {
+          continue
+        }
+
+        const teammateIds = teammates.map((entry) => entry.memberId)
+        const key = teammateIds.join(':')
+        const current = aggregates.get(key) ?? {
+          teammateIds,
+          matches: 0,
+          wins: 0,
+          placements: 0,
+          matchIds: [],
+        }
+
+        current.matches += 1
+        current.wins += match.placement === 1 ? 1 : 0
+        current.placements += match.placement
+        current.matchIds.push(match.id)
+        aggregates.set(key, current)
+      }
+
+      const bestTeam = Array.from(aggregates.values()).sort((left, right) => {
+        if (right.wins !== left.wins) {
+          return right.wins - left.wins
+        }
+        if (right.matches !== left.matches) {
+          return right.matches - left.matches
+        }
+        const leftAveragePlacement =
+          left.matches > 0 ? left.placements / left.matches : Number.POSITIVE_INFINITY
+        const rightAveragePlacement =
+          right.matches > 0 ? right.placements / right.matches : Number.POSITIVE_INFINITY
+        return leftAveragePlacement - rightAveragePlacement
+      })[0]
+
+      const bestTeamMemberIds = bestTeam ? [memberId, ...bestTeam.teammateIds] : [memberId]
+      for (const id of bestTeamMemberIds) {
+        landingMemberIds.add(id)
+      }
+
+      const bestTeamNames = bestTeamMemberIds
+        .map((id) => clanMembers.find((entry) => entry.id === id)?.displayName)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0)
+
+      scopeLabel =
+        bestTeamNames.length > 0
+          ? `Meilleur ${bestMode}: ${bestTeamNames.join(', ')}`
+          : `Meilleur ${bestMode} indisponible`
+
+      if (bestTeam && bestTeam.matchIds.length > 0) {
+        rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
+          SELECT
+            t.squadMatchId,
+            sm.mapName,
+            t.landingSamples
+          FROM SquadMatchTelemetry t
+          INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
+          WHERE t.status = 'success'
+            AND t.landingSamples IS NOT NULL
+            AND t.squadMatchId IN (${Prisma.join(bestTeam.matchIds)})
+          ORDER BY sm.createdAt DESC
+        `)
+      }
+    } else {
+      landingMemberIds.add(memberId)
+
+      rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
+        SELECT
+          t.squadMatchId,
+          sm.mapName,
+          t.landingSamples
+        FROM SquadMatchTelemetry t
+        INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
+        INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
+        WHERE t.status = 'success'
+          AND t.landingSamples IS NOT NULL
+          AND sdm.memberId = ${memberId}
+          ${dateFilter}
+        ORDER BY sm.createdAt DESC
+      `)
     }
 
-    const rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
-      SELECT
-        t.squadMatchId,
-        sm.mapName,
-        t.landingSamples
-      FROM SquadMatchTelemetry t
-      INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
-      INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
-      WHERE t.status = 'success'
-        AND t.landingSamples IS NOT NULL
-        AND sdm.memberId = ${memberId}
-        ${dateFilter}
-      ORDER BY sm.createdAt DESC
-    `)
+    const trackedMemberKeys = new Map<string, { memberId: number; memberName: string }>()
+    for (const id of landingMemberIds) {
+      const selectedMember = clanMembers.find((entry) => entry.id === id)
+      const memberName = selectedMember?.displayName ?? `Joueur #${id}`
+      const accountKey = normalizeMemberKey(selectedMember?.pubgAccountId)
+      const playerKey = normalizeMemberKey(selectedMember?.pubgPlayerName)
+      if (accountKey) {
+        trackedMemberKeys.set(accountKey, { memberId: id, memberName })
+      }
+      if (playerKey) {
+        trackedMemberKeys.set(playerKey, { memberId: id, memberName })
+      }
+    }
 
     const landingPoints: LandingPoint[] = []
     const heatmapMap = new Map<string, number>()
-    const accountId = member.pubgAccountId?.toLowerCase()
-    const playerName = member.pubgPlayerName?.toLowerCase()
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
       const samples = parseLandingSamples(row.landingSamples)
 
-      for (const sample of samples as LandingSampleRow[]) {
+      for (const sample of samples) {
         const memberKey =
           typeof sample.memberKey === 'string' ? sample.memberKey.toLowerCase() : null
         if (!memberKey) continue
@@ -184,15 +406,11 @@ export async function GET(
         const xPct = clamp01(x / mapBounds.width) * 100
         const yPct = clamp01(y / mapBounds.height) * 100
 
-        // Landing points: only this member's own landing spot
-        const isMember =
-          (accountId !== undefined && memberKey === accountId) ||
-          (playerName !== undefined && memberKey === playerName)
-
-        if (isMember) {
+        const trackedMember = trackedMemberKeys.get(memberKey)
+        if (trackedMember) {
           landingPoints.push({
-            memberId: member.id,
-            memberName: member.displayName,
+            memberId: trackedMember.memberId,
+            memberName: trackedMember.memberName,
             matchId: row.squadMatchId,
             mapName,
             x,
@@ -202,7 +420,6 @@ export async function GET(
           })
         }
 
-        // Heatmap: all players including opponents
         const xIndex = Math.min(Math.floor((xPct / 100) * GRID_SIZE), GRID_SIZE - 1)
         const yIndex = Math.min(Math.floor((yPct / 100) * GRID_SIZE), GRID_SIZE - 1)
         const cellKey = `${mapName}:${xIndex}:${yIndex}`
@@ -223,8 +440,11 @@ export async function GET(
     return NextResponse.json(
       buildTelemetrySuccessResponse(
         {
-          scope: 'member',
+          scope: effectiveScope,
+          scopeLabel,
           memberId,
+          targetMemberId: selectedTargetMemberId,
+          bestMode,
           period,
           periodKey,
           count: landingPoints.length,
@@ -235,11 +455,22 @@ export async function GET(
             displayName: member.displayName,
             clanId: member.clanId,
           },
+          options: {
+            members: memberOptions,
+            bestModes: ['duo', 'trio', 'squad'] as BestMode[],
+          },
+          selected: {
+            memberId,
+            targetMemberId: selectedTargetMemberId,
+            bestMode,
+            period,
+          },
           gridSize: GRID_SIZE,
           points: landingPoints,
           heatmap: heatmapCells,
         },
         {
+          scope: effectiveScope,
           memberId,
           period,
           periodKey,

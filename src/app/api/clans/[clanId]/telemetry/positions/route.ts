@@ -9,7 +9,7 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
-import { clamp01, toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
+import { clamp01, getMapBounds, toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -53,12 +53,26 @@ type TrajectorySegmentRow = {
   toY?: unknown
 }
 
+type KillSampleRow = { memberKey?: unknown; phase?: unknown; x?: unknown; y?: unknown }
+type ShotSampleRow = { memberKey?: unknown; phase?: unknown; count?: unknown; x?: unknown; y?: unknown }
+type DamageSampleRow = { memberKey?: unknown; role?: unknown; phase?: unknown; count?: unknown; x?: unknown; y?: unknown }
+type KnockoutSampleRow = { memberKey?: unknown; role?: unknown; phase?: unknown; x?: unknown; y?: unknown }
+type ReviveSampleRow = { memberKey?: unknown; role?: unknown; phase?: unknown; x?: unknown; y?: unknown }
+type VehicleSampleRow = { memberKey?: unknown; phase?: unknown; x?: unknown; y?: unknown }
+type PhaseSnapshotRow = { isGame?: unknown; safetyZoneX?: unknown; safetyZoneY?: unknown; safetyZoneRadiusMeters?: unknown }
+
 type MapSummary = {
   mapName: string
   matches: number
   positionPoints: number
   rotationPoints: number
   deathPoints: number
+}
+
+type SafeZoneOverlay = {
+  x: number
+  y: number
+  r: number
 }
 
 type SelectedHeatmapData = {
@@ -75,6 +89,16 @@ type SelectedHeatmapData = {
   rotations: HeatmapCell[]
   trajectoryLines: TrajectoryLine[]
   deaths: HeatmapCell[]
+  kills: HeatmapCell[]
+  shots: HeatmapCell[]
+  damageDealt: HeatmapCell[]
+  damageTaken: HeatmapCell[]
+  knockoutsDealt: HeatmapCell[]
+  knockoutsTaken: HeatmapCell[]
+  revivesGiven: HeatmapCell[]
+  revivesTaken: HeatmapCell[]
+  vehicles: HeatmapCell[]
+  safeZoneOverlay: SafeZoneOverlay | null
   note: string
   mapLabels: Record<string, string>
   phaseLabels: Record<string, string>
@@ -85,6 +109,13 @@ type TelemetryRow = {
   positionSamples: unknown
   trajectorySegments: unknown
   deathSamples: unknown
+  killSamples: unknown
+  shotSamples: unknown
+  damageSamples: unknown
+  knockoutSamples: unknown
+  reviveSamples: unknown
+  vehicleSamples: unknown
+  phaseSnapshots: unknown
 }
 
 type ColumnPresenceRow = {
@@ -257,6 +288,16 @@ function incrementLine(
   })
 }
 
+function incrementCellWeighted(map: Map<string, HeatmapCell>, xIndex: number, yIndex: number, weight: number) {
+  const key = `${xIndex}:${yIndex}`
+  const existing = map.get(key)
+  if (existing) {
+    existing.count += weight
+    return
+  }
+  map.set(key, { xIndex, yIndex, count: weight })
+}
+
 function sortCells(cells: Map<string, HeatmapCell>) {
   return Array.from(cells.values()).sort((left, right) => {
     if (right.count !== left.count) {
@@ -319,6 +360,15 @@ export async function GET(
         : Number(presentColumnsRaw)
     const hasPositionColumns = Number.isFinite(presentColumns) && presentColumns >= 3
 
+    const newColumnPresenceRows = await prisma.$queryRaw<ColumnPresenceRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS total
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'SquadMatchTelemetry'
+        AND COLUMN_NAME IN ('killSamples', 'shotSamples', 'damageSamples', 'knockoutSamples', 'reviveSamples', 'vehicleSamples')
+    `)
+    const hasNewColumns = Number(newColumnPresenceRows[0]?.total ?? 0) >= 6
+
     const selectPositionSamples = hasPositionColumns
       ? Prisma.sql`t.positionSamples`
       : Prisma.sql`JSON_ARRAY()`
@@ -328,13 +378,26 @@ export async function GET(
     const selectDeathSamples = hasPositionColumns
       ? Prisma.sql`t.deathSamples`
       : Prisma.sql`JSON_ARRAY()`
+    const selectKillSamples = hasNewColumns ? Prisma.sql`t.killSamples` : Prisma.sql`JSON_ARRAY()`
+    const selectShotSamples = hasNewColumns ? Prisma.sql`t.shotSamples` : Prisma.sql`JSON_ARRAY()`
+    const selectDamageSamples = hasNewColumns ? Prisma.sql`t.damageSamples` : Prisma.sql`JSON_ARRAY()`
+    const selectKnockoutSamples = hasNewColumns ? Prisma.sql`t.knockoutSamples` : Prisma.sql`JSON_ARRAY()`
+    const selectReviveSamples = hasNewColumns ? Prisma.sql`t.reviveSamples` : Prisma.sql`JSON_ARRAY()`
+    const selectVehicleSamples = hasNewColumns ? Prisma.sql`t.vehicleSamples` : Prisma.sql`JSON_ARRAY()`
 
     const rows = await prisma.$queryRaw<TelemetryRow[]>(Prisma.sql`
       SELECT
         sm.mapName,
         ${selectPositionSamples} AS positionSamples,
         ${selectTrajectorySegments} AS trajectorySegments,
-        ${selectDeathSamples} AS deathSamples
+        ${selectDeathSamples} AS deathSamples,
+        ${selectKillSamples} AS killSamples,
+        ${selectShotSamples} AS shotSamples,
+        ${selectDamageSamples} AS damageSamples,
+        ${selectKnockoutSamples} AS knockoutSamples,
+        ${selectReviveSamples} AS reviveSamples,
+        ${selectVehicleSamples} AS vehicleSamples,
+        COALESCE(t.phaseSnapshots, JSON_ARRAY()) AS phaseSnapshots
       FROM SquadMatchTelemetry t
       INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
       WHERE t.status = 'success'
@@ -432,6 +495,15 @@ export async function GET(
       string,
       { fromXIndex: number; fromYIndex: number; toXIndex: number; toYIndex: number; count: number }
     >()
+    const kills = new Map<string, HeatmapCell>()
+    const shots = new Map<string, HeatmapCell>()
+    const damageDealt = new Map<string, HeatmapCell>()
+    const damageTaken = new Map<string, HeatmapCell>()
+    const knockoutsDealt = new Map<string, HeatmapCell>()
+    const knockoutsTaken = new Map<string, HeatmapCell>()
+    const revivesGiven = new Map<string, HeatmapCell>()
+    const revivesTaken = new Map<string, HeatmapCell>()
+    const vehicles = new Map<string, HeatmapCell>()
     const members = new Map<string, number>()
     const phases = new Set<number>()
 
@@ -527,6 +599,98 @@ export async function GET(
         const cell = normalizeCell(percent.x, percent.y)
         incrementCell(deaths, cell.xIndex, cell.yIndex)
       }
+
+      for (const point of asArray<KillSampleRow>(row.killSamples)) {
+        const x = parseNumber(point.x)
+        const y = parseNumber(point.y)
+        const pointMemberKey = parseString(point.memberKey)
+        const pointPhase = parseNumber(point.phase)
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+        if (memberKey && pointMemberKey !== memberKey) continue
+        if (phaseFilter !== 'all' && pointPhase !== phaseFilter) continue
+        if (x === null || y === null) continue
+        const percent = toMapPercent(selectedMap, x, y)
+        const cell = normalizeCell(percent.x, percent.y)
+        incrementCell(kills, cell.xIndex, cell.yIndex)
+      }
+
+      for (const point of asArray<ShotSampleRow>(row.shotSamples)) {
+        const x = parseNumber(point.x)
+        const y = parseNumber(point.y)
+        const pointMemberKey = parseString(point.memberKey)
+        const pointPhase = parseNumber(point.phase)
+        const weight = parseNumber(point.count) ?? 1
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+        if (memberKey && pointMemberKey !== memberKey) continue
+        if (phaseFilter !== 'all' && pointPhase !== phaseFilter) continue
+        if (x === null || y === null) continue
+        const percent = toMapPercent(selectedMap, x, y)
+        const cell = normalizeCell(percent.x, percent.y)
+        incrementCellWeighted(shots, cell.xIndex, cell.yIndex, weight)
+      }
+
+      for (const point of asArray<DamageSampleRow>(row.damageSamples)) {
+        const x = parseNumber(point.x)
+        const y = parseNumber(point.y)
+        const pointMemberKey = parseString(point.memberKey)
+        const pointPhase = parseNumber(point.phase)
+        const role = parseString(point.role)
+        const weight = parseNumber(point.count) ?? 1
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+        if (memberKey && pointMemberKey !== memberKey) continue
+        if (phaseFilter !== 'all' && pointPhase !== phaseFilter) continue
+        if (x === null || y === null) continue
+        const percent = toMapPercent(selectedMap, x, y)
+        const cell = normalizeCell(percent.x, percent.y)
+        if (role === 'attacker') incrementCellWeighted(damageDealt, cell.xIndex, cell.yIndex, weight)
+        else if (role === 'victim') incrementCellWeighted(damageTaken, cell.xIndex, cell.yIndex, weight)
+      }
+
+      for (const point of asArray<KnockoutSampleRow>(row.knockoutSamples)) {
+        const x = parseNumber(point.x)
+        const y = parseNumber(point.y)
+        const pointMemberKey = parseString(point.memberKey)
+        const pointPhase = parseNumber(point.phase)
+        const role = parseString(point.role)
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+        if (memberKey && pointMemberKey !== memberKey) continue
+        if (phaseFilter !== 'all' && pointPhase !== phaseFilter) continue
+        if (x === null || y === null) continue
+        const percent = toMapPercent(selectedMap, x, y)
+        const cell = normalizeCell(percent.x, percent.y)
+        if (role === 'knocker') incrementCell(knockoutsDealt, cell.xIndex, cell.yIndex)
+        else if (role === 'victim') incrementCell(knockoutsTaken, cell.xIndex, cell.yIndex)
+      }
+
+      for (const point of asArray<ReviveSampleRow>(row.reviveSamples)) {
+        const x = parseNumber(point.x)
+        const y = parseNumber(point.y)
+        const pointMemberKey = parseString(point.memberKey)
+        const pointPhase = parseNumber(point.phase)
+        const role = parseString(point.role)
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+        if (memberKey && pointMemberKey !== memberKey) continue
+        if (phaseFilter !== 'all' && pointPhase !== phaseFilter) continue
+        if (x === null || y === null) continue
+        const percent = toMapPercent(selectedMap, x, y)
+        const cell = normalizeCell(percent.x, percent.y)
+        if (role === 'reviver') incrementCell(revivesGiven, cell.xIndex, cell.yIndex)
+        else if (role === 'revived') incrementCell(revivesTaken, cell.xIndex, cell.yIndex)
+      }
+
+      for (const point of asArray<VehicleSampleRow>(row.vehicleSamples)) {
+        const x = parseNumber(point.x)
+        const y = parseNumber(point.y)
+        const pointMemberKey = parseString(point.memberKey)
+        const pointPhase = parseNumber(point.phase)
+        if (!pointMemberKey || !clanMemberKeys.has(pointMemberKey.toLowerCase())) continue
+        if (memberKey && pointMemberKey !== memberKey) continue
+        if (phaseFilter !== 'all' && pointPhase !== phaseFilter) continue
+        if (x === null || y === null) continue
+        const percent = toMapPercent(selectedMap, x, y)
+        const cell = normalizeCell(percent.x, percent.y)
+        incrementCell(vehicles, cell.xIndex, cell.yIndex)
+      }
     }
 
     const memberOptions = Array.from(members.entries())
@@ -557,6 +721,34 @@ export async function GET(
         : 'all'
 
     const selectedMapLabel = selectedMap ? mapDisplayName(selectedMap, mapLabels) : null
+    let safeZoneOverlay: SafeZoneOverlay | null = null
+    if (phaseFilter !== 'all' && selectedMap) {
+      const bounds = getMapBounds(selectedMap)
+      const snapPoints: Array<{ x: number; y: number; r: number }> = []
+      for (const row of selectedRows) {
+        const snapshot = asArray<PhaseSnapshotRow>(row.phaseSnapshots).find((snap) => {
+          const isGame = parseNumber(snap.isGame)
+          return isGame !== null && Math.abs(isGame - (phaseFilter as number)) < 0.01
+        })
+        if (snapshot) {
+          const sx = parseNumber(snapshot.safetyZoneX)
+          const sy = parseNumber(snapshot.safetyZoneY)
+          const sr = parseNumber(snapshot.safetyZoneRadiusMeters)
+          if (sx !== null && sy !== null && sr !== null && sr > 0) {
+            const pct = toMapPercent(selectedMap, sx, sy)
+            snapPoints.push({ x: pct.x, y: pct.y, r: (sr / bounds.width) * 100 })
+          }
+        }
+      }
+      if (snapPoints.length > 0) {
+        safeZoneOverlay = {
+          x: snapPoints.reduce((s, p) => s + p.x, 0) / snapPoints.length,
+          y: snapPoints.reduce((s, p) => s + p.y, 0) / snapPoints.length,
+          r: snapPoints.reduce((s, p) => s + p.r, 0) / snapPoints.length,
+        }
+      }
+    }
+
     const note =
       'Heatmaps basees sur les positions samplees toutes les ~10 s, les segments de rotation derivent des ecarts entre echantillons, et les zones de mort proviennent des localisations de victime quand elles sont disponibles.'
 
@@ -583,6 +775,16 @@ export async function GET(
         .sort((left, right) => right.count - left.count)
         .slice(0, 300),
       deaths: sortCells(deaths),
+      kills: sortCells(kills),
+      shots: sortCells(shots),
+      damageDealt: sortCells(damageDealt),
+      damageTaken: sortCells(damageTaken),
+      knockoutsDealt: sortCells(knockoutsDealt),
+      knockoutsTaken: sortCells(knockoutsTaken),
+      revivesGiven: sortCells(revivesGiven),
+      revivesTaken: sortCells(revivesTaken),
+      vehicles: sortCells(vehicles),
+      safeZoneOverlay,
       note,
       mapLabels,
       phaseLabels,

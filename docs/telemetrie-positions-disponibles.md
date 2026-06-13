@@ -170,3 +170,86 @@ Instructions : mettre `X` dans les colonnes correspondant à ta décision.
 | Montée en véhicule (membre du clan) | `vehicleSamples` 🆕 | x | | x | | |
 | Descente de véhicule (membre du clan) | `vehicleSamples` 🆕 (même champ, type distinct) | x | | x | | |
 | Coordonnées centre zone bleue | `phaseSnapshots` ✅ enrichi | — | — | x | | Données globales, enrichissement du champ existant |
+
+---
+
+## Proposition d'adaptation — page `/stats/positions`
+
+### Contexte
+
+La page actuelle affiche 4 vues (Prédilection · Rotation · Rotation lignes · Mort) agrégées côté API en grille 40×40 de `HeatmapCell`. Les nouvelles données s'intègrent dans ce même modèle. Avec 6 nouveaux types, un seul SegmentedControl deviendrait trop chargé (10+ options) — la proposition introduit **deux niveaux de navigation**.
+
+### Structure de navigation proposée
+
+**Niveau 1 — Catégorie** (nouveau SegmentedControl, 3 options)
+
+| Catégorie | Vues disponibles |
+|---|---|
+| Mouvement | Prédilection · Rotation · Rotation lignes |
+| Combat | Kill · Tirs · Dégâts infligés · Dégâts reçus · KO infligé · KO reçu |
+| Équipe | Revive donné · Revive reçu · Véhicule · Mort |
+
+**Niveau 2 — Vue** (SegmentedControl existant, contenu adapté à la catégorie active)
+
+### Filtres conservés sans changement
+
+Tous les filtres existants s'appliquent à toutes les nouvelles vues :
+
+| Filtre | Comportement |
+|---|---|
+| Période (semaine/mois/tout) | Filtre les matchs en DB — identique pour toutes les vues |
+| Carte | Groupement par `mapName` — toutes les nouvelles grilles sont calculées sur la carte sélectionnée |
+| Phase cercle | Tous les nouveaux types ont un champ `phase` — le filtre s'applique tel quel |
+| Membre | Tous les nouveaux échantillons ont un `memberKey` — le filtre fonctionne identiquement |
+
+> Note overlay zone bleue : le cercle n'est affiché que quand un filtre de phase est actif. Sans filtre de phase, on ne sait pas quelle zone dessiner — pas d'overlay.
+
+### Changements API (`/telemetry/positions`)
+
+| Point | Description |
+|---|---|
+| Détection colonnes | Étendre `columnPresenceRows` aux 6 nouvelles colonnes (même pattern actuel) |
+| Agrégation pondérée | `shotSamples` et `damageSamples` ont un champ `count` (clusters) → incrémenter la cellule de `count` au lieu de `1` |
+| Split par rôle | `damageSamples` (role `attacker`/`victim`) et `knockoutSamples` (role `knocker`/`victim`) → deux grilles distinctes chacun |
+| Nouvelles grilles retournées | `kills` · `shots` · `damageDealt` · `damageTaken` · `knockoutsDealt` · `knockoutsTaken` · `revivesGiven` · `revivesTaken` · `vehicles` |
+| Overlay zone bleue | Quand un filtre de phase est actif, retourner `safeZonePercent: {x, y, r}` calculé depuis `phaseSnapshots.safetyZoneX/Y` et le rayon de la phase |
+
+### Couleurs par vue
+
+| Vue | RGB |
+|---|---|
+| Prédilection | `0, 206, 255` (cyan — existant) |
+| Rotation | `126, 92, 255` (violet — existant) |
+| Mort | `255, 84, 106` (rouge — existant) |
+| Kill | `255, 200, 0` (jaune) |
+| Tirs | `180, 80, 255` (violet clair) |
+| Dégâts infligés | `255, 80, 80` (rouge) |
+| Dégâts reçus | `255, 130, 180` (rose) |
+| KO infligé | `255, 150, 0` (orange) |
+| KO reçu | `255, 100, 40` (orange foncé) |
+| Revive | `80, 255, 150` (vert) |
+| Véhicule | `0, 210, 200` (cyan-vert) |
+
+### Choix d'architecture à valider
+
+| # | Question | Option A | Option B |
+|---|---|---|---|
+| 1 | Organisation des vues | 2 niveaux : Catégorie + Vue (recommandé) | Un seul SegmentedControl étendu (10 options, dense) |
+| 2 | Pondération `shotSamples`/`damageSamples` | `+count` par cluster (reflète le volume réel de tirs) | `+1` par cluster (reflète le nombre de zones distinctes) |
+| 3 | Overlay zone bleue sur carte | Oui — cercle SVG quand phase filtrée (coordonnées `safetyZoneX/Y` du premier snapshot correspondant) | Non — hors scope initial |
+| 4 | Même page ou nouvelle page | Même page `/stats/positions` étendue (recommandé) | Nouvelle page `/stats/combat` pour les vues Combat/Équipe |
+| 5 | Filtre rôle inline | Sélecteur rôle dans le panneau latéral (attacker vs victim) | Deux vues séparées dans le SegmentedControl |
+
+---
+
+## Décisions architecture page
+
+Instructions : cocher les choix retenus.
+
+| # | Question | Choix retenu | Remarques |
+|---|---|---|---|
+| 1 | Organisation des vues | ✅ Option A — 2 niveaux Catégorie + Vue | |
+| 2 | Pondération tirs/dégâts | ✅ Option A — `+count` par cluster | Reflète le volume réel de tirs/dégâts |
+| 3 | Overlay zone bleue | ✅ Option A — cercle SVG quand phase filtrée | Uniquement si filtre phase actif |
+| 4 | Périmètre page | ✅ Option A — même page `/stats/positions` étendue | Pas de nouvelle page |
+| 5 | Filtre rôle | ✅ Option A — sélecteur rôle dans le panneau latéral | attacker vs victim / knocker vs victim |

@@ -32,6 +32,7 @@ type SubmenuItem = {
   href: string
   tone: NavItem['tone']
   highlightWhenActive?: boolean
+  role?: 'admin' | 'owner'
 }
 
 type CronAction = 'sync_matches' | 'sync_stats' | 'generate_weekly_report' | 'generate_monthly_report'
@@ -49,6 +50,16 @@ const APP_THEME_OPTIONS: Array<{ value: AppTheme; label: string }> = [
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
+}
+
+function getRoleBorderClass(role: 'admin' | 'owner' | undefined, darkMode: boolean): string {
+  if (role === 'owner') {
+    return darkMode ? 'border border-amber-500/60' : 'border border-amber-400'
+  }
+  if (role === 'admin') {
+    return darkMode ? 'border border-red-500/60' : 'border border-red-400'
+  }
+  return ''
 }
 
 function getToneClasses(tone: NavItem['tone'], active: boolean, darkMode: boolean) {
@@ -262,6 +273,14 @@ function renderNavIcon(label: string) {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
         <path fill="currentColor" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm0 2.25a.75.75 0 0 0-.75.75v4.19l-2.72 2.72a.75.75 0 1 0 1.06 1.06l3-3A.75.75 0 0 0 10.75 11V6.5A.75.75 0 0 0 10 5.75Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Permissions nav') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" />
       </svg>
     )
   }
@@ -498,6 +517,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             label: 'Ajouter un joueur',
             href: '/members/add',
             tone: 'brand' as const,
+            role: 'admin' as const,
           },
         ]
       : []),
@@ -507,6 +527,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             label: 'Joueurs et rôles',
             href: `/clans/${clanId}/settings/members`,
             tone: 'brand' as const,
+            role: 'admin' as const,
           },
         ]
       : []),
@@ -516,38 +537,44 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             label: 'Alias cartes PUBG',
             href: '/settings/map-labels',
             tone: 'neutral' as const,
+            role: 'admin' as const,
           },
           {
             label: 'Alias armes PUBG',
             href: '/settings/weapon-labels',
             tone: 'neutral' as const,
+            role: 'admin' as const,
           },
           {
             label: 'Alias catégories armes PUBG',
             href: '/settings/weapon-categories',
             tone: 'neutral' as const,
+            role: 'admin' as const,
           },
           {
             label: 'Alias phases PUBG',
             href: '/settings/phase-labels',
             tone: 'neutral' as const,
+            role: 'admin' as const,
           },
           {
             label: 'Accueil login',
             href: '/settings/login-welcome',
             tone: 'neutral' as const,
+            role: 'admin' as const,
           },
         ]
       : []),
   ]
 
   const ownerLinks: SubmenuItem[] = [
-    { label: 'Ouvrir Ops Cron', href: '/settings/cron', tone: 'emerald' },
-    { label: 'Recoveries telemetry', href: clanId ? `/clans/${clanId}/telemetry/recoveries` : '/clans', tone: 'emerald' },
-    { label: 'Télémétrie matchs', href: clanId ? `/clans/${clanId}/telemetry/matches` : '/clans', tone: 'emerald' },
-    { label: 'Test email', href: '/settings/email-delivery', tone: 'emerald' },
-    { label: 'Monitoring PUBG API', href: '/settings/pubg-api', tone: 'emerald' },
-    { label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false },
+    { label: 'Ouvrir Ops Cron', href: '/settings/cron', tone: 'emerald', role: 'owner' },
+    { label: 'Recoveries telemetry', href: clanId ? `/clans/${clanId}/telemetry/recoveries` : '/clans', tone: 'emerald', role: 'owner' },
+    { label: 'Télémétrie matchs', href: clanId ? `/clans/${clanId}/telemetry/matches` : '/clans', tone: 'emerald', role: 'owner' },
+    { label: 'Test email', href: '/settings/email-delivery', tone: 'emerald', role: 'owner' },
+    { label: 'Monitoring PUBG API', href: '/settings/pubg-api', tone: 'emerald', role: 'owner' },
+    { label: 'Permissions nav', href: '/settings/nav-permissions', tone: 'emerald', role: 'owner' },
+    { label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false, role: 'owner' },
   ]
 
   const showAdminMenu = adminLinks.length > 0 || Boolean(clanId && canClearClan)
@@ -822,7 +849,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         className={cx(
           'group relative rounded-lg px-3 py-2 text-sm font-semibold transition duration-200',
           mobile && 'block w-full text-left',
-          getToneClasses(item.tone, active, darkMode)
+          getToneClasses(item.tone, active, darkMode),
+          getRoleBorderClass(item.role, darkMode)
         )}
       >
         <span className="flex items-center gap-2">

@@ -5,12 +5,16 @@ import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import { useAuthSession } from '@/hooks/useAuthSession'
+import { useNavPermissions } from '@/hooks/useNavPermissions'
+import { getItemRole, getRoleLinkClass, type NavRole } from '@/lib/nav-permissions-registry'
 
 type ClanSectionNavProps = {
   clanId: number
 }
 
 type NavItem = {
+  navKey: string
   label: string
   href: string
   icon: ReactNode
@@ -102,31 +106,61 @@ function renderClanSectionIcon(label: string) {
   return null
 }
 
+function canAccess(role: NavRole, isOwner: boolean, isAdmin: boolean): boolean {
+  if (role === 'none' || role === 'member') return true
+  if (role === 'admin') return isAdmin
+  if (role === 'owner') return isOwner
+  return true
+}
+
 export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
   const pathname = usePathname()
+  const navRoles = useNavPermissions()
+  const { permissions } = useAuthSession()
   const statsRootHref = `/clans/${clanId}/stats`
 
-  const items: NavItem[] = [
-    { label: 'Vue d\'ensemble', href: `/clans/${clanId}/overview`, icon: renderClanSectionIcon('Vue d\'ensemble') },
-    { label: 'Membres', href: `/clans/${clanId}/members`, icon: renderClanSectionIcon('Membres') },
-    { label: 'Matchs', href: `/clans/${clanId}/matches`, icon: renderClanSectionIcon('Matchs') },
-    { label: 'Stats', href: statsRootHref, icon: renderClanSectionIcon('Stats') },
-    { label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
-    { label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
-    { label: 'Positions', href: `${statsRootHref}/positions`, icon: renderClanSectionIcon('Positions') },
-    { label: 'Drop zones', href: `/clans/${clanId}/drop-zones`, icon: renderClanSectionIcon('Drop zones') },
-    { label: 'Awards', href: `/clans/${clanId}/awards`, icon: renderClanSectionIcon('Awards') },
-    { label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
-    { label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },
+  const hasWildcard = permissions.includes('*')
+  const isOwner = hasWildcard
+  const isAdmin = hasWildcard
+    || permissions.includes('manage_members')
+    || permissions.includes('manage_roles')
+    || permissions.includes('manage_settings')
+
+  const rawItems: NavItem[] = [
+    { navKey: 'clan.overview', label: "Vue d'ensemble", href: `/clans/${clanId}/overview`, icon: renderClanSectionIcon("Vue d'ensemble") },
+    { navKey: 'clan.members', label: 'Membres', href: `/clans/${clanId}/members`, icon: renderClanSectionIcon('Membres') },
+    { navKey: 'clan.matches', label: 'Matchs', href: `/clans/${clanId}/matches`, icon: renderClanSectionIcon('Matchs') },
+    { navKey: 'clan.stats', label: 'Stats', href: statsRootHref, icon: renderClanSectionIcon('Stats') },
+    { navKey: 'clan.stats-weapons', label: 'Stats armes', href: `${statsRootHref}/weapons`, icon: renderClanSectionIcon('Stats armes') },
+    { navKey: 'clan.heatmap-kills', label: 'Heatmap kills', href: `${statsRootHref}/heatmap-kills`, icon: renderClanSectionIcon('Heatmap kills') },
+    { navKey: 'clan.positions', label: 'Positions', href: `${statsRootHref}/positions`, icon: renderClanSectionIcon('Positions') },
+    { navKey: 'clan.drop-zones', label: 'Drop zones', href: `/clans/${clanId}/drop-zones`, icon: renderClanSectionIcon('Drop zones') },
+    { navKey: 'clan.awards', label: 'Awards', href: `/clans/${clanId}/awards`, icon: renderClanSectionIcon('Awards') },
+    { navKey: 'clan.leaderboard', label: 'Classement', href: `/clans/${clanId}/leaderboard`, icon: renderClanSectionIcon('Classement') },
+    { navKey: 'clan.reports', label: 'Rapports', href: `/clans/${clanId}/reports`, icon: renderClanSectionIcon('Rapports') },
   ]
 
-  const activeItem = items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? items[0]
-  const mobileItems: MobileDropdownNavItem[] = items.map((item) => ({
+  const sectionOrder = navRoles.positions['clan-section']
+  const orderedRaw = sectionOrder
+    ? [...rawItems].sort((a, b) => {
+        const ai = sectionOrder.indexOf(a.navKey)
+        const bi = sectionOrder.indexOf(b.navKey)
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+      })
+    : rawItems
+
+  const visibleItems = orderedRaw.filter((item) =>
+    canAccess(getItemRole(item.navKey, navRoles.roles), isOwner, isAdmin)
+  )
+
+  const activeItem = visibleItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? visibleItems[0]
+  const mobileItems: MobileDropdownNavItem[] = visibleItems.map((item) => ({
     key: item.href,
     href: item.href,
     label: item.label,
-    active: item.label === 'Stats' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
+    active: item.navKey === 'clan.stats' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
     icon: item.icon,
+    role: getItemRole(item.navKey, navRoles.roles),
   }))
 
   return (
@@ -134,7 +168,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
       <MobileDropdownNav
         id={`clan-section-nav-${clanId}`}
         label="Navigation du clan"
-        currentLabel={activeItem.label}
+        currentLabel={activeItem?.label ?? ''}
         items={mobileItems}
         variant="compact"
         visibilityClass="block md:hidden"
@@ -142,19 +176,19 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
       />
 
       <nav className="hidden flex-wrap items-center gap-2 md:flex" aria-label="Navigation du clan">
-        {items.map((item) => {
-          const active = item.label === 'Stats'
+        {visibleItems.map((item) => {
+          const active = item.navKey === 'clan.stats'
             ? pathname === item.href
             : pathname === item.href || pathname.startsWith(`${item.href}/`)
+          const role = getItemRole(item.navKey, navRoles.roles)
+          const roleClass = getRoleLinkClass(role, active, 'section')
 
           return (
             <Link
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={`clan-section-nav-link ${
-                active ? 'clan-section-nav-link--active shadow-sm' : ''
-              }`}
+              className={['clan-section-nav-link', roleClass, active ? 'shadow-sm' : ''].filter(Boolean).join(' ')}
             >
               <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
                 {item.icon}

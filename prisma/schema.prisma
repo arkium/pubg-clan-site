@@ -359,6 +359,12 @@ model SquadMatchTelemetry {
   deathSamples      Json?
   landingSamples    Json?
   phaseSnapshots    Json?
+  killSamples       Json?
+  shotSamples       Json?
+  damageSamples     Json?
+  knockoutSamples   Json?
+  reviveSamples     Json?
+  vehicleSamples    Json?
   errorCode         String?
   errorMessage   String?   @db.Text
 

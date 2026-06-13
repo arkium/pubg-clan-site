@@ -91,19 +91,23 @@ async function processOneJob(
 
       try {
         if (job.details.resetBeforeSync) {
+          console.info('[TelemetryResyncWorker] step reset-db', { jobId: job.id, squadMatchId: job.details.squadMatchId })
           await prisma.squadMatchTelemetry.deleteMany({
             where: {
               squadMatchId: job.details.squadMatchId,
             },
           })
+          console.info('[TelemetryResyncWorker] step reset-db done', { jobId: job.id })
         }
 
+        console.info('[TelemetryResyncWorker] step resync-start', { jobId: job.id, squadMatchId: job.details.squadMatchId })
         const syncFromFile = await resyncTelemetryFromCapturedFile({
           clanId: job.clanId,
           squadMatchId: job.details.squadMatchId,
           captureDir,
           maxResyncFileBytes,
         })
+        console.info('[TelemetryResyncWorker] step resync-done', { jobId: job.id, status: syncFromFile.status })
 
         if (syncFromFile.status === 'missing') {
           await finishTelemetryResyncQueueJobFailed(

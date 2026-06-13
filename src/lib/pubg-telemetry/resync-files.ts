@@ -85,6 +85,38 @@ export async function findLatestCapturedFileForSquadMatch(
   }
 }
 
+const MB = 1024 * 1024
+
+// Adaptive position sampling: coarser interval for large files to stay within Prisma's JSON size limits.
+// < 5 MB  → 10s  (~1 800 samples max for 100 players / 30 min)
+// 5–15 MB → 20s  (~900 samples)
+// ≥ 15 MB → 30s  (~600 samples)
+function resolvePositionSampleInterval(fileSizeBytes: number): number {
+  const envValue = Number(process.env.TELEMETRY_POSITION_SAMPLE_INTERVAL_SECONDS ?? '')
+  if (Number.isFinite(envValue) && envValue >= 5 && envValue <= 300) {
+    return Math.floor(envValue)
+  }
+  if (fileSizeBytes >= 15 * MB) return 30
+  if (fileSizeBytes >= 5 * MB) return 20
+  return 10
+}
+
+function resolveShotClusterRadiusMeters(): number {
+  const envValue = Number(process.env.TELEMETRY_SHOT_CLUSTER_RADIUS_METERS ?? '')
+  if (Number.isFinite(envValue) && envValue >= 1 && envValue <= 1000) {
+    return Math.floor(envValue)
+  }
+  return 50
+}
+
+function resolveDamageClusterRadiusMeters(): number {
+  const envValue = Number(process.env.TELEMETRY_DAMAGE_CLUSTER_RADIUS_METERS ?? '')
+  if (Number.isFinite(envValue) && envValue >= 1 && envValue <= 1000) {
+    return Math.floor(envValue)
+  }
+  return 30
+}
+
 export type ResyncFromCapturedFileResult =
   | { status: 'missing' }
   | {
@@ -131,6 +163,9 @@ export async function resyncTelemetryFromCapturedFile(input: {
     squadMatchId: input.squadMatchId,
     stream: webStream,
     contentLength: capturedFile.size,
+    minPositionSampleIntervalSeconds: resolvePositionSampleInterval(capturedFile.size),
+    shotClusterRadiusMeters: resolveShotClusterRadiusMeters(),
+    damageClusterRadiusMeters: resolveDamageClusterRadiusMeters(),
   })
 
   return {

@@ -251,6 +251,8 @@ export default function TelemetrySessionDatePage() {
   } | null>(null)
   const [queueLiveStatusLoading, setQueueLiveStatusLoading] = useState(false)
   const [queueLiveStatusError, setQueueLiveStatusError] = useState<string | null>(null)
+  const [queueCleanupLoading, setQueueCleanupLoading] = useState(false)
+  const [queueCleanupMessage, setQueueCleanupMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -894,6 +896,42 @@ export default function TelemetrySessionDatePage() {
     }
   }
 
+  async function runQueueCleanup() {
+    if (!clanId) return
+
+    setQueueCleanupLoading(true)
+    setQueueCleanupMessage(null)
+
+    try {
+      const response = await fetch(`/api/clans/${clanId}/telemetry/queue-cleanup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel-old', cancelMaxAgeMs: 1 }),
+      })
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean
+        error?: string
+        cancelled?: number
+        message?: string
+      } | null
+
+      if (!response.ok || !payload?.ok) {
+        setQueueCleanupMessage(payload?.error ?? 'Echec du nettoyage de la file.')
+        return
+      }
+
+      setQueueCleanupMessage(
+        payload.cancelled === 0
+          ? 'Aucun job en cours à annuler.'
+          : `${payload.cancelled} job(s) en cours annulé(s) et marqué(s) en échec.`
+      )
+    } catch (err) {
+      setQueueCleanupMessage(buildNetworkAwareErrorMessage('Echec du nettoyage de la file.', err))
+    } finally {
+      setQueueCleanupLoading(false)
+    }
+  }
+
   async function runFetchTelemetryFilesFromPubg() {
     if (!clanId || selectedMatchIds.length === 0) return
 
@@ -1177,8 +1215,21 @@ export default function TelemetrySessionDatePage() {
                 <div className="mt-3 rounded-lg border border-purple-200 bg-white/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-purple-900">Etat de la file en direct</p>
-                    <p className="text-[11px] text-purple-700">Actualisation auto: 5s</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[11px] text-purple-700">Actualisation auto: 5s</p>
+                      <button
+                        type="button"
+                        onClick={runQueueCleanup}
+                        disabled={queueCleanupLoading}
+                        className="text-[11px] rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                      >
+                        {queueCleanupLoading ? 'Nettoyage...' : 'Annuler jobs bloqués'}
+                      </button>
+                    </div>
                   </div>
+                  {queueCleanupMessage ? (
+                    <p className="mt-1 text-[11px] text-rose-700">{queueCleanupMessage}</p>
+                  ) : null}
                   {queueLiveStatusLoading && !queueLiveStatus ? <p className="mt-2 text-xs text-purple-700">Chargement du statut...</p> : null}
                   {queueLiveStatus ? (
                     <>

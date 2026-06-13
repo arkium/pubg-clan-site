@@ -28,6 +28,12 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('Unknown argument `deathSamples`') ||
     message.includes('Unknown argument `landingSamples`') ||
     message.includes('Unknown argument `phaseSnapshots`') ||
+    message.includes('Unknown argument `killSamples`') ||
+    message.includes('Unknown argument `shotSamples`') ||
+    message.includes('Unknown argument `damageSamples`') ||
+    message.includes('Unknown argument `knockoutSamples`') ||
+    message.includes('Unknown argument `reviveSamples`') ||
+    message.includes('Unknown argument `vehicleSamples`') ||
     message.includes('summary does not exist') ||
     message.includes('weaponStats does not exist') ||
     message.includes('memberStats does not exist') ||
@@ -35,7 +41,13 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('trajectorySegments does not exist') ||
     message.includes('deathSamples does not exist') ||
     message.includes('landingSamples does not exist') ||
-    message.includes('phaseSnapshots does not exist')
+    message.includes('phaseSnapshots does not exist') ||
+    message.includes('killSamples does not exist') ||
+    message.includes('shotSamples does not exist') ||
+    message.includes('damageSamples does not exist') ||
+    message.includes('knockoutSamples does not exist') ||
+    message.includes('reviveSamples does not exist') ||
+    message.includes('vehicleSamples does not exist')
   )
 }
 
@@ -82,5 +94,11 @@ export function buildTelemetrySuccessPayloadWithJson(
     deathSamples: sanitizeJsonForPrisma(parsed.deathSamples),
     landingSamples: sanitizeJsonForPrisma(parsed.landingSamples),
     phaseSnapshots: sanitizeJsonForPrisma(parsed.phaseSnapshots),
+    killSamples: sanitizeJsonForPrisma(parsed.killSamples),
+    shotSamples: sanitizeJsonForPrisma(parsed.shotSamples),
+    damageSamples: sanitizeJsonForPrisma(parsed.damageSamples),
+    knockoutSamples: sanitizeJsonForPrisma(parsed.knockoutSamples),
+    reviveSamples: sanitizeJsonForPrisma(parsed.reviveSamples),
+    vehicleSamples: sanitizeJsonForPrisma(parsed.vehicleSamples),
   }
 }

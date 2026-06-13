@@ -62,6 +62,82 @@ export type TelemetryPhaseSnapshot = {
   numAliveTeams: number
   safetyZoneRadiusMeters: number
   poisonGasWarningRadiusMeters: number
+  safetyZoneX?: number
+  safetyZoneY?: number
+}
+
+export type TelemetryKillSample = {
+  memberKey: string
+  phase: number
+  timestampSeconds: number | null
+  x: number
+  y: number
+}
+
+export type TelemetryShotCluster = {
+  memberKey: string
+  weaponName: string | null
+  phase: number
+  count: number
+  x: number
+  y: number
+}
+
+export type TelemetryDamageCluster = {
+  memberKey: string
+  role: 'attacker' | 'victim'
+  weaponName: string | null
+  phase: number
+  count: number
+  x: number
+  y: number
+}
+
+export type TelemetryKnockoutSample = {
+  memberKey: string
+  role: 'knocker' | 'victim'
+  phase: number
+  timestampSeconds: number | null
+  x: number
+  y: number
+}
+
+export type TelemetryReviveSample = {
+  memberKey: string
+  role: 'reviver' | 'revived'
+  phase: number
+  timestampSeconds: number | null
+  x: number
+  y: number
+}
+
+export type TelemetryVehicleSample = {
+  memberKey: string
+  action: 'ride' | 'leave'
+  vehicleType: string | null
+  phase: number
+  timestampSeconds: number | null
+  x: number
+  y: number
+}
+
+type ShotClusterAccum = {
+  memberKey: string
+  weaponName: string | null
+  phase: number
+  count: number
+  sumX: number
+  sumY: number
+}
+
+type DamageClusterAccum = {
+  memberKey: string
+  role: 'attacker' | 'victim'
+  weaponName: string | null
+  phase: number
+  count: number
+  sumX: number
+  sumY: number
 }
 
 type MemberCircleTiming = {
@@ -118,6 +194,16 @@ type TelemetryAccumulator = {
   deathSamples: TelemetryPositionSample[]
   landingSamples: TelemetryPositionSample[]
   phaseSnapshots: TelemetryPhaseSnapshot[]
+  minPositionSampleIntervalSeconds: number
+  clanMemberKeys: Set<string>
+  shotClusterRadiusUnits: number
+  damageClusterRadiusUnits: number
+  killSamples: TelemetryKillSample[]
+  shotClusters: Map<string, ShotClusterAccum>
+  damageClusters: Map<string, DamageClusterAccum>
+  knockoutSamples: TelemetryKnockoutSample[]
+  reviveSamples: TelemetryReviveSample[]
+  vehicleSamples: TelemetryVehicleSample[]
   summary: {
     totalEvents: number
     killEvents: number
@@ -161,6 +247,12 @@ export type ParsedTelemetrySnapshot = {
   deathSamples: TelemetryPositionSample[]
   landingSamples: TelemetryPositionSample[]
   phaseSnapshots: TelemetryPhaseSnapshot[]
+  killSamples: TelemetryKillSample[]
+  shotSamples: TelemetryShotCluster[]
+  damageSamples: TelemetryDamageCluster[]
+  knockoutSamples: TelemetryKnockoutSample[]
+  reviveSamples: TelemetryReviveSample[]
+  vehicleSamples: TelemetryVehicleSample[]
 }
 
 function getEventType(event: TelemetryEvent) {
@@ -444,6 +536,34 @@ function getVictimLocation(event: TelemetryEvent): { x: number; y: number } | nu
   )
 }
 
+function getKillerLocation(event: TelemetryEvent): { x: number; y: number } | null {
+  return getLocationFromPaths(
+    event,
+    ['killer.location.x', 'killer.character.location.x', 'attacker.location.x', 'attacker.character.location.x', 'finisher.location.x'],
+    ['killer.location.y', 'killer.character.location.y', 'attacker.location.y', 'attacker.character.location.y', 'finisher.location.y']
+  )
+}
+
+function getAttackerLocation(event: TelemetryEvent): { x: number; y: number } | null {
+  return getLocationFromPaths(
+    event,
+    ['attacker.location.x', 'attacker.character.location.x'],
+    ['attacker.location.y', 'attacker.character.location.y']
+  )
+}
+
+function getReviverLocation(event: TelemetryEvent): { x: number; y: number } | null {
+  return getLocationFromPaths(
+    event,
+    ['reviver.location.x', 'reviver.character.location.x'],
+    ['reviver.location.y', 'reviver.character.location.y']
+  )
+}
+
+function getVehicleType(event: TelemetryEvent): string | null {
+  return getFirstStringFromPaths(event, ['vehicle.vehicleType', 'vehicleType'])
+}
+
 function isOutsideSafeZone(location: { x: number; y: number }, zone: ZoneState) {
   const dx = location.x - zone.x
   const dy = location.y - zone.y
@@ -724,7 +844,12 @@ function getOrCreateMemberWeaponStats(
   return created
 }
 
-function createTelemetryAccumulator(): TelemetryAccumulator {
+function createTelemetryAccumulator(options?: {
+  minPositionSampleIntervalSeconds?: number
+  clanMemberKeys?: Set<string>
+  shotClusterRadiusMeters?: number
+  damageClusterRadiusMeters?: number
+}): TelemetryAccumulator {
   return {
     memberStats: new Map<string, TelemetryMemberStats>(),
     weaponStats: new Map<string, TelemetryWeaponStats>(),
@@ -742,6 +867,16 @@ function createTelemetryAccumulator(): TelemetryAccumulator {
     deathSamples: [],
     landingSamples: [],
     phaseSnapshots: [],
+    minPositionSampleIntervalSeconds: options?.minPositionSampleIntervalSeconds ?? 10,
+    clanMemberKeys: options?.clanMemberKeys ?? new Set<string>(),
+    shotClusterRadiusUnits: (options?.shotClusterRadiusMeters ?? 50) * 100,
+    damageClusterRadiusUnits: (options?.damageClusterRadiusMeters ?? 30) * 100,
+    killSamples: [],
+    shotClusters: new Map<string, ShotClusterAccum>(),
+    damageClusters: new Map<string, DamageClusterAccum>(),
+    knockoutSamples: [],
+    reviveSamples: [],
+    vehicleSamples: [],
     summary: {
       totalEvents: 0,
       killEvents: 0,
@@ -804,6 +939,22 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       killerStats.kills += 1
       if (killerStats.firstKillPhase <= 0) {
         killerStats.firstKillPhase = Math.max(1, accumulator.currentPhase)
+      }
+
+      const isClanKiller =
+        accumulator.clanMemberKeys.size === 0 ||
+        accumulator.clanMemberKeys.has(killerKey.toLowerCase())
+      if (isClanKiller) {
+        const killerLocation = getKillerLocation(event)
+        if (killerLocation) {
+          accumulator.killSamples.push({
+            memberKey: killerKey,
+            phase: samplePhase,
+            timestampSeconds,
+            x: killerLocation.x,
+            y: killerLocation.y,
+          })
+        }
       }
     }
     if (victimKey) {
@@ -878,6 +1029,41 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         reviveTeamId,
         accumulator.teamPlacements
       ).revives += 1
+
+      const isClanReviver =
+        accumulator.clanMemberKeys.size === 0 ||
+        accumulator.clanMemberKeys.has(reviveKey.toLowerCase())
+      if (isClanReviver) {
+        const reviverLocation = getReviverLocation(event)
+        if (reviverLocation) {
+          accumulator.reviveSamples.push({
+            memberKey: reviveKey,
+            role: 'reviver',
+            phase: samplePhase,
+            timestampSeconds,
+            x: reviverLocation.x,
+            y: reviverLocation.y,
+          })
+        }
+      }
+    }
+    if (victimKey) {
+      const isClanRevived =
+        accumulator.clanMemberKeys.size === 0 ||
+        accumulator.clanMemberKeys.has(victimKey.toLowerCase())
+      if (isClanRevived) {
+        const revivedLocation = getVictimLocation(event)
+        if (revivedLocation) {
+          accumulator.reviveSamples.push({
+            memberKey: victimKey,
+            role: 'revived',
+            phase: samplePhase,
+            timestampSeconds,
+            x: revivedLocation.x,
+            y: revivedLocation.y,
+          })
+        }
+      }
     }
     return
   }
@@ -891,6 +1077,41 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         killerTeamId,
         accumulator.teamPlacements
       ).knockouts += 1
+
+      const isClanKnocker =
+        accumulator.clanMemberKeys.size === 0 ||
+        accumulator.clanMemberKeys.has(killerKey.toLowerCase())
+      if (isClanKnocker) {
+        const knockerLocation = getKillerLocation(event)
+        if (knockerLocation) {
+          accumulator.knockoutSamples.push({
+            memberKey: killerKey,
+            role: 'knocker',
+            phase: samplePhase,
+            timestampSeconds,
+            x: knockerLocation.x,
+            y: knockerLocation.y,
+          })
+        }
+      }
+    }
+    if (victimKey) {
+      const isClanVictim =
+        accumulator.clanMemberKeys.size === 0 ||
+        accumulator.clanMemberKeys.has(victimKey.toLowerCase())
+      if (isClanVictim) {
+        const victimLocation = getVictimLocation(event)
+        if (victimLocation) {
+          accumulator.knockoutSamples.push({
+            memberKey: victimKey,
+            role: 'victim',
+            phase: samplePhase,
+            timestampSeconds,
+            x: victimLocation.x,
+            y: victimLocation.y,
+          })
+        }
+      }
     }
     return
   }
@@ -938,6 +1159,61 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         accumulator.teamPlacements
       ).damageTaken += damage
     }
+
+    if (accumulator.clanMemberKeys.size > 0) {
+      const damageRadiusUnits = accumulator.damageClusterRadiusUnits
+      const damageCauserName = getFiringWeaponName(event) ?? weaponName
+
+      if (killerKey && killerKey !== victimKey && accumulator.clanMemberKeys.has(killerKey.toLowerCase())) {
+        const attackerLoc = getAttackerLocation(event)
+        if (attackerLoc) {
+          const cellX = Math.floor(attackerLoc.x / damageRadiusUnits)
+          const cellY = Math.floor(attackerLoc.y / damageRadiusUnits)
+          const clusterKey = `${killerKey}:attacker:${damageCauserName ?? ''}:${samplePhase}:${cellX}:${cellY}`
+          const existing = accumulator.damageClusters.get(clusterKey)
+          if (existing) {
+            existing.count += 1
+            existing.sumX += attackerLoc.x
+            existing.sumY += attackerLoc.y
+          } else {
+            accumulator.damageClusters.set(clusterKey, {
+              memberKey: killerKey,
+              role: 'attacker',
+              weaponName: damageCauserName ?? null,
+              phase: samplePhase,
+              count: 1,
+              sumX: attackerLoc.x,
+              sumY: attackerLoc.y,
+            })
+          }
+        }
+      }
+
+      if (victimKey && accumulator.clanMemberKeys.has(victimKey.toLowerCase())) {
+        const victimLoc = getVictimLocation(event)
+        if (victimLoc) {
+          const cellX = Math.floor(victimLoc.x / damageRadiusUnits)
+          const cellY = Math.floor(victimLoc.y / damageRadiusUnits)
+          const clusterKey = `${victimKey}:victim:${damageCauserName ?? ''}:${samplePhase}:${cellX}:${cellY}`
+          const existing = accumulator.damageClusters.get(clusterKey)
+          if (existing) {
+            existing.count += 1
+            existing.sumX += victimLoc.x
+            existing.sumY += victimLoc.y
+          } else {
+            accumulator.damageClusters.set(clusterKey, {
+              memberKey: victimKey,
+              role: 'victim',
+              weaponName: damageCauserName ?? null,
+              phase: samplePhase,
+              count: 1,
+              sumX: victimLoc.x,
+              sumY: victimLoc.y,
+            })
+          }
+        }
+      }
+    }
     return
   }
 
@@ -974,6 +1250,39 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       }
 
       accumulator.memberWeaponFireCounts.set(actorWeaponKey, fireCount)
+    }
+
+    if (
+      eventType === 'LogPlayerAttack' &&
+      accumulator.clanMemberKeys.size > 0 &&
+      isCountableAttackWeapon(event)
+    ) {
+      const shotActorKey = getKillerKey(event)
+      if (shotActorKey && accumulator.clanMemberKeys.has(shotActorKey.toLowerCase())) {
+        const shotLocation = getAttackerLocation(event)
+        const shotWeaponId = getFiringWeaponName(event)
+        if (shotLocation) {
+          const radiusUnits = accumulator.shotClusterRadiusUnits
+          const cellX = Math.floor(shotLocation.x / radiusUnits)
+          const cellY = Math.floor(shotLocation.y / radiusUnits)
+          const clusterKey = `${shotActorKey}:${shotWeaponId ?? ''}:${samplePhase}:${cellX}:${cellY}`
+          const existing = accumulator.shotClusters.get(clusterKey)
+          if (existing) {
+            existing.count += 1
+            existing.sumX += shotLocation.x
+            existing.sumY += shotLocation.y
+          } else {
+            accumulator.shotClusters.set(clusterKey, {
+              memberKey: shotActorKey,
+              weaponName: shotWeaponId ?? null,
+              phase: samplePhase,
+              count: 1,
+              sumX: shotLocation.x,
+              sumY: shotLocation.y,
+            })
+          }
+        }
+      }
     }
 
     return
@@ -1038,6 +1347,26 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         const speed = getFirstNumberFromPaths(event, ['maxSpeed', 'vehicle.maxSpeed'])
         if (typeof speed === 'number' && Number.isFinite(speed) && speed > member.maxVehicleSpeedKph) {
           member.maxVehicleSpeedKph = speed
+        }
+      }
+
+      if (eventType !== 'LogVehicleDestroy') {
+        const isClanActor =
+          accumulator.clanMemberKeys.size === 0 ||
+          accumulator.clanMemberKeys.has(actorKey.toLowerCase())
+        if (isClanActor) {
+          const vehicleLocation = getCharacterLocation(event)
+          if (vehicleLocation) {
+            accumulator.vehicleSamples.push({
+              memberKey: actorKey,
+              action: eventType === 'LogVehicleRide' ? 'ride' : 'leave',
+              vehicleType: getVehicleType(event),
+              phase: samplePhase,
+              timestampSeconds,
+              x: vehicleLocation.x,
+              y: vehicleLocation.y,
+            })
+          }
         }
       }
     }
@@ -1114,11 +1443,16 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           ? movementContext.inVehicle
           : previous?.inVehicle ?? false
 
+        const isPositionClanMember =
+          accumulator.clanMemberKeys.size === 0 ||
+          accumulator.clanMemberKeys.has(actorKey.toLowerCase())
+
         const shouldSamplePosition =
-          tracking.lastSampleTimestampSeconds === null ||
+          isPositionClanMember &&
+          (tracking.lastSampleTimestampSeconds === null ||
           (typeof timestampSeconds === 'number' &&
             Number.isFinite(timestampSeconds) &&
-            timestampSeconds >= tracking.lastSampleTimestampSeconds + 10)
+            timestampSeconds >= tracking.lastSampleTimestampSeconds + accumulator.minPositionSampleIntervalSeconds))
 
         if (shouldSamplePosition) {
           accumulator.positionSamples.push({
@@ -1216,6 +1550,8 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       const lastRelTs = last ? last.timestampSeconds - firstTs : -Infinity
       const gapOk = !last || relTs - lastRelTs >= 5
       if (isNewPhase || gapOk) {
+        const safeX = getFirstNumberFromPaths(event, ['gameState.safetyZonePosition.x', 'safetyZonePosition.x'])
+        const safeY = getFirstNumberFromPaths(event, ['gameState.safetyZonePosition.y', 'safetyZonePosition.y'])
         accumulator.phaseSnapshots.push({
           isGame,
           timestampSeconds: ts,
@@ -1223,6 +1559,9 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           numAliveTeams,
           safetyZoneRadiusMeters: safeRadius,
           poisonGasWarningRadiusMeters: poisonRadius,
+          ...(typeof safeX === 'number' && Number.isFinite(safeX) && typeof safeY === 'number' && Number.isFinite(safeY)
+            ? { safetyZoneX: safeX, safetyZoneY: safeY }
+            : {}),
         })
       }
     }
@@ -1291,6 +1630,25 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
       return left.memberKey.localeCompare(right.memberKey)
     })
 
+  const shotSamples: TelemetryShotCluster[] = Array.from(accumulator.shotClusters.values()).map((c) => ({
+    memberKey: c.memberKey,
+    weaponName: c.weaponName,
+    phase: c.phase,
+    count: c.count,
+    x: Math.round(c.sumX / c.count),
+    y: Math.round(c.sumY / c.count),
+  }))
+
+  const damageSamples: TelemetryDamageCluster[] = Array.from(accumulator.damageClusters.values()).map((c) => ({
+    memberKey: c.memberKey,
+    role: c.role,
+    weaponName: c.weaponName,
+    phase: c.phase,
+    count: c.count,
+    x: Math.round(c.sumX / c.count),
+    y: Math.round(c.sumY / c.count),
+  }))
+
   return {
     summary: {
       ...accumulator.summary,
@@ -1308,6 +1666,12 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     deathSamples: accumulator.deathSamples,
     landingSamples: accumulator.landingSamples,
     phaseSnapshots: accumulator.phaseSnapshots,
+    killSamples: accumulator.killSamples,
+    shotSamples,
+    damageSamples,
+    knockoutSamples: accumulator.knockoutSamples,
+    reviveSamples: accumulator.reviveSamples,
+    vehicleSamples: accumulator.vehicleSamples,
   }
 }
 
@@ -1327,13 +1691,19 @@ export function parseTelemetrySnapshot(events: unknown): ParsedTelemetrySnapshot
 
 export async function parseTelemetrySnapshotFromStream(
   stream: ReadableStream<Uint8Array>,
-  maxBytes: number
+  maxBytes: number,
+  options?: {
+    minPositionSampleIntervalSeconds?: number
+    clanMemberKeys?: Set<string>
+    shotClusterRadiusMeters?: number
+    damageClusterRadiusMeters?: number
+  }
 ): Promise<{ snapshot: ParsedTelemetrySnapshot; bytesRead: number }> {
   if (!Number.isFinite(maxBytes) || maxBytes <= 0) {
     throw new Error('Telemetry max bytes must be greater than 0')
   }
 
-  const accumulator = createTelemetryAccumulator()
+  const accumulator = createTelemetryAccumulator(options)
   const reader = stream.getReader()
   const decoder = new TextDecoder()
 

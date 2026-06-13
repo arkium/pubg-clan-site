@@ -5,7 +5,7 @@ import {
   getTelemetryFixtureCaptureMaxBytes,
   isTelemetryFixtureCaptureEnabled,
 } from '@/lib/pubg-telemetry/fixture-capture'
-import { parseTelemetrySnapshotFromStream } from '@/lib/pubg-telemetry/parser'
+import { parseTelemetrySnapshotFromStream, type ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import {
   buildTelemetrySuccessBasePayload,
   buildTelemetrySuccessPayloadWithJson,
@@ -73,12 +73,53 @@ function sanitizeSquadMatchIds(ids: string[]) {
   return unique.slice(0, 50)
 }
 
+const MAX_DB_POSITION_SAMPLES = 2000
+const MAX_DB_TRAJECTORY_SEGMENTS = 2000
+const MAX_DB_SHOT_SAMPLES = 2000
+const MAX_DB_DAMAGE_SAMPLES = 2000
+
+function thinArray<T>(array: T[], maxCount: number): T[] {
+  if (array.length <= maxCount) return array
+  const step = array.length / maxCount
+  const result: T[] = []
+  for (let i = 0; i < maxCount; i += 1) {
+    result.push(array[Math.floor(i * step)]!)
+  }
+  return result
+}
+
+function capParsedSnapshotForDb(parsed: ParsedTelemetrySnapshot) {
+  const positionSamples = thinArray(parsed.positionSamples, MAX_DB_POSITION_SAMPLES)
+  const trajectorySegments = thinArray(parsed.trajectorySegments, MAX_DB_TRAJECTORY_SEGMENTS)
+  const shotSamples = thinArray(parsed.shotSamples, MAX_DB_SHOT_SAMPLES)
+  const damageSamples = thinArray(parsed.damageSamples, MAX_DB_DAMAGE_SAMPLES)
+  const capped = {
+    positionSamples: positionSamples.length < parsed.positionSamples.length ? positionSamples.length : null,
+    trajectorySegments: trajectorySegments.length < parsed.trajectorySegments.length ? trajectorySegments.length : null,
+    shotSamples: shotSamples.length < parsed.shotSamples.length ? shotSamples.length : null,
+    damageSamples: damageSamples.length < parsed.damageSamples.length ? damageSamples.length : null,
+  }
+  if (Object.values(capped).some((v) => v !== null)) {
+    console.info('[TelemetrySync] capped arrays for DB', {
+      positionSamples: { original: parsed.positionSamples.length, capped: capped.positionSamples ?? parsed.positionSamples.length },
+      trajectorySegments: { original: parsed.trajectorySegments.length, capped: capped.trajectorySegments ?? parsed.trajectorySegments.length },
+      shotSamples: { original: parsed.shotSamples.length, capped: capped.shotSamples ?? parsed.shotSamples.length },
+      damageSamples: { original: parsed.damageSamples.length, capped: capped.damageSamples ?? parsed.damageSamples.length },
+    })
+  }
+  return { ...parsed, positionSamples, trajectorySegments, shotSamples, damageSamples }
+}
+
 type SyncTelemetryFromStreamInput = {
   clanId: number
   squadMatchId: string
   stream: ReadableStream<Uint8Array>
   contentLength: number | null
   sourceGeneratedAt?: string | null
+  minPositionSampleIntervalSeconds?: number
+  clanMemberKeys?: Set<string>
+  shotClusterRadiusMeters?: number
+  damageClusterRadiusMeters?: number
 }
 
 export async function syncTelemetryForSquadMatchFromStream(
@@ -114,6 +155,16 @@ export async function syncTelemetryForSquadMatchFromStream(
     select: {
       id: true,
       pubgMatchId: true,
+      members: {
+        include: {
+          member: {
+            select: {
+              pubgAccountId: true,
+              pubgPlayerName: true,
+            },
+          },
+        },
+      },
     },
   })
   if (!match) {
@@ -129,10 +180,32 @@ export async function syncTelemetryForSquadMatchFromStream(
   }
 
   try {
-    const { snapshot: parsed, bytesRead } = await parseTelemetrySnapshotFromStream(
+    const resolvedClanMemberKeys: Set<string> | undefined = (() => {
+      if (input.clanMemberKeys) return input.clanMemberKeys
+      const keys = new Set<string>()
+      for (const entry of match.members) {
+        if (entry.member.pubgAccountId) {
+          keys.add(entry.member.pubgAccountId.toLowerCase())
+        }
+        if (entry.member.pubgPlayerName) {
+          keys.add(entry.member.pubgPlayerName.toLowerCase())
+        }
+      }
+      return keys.size > 0 ? keys : undefined
+    })()
+
+    const { snapshot: parsedRaw, bytesRead } = await parseTelemetrySnapshotFromStream(
       input.stream,
-      maxAssetSizeBytes
+      maxAssetSizeBytes,
+      {
+        minPositionSampleIntervalSeconds: input.minPositionSampleIntervalSeconds,
+        clanMemberKeys: resolvedClanMemberKeys,
+        shotClusterRadiusMeters: input.shotClusterRadiusMeters,
+        damageClusterRadiusMeters: input.damageClusterRadiusMeters,
+      }
     )
+
+    const parsed = capParsedSnapshotForDb(parsedRaw)
 
     const successBasePayload = buildTelemetrySuccessBasePayload({
       parserVersion,
@@ -142,50 +215,35 @@ export async function syncTelemetryForSquadMatchFromStream(
       bytesDownloaded: bytesRead,
     })
 
-    const successPayloadWithJson = buildTelemetrySuccessPayloadWithJson(successBasePayload, parsed)
+    console.info('[TelemetrySync] persist-start', {
+      squadMatchId: match.id,
+      positionSamples: parsed.positionSamples.length,
+      trajectorySegments: parsed.trajectorySegments.length,
+      memberStats: parsed.memberStats.length,
+      deathSamples: parsed.deathSamples.length,
+      phaseSnapshots: parsed.phaseSnapshots.length,
+    })
 
-    try {
-      await (prisma.squadMatchTelemetry as unknown as {
-        upsert: (args: {
-          where: { squadMatchId: string }
-          update: Record<string, unknown>
-          create: Record<string, unknown>
-        }) => Promise<unknown>
-      }).upsert({
-        where: { squadMatchId: match.id },
-        update: successPayloadWithJson,
-        create: {
-          squadMatchId: match.id,
-          ...successPayloadWithJson,
-        },
-      })
-    } catch (persistError) {
-      if (!isTelemetryJsonFieldUnsupportedError(persistError)) {
-        throw persistError
-      }
+    // Prisma Rust engine crashes fatally (non-interceptable) when serializing large JSON
+    // objects into SQL parameters. Always persist scalars via Prisma, then JSON via
+    // $executeRaw which receives pre-serialized strings — no Rust-side JSON serialization.
+    await prisma.squadMatchTelemetry.upsert({
+      where: { squadMatchId: match.id },
+      update: successBasePayload,
+      create: {
+        squadMatchId: match.id,
+        ...successBasePayload,
+      },
+    })
 
-      await prisma.squadMatchTelemetry.upsert({
-        where: { squadMatchId: match.id },
-        update: successBasePayload,
-        create: {
-          squadMatchId: match.id,
-          ...successBasePayload,
-        },
-      })
+    console.info('[TelemetrySync] persist-base-done', { squadMatchId: match.id })
 
-      try {
-        await persistTelemetryJsonFieldsWithSql({
-          squadMatchId: match.id,
-          parsed,
-        })
-      } catch (fallbackError) {
-        console.warn('[TelemetrySync][FallbackSql] Unable to persist telemetry JSON fields', {
-          squadMatchId: match.id,
-          pubgMatchId: match.pubgMatchId,
-          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-        })
-      }
-    }
+    await persistTelemetryJsonFieldsWithSql({
+      squadMatchId: match.id,
+      parsed,
+    })
+
+    console.info('[TelemetrySync] persist-json-done', { squadMatchId: match.id })
 
     return {
       squadMatchId: match.id,
@@ -286,6 +344,7 @@ export async function syncTelemetryForSelectedSquadMatches(
             select: {
               id: true,
               pubgAccountId: true,
+              pubgPlayerName: true,
               platformShard: true,
             },
           },
@@ -500,9 +559,20 @@ export async function syncTelemetryForSelectedSquadMatches(
         }
       }
 
+      const clanMemberKeys = new Set<string>()
+      for (const entry of match.members) {
+        if (entry.member.pubgAccountId) {
+          clanMemberKeys.add(entry.member.pubgAccountId.toLowerCase())
+        }
+        if (entry.member.pubgPlayerName) {
+          clanMemberKeys.add(entry.member.pubgPlayerName.toLowerCase())
+        }
+      }
+
       const { snapshot: parsed, bytesRead } = await parseTelemetrySnapshotFromStream(
         streamForParsing,
-        maxAssetSizeBytes
+        maxAssetSizeBytes,
+        { clanMemberKeys: clanMemberKeys.size > 0 ? clanMemberKeys : undefined }
       )
 
       const successBasePayload = buildTelemetrySuccessBasePayload({

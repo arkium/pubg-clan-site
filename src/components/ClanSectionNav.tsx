@@ -154,14 +154,17 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
   )
 
   const activeItem = visibleItems.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)) ?? visibleItems[0]
-  const mobileItems: MobileDropdownNavItem[] = visibleItems.map((item) => ({
-    key: item.href,
-    href: item.href,
-    label: item.label,
-    active: item.navKey === 'clan.stats' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
-    icon: item.icon,
-    role: getItemRole(item.navKey, navRoles.roles),
-  }))
+  const mobileItems: MobileDropdownNavItem[] = visibleItems.map((item) => {
+    const role = getItemRole(item.navKey, navRoles.roles)
+    return {
+      key: item.href,
+      href: item.href,
+      label: item.label,
+      active: item.navKey === 'clan.stats' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
+      icon: item.icon,
+      role: role === 'admin' || role === 'owner' ? role : undefined,
+    }
+  })
 
   return (
     <div className="mt-4">

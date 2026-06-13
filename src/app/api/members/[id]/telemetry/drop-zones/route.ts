@@ -440,11 +440,8 @@ export async function GET(
     return NextResponse.json(
       buildTelemetrySuccessResponse(
         {
-          scope: effectiveScope,
-          scopeLabel,
+          scope: effectiveScope === 'clan' ? 'clan' : 'member',
           memberId,
-          targetMemberId: selectedTargetMemberId,
-          bestMode,
           period,
           periodKey,
           count: landingPoints.length,

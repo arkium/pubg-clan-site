@@ -84,11 +84,19 @@ Recalcul agrégats (period-aggregates.ts)
                          │
                          ▼
 ┌──────────────────────────────────────────────────────┐
-│  Worker (scripts/telemetry-resync-worker.ts)          │
-│  • Claim atomique 1 job                               │
+│  Worker Resync (scripts/telemetry-resync-worker.ts)   │
+│  • Claim atomique 1 job telemetry_resync_file         │
 │  • MemoryMonitor + BackpressureController             │
-│  • Recovery des jobs bloqués au démarrage             │
-│  • Logs métriques toutes les 30s                      │
+│  • Queue un job telemetry_recalc_aggregates           │
+│    (pas de recalcul inline)                           │
+└────────────────────────┬─────────────────────────────┘
+                         │
+                         ▼
+┌──────────────────────────────────────────────────────┐
+│  Worker Agrégats (scripts/telemetry-aggregate-worker.ts) │
+│  • Claim atomique 1 job telemetry_recalc_aggregates   │
+│  • Recalcul week/month/all via period-aggregates      │
+│  • Batching createMany pour limiter les pics mémoire  │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -97,7 +105,9 @@ Recalcul agrégats (period-aggregates.ts)
 | Fichier | Rôle |
 |---|---|
 | `scripts/telemetry-resync-worker.ts` | Process worker |
+| `scripts/telemetry-aggregate-worker.ts` | Worker dédié au recalcul d'agrégats |
 | `src/lib/pubg-telemetry/resync-queue.ts` | Gestion file CronExecution |
+| `src/lib/pubg-telemetry/aggregate-recalc-queue.ts` | Gestion file dédiée recalcul d'agrégats |
 | `src/lib/pubg-telemetry/resync-files.ts` | Lecture fichiers capturés + intervalle adaptatif |
 | `src/lib/pubg-telemetry/parser.ts` | Parsing streaming JSON → snapshot |
 | `src/lib/pubg-telemetry/manual-sync.ts` | Sync depuis stream (cap DB + persistence) |
@@ -162,7 +172,8 @@ Enfile les jobs dans la table `CronExecution`, le worker les traite en asynchron
 **Flux :**
 ```
 Vérification fichiers capturés → enqueue CronExecution → retour immédiat
-Worker : claim → reset DB optionnel → parse → DB → agrégats
+Worker Resync : claim → reset DB optionnel → parse → DB → enqueue agrégats
+Worker Agrégats : claim → recalcul week/month/all → persist
 ```
 
 **Endpoint :** `POST /api/clans/{id}/telemetry/resync-files-queue`
@@ -170,10 +181,12 @@ Worker : claim → reset DB optionnel → parse → DB → agrégats
 **Prérequis :** fichiers déjà capturés (mode "Capture seule" en amont).  
 **Cas d'usage :** production, 100+ matchs, non-bloquant.
 
-**Commande worker :**
+**Commande workers :**
 ```bash
 npm run telemetry:worker          # boucle infinie
 npm run telemetry:worker:once     # traite les jobs en attente puis exit
+npm run telemetry:aggregates:worker       # boucle infinie (agrégats)
+npm run telemetry:aggregates:worker:once  # traite la queue agrégats puis exit
 ```
 
 ---
@@ -198,11 +211,16 @@ Besoin de rejouer plus tard ?
 
 ```bash
 npm run telemetry:worker
+npm run telemetry:aggregates:worker
 ```
 
-Au démarrage, le worker :
+Au démarrage, le worker resync :
 1. Appelle `recoverStuckTelemetryResyncJobs` → remet en `queued` les jobs bloqués en `running` depuis > 10 minutes
 2. Entre dans la boucle : claim → process → sleep 2s → repeat
+
+Au démarrage, le worker agrégats :
+1. Appelle `recoverStuckTelemetryAggregateRecalcJobs`
+2. Entre dans la boucle : claim → recalculateTelemetryPeriodAggregatesForClan → sleep → repeat
 
 > **Important :** `recoverStuckTelemetryResyncJobs` **remet en queue** (pas en `failed`). Un job qui crashe le worker sera reclaimed au prochain démarrage si plus de 10 min se sont écoulées. Voir [section 11](#11-troubleshooting) pour éviter la boucle infinie.
 
@@ -235,7 +253,31 @@ TELEMETRY_WORKER_GC_ENABLED=false       # true pour forcer GC après chaque job
 [TelemetryResyncWorker] job failed        { jobId, error, queue }
 [TelemetryResyncWorker] metrics           { toutes les 30s }
 [TelemetryResyncWorker] recovered stuck jobs  { recovered }   ← si jobs bloqués au démarrage
+[TelemetryAggregateWorker] job claimed    { jobId, clanId, ... }
+[TelemetryAggregateWorker] job success    { jobId, clanId, durationMs }
+[TelemetryAggregateWorker] job failed     { jobId, clanId, error }
+[TelemetryResyncWorker] single-instance lock check    { lockFile, staleAfterMs }
+[TelemetryResyncWorker] single-instance lock acquired { lockFile }
+[TelemetryResyncWorker] single-instance lock released { lockFile }
+[TelemetryAggregateWorker] single-instance lock check    { lockFile, staleAfterMs }
+[TelemetryAggregateWorker] single-instance lock acquired { lockFile }
+[TelemetryAggregateWorker] single-instance lock released { lockFile }
 ```
+
+### Verrou single-instance (recommande)
+
+Pour eviter les crashes intermittents lies a des lancements concurrents accidentels (plusieurs terminaux, redemarrage systemd en double, etc.), les deux workers utilisent un verrou fichier local :
+
+- Resync : `.telemetry-resync-worker.lock`
+- Aggregats : `.telemetry-aggregate-worker.lock`
+
+Comportement :
+
+1. Le worker tente d'acquerir le verrou au demarrage (mode boucle).
+2. Si un autre process actif detient deja le verrou, le worker sort proprement.
+3. Si le verrou est stale (pid mort ou age depasse), il est nettoye puis reacquis.
+
+Ce mecanisme complete la verification basee sur `CronExecution` et reduit fortement les jobs orphelins en `running`.
 
 ---
 
@@ -426,9 +468,18 @@ GET /api/clans/{id}/telemetry/metrics?format=prometheus
 |---|---|---|
 | `TELEMETRY_RESYNC_WORKER_POLL_MS` | `2000` | Délai entre deux polls si queue vide |
 | `TELEMETRY_RESYNC_WORKER_ID` | `pid-{PID}` | Identifiant du worker (utile multi-workers) |
+| `TELEMETRY_RESYNC_STUCK_RECOVERY_MS` | `120000` | Age minimal (ms) pour remettre un job `running` en `queued` au demarrage |
+| `TELEMETRY_RESYNC_WORKER_MAX_PARALLEL` | `1` | Nombre max de workers resync autorises en parallele |
+| `TELEMETRY_RESYNC_WORKER_LOCK_FILE` | `.telemetry-resync-worker.lock` | Chemin du verrou fichier du worker resync |
+| `TELEMETRY_RESYNC_WORKER_LOCK_STALE_MS` | `1800000` | Age max (ms) d'un verrou resync avant nettoyage automatique |
 | `TELEMETRY_WORKER_GC_ENABLED` | `false` | Forcer GC après chaque job (`--expose-gc` requis) |
 | `TELEMETRY_WORKER_MEMORY_THRESHOLD_PCT` | `80` | Seuil haute pression mémoire |
 | `TELEMETRY_WORKER_MEMORY_CRITICAL_PCT` | `95` | Seuil critique mémoire |
+| `TELEMETRY_AGGREGATE_WORKER_POLL_MS` | `3000` | Délai de polling de la queue d'agrégats |
+| `TELEMETRY_AGGREGATE_WORKER_MAX_PARALLEL` | `1` | Nombre max de workers agregats autorises en parallele |
+| `TELEMETRY_AGGREGATE_WORKER_LOCK_FILE` | `.telemetry-aggregate-worker.lock` | Chemin du verrou fichier du worker agregats |
+| `TELEMETRY_AGGREGATE_WORKER_LOCK_STALE_MS` | `1800000` | Age max (ms) d'un verrou agregats avant nettoyage automatique |
+| `TELEMETRY_AGGREGATES_WRITE_BATCH_SIZE` | `250` | Taille des lots `createMany` pendant le recalcul d'agrégats |
 
 ### Capture et parsing
 
@@ -453,6 +504,24 @@ GET /api/clans/{id}/telemetry/metrics?format=prometheus
 
 ## 10. Commandes de référence
 
+### DEV (Windows / local)
+
+```bash
+# Si un ancien Next tourne deja, le stopper d'abord
+taskkill /PID <PID> /F
+
+# Lancer l'application
+npm run dev
+
+# Workers telemetry en local (dans 2 terminaux separes)
+npm run telemetry:worker
+npm run telemetry:aggregates:worker
+
+# Mode verification one-shot
+npm run telemetry:worker:once
+npm run telemetry:aggregates:worker:once
+```
+
 ### Worker
 
 ```bash
@@ -460,6 +529,91 @@ npm run telemetry:worker           # boucle infinie, polling 2s
 npm run telemetry:worker:once      # traite les jobs en attente puis exit
 npm run telemetry:worker:gc        # idem once, avec --expose-gc
 npm run telemetry:worker:monitored # boucle infinie, avec --expose-gc
+npm run telemetry:aggregates:worker       # boucle infinie (queue agrégats)
+npm run telemetry:aggregates:worker:once  # one-shot agrégats
+```
+
+### PROD Linux (systemd, 2 workers)
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart pubg-clan-site-web
+sudo systemctl restart pubg-clan-site-cron
+sudo systemctl status pubg-clan-site-web --no-pager -l
+sudo systemctl status pubg-clan-site-cron --no-pager -l
+```
+
+Commandes utiles en complément :
+
+```bash
+journalctl -u pubg-clan-site-web --since "2 minutes ago" --no-pager
+journalctl -u pubg-clan-site-cron --since "2 minutes ago" --no-pager
+ss -ltnp | grep -E ":3000|:3001"
+```
+
+### Création des services systemd (web + cron)
+
+Exemple de service web: `/etc/systemd/system/pubg-clan-site-web.service`
+
+```ini
+[Unit]
+Description=PUBG Clan Site Web
+After=network.target
+
+[Service]
+Type=simple
+User=smk
+WorkingDirectory=/home/smk/apps/pubg-clan-site
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=ENABLE_CRON_JOBS=false
+ExecStart=/usr/bin/node /home/smk/apps/pubg-clan-site/.next/standalone/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Exemple de service cron: `/etc/systemd/system/pubg-clan-site-cron.service`
+
+```ini
+[Unit]
+Description=PUBG Clan Site Cron Worker
+After=network.target
+
+[Service]
+Type=simple
+User=smk
+WorkingDirectory=/home/smk/apps/pubg-clan-site
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=ENABLE_CRON_JOBS=true
+Environment=CRON_BOOTSTRAP_SECRET=change-me-long-random-string
+ExecStart=/usr/bin/node /home/smk/apps/pubg-clan-site/.next/standalone/server.js
+ExecStartPost=/bin/sh -lc 'sleep 2; curl -fsS -X POST http://127.0.0.1:3001/api/internal/cron/bootstrap -H "x-cron-bootstrap-secret: ${CRON_BOOTSTRAP_SECRET}"'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Activer et démarrer les services:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now pubg-clan-site-web
+sudo systemctl enable --now pubg-clan-site-cron
+sudo systemctl status pubg-clan-site-web --no-pager -l
+sudo systemctl status pubg-clan-site-cron --no-pager -l
+```
+
+Vérification endpoint cron interne:
+
+```bash
+curl -fsS http://127.0.0.1:3001/api/internal/cron/status \
+  -H "x-cron-bootstrap-secret: change-me-long-random-string"
 ```
 
 ### Batch CLI
@@ -513,11 +667,13 @@ curl 'http://localhost:3000/api/clans/1/telemetry/metrics?format=prometheus'
 
 ### Worker crash silencieux (exit immédiat après "job claimed")
 
-**Diagnostic :** regarder les logs de progression ajoutés dans le worker :
+**Diagnostic :** regarder les logs de progression ajoutés dans les workers :
 ```
 step reset-db      → crash ici = problème Prisma sur DELETE
 step resync-start  → crash ici = crash pendant parsing ou upsert Prisma
-step resync-done   → crash ici = crash pendant recalcul agrégats
+step resync-done   → resync terminé (si crash après, vérifier queue/worker agrégats)
+TelemetryAggregateWorker job claimed → job agrégats démarré
+TelemetryAggregateWorker job failed  → crash/erreur pendant recalcul agrégats
 ```
 
 Si aucun log de progression n'apparaît → crash pendant le `deleteMany` (rare, connexion DB ?).

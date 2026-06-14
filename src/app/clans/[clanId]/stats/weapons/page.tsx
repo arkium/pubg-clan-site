@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
@@ -340,86 +339,57 @@ export default function ClanTelemetryWeaponsPage() {
       </header>
 
       <section className="mb-6 space-y-4 rounded border border-gray-200 bg-white p-4">
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
-          <SegmentedControl
-            options={PERIOD_OPTIONS}
-            value={period}
-            onChange={setPeriod}
-            size="sm"
-            fullWidthOnMobile
-            className="w-full sm:w-auto"
+        <div className="grid gap-3 lg:grid-cols-3">
+          <MobileDropdownNav
+            id="weapon-period-dropdown"
+            label="Période"
+            variant="compact"
+            currentLabel={PERIOD_OPTIONS.find((p) => p.value === period)?.label ?? 'Semaine'}
+            visibilityClass="block"
+            items={PERIOD_OPTIONS.map((p) => ({
+              key: p.value,
+              label: p.label,
+              active: p.value === period,
+              onSelect: () => setPeriod(p.value),
+            }))}
           />
-          {!loading && payload?.matchCount !== undefined ? (
-            <p className="mt-2 text-xs text-gray-500">
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
-                {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
-              </span>
-              {' '}pris en compte
-            </p>
-          ) : null}
+
+          <MobileDropdownNav
+            id="weapon-category-dropdown"
+            label="Catégorie"
+            variant="compact"
+            currentLabel={availableCategories.find((c) => c.value === activeCategory)?.label ?? activeCategory}
+            visibilityClass="block"
+            items={availableCategories.map((c) => ({
+              key: c.value,
+              label: c.label,
+              active: c.value === activeCategory,
+              onSelect: () => setActiveCategory(c.value),
+            }))}
+          />
+
+          <MobileDropdownNav
+            id="weapon-player-dropdown"
+            label="Joueur"
+            variant="compact"
+            currentLabel={activePlayer}
+            visibilityClass="block"
+            items={availablePlayers.map((p) => ({
+              key: p.value,
+              label: p.label,
+              active: p.value === activePlayer,
+              onSelect: () => setActivePlayer(p.value),
+            }))}
+          />
         </div>
 
-        {!loading && payload && availableCategories.length > 1 ? (
-          <>
-            <hr className="border-gray-200" />
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Catégorie</p>
-              <MobileDropdownNav
-                id="weapon-category-dropdown"
-                label="Catégorie"
-                currentLabel={availableCategories.find((c) => c.value === activeCategory)?.label ?? activeCategory}
-                visibilityClass="lg:hidden"
-                items={availableCategories.map((c) => ({
-                  key: c.value,
-                  label: c.label,
-                  active: c.value === activeCategory,
-                  onSelect: () => setActiveCategory(c.value),
-                }))}
-              />
-              <div className="hidden lg:block">
-                <SegmentedControl
-                  options={availableCategories}
-                  value={activeCategory}
-                  onChange={setActiveCategory}
-                  size="sm"
-                  wrap
-                  className="w-auto"
-                />
-              </div>
-            </div>
-          </>
-        ) : null}
-
-        {!loading && payload && availablePlayers.length > 1 ? (
-          <>
-            <hr className="border-gray-200" />
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Joueur</p>
-              <MobileDropdownNav
-                id="weapon-player-dropdown"
-                label="Joueur"
-                currentLabel={activePlayer}
-                visibilityClass="lg:hidden"
-                items={availablePlayers.map((p) => ({
-                  key: p.value,
-                  label: p.label,
-                  active: p.value === activePlayer,
-                  onSelect: () => setActivePlayer(p.value),
-                }))}
-              />
-              <div className="hidden lg:block">
-                <SegmentedControl
-                  options={availablePlayers}
-                  value={activePlayer}
-                  onChange={setActivePlayer}
-                  size="sm"
-                  wrap
-                  className="w-auto"
-                />
-              </div>
-            </div>
-          </>
+        {!loading && payload?.matchCount !== undefined ? (
+          <p className="text-xs text-gray-500">
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+              {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
+            </span>
+            {' '}pris en compte
+          </p>
         ) : null}
       </section>
 

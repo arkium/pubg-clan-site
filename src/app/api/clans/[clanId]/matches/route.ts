@@ -22,7 +22,11 @@ function parseClanId(clanId: string) {
 }
 
 function parsePeriod(period: string | null): SquadPeriod {
-  return period === 'month' ? 'month' : 'week'
+  if (period === 'month' || period === 'month-1' || period === 'month-2') {
+    return period
+  }
+
+  return 'week'
 }
 
 function getDateRangeForPeriod(period: SquadPeriod): { gte: Date; lte: Date } {
@@ -42,8 +46,9 @@ function getDateRangeForPeriod(period: SquadPeriod): { gte: Date; lte: Date } {
     return { gte: monday, lte: sunday }
   }
 
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
-  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  const monthOffset = period === 'month' ? 0 : period === 'month-1' ? -1 : -2
+  const startDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1, 0, 0, 0, 0)
+  const endDate = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0, 23, 59, 59, 999)
 
   return { gte: startDate, lte: endDate }
 }

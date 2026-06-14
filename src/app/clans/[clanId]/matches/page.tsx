@@ -25,7 +25,10 @@ function parseClanId(value: string | string[] | undefined) {
 }
 
 function periodLabel(period: SquadPeriod) {
-  return period === 'week' ? 'Semaine' : 'Mois'
+  if (period === 'week') return 'Semaine'
+  if (period === 'month') return 'Mois'
+  if (period === 'month-1') return 'Mois-1'
+  return 'Mois-2'
 }
 
 function formatDuration(totalSeconds: number) {

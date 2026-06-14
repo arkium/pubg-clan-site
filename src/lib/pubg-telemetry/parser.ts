@@ -1703,6 +1703,11 @@ export async function parseTelemetrySnapshotFromStream(
     throw new Error('Telemetry max bytes must be greater than 0')
   }
 
+  // Defensive guards for malformed or hostile payloads. Very deep nesting can
+  // trigger RangeError: Maximum call stack size exceeded inside JSON.parse.
+  const MAX_EVENT_OBJECT_DEPTH = 80
+  const MAX_EVENT_OBJECT_CHARS = 2_000_000
+
   const accumulator = createTelemetryAccumulator(options)
   const reader = stream.getReader()
   const decoder = new TextDecoder()
@@ -1711,6 +1716,7 @@ export async function parseTelemetrySnapshotFromStream(
   let arrayStarted = false
   let arrayClosed = false
   let objectDepth = 0
+  let objectArrayDepth = 0
   let inString = false
   let escapeNext = false
   let currentObject = ''
@@ -1752,6 +1758,7 @@ export async function parseTelemetrySnapshotFromStream(
 
         if (character === '{') {
           objectDepth = 1
+          objectArrayDepth = 0
           currentObject = '{'
           inString = false
           escapeNext = false
@@ -1762,6 +1769,12 @@ export async function parseTelemetrySnapshotFromStream(
       }
 
       currentObject += character
+
+      if (currentObject.length > MAX_EVENT_OBJECT_CHARS) {
+        throw new Error(
+          `Telemetry stream event object is too large (${currentObject.length} chars)`
+        )
+      }
 
       if (inString) {
         if (escapeNext) {
@@ -1788,13 +1801,31 @@ export async function parseTelemetrySnapshotFromStream(
 
       if (character === '{') {
         objectDepth += 1
+        if (objectDepth + objectArrayDepth > MAX_EVENT_OBJECT_DEPTH) {
+          throw new Error(
+            `Telemetry stream event object exceeds nesting depth (${objectDepth + objectArrayDepth})`
+          )
+        }
+        continue
+      }
+
+      if (character === '[') {
+        objectArrayDepth += 1
+        if (objectDepth + objectArrayDepth > MAX_EVENT_OBJECT_DEPTH) {
+          throw new Error(
+            `Telemetry stream event object exceeds nesting depth (${objectDepth + objectArrayDepth})`
+          )
+        }
         continue
       }
 
       if (character === '}') {
         objectDepth -= 1
+        if (objectDepth < 0) {
+          throw new Error('Telemetry stream contains an invalid JSON object structure')
+        }
 
-        if (objectDepth === 0) {
+        if (objectDepth === 0 && objectArrayDepth === 0) {
           let parsedEvent: unknown
           try {
             parsedEvent = JSON.parse(currentObject)
@@ -1804,8 +1835,18 @@ export async function parseTelemetrySnapshotFromStream(
 
           applyTelemetryEvent(accumulator, parsedEvent)
           currentObject = ''
+          objectArrayDepth = 0
           inString = false
           escapeNext = false
+        }
+
+        continue
+      }
+
+      if (character === ']') {
+        objectArrayDepth -= 1
+        if (objectArrayDepth < 0) {
+          throw new Error('Telemetry stream contains an invalid JSON array structure')
         }
       }
     }
@@ -1835,7 +1876,7 @@ export async function parseTelemetrySnapshotFromStream(
     throw new Error('Telemetry stream is empty')
   }
 
-  if (objectDepth !== 0 || inString || escapeNext) {
+  if (objectDepth !== 0 || objectArrayDepth !== 0 || inString || escapeNext) {
     throw new Error('Telemetry stream ended before JSON object was fully parsed')
   }
 

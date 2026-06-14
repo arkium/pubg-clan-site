@@ -72,6 +72,8 @@ export default function TelemetryMatchesPage() {
           options={[
             { value: 'week', label: 'Semaine' },
             { value: 'month', label: 'Mois' },
+            { value: 'month-1', label: 'Mois-1' },
+            { value: 'month-2', label: 'Mois-2' },
           ]}
           value={period}
           onChange={setPeriod}

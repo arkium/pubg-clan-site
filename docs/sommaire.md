@@ -17,6 +17,13 @@ Cette page centralise la documentation du projet sur une seule vue.
 
 ## Index par document
 
+### Documents canoniques
+
+- [Référence complète télémétrie PUBG](telemetrie-reference.md)
+  - Document canonique: architecture, workers, variables, commandes DEV/PROD, troubleshooting
+
+### Documentation fonctionnelle
+
 - [Calcul leaderboard](leaderboard-calcul.md)
   - Source des données, période, tri, K/M, distinctions, progression, all time
 - [Calcul matchs clan](matchs-clan-calcul.md)
@@ -39,6 +46,9 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Tokens, layout, panneaux, bonnes pratiques
 - [Showcase composants](composants-showcase.html)
   - Démo visuelle des composants et styles
+
+### Historique télémétrie (docs conservées)
+
 - [Télémétrie matchs clan](telemetrie-matchs-clan.md)
   - Données exploitables depuis l'API télémétrie PUBG, idées de stats, contraintes techniques et modèle de stockage
 - [Déploiement télémétrie matchs clan](telemetrie-matchs-clan-deploiement.md)

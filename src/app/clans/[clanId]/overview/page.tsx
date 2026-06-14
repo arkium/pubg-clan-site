@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useClanOverview } from '@/hooks/useClanOverview'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import type { ClanMatchesResponse } from '@/types/squad-matches'
 
 type DiffResult = {
   pubgClanId: string
@@ -17,6 +19,38 @@ type DiffResult = {
   inSiteOnly: Array<{ memberId: number; displayName: string; pubgAccountId: string }>
   unverified: Array<{ memberId: number; displayName: string }>
 }
+
+type OverviewPeriod = 'week' | 'month' | 'all'
+
+type TopPerformer = {
+  memberId: number
+  displayName: string
+  value: number
+  matchesPlayed: number
+} | null
+
+type OverviewTrackedSnapshot = {
+  aggregated: {
+    totalKills: number
+    totalDamage: number
+    totalAssists: number
+    totalRevives: number
+    matchesPlayed: number
+    matchesWon: number
+    winRate: number
+  }
+  topPerformers: {
+    kills: TopPerformer
+    damage: TopPerformer
+    winRate: TopPerformer
+  }
+}
+
+const OVERVIEW_PERIOD_OPTIONS: Array<{ value: OverviewPeriod; label: string }> = [
+  { value: 'week', label: 'Semaine' },
+  { value: 'month', label: 'Mois' },
+  { value: 'all', label: 'Tous' },
+]
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -51,6 +85,34 @@ function fmtRelative(value: string | Date | null) {
   if (hours < 24) return `il y a ${hours}h`
   const days = Math.floor(hours / 24)
   return `il y a ${days} jour${days > 1 ? 's' : ''}`
+}
+
+function getPeriodDateRangeLabel(period: Exclude<OverviewPeriod, 'all'>) {
+  const now = new Date()
+
+  if (period === 'week') {
+    const day = now.getDay()
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+    const monday = new Date(now)
+    monday.setDate(diff)
+    monday.setHours(0, 0, 0, 0)
+
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+
+    return `du ${fmtDate(monday)} au ${fmtDate(sunday)}`
+  }
+
+  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+  return `du ${fmtDate(start)} au ${fmtDate(end)}`
+}
+
+function periodTitle(period: OverviewPeriod) {
+  if (period === 'week') return 'Semaine'
+  if (period === 'month') return 'Mois'
+  return 'Tous'
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -96,6 +158,10 @@ export default function ClanOverviewPage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
 
   const { data, loading, error } = useClanOverview(clanId)
+  const [selectedPeriod, setSelectedPeriod] = useState<OverviewPeriod>('all')
+  const [periodSnapshot, setPeriodSnapshot] = useState<OverviewTrackedSnapshot | null>(null)
+  const [periodLoading, setPeriodLoading] = useState(false)
+  const [periodError, setPeriodError] = useState('')
 
   const [diff, setDiff] = useState<DiffResult | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
@@ -125,6 +191,119 @@ export default function ClanOverviewPage() {
     }
   }
 
+  useEffect(() => {
+    if (!clanId || selectedPeriod === 'all') {
+      setPeriodSnapshot(null)
+      setPeriodError('')
+      setPeriodLoading(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function fetchPeriodSnapshot() {
+      try {
+        setPeriodLoading(true)
+        setPeriodError('')
+
+        const response = await fetch(`/api/clans/${clanId}/matches?period=${selectedPeriod}`)
+        const payload = (await response.json()) as ClanMatchesResponse | { error?: string }
+
+        if (!response.ok) {
+          throw new Error(payload && 'error' in payload ? payload.error ?? 'Erreur API' : 'Erreur API')
+        }
+
+        const matchesPayload = payload as ClanMatchesResponse
+        const matchesWon = matchesPayload.squads.filter((match) => match.isWin).length
+        const totalAssists = matchesPayload.squads.reduce((sum, match) => sum + match.totalAssists, 0)
+        const totalRevives = matchesPayload.squads.reduce((sum, match) => sum + match.totalRevives, 0)
+
+        const winRateByMember = new Map<
+          number,
+          { memberId: number; displayName: string; matchesPlayed: number; wins: number }
+        >()
+
+        for (const match of matchesPayload.squads) {
+          for (const member of match.members) {
+            const current = winRateByMember.get(member.memberId) ?? {
+              memberId: member.memberId,
+              displayName: member.displayName,
+              matchesPlayed: 0,
+              wins: 0,
+            }
+            current.matchesPlayed += 1
+            current.wins += match.isWin ? 1 : 0
+            winRateByMember.set(member.memberId, current)
+          }
+        }
+
+        const bestWinRate = Array.from(winRateByMember.values())
+          .filter((row) => row.matchesPlayed > 0)
+          .sort((left, right) => {
+            const leftRate = left.wins / left.matchesPlayed
+            const rightRate = right.wins / right.matchesPlayed
+            if (rightRate !== leftRate) return rightRate - leftRate
+            return right.matchesPlayed - left.matchesPlayed
+          })[0]
+
+        if (!cancelled) {
+          setPeriodSnapshot({
+            aggregated: {
+              totalKills: matchesPayload.stats.totalKills,
+              totalDamage: matchesPayload.stats.totalDamage,
+              totalAssists,
+              totalRevives,
+              matchesPlayed: matchesPayload.stats.matchCount,
+              matchesWon,
+              winRate: matchesPayload.stats.winRate,
+            },
+            topPerformers: {
+              kills: matchesPayload.topPerformers.kills[0]
+                ? {
+                    memberId: matchesPayload.topPerformers.kills[0].memberId,
+                    displayName: matchesPayload.topPerformers.kills[0].displayName,
+                    value: matchesPayload.topPerformers.kills[0].totalKills,
+                    matchesPlayed: matchesPayload.topPerformers.kills[0].matchesPlayed,
+                  }
+                : null,
+              damage: matchesPayload.topPerformers.damage[0]
+                ? {
+                    memberId: matchesPayload.topPerformers.damage[0].memberId,
+                    displayName: matchesPayload.topPerformers.damage[0].displayName,
+                    value: matchesPayload.topPerformers.damage[0].totalDamage,
+                    matchesPlayed: matchesPayload.topPerformers.damage[0].matchesPlayed,
+                  }
+                : null,
+              winRate: bestWinRate
+                ? {
+                    memberId: bestWinRate.memberId,
+                    displayName: bestWinRate.displayName,
+                    value: bestWinRate.wins / bestWinRate.matchesPlayed,
+                    matchesPlayed: bestWinRate.matchesPlayed,
+                  }
+                : null,
+            },
+          })
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPeriodSnapshot(null)
+          setPeriodError(err instanceof Error ? err.message : 'Erreur de chargement des statistiques')
+        }
+      } finally {
+        if (!cancelled) {
+          setPeriodLoading(false)
+        }
+      }
+    }
+
+    void fetchPeriodSnapshot()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clanId, selectedPeriod])
+
   if (!clanId) return null
 
   const clan = data?.clan
@@ -152,6 +331,12 @@ export default function ClanOverviewPage() {
       winRate: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
     }
   } | null
+
+  const activeTrackedSnapshot =
+    selectedPeriod === 'all' ? tracked : periodSnapshot
+
+  const analysisRangeLabel =
+    selectedPeriod === 'all' ? 'historique complet' : getPeriodDateRangeLabel(selectedPeriod)
 
   const memberCountGap =
     typeof pubg?.memberCount === 'number' && typeof tracked?.membersCount === 'number'
@@ -280,27 +465,82 @@ export default function ClanOverviewPage() {
 
           {/* Bloc 2 — Agrégats all-time */}
           {tracked && (
-            <section className="app-panel p-6">
-              <h2 className="mb-4 text-base font-semibold text-gray-900">
-                Statistiques all-time ({tracked.membersCount} membres trackés)
-              </h2>
+            <section className="app-panel relative overflow-hidden p-6">
+              <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-cyan-500/10 blur-2xl" />
+              <div className="pointer-events-none absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-emerald-500/10 blur-2xl" />
 
-              <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="relative mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Statistiques clan ({tracked.membersCount} membres trackés)
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Période: <span className="font-semibold text-gray-900">{periodTitle(selectedPeriod)}</span>
+                    {' · '}Analyse {analysisRangeLabel}
+                    {' · '}
+                    <span className="font-semibold text-gray-900">
+                      {fmtNum(activeTrackedSnapshot?.aggregated.matchesPlayed ?? 0)} matchs
+                    </span>
+                  </p>
+                </div>
+
+                <SegmentedControl
+                  options={OVERVIEW_PERIOD_OPTIONS}
+                  value={selectedPeriod}
+                  onChange={setSelectedPeriod}
+                  size="sm"
+                  fullWidthOnMobile
+                  className="shrink-0"
+                />
+              </div>
+
+              {periodError && (
+                <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {periodError}
+                </div>
+              )}
+
+              {periodLoading && selectedPeriod !== 'all' && (
+                <p className="mb-4 text-sm text-gray-500">Chargement des statistiques de période...</p>
+              )}
+
+              <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {[
-                  { label: 'Kills', value: fmtNum(tracked.aggregated.totalKills) },
-                  { label: 'Dégâts', value: fmtNum(tracked.aggregated.totalDamage) },
-                  { label: 'Matchs', value: fmtNum(tracked.aggregated.matchesPlayed) },
-                  { label: 'Victoires', value: fmtNum(tracked.aggregated.matchesWon) },
-                  { label: 'Win rate', value: fmtPct(tracked.aggregated.winRate) },
-                  { label: 'Assists', value: fmtNum(tracked.aggregated.totalAssists) },
-                  { label: 'Relèves', value: fmtNum(tracked.aggregated.totalRevives) },
+                  {
+                    label: 'Kills',
+                    value: fmtNum(activeTrackedSnapshot?.aggregated.totalKills ?? 0),
+                  },
+                  {
+                    label: 'Dégâts',
+                    value: fmtNum(activeTrackedSnapshot?.aggregated.totalDamage ?? 0),
+                  },
+                  {
+                    label: 'Matchs',
+                    value: fmtNum(activeTrackedSnapshot?.aggregated.matchesPlayed ?? 0),
+                  },
+                  {
+                    label: 'Victoires',
+                    value: fmtNum(activeTrackedSnapshot?.aggregated.matchesWon ?? 0),
+                  },
+                  {
+                    label: 'Win rate',
+                    value: fmtPct(activeTrackedSnapshot?.aggregated.winRate ?? 0),
+                  },
+                  {
+                    label: 'Assists',
+                    value: fmtNum(activeTrackedSnapshot?.aggregated.totalAssists ?? 0),
+                  },
+                  {
+                    label: 'Relèves',
+                    value: fmtNum(activeTrackedSnapshot?.aggregated.totalRevives ?? 0),
+                  },
                 ].map(({ label, value }) => (
                   <div
                     key={label}
-                    className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
+                    className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm"
                   >
-                    <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">{label}</p>
-                    <p className="text-lg font-bold tabular-nums text-gray-900">{value}</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+                    <p className="mt-2 text-right text-2xl font-black tabular-nums text-gray-900">{value}</p>
                   </div>
                 ))}
               </div>
@@ -309,17 +549,17 @@ export default function ClanOverviewPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <TopPerformerCard
                   label="Top Killer"
-                  performer={tracked.topPerformers.kills}
+                  performer={activeTrackedSnapshot?.topPerformers.kills ?? null}
                   formatValue={(v) => `${fmtNum(v)} kills`}
                 />
                 <TopPerformerCard
                   label="Top Damage"
-                  performer={tracked.topPerformers.damage}
+                  performer={activeTrackedSnapshot?.topPerformers.damage ?? null}
                   formatValue={(v) => `${fmtNum(v)} dégâts`}
                 />
                 <TopPerformerCard
                   label="Meilleur Win Rate"
-                  performer={tracked.topPerformers.winRate}
+                  performer={activeTrackedSnapshot?.topPerformers.winRate ?? null}
                   formatValue={fmtPct}
                 />
               </div>

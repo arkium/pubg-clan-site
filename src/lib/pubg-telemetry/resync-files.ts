@@ -6,19 +6,77 @@ import type { Readable } from 'node:stream'
 import { syncTelemetryForSquadMatchFromStream } from '@/lib/pubg-telemetry/manual-sync'
 
 function nodeReadableToWebStream(readable: Readable): ReadableStream<Uint8Array> {
+  const toUint8Array = (chunk: unknown): Uint8Array => {
+    if (chunk instanceof Uint8Array) return chunk
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(chunk)) {
+      return new Uint8Array(chunk)
+    }
+    if (typeof chunk === 'string') {
+      return new TextEncoder().encode(chunk)
+    }
+    throw new Error(`Unsupported stream chunk type: ${typeof chunk}`)
+  }
+
+  let closed = false
+  let controllerRef: ReadableStreamDefaultController<Uint8Array> | null = null
+
+  const cleanup = () => {
+    readable.off('readable', onReadable)
+    readable.off('end', onEnd)
+    readable.off('error', onError)
+  }
+
+  const onError = (err: unknown) => {
+    if (closed) return
+    closed = true
+    cleanup()
+    controllerRef?.error(err)
+    controllerRef = null
+  }
+
+  const onEnd = () => {
+    if (closed) return
+    closed = true
+    cleanup()
+    controllerRef?.close()
+    controllerRef = null
+  }
+
+  const drain = () => {
+    const controller = controllerRef
+    if (!controller || closed) return
+    try {
+      while ((controller.desiredSize ?? 1) > 0) {
+        const chunk = readable.read() as unknown
+        if (chunk === null) break
+        controller.enqueue(toUint8Array(chunk))
+      }
+    } catch (err) {
+      onError(err)
+    }
+  }
+
+  const onReadable = () => {
+    drain()
+  }
+
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      readable.on('data', (chunk: Buffer | Uint8Array) => {
-        controller.enqueue(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk))
-        readable.pause()
-      })
-      readable.on('end', () => controller.close())
-      readable.on('error', (err) => controller.error(err))
+      controllerRef = controller
+      readable.on('readable', onReadable)
+      readable.on('end', onEnd)
+      readable.on('error', onError)
+      // Drain immediately when data is already buffered.
+      drain()
     },
     pull() {
-      readable.resume()
+      // Required when backpressure paused enqueueing while data was still buffered.
+      drain()
     },
     cancel() {
+      closed = true
+      cleanup()
+      controllerRef = null
       readable.destroy()
     },
   })

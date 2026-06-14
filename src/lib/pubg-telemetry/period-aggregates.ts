@@ -128,6 +128,23 @@ function getTelemetryAggregateDelegates(): TelemetryAggregateDelegates {
   return prisma as unknown as TelemetryAggregateDelegates
 }
 
+function resolveAggregateWriteBatchSize(): number {
+  const parsed = Number(process.env.TELEMETRY_AGGREGATES_WRITE_BATCH_SIZE ?? '250')
+  if (!Number.isFinite(parsed) || parsed < 10 || parsed > 5000) {
+    return 250
+  }
+  return Math.floor(parsed)
+}
+
+function chunkRows<T>(rows: T[], size: number): T[][] {
+  if (rows.length === 0) return []
+  const chunks: T[][] = []
+  for (let i = 0; i < rows.length; i += size) {
+    chunks.push(rows.slice(i, i + size))
+  }
+  return chunks
+}
+
 function getISOWeek(date: Date): number {
   const tmp = new Date(date.getTime())
   tmp.setHours(0, 0, 0, 0)
@@ -640,6 +657,7 @@ async function recalculateTelemetryPeriodForClan(
   }
 
   const telemetryDelegates = getTelemetryAggregateDelegates()
+  const writeBatchSize = resolveAggregateWriteBatchSize()
 
   const memberTelemetryRows = Array.from(memberAggregates.entries()).map(([memberId, aggregate]) => {
     const matchesPlayed = Math.max(aggregate.matchesPlayed, 1)
@@ -741,9 +759,11 @@ async function recalculateTelemetryPeriodForClan(
     })
 
     if (memberTelemetryRows.length > 0) {
-      await telemetryDelegates.memberTelemetryStats.createMany({
-        data: memberTelemetryRows,
-      })
+      for (const chunk of chunkRows(memberTelemetryRows, writeBatchSize)) {
+        await telemetryDelegates.memberTelemetryStats.createMany({
+          data: chunk,
+        })
+      }
     }
 
     await telemetryDelegates.memberWeaponStats.deleteMany({
@@ -756,9 +776,11 @@ async function recalculateTelemetryPeriodForClan(
     })
 
     if (memberWeaponRows.length > 0) {
-      await telemetryDelegates.memberWeaponStats.createMany({
-        data: memberWeaponRows,
-      })
+      for (const chunk of chunkRows(memberWeaponRows, writeBatchSize)) {
+        await telemetryDelegates.memberWeaponStats.createMany({
+          data: chunk,
+        })
+      }
     }
 
     await telemetryDelegates.clanSynergyTelemetryStats.deleteMany({
@@ -769,9 +791,11 @@ async function recalculateTelemetryPeriodForClan(
     })
 
     if (clanSynergyRows.length > 0) {
-      await telemetryDelegates.clanSynergyTelemetryStats.createMany({
-        data: clanSynergyRows,
-      })
+      for (const chunk of chunkRows(clanSynergyRows, writeBatchSize)) {
+        await telemetryDelegates.clanSynergyTelemetryStats.createMany({
+          data: chunk,
+        })
+      }
     }
   })
 

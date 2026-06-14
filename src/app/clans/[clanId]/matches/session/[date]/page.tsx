@@ -21,7 +21,11 @@ function parseClanId(value: string | string[] | undefined) {
 }
 
 function parsePeriod(value: string | null): SquadPeriod {
-  return value === 'month' ? 'month' : 'week'
+  if (value === 'month' || value === 'month-1' || value === 'month-2') {
+    return value
+  }
+
+  return 'week'
 }
 
 function parseGameMode(value: string | null) {

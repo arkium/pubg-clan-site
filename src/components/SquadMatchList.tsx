@@ -20,6 +20,13 @@ interface SquadMatchListProps {
   telemetryFileStatusByMatchId?: Record<string, 'available' | 'missing' | 'oversized' | 'unknown'>
 }
 
+function periodLabel(period: SquadPeriod) {
+  if (period === 'week') return 'semaine'
+  if (period === 'month') return 'mois'
+  if (period === 'month-1') return 'mois-1'
+  return 'mois-2'
+}
+
 function formatMatchDay(value: string) {
   const date = new Date(value)
   return date.toLocaleDateString('fr-FR', {
@@ -151,7 +158,7 @@ export default function SquadMatchList({
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold text-gray-900">{title}</h2>
         <p className="text-sm text-gray-600">
-          {emptyMessage ?? `Aucun match en squad pour le clan #${clanId} sur la période ${period === 'week' ? 'semaine' : 'mois'}.`}
+          {emptyMessage ?? `Aucun match en squad pour le clan #${clanId} sur la période ${periodLabel(period)}.`}
         </p>
       </section>
     )

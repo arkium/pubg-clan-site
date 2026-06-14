@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import WeaponIcon from '@/components/ui/WeaponIcon'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 const WEAPON_KEYS = [
   'WeapAK47_C',
@@ -203,26 +205,12 @@ export default function WeaponLabelsSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
-      <section className="app-panel mb-4 px-4 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Alias des armes PUBG</h1>
-            <p className="mt-2 max-w-3xl text-sm text-gray-600">
-              Personnalise les noms affiches dans les pages telemetry (clan, membre, detail match).
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/settings/weapon-categories" className="app-btn app-btn--md app-btn--secondary">
-              Catégories armes
-            </Link>
-            <Link href="/settings/map-labels" className="app-btn app-btn--md app-btn--secondary">
-              Alias cartes
-            </Link>
-            <Link href="/settings/login-welcome" className="app-btn app-btn--md app-btn--secondary">
-              Accueil login
-            </Link>
-          </div>
-        </div>
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Alias des armes PUBG"
+          subtitle="Personnalise les noms affiches dans les pages telemetry (clan, membre, detail match)."
+        />
+        <SettingsSectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">

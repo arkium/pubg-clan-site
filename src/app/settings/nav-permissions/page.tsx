@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { invalidateNavPermissionsCache } from '@/hooks/useNavPermissions'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 import {
   NAV_REGISTRY,
   NAV_SECTION_LABELS,
@@ -11,25 +13,28 @@ import {
   type NavSection,
   type NavItemDef,
 } from '@/lib/nav-permissions-registry'
+import { NAV_TARGET_SECTIONS, NAV_DEFAULT_TARGETS } from '@/lib/nav-permissions-service'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type PermissionMap = Record<string, NavRole>
 type PositionMap = Record<string, string[]>
+type LabelMap = Record<string, string>
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ROLES: NavRole[] = ['none', 'member', 'admin', 'owner']
+const ROLES: NavRole[] = ['none', 'member', 'admin', 'owner', 'hidden']
 
 const ROLE_META: Record<NavRole, { label: string; color: string; bg: string; border: string; dot: string }> = {
   none:   { label: 'Tous',    color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-300', dot: 'bg-slate-400' },
   member: { label: 'Membre',  color: 'text-sky-700',   bg: 'bg-sky-50',    border: 'border-sky-300',   dot: 'bg-sky-500'   },
   admin:  { label: 'Admin',   color: 'text-red-700',   bg: 'bg-red-50',    border: 'border-red-300',   dot: 'bg-red-500'   },
   owner:  { label: 'Owner',   color: 'text-amber-700', bg: 'bg-amber-50',  border: 'border-amber-400', dot: 'bg-amber-500' },
+  hidden: { label: 'Masqué',  color: 'text-slate-500', bg: 'bg-slate-200', border: 'border-slate-400', dot: 'bg-slate-500' },
 }
 
-const SECTION_ORDER: NavSection[] = ['clan-section', 'member-section', 'admin-menu', 'owner-menu']
+const SECTION_ORDER: NavSection[] = ['nav-primary', 'clan-section', 'member-section', 'admin-menu', 'owner-menu']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,6 +99,166 @@ function RoleSelector({ navKey, currentRole, defaultRole, disabled, onChange }: 
   )
 }
 
+// ─── Label editor inline ──────────────────────────────────────────────────────
+
+function LabelEditor({ navKey, currentLabel, defaultLabel, labelSaveState, onSave }: {
+  navKey: string
+  currentLabel: string
+  defaultLabel: string
+  labelSaveState: SaveState
+  onSave: (navKey: string, label: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [inputVal, setInputVal] = useState(currentLabel)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const isOverridden = currentLabel !== defaultLabel
+
+  useEffect(() => {
+    if (!editing) setInputVal(currentLabel)
+  }, [currentLabel, editing])
+
+  function startEdit() {
+    setInputVal(currentLabel)
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  function cancelEdit() {
+    setEditing(false)
+    setInputVal(currentLabel)
+  }
+
+  function commitEdit() {
+    setEditing(false)
+    const trimmed = inputVal.trim()
+    if (trimmed && trimmed !== currentLabel) {
+      onSave(navKey, trimmed)
+    }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+    if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          autoFocus
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={onKeyDown}
+          maxLength={60}
+          className="h-6 min-w-0 flex-1 rounded border border-blue-400 bg-blue-50 px-2 text-sm font-semibold text-slate-900 outline-none ring-1 ring-blue-400 focus:ring-2"
+        />
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); cancelEdit() }}
+          className="shrink-0 text-[10px] text-slate-400 hover:text-slate-700"
+          title="Annuler (Échap)"
+        >✕</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="font-semibold text-sm text-slate-900">{currentLabel}</span>
+      {isOverridden && (
+        <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
+          Renommé
+        </span>
+      )}
+      {labelSaveState === 'saving' && <span className="text-[10px] text-slate-400 italic">…</span>}
+      {labelSaveState === 'saved' && <span className="text-[10px] text-emerald-600">✓</span>}
+      {labelSaveState === 'error' && <span className="text-[10px] text-red-600">✗</span>}
+      <button
+        type="button"
+        onClick={startEdit}
+        className="shrink-0 rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
+        title="Renommer ce bouton"
+      >
+        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
+          <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
+        </svg>
+      </button>
+      {isOverridden && (
+        <button
+          type="button"
+          onClick={() => onSave(navKey, defaultLabel)}
+          className="shrink-0 rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-500"
+          title={`Remettre le titre par défaut : « ${defaultLabel} »`}
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
+            <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ─── Target selector ─────────────────────────────────────────────────────────
+
+function TargetSelector({ navKey, currentTargetKey, labels, saveState, onSave }: {
+  navKey: string
+  currentTargetKey: string
+  labels: LabelMap
+  saveState: SaveState
+  onSave: (navKey: string, targetNavKey: string) => void
+}) {
+  const targetSection = NAV_TARGET_SECTIONS[navKey]
+  if (!targetSection) return null
+
+  const options = NAV_REGISTRY.filter((i) => i.section === targetSection)
+  const defaultTarget = NAV_DEFAULT_TARGETS[navKey] ?? ''
+  const isOverridden = currentTargetKey !== defaultTarget
+
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-lg border border-sky-100 bg-sky-50/60 px-2.5 py-2">
+      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 text-sky-400" fill="currentColor">
+        <path d="M1 8a7 7 0 1 1 14 0A7 7 0 0 1 1 8Zm7.75-4.25a.75.75 0 0 0-1.5 0V8c0 .414.336.75.75.75h3.25a.75.75 0 0 0 0-1.5h-2.5V3.75Z" />
+      </svg>
+      <span className="shrink-0 text-[11px] font-medium text-sky-700">Destination :</span>
+      <select
+        value={currentTargetKey}
+        onChange={(e) => onSave(navKey, e.target.value)}
+        disabled={saveState === 'saving'}
+        className="min-w-0 flex-1 rounded border border-sky-200 bg-white px-2 py-0.5 text-[12px] font-semibold text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-300 disabled:opacity-50"
+      >
+        {options.map((item) => (
+          <option key={item.navKey} value={item.navKey}>
+            {labels[item.navKey] ?? item.label}
+          </option>
+        ))}
+      </select>
+      {isOverridden && (
+        <span className="shrink-0 inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
+          Modifié
+        </span>
+      )}
+      {saveState === 'saving' && <span className="shrink-0 text-[10px] text-slate-400 italic">…</span>}
+      {saveState === 'saved'  && <span className="shrink-0 text-[10px] text-emerald-600">✓</span>}
+      {saveState === 'error'  && <span className="shrink-0 text-[10px] text-red-600">✗</span>}
+      {isOverridden && (
+        <button
+          type="button"
+          onClick={() => onSave(navKey, defaultTarget)}
+          className="shrink-0 rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition"
+          title="Remettre la destination par défaut"
+        >
+          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
+            <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Drag-and-drop row ────────────────────────────────────────────────────────
 
 function SortableRow({
@@ -101,11 +266,18 @@ function SortableRow({
   index,
   total,
   currentRole,
+  currentLabel,
+  currentTargetKey,
   saveState,
   feedback,
+  labelSaveState,
+  targetSaveState,
+  labels,
   isDragging,
   isDragOver,
   onRoleChange,
+  onLabelSave,
+  onTargetSave,
   onDragStart,
   onDragEnter,
   onDragEnd,
@@ -114,16 +286,23 @@ function SortableRow({
   index: number
   total: number
   currentRole: NavRole
+  currentLabel: string
+  currentTargetKey: string
   saveState: SaveState
   feedback: 'saved' | 'error' | null
+  labelSaveState: SaveState
+  targetSaveState: SaveState
+  labels: LabelMap
   isDragging: boolean
   isDragOver: boolean
   onRoleChange: (navKey: string, role: NavRole) => void
+  onLabelSave: (navKey: string, label: string) => void
+  onTargetSave: (navKey: string, targetNavKey: string) => void
   onDragStart: (navKey: string) => void
   onDragEnter: (navKey: string) => void
   onDragEnd: () => void
 }) {
-  const isOverridden = currentRole !== item.defaultRole
+  const isRoleOverridden = currentRole !== item.defaultRole
 
   return (
     <div
@@ -136,11 +315,11 @@ function SortableRow({
         'group flex items-start gap-3 rounded-xl border p-3 transition-all duration-150 select-none',
         isDragging ? 'opacity-40 scale-[0.98] cursor-grabbing' : 'cursor-grab',
         isDragOver ? 'border-blue-400 bg-blue-50 shadow-md ring-1 ring-blue-300' :
-          isOverridden ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-200 bg-slate-50/60',
+          isRoleOverridden ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-200 bg-slate-50/60',
       ].join(' ')}
     >
       {/* Drag handle */}
-      <div className="mt-0.5 flex shrink-0 flex-col items-center gap-1.5">
+      <div className="mt-0.5 shrink-0">
         <svg viewBox="0 0 20 20" className="h-4 w-4 text-slate-300 group-hover:text-slate-500 transition-colors" fill="currentColor">
           <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
           <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
@@ -155,11 +334,17 @@ function SortableRow({
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        {/* Header row */}
+        {/* Header: label editor + role badge */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold text-sm text-slate-900">{item.label}</span>
+          <LabelEditor
+            navKey={item.navKey}
+            currentLabel={currentLabel}
+            defaultLabel={item.label}
+            labelSaveState={labelSaveState}
+            onSave={onLabelSave}
+          />
           <RoleBadge role={currentRole} />
-          {isOverridden && (
+          {isRoleOverridden && (
             <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">
               Modifié
             </span>
@@ -188,9 +373,20 @@ function SortableRow({
             onChange={onRoleChange}
           />
         </div>
+
+        {/* Target selector (uniquement pour Dashboard et Mon clan) */}
+        {NAV_TARGET_SECTIONS[item.navKey] && (
+          <TargetSelector
+            navKey={item.navKey}
+            currentTargetKey={currentTargetKey}
+            labels={labels}
+            saveState={targetSaveState}
+            onSave={onTargetSave}
+          />
+        )}
       </div>
 
-      {/* Position indicator (total) */}
+      {/* Position counter */}
       <div className="mt-0.5 shrink-0 text-right">
         <span className="text-[10px] text-slate-400 tabular-nums">{index + 1} / {total}</span>
       </div>
@@ -204,12 +400,18 @@ function SectionCard({
   section,
   items,
   permissions,
+  labels,
+  targets,
   saveStates,
   feedbacks,
+  labelSaveStates,
+  targetSaveStates,
   positionSaveState,
   draggingKey,
   dragOverKey,
   onRoleChange,
+  onLabelSave,
+  onTargetSave,
   onDragStart,
   onDragEnter,
   onDragEnd,
@@ -217,34 +419,40 @@ function SectionCard({
   section: NavSection
   items: NavItemDef[]
   permissions: PermissionMap
+  labels: LabelMap
+  targets: Record<string, string>
   saveStates: Record<string, SaveState>
   feedbacks: Record<string, 'saved' | 'error' | null>
+  labelSaveStates: Record<string, SaveState>
+  targetSaveStates: Record<string, SaveState>
   positionSaveState: SaveState
   draggingKey: string | null
   dragOverKey: string | null
   onRoleChange: (navKey: string, role: NavRole) => void
+  onLabelSave: (navKey: string, label: string) => void
+  onTargetSave: (navKey: string, targetNavKey: string) => void
   onDragStart: (section: NavSection, navKey: string) => void
   onDragEnter: (navKey: string) => void
   onDragEnd: () => void
 }) {
-  const counts = { owner: 0, admin: 0, member: 0, none: 0 }
+  const counts: Record<NavRole, number> = { owner: 0, admin: 0, member: 0, none: 0, hidden: 0 }
   items.forEach((item) => { counts[permissions[item.navKey] ?? item.defaultRole]++ })
 
   return (
-    <section className="app-panel p-5 sm:p-6">
+    <section className="app-panel p-4 sm:p-5">
       {/* Section header */}
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
-          <h2 className="text-base font-bold text-slate-900">{NAV_SECTION_LABELS[section]}</h2>
+          <h2 className="text-sm font-bold text-slate-900">{NAV_SECTION_LABELS[section]}</h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            {items.length} élément{items.length > 1 ? 's' : ''} · Glisser-déposer pour réordonner
+            {items.length} élément{items.length > 1 ? 's' : ''} · Glisser pour réordonner · Crayon pour renommer
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {positionSaveState === 'saving' && <span className="text-xs text-slate-400 italic">Sauvegarde…</span>}
           {positionSaveState === 'saved' && <span className="text-xs text-emerald-600">✓ Ordre sauvegardé</span>}
           {positionSaveState === 'error' && <span className="text-xs text-red-600">✗ Erreur ordre</span>}
-          {(['owner', 'admin', 'member', 'none'] as NavRole[]).map((role) =>
+          {(['owner', 'admin', 'member', 'none', 'hidden'] as NavRole[]).map((role) =>
             counts[role] > 0 ? (
               <span key={role} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${ROLE_META[role].color} ${ROLE_META[role].bg} ${ROLE_META[role].border}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${ROLE_META[role].dot}`} />{counts[role]}
@@ -263,11 +471,18 @@ function SectionCard({
             index={index}
             total={items.length}
             currentRole={permissions[item.navKey] ?? item.defaultRole}
+            currentLabel={labels[item.navKey] ?? item.label}
+            currentTargetKey={targets[item.navKey] ?? NAV_DEFAULT_TARGETS[item.navKey] ?? ''}
             saveState={saveStates[item.navKey] ?? 'idle'}
             feedback={feedbacks[item.navKey] ?? null}
+            labelSaveState={labelSaveStates[item.navKey] ?? 'idle'}
+            targetSaveState={targetSaveStates[item.navKey] ?? 'idle'}
+            labels={labels}
             isDragging={draggingKey === item.navKey}
             isDragOver={dragOverKey === item.navKey && draggingKey !== item.navKey}
             onRoleChange={onRoleChange}
+            onLabelSave={onLabelSave}
+            onTargetSave={onTargetSave}
             onDragStart={(key) => onDragStart(section, key)}
             onDragEnter={onDragEnter}
             onDragEnd={onDragEnd}
@@ -286,12 +501,16 @@ export default function NavPermissionsPage() {
   const isOwner = permissions.includes('*')
 
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({})
+  const [labelMap, setLabelMap] = useState<LabelMap>({})
+  const [targetMap, setTargetMap] = useState<Record<string, string>>({})
+  const [targetSaveStates, setTargetSaveStates] = useState<Record<string, SaveState>>({})
   const [orderedSections, setOrderedSections] = useState<Record<NavSection, NavItemDef[]>>(
     () => Object.fromEntries(SECTION_ORDER.map((s) => [s, NAV_REGISTRY.filter((i) => i.section === s)])) as Record<NavSection, NavItemDef[]>
   )
   const [dataLoaded, setDataLoaded] = useState(false)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
   const [feedbacks, setFeedbacks] = useState<Record<string, 'saved' | 'error' | null>>({})
+  const [labelSaveStates, setLabelSaveStates] = useState<Record<string, SaveState>>({})
   const [positionSaveStates, setPositionSaveStates] = useState<Record<NavSection, SaveState>>(
     () => Object.fromEntries(SECTION_ORDER.map((s) => [s, 'idle'])) as Record<NavSection, SaveState>
   )
@@ -307,8 +526,10 @@ export default function NavPermissionsPage() {
     if (!authenticated || !isOwner) return
     fetch('/api/settings/nav-permissions')
       .then((r) => r.json())
-      .then((data: { roles: PermissionMap; positions: PositionMap }) => {
+      .then((data: { roles: PermissionMap; positions: PositionMap; labels: LabelMap; targets: Record<string, string> }) => {
         setPermissionMap(data.roles ?? {})
+        setLabelMap(data.labels ?? {})
+        setTargetMap(data.targets ?? {})
         const pos = data.positions ?? {}
         setOrderedSections(
           Object.fromEntries(
@@ -351,6 +572,71 @@ export default function NavPermissionsPage() {
         setSaveStates((prev) => ({ ...prev, [navKey]: 'idle' }))
         setFeedbacks((prev) => ({ ...prev, [navKey]: null }))
       }, 2000)
+    }
+  }
+
+  // ── Label change ─────────────────────────────────────────────────────────────
+
+  async function handleLabelSave(navKey: string, label: string) {
+    const prevLabel = labelMap[navKey] ?? NAV_REGISTRY.find((i) => i.navKey === navKey)?.label ?? ''
+    const defaultLabel = NAV_REGISTRY.find((i) => i.navKey === navKey)?.label ?? ''
+
+    // Optimistic: if restoring default, remove from map; otherwise set new value
+    if (label === defaultLabel || !label.trim()) {
+      setLabelMap((prev) => {
+        const next = { ...prev }
+        delete next[navKey]
+        return next
+      })
+    } else {
+      setLabelMap((prev) => ({ ...prev, [navKey]: label }))
+    }
+    setLabelSaveStates((prev) => ({ ...prev, [navKey]: 'saving' }))
+
+    try {
+      const r = await fetch('/api/settings/nav-permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'label', navKey, label }),
+      })
+      if (!r.ok) throw new Error()
+      setLabelSaveStates((prev) => ({ ...prev, [navKey]: 'saved' }))
+      invalidateNavPermissionsCache()
+    } catch {
+      // rollback
+      if (prevLabel && prevLabel !== defaultLabel) {
+        setLabelMap((prev) => ({ ...prev, [navKey]: prevLabel }))
+      } else {
+        setLabelMap((prev) => { const next = { ...prev }; delete next[navKey]; return next })
+      }
+      setLabelSaveStates((prev) => ({ ...prev, [navKey]: 'error' }))
+    } finally {
+      setTimeout(() => {
+        setLabelSaveStates((prev) => ({ ...prev, [navKey]: 'idle' }))
+      }, 2000)
+    }
+  }
+
+  // ── Target change ────────────────────────────────────────────────────────────
+
+  async function handleTargetSave(navKey: string, targetNavKey: string) {
+    const prev = targetMap[navKey] ?? NAV_DEFAULT_TARGETS[navKey] ?? ''
+    setTargetMap((m) => ({ ...m, [navKey]: targetNavKey }))
+    setTargetSaveStates((s) => ({ ...s, [navKey]: 'saving' }))
+    try {
+      const r = await fetch('/api/settings/nav-permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'target', navKey, targetNavKey }),
+      })
+      if (!r.ok) throw new Error()
+      setTargetSaveStates((s) => ({ ...s, [navKey]: 'saved' }))
+      invalidateNavPermissionsCache()
+    } catch {
+      setTargetMap((m) => ({ ...m, [navKey]: prev }))
+      setTargetSaveStates((s) => ({ ...s, [navKey]: 'error' }))
+    } finally {
+      setTimeout(() => setTargetSaveStates((s) => ({ ...s, [navKey]: 'idle' })), 2000)
     }
   }
 
@@ -446,22 +732,12 @@ export default function NavPermissionsPage() {
 
   return (
     <main className="app-container app-main">
-      {/* Header */}
-      <section className="app-panel mb-4 px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />Owner
-              </span>
-              <h1 className="text-lg font-bold text-slate-900">Permissions &amp; ordre de navigation</h1>
-            </div>
-            <p className="mt-1 text-sm text-slate-500">
-              Configurez le niveau d&apos;accès et l&apos;ordre d&apos;affichage de chaque bouton de navigation.
-              Les changements sont enregistrés automatiquement.
-            </p>
-          </div>
-        </div>
+      <section className="app-panel mb-5 p-4">
+        <SettingsPageHeader
+          title="Permissions &amp; ordre de navigation"
+          subtitle="Accès, ordre et titre de chaque bouton. Toutes les modifications sont enregistrées automatiquement."
+        />
+        <SettingsSectionNav section="owner-menu" />
 
         {/* Legend */}
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">
@@ -478,7 +754,13 @@ export default function NavPermissionsPage() {
           <span className="hidden sm:inline text-slate-300">·</span>
           <span className="flex items-center gap-1">
             <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-slate-400 text-[7px] text-white">✦</span>
-            Valeur par défaut du code
+            Valeur par défaut
+          </span>
+          <span className="flex items-center gap-1">
+            <svg viewBox="0 0 16 16" className="h-3 w-3 text-slate-400" fill="currentColor">
+              <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
+            </svg>
+            Crayon pour renommer
           </span>
           <span className="flex items-center gap-1">
             <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 text-slate-400" fill="currentColor">
@@ -496,7 +778,7 @@ export default function NavPermissionsPage() {
           <span className="text-sm text-slate-500">Chargement…</span>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {SECTION_ORDER.map((section) => {
             const items = orderedSections[section] ?? []
             if (items.length === 0) return null
@@ -506,12 +788,18 @@ export default function NavPermissionsPage() {
                 section={section}
                 items={items}
                 permissions={permissionMap}
+                labels={labelMap}
                 saveStates={saveStates}
                 feedbacks={feedbacks}
+                labelSaveStates={labelSaveStates}
                 positionSaveState={positionSaveStates[section] ?? 'idle'}
                 draggingKey={draggingKeyState}
                 dragOverKey={dragOverKeyState}
                 onRoleChange={handleRoleChange}
+                onLabelSave={handleLabelSave}
+                targets={targetMap}
+                targetSaveStates={targetSaveStates}
+                onTargetSave={handleTargetSave}
                 onDragStart={handleDragStart}
                 onDragEnter={handleDragEnter}
                 onDragEnd={handleDragEnd}

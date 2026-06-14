@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { PHASE_KEYS, DEFAULT_PHASE_LABELS, type PhaseKey } from '@/lib/phase-label-service'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 type PhaseLabels = Record<string, string>
 
@@ -134,23 +136,12 @@ export default function PhaseLabelSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
-      <section className="app-panel mb-4 px-4 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Alias des phases PUBG</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Personnalise les noms affichés pour chaque valeur <code className="rounded bg-slate-100 px-1 text-xs">isGame</code> dans les filtres, graphiques et tableaux de phases. Les alias apparaissent dans tous les sélecteurs de phase du site.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/settings/weapon-labels" className="app-btn app-btn--sm app-btn--secondary">
-              Alias armes
-            </Link>
-            <Link href="/settings/map-labels" className="app-btn app-btn--sm app-btn--secondary">
-              Alias cartes
-            </Link>
-          </div>
-        </div>
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Alias des phases PUBG"
+          subtitle="Personnalise les noms affichés pour chaque valeur isGame dans les filtres, graphiques et tableaux de phases."
+        />
+        <SettingsSectionNav section="admin-menu" />
       </section>
 
       {error ? (

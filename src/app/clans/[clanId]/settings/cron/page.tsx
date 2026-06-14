@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type CronAction =
@@ -304,20 +306,19 @@ export default function CronSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-6">
-      <header className="app-panel p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Owner Ops</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">Pilotage des cron</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Controle de sante, verification de la configuration, lancement manuel et historique des executions.
-        </p>
+      <section className="app-panel p-4">
+        <SettingsPageHeader
+          title="Pilotage des cron"
+          subtitle="Contrôle de santé, vérification de la configuration, lancement manuel et historique des exécutions."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
 
-        <div className="mt-3">
-          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(cronWorkerHealth.status)}`}>
-            {cronWorkerHealth.label}
-          </span>
-        </div>
-
-      </header>
+      <section className="app-panel p-4">
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(cronWorkerHealth.status)}`}>
+          {cronWorkerHealth.label}
+        </span>
+      </section>
 
       {error ? <section className="app-panel p-4 text-sm text-rose-800">{error}</section> : null}
 

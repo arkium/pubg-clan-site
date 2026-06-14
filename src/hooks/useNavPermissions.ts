@@ -9,6 +9,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 type NavPermissionsData = {
   roles: Record<string, NavRole>
   positions: Record<string, string[]>
+  labels: Record<string, string>
+  targets: Record<string, string>
 }
 
 type CacheEntry = {
@@ -45,7 +47,7 @@ export function invalidateNavPermissionsCache() {
   }
 }
 
-const EMPTY: NavPermissionsData = { roles: {}, positions: {} }
+const EMPTY: NavPermissionsData = { roles: {}, positions: {}, labels: {}, targets: {} }
 
 export function useNavPermissions(): NavPermissionsData {
   const [data, setData] = useState<NavPermissionsData>(() => readCache() ?? EMPTY)
@@ -63,6 +65,8 @@ export function useNavPermissions(): NavPermissionsData {
         const safe: NavPermissionsData = {
           roles: payload.roles ?? {},
           positions: payload.positions ?? {},
+          labels: payload.labels ?? {},
+          targets: payload.targets ?? {},
         }
         setData(safe)
         writeCache(safe)

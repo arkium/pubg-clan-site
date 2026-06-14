@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 interface QueueMetrics {
   queued: number
@@ -71,27 +73,33 @@ export default function TelemetryDashboard() {
   const failureRate = queue.total > 0 ? ((queue.failed / queue.total) * 100).toFixed(1) : 'N/A'
 
   return (
-    <main className="max-w-6xl mx-auto p-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Télémétrie - Tableau de bord</h1>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded"
-            />
-            <span>Actualisation auto (30s)</span>
-          </label>
-          <button
-            onClick={fetchMetrics}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-          >
-            Actualiser maintenant
-          </button>
-        </div>
-      </div>
+    <main className="app-container app-main flex-1 space-y-4">
+      <section className="app-panel p-4">
+        <SettingsPageHeader
+          title="Dashboard télémétrie"
+          subtitle="Métriques en temps réel de la queue de traitement télémétrie."
+          actions={
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded"
+                />
+                <span>Auto (30s)</span>
+              </label>
+              <button
+                onClick={fetchMetrics}
+                className="app-btn app-btn--sm app-btn--secondary"
+              >
+                Actualiser
+              </button>
+            </div>
+          }
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
 
       {/* Queue Overview */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">

@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 interface FailedJob {
   id: string
@@ -67,10 +69,16 @@ export default function TelemetryErrorsPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-4">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-4">Télémétrie - Logs d'erreurs</h1>
+    <main className="app-container app-main flex-1 space-y-4">
+      <section className="app-panel p-4">
+        <SettingsPageHeader
+          title="Logs d'erreurs télémétrie"
+          subtitle="Consultez et relancez les jobs échoués."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
 
+      <section className="app-panel p-4">
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => setFilter('all')}
@@ -105,7 +113,7 @@ export default function TelemetryErrorsPage() {
             Dernière semaine
           </button>
         </div>
-      </div>
+      </section>
 
       {filtered.length === 0 ? (
         <div className="border rounded-lg p-8 text-center text-gray-500">

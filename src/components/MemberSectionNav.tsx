@@ -7,6 +7,8 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import { useNavPermissions } from '@/hooks/useNavPermissions'
+import { getItemRole } from '@/lib/nav-permissions-registry'
 
 type MemberSectionNavProps = {
   memberId: number
@@ -15,6 +17,7 @@ type MemberSectionNavProps = {
 }
 
 type NavItem = {
+  navKey: string
   label: string
   href: string
 }
@@ -133,6 +136,22 @@ function renderMemberNavIcon(label: string) {
     )
   }
 
+  if (label === 'Récompenses') {
+    return (
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+        <path fill="currentColor" d="M10 2a4.5 4.5 0 0 0-4.5 4.5c0 1.68.92 3.14 2.28 3.92l-.3 1.58H6a.75.75 0 0 0 0 1.5h.97l-.22 1.25a.75.75 0 0 0 .74.88h5.02a.75.75 0 0 0 .74-.88L13.03 13.5H14a.75.75 0 0 0 0-1.5h-1.48l-.3-1.58A4.5 4.5 0 0 0 10 2Zm0 1.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Préférences notifs') {
+    return (
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+        <path fill="currentColor" d="M10 2.5a4.5 4.5 0 0 0-4.5 4.5V9c0 .8-.3 1.6-.8 2.2l-.7.8a1 1 0 0 0 .8 1.7h10.4a1 1 0 0 0 .8-1.7l-.7-.8A3.5 3.5 0 0 1 14.5 9V7A4.5 4.5 0 0 0 10 2.5Zm0 15a2.5 2.5 0 0 0 2.3-1.5H7.7A2.5 2.5 0 0 0 10 17.5Zm4.5-1.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm0-4v.5h.5v1h-.5V14h-1v-.5H13v-1h.5V12h1Z" />
+      </svg>
+    )
+  }
+
   return null
 }
 
@@ -142,6 +161,7 @@ export default function MemberSectionNav({
   showMemberIdentity = true,
 }: MemberSectionNavProps) {
   const pathname = usePathname()
+  const navPerms = useNavPermissions()
   const [memberName, setMemberName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [pubgName, setPubgName] = useState('')
@@ -222,16 +242,19 @@ export default function MemberSectionNav({
     }
   }, [memberId, showMemberIdentity])
 
-  const items: NavItem[] = [
-    { label: 'Tableau de bord', href: `/members/${memberId}/dashboard` },
-    { label: 'Stats globales', href: `/members/${memberId}/stats` },
-    { label: 'Armes', href: `/members/${memberId}/weapons` },
-    { label: 'Cartes', href: `/members/${memberId}/map-stats` },
-    { label: 'Drop zones', href: `/members/${memberId}/drop-zones` },
-    { label: 'Calendrier', href: `/members/${memberId}/heatmap` },
-    { label: 'Matchs', href: `/members/${memberId}/matches` },
-    { label: 'Notifications', href: `/members/${memberId}/notifications` },
+  const allItems: NavItem[] = [
+    { navKey: 'member.rewards', label: 'Récompenses', href: `/members/${memberId}/rewards` },
+    { navKey: 'member.notification-preferences', label: 'Préférences notifs', href: `/members/${memberId}/notification-preferences` },
+    { navKey: 'member.dashboard', label: 'Tableau de bord', href: `/members/${memberId}/dashboard` },
+    { navKey: 'member.stats', label: 'Stats globales', href: `/members/${memberId}/stats` },
+    { navKey: 'member.weapons', label: 'Armes', href: `/members/${memberId}/weapons` },
+    { navKey: 'member.map-stats', label: 'Cartes', href: `/members/${memberId}/map-stats` },
+    { navKey: 'member.drop-zones', label: 'Drop zones', href: `/members/${memberId}/drop-zones` },
+    { navKey: 'member.heatmap', label: 'Calendrier', href: `/members/${memberId}/heatmap` },
+    { navKey: 'member.matches', label: 'Matchs', href: `/members/${memberId}/matches` },
+    { navKey: 'member.notifications', label: 'Notifications', href: `/members/${memberId}/notifications` },
   ]
+  const items = allItems.filter((item) => getItemRole(item.navKey, navPerms.roles) !== 'hidden')
   const normalizedDisplayName = memberName.trim().toLowerCase()
   const normalizedPubgName = pubgName.trim().toLowerCase()
   const showPubgAlias = Boolean(pubgName.trim()) && normalizedPubgName !== normalizedDisplayName
@@ -245,7 +268,7 @@ export default function MemberSectionNav({
   const mobileItems: MobileDropdownNavItem[] = items.map((item) => ({
     key: item.href,
     href: item.href,
-    label: item.label,
+    label: navPerms.labels[item.navKey] ?? item.label,
     active: pathname === item.href,
     icon: renderMemberNavIcon(item.label),
   }))
@@ -303,7 +326,7 @@ export default function MemberSectionNav({
       <MobileDropdownNav
         id={`member-nav-${memberId}`}
         label="Navigation rapide"
-        currentLabel={activeItem.label}
+        currentLabel={activeItem ? (navPerms.labels[activeItem.navKey] ?? activeItem.label) : ''}
         items={mobileItems}
       />
 
@@ -321,7 +344,7 @@ export default function MemberSectionNav({
               }`}
             >
               {icon ? <span className="inline-flex h-4 w-4 items-center justify-center">{icon}</span> : null}
-              {item.label}
+              {navPerms.labels[item.navKey] ?? item.label}
             </Link>
           )
         })}

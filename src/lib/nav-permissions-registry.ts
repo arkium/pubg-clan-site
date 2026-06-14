@@ -1,6 +1,7 @@
-export type NavRole = 'none' | 'member' | 'admin' | 'owner'
+export type NavRole = 'none' | 'member' | 'admin' | 'owner' | 'hidden'
 
 export type NavSection =
+  | 'nav-primary'
   | 'clan-section'
   | 'member-section'
   | 'admin-menu'
@@ -16,6 +17,7 @@ export type NavItemDef = {
 }
 
 export const NAV_SECTION_LABELS: Record<NavSection, string> = {
+  'nav-primary': 'Navigation principale (sidebar)',
   'clan-section': 'Navigation clan',
   'member-section': 'Navigation membre',
   'admin-menu': 'Menu Admin (sidebar)',
@@ -27,10 +29,53 @@ export const NAV_ROLE_LABELS: Record<NavRole, string> = {
   member: 'Membre',
   admin: 'Admin',
   owner: 'Owner',
+  hidden: 'Masqué',
 }
 
 export const NAV_REGISTRY: NavItemDef[] = [
+  // --- Navigation principale (sidebar) ---
+  {
+    navKey: 'primary.dashboard',
+    section: 'nav-primary',
+    label: 'Dashboard',
+    hrefTemplate: '/members/:memberId/dashboard',
+    defaultRole: 'none',
+    description: 'Tableau de bord personnel du joueur connecté.',
+  },
+  {
+    navKey: 'primary.mon-clan',
+    section: 'nav-primary',
+    label: 'Mon clan',
+    hrefTemplate: '/clans/:clanId/members',
+    defaultRole: 'none',
+    description: 'Accès rapide à la page membres du clan actif.',
+  },
+  {
+    navKey: 'primary.mon-compte',
+    section: 'nav-primary',
+    label: 'Mon compte',
+    hrefTemplate: '/account',
+    defaultRole: 'none',
+    description: 'Paramètres du compte joueur.',
+  },
+
   // --- Clan section nav ---
+  {
+    navKey: 'clan.challenges',
+    section: 'clan-section',
+    label: 'Challenges',
+    hrefTemplate: '/clans/:clanId/challenges',
+    defaultRole: 'none',
+    description: 'Défis et challenges du clan.',
+  },
+  {
+    navKey: 'clan.stats-weapons-categories',
+    section: 'clan-section',
+    label: 'Catégories armes',
+    hrefTemplate: '/clans/:clanId/stats/weapons/categories',
+    defaultRole: 'owner',
+    description: 'Stats télémétrie par catégorie d\'arme.',
+  },
   {
     navKey: 'clan.overview',
     section: 'clan-section',
@@ -121,6 +166,22 @@ export const NAV_REGISTRY: NavItemDef[] = [
   },
 
   // --- Member section nav ---
+  {
+    navKey: 'member.rewards',
+    section: 'member-section',
+    label: 'Récompenses',
+    hrefTemplate: '/members/:memberId/rewards',
+    defaultRole: 'none',
+    description: 'Récompenses et succès du joueur.',
+  },
+  {
+    navKey: 'member.notification-preferences',
+    section: 'member-section',
+    label: 'Préférences notifs',
+    hrefTemplate: '/members/:memberId/notification-preferences',
+    defaultRole: 'none',
+    description: 'Configuration des préférences de notifications.',
+  },
   {
     navKey: 'member.dashboard',
     section: 'member-section',
@@ -246,10 +307,34 @@ export const NAV_REGISTRY: NavItemDef[] = [
 
   // --- Owner menu (sidebar) ---
   {
+    navKey: 'owner.telemetry-dashboard',
+    section: 'owner-menu',
+    label: 'Dashboard télémétrie',
+    hrefTemplate: '/clans/:clanId/telemetry/dashboard',
+    defaultRole: 'owner',
+    description: 'Tableau de bord de monitoring de la télémétrie.',
+  },
+  {
+    navKey: 'owner.telemetry-errors',
+    section: 'owner-menu',
+    label: 'Erreurs télémétrie',
+    hrefTemplate: '/clans/:clanId/telemetry/errors',
+    defaultRole: 'owner',
+    description: 'Erreurs et jobs bloqués de la télémétrie.',
+  },
+  {
+    navKey: 'owner.telemetry-sync-batch',
+    section: 'owner-menu',
+    label: 'Sync batch manuel',
+    hrefTemplate: '/clans/:clanId/telemetry/sync-batch-manual',
+    defaultRole: 'owner',
+    description: 'Déclenchement manuel d\'un batch de synchronisation télémétrie.',
+  },
+  {
     navKey: 'owner.cron',
     section: 'owner-menu',
     label: 'Ouvrir Ops Cron',
-    hrefTemplate: '/settings/cron',
+    hrefTemplate: '/clans/:clanId/settings/cron',
     defaultRole: 'owner',
     description: 'Interface de gestion des tâches cron.',
   },

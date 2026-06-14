@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import WeaponIcon from '@/components/ui/WeaponIcon'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 import {
   CATEGORY_CODES,
   DEFAULT_CATEGORY_LABELS,
@@ -133,23 +135,12 @@ export default function WeaponCategoriesSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
-      <section className="app-panel mb-4 px-4 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Catégories des armes</h1>
-            <p className="mt-2 max-w-3xl text-sm text-gray-600">
-              Assigne chaque arme à une catégorie et personnalise les noms affichés dans les filtres.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href="/settings/weapon-labels" className="app-btn app-btn--md app-btn--secondary">
-              Alias armes
-            </Link>
-            <Link href="/settings/map-labels" className="app-btn app-btn--md app-btn--secondary">
-              Alias cartes
-            </Link>
-          </div>
-        </div>
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Catégories des armes"
+          subtitle="Assigne chaque arme à une catégorie et personnalise les noms affichés dans les filtres."
+        />
+        <SettingsSectionNav section="admin-menu" />
       </section>
 
       <form className="space-y-4" onSubmit={handleSave}>

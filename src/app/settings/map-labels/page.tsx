@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import MapImage from '@/components/ui/MapImage'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 const MAP_KEYS = [
   'Baltic_Main',
@@ -156,22 +158,12 @@ export default function MapLabelsSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
-      <section className="app-panel mb-4 px-4 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Alias des cartes PUBG</h1>
-            <p className="mt-2 max-w-3xl text-sm text-gray-600">
-              Personnalisez les libelles affiches dans le filtre Carte PUBG de la page calendrier
-              d&apos;activite.
-            </p>
-          </div>
-          <Link
-            href="/settings/login-welcome"
-            className="app-btn app-btn--md app-btn--secondary"
-          >
-            Aller au message d&apos;accueil
-          </Link>
-        </div>
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Alias des cartes PUBG"
+          subtitle="Personnalisez les libelles affiches dans le filtre Carte PUBG de la page calendrier d'activite."
+        />
+        <SettingsSectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">

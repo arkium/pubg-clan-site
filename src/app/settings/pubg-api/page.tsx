@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 type ApiCallRow = {
   id: string
@@ -260,12 +262,14 @@ export default function PubgApiSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Monitoring PUBG API"
+          subtitle="Suivi en temps réel des appels API, des erreurs 429 et de la latence moyenne."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
       <section className="app-panel p-6 sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">Observabilite</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900">Monitoring PUBG API</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Suivi en temps reel des appels API, des erreurs 429 et de la latence moyenne.
-        </p>
 
         <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-5">
           <MetricCard label="Appels fenetre" value={String(payload?.totals.total ?? 0)} />

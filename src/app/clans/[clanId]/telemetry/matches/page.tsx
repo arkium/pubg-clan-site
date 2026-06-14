@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -52,19 +54,17 @@ export default function TelemetryMatchesPage() {
 
   return (
     <main className="app-container app-main">
-      <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Télémétrie — Soirées</h1>
-            <p className="mt-1 text-sm text-slate-300">
-              Soirées de jeu et état de récupération télémétrie par session.
-            </p>
-          </div>
-        </div>
-        <div className="mt-3">
-          <ClanSectionNav clanId={clanId} />
-        </div>
-      </header>
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Télémétrie — Soirées"
+          subtitle="Soirées de jeu et état de récupération télémétrie par session."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
+
+      <section className="app-panel mb-4 p-4">
+        <ClanSectionNav clanId={clanId} />
+      </section>
 
       <section className="app-panel mb-5 p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Période</p>

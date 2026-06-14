@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 type EmailDeliveryStatus = {
   ready: boolean
@@ -248,14 +250,15 @@ export default function EmailDeliverySettingsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-      <section className="rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-6 shadow-sm sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">Configuration email</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-900">Test de livraison email</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Lancez un email de test. Une fois le test reussi, les boutons d&apos;invitation sont affiches
-          dans la gestion des membres.
-        </p>
+    <main className="app-container app-main flex-1">
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Test de livraison email"
+          subtitle="Lancez un email de test. Une fois le test réussi, les boutons d'invitation sont affichés dans la gestion des membres."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
+      <section className="app-panel p-6 sm:p-8">
 
         <div
           className={`mt-4 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${

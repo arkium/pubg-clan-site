@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import ClanSectionNav from '@/components/ClanSectionNav'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { resolveGameMode } from '@/lib/pubg-assets'
 
@@ -769,14 +771,16 @@ export default function TelemetryRecoveriesPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-6">
-      <header className="app-panel p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Ops Telemetrie</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">Recuperations telemetrie (provisoire)</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Vue de controle des telechargements telemetry, avec statuts, erreurs et empreinte parser.
-        </p>
-        {clanId ? <ClanSectionNav clanId={clanId} /> : null}
+      <section className="app-panel p-4">
+        <SettingsPageHeader
+          title="Récupérations télémétrie"
+          subtitle="Vue de contrôle des téléchargements télémétrie, avec statuts, erreurs et empreinte parser."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
 
+      <section className="app-panel p-4">
+        {clanId ? <ClanSectionNav clanId={clanId} /> : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
@@ -814,7 +818,7 @@ export default function TelemetryRecoveriesPage() {
         </div>
 
         {backfillMessage ? <p className="mt-3 text-sm text-amber-700">{backfillMessage}</p> : null}
-      </header>
+      </section>
 
       {error ? <section className="app-panel p-4 text-sm text-rose-800">{error}</section> : null}
 

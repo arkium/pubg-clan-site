@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 type SyncMode = 'direct' | 'capture' | 'queue'
 
@@ -160,9 +162,14 @@ export default function TelemetrySyncBatchPage() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-2">Télémétrie - Récupération manuelle</h1>
-      <p className="text-gray-600 mb-6">Trois modes: Direct (simple), Capture (sauvegarde locale), Queue (asynchrone)</p>
+    <main className="app-container app-main flex-1 space-y-4">
+      <section className="app-panel p-4">
+        <SettingsPageHeader
+          title="Récupération manuelle"
+          subtitle="Trois modes : Direct (simple), Capture (sauvegarde locale), Queue (asynchrone)."
+        />
+        <SettingsSectionNav section="owner-menu" />
+      </section>
 
       <div className="grid gap-6">
         {/* Input matches */}

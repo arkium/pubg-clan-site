@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react'
 
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 const PLATFORM_OPTIONS = [
   { value: 'steam', label: 'Steam' },
@@ -168,16 +170,12 @@ export default function AddMemberPage() {
   return (
     <>
       <main className="app-container app-main flex-1">
-        <section className="app-panel mb-6 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">Ajouter un joueur</h1>
-            <Link
-              href="/members"
-              className="app-btn app-btn--md app-btn--secondary"
-            >
-              Voir la liste
-            </Link>
-          </div>
+        <section className="app-panel mb-6 p-4">
+          <SettingsPageHeader
+            title="Ajouter un joueur"
+            actions={<Link href="/members" className="app-btn app-btn--md app-btn--secondary">Voir la liste</Link>}
+          />
+          <SettingsSectionNav section="admin-menu" />
         </section>
 
         <section className="app-panel p-6">

@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type ClanRole = {
@@ -665,6 +667,14 @@ export default function ClanMembersSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Membres et rôles"
+          subtitle="Cartes premium pour les membres du clan, leurs rôles et leurs invitations."
+          actions={<Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>}
+        />
+        <SettingsSectionNav section="admin-menu" />
+      </section>
       {copyToast ? (
         <div
           className={`fixed bottom-4 right-4 z-50 rounded-lg border px-4 py-3 text-sm font-semibold shadow-lg ${
@@ -691,24 +701,6 @@ export default function ClanMembersSettingsPage() {
           {inviteToast.message}
         </div>
       ) : null}
-      <section className="app-panel mb-6 p-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="max-w-2xl">
-            <h1 className="text-2xl font-bold text-gray-900">Membres et rôles</h1>
-            <p className="mt-2 max-w-xl text-sm text-gray-600">
-              Cartes premium pour les membres du clan, leurs rôles et leurs invitations.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/clans"
-              className="app-btn app-btn--md app-btn--secondary"
-            >
-              Changer de clan
-            </Link>
-          </div>
-        </div>
-      </section>
 
       {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

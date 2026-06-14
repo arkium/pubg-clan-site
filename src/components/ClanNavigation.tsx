@@ -8,6 +8,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { useNavPermissions } from '@/hooks/useNavPermissions'
+import { NAV_REGISTRY, getItemRole } from '@/lib/nav-permissions-registry'
+import { NAV_DEFAULT_TARGETS } from '@/lib/nav-permissions-service'
 
 type ClanSummary = {
   id: number
@@ -22,12 +25,14 @@ type WelcomeSettingsPayload = {
 }
 
 type NavItem = {
+  navKey: string
   label: string
   href: string
   tone: 'neutral' | 'brand' | 'sky' | 'blue' | 'emerald'
 }
 
 type SubmenuItem = {
+  navKey: string
   label: string
   href: string
   tone: NavItem['tone']
@@ -233,6 +238,30 @@ function renderNavIcon(label: string) {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
         <path fill="currentColor" d="M10 3.2 3.4 8.3v8.5h4.3v-5.1h4.6v5.1h4.3V8.3L10 3.2Zm0 1.9 5.1 4v6.2h-1.5v-5.1a1 1 0 0 0-1-1H7.4a1 1 0 0 0-1 1v5.1H4.9V9.1l5.1-4Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Dashboard télémétrie') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Erreurs télémétrie') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm-.75 3.25v5h1.5v-5h-1.5Zm0 6.5v1.5h1.5v-1.5h-1.5Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Sync batch manuel') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 3.2a6.8 6.8 0 1 0 6.8 6.8h-1.6A5.2 5.2 0 1 1 10 4.8V3.2Zm1.5 0v4.3l3.5-2-3.5-2.3Z" />
       </svg>
     )
   }
@@ -485,6 +514,31 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     document.body.setAttribute('data-app-theme', appTheme)
   }, [appTheme])
 
+  const navPerms = useNavPermissions()
+  const navLabels = navPerms.labels
+  const navTargets = navPerms.targets
+
+  function isNavHidden(navKey: string): boolean {
+    const role = navPerms.roles[navKey]
+    if (role !== undefined) return role === 'hidden'
+    return NAV_REGISTRY.find((i) => i.navKey === navKey)?.defaultRole === 'hidden'
+  }
+
+  function resolveHref(template: string): string {
+    return template
+      .replace(':clanId', clanId ? String(clanId) : '')
+      .replace(':memberId', activeMemberId ? String(activeMemberId) : '')
+      .replace(/\/:[^/]+/g, '')
+      || '/'
+  }
+
+  function resolveTargetHref(navKey: string, fallback: string): string {
+    const targetKey = navTargets[navKey] ?? NAV_DEFAULT_TARGETS[navKey]
+    if (!targetKey) return fallback
+    const targetItem = NAV_REGISTRY.find((i) => i.navKey === targetKey)
+    return targetItem ? resolveHref(targetItem.hrefTemplate) : fallback
+  }
+
   const permissionSet = useMemo(() => new Set(permissions), [permissions])
   const hasWildcard = permissionSet.has('*')
 
@@ -494,90 +548,61 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const canViewReports = hasWildcard || permissionSet.has('view_reports')
   const canManageRoles = hasWildcard || permissionSet.has('manage_roles')
   const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
-  const canClearClan = hasWildcard || permissionSet.has('manage_settings') || permissionSet.has('manage_roles')
   const isOwner = hasWildcard
+  const isAdmin = canManageMembers || canManageRoles || canManageSettings
   const canSwitchClan = isOwner
 
   const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
 
-  const primaryLinks: NavItem[] = [
-    { label: 'Dashboard', href: dashboardHref, tone: 'blue' },
+  const primaryLinks: NavItem[] = ([
     {
+      navKey: 'primary.dashboard',
+      label: 'Dashboard',
+      href: resolveTargetHref('primary.dashboard', dashboardHref),
+      tone: 'blue',
+    },
+    {
+      navKey: 'primary.mon-clan',
       label: 'Mon clan',
-      href: clanId ? `/clans/${clanId}/members` : '/members',
+      href: resolveTargetHref('primary.mon-clan', clanId ? `/clans/${clanId}/members` : '/members'),
       tone: 'sky',
     },
-    { label: 'Mon compte', href: '/account', tone: 'neutral' },
-  ]
+    { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' },
+  ] as NavItem[]).filter((item) => !isNavHidden(item.navKey))
 
-  const adminLinks: SubmenuItem[] = [
-    ...(canManageMembers
-      ? [
-          {
-            label: 'Ajouter un joueur',
-            href: '/members/add',
-            tone: 'brand' as const,
-            role: 'admin' as const,
-          },
-        ]
-      : []),
-    ...((clanId && (canManageMembers || canManageRoles))
-      ? [
-          {
-            label: 'Joueurs et rôles',
-            href: `/clans/${clanId}/settings/members`,
-            tone: 'brand' as const,
-            role: 'admin' as const,
-          },
-        ]
-      : []),
-    ...(canManageSettings
-      ? [
-          {
-            label: 'Alias cartes PUBG',
-            href: '/settings/map-labels',
-            tone: 'neutral' as const,
-            role: 'admin' as const,
-          },
-          {
-            label: 'Alias armes PUBG',
-            href: '/settings/weapon-labels',
-            tone: 'neutral' as const,
-            role: 'admin' as const,
-          },
-          {
-            label: 'Alias catégories armes PUBG',
-            href: '/settings/weapon-categories',
-            tone: 'neutral' as const,
-            role: 'admin' as const,
-          },
-          {
-            label: 'Alias phases PUBG',
-            href: '/settings/phase-labels',
-            tone: 'neutral' as const,
-            role: 'admin' as const,
-          },
-          {
-            label: 'Accueil login',
-            href: '/settings/login-welcome',
-            tone: 'neutral' as const,
-            role: 'admin' as const,
-          },
-        ]
-      : []),
-  ]
+  function getFirstSectionHref(section: 'admin-menu' | 'owner-menu', fallback: string): string {
+    const items = NAV_REGISTRY.filter(
+      (i) => i.section === section && i.navKey !== 'owner.switch-clan'
+    )
+    const posOrder = navPerms.positions[section] as string[] | undefined
+    const ordered = posOrder
+      ? [...items].sort((a, b) => {
+          const ai = posOrder.indexOf(a.navKey)
+          const bi = posOrder.indexOf(b.navKey)
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+        })
+      : items
+    const first = ordered.find((i) => {
+      if (isNavHidden(i.navKey)) return false
+      const role = getItemRole(i.navKey, navPerms.roles)
+      if (role === 'hidden') return false
+      if (role === 'owner') return isOwner
+      if (role === 'admin') return isAdmin
+      return true
+    })
+    return first ? resolveHref(first.hrefTemplate) : fallback
+  }
 
-  const ownerLinks: SubmenuItem[] = [
-    { label: 'Ouvrir Ops Cron', href: '/settings/cron', tone: 'emerald', role: 'owner' },
-    { label: 'Recoveries telemetry', href: clanId ? `/clans/${clanId}/telemetry/recoveries` : '/clans', tone: 'emerald', role: 'owner' },
-    { label: 'Télémétrie matchs', href: clanId ? `/clans/${clanId}/telemetry/matches` : '/clans', tone: 'emerald', role: 'owner' },
-    { label: 'Test email', href: '/settings/email-delivery', tone: 'emerald', role: 'owner' },
-    { label: 'Monitoring PUBG API', href: '/settings/pubg-api', tone: 'emerald', role: 'owner' },
-    { label: 'Permissions nav', href: '/settings/nav-permissions', tone: 'emerald', role: 'owner' },
-    { label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false, role: 'owner' },
-  ]
+  const adminEntryHref = getFirstSectionHref(
+    'admin-menu',
+    clanId ? `/clans/${clanId}/settings/members` : '/settings/map-labels'
+  )
+  const ownerEntryHref = getFirstSectionHref(
+    'owner-menu',
+    clanId ? `/clans/${clanId}/telemetry/dashboard` : '/settings/nav-permissions'
+  )
 
-  const showAdminMenu = adminLinks.length > 0 || Boolean(clanId && canClearClan)
+  const showAdminMenu = isAdmin
   const showOwnerMenu = Boolean(isOwner && clanId)
 
   const activeMember = members.find((member) => member.memberId === activeMemberId) ?? null
@@ -811,6 +836,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   function renderLink(item: NavItem, mobile = false) {
     const active = isActiveLink(item.href)
     const darkMode = appTheme === 'dark'
+    const displayLabel = navLabels[item.navKey] ?? item.label
 
     return (
       <Link
@@ -828,7 +854,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <span className={cx('transition-transform duration-200 group-hover:scale-110', active && 'scale-110')}>
             {renderNavIcon(item.label)}
           </span>
-          <span className="truncate">{item.label}</span>
+          <span className="truncate">{displayLabel}</span>
         </span>
       </Link>
     )
@@ -838,7 +864,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     const shouldHighlight = item.highlightWhenActive ?? true
     const active = shouldHighlight && isActiveLink(item.href)
     const darkMode = appTheme === 'dark'
-    const icon = renderNavIcon(item.label)
+    const displayLabel = navLabels[item.navKey] ?? item.label
 
     return (
       <Link
@@ -855,9 +881,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       >
         <span className="flex items-center gap-2">
           <span className={cx('transition-transform duration-200 group-hover:scale-110', active && 'scale-110')}>
-            {icon}
+            {renderNavIcon(item.label)}
           </span>
-          <span className="truncate">{item.label}</span>
+          <span className="truncate">{displayLabel}</span>
         </span>
       </Link>
     )
@@ -960,7 +986,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Admin
                 </p>
-                <div className="grid grid-cols-1 gap-2">{adminLinks.map((item) => renderSubmenuLink(item))}</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' })}
+                </div>
               </section>
             ) : null}
 
@@ -969,7 +997,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Owner
                 </p>
-                <div className="grid grid-cols-1 gap-2">{ownerLinks.map((item) => renderSubmenuLink(item))}</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
+                  {canSwitchClan && renderSubmenuLink({ navKey: 'owner.switch-clan', label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false, role: 'owner' })}
+                </div>
               </section>
             ) : null}
           </div>
@@ -1158,7 +1189,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Admin
                 </p>
-                <div className="grid grid-cols-1 gap-2">{adminLinks.map((item) => renderSubmenuLink(item, true))}</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' }, true)}
+                </div>
               </section>
             ) : null}
 
@@ -1167,7 +1200,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Owner
                 </p>
-                <div className="grid grid-cols-1 gap-2">{ownerLinks.map((item) => renderSubmenuLink(item, true))}</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
+                  {canSwitchClan && renderSubmenuLink({ navKey: 'owner.switch-clan', label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false, role: 'owner' }, true)}
+                </div>
               </section>
             ) : null}
           </aside>

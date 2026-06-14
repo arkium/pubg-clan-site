@@ -13,6 +13,7 @@ Cette page centralise la documentation du projet sur une seule vue.
 - Composants UI: composants réutilisables et conventions
 - Uniformisation UI: charte visuelle globale
 - Resync worker runtime: queue dediee, worker separe et badge PID runtime
+- Permissions navigation: rôles, couleurs, visibilité et ordre drag & drop des boutons nav
 
 ## Index par document
 
@@ -76,6 +77,8 @@ Cette page centralise la documentation du projet sur une seule vue.
   - Données clan disponibles depuis l'API PUBG, lacune principale (auto-sync roster), conception pages membre et clan admin
 - [Intégration pubg/api-assets](pubg-api-assets-integration.md)
   - Dictionnaires JSON officiels (armes, véhicules, dégâts, maps), icônes HUD, plan d'implémentation en 4 phases avec checklist
+- [Permissions et ordre de navigation](nav-permissions.md)
+  - Système de gestion dynamique des boutons nav : rôles d'accès, couleurs, visibilité conditionnelle, ordre drag & drop, page owner /settings/nav-permissions
 
 ## Parcours recommandé
 

@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsSectionNav from '@/components/SettingsSectionNav'
 
 type WelcomeSettings = {
   badge: string
@@ -165,13 +167,12 @@ export default function LoginWelcomeSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
-      <section className="app-panel mb-4 px-4 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">Message de bienvenue login</h1>
-        <p className="mt-2 max-w-3xl text-sm text-gray-600">
-          Personnalisez le texte affiché sur la page de connexion, sans image de clan. Ce contenu
-          aide à poser l&apos;identité du clan dès l&apos;arrivée.
-        </p>
-
+      <section className="app-panel mb-4 p-4">
+        <SettingsPageHeader
+          title="Message de bienvenue login"
+          subtitle="Personnalisez le texte affiché sur la page de connexion, sans image de clan. Ce contenu aide à poser l'identité du clan dès l'arrivée."
+        />
+        <SettingsSectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">

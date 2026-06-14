@@ -95,6 +95,22 @@ function renderClanSectionIcon(label: string) {
     )
   }
 
+  if (label === 'Challenges') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M10 2a4.5 4.5 0 0 0-4.5 4.5c0 1.68.92 3.14 2.28 3.92l-.3 1.58H6a.75.75 0 0 0 0 1.5h.97l-.22 1.25a.75.75 0 0 0 .74.88h5.02a.75.75 0 0 0 .74-.88L13.03 13.5H14a.75.75 0 0 0 0-1.5h-1.48l-.3-1.58A4.5 4.5 0 0 0 10 2Zm0 1.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z" />
+      </svg>
+    )
+  }
+
+  if (label === 'Catégories armes') {
+    return (
+      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
+        <path fill="currentColor" d="M3 5h4v4H3V5Zm0 6h4v4H3v-4Zm6-6h8v1.5H9V5Zm0 3h8v1.5H9V8Zm0 3h8v1.5H9v-1.5Zm0 3h8v1.5H9v-1.5Z" />
+      </svg>
+    )
+  }
+
   if (label === 'Awards') {
     return (
       <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
@@ -107,6 +123,7 @@ function renderClanSectionIcon(label: string) {
 }
 
 function canAccess(role: NavRole, isOwner: boolean, isAdmin: boolean): boolean {
+  if (role === 'hidden') return false
   if (role === 'none' || role === 'member') return true
   if (role === 'admin') return isAdmin
   if (role === 'owner') return isOwner
@@ -127,6 +144,8 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
     || permissions.includes('manage_settings')
 
   const rawItems: NavItem[] = [
+    { navKey: 'clan.challenges', label: 'Challenges', href: `/clans/${clanId}/challenges`, icon: renderClanSectionIcon('Challenges') },
+    { navKey: 'clan.stats-weapons-categories', label: 'Catégories armes', href: `${statsRootHref}/weapons/categories`, icon: renderClanSectionIcon('Catégories armes') },
     { navKey: 'clan.overview', label: "Vue d'ensemble", href: `/clans/${clanId}/overview`, icon: renderClanSectionIcon("Vue d'ensemble") },
     { navKey: 'clan.members', label: 'Membres', href: `/clans/${clanId}/members`, icon: renderClanSectionIcon('Membres') },
     { navKey: 'clan.matches', label: 'Matchs', href: `/clans/${clanId}/matches`, icon: renderClanSectionIcon('Matchs') },
@@ -159,7 +178,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
     return {
       key: item.href,
       href: item.href,
-      label: item.label,
+      label: navRoles.labels[item.navKey] ?? item.label,
       active: item.navKey === 'clan.stats' ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`),
       icon: item.icon,
       role: role === 'admin' || role === 'owner' ? role : undefined,
@@ -171,7 +190,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
       <MobileDropdownNav
         id={`clan-section-nav-${clanId}`}
         label="Navigation du clan"
-        currentLabel={activeItem?.label ?? ''}
+        currentLabel={activeItem ? (navRoles.labels[activeItem.navKey] ?? activeItem.label) : ''}
         items={mobileItems}
         variant="compact"
         visibilityClass="block md:hidden"
@@ -196,7 +215,7 @@ export default function ClanSectionNav({ clanId }: ClanSectionNavProps) {
               <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
                 {item.icon}
               </span>
-              {item.label}
+              {navRoles.labels[item.navKey] ?? item.label}
             </Link>
           )
         })}

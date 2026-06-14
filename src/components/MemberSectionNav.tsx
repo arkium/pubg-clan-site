@@ -7,8 +7,9 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
-import { getItemRole } from '@/lib/nav-permissions-registry'
+import { getItemRole, getRoleLinkClass, type NavRole } from '@/lib/nav-permissions-registry'
 
 type MemberSectionNavProps = {
   memberId: number
@@ -63,6 +64,14 @@ function formatSeasonShort(seasonId: string | null | undefined) {
   const segments = seasonId.split('.')
   const shortId = segments[segments.length - 1] ?? seasonId
   return `Saison ${shortId}`
+}
+
+function canAccess(role: NavRole, isOwner: boolean, isAdmin: boolean): boolean {
+  if (role === 'hidden') return false
+  if (role === 'none' || role === 'member') return true
+  if (role === 'admin') return isAdmin
+  if (role === 'owner') return isOwner
+  return true
 }
 
 function renderMemberNavIcon(label: string) {
@@ -162,6 +171,13 @@ export default function MemberSectionNav({
 }: MemberSectionNavProps) {
   const pathname = usePathname()
   const navPerms = useNavPermissions()
+  const { permissions } = useAuthSession()
+  const hasWildcard = permissions.includes('*')
+  const isOwner = hasWildcard
+  const isAdmin = hasWildcard
+    || permissions.includes('manage_members')
+    || permissions.includes('manage_roles')
+    || permissions.includes('manage_settings')
   const [memberName, setMemberName] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [pubgName, setPubgName] = useState('')
@@ -243,8 +259,6 @@ export default function MemberSectionNav({
   }, [memberId, showMemberIdentity])
 
   const allItems: NavItem[] = [
-    { navKey: 'member.rewards', label: 'Récompenses', href: `/members/${memberId}/rewards` },
-    { navKey: 'member.notification-preferences', label: 'Préférences notifs', href: `/members/${memberId}/notification-preferences` },
     { navKey: 'member.dashboard', label: 'Tableau de bord', href: `/members/${memberId}/dashboard` },
     { navKey: 'member.stats', label: 'Stats globales', href: `/members/${memberId}/stats` },
     { navKey: 'member.weapons', label: 'Armes', href: `/members/${memberId}/weapons` },
@@ -252,9 +266,24 @@ export default function MemberSectionNav({
     { navKey: 'member.drop-zones', label: 'Drop zones', href: `/members/${memberId}/drop-zones` },
     { navKey: 'member.heatmap', label: 'Calendrier', href: `/members/${memberId}/heatmap` },
     { navKey: 'member.matches', label: 'Matchs', href: `/members/${memberId}/matches` },
+    { navKey: 'member.rewards', label: 'Récompenses', href: `/members/${memberId}/rewards` },
     { navKey: 'member.notifications', label: 'Notifications', href: `/members/${memberId}/notifications` },
+    { navKey: 'member.notification-preferences', label: 'Préférences notifs', href: `/members/${memberId}/notification-preferences` },
   ]
-  const items = allItems.filter((item) => getItemRole(item.navKey, navPerms.roles) !== 'hidden')
+
+  const sectionOrder = navPerms.positions['member-section']
+  const orderedItems = sectionOrder
+    ? [...allItems].sort((a, b) => {
+        const ai = sectionOrder.indexOf(a.navKey)
+        const bi = sectionOrder.indexOf(b.navKey)
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+      })
+    : allItems
+
+  const items = orderedItems.filter((item) =>
+    canAccess(getItemRole(item.navKey, navPerms.roles), isOwner, isAdmin)
+  )
+
   const normalizedDisplayName = memberName.trim().toLowerCase()
   const normalizedPubgName = pubgName.trim().toLowerCase()
   const showPubgAlias = Boolean(pubgName.trim()) && normalizedPubgName !== normalizedDisplayName
@@ -265,13 +294,17 @@ export default function MemberSectionNav({
     ? RANKED_TIER_CLASS[seasonBadge.rankedTier] ?? 'border-gray-300 bg-gray-50 text-gray-700'
     : 'border-gray-300 bg-gray-50 text-gray-700'
   const activeItem = items.find((item) => pathname === item.href) ?? items[0]
-  const mobileItems: MobileDropdownNavItem[] = items.map((item) => ({
-    key: item.href,
-    href: item.href,
-    label: navPerms.labels[item.navKey] ?? item.label,
-    active: pathname === item.href,
-    icon: renderMemberNavIcon(item.label),
-  }))
+  const mobileItems: MobileDropdownNavItem[] = items.map((item) => {
+    const role = getItemRole(item.navKey, navPerms.roles)
+    return {
+      key: item.href,
+      href: item.href,
+      label: navPerms.labels[item.navKey] ?? item.label,
+      active: pathname === item.href,
+      icon: renderMemberNavIcon(item.label),
+      role: role === 'admin' || role === 'owner' ? role : undefined,
+    }
+  })
 
   return (
     <div
@@ -330,20 +363,21 @@ export default function MemberSectionNav({
         items={mobileItems}
       />
 
-      <nav className="member-section-nav hidden flex-wrap gap-2 md:flex">
+      <nav className="member-section-nav hidden flex-wrap gap-2 md:flex" aria-label="Navigation du membre">
         {items.map((item) => {
           const active = pathname === item.href
           const icon = renderMemberNavIcon(item.label)
+          const role = getItemRole(item.navKey, navPerms.roles)
+          const roleClass = getRoleLinkClass(role, active, 'section')
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`clan-section-nav-link ${
-                active ? 'clan-section-nav-link--active shadow-sm' : ''
-              }`}
+              aria-current={active ? 'page' : undefined}
+              className={['clan-section-nav-link', roleClass, active ? 'shadow-sm' : ''].filter(Boolean).join(' ')}
             >
-              {icon ? <span className="inline-flex h-4 w-4 items-center justify-center">{icon}</span> : null}
+              {icon ? <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">{icon}</span> : null}
               {navPerms.labels[item.navKey] ?? item.label}
             </Link>
           )

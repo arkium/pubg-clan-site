@@ -54,10 +54,7 @@ export function useNavPermissions(): NavPermissionsData {
 
   useEffect(() => {
     const cached = readCache()
-    if (cached) {
-      setData(cached)
-      return
-    }
+    if (cached) setData(cached)
 
     fetch('/api/settings/nav-permissions')
       .then((r) => r.json())

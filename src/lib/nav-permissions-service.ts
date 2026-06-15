@@ -45,6 +45,12 @@ export async function getNavPermissionOverrides(): Promise<Record<string, NavRol
   return parseOverrides(config?.value ?? null)
 }
 
+export async function getNavItemRole(navKey: string): Promise<NavRole> {
+  const overrides = await getNavPermissionOverrides()
+  if (navKey in overrides) return overrides[navKey]
+  return NAV_REGISTRY.find((item) => item.navKey === navKey)?.defaultRole ?? 'none'
+}
+
 export async function getNavPermissions(): Promise<Array<{ navKey: string; role: NavRole }>> {
   const overrides = await getNavPermissionOverrides()
   return NAV_REGISTRY.map((item) => ({

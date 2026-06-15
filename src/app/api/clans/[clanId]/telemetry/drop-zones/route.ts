@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
-import { requireRole } from '@/middleware/auth-permission'
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import {
   buildTelemetryErrorResponse,
@@ -114,7 +114,7 @@ export async function GET(
       })
     }
 
-    const roleError = await requireRole(['Owner'])(request, { clanId: parsedClanId })
+    const roleError = await requireNavPermission('clan.drop-zones')(request, { clanId: parsedClanId })
     if (roleError) return roleError
 
     const url = new URL(request.url)

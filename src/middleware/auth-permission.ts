@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { getNavItemRole } from '@/lib/nav-permissions-service'
 import { prisma } from '@/lib/prisma'
 import { hasAnyRole, hasPermission } from '@/lib/role-service'
 
@@ -94,6 +95,52 @@ export function requireRole(roleNames: string[]) {
 
     const allowed = await hasAnyRole(actorMemberId, roleNames)
     if (!allowed) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    return null
+  }
+}
+
+export function requireNavPermission(navKey: string) {
+  return async function checkNavPermission(request: Request, options?: PermissionGuardOptions) {
+    const actorMemberId = await getActorMemberId(request)
+
+    if (!actorMemberId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (options?.clanId) {
+      const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
+      if (!inClan) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    const role = await getNavItemRole(navKey)
+
+    if (role === 'hidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (role === 'none' || role === 'member') {
+      return null
+    }
+
+    if (role === 'admin') {
+      const isAdmin = await hasPermission(actorMemberId, '*')
+        || await hasPermission(actorMemberId, 'manage_members')
+        || await hasPermission(actorMemberId, 'manage_roles')
+        || await hasPermission(actorMemberId, 'manage_settings')
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      return null
+    }
+
+    // role === 'owner'
+    const isOwner = await hasPermission(actorMemberId, '*')
+    if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

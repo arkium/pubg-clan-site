@@ -1,4 +1,5 @@
 import ClanSectionNav from '@/components/ClanSectionNav'
+import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
 import { prisma } from '@/lib/prisma'
 import { weaponIconUrl } from '@/lib/pubg-assets/asset-url'
 import {
@@ -6,9 +7,35 @@ import {
   type WeaponCategory,
 } from '@/lib/weapons/weapon-categories'
 
+type Period = 'week' | 'month' | 'all'
+
 type PageProps = {
   params: Promise<{ clanId: string }>
+  searchParams: Promise<{ period?: string }>
 }
+
+function parsePeriod(value: string | undefined): Period {
+  if (value === 'month' || value === 'all') return value
+  return 'week'
+}
+
+function getIsoWeek(date: Date): number {
+  const tmp = new Date(date.getTime())
+  tmp.setHours(0, 0, 0, 0)
+  tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7))
+  const week1 = new Date(tmp.getFullYear(), 0, 4)
+  return 1 + Math.round(((tmp.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
+}
+
+function toPeriodKey(period: Period): string {
+  const now = new Date()
+  if (period === 'all') return 'all-time'
+  if (period === 'month') {
+    return `month-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }
+  return `week-${now.getFullYear()}-${String(getIsoWeek(now)).padStart(2, '0')}`
+}
+
 
 const CATEGORY_ORDER: WeaponCategory[] = [
   'AR',
@@ -146,16 +173,19 @@ const KEY_TO_TELEMETRY_ID: Record<string, string> = {
   panzerfaust: 'WeapPanzerFaust100M1_C',
 }
 
-export default async function WeaponCategoryAliasesPage({ params }: PageProps) {
+export default async function WeaponCategoryAliasesPage({ params, searchParams }: PageProps) {
   const { clanId } = await params
+  const { period: periodParam } = await searchParams
   const parsedClanId = Number(clanId)
+  const period = parsePeriod(periodParam)
+  const periodKey = toPeriodKey(period)
 
   const entries = getWeaponCategoryAliases()
 
   const weaponStatsRows = await prisma.memberWeaponStats.findMany({
     where: {
       member: { clanId: parsedClanId },
-      period: 'all-time',
+      period: periodKey,
     },
     select: { weaponName: true, kills: true },
   })
@@ -180,6 +210,11 @@ export default async function WeaponCategoryAliasesPage({ params }: PageProps) {
           </p>
         </div>
         <ClanSectionNav clanId={parsedClanId} />
+      </section>
+
+      <section className="app-panel p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
+        <WeaponCategoryPeriodFilter clanId={parsedClanId} period={period} />
       </section>
 
       <section className="space-y-4">
@@ -221,57 +256,88 @@ export default async function WeaponCategoryAliasesPage({ params }: PageProps) {
               </div>
 
               {/* Weapon cards */}
-              <div className="p-4">
-                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {group.items.map((entry) => {
-                    const telemetryId = KEY_TO_TELEMETRY_ID[entry.key]
-                    const clanKills = telemetryId ? (killsByTelemetryId.get(telemetryId) ?? 0) : 0
+              {(() => {
+                const itemsWithKills = group.items.map((entry) => {
+                  const telemetryId = KEY_TO_TELEMETRY_ID[entry.key]
+                  const clanKills = telemetryId ? (killsByTelemetryId.get(telemetryId) ?? 0) : 0
+                  return { entry, telemetryId, clanKills }
+                })
+                const rankMap = new Map(
+                  [...itemsWithKills]
+                    .filter((item) => item.clanKills > 0)
+                    .sort((a, b) => b.clanKills - a.clanKills)
+                    .slice(0, 3)
+                    .map((item, i) => [item.entry.key, i + 1])
+                )
 
-                    return (
-                      <li
-                        key={entry.key}
-                        className="relative aspect-[3/2] overflow-hidden rounded-xl bg-slate-900 shadow-md"
-                      >
-                        {telemetryId ? (
-                          <img
-                            src={weaponIconUrl(telemetryId)}
-                            alt={entry.key}
-                            className="absolute inset-0 h-full w-full object-contain p-5"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="h-12 w-12 rounded-full bg-slate-700" />
-                          </div>
-                        )}
+                return (
+                  <div className="p-4">
+                    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                      {itemsWithKills.map(({ entry, telemetryId, clanKills }) => {
+                        const rank = rankMap.get(entry.key) ?? null
 
-                        {/* Bottom gradient + weapon name */}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-3 pb-3 pt-10">
-                          <p className="truncate text-sm font-bold leading-tight text-white">
-                            {entry.key}
-                          </p>
-                          {entry.aliases.length > 1 && (
-                            <p className="truncate text-[11px] leading-tight text-slate-400">
-                              {entry.aliases.slice(1).join(' · ')}
-                            </p>
-                          )}
-                        </div>
+                        return (
+                          <li
+                            key={entry.key}
+                            className="relative aspect-[3/2] overflow-hidden rounded-xl bg-gradient-to-b from-slate-700 to-slate-900 shadow-md"
+                          >
+                            {telemetryId ? (
+                              <img
+                                src={weaponIconUrl(telemetryId)}
+                                alt={entry.key}
+                                className="absolute inset-0 h-full w-full object-contain px-3 py-4"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="h-12 w-12 rounded-full bg-slate-600" />
+                              </div>
+                            )}
 
-                        {/* Kills badge */}
-                        {clanKills > 0 && (
-                          <div className="absolute right-2 top-2 rounded-lg bg-black/60 px-2 py-1 backdrop-blur-sm ring-1 ring-white/10">
-                            <p className="text-sm font-bold tabular-nums leading-none text-white">
-                              {clanKills.toLocaleString('fr-FR')}
-                            </p>
-                            <p className="mt-0.5 text-right text-[10px] leading-none text-slate-400">
-                              kills
-                            </p>
-                          </div>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
+                            {/* Medal badge — top left */}
+                            {rank !== null && (
+                              <div className={[
+                                'absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow-md ring-1',
+                                rank === 1 ? 'bg-yellow-400 text-yellow-950 ring-yellow-300' :
+                                rank === 2 ? 'bg-slate-300 text-slate-800 ring-slate-200' :
+                                             'bg-amber-800 text-amber-100 ring-amber-700',
+                              ].join(' ')}>
+                                #{rank}
+                              </div>
+                            )}
+
+                            {/* Bottom gradient + weapon name */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-10">
+                              <p className="truncate text-sm font-bold leading-tight text-white">
+                                {entry.key}
+                              </p>
+                              {(() => {
+                                const aliasLine = entry.aliases.join(' · ')
+                                return aliasLine !== entry.key ? (
+                                  <p className="truncate text-[11px] leading-tight text-slate-400">
+                                    {aliasLine}
+                                  </p>
+                                ) : null
+                              })()}
+                            </div>
+
+                            {/* Kills badge — top right */}
+                            {clanKills > 0 && (
+                              <div className="absolute right-2 top-2 rounded-lg bg-black/60 px-2 py-1 text-center backdrop-blur-sm ring-1 ring-white/10">
+                                <p className="text-sm font-bold tabular-nums leading-none text-white">
+                                  {clanKills.toLocaleString('fr-FR')}
+                                </p>
+                                <p className="mt-0.5 text-[10px] leading-none text-slate-400">
+                                  kills
+                                </p>
+                              </div>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )
+              })()}
             </article>
           )
         })}

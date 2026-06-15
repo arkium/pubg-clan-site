@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
-import { requireRole } from '@/middleware/auth-permission'
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { getPhaseLabels } from '@/lib/phase-label-service'
@@ -326,7 +326,7 @@ export async function GET(
       })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
+    const roleError = await requireNavPermission('clan.positions')(request, {
       clanId: parsedClanId,
     })
     if (roleError) {

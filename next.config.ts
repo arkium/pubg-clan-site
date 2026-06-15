@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
   serverExternalPackages: ['prisma', '@prisma/client'],
+  turbopack: {},
   webpack: (config, { dev }) => {
     if (dev) config.cache = { type: 'memory' }
     return config

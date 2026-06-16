@@ -1,106 +1,138 @@
-# Sommaire docs
+# Documentation PUBG Clan Site
 
-Cette page centralise la documentation du projet sur une seule vue.
+Index de toute la documentation technique du projet. Chaque doc décrit le comportement réel du code actuel.
 
-## Vue rapide
+**Mise à jour :** 2026-06-16 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
 
-- Classement clan: calcul live, filtres, badges, progression
-- Matchs clan: agrégations sessions, synergies, top performers
-- Cron clan: pilotage, sante, actions manuelles et jobs planifies
-- Selection de clan: controle d acces, liste des clans, persistance de selection
-- Login et activation: parcours auth joueur, invitations et reset mot de passe
-- Tableaux du site: inventaire complet des vues tabulaires
-- Composants UI: composants réutilisables et conventions
-- Uniformisation UI: charte visuelle globale
-- Resync worker runtime: queue dediee, worker separe et badge PID runtime
-- Permissions navigation: rôles, couleurs, visibilité et ordre drag & drop des boutons nav
+---
 
-## Index par document
+## Architecture
 
-### Documents canoniques
+| Document | Contenu |
+|---|---|
+| [Stack](architecture/stack.md) | Tech stack, contraintes Node 22 / Next 16.x, gotchas critiques, variables d'environnement, commandes npm |
+| [Data model](architecture/data-model.md) | 31 modèles Prisma par domaine, relations clés, champs métier importants, stratégie de périodes |
+| [Structure du code](architecture/code-structure.md) | Organisation des dossiers, patterns page / hook / route API / service, conventions de nommage |
 
-- [Référence complète télémétrie PUBG](telemetrie-reference.md)
-  - Document canonique: architecture, workers, variables, commandes DEV/PROD, troubleshooting
+---
 
-### Documentation fonctionnelle
+## Features
 
-- [Calcul leaderboard](leaderboard-calcul.md)
-  - Source des données, période, tri, K/M, distinctions, progression, all time
-- [Calcul matchs clan](matchs-clan-calcul.md)
-  - Méthodes de calcul de /clans/[clanId]/matches + sous-pages /matches/session/[date], navigation par date, sessions, synergies, performers
-- [Pilotage cron clan](cron-clan-settings.md)
-  - Logique de /clans/[clanId]/settings/cron: sante, checks, historique, actions manuelles et portee metier des crons
-- [Selection de clan](selection-clan.md)
-  - Logique de /clans: permissions, fetch `/api/clans`, recherche, selection et redirection
-- [Calcul matchs membre](matchs-membre-calcul.md)
-  - Logique de /members/[id]/matches: historique DB, tri/pagination, matchs recents PUBG et import
-- [Calcul dashboard membre](dashboard-membre-calcul.md)
-  - Logique de /members/[id]/dashboard: stats, progression, comparaison clan, squads, historique matchs
-- [Login et activation joueurs](login-activation-joueurs.md)
-  - Flux de connexion, activation par invitation, mot de passe oublie
-- [Inventaire des tableaux](tableaux-site.md)
-  - Où sont les tableaux, contrôles disponibles, état de centralisation
-- [Composants réutilisables](composants-reutilisables.md)
-  - Composants UI partagés, usages et contrats visuels
-- [Uniformisation UI](ui-uniformisation.md)
-  - Tokens, layout, panneaux, bonnes pratiques
-- [Showcase composants](composants-showcase.html)
-  - Démo visuelle des composants et styles
+### Gestion du clan et des membres
 
-### Historique télémétrie (docs conservées)
+| Document | Contenu |
+|---|---|
+| [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre |
+| [Clans](features/clans.md) | Structure clan, rôles, sync PUBG, overview, permissions par route, crons liés |
+| [Leaderboard](features/leaderboard.md) | Calcul classement interne, périodes, periodKey, progression, badges Top performers |
+| [Matchs](features/matches.md) | Modèles Match/SquadMatch/SquadMember, détection squad, sessions, stats des 13 champs API, synergies |
+| [Dashboard membre](features/member-dashboard.md) | Sections dashboard, PlayerStats vs MemberLifetimeStats, progression, squads fréquents, heatmap |
 
-- [Télémétrie matchs clan](telemetrie-matchs-clan.md)
-  - Données exploitables depuis l'API télémétrie PUBG, idées de stats, contraintes techniques et modèle de stockage
-- [Déploiement télémétrie matchs clan](telemetrie-matchs-clan-deploiement.md)
-  - Plan complet de livraison: lib télémétrie, migrations Prisma, cron, APIs, UI, observabilité, rollout et rollback
-- [Runbook rollout telemetry](telemetrie-rollout.md)
-  - Sequence operationnelle TEL-403: preflight, dry-run, pilote, global, journal et rollback
-- [Récupération assets télémétrie](telemetrie-recuperation-assets.md)
-  - Fonctions à coder pour extraire l'URL asset, télécharger en streaming et brancher l'ingestion sur les matchs existants
-- [Resync worker et runtime dev](resync-worker-runtime.md)
-  - Queue persistante, worker dédié hors process web, endpoint runtime PID/uptime et usage opératoire conseillé
-- [Worker télémétrie — crash silencieux et correctifs](telemetry-worker-crash-fix.md)
-  - Bug `Readable.toWeb()` Node.js 22 sur streams séquentiels, recovery des jobs bloqués, adaptateur stream manuel
-- [Télémétrie batch - Phase 1-2](TELEMETRY_BATCH_README.md)
-  - Mode manuel et batch robuste, enqueue/check status, CLI, worker avec memory protection (Phase 2)
-- [Télémétrie - Trois modes de récupération](TELEMETRY_SYNC_MODES.md)
-  - Direct Sync (rapide), Capture seule (sauvegarde), Queue Resync (async worker) - guide de décision et comparaison
-- [Télémétrie - Interface de sélection depuis matchs](TELEMETRY_MATCHES_SESSION_INTERFACE.md)
-  - Intégration des 3 modes directement sur page /clans/[id]/matches/session/[date] avec tabbed UI
-- [Télémétrie Capture & Resync Workflow](TELEMETRY_CAPTURE_AND_RESYNC_WORKFLOW.md)
-  - Workflow deux phases: capture depuis PUBG API → resync depuis fichiers locaux
-- [Télémétrie Phase 2 Guide](TELEMETRY_PHASE2_GUIDE.md)
-  - Memory monitoring, backpressure controller, dead letter queue, worker health tracking
-- [Télémétrie Phase 3 Guide](TELEMETRY_PHASE3_GUIDE.md)
-  - Dashboard monitoring, error browsing, queue cleanup, metrics export
-- [Télémétrie Production Guide](TELEMETRY_PRODUCTION_GUIDE.md)
-  - Déploiement production (Kubernetes, VPS, systemd), troubleshooting, monitoring, scenarios d'urgence
-- [Télémétrie Status Complet](TELEMETRY_STATUS_COMPLETE.md)
-  - Statut Phase 1-3, ce qui reste à faire, roadmap, recommandations
-- [Season Stats — données et idées](season-stats.md)
-  - Données ranked/normal disponibles depuis l'API PUBG, ce qui est stocké/affiché, faisabilité page TOP 3, idées pour dynamiser le clan
-- [Lifetime Stats — données et idées](lifetime-stats.md)
-  - Données lifetime disponibles depuis l'API PUBG, ce qui est stocké/affiché, lacunes filtre par mode, conception pages membre et clan
-- [Leaderboards — deux systèmes, données et idées](leaderboards.md)
-  - Leaderboard interne clan (existant) vs leaderboard PUBG API mondial (top 500, non consommé), conception pages membre et clan
-- [Clans — endpoint PUBG API, données et idées](clans-endpoint.md)
-  - Données clan disponibles depuis l'API PUBG, lacune principale (auto-sync roster), conception pages membre et clan admin
-- [Intégration pubg/api-assets](pubg-api-assets-integration.md)
-  - Dictionnaires JSON officiels (armes, véhicules, dégâts, maps), icônes HUD, plan d'implémentation en 4 phases avec checklist
-- [Permissions et ordre de navigation](nav-permissions.md)
-  - Système de gestion dynamique des boutons nav : rôles d'accès, couleurs, visibilité conditionnelle, ordre drag & drop, page owner /settings/nav-permissions
+### Stats avancées et télémétrie
 
-## Parcours recommandé
+| Document | Contenu |
+|---|---|
+| [Awards](features/awards.md) | 11 awards fun, logique de calcul top 3, contrat API complet, formatage des valeurs |
+| [Armes](features/weapons.md) | Stats armes télémétrie (MemberWeaponStats) + Weapon Mastery carrière (MemberWeaponMastery) |
+| [Season stats](features/season-stats.md) | Stats ranked/normal par saison, tier, cron daily, contrats GET/POST |
+| [Zones de drop](features/drop-zones.md) | LogParachuteLanding, grille 40×40, normalisation xPct/yPct, contrat API, limitation backfill |
 
-1. Comprendre le classement: commencer par [Calcul leaderboard](leaderboard-calcul.md)
-2. Comprendre la page Matchs: lire [Calcul matchs clan](matchs-clan-calcul.md)
-3. Vérifier les patterns UI: passer par [Composants réutilisables](composants-reutilisables.md)
-4. Vérifier la cohérence visuelle: lire [Uniformisation UI](ui-uniformisation.md)
+### Fonctionnalités sociales
 
-## Notes
+| Document | Contenu |
+|---|---|
+| [Défis](features/challenges.md) | Modèles Challenge/Participant/Reward, 5 types, cycle de vie, routes API |
+| [Rapports](features/reports.md) | Modèles Report/ReportSection, 7 types de sections, pipeline de génération, export HTML/PDF/JSON |
+| [Notifications](features/notifications.md) | 5 types, préférences, 3 canaux (in-app/email/push), NotificationBell, routes API |
 
-- Les docs de calcul décrivent le comportement réel du code actuel.
-- En cas d'évolution métier, mettre à jour en priorité:
-  - leaderboard-calcul.md
-  - matchs-clan-calcul.md
-  - dashboard-membre-calcul.md
+---
+
+## Télémétrie
+
+| Document | Contenu |
+|---|---|
+| [Vue d'ensemble](telemetry/overview.md) | Architecture, 3 modes de sync, flux de données, tables DB produites, variables d'env, statut phases |
+| [Pipeline](telemetry/pipeline.md) | 5 étapes CDN→parse→persist, différence v1/v2, CLI batch, gestion erreurs, fichiers clés |
+| [Parser](telemetry/parser.md) | 15 événements parsés, 5 non parsés, champs partiellement utilisés, distinction JSON brut vs agrégats |
+| [Worker](telemetry/worker.md) | Worker séparé, queue, mémoire 512 Mo, backpressure, dead letter, **bug Readable.toWeb() Node 22** |
+| [API — contrats](telemetry/api.md) | Contrats JSON des 30+ routes (clan analytics, queue management, member scope) |
+| [Dashboard monitoring](telemetry/dashboard.md) | Pages dashboard/errors, métriques Prometheus, pages annexes télémétrie, améliorations restantes |
+| [API PUBG](telemetry/pubg-api.md) | 11 endpoints consommés, endpoints non consommés, dictionnaires pubg-assets, contraintes CDN |
+| [Ops production](telemetry/ops.md) | Migration SQL manuelle, rollout TEL-403, backfill v1→v2, auto-cleanup, variables d'env, systemd |
+
+---
+
+## UI
+
+| Document | Contenu |
+|---|---|
+| [Thèmes](ui/themes.md) | Tokens CSS, remapping automatique Tailwind, ThemeInitializer, règles absolues, classes utilitaires |
+| [Composants](ui/components.md) | Catalogue des 10 composants UI, composants navigation, composants dashboard — props et exemples |
+| [Patterns](ui/patterns.md) | Checklist nouvelle page, structure obligatoire, pattern fetch, parseurs URL, gestion états |
+| [Tableaux](ui/tables.md) | Inventaire des tableaux de l'app, contrôles disponibles, patterns de tri, classes CSS partagées |
+
+---
+
+## Ops
+
+| Document | Contenu |
+|---|---|
+| [Dev setup](ops/dev-setup.md) | Installation Windows/VSCode, Node 22 via nvm-windows, extensions VSCode, .env, multi-terminaux, problèmes courants |
+| [Déploiement production](ops/deployment.md) | Variables d'env, build, 4 processus à démarrer, units systemd, migration DB, rollback, healthchecks |
+| [Cron](ops/cron.md) | 9 jobs planifiés, actions manuelles, table CronExecution, pages de pilotage, variables d'env |
+| [Paramètres admin](ops/settings.md) | 7 pages /settings/* — PUBG API, email, welcome, labels cartes/armes/phases, catégories armes |
+| [Permissions navigation](ops/nav-permissions.md) | Registre NavItemDef, rôles, couleurs, ordre drag & drop, page owner /settings/nav-permissions |
+
+---
+
+## Archive
+
+Les 37 fichiers de l'ancienne documentation sont conservés dans [archive/](archive/) et ne sont plus maintenus. Ils servent de référence historique uniquement.
+
+---
+
+## Parcours de lecture recommandés
+
+### Nouveau développeur sur le projet
+1. [Stack](architecture/stack.md) — comprendre les contraintes techniques
+2. [Structure du code](architecture/code-structure.md) — savoir où trouver quoi
+3. [Data model](architecture/data-model.md) — comprendre les données
+4. [Patterns UI](ui/patterns.md) — savoir comment créer une page
+
+### Comprendre une feature
+- Classement → [Leaderboard](features/leaderboard.md)
+- Matchs clan → [Matchs](features/matches.md) puis [Dashboard membre](features/member-dashboard.md)
+- Armes / Précision → [Armes](features/weapons.md) + [Parser](telemetry/parser.md)
+- Awards → [Awards](features/awards.md)
+- Season ranked → [Season stats](features/season-stats.md)
+
+### Travailler sur la télémétrie
+1. [Vue d'ensemble](telemetry/overview.md) — architecture générale
+2. [Pipeline](telemetry/pipeline.md) — comment les données circulent
+3. [Parser](telemetry/parser.md) — quels événements sont exploités
+4. [Worker](telemetry/worker.md) — comment le worker tourne et ses contraintes mémoire
+5. [API](telemetry/api.md) — contrats des routes
+
+### Mettre en production
+1. [Ops production](telemetry/ops.md) — migration SQL, rollout, backfill
+2. [Déploiement](ops/deployment.md) — variables, processus, systemd
+3. [Dashboard monitoring](telemetry/dashboard.md) — surveiller après déploiement
+
+### Mettre en place l'environnement de développement
+1. [Dev setup](ops/dev-setup.md) — Node 22, VSCode, MySQL local, .env, multi-terminaux
+
+### Ajouter un composant / une page
+1. [Composants](ui/components.md) — vérifier si le composant existe déjà
+2. [Patterns](ui/patterns.md) — structure obligatoire et checklist
+3. [Thèmes](ui/themes.md) — règles de couleurs et tokens
+
+---
+
+## Points critiques à ne jamais oublier
+
+- **Node 24 interdit** — le script `predev` bloque, utiliser Node 22 LTS
+- **`Readable.toWeb()` interdit** — bug V8 Fatal Error sur Node 22, voir [Worker](telemetry/worker.md)
+- **`params` est une Promise** dans Next.js 16 — toujours `await params`
+- **Ne pas lancer `prisma migrate deploy`** en production — risque de conflit de checksum
+- **Ne jamais hardcoder `bg-white` ou `border-gray-200`** — passer par les tokens CSS
+- **Migrations SQL manuelles** sur `smk.arkium.group:3306` — runbook dans [Ops production](telemetry/ops.md)

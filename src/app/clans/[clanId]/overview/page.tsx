@@ -628,6 +628,9 @@ export default function ClanOverviewPage() {
       kills: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
       damage: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
       winRate: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
+      assists: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
+      revives: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
+      survival: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
     }
   } | null
 

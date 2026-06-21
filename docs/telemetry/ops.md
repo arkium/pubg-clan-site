@@ -4,12 +4,13 @@ Ce document décrit les opérations nécessaires au déploiement et à la mainte
 
 ---
 
-## Migration SQL manuelle
+## Migration SQL manuelle — ✅ Appliquée le 2026-06-20
 
 **Fichier :** `prisma/migrations/20260607120000_add_squad_member_stats_and_heal_telemetry/migration.sql`
 **Cible :** `smk.arkium.group:3306`
+**Statut :** appliquée manuellement le 2026-06-20. Le fichier de travail `prisma/add-telemetry-columns.sql` a été supprimé après application.
 
-### Pourquoi l'appliquer manuellement
+### Pourquoi appliquer manuellement (historique)
 
 Ne pas lancer `prisma migrate dev` ou `prisma migrate deploy` sur l'environnement de production. Ces commandes vérifient le checksum de toutes les migrations appliquées. La migration `20260604194120_add_weapon_stats_total_damage` ayant été appliquée directement en production sans passer par Prisma, un conflit de checksum est probable et bloquerait le déploiement.
 
@@ -174,9 +175,20 @@ Ce qu'il ne faut pas faire en premier recours : suppression en masse de snapshot
 
 ---
 
-## Backfill v1 vers v2
+## Backfill v1 vers v2 — ✅ Complété le 2026-06-21
 
-### Pourquoi ce backfill est nécessaire
+**Résultat :** 346 snapshots `SquadMatchTelemetry` — tous `status=success`, `parserVersion=v2`.
+
+```sql
+-- Vérification post-backfill (2026-06-21)
+SELECT status, parserVersion, COUNT(*)
+FROM SquadMatchTelemetry
+GROUP BY status, parserVersion
+ORDER BY status, parserVersion;
+-- → success | v2 | 346
+```
+
+### Pourquoi ce backfill était nécessaire
 
 Le parser v1 n'extrayait pas :
 - `landingSamples` (zones de drop par match — migration `20260607120000`).
@@ -184,30 +196,7 @@ Le parser v1 n'extrayait pas :
 - L'attribution d'armes par membre de façon déterministe.
 - Les synergies entre membres dans tous les cas.
 
-Les matchs parsés avec le parser v1 ont ces champs à `NULL` ou `0` en base. Les données affectées :
-- `SquadMatchTelemetry.landingSamples` : `NULL` pour tous les matchs parsés avant la migration.
-- `MemberTelemetryStats.maxVehicleSpeedKph` : `0` pour les périodes calculées depuis des snapshots v1.
-- `MemberWeaponStats` : potentiellement vide ou partiel pour les anciens matchs.
-
-### Identifier les snapshots à reprocesser
-
-```sql
-SELECT status, parserVersion, COUNT(*)
-FROM SquadMatchTelemetry
-GROUP BY status, parserVersion
-ORDER BY status, parserVersion;
-```
-
-Si `parserVersion='v1'` est majoritaire, le backfill est nécessaire avant d'activer le pipeline automatique.
-
-### Déclencher le backfill
-
-Le worker priorise automatiquement les snapshots `v1` en statut `rebuild` lors de son démarrage. Pour déclencher manuellement via l'interface :
-
-1. Aller sur `/clans/[id]/telemetry/sync-batch-manual`.
-2. Sélectionner les matchs concernés ou utiliser "Tout sélectionner".
-3. Choisir le mode "Queue Resync".
-4. Lancer `npm run telemetry:worker` en parallèle pour traiter la file.
+### Procédure utilisée (référence pour futurs backfills)
 
 Via CLI :
 
@@ -216,7 +205,14 @@ npm run telemetry:batch -- --clan 1 --all-matches
 npm run telemetry:worker
 ```
 
-### Estimation de durée
+Via l'interface :
+
+1. Aller sur `/clans/[id]/telemetry/sync-batch-manual`.
+2. Sélectionner les matchs concernés ou utiliser "Tout sélectionner".
+3. Choisir le mode "Queue Resync".
+4. Lancer `npm run telemetry:worker` en parallèle pour traiter la file.
+
+### Estimation de durée (référence)
 
 Chaque match prend environ 30 à 60 secondes selon la taille du fichier télémétrie (lecture CDN ou relecture fichier local).
 
@@ -226,7 +222,7 @@ Chaque match prend environ 30 à 60 secondes selon la taille du fichier télém�
 | 500 matchs | 5 à 10 heures |
 | 1000 matchs | 10 à 20 heures |
 
-Après le backfill, relancer le recalcul des agrégats :
+Après un backfill, relancer le recalcul des agrégats si nécessaire :
 
 ```bash
 npm run telemetry:batch -- --all-clans --recalc-aggregates-only

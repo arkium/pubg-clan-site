@@ -773,26 +773,33 @@ export type PubgCurrentSeason = {
 }
 
 type PubgWeaponMasteryStatsTotal = {
-  kills?: number
-  headShots?: number
-  defeats?: number
-  groggies?: number
-  damage?: number
-  shots?: number
-  hits?: number
+  Kills?: number
+  HeadShots?: number
+  Defeats?: number
+  Groggies?: number
+  Damage?: number
+  Shots?: number
+  Hits?: number
 }
 
 type PubgWeaponMasteryItem = {
   XPTotal?: number
   LevelCurrent?: number
   TierCurrent?: number
+  // StatsTotal is frozen as of patch 18.2 — legacy data only
   StatsTotal?: PubgWeaponMasteryStatsTotal
+  // OfficialStatsTotal and CompetitiveStatsTotal are the active trackers post-18.2
+  OfficialStatsTotal?: PubgWeaponMasteryStatsTotal
+  CompetitiveStatsTotal?: PubgWeaponMasteryStatsTotal
 }
 
 type PubgWeaponMasteryResponse = {
   data?: {
     attributes?: {
-      weaponsummary?: Record<string, PubgWeaponMasteryItem>
+      weaponSummaries?: Record<string, PubgWeaponMasteryItem>
+      platform?: string
+      seasonId?: string
+      latestMatchId?: string
     }
   }
 }
@@ -958,21 +965,25 @@ export async function fetchWeaponMastery(
       `/shards/${shard}/players/${playerId}/weapon_mastery`
     )
 
-    const summary = response.data.data?.attributes?.weaponsummary ?? {}
+    const summary = response.data.data?.attributes?.weaponSummaries ?? {}
 
-    return Object.entries(summary).map(([weaponId, data]) => ({
-      weaponId,
-      weaponName: deriveWeaponName(weaponId),
-      kills: data.StatsTotal?.kills ?? 0,
-      headshots: data.StatsTotal?.headShots ?? 0,
-      knockouts: data.StatsTotal?.defeats ?? 0,
-      shots: data.StatsTotal?.shots ?? 0,
-      hits: data.StatsTotal?.hits ?? 0,
-      damage: data.StatsTotal?.damage ?? 0,
-      level: data.LevelCurrent ?? 0,
-      xpTotal: data.XPTotal ?? 0,
-      tier: data.TierCurrent ?? 0,
-    }))
+    return Object.entries(summary).map(([weaponId, data]) => {
+      // OfficialStatsTotal is the active tracker post-patch 18.2; StatsTotal is frozen legacy data
+      const stats = data.OfficialStatsTotal ?? data.StatsTotal
+      return {
+        weaponId,
+        weaponName: deriveWeaponName(weaponId),
+        kills: stats?.Kills ?? 0,
+        headshots: stats?.HeadShots ?? 0,
+        knockouts: stats?.Defeats ?? 0,
+        shots: stats?.Shots ?? 0,
+        hits: stats?.Hits ?? 0,
+        damage: stats?.Damage ?? 0,
+        level: data.LevelCurrent ?? 0,
+        xpTotal: data.XPTotal ?? 0,
+        tier: data.TierCurrent ?? 0,
+      }
+    })
   } catch (error) {
     if (
       error instanceof Error &&

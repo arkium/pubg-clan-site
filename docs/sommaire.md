@@ -85,6 +85,15 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 ---
 
+## TODO
+
+| Document | Contenu |
+|---|---|
+| [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3 — backfill, pages manquantes, fonctionnalités incomplètes |
+| [Suggestions](TODO/suggestions.md) | Stats intéressantes à mettre en place, nouvelles fonctionnalités, axes d'amélioration |
+
+---
+
 ## Archive
 
 Les 37 fichiers de l'ancienne documentation sont conservés dans [archive/](archive/) et ne sont plus maintenus. Ils servent de référence historique uniquement.

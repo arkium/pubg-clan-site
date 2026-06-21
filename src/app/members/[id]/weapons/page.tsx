@@ -568,21 +568,6 @@ export default function MemberWeaponsPage() {
         <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
       </section>
 
-      <section className="mb-6 rounded border border-gray-200 bg-white p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Periode</p>
-        <SegmentedControl
-          options={PERIOD_OPTIONS.map((option) => ({
-            ...option,
-            disabled: loading,
-          }))}
-          value={period}
-          onChange={setPeriod}
-          size="sm"
-          fullWidthOnMobile
-          className="w-full sm:w-auto"
-        />
-      </section>
-
       <section className="mb-6 app-panel p-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -690,6 +675,21 @@ export default function MemberWeaponsPage() {
             </table>
           </div>
         ) : null}
+      </section>
+
+      <section className="mb-6 rounded border border-gray-200 bg-white p-4">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Periode</p>
+        <SegmentedControl
+          options={PERIOD_OPTIONS.map((option) => ({
+            ...option,
+            disabled: loading,
+          }))}
+          value={period}
+          onChange={setPeriod}
+          size="sm"
+          fullWidthOnMobile
+          className="w-full sm:w-auto"
+        />
       </section>
 
       {loading ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}

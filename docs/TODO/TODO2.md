@@ -95,7 +95,8 @@ Member (par clan)
 
 - [x] Ajouter le champ `isSuperUser Boolean @default(false)` sur le modèle `UserAccount`
 - [x] Ajouter le champ `joinStatus String @default("active")` sur le modèle `ClanMember`
-- [ ] **À lancer sur le serveur :** `npx prisma generate && npx prisma migrate deploy` (ou appliquer le SQL ci-dessous manuellement)
+- [x] Fichier de migration créé : `prisma/migrations/20260621120000_add_superuser_and_join_status/migration.sql`
+- [ ] **À lancer sur le serveur :** `npx prisma migrate deploy && npx prisma generate`
 
 ```prisma
 model UserAccount {
@@ -245,14 +246,11 @@ Les crons tournent en process serveur autonome : **aucune auth sur le process lu
 
 ⚠️ **Action requise côté serveur avant de tester :**
 ```bash
-# 1. Appliquer les migrations SQL
-ALTER TABLE UserAccount ADD COLUMN isSuperUser TINYINT(1) NOT NULL DEFAULT 0;
-ALTER TABLE ClanMember ADD COLUMN joinStatus VARCHAR(191) NOT NULL DEFAULT 'active';
-
-# 2. Regénérer le client Prisma
+# 1. Appliquer la migration et regénérer le client Prisma
+npx prisma migrate deploy
 npx prisma generate
 
-# 3. Créer le premier SuperUser
+# 2. Créer le premier SuperUser
 npm run make-superuser -- --grant votre-email@example.com
 ```
 

@@ -46,6 +46,7 @@ model ClanMember {
   pubgAccountId  String?
   platformShard  String   @default("steam")
   isActive       Boolean  @default(true)
+  joinStatus     String   @default("active")
   clanId         Int?
   clan           Clan?    @relation(fields: [clanId], references: [id], onDelete: SetNull)
   createdAt      DateTime @default(now())
@@ -83,6 +84,7 @@ model UserAccount {
   avatarUrl       String?
   status          String    @default("active")
   emailVerifiedAt DateTime?
+  isSuperUser     Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

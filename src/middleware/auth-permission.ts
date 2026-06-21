@@ -5,6 +5,27 @@ import { getNavItemRole } from '@/lib/nav-permissions-service'
 import { prisma } from '@/lib/prisma'
 import { hasAnyRole, hasPermission } from '@/lib/role-service'
 
+export async function isSuperUserSession(request: Request): Promise<boolean> {
+  const session = await getSessionFromRequest(request)
+  if (!session) return false
+  const user = await prisma.userAccount.findUnique({
+    where: { id: session.userId },
+    select: { isSuperUser: true },
+  })
+  return user?.isSuperUser === true
+}
+
+export async function requireSuperUser(request: Request): Promise<NextResponse | null> {
+  const session = await getSessionFromRequest(request)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = await prisma.userAccount.findUnique({
+    where: { id: session.userId },
+    select: { isSuperUser: true },
+  })
+  if (!user?.isSuperUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return null
+}
+
 const ALLOW_LEGACY_ACTOR_RESOLUTION = process.env.AUTH_ALLOW_LEGACY_ACTOR_ID === 'true'
 
 function parseMemberId(value: string | null) {

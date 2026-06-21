@@ -33,11 +33,38 @@ export async function POST(request: Request) {
         isActive: true,
       },
     },
-    select: { memberId: true },
+    select: {
+      memberId: true,
+      member: { select: { clanId: true } },
+    },
   })
 
   if (!identity) {
     return NextResponse.json({ error: 'Member is not linked to this account' }, { status: 403 })
+  }
+
+  // Vérifier si c'est un changement de clan (cross-clan) — réservé au SuperUser
+  if (session.activeMemberId && session.activeMemberId !== identity.memberId) {
+    const currentMember = await prisma.clanMember.findUnique({
+      where: { id: session.activeMemberId },
+      select: { clanId: true },
+    })
+
+    const targetClanId = identity.member.clanId
+    const currentClanId = currentMember?.clanId ?? null
+
+    if (currentClanId !== targetClanId) {
+      const user = await prisma.userAccount.findUnique({
+        where: { id: session.userId },
+        select: { isSuperUser: true },
+      })
+      if (!user?.isSuperUser) {
+        return NextResponse.json(
+          { error: 'Forbidden: clan switching requires SuperUser privileges' },
+          { status: 403 }
+        )
+      }
+    }
   }
 
   const token = getSessionTokenFromRequest(request)

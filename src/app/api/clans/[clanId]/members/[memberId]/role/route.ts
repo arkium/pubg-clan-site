@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { assignRole, initializeDefaultRoles, PREDEFINED_ROLES, revokeRole } from '@/lib/role-service'
-import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
+import { getActorMemberId, isSuperUserSession, requirePermission } from '@/middleware/auth-permission'
 
 function parsePositiveInt(value: string) {
   const parsed = Number(value)
@@ -64,13 +64,18 @@ export async function PATCH(
       return NextResponse.json({ error: 'Role not found in clan' }, { status: 404 })
     }
 
-    const hasOwnerRole = member.roles.some((entry) => entry.role.name === PREDEFINED_ROLES.OWNER.name)
-    if (hasOwnerRole && nextRole.name !== PREDEFINED_ROLES.OWNER.name) {
-      return NextResponse.json({ error: 'Owner role cannot be modified' }, { status: 403 })
-    }
+    const memberHasOwnerRole = member.roles.some((entry) => entry.role.name === PREDEFINED_ROLES.OWNER.name)
+    const targetIsOwnerRole = nextRole.name === PREDEFINED_ROLES.OWNER.name
 
-    if (!hasOwnerRole && nextRole.name === PREDEFINED_ROLES.OWNER.name) {
-      return NextResponse.json({ error: 'Owner role cannot be assigned manually' }, { status: 403 })
+    // Assigner ou révoquer le rôle Owner est réservé au SuperUser
+    if (memberHasOwnerRole || targetIsOwnerRole) {
+      const superUser = await isSuperUserSession(request)
+      if (!superUser) {
+        return NextResponse.json(
+          { error: 'Forbidden: only SuperUser can assign or revoke the Owner role' },
+          { status: 403 }
+        )
+      }
     }
 
     const currentRoleIds = member.roles.map((entry) => entry.roleId)

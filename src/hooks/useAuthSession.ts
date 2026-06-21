@@ -20,6 +20,7 @@ type AuthSessionState = {
   activeMemberId: number | null
   permissions: string[]
   members: SessionMember[]
+  isSuperUser: boolean
 }
 
 const INITIAL_STATE: AuthSessionState = {
@@ -29,6 +30,7 @@ const INITIAL_STATE: AuthSessionState = {
   activeMemberId: null,
   permissions: [],
   members: [],
+  isSuperUser: false,
 }
 
 export function useAuthSession() {
@@ -57,10 +59,11 @@ export function useAuthSession() {
 
       const data = (await response.json()) as {
         authenticated: boolean
-        user: { email: string }
+        user: { email: string; isSuperUser?: boolean }
         activeMemberId: number | null
         permissions?: string[]
         members: SessionMember[]
+        isSuperUser?: boolean
       }
 
       if (!data.authenticated) {
@@ -75,6 +78,7 @@ export function useAuthSession() {
         activeMemberId: data.activeMemberId,
         permissions: Array.isArray(data.permissions) ? data.permissions : [],
         members: data.members,
+        isSuperUser: data.isSuperUser === true,
       })
     } catch {
       await resetToLoggedOut(false)

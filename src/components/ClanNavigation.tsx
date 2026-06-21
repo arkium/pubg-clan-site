@@ -396,7 +396,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { clanId, clearClanId } = useSelectedClan()
-  const { loading, authenticated, email, activeMemberId, permissions, members, refresh } = useAuthSession()
+  const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, refresh } = useAuthSession()
   const [clan, setClan] = useState<ClanSummary | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mobilePanelVisible, setMobilePanelVisible] = useState(false)
@@ -550,7 +550,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
   const isOwner = hasWildcard
   const isAdmin = canManageMembers || canManageRoles || canManageSettings
-  const canSwitchClan = isOwner
+  const canSwitchClan = isSuperUser
 
   const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
 

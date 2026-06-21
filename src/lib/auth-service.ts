@@ -472,13 +472,8 @@ export async function authenticateUser(params: {
   }
 
   const activeIdentity = user.identities.find((identity) => identity.member.isActive)
-  const canSwitchClan = user.identities.some((identity) => {
-    if (!identity.member.isActive) {
-      return false
-    }
-
-    return identity.member.roles.some((entry) => entry.role.name.toLowerCase() === 'owner')
-  })
+  // canSwitchClan est maintenant basé sur isSuperUser (pas sur le rôle Owner)
+  const canSwitchClan = user.isSuperUser
   return {
     userId: user.id,
     email: user.email,

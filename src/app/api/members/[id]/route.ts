@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
-import { requirePermission } from '@/middleware/auth-permission'
+import { requirePermission, requireSuperUser } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
   const parsed = Number(id)
@@ -150,7 +150,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_members')(request)
+    // Déplacer un membre entre clans = opération cross-clan → SuperUser uniquement
+    const permissionError = await requireSuperUser(request)
     if (permissionError) {
       return permissionError
     }

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
 import { ensureTrackedClanForPlayer, getOrCreateUngroupedClan, syncTrackedClanStats } from '@/lib/clan-service'
-import { requirePermission } from '@/middleware/auth-permission'
+import { getActorMemberId, isSuperUserSession, requirePermission } from '@/middleware/auth-permission'
 import { z } from 'zod'
 
 const RANKED_METRICS: Array<{
@@ -130,6 +130,21 @@ export async function POST(request: NextRequest) {
       resolvedClanId,
       usedFallbackUngrouped: !detectedClan?.clan.id && !validated.clanId,
     })
+
+    // Vérifier que l'acteur est dans le clan cible (ou est SuperUser)
+    const actorMemberId = await getActorMemberId(request)
+    if (actorMemberId) {
+      const actorMember = await prisma.clanMember.findUnique({
+        where: { id: actorMemberId },
+        select: { clanId: true },
+      })
+      if (actorMember?.clanId !== resolvedClanId) {
+        const superUser = await isSuperUserSession(request)
+        if (!superUser) {
+          return NextResponse.json({ error: 'Forbidden: cannot add members to another clan' }, { status: 403 })
+        }
+      }
+    }
 
     if (validated.mode === 'preview') {
       return NextResponse.json({

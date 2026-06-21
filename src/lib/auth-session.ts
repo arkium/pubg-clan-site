@@ -36,6 +36,7 @@ export type AuthSessionContext = {
   userId: number
   email: string
   activeMemberId: number | null
+  isSuperUser: boolean
 }
 
 export async function createSession(params: {
@@ -118,6 +119,7 @@ export async function getSessionFromToken(token: string | null): Promise<AuthSes
           email: true,
           status: true,
           emailVerifiedAt: true,
+          isSuperUser: true,
         },
       },
       activeMember: {
@@ -143,6 +145,7 @@ export async function getSessionFromToken(token: string | null): Promise<AuthSes
       userId: session.user.id,
       email: session.user.email,
       activeMemberId: null,
+      isSuperUser: session.user.isSuperUser,
     }
   }
 
@@ -151,6 +154,7 @@ export async function getSessionFromToken(token: string | null): Promise<AuthSes
     userId: session.user.id,
     email: session.user.email,
     activeMemberId: session.activeMemberId,
+    isSuperUser: session.user.isSuperUser,
   }
 }
 

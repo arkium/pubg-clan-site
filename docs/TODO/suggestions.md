@@ -194,6 +194,55 @@ Idées de stats et fonctionnalités qui apporteraient une vraie valeur au clan. 
 
 ---
 
+## Fonctionnalités de gestion et animation du clan
+
+### Rôle Moderator — animation de clan
+
+**Contexte :** le rôle Moderator existe en DB mais n'a pas de fonctions définies. Quatre axes d'animation identifiés à implémenter dans une future itération.
+
+**1. Gestion des défis internes (Challenges)**
+- Le Moderator peut créer, modifier et clore des challenges au sein de son clan
+- Types actuellement supportés : `kill_race`, `damage_race`, etc.
+- Permet d'organiser des mini-compétitions sans impliquer l'Owner ou l'Admin
+- Permission à câbler : `manage_challenges` sur les routes `POST/PATCH /api/clans/[clanId]/challenges`
+
+**2. Annonces et rappels (Notifications)**
+- Le Moderator peut rédiger et envoyer des annonces aux membres du clan (soirée scrims, objectif de la semaine, etc.)
+- Gestion des canaux de notification (Discord webhook, email)
+- Permissions : `manage_notifications`, `manage_channels`
+
+**3. Recrutement (Invitations membres)**
+- Le Moderator peut envoyer des invitations à de nouveaux joueurs
+- Il ne peut pas retirer ou archiver un membre existant — seulement recruter
+- Permission : `invite_members` (sans `remove_members` ni `kick_members`)
+
+**4. Export des rapports**
+- Le Moderator peut exporter les rapports hebdomadaires et mensuels du clan (PDF, CSV)
+- Utile pour préparer des analyses à partager hors du site (Discord, Google Sheets)
+- Permission : `export_reports`
+
+---
+
+### Compétitions inter-clans
+
+**Pourquoi c'est utile :** les challenges actuels sont intra-clan. Une compétition inter-clans permettrait de mesurer l'ensemble d'un clan face à un autre sur une période donnée — un motivateur fort pour l'engagement.
+
+**Ce qu'on peut construire :**
+
+- Modèle `ClanChallenge` : deux clans s'affrontent sur une métrique (kills, win rate, damage) sur une période définie
+- L'Owner ou le SuperUser crée le défi et invite un clan adverse (via son `clanId`)
+- Chaque soir, le cron compare les stats agrégées des deux clans sur la période
+- Un leaderboard live inter-clans s'affiche pour les membres des deux clans
+- À la clôture : badge "Vainqueur du défi inter-clan [Nom du clan] — Saison X" attribué aux membres du clan gagnant
+
+**Données disponibles :** `PlayerStats` agrégés par clan et par période sont déjà calculés — c'est le moteur des stats existant qui peut servir de base.
+
+**Difficulté principale :** isoler les matchs joués *pendant* la période du défi (et pas les matchs antérieurs) — nécessite un filtrage par `Match.playedAt` dans la fenêtre temporelle du `ClanChallenge`.
+
+**Page suggérée :** `/clans/[clanId]/competitions` — liste des défis inter-clans actifs, terminés, et formulaire d'invitation.
+
+---
+
 ## Axes techniques qui débloqueraient plusieurs stats
 
 | Amélioration technique | Stats qu'elle débloquerait |

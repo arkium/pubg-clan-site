@@ -38,9 +38,10 @@ const PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { key: 'view_leaderboard', name: 'View Leaderboard', description: 'View leaderboard', category: 'reports' },
   { key: 'view_notifications', name: 'View Notifications', description: 'View notifications', category: 'reports' },
   { key: 'export_reports', name: 'Export Reports', description: 'Export reports', category: 'reports' },
-  { key: 'moderate_members', name: 'Moderate Members', description: 'Moderate members', category: 'moderation' },
-  { key: 'manage_notifications', name: 'Manage Notifications', description: 'Manage notifications', category: 'moderation' },
-  { key: 'manage_channels', name: 'Manage Channels', description: 'Manage channels', category: 'moderation' },
+  { key: 'moderate_members', name: 'Moderate Members', description: 'Moderate members (notes, warnings)', category: 'moderation' },
+  { key: 'manage_notifications', name: 'Manage Notifications', description: 'Post announcements and reminders', category: 'moderation' },
+  { key: 'manage_channels', name: 'Manage Channels', description: 'Configure notification channels (Discord, email)', category: 'moderation' },
+  { key: 'manage_challenges', name: 'Manage Challenges', description: 'Create, edit and close clan challenges', category: 'moderation' },
   { key: 'manage_settings', name: 'Manage Settings', description: 'Manage settings', category: 'settings' },
   { key: 'manage_integrations', name: 'Manage Integrations', description: 'Manage integrations', category: 'settings' },
 ]
@@ -54,12 +55,12 @@ export const PREDEFINED_ROLES = {
   ADMIN: {
     name: 'Admin',
     description: 'Manage members and settings',
-    permissions: ['edit_clan', 'manage_members', 'view_reports', 'manage_roles', 'manage_settings', 'assign_roles', 'revoke_roles'],
+    permissions: ['edit_clan', 'manage_members', 'view_reports', 'manage_roles', 'manage_settings', 'assign_roles', 'revoke_roles', 'invite_members', 'remove_members', 'manage_challenges'],
   },
   MODERATOR: {
     name: 'Moderator',
-    description: 'Moderation and basic management',
-    permissions: ['moderate_members', 'view_reports', 'manage_notifications'],
+    description: 'Clan animation: challenges, announcements, recruitment',
+    permissions: ['invite_members', 'manage_challenges', 'view_reports', 'export_reports', 'manage_notifications', 'manage_channels', 'moderate_members'],
   },
   MEMBER: {
     name: 'Member',

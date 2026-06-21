@@ -10,13 +10,12 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 export default function ClansPage() {
   const router = useRouter()
   const { setClanId } = useSelectedClan()
-  const { loading: authLoading, authenticated, permissions } = useAuthSession()
+  const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const hasWildcard = permissions.includes('*')
-  const canSwitchClan = hasWildcard
+  const canSwitchClan = isSuperUser
 
   useEffect(() => {
     if (authLoading) {

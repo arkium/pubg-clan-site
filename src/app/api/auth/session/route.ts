@@ -20,8 +20,10 @@ export async function GET(request: Request) {
     user: {
       id: session.userId,
       email: session.email,
+      isSuperUser: session.isSuperUser,
     },
     activeMemberId: session.activeMemberId,
+    isSuperUser: session.isSuperUser,
     permissions,
     members: linkedMembers
       .filter((identity) => identity.member.isActive)

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { PHASE_KEYS, DEFAULT_PHASE_LABELS, type PhaseKey } from '@/lib/phase-label-service'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 type PhaseLabels = Record<string, string>
 
@@ -141,7 +141,7 @@ export default function PhaseLabelSettingsPage() {
           title="Alias des phases PUBG"
           subtitle="Personnalise les noms affichés pour chaque valeur isGame dans les filtres, graphiques et tableaux de phases."
         />
-        <SettingsSectionNav section="admin-menu" />
+        <SectionNav section="admin-menu" />
       </section>
 
       {error ? (

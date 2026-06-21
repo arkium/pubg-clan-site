@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type ClanRole = {
@@ -30,6 +30,7 @@ type ClanMemberWithRole = {
   permissions: string[]
   joinedAt: string
   hasAccount: boolean
+  isSuperUser: boolean
   avatarUrl?: string | null
   pendingInvite: {
     id: string
@@ -673,7 +674,7 @@ export default function ClanMembersSettingsPage() {
           subtitle="Cartes premium pour les membres du clan, leurs rôles et leurs invitations."
           actions={<Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>}
         />
-        <SettingsSectionNav section="admin-menu" />
+        <SectionNav section="admin-menu" />
       </section>
       {copyToast ? (
         <div
@@ -771,6 +772,11 @@ export default function ClanMembersSettingsPage() {
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getRoleBadgeClass(member.role)}`}>
                           {member.role}
                         </span>
+                        {member.isSuperUser ? (
+                          <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm">
+                            ★ SuperUser
+                          </span>
+                        ) : null}
                         {renderMemberAccess(member)}
                       </div>
                     </div>

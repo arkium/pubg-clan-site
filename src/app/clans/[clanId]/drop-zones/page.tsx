@@ -1,10 +1,10 @@
-'use client'
+﻿'use client'
 
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
@@ -237,7 +237,7 @@ export default function ClanDropZonesPage() {
           </div>
         </div>
         <div className="mt-3">
-          <ClanSectionNav clanId={clanId} />
+          <SectionNav section="clan-section" />
         </div>
       </header>
 

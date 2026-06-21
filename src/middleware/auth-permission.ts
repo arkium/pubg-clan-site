@@ -159,6 +159,14 @@ export function requireNavPermission(navKey: string) {
       return null
     }
 
+    if (role === 'superuser') {
+      const isSU = await isSuperUserSession(request)
+      if (!isSU) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      return null
+    }
+
     // role === 'owner'
     const isOwner = await hasPermission(actorMemberId, '*')
     if (!isOwner) {

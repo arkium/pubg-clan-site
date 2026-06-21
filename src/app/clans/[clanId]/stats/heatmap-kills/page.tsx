@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
@@ -172,7 +172,7 @@ export default function ClanTelemetryHeatmapKillsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Heatmap kills clan</h1>
             <p className="text-sm text-gray-600">Vue map-level pour preparer la couche geospatiale detaillee.</p>
-            <ClanSectionNav clanId={clanId} />
+            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

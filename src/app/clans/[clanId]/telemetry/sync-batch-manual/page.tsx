@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 type SyncMode = 'direct' | 'capture' | 'queue'
 
@@ -168,7 +168,7 @@ export default function TelemetrySyncBatchPage() {
           title="Récupération manuelle"
           subtitle="Trois modes : Direct (simple), Capture (sauvegarde locale), Queue (asynchrone)."
         />
-        <SettingsSectionNav section="owner-menu" />
+        <SectionNav section="owner-menu" />
       </section>
 
       <div className="grid gap-6">

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -9,7 +9,7 @@ import SquadSynergies from '@/components/SquadSynergies'
 import TopPerformers from '@/components/TopPerformers'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -113,7 +113,7 @@ export default function ClanMatchesPage() {
             <p className="text-sm text-gray-600">
               Performance collective du clan sur la période sélectionnée.
             </p>
-            <ClanSectionNav clanId={clanId} />
+            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

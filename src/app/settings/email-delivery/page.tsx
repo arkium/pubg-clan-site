@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 type EmailDeliveryStatus = {
   ready: boolean
@@ -256,7 +256,7 @@ export default function EmailDeliverySettingsPage() {
           title="Test de livraison email"
           subtitle="Lancez un email de test. Une fois le test réussi, les boutons d'invitation sont affichés dans la gestion des membres."
         />
-        <SettingsSectionNav section="owner-menu" />
+        <SectionNav section="owner-menu" />
       </section>
       <section className="app-panel p-6 sm:p-8">
 

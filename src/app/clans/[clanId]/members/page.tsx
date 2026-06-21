@@ -1,4 +1,4 @@
- 'use client'
+﻿ 'use client'
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -196,7 +196,7 @@ export default function ClanMembersPage() {
             <p className="text-sm text-gray-600">
               {clanName ? `${clanName} ·` : ''} Consulte les joueurs et ouvre leurs sections principales.
             </p>
-            <ClanSectionNav clanId={clanId} />
+            <SectionNav section="clan-section" />
           </div>
 
         </header>

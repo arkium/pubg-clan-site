@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 import ClanSelector, { type Clan } from '@/components/ClanSelector'
+import SectionNav from '@/components/SectionNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -99,11 +100,14 @@ export default function ClansPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <h1 className="mb-2 text-3xl font-bold text-gray-900">Sélectionnez votre clan</h1>
-      <p className="mb-6 text-sm text-gray-600">
-        Choisissez le clan à consulter pour afficher les membres et les données associées.
-      </p>
+    <main className="app-container app-main">
+      <div className="app-panel mb-5 p-4">
+        <h1 className="text-xl font-bold text-slate-900">Sélectionnez votre clan</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Choisissez le clan à consulter pour afficher les membres et les données associées.
+        </p>
+        <SectionNav section="superuser-menu" />
+      </div>
 
       <ClanSelector clans={clans} loading={loading} error={error} onSelect={handleSelect} />
     </main>

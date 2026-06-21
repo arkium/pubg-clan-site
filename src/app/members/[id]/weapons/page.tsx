@@ -1,10 +1,10 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import MemberSectionNav from '@/components/MemberSectionNav'
+import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import WeaponIcon from '@/components/ui/WeaponIcon'
@@ -565,7 +565,7 @@ export default function MemberWeaponsPage() {
           showBackButton={false}
           framed={false}
         />
-        <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+        <SectionNav section="member-section" />
       </section>
 
       <section className="mb-6 app-panel p-4">

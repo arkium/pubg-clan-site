@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 import {
   CATEGORY_CODES,
   DEFAULT_CATEGORY_LABELS,
@@ -140,7 +140,7 @@ export default function WeaponCategoriesSettingsPage() {
           title="Catégories des armes"
           subtitle="Assigne chaque arme à une catégorie et personnalise les noms affichés dans les filtres."
         />
-        <SettingsSectionNav section="admin-menu" />
+        <SectionNav section="admin-menu" />
       </section>
 
       <form className="space-y-4" onSubmit={handleSave}>

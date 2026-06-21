@@ -1,11 +1,11 @@
-'use client'
+﻿'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 import { isGameLabel } from '@/lib/phase-label-service'
@@ -1063,7 +1063,7 @@ export default function MatchTelemetryDetailPage() {
             Retour
           </Link>
         </div>
-        <ClanSectionNav clanId={clanId} />
+        <SectionNav section="clan-section" />
       </section>
 
       {loading ? <p className="text-sm text-slate-600">Chargement de la telemetrie...</p> : null}

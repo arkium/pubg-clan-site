@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { createOwnerBootstrapInvite } from '@/lib/auth-service'
-import { getLoginWelcomeSettings, getPrimaryClanLabel } from '@/lib/login-welcome-service'
+import { getClanLabel, getLoginWelcomeSettings, getPrimaryClanId } from '@/lib/login-welcome-service'
 import { prisma } from '@/lib/prisma'
 import { getSetupState } from '@/lib/setup-service'
 import { PREDEFINED_ROLES } from '@/lib/role-service'
@@ -49,9 +49,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Pending activation not active' }, { status: 409 })
   }
 
+  const primaryClanId = await getPrimaryClanId()
   const [settings, clanLabel, invite] = await Promise.all([
-    getLoginWelcomeSettings(),
-    getPrimaryClanLabel(),
+    primaryClanId ? getLoginWelcomeSettings(primaryClanId) : Promise.resolve(null),
+    primaryClanId ? getClanLabel(primaryClanId) : Promise.resolve(null),
     getPendingOwnerInvite(),
   ])
 

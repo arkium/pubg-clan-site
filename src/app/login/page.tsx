@@ -29,6 +29,13 @@ function LoginPageContent() {
   const searchParams = useSearchParams()
 
   const redirectTo = useMemo(() => searchParams.get('redirect'), [searchParams])
+
+  const welcomeClanId = useMemo(() => {
+    if (!redirectTo) return null
+    const match = /^\/clans\/(\d+)\//.exec(redirectTo)
+    return match ? match[1] : null
+  }, [redirectTo])
+
   const [setupState, setSetupState] = useState<
     'completed' | 'pending_activation' | 'first_run' | 'loading'
   >('loading')
@@ -46,9 +53,13 @@ function LoginPageContent() {
 
     async function loadSetupState() {
       try {
+        const welcomeUrl = welcomeClanId
+          ? `/api/clans/${welcomeClanId}/settings/login-welcome`
+          : '/api/settings/login-welcome'
+
         const [setupResponse, welcomeResponse] = await Promise.all([
           fetch('/api/setup/status', { cache: 'no-store' }),
-          fetch('/api/settings/login-welcome', { cache: 'no-store' }),
+          fetch(welcomeUrl, { cache: 'no-store' }),
         ])
 
         const setupPayload = (await setupResponse.json().catch(() => null)) as

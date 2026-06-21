@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 interface FailedJob {
   id: string
@@ -75,7 +75,7 @@ export default function TelemetryErrorsPage() {
           title="Logs d'erreurs télémétrie"
           subtitle="Consultez et relancez les jobs échoués."
         />
-        <SettingsSectionNav section="owner-menu" />
+        <SectionNav section="owner-menu" />
       </section>
 
       <section className="app-panel p-4">

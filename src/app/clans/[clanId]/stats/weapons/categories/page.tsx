@@ -1,4 +1,4 @@
-import ClanSectionNav from '@/components/ClanSectionNav'
+﻿import SectionNav from '@/components/SectionNav'
 import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
 import { prisma } from '@/lib/prisma'
 import { weaponIconUrl } from '@/lib/pubg-assets/asset-url'
@@ -209,7 +209,7 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
             Mapping utilisé pour classer les armes par catégorie dans la télémétrie.
           </p>
         </div>
-        <ClanSectionNav clanId={parsedClanId} />
+        <SectionNav section="clan-section" />
       </section>
 
       <section className="app-panel p-4">

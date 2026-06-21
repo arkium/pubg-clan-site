@@ -1,12 +1,11 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -59,11 +58,11 @@ export default function TelemetryMatchesPage() {
           title="Télémétrie — Soirées"
           subtitle="Soirées de jeu et état de récupération télémétrie par session."
         />
-        <SettingsSectionNav section="owner-menu" />
+        <SectionNav section="owner-menu" />
       </section>
 
       <section className="app-panel mb-4 p-4">
-        <ClanSectionNav clanId={clanId} />
+        <SectionNav section="clan-section" />
       </section>
 
       <section className="app-panel mb-5 p-4">

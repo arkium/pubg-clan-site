@@ -9,8 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
-import { NAV_REGISTRY, getItemRole } from '@/lib/nav-permissions-registry'
-import { NAV_DEFAULT_TARGETS } from '@/lib/nav-permissions-service'
+import { NAV_REGISTRY, getItemRole, type NavSection } from '@/lib/nav-permissions-registry'
 
 type ClanSummary = {
   id: number
@@ -35,9 +34,9 @@ type SubmenuItem = {
   navKey: string
   label: string
   href: string
-  tone: NavItem['tone']
+  tone: NavItem['tone'] | 'violet'
   highlightWhenActive?: boolean
-  role?: 'admin' | 'owner'
+  role?: 'admin' | 'owner' | 'superuser'
 }
 
 type CronAction = 'sync_matches' | 'sync_stats' | 'generate_weekly_report' | 'generate_monthly_report'
@@ -57,7 +56,10 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
 }
 
-function getRoleBorderClass(role: 'admin' | 'owner' | undefined, darkMode: boolean): string {
+function getRoleBorderClass(role: 'admin' | 'owner' | 'superuser' | undefined, darkMode: boolean): string {
+  if (role === 'superuser') {
+    return darkMode ? 'border border-violet-500/60' : 'border border-violet-400'
+  }
   if (role === 'owner') {
     return darkMode ? 'border border-amber-500/60' : 'border border-amber-400'
   }
@@ -67,7 +69,7 @@ function getRoleBorderClass(role: 'admin' | 'owner' | undefined, darkMode: boole
   return ''
 }
 
-function getToneClasses(tone: NavItem['tone'], active: boolean, darkMode: boolean) {
+function getToneClasses(tone: NavItem['tone'] | 'violet', active: boolean, darkMode: boolean) {
   if (!darkMode) {
     if (active) {
       if (tone === 'brand') {
@@ -84,6 +86,10 @@ function getToneClasses(tone: NavItem['tone'], active: boolean, darkMode: boolea
 
       if (tone === 'emerald') {
         return 'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200'
+      }
+
+      if (tone === 'violet') {
+        return 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-200'
       }
 
       return 'bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-300'
@@ -103,6 +109,10 @@ function getToneClasses(tone: NavItem['tone'], active: boolean, darkMode: boolea
 
     if (tone === 'emerald') {
       return 'text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800'
+    }
+
+    if (tone === 'violet') {
+      return 'text-violet-700 hover:bg-violet-50 hover:text-violet-800'
     }
 
     return 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
@@ -125,6 +135,10 @@ function getToneClasses(tone: NavItem['tone'], active: boolean, darkMode: boolea
       return 'bg-emerald-500/20 text-emerald-100 ring-1 ring-inset ring-emerald-300/30'
     }
 
+    if (tone === 'violet') {
+      return 'bg-violet-500/20 text-violet-100 ring-1 ring-inset ring-violet-300/30'
+    }
+
     return 'bg-white/10 text-white ring-1 ring-inset ring-white/20'
   }
 
@@ -142,6 +156,10 @@ function getToneClasses(tone: NavItem['tone'], active: boolean, darkMode: boolea
 
   if (tone === 'emerald') {
     return 'text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-100'
+  }
+
+  if (tone === 'violet') {
+    return 'text-violet-200 hover:bg-violet-500/10 hover:text-violet-100'
   }
 
   return 'text-slate-300 hover:bg-white/5 hover:text-white'
@@ -516,7 +534,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
   const navPerms = useNavPermissions()
   const navLabels = navPerms.labels
-  const navTargets = navPerms.targets
 
   function isNavHidden(navKey: string): boolean {
     const role = navPerms.roles[navKey]
@@ -532,13 +549,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       || '/'
   }
 
-  function resolveTargetHref(navKey: string, fallback: string): string {
-    const targetKey = navTargets[navKey] ?? NAV_DEFAULT_TARGETS[navKey]
-    if (!targetKey) return fallback
-    const targetItem = NAV_REGISTRY.find((i) => i.navKey === targetKey)
-    return targetItem ? resolveHref(targetItem.hrefTemplate) : fallback
-  }
-
   const permissionSet = useMemo(() => new Set(permissions), [permissions])
   const hasWildcard = permissionSet.has('*')
 
@@ -550,30 +560,22 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
   const isOwner = hasWildcard
   const isAdmin = canManageMembers || canManageRoles || canManageSettings
-  const canSwitchClan = isSuperUser
 
-  const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
+  // Items promoted to another section are no longer visible in their native section
+  const ROLE_TO_TARGET: Partial<Record<string, NavSection>> = {
+    admin: 'admin-menu',
+    owner: 'owner-menu',
+    superuser: 'superuser-menu',
+  }
 
-  const primaryLinks: NavItem[] = ([
-    {
-      navKey: 'primary.dashboard',
-      label: 'Dashboard',
-      href: resolveTargetHref('primary.dashboard', dashboardHref),
-      tone: 'blue',
-    },
-    {
-      navKey: 'primary.mon-clan',
-      label: 'Mon clan',
-      href: resolveTargetHref('primary.mon-clan', clanId ? `/clans/${clanId}/members` : '/members'),
-      tone: 'sky',
-    },
-    { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' },
-  ] as NavItem[]).filter((item) => !isNavHidden(item.navKey))
-
-  function getFirstSectionHref(section: 'admin-menu' | 'owner-menu', fallback: string): string {
-    const items = NAV_REGISTRY.filter(
-      (i) => i.section === section && i.navKey !== 'owner.switch-clan'
-    )
+  function getFirstSectionHref(section: NavSection, fallback: string): string {
+    const items = NAV_REGISTRY.filter((i) => {
+      if (i.section !== section) return false
+      if (i.navKey === 'owner.switch-clan') return false
+      const role = getItemRole(i.navKey, navPerms.roles)
+      const target = ROLE_TO_TARGET[role]
+      return !target || target === section
+    })
     const posOrder = navPerms.positions[section] as string[] | undefined
     const ordered = posOrder
       ? [...items].sort((a, b) => {
@@ -583,15 +585,33 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         })
       : items
     const first = ordered.find((i) => {
-      if (isNavHidden(i.navKey)) return false
       const role = getItemRole(i.navKey, navPerms.roles)
       if (role === 'hidden') return false
-      if (role === 'owner') return isOwner
-      if (role === 'admin') return isAdmin
+      if (role === 'superuser') return isSuperUser
+      if (role === 'owner') return isOwner || isSuperUser
+      if (role === 'admin') return isAdmin || isSuperUser
       return true
     })
     return first ? resolveHref(first.hrefTemplate) : fallback
   }
+
+  const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
+
+  const primaryLinks: NavItem[] = ([
+    {
+      navKey: 'primary.dashboard',
+      label: 'Dashboard',
+      href: getFirstSectionHref('member-section', dashboardHref),
+      tone: 'blue',
+    },
+    {
+      navKey: 'primary.mon-clan',
+      label: 'Mon clan',
+      href: getFirstSectionHref('clan-section', clanId ? `/clans/${clanId}/members` : '/members'),
+      tone: 'sky',
+    },
+    { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' },
+  ] as NavItem[]).filter((item) => !isNavHidden(item.navKey))
 
   const adminEntryHref = getFirstSectionHref(
     'admin-menu',
@@ -601,9 +621,14 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     'owner-menu',
     clanId ? `/clans/${clanId}/telemetry/dashboard` : '/settings/nav-permissions'
   )
+  const superuserEntryHref = getFirstSectionHref(
+    'superuser-menu',
+    '/settings/nav-permissions'
+  )
 
   const showAdminMenu = isAdmin
   const showOwnerMenu = Boolean(isOwner && clanId)
+  const showSuperUserMenu = isSuperUser
 
   const activeMember = members.find((member) => member.memberId === activeMemberId) ?? null
   const playerName = activeMember?.displayName ?? email ?? 'Joueur'
@@ -999,7 +1024,17 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 </p>
                 <div className="grid grid-cols-1 gap-2">
                   {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
-                  {canSwitchClan && renderSubmenuLink({ navKey: 'owner.switch-clan', label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false, role: 'owner' })}
+                </div>
+              </section>
+            ) : null}
+
+            {showSuperUserMenu ? (
+              <section>
+                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-violet-400' : 'text-violet-600')}>
+                  ★ SuperUser
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {renderSubmenuLink({ navKey: 'superuser.entry', label: 'Paramètres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' })}
                 </div>
               </section>
             ) : null}
@@ -1202,7 +1237,17 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 </p>
                 <div className="grid grid-cols-1 gap-2">
                   {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
-                  {canSwitchClan && renderSubmenuLink({ navKey: 'owner.switch-clan', label: 'Changer de clan', href: '/clans', tone: 'sky', highlightWhenActive: false, role: 'owner' }, true)}
+                </div>
+              </section>
+            ) : null}
+
+            {showSuperUserMenu ? (
+              <section className="mt-5">
+                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-violet-400' : 'text-violet-600')}>
+                  ★ SuperUser
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {renderSubmenuLink({ navKey: 'superuser.entry', label: 'Paramètres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' }, true)}
                 </div>
               </section>
             ) : null}

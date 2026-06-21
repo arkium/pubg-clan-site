@@ -33,6 +33,7 @@ model Clan {
   challenges Challenge[]
   invites MemberInvite[]
   cronExecutions CronExecution[]
+  clanConfigs ClanConfig[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -220,6 +221,20 @@ model AppConfig {
   updatedAt DateTime @updatedAt
 
   @@map("AppConfig")
+}
+
+model ClanConfig {
+  id        Int      @id @default(autoincrement())
+  clanId    Int
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  key       String
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clanId, key])
+  @@index([clanId])
+  @@map("ClanConfig")
 }
 
 model Notification {

@@ -41,6 +41,13 @@
   --theme-admin-nav-active-border: rgb(220 38 38 / 1);
   --theme-admin-nav-active-bg: rgb(220 38 38 / 1);
   --theme-admin-nav-active-text: rgb(255 255 255 / 1);
+  --theme-superuser-nav-border: rgb(196 181 253 / 0.7);
+  --theme-superuser-nav-bg: rgb(237 233 254 / 0.52);
+  --theme-superuser-nav-text: rgb(76 29 149 / 1);
+  --theme-superuser-nav-hover-bg: rgb(221 214 254 / 0.64);
+  --theme-superuser-nav-active-border: rgb(124 58 237 / 1);
+  --theme-superuser-nav-active-bg: rgb(124 58 237 / 1);
+  --theme-superuser-nav-active-text: rgb(255 255 255 / 1);
   --theme-toggle-border: rgb(229 231 235 / 1);
   --theme-toggle-bg: rgb(255 255 255 / 0.85);
   --theme-toggle-item-text: rgb(55 65 81 / 1);
@@ -125,6 +132,13 @@
   --theme-admin-nav-active-border: rgb(248 113 113 / 0.58);
   --theme-admin-nav-active-bg: rgb(239 68 68 / 0.3);
   --theme-admin-nav-active-text: rgb(255 241 242 / 1);
+  --theme-superuser-nav-border: rgb(167 139 250 / 0.4);
+  --theme-superuser-nav-bg: rgb(139 92 246 / 0.14);
+  --theme-superuser-nav-text: rgb(221 214 254 / 1);
+  --theme-superuser-nav-hover-bg: rgb(139 92 246 / 0.26);
+  --theme-superuser-nav-active-border: rgb(167 139 250 / 0.6);
+  --theme-superuser-nav-active-bg: rgb(139 92 246 / 0.32);
+  --theme-superuser-nav-active-text: rgb(245 243 255 / 1);
   --theme-toggle-border: rgb(51 65 85 / 1);
   --theme-toggle-bg: rgb(2 6 23 / 0.65);
   --theme-toggle-item-text: rgb(203 213 225 / 1);
@@ -1328,6 +1342,23 @@ html[data-app-theme='dark'] .app-team-mode-badge--squad {
   color: var(--theme-admin-nav-active-text);
 }
 
+.clan-section-nav-link--superuser {
+  border-color: var(--theme-superuser-nav-border);
+  background-color: var(--theme-superuser-nav-bg);
+  color: var(--theme-superuser-nav-text);
+}
+
+.clan-section-nav-link--superuser:hover {
+  background-color: var(--theme-superuser-nav-hover-bg);
+  color: var(--theme-superuser-nav-text);
+}
+
+.clan-section-nav-link--superuser-active {
+  border-color: var(--theme-superuser-nav-active-border);
+  background-color: var(--theme-superuser-nav-active-bg);
+  color: var(--theme-superuser-nav-active-text);
+}
+
 .clan-submenu-link {
   display: inline-flex;
   min-height: 2.5rem;
@@ -1399,6 +1430,23 @@ html[data-app-theme='dark'] .app-team-mode-badge--squad {
   border-color: var(--theme-admin-nav-active-border);
   background-color: var(--theme-admin-nav-active-bg);
   color: var(--theme-admin-nav-active-text);
+}
+
+.clan-submenu-link--superuser {
+  border-color: var(--theme-superuser-nav-border);
+  background-color: var(--theme-superuser-nav-bg);
+  color: var(--theme-superuser-nav-text);
+}
+
+.clan-submenu-link--superuser:hover {
+  background-color: var(--theme-superuser-nav-hover-bg);
+  color: var(--theme-superuser-nav-text);
+}
+
+.clan-submenu-link--superuser-active {
+  border-color: var(--theme-superuser-nav-active-border);
+  background-color: var(--theme-superuser-nav-active-bg);
+  color: var(--theme-superuser-nav-active-text);
 }
 
 html[data-app-theme='dark'] :where([class*='hover:bg-rose-50']:hover) {

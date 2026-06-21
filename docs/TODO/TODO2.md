@@ -242,18 +242,10 @@ Les crons tournent en process serveur autonome : **aucune auth sur le process lu
 
 ---
 
-## Étape 9 — Tests et validation
+## Étape 9 — Tests et validation ✅
 
-⚠️ **Action requise côté serveur avant de tester :**
-```bash
-# 1. Appliquer la migration et regénérer le client Prisma
-npx prisma migrate deploy
-npx prisma generate
-
-# 2. Créer le premier SuperUser
-npm run make-superuser -- --grant votre-email@example.com
-```
-
+- [x] Migration appliquée en production (`npx prisma migrate deploy && npx prisma generate`)
+- [x] SuperUser créé (`pagio.family@gmail.com`)
 - [ ] Owner du clan A ne peut pas appeler les routes du clan B
 - [ ] `POST /api/auth/switch-member` refuse un switch inter-clan pour un non-SuperUser
 - [ ] SuperUser peut accéder aux routes de tous les clans sans être membre

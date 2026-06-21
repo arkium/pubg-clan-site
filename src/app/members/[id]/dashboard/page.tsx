@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
@@ -10,7 +10,7 @@ import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
 import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
-import MemberSectionNav from '@/components/MemberSectionNav'
+import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import type {
@@ -504,7 +504,7 @@ export default function DashboardPage() {
             showBackButton={false}
             framed={false}
           />
-          <MemberSectionNav memberId={memberId} framed={false} showMemberIdentity={false} />
+          <SectionNav section="member-section" />
         </section>
 
         {/* Stats principales */}

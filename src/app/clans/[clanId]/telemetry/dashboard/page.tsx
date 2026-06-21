@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 interface QueueMetrics {
   queued: number
@@ -98,7 +98,7 @@ export default function TelemetryDashboard() {
             </div>
           }
         />
-        <SettingsSectionNav section="owner-menu" />
+        <SectionNav section="owner-menu" />
       </section>
 
       {/* Queue Overview */}

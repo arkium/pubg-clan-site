@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import MapImage from '@/components/ui/MapImage'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 const MAP_KEYS = [
   'Baltic_Main',
@@ -163,7 +163,7 @@ export default function MapLabelsSettingsPage() {
           title="Alias des cartes PUBG"
           subtitle="Personnalisez les libelles affiches dans le filtre Carte PUBG de la page calendrier d'activite."
         />
-        <SettingsSectionNav section="admin-menu" />
+        <SectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">

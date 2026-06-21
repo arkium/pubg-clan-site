@@ -108,6 +108,7 @@ export async function GET(
             user: {
               select: {
                 avatarUrl: true,
+                isSuperUser: true,
               },
             },
           },
@@ -153,6 +154,7 @@ export async function GET(
             user: {
               select: {
                 avatarUrl: true,
+                isSuperUser: true,
               },
             },
           },
@@ -202,6 +204,7 @@ export async function GET(
         permissions: Array.from(permissionKeys),
         joinedAt: member.createdAt,
         hasAccount: member.identities.length > 0,
+        isSuperUser: member.identities.some((identity) => identity.user.isSuperUser),
         avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
         pendingInvite: (() => {
           const invite = member.invites.find(

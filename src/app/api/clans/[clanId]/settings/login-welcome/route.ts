@@ -1,14 +1,12 @@
 import { z } from 'zod'
 
-import { getSessionFromRequest } from '@/lib/auth-session'
+import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 import {
   getClanLabel,
   getLoginWelcomeSettings,
-  getPrimaryClanId,
   normalizeLoginWelcomeSettings,
   updateLoginWelcomeSettings,
 } from '@/lib/login-welcome-service'
-import { getMemberPermissionKeys } from '@/lib/role-service'
 
 const UpdateWelcomeSchema = z.object({
   badge: z.string().trim().max(60),
@@ -27,15 +25,20 @@ const UpdateWelcomeSchema = z.object({
     }),
 })
 
-function hasManageSettings(permissions: string[]) {
-  return permissions.includes('*') || permissions.includes('manage_settings')
+function parseClanId(value: string) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function GET() {
-  const clanId = await getPrimaryClanId()
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string }> }
+) {
+  const { clanId: clanIdParam } = await params
+  const clanId = parseClanId(clanIdParam)
 
   if (!clanId) {
-    return Response.json({ settings: null, clanLabel: null })
+    return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
   const [settings, clanLabel] = await Promise.all([
@@ -46,20 +49,23 @@ export async function GET() {
   return Response.json({ settings, clanLabel })
 }
 
-export async function PUT(request: Request) {
-  const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string }> }
+) {
+  const { clanId: clanIdParam } = await params
+  const clanId = parseClanId(clanIdParam)
 
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  if (!hasManageSettings(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  const clanId = await getPrimaryClanId()
   if (!clanId) {
-    return Response.json({ error: 'No active clan found' }, { status: 404 })
+    return Response.json({ error: 'Invalid clan id' }, { status: 400 })
+  }
+
+  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  if (permissionError) return permissionError
+
+  const actorMemberId = await getActorMemberId(request)
+  if (!actorMemberId) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const body = (await request.json().catch(() => null)) as unknown

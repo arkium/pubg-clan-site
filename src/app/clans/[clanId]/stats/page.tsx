@@ -1,11 +1,11 @@
-'use client'
+﻿'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -593,7 +593,7 @@ export default function ClanStatsPage() {
               {data?.clan?.name ?? `Clan #${clanId}`} | Clan
             </h1>
             <p className="text-sm text-gray-600">Vue clan complete avec top 3 pour chaque statistique.</p>
-            <ClanSectionNav clanId={clanId} />
+            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

@@ -1,10 +1,10 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import ReportHighlights from '@/components/report/ReportHighlights'
 import { useReports } from '@/hooks/useReports'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -53,7 +53,7 @@ export default function ClanReportsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Rapports du clan</h1>
             <p className="text-sm text-gray-600">Historique hebdomadaire et mensuel des performances.</p>
-            <ClanSectionNav clanId={clanId} />
+            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

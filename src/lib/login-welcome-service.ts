@@ -46,9 +46,10 @@ export function normalizeLoginWelcomeSettings(input: {
   }
 }
 
-export async function getLoginWelcomeSettings(): Promise<LoginWelcomeSettings> {
-  const entries = await prisma.appConfig.findMany({
+export async function getLoginWelcomeSettings(clanId: number): Promise<LoginWelcomeSettings> {
+  const entries = await prisma.clanConfig.findMany({
     where: {
+      clanId,
       key: {
         in: [
           LOGIN_WELCOME_BADGE_KEY,
@@ -74,62 +75,49 @@ export async function getLoginWelcomeSettings(): Promise<LoginWelcomeSettings> {
   })
 }
 
-export async function updateLoginWelcomeSettings(next: LoginWelcomeSettings) {
+export async function updateLoginWelcomeSettings(clanId: number, next: LoginWelcomeSettings) {
   await prisma.$transaction([
-    prisma.appConfig.upsert({
-      where: { key: LOGIN_WELCOME_BADGE_KEY },
+    prisma.clanConfig.upsert({
+      where: { clanId_key: { clanId, key: LOGIN_WELCOME_BADGE_KEY } },
       update: { value: next.badge },
-      create: {
-        key: LOGIN_WELCOME_BADGE_KEY,
-        value: next.badge,
-      },
+      create: { clanId, key: LOGIN_WELCOME_BADGE_KEY, value: next.badge },
     }),
-    prisma.appConfig.upsert({
-      where: { key: LOGIN_WELCOME_TITLE_KEY },
+    prisma.clanConfig.upsert({
+      where: { clanId_key: { clanId, key: LOGIN_WELCOME_TITLE_KEY } },
       update: { value: next.title },
-      create: {
-        key: LOGIN_WELCOME_TITLE_KEY,
-        value: next.title,
-      },
+      create: { clanId, key: LOGIN_WELCOME_TITLE_KEY, value: next.title },
     }),
-    prisma.appConfig.upsert({
-      where: { key: LOGIN_WELCOME_MESSAGE_KEY },
+    prisma.clanConfig.upsert({
+      where: { clanId_key: { clanId, key: LOGIN_WELCOME_MESSAGE_KEY } },
       update: { value: next.message },
-      create: {
-        key: LOGIN_WELCOME_MESSAGE_KEY,
-        value: next.message,
-      },
+      create: { clanId, key: LOGIN_WELCOME_MESSAGE_KEY, value: next.message },
     }),
-    prisma.appConfig.upsert({
-      where: { key: LOGIN_WELCOME_IMAGE_URL_KEY },
+    prisma.clanConfig.upsert({
+      where: { clanId_key: { clanId, key: LOGIN_WELCOME_IMAGE_URL_KEY } },
       update: { value: next.imageUrl ?? '' },
-      create: {
-        key: LOGIN_WELCOME_IMAGE_URL_KEY,
-        value: next.imageUrl ?? '',
-      },
+      create: { clanId, key: LOGIN_WELCOME_IMAGE_URL_KEY, value: next.imageUrl ?? '' },
     }),
   ])
 
   return next
 }
 
-export async function getPrimaryClanLabel() {
-  const clan = await prisma.clan.findFirst({
-    where: {
-      isActive: true,
-    },
-    orderBy: {
-      createdAt: 'asc',
-    },
-    select: {
-      name: true,
-      tag: true,
-    },
+export async function getClanLabel(clanId: number) {
+  const clan = await prisma.clan.findUnique({
+    where: { id: clanId },
+    select: { name: true, tag: true },
   })
 
-  if (!clan) {
-    return null
-  }
-
+  if (!clan) return null
   return `${clan.name} [${clan.tag}]`
+}
+
+export async function getPrimaryClanId() {
+  const clan = await prisma.clan.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  })
+
+  return clan?.id ?? null
 }

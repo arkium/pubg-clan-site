@@ -1,10 +1,10 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import SquadMatchList from '@/components/SquadMatchList'
 import TeamModeBadge, { teamModeFromMemberCount, type TeamMode } from '@/components/ui/TeamModeBadge'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -212,7 +212,7 @@ export default function ClanSessionDatePage() {
           <p className="text-sm text-gray-600">
             Détail complet des matchs détectés pour cette date, sur la période {period === 'week' ? 'semaine' : 'mois'}.
           </p>
-          <ClanSectionNav clanId={clanId} />
+          <SectionNav section="clan-section" />
         </div>
       </header>
 

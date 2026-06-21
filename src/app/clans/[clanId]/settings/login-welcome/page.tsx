@@ -3,12 +3,12 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SettingsSectionNav from '@/components/SettingsSectionNav'
+import SectionNav from '@/components/SectionNav'
 
 type WelcomeSettings = {
   badge: string
@@ -25,8 +25,17 @@ const DEFAULT_SETTINGS: WelcomeSettings = {
   imageUrl: null,
 }
 
-export default function LoginWelcomeSettingsPage() {
+function parseClanId(value: string | string[] | undefined) {
+  if (!value || Array.isArray(value)) return null
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+export default function ClanLoginWelcomeSettingsPage() {
   const router = useRouter()
+  const params = useParams()
+  const clanId = parseClanId(params.clanId)
+
   const { loading, authenticated, permissions } = useAuthSession()
 
   const [settings, setSettings] = useState<WelcomeSettings>(DEFAULT_SETTINGS)
@@ -40,16 +49,12 @@ export default function LoginWelcomeSettingsPage() {
 
   useEffect(() => {
     if (!loading && !authenticated) {
-      router.replace('/login?redirect=/settings/login-welcome')
+      router.replace(`/login?redirect=/clans/${clanId ?? ''}/settings/login-welcome`)
     }
-  }, [authenticated, loading, router])
+  }, [authenticated, loading, router, clanId])
 
   useEffect(() => {
-    if (loading) {
-      return
-    }
-
-    if (!authenticated || !canManageSettings) {
+    if (loading || !authenticated || !canManageSettings || !clanId) {
       return
     }
 
@@ -57,16 +62,15 @@ export default function LoginWelcomeSettingsPage() {
 
     async function loadData() {
       try {
-        const response = await fetch('/api/settings/login-welcome', { cache: 'no-store' })
+        const response = await fetch(`/api/clans/${clanId}/settings/login-welcome`, {
+          cache: 'no-store',
+        })
         const payload = (await response.json().catch(() => null)) as
-          | {
-              settings?: WelcomeSettings
-              clanLabel?: string | null
-            }
+          | { settings?: WelcomeSettings; clanLabel?: string | null }
           | null
 
         if (!response.ok) {
-          throw new Error('Impossible de charger la configuration d\'accueil')
+          throw new Error("Impossible de charger la configuration d'accueil")
         }
 
         if (!cancelled) {
@@ -78,7 +82,7 @@ export default function LoginWelcomeSettingsPage() {
           setError(
             loadError instanceof Error
               ? loadError.message
-              : 'Impossible de charger la configuration d\'accueil'
+              : "Impossible de charger la configuration d'accueil"
           )
         }
       } finally {
@@ -93,7 +97,7 @@ export default function LoginWelcomeSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [authenticated, canManageSettings, loading])
+  }, [authenticated, canManageSettings, loading, clanId])
 
   const loadingData = authenticated && canManageSettings && !dataLoaded
 
@@ -105,11 +109,9 @@ export default function LoginWelcomeSettingsPage() {
       setError('')
       setSuccess('')
 
-      const response = await fetch('/api/settings/login-welcome', {
+      const response = await fetch(`/api/clans/${clanId}/settings/login-welcome`, {
         method: 'PUT',
-        headers: {
-          'content-type': 'application/json',
-        },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(settings),
       })
 
@@ -122,7 +124,7 @@ export default function LoginWelcomeSettingsPage() {
       }
 
       setSettings(payload?.settings ?? settings)
-      setSuccess('Message d\'accueil enregistré.')
+      setSuccess("Message d'accueil enregistré.")
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
     } finally {
@@ -142,11 +144,23 @@ export default function LoginWelcomeSettingsPage() {
     return null
   }
 
+  if (!clanId) {
+    return (
+      <main className="app-container app-main flex-1">
+        <section className="app-panel p-6">
+          <p className="text-sm text-rose-700">Identifiant de clan invalide.</p>
+        </section>
+      </main>
+    )
+  }
+
   if (!canManageSettings) {
     return (
       <main className="app-container app-main flex-1">
         <section className="app-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">
+            Permissions
+          </p>
           <h1 className="mt-2 text-2xl font-bold text-gray-900">Accès restreint</h1>
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm text-amber-800">
@@ -154,10 +168,7 @@ export default function LoginWelcomeSettingsPage() {
               manage_settings.
             </p>
           </div>
-          <Link
-            href="/"
-            className="mt-5 app-btn app-btn--md app-btn--secondary"
-          >
+          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
             Retour à l&apos;accueil
           </Link>
         </section>
@@ -170,9 +181,13 @@ export default function LoginWelcomeSettingsPage() {
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Message de bienvenue login"
-          subtitle="Personnalisez le texte affiché sur la page de connexion, sans image de clan. Ce contenu aide à poser l'identité du clan dès l'arrivée."
+          subtitle={
+            clanLabel
+              ? `Personnalisez le texte affiché sur la page de connexion pour ${clanLabel}.`
+              : "Personnalisez le texte affiché sur la page de connexion de ce clan."
+          }
         />
-        <SettingsSectionNav section="admin-menu" />
+        <SectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">
@@ -185,10 +200,7 @@ export default function LoginWelcomeSettingsPage() {
                 value={settings.badge}
                 maxLength={60}
                 onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    badge: event.target.value,
-                  }))
+                  setSettings((current) => ({ ...current, badge: event.target.value }))
                 }
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="Bienvenue au clan"
@@ -202,10 +214,7 @@ export default function LoginWelcomeSettingsPage() {
                 value={settings.title}
                 maxLength={100}
                 onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    title: event.target.value,
-                  }))
+                  setSettings((current) => ({ ...current, title: event.target.value }))
                 }
                 className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="Connexion escouade"
@@ -218,10 +227,7 @@ export default function LoginWelcomeSettingsPage() {
                 value={settings.message}
                 maxLength={260}
                 onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    message: event.target.value,
-                  }))
+                  setSettings((current) => ({ ...current, message: event.target.value }))
                 }
                 className="mt-1 min-h-28 w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 placeholder="Décrivez l'ambiance ou les attentes du clan"

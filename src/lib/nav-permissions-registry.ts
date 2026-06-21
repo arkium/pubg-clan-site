@@ -1,4 +1,4 @@
-export type NavRole = 'none' | 'member' | 'admin' | 'owner' | 'hidden'
+export type NavRole = 'none' | 'member' | 'admin' | 'owner' | 'superuser' | 'hidden'
 
 export type NavSection =
   | 'nav-primary'
@@ -6,6 +6,7 @@ export type NavSection =
   | 'member-section'
   | 'admin-menu'
   | 'owner-menu'
+  | 'superuser-menu'
 
 export type NavItemDef = {
   navKey: string
@@ -22,6 +23,7 @@ export const NAV_SECTION_LABELS: Record<NavSection, string> = {
   'member-section': 'Navigation membre',
   'admin-menu': 'Menu Admin (sidebar)',
   'owner-menu': 'Menu Owner (sidebar)',
+  'superuser-menu': 'Menu SuperUser (sidebar)',
 }
 
 export const NAV_ROLE_LABELS: Record<NavRole, string> = {
@@ -29,6 +31,7 @@ export const NAV_ROLE_LABELS: Record<NavRole, string> = {
   member: 'Membre',
   admin: 'Admin',
   owner: 'Owner',
+  superuser: 'SuperUser',
   hidden: 'Masqué',
 }
 
@@ -300,9 +303,9 @@ export const NAV_REGISTRY: NavItemDef[] = [
     navKey: 'admin.login-welcome',
     section: 'admin-menu',
     label: 'Accueil login',
-    hrefTemplate: '/settings/login-welcome',
+    hrefTemplate: '/clans/:clanId/settings/login-welcome',
     defaultRole: 'admin',
-    description: "Page d'accueil de connexion.",
+    description: "Page d'accueil de connexion — configurable par clan.",
   },
 
   // --- Owner menu (sidebar) ---
@@ -386,6 +389,24 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'owner',
     description: 'Changer de clan actif.',
   },
+
+  // --- SuperUser menu (sidebar) ---
+  {
+    navKey: 'superuser.switch-clan',
+    section: 'superuser-menu',
+    label: 'Tous les clans',
+    hrefTemplate: '/clans',
+    defaultRole: 'superuser',
+    description: 'Changer de clan actif — réservé au SuperUser (accès cross-clan).',
+  },
+  {
+    navKey: 'superuser.platform-settings',
+    section: 'superuser-menu',
+    label: 'Config plateforme',
+    hrefTemplate: '/settings/nav-permissions',
+    defaultRole: 'superuser',
+    description: 'Permissions et ordre de navigation (accès SuperUser et Owner).',
+  },
 ]
 
 export function getItemRole(navKey: string, overrides: Record<string, NavRole>): NavRole {
@@ -395,6 +416,7 @@ export function getItemRole(navKey: string, overrides: Record<string, NavRole>):
 
 export function getRoleLinkClass(role: NavRole, active: boolean, variant: 'section' | 'submenu' = 'section'): string {
   const prefix = variant === 'submenu' ? 'clan-submenu-link' : 'clan-section-nav-link'
+  if (role === 'superuser') return active ? `${prefix}--superuser-active` : `${prefix}--superuser`
   if (role === 'owner') return active ? `${prefix}--owner-active` : `${prefix}--owner`
   if (role === 'admin') return active ? `${prefix}--admin-active` : `${prefix}--admin`
   return active ? `${prefix}--active` : ''

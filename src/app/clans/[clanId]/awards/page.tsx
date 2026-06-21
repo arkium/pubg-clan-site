@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import ClanSectionNav from '@/components/ClanSectionNav'
+import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -225,7 +225,7 @@ export default function ClanAwardsPage() {
           </button>
         </div>
 
-        <ClanSectionNav clanId={clanId} />
+        <SectionNav section="clan-section" />
       </header>
 
       <section className="app-panel p-4">

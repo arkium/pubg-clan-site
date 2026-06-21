@@ -99,7 +99,7 @@ export default function LeaderboardStats({ entries }: LeaderboardStatsProps) {
   return (
     <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
       <h2 className="mb-3 text-lg font-semibold text-gray-900">Top performers</h2>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         <HighlightCard
           label="Top Killer"
           badgeKey="top_killer"

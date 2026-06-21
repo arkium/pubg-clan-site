@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
@@ -190,6 +191,99 @@ const PLAYSTYLE_PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }>
   { value: 'all', label: 'Tous' },
 ]
 
+type StatsSectionIcon = NonNullable<StickySectionNavItem['icon']>
+
+function getSectionIcon(label: string): StatsSectionIcon {
+  if (label === 'Combat') return 'combat'
+  if (label === 'Victoires') return 'victory'
+  if (label === 'Support') return 'support'
+  if (label === 'Vehicules') return 'vehicle'
+  if (label === 'Deplacements') return 'movement'
+  if (label === 'Autres') return 'other'
+  return 'playstyle'
+}
+
+const STATS_SECTION_LINKS: StickySectionNavItem[] = [
+  { id: 'sec-playstyle', label: 'Playstyle', icon: 'playstyle' as const },
+  ...METRIC_GROUPS.map((group, index) => ({
+    id: `sec-metric-${index + 1}`,
+    label: group.title,
+    icon: getSectionIcon(group.title),
+  })),
+]
+
+function SectionBadgeIcon({ icon }: { icon: StatsSectionIcon }) {
+  const shell = 'inline-flex h-4 w-4 items-center justify-center text-cyan-200 shrink-0'
+
+  if (icon === 'combat') {
+    return (
+      <span className={shell} aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+          <path d="M9.25 2a.75.75 0 0 1 .75.75v1.06a6.2 6.2 0 0 1 5.44 5.44h1.06a.75.75 0 0 1 0 1.5h-1.06A6.2 6.2 0 0 1 10 16.19v1.06a.75.75 0 0 1-1.5 0v-1.06A6.2 6.2 0 0 1 3.06 10.75H2a.75.75 0 0 1 0-1.5h1.06A6.2 6.2 0 0 1 8.5 3.81V2.75A.75.75 0 0 1 9.25 2Zm.75 3.25a4.75 4.75 0 1 0 0 9.5 4.75 4.75 0 0 0 0-9.5Zm0 2a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5Z" />
+        </svg>
+      </span>
+    )
+  }
+
+  if (icon === 'victory') {
+    return (
+      <span className={shell} aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+          <path d="M5 2.5A1.5 1.5 0 0 0 3.5 4v1.5A3.5 3.5 0 0 0 7 9h.06A3.98 3.98 0 0 0 9 10.73V13H7.5a.75.75 0 0 0 0 1.5h5a.75.75 0 0 0 0-1.5H11v-2.27A3.98 3.98 0 0 0 12.94 9H13a3.5 3.5 0 0 0 3.5-3.5V4A1.5 1.5 0 0 0 15 2.5H5Zm10 1.5v1.5A2 2 0 0 1 13 7h-.03c.02-.17.03-.33.03-.5V4h2ZM7 6.5c0 .17.01.33.03.5H7a2 2 0 0 1-2-2V4h2v2.5Z" />
+        </svg>
+      </span>
+    )
+  }
+
+  if (icon === 'support') {
+    return (
+      <span className={shell} aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+          <path d="M10 3a.75.75 0 0 1 .75.75v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5A.75.75 0 0 1 10 3Zm-5.5 8a2.5 2.5 0 0 1 2.5-2.5H8a.75.75 0 0 1 0 1.5H7A1 1 0 0 0 6 11v2.5A1.5 1.5 0 0 0 7.5 15H12a.75.75 0 0 1 0 1.5H7.5A3 3 0 0 1 4.5 13.5V11Zm8.5 4a.75.75 0 0 1 0-1.5h.5a1 1 0 0 0 1-1V10a1.5 1.5 0 0 0-1.5-1.5H12a.75.75 0 0 1 0-1.5h1a3 3 0 0 1 3 3v2.5a2.5 2.5 0 0 1-2.5 2.5H13Z" />
+        </svg>
+      </span>
+    )
+  }
+
+  if (icon === 'vehicle') {
+    return (
+      <span className={shell} aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+          <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5V11a2 2 0 0 1-2 2v1a1 1 0 1 1-2 0v-1H8v1a1 1 0 1 1-2 0v-1a2 2 0 0 1-2-2V6.5ZM6.5 5.5A1 1 0 0 0 5.5 6.5V9h9V6.5a1 1 0 0 0-1-1h-7ZM7 11.25a.75.75 0 1 0 0 1.5h.01a.75.75 0 0 0 0-1.5H7Zm6 0a.75.75 0 1 0 0 1.5h.01a.75.75 0 0 0 0-1.5H13Z" />
+        </svg>
+      </span>
+    )
+  }
+
+  if (icon === 'movement') {
+    return (
+      <span className={shell} aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+          <path d="M3.47 12.53a.75.75 0 0 1 1.06 0l2.22 2.22 3.72-5.57a.75.75 0 0 1 1.11-.14l2.22 1.98 1.67-2.5a.75.75 0 1 1 1.24.84l-2.14 3.2a.75.75 0 0 1-1.11.15l-2.24-2-3.76 5.63a.75.75 0 0 1-1.15.1l-2.8-2.8a.75.75 0 0 1 0-1.06Z" />
+        </svg>
+      </span>
+    )
+  }
+
+  if (icon === 'other') {
+    return (
+      <span className={shell} aria-hidden="true">
+        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+          <path d="M10 2.5a.75.75 0 0 1 .75.75v.58a6.26 6.26 0 0 1 2.4 1l.4-.4a.75.75 0 0 1 1.06 1.06l-.4.4a6.26 6.26 0 0 1 1 2.4h.58a.75.75 0 0 1 0 1.5h-.58a6.26 6.26 0 0 1-1 2.4l.4.4a.75.75 0 1 1-1.06 1.06l-.4-.4a6.26 6.26 0 0 1-2.4 1v.58a.75.75 0 0 1-1.5 0v-.58a6.26 6.26 0 0 1-2.4-1l-.4.4a.75.75 0 1 1-1.06-1.06l.4-.4a6.26 6.26 0 0 1-1-2.4h-.58a.75.75 0 0 1 0-1.5h.58a6.26 6.26 0 0 1 1-2.4l-.4-.4a.75.75 0 0 1 1.06-1.06l.4.4a6.26 6.26 0 0 1 2.4-1v-.58A.75.75 0 0 1 10 2.5Zm0 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+        </svg>
+      </span>
+    )
+  }
+
+  return (
+    <span className={shell} aria-hidden="true">
+      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+        <path d="M10 2.5a.75.75 0 0 1 .75.75v1.62a5.5 5.5 0 0 1 4.38 4.38h1.62a.75.75 0 0 1 0 1.5h-1.62a5.5 5.5 0 0 1-4.38 4.38v1.62a.75.75 0 0 1-1.5 0v-1.62a5.5 5.5 0 0 1-4.38-4.38H3.25a.75.75 0 0 1 0-1.5h1.62a5.5 5.5 0 0 1 4.38-4.38V3.25A.75.75 0 0 1 10 2.5Zm0 3.75a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+      </svg>
+    </span>
+  )
+}
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -245,7 +339,114 @@ function formatTelemetryPercent(value: number) {
 }
 
 function formatTelemetryMeters(value: number) {
-  return `${Math.max(0, value).toFixed(0)} m`
+  // Telemetry distances are stored with a x10 scale; convert to km for UI readability.
+  const km = Math.max(0, value) / 10 / 1000
+  return `${km.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`
+}
+
+function formatTelemetrySpeedKph(value: number) {
+  // Vehicle speed follows the same x10 scale in telemetry snapshots.
+  const kph = Math.max(0, value) / 10
+  return kph.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+type StatsKpiTone = 'danger' | 'info' | 'success' | 'warning' | 'primary' | 'neutral'
+type StatsKpiIcon = 'score' | 'support' | 'zone' | 'movement' | 'healing' | 'vehicle'
+type StatsKpiItem = {
+  label: string
+  value: string
+  tone: StatsKpiTone
+  icon: StatsKpiIcon
+}
+
+function StatsKpiCard({
+  label,
+  value,
+  tone = 'neutral',
+  icon = 'score',
+}: {
+  label: string
+  value: string
+  tone?: StatsKpiTone
+  icon?: StatsKpiIcon
+}) {
+  const toneClasses: Record<StatsKpiTone, string> = {
+    danger: 'bg-rose-500/15 text-rose-400',
+    info: 'bg-sky-500/15 text-sky-400',
+    success: 'bg-emerald-500/15 text-emerald-400',
+    warning: 'bg-amber-500/15 text-amber-400',
+    primary: 'bg-blue-500/15 text-blue-400',
+    neutral: 'bg-gray-500/15 text-gray-300',
+  }
+
+  return (
+    <article className="app-panel-muted relative overflow-hidden rounded-2xl p-3">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
+      <div className="relative">
+        <div className={`mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
+          <StatsKpiIconGlyph icon={icon} />
+        </div>
+        <p className="min-h-[2.4rem] text-[10px] leading-[1.2] uppercase tracking-wide text-gray-500">{label}</p>
+        <p className="mt-1 text-xl font-black leading-tight tabular-nums text-gray-900 sm:text-2xl">{value}</p>
+      </div>
+    </article>
+  )
+}
+
+function StatsKpiIconGlyph({ icon }: { icon: StatsKpiIcon }) {
+  if (icon === 'support') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M8 12a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
+        <path d="M16 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+        <path d="M10.5 9.5l3 3" />
+      </svg>
+    )
+  }
+
+  if (icon === 'zone') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="8" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    )
+  }
+
+  if (icon === 'movement') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 16l4-4 3 3 5-7 4 3" />
+      </svg>
+    )
+  }
+
+  if (icon === 'healing') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </svg>
+    )
+  }
+
+  if (icon === 'vehicle') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="4" y="7" width="16" height="8" rx="2" />
+        <circle cx="8" cy="17" r="1.5" />
+        <circle cx="16" cy="17" r="1.5" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 4v16" />
+      <path d="M8 8h8" />
+      <path d="M8 16h8" />
+    </svg>
+  )
 }
 
 function getTelemetryErrorMessage(payload: unknown, fallback: string) {
@@ -442,9 +643,6 @@ export default function ClanStatsPage() {
   const [data, setData] = useState<ClanStatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(METRIC_GROUPS.map((group) => [group.title, group.title === 'Combat']))
-  )
   const [telemetryPeriod, setTelemetryPeriod] = useState<TelemetryPeriod>('week')
   const [playstyleRows, setPlaystyleRows] = useState<ClanPlaystyleRow[]>([])
   const [loadingPlaystyle, setLoadingPlaystyle] = useState(false)
@@ -572,16 +770,118 @@ export default function ClanStatsPage() {
     () => [...playstyleRows].sort((a, b) => b.zoneDisciplineScore - a.zoneDisciplineScore).slice(0, 3),
     [playstyleRows]
   )
-
+  const playstyleKpis = useMemo<StatsKpiItem[]>(() => [
+    {
+      label: 'Agressivite moyenne (%)',
+      value: formatTelemetryPercent(playstyleAverages.aggression),
+      tone: 'danger',
+      icon: 'score',
+    },
+    {
+      label: 'Support moyen (%)',
+      value: formatTelemetryPercent(playstyleAverages.support),
+      tone: 'info',
+      icon: 'support',
+    },
+    {
+      label: 'Discipline zone moyenne (%)',
+      value: formatTelemetryPercent(playstyleAverages.zoneDiscipline),
+      tone: 'success',
+      icon: 'zone',
+    },
+    {
+      label: 'Blue zone hits moyens (evt / match)',
+      value: formatTelemetryScore(playstyleAverages.avgBlueZoneHits),
+      tone: 'neutral',
+      icon: 'zone',
+    },
+    {
+      label: 'First contact moyen (phase)',
+      value: formatTelemetryScore(playstyleAverages.avgFirstContactPhase),
+      tone: 'neutral',
+      icon: 'score',
+    },
+    {
+      label: 'Retard cercle moyen (s)',
+      value: zoneDelayCoverage ? formatSeconds(playstyleAverages.avgCircleDelaySeconds) : 'N/D',
+      tone: 'warning',
+      icon: 'zone',
+    },
+    {
+      label: 'Temps hors zone moyen (%)',
+      value: zoneDelayCoverage ? formatTelemetryPercent(playstyleAverages.avgCircleDelayPercent) : 'N/D',
+      tone: 'warning',
+      icon: 'zone',
+    },
+    {
+      label: 'Presence safe zone moyenne (%)',
+      value: formatTelemetryPercent(playstyleAverages.avgSafeZonePresencePercent),
+      tone: 'success',
+      icon: 'zone',
+    },
+    {
+      label: 'Distance a pied moyenne',
+      value: formatTelemetryMeters(playstyleAverages.avgOnFootDistanceMeters),
+      tone: 'neutral',
+      icon: 'movement',
+    },
+    {
+      label: 'Distance vehicule moyenne',
+      value: formatTelemetryMeters(playstyleAverages.avgVehicleDistanceMeters),
+      tone: 'neutral',
+      icon: 'vehicle',
+    },
+    {
+      label: 'Degats recus moyens',
+      value: formatTelemetryScore(playstyleAverages.avgDamageTaken),
+      tone: 'danger',
+      icon: 'score',
+    },
+    {
+      label: 'Soins utilises (moy / match)',
+      value: formatTelemetryScore(playstyleAverages.avgHealsUsed),
+      tone: 'success',
+      icon: 'healing',
+    },
+    {
+      label: 'HP soignes (moy / match)',
+      value: formatTelemetryScore(playstyleAverages.avgHealAmount),
+      tone: 'success',
+      icon: 'healing',
+    },
+    {
+      label: 'Boosts utilises (moy / match)',
+      value: formatTelemetryScore(playstyleAverages.avgBoostsUsed),
+      tone: 'info',
+      icon: 'support',
+    },
+    {
+      label: 'Vitesse max vehicule (km/h)',
+      value: formatTelemetrySpeedKph(playstyleAverages.maxVehicleSpeedKph),
+      tone: 'primary',
+      icon: 'vehicle',
+    },
+    {
+      label: 'Montee vehicule (evt / match)',
+      value: formatTelemetryScore(playstyleAverages.avgVehicleRideEvents),
+      tone: 'primary',
+      icon: 'vehicle',
+    },
+    {
+      label: 'Sortie vehicule (evt / match)',
+      value: formatTelemetryScore(playstyleAverages.avgVehicleLeaveEvents),
+      tone: 'primary',
+      icon: 'vehicle',
+    },
+    {
+      label: 'Positions observees (evt / match)',
+      value: formatTelemetryScore(playstyleAverages.avgPositionEvents),
+      tone: 'neutral',
+      icon: 'movement',
+    },
+  ], [playstyleAverages, zoneDelayCoverage])
   if (!clanId) {
     return null
-  }
-
-  function toggleGroup(groupTitle: string) {
-    setExpandedGroups((current) => ({
-      ...current,
-      [groupTitle]: !current[groupTitle],
-    }))
   }
 
   return (
@@ -604,10 +904,18 @@ export default function ClanStatsPage() {
       {!loading && !error ? (
         data && data.members.length > 0 ? (
           <div className="space-y-6">
-            <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <StickySectionNav
+              ariaLabel="Navigation des sections statistiques"
+              items={STATS_SECTION_LINKS}
+            />
+
+            <section id="sec-playstyle" className="scroll-mt-40 rounded border border-gray-200 bg-white p-4 shadow-sm">
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Carte playstyle clan</h2>
+                  <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                    <SectionBadgeIcon icon="playstyle" />
+                    Carte playstyle clan
+                  </h2>
                   <p className="text-sm text-gray-600">Repartition agressif / support / discipline zone via telemetry.</p>
                 </div>
                 <SegmentedControl
@@ -626,95 +934,16 @@ export default function ClanStatsPage() {
               {!loadingPlaystyle && !playstyleError ? (
                 playstyleRows.length > 0 ? (
                   <>
-                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
-                      <article className="rounded border border-red-200 bg-red-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-red-700">Agressivite moyenne (%)</p>
-                        <p className="mt-1 text-xl font-semibold text-red-900">{formatTelemetryPercent(playstyleAverages.aggression)}</p>
-                      </article>
-                      <article className="rounded border border-sky-200 bg-sky-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-sky-700">Support moyen (%)</p>
-                        <p className="mt-1 text-xl font-semibold text-sky-900">{formatTelemetryPercent(playstyleAverages.support)}</p>
-                      </article>
-                      <article className="rounded border border-emerald-200 bg-emerald-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-emerald-700">Discipline zone moyenne (%)</p>
-                        <p className="mt-1 text-xl font-semibold text-emerald-900">{formatTelemetryPercent(playstyleAverages.zoneDiscipline)}</p>
-                      </article>
-                    </div>
-
-                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Blue zone hits moyens (evt / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgBlueZoneHits)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">First contact moyen (phase)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgFirstContactPhase)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Retard cercle moyen (s)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">
-                          {zoneDelayCoverage ? formatSeconds(playstyleAverages.avgCircleDelaySeconds) : 'N/D'}
-                        </p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Temps hors zone moyen (%)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">
-                          {zoneDelayCoverage ? formatTelemetryPercent(playstyleAverages.avgCircleDelayPercent) : 'N/D'}
-                        </p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Presence safe zone moyenne (%)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryPercent(playstyleAverages.avgSafeZonePresencePercent)}</p>
-                      </article>
-                    </div>
-
-                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Distance a pied moyenne</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryMeters(playstyleAverages.avgOnFootDistanceMeters)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Distance vehicule moyenne</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryMeters(playstyleAverages.avgVehicleDistanceMeters)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Degats recus moyens</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgDamageTaken)}</p>
-                      </article>
-                    </div>
-
-                    <div className="mb-4 grid gap-3 sm:grid-cols-4">
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Soins utilises (moy / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgHealsUsed)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">HP soignes (moy / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgHealAmount)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Boosts utilises (moy / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgBoostsUsed)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Vitesse max vehicule (km/h)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.maxVehicleSpeedKph)}</p>
-                      </article>
-                    </div>
-
-                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Montee vehicule (evt / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleRideEvents)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Sortie vehicule (evt / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgVehicleLeaveEvents)}</p>
-                      </article>
-                      <article className="rounded border border-gray-200 bg-gray-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-gray-600">Positions observees (evt / match)</p>
-                        <p className="mt-1 text-lg font-semibold text-gray-900">{formatTelemetryScore(playstyleAverages.avgPositionEvents)}</p>
-                      </article>
+                    <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+                      {playstyleKpis.map((kpi) => (
+                        <StatsKpiCard
+                          key={kpi.label}
+                          label={kpi.label}
+                          value={kpi.value}
+                          tone={kpi.tone}
+                          icon={kpi.icon}
+                        />
+                      ))}
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-3">
@@ -759,39 +988,27 @@ export default function ClanStatsPage() {
               ) : null}
             </section>
 
-            {groupedMetrics.map((group) => (
-              <section key={group.title} className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.title)}
-                  className="mb-4 flex w-full select-none items-center justify-between gap-3 rounded px-1 py-1 text-left transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/60"
-                  aria-expanded={expandedGroups[group.title]}
-                  aria-controls={`group-${group.title}`}
-                >
-                  <h2 className="text-lg font-semibold text-gray-900">{group.title}</h2>
-                  <span
-                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition-transform ${
-                      expandedGroups[group.title] ? 'rotate-180' : 'rotate-0'
-                    }`}
-                  >
-                    <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true" focusable="false">
-                      <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.12l3.71-3.9a.75.75 0 1 1 1.08 1.04l-4.25 4.46a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" fill="currentColor" />
-                    </svg>
-                  </span>
-                </button>
-                {expandedGroups[group.title] ? (
-                  <div id={`group-${group.title}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {group.rows.map((row) => (
-                      <article key={row.metric.key} className="rounded border border-gray-200 p-3">
-                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-gray-900">{row.metric.label}</p>
-                          <p className="text-sm font-bold text-blue-700">Clan: {row.metric.format(row.clanValue)}</p>
-                        </div>
-                        <TopThreeList metric={row.metric} topThree={row.topThree} />
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
+            {groupedMetrics.map((group, index) => (
+              <section
+                key={group.title}
+                id={`sec-metric-${index + 1}`}
+                className="scroll-mt-40 rounded border border-gray-200 bg-white p-4 shadow-sm"
+              >
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
+                  <SectionBadgeIcon icon={getSectionIcon(group.title)} />
+                  {group.title}
+                </h2>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {group.rows.map((row) => (
+                    <article key={row.metric.key} className="rounded border border-gray-200 p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-gray-900">{row.metric.label}</p>
+                        <p className="text-sm font-bold text-blue-700">Clan: {row.metric.format(row.clanValue)}</p>
+                      </div>
+                      <TopThreeList metric={row.metric} topThree={row.topThree} />
+                    </article>
+                  ))}
+                </div>
               </section>
             ))}
           </div>

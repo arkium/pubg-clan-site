@@ -259,7 +259,8 @@ function formatPercent(value: number) {
 }
 
 function formatMeters(value: number) {
-  return `${Math.max(0, value).toFixed(0)} m`
+  // Distances telemetry are stored with a x10 scale.
+  return `${(Math.max(0, value) / 10).toFixed(0)} m`
 }
 
 function clamp01(value: number) {
@@ -1057,7 +1058,7 @@ export default function TelemetryMatchDetailPage() {
             Retour
           </Link>
         </div>
-        <SectionNav section="clan-section" />
+        <SectionNav section="owner-menu" />
       </section>
 
       {loading ? <p className="text-sm text-slate-600">Chargement de la telemetrie...</p> : null}

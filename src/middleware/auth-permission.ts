@@ -79,6 +79,11 @@ export function requirePermission(permission: string) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // SuperUsers bypass clan membership and permission checks
+    if (await isSuperUserSession(request)) {
+      return null
+    }
+
     if (options?.clanId) {
       const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
       if (!inClan) {
@@ -105,6 +110,11 @@ export function requireRole(roleNames: string[]) {
       }
 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // SuperUsers bypass clan membership and role checks
+    if (await isSuperUserSession(request)) {
+      return null
     }
 
     if (options?.clanId) {

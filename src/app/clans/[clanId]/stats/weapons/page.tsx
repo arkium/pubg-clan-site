@@ -49,6 +49,8 @@ const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
   { value: 'all', label: 'Tous' },
 ]
 
+const PAGE_SIZE = 10
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -90,6 +92,7 @@ export default function ClanTelemetryWeaponsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [activeCategory, setActiveCategory] = useState<string>('Toutes')
   const [activePlayer, setActivePlayer] = useState<string>('Tous')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const podiumByRowKey = useMemo(() => {
     const rows = payload?.rows ?? []
@@ -250,6 +253,25 @@ export default function ClanTelemetryWeaponsPage() {
     return rows
   }, [sortedRows, activeCategory, activePlayer])
 
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  }, [filteredRows.length])
+
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE
+    return filteredRows.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [filteredRows, currentPage])
+
+  const paginationRange = useMemo(() => {
+    if (filteredRows.length === 0) {
+      return { start: 0, end: 0 }
+    }
+
+    const start = (currentPage - 1) * PAGE_SIZE + 1
+    const end = Math.min(currentPage * PAGE_SIZE, filteredRows.length)
+    return { start, end }
+  }, [currentPage, filteredRows.length])
+
   function handleSortClick(nextKey: SortKey) {
     if (sortKey === nextKey) {
       setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
@@ -267,6 +289,16 @@ export default function ClanTelemetryWeaponsPage() {
 
     return sortDirection === 'asc' ? ' ▲' : ' ▼'
   }
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [period, activeCategory, activePlayer])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   useEffect(() => {
     if (!clanId) {
@@ -406,7 +438,7 @@ export default function ClanTelemetryWeaponsPage() {
           <section className="app-panel p-4">
             {/* Mobile : vue cartes (< md) */}
             <div className="space-y-3 md:hidden">
-              {filteredRows.map((row) => {
+              {paginatedRows.map((row) => {
                 const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                 const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
                 const podiumTone =
@@ -534,7 +566,7 @@ export default function ClanTelemetryWeaponsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => {
+                  {paginatedRows.map((row) => {
                     const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                     const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
                     const podiumTone =
@@ -573,6 +605,51 @@ export default function ClanTelemetryWeaponsPage() {
                 </tbody>
               </table>
             </div>
+
+            {filteredRows.length > PAGE_SIZE ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                <p>
+                  Lignes {paginationRange.start}-{paginationRange.end} sur {filteredRows.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    Premiere
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Precedent
+                  </button>
+                  <span className="tabular-nums text-xs font-semibold text-gray-500">
+                    Page {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Suivant
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Derniere
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : (
           <p className="text-sm text-gray-600">Aucune donnee armes pour cette periode.</p>

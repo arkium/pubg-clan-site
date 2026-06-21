@@ -93,7 +93,13 @@ function formatSeconds(value: number) {
 }
 
 function formatMeters(value: number) {
-  return `${Math.max(0, value).toFixed(0)} m`
+  const km = Math.max(0, value) / 10 / 1000
+  return `${km.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`
+}
+
+function formatTelemetrySpeedKph(value: number) {
+  const kph = Math.max(0, value) / 10
+  return kph.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function formatTelemetryCount(value: number) {
@@ -189,7 +195,7 @@ const TELEMETRY_COMPARISON_METRICS: TelemetryComparisonMetric[] = [
     key: 'maxVehicleSpeedKph',
     label: 'Vitesse max vehicule (km/h)',
     getValue: (stats) => stats.maxVehicleSpeedKph,
-    format: formatTelemetryScore,
+    format: formatTelemetrySpeedKph,
   },
   {
     key: 'avgVehicleRideEvents',
@@ -689,7 +695,7 @@ export default function DashboardPage() {
                       <span className="flex items-center gap-1.5 text-xs text-gray-600">
                         <span className="text-base leading-none">⚡</span> Vitesse max
                       </span>
-                      <span className="text-xs font-semibold text-gray-900">{formatTelemetryScore(telemetryStats.maxVehicleSpeedKph)} <span className="text-gray-400">km/h</span></span>
+                      <span className="text-xs font-semibold text-gray-900">{formatTelemetrySpeedKph(telemetryStats.maxVehicleSpeedKph)} <span className="text-gray-400">km/h</span></span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-600">Montées / sorties</span>

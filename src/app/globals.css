@@ -623,7 +623,7 @@ html[data-app-theme='dark'] :where(.border-blue-200, .border-blue-300) {
 
 .member-section-nav-mobile-menu {
   position: absolute;
-  z-index: 20;
+  z-index: 60;
   left: 0;
   right: 0;
   top: calc(100% + 0.45rem);

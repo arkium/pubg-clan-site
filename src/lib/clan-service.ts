@@ -322,6 +322,9 @@ export type ClanMembershipDiff = {
   pubgClanId: string
   shard: string
   pubgMembersCount: number
+  pubgMemberCountFromApi: number | null
+  usedFallback: boolean
+  incompleteRelationships: boolean
   matched: Array<{
     accountId: string
     pubgName: string | null
@@ -371,16 +374,30 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
   // Try the dedicated /members endpoint first (includes player names).
   // If it fails (404 or unsupported shard), fall back to memberIds from the clan response.
   let pubgMembers: Awaited<ReturnType<typeof fetchClanMembers>>
+  let usedFallback = false
+  let pubgMemberCountFromApi: number | null = null
 
   try {
     pubgMembers = await fetchClanMembers(clan.pubgClanId, clan.platformShard)
+    pubgMemberCountFromApi = pubgMembers.length
   } catch {
+    usedFallback = true
     const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard)
+    pubgMemberCountFromApi = pubgClan?.memberCount ?? null
     pubgMembers = (pubgClan?.memberIds ?? []).map((id) => ({ accountId: id, name: null }))
   }
 
-  const pubgAccountIdSet = new Set(pubgMembers.map((m) => m.accountId))
-  const pubgMemberByAccountId = new Map(pubgMembers.map((m) => [m.accountId, m]))
+  // If the fallback relationships have fewer members than the official count, the data is
+  // incomplete — inSiteOnly would produce false positives (members still in PUBG would appear
+  // as having left).
+  const incompleteRelationships =
+    usedFallback &&
+    pubgMemberCountFromApi !== null &&
+    pubgMembers.length < pubgMemberCountFromApi
+
+  // Normalize to lowercase to handle potential casing differences between API endpoints.
+  const pubgAccountIdSet = new Set(pubgMembers.map((m) => m.accountId.toLowerCase()))
+  const pubgMemberByAccountId = new Map(pubgMembers.map((m) => [m.accountId.toLowerCase(), m]))
 
   const matched: ClanMembershipDiff['matched'] = []
   const inSiteOnly: ClanMembershipDiff['inSiteOnly'] = []
@@ -392,8 +409,8 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
       continue
     }
 
-    if (pubgAccountIdSet.has(member.pubgAccountId)) {
-      const pubgMember = pubgMemberByAccountId.get(member.pubgAccountId)
+    if (pubgAccountIdSet.has(member.pubgAccountId.toLowerCase())) {
+      const pubgMember = pubgMemberByAccountId.get(member.pubgAccountId.toLowerCase())
       matched.push({
         accountId: member.pubgAccountId,
         pubgName: pubgMember?.name ?? null,
@@ -418,6 +435,9 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
     pubgClanId: clan.pubgClanId,
     shard: clan.platformShard,
     pubgMembersCount: pubgMembers.length,
+    pubgMemberCountFromApi,
+    usedFallback,
+    incompleteRelationships,
     matched,
     inPubgOnly,
     inSiteOnly,

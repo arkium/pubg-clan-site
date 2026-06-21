@@ -259,7 +259,8 @@ function formatPercent(value: number) {
 }
 
 function formatMeters(value: number) {
-  return `${Math.max(0, value).toFixed(0)} m`
+  // Distances telemetry are stored with a x10 scale.
+  return `${(Math.max(0, value) / 10).toFixed(0)} m`
 }
 
 function clamp01(value: number) {

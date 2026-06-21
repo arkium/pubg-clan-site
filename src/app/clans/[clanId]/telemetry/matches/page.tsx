@@ -61,10 +61,6 @@ export default function TelemetryMatchesPage() {
         <SectionNav section="owner-menu" />
       </section>
 
-      <section className="app-panel mb-4 p-4">
-        <SectionNav section="clan-section" />
-      </section>
-
       <section className="app-panel mb-5 p-4">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Période</p>
         <SegmentedControl

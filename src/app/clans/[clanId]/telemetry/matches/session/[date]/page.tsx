@@ -1000,7 +1000,7 @@ export default function TelemetrySessionDatePage() {
           </p>
         </div>
         <div className="mt-3">
-          <SectionNav section="clan-section" />
+          <SectionNav section="owner-menu" />
         </div>
       </header>
 

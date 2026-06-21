@@ -1,5 +1,6 @@
 ﻿import SectionNav from '@/components/SectionNav'
 import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
+import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { prisma } from '@/lib/prisma'
 import { weaponIconUrl } from '@/lib/pubg-assets/asset-url'
 import {
@@ -200,6 +201,12 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
     items: entries.filter((entry) => entry.category === category),
   })).filter((group) => group.items.length > 0)
 
+  const sectionNavItems: StickySectionNavItem[] = grouped.map((group) => ({
+    id: `sec-cat-${group.category}`,
+    label: group.category,
+    icon: 'category',
+  }))
+
   return (
     <main className="app-container app-main space-y-6">
       <section className="app-panel p-4">
@@ -217,11 +224,18 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
         <WeaponCategoryPeriodFilter clanId={parsedClanId} period={period} />
       </section>
 
+      {grouped.length > 0 ? (
+        <StickySectionNav
+          ariaLabel="Navigation des catégories d'armes"
+          items={sectionNavItems}
+        />
+      ) : null}
+
       <section className="space-y-4">
         {grouped.map((group) => {
           const info = CATEGORY_INFO[group.category]
           return (
-            <article key={group.category} className="app-panel overflow-hidden">
+            <article id={`sec-cat-${group.category}`} key={group.category} className="app-panel scroll-mt-40 overflow-hidden">
               {/* Category header */}
               <div className="border-b border-gray-200 px-4 py-4 space-y-3">
                 <div className="flex items-center gap-3">

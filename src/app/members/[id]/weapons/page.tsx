@@ -6,8 +6,10 @@ import { useEffect, useMemo, useState } from 'react'
 
 import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
+import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import WeaponIcon from '@/components/ui/WeaponIcon'
+import { getWeaponCategory, type WeaponCategory } from '@/lib/weapons/weapon-categories'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -92,11 +94,34 @@ type WeaponMasteryResponse = {
 }
 
 type MasterySortKey = 'weapon' | 'kills' | 'headshots' | 'headshotRate' | 'accuracy' | 'damage' | 'level'
+type WeaponCategoryFilter = 'ALL' | WeaponCategory
 
 const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
   { value: 'week', label: 'Semaine' },
   { value: 'month', label: 'Mois' },
   { value: 'all', label: 'Tous' },
+]
+
+const PAGE_SIZE = 10
+
+const WEAPON_CATEGORY_OPTIONS: Array<{ value: WeaponCategoryFilter; label: string }> = [
+  { value: 'ALL', label: 'Toutes categories' },
+  { value: 'AR', label: 'AR - Fusils d\'assaut' },
+  { value: 'DMR', label: 'DMR - Fusils de precision' },
+  { value: 'SR', label: 'SR - Snipers' },
+  { value: 'SMG', label: 'SMG - Pistolets-mitrailleurs' },
+  { value: 'LMG', label: 'LMG - Mitrailleuses' },
+  { value: 'SG', label: 'SG - Fusils a pompe' },
+  { value: 'PISTOL', label: 'PISTOL - Pistolets' },
+  { value: 'MELEE', label: 'MELEE - Melee' },
+  { value: 'THROWABLE', label: 'THROWABLE - Explosifs' },
+  { value: 'SPECIAL', label: 'SPECIAL - Special' },
+  { value: 'OTHER', label: 'OTHER - Autre' },
+]
+
+const MEMBER_WEAPONS_SECTION_LINKS: StickySectionNavItem[] = [
+  { id: 'sec-member-weapons-mastery', label: 'Maitrise armes', icon: 'combat' },
+  { id: 'sec-member-weapons-telemetry', label: 'Stats telemetrie', icon: 'other' },
 ]
 
 function parseMemberId(value: string | string[] | undefined) {
@@ -198,12 +223,19 @@ export default function MemberWeaponsPage() {
   const [reloadNonce, setReloadNonce] = useState(0)
   const [sortKey, setSortKey] = useState<SortKey>('kills')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [selectedCategory, setSelectedCategory] = useState<WeaponCategoryFilter>('ALL')
+  const [currentPage, setCurrentPage] = useState(1)
   const [masteryRows, setMasteryRows] = useState<WeaponMasteryEntry[]>([])
   const [masteryLoading, setMasteryLoading] = useState(true)
   const [masteryRefreshing, setMasteryRefreshing] = useState(false)
   const [masteryError, setMasteryError] = useState('')
   const [masterySortKey, setMasterySortKey] = useState<MasterySortKey>('kills')
   const [masterySortDirection, setMasterySortDirection] = useState<SortDirection>('desc')
+  const [masteryCurrentPage, setMasteryCurrentPage] = useState(1)
+
+  const periodLabel = useMemo(() => {
+    return PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Semaine'
+  }, [period])
 
   const latestMasteryRefreshAt = useMemo(() => {
     if (masteryRows.length === 0) {
@@ -226,7 +258,11 @@ export default function MemberWeaponsPage() {
 
   const podiumByWeapon = useMemo(() => {
     const rows = payload?.rows ?? []
-    const topByKills = [...rows]
+    const filteredRows =
+      selectedCategory === 'ALL'
+        ? rows
+        : rows.filter((row) => getWeaponCategory(row.weaponLabel ?? row.weaponName) === selectedCategory)
+    const topByKills = [...filteredRows]
       .sort((left, right) => {
         if (right.kills !== left.kills) {
           return right.kills - left.kills
@@ -241,10 +277,19 @@ export default function MemberWeaponsPage() {
       .slice(0, 3)
 
     return new Map(topByKills.map((row, index) => [row.weaponName, index + 1]))
-  }, [payload?.rows])
+  }, [payload?.rows, selectedCategory])
+
+  const filteredRows = useMemo(() => {
+    const rows = payload?.rows ?? []
+    if (selectedCategory === 'ALL') {
+      return rows
+    }
+
+    return rows.filter((row) => getWeaponCategory(row.weaponLabel ?? row.weaponName) === selectedCategory)
+  }, [payload?.rows, selectedCategory])
 
   const sortedRows = useMemo(() => {
-    const rows = payload?.rows ?? []
+    const rows = filteredRows
     const factor = sortDirection === 'asc' ? 1 : -1
 
     return [...rows].sort((left, right) => {
@@ -318,7 +363,26 @@ export default function MemberWeaponsPage() {
       }
       return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
     })
-  }, [payload?.rows, sortDirection, sortKey])
+  }, [filteredRows, sortDirection, sortKey])
+
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE))
+  }, [sortedRows.length])
+
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE
+    return sortedRows.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [sortedRows, currentPage])
+
+  const paginationRange = useMemo(() => {
+    if (sortedRows.length === 0) {
+      return { start: 0, end: 0 }
+    }
+
+    const start = (currentPage - 1) * PAGE_SIZE + 1
+    const end = Math.min(currentPage * PAGE_SIZE, sortedRows.length)
+    return { start, end }
+  }, [currentPage, sortedRows.length])
 
   function handleSortClick(nextKey: SortKey) {
     if (sortKey === nextKey) {
@@ -338,10 +402,24 @@ export default function MemberWeaponsPage() {
     return sortDirection === 'asc' ? ' ▲' : ' ▼'
   }
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [period, selectedCategory])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const sortedMasteryRows = useMemo(() => {
+    const rows =
+      selectedCategory === 'ALL'
+        ? masteryRows
+        : masteryRows.filter((row) => getWeaponCategory(row.weaponName) === selectedCategory)
     const factor = masterySortDirection === 'asc' ? 1 : -1
 
-    return [...masteryRows].sort((left, right) => {
+    return [...rows].sort((left, right) => {
       if (masterySortKey === 'weapon') {
         return compareText(left.weaponName, right.weaponName) * factor
       }
@@ -396,7 +474,26 @@ export default function MemberWeaponsPage() {
       }
       return compareText(left.weaponName, right.weaponName)
     })
-  }, [masteryRows, masterySortDirection, masterySortKey])
+  }, [masteryRows, masterySortDirection, masterySortKey, selectedCategory])
+
+  const totalMasteryPages = useMemo(() => {
+    return Math.max(1, Math.ceil(sortedMasteryRows.length / PAGE_SIZE))
+  }, [sortedMasteryRows.length])
+
+  const paginatedMasteryRows = useMemo(() => {
+    const startIndex = (masteryCurrentPage - 1) * PAGE_SIZE
+    return sortedMasteryRows.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [masteryCurrentPage, sortedMasteryRows])
+
+  const masteryPaginationRange = useMemo(() => {
+    if (sortedMasteryRows.length === 0) {
+      return { start: 0, end: 0 }
+    }
+
+    const start = (masteryCurrentPage - 1) * PAGE_SIZE + 1
+    const end = Math.min(masteryCurrentPage * PAGE_SIZE, sortedMasteryRows.length)
+    return { start, end }
+  }, [masteryCurrentPage, sortedMasteryRows.length])
 
   function handleMasterySortClick(nextKey: MasterySortKey) {
     if (masterySortKey === nextKey) {
@@ -415,6 +512,16 @@ export default function MemberWeaponsPage() {
 
     return masterySortDirection === 'asc' ? ' ▲' : ' ▼'
   }
+
+  useEffect(() => {
+    setMasteryCurrentPage(1)
+  }, [masterySortKey, masterySortDirection, selectedCategory])
+
+  useEffect(() => {
+    if (masteryCurrentPage > totalMasteryPages) {
+      setMasteryCurrentPage(totalMasteryPages)
+    }
+  }, [masteryCurrentPage, totalMasteryPages])
 
   useEffect(() => {
     if (!memberId) {
@@ -568,7 +675,51 @@ export default function MemberWeaponsPage() {
         <SectionNav section="member-section" />
       </section>
 
-      <section className="mb-6 app-panel p-4">
+      <section className="mb-6 rounded border border-gray-200 bg-white p-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="min-w-0">
+            <MobileDropdownNav
+              id="member-weapons-period-filter"
+              label="Periode"
+              currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Selectionner'}
+              items={PERIOD_OPTIONS.map((option) => ({
+                key: `period-${option.value}`,
+                label: option.label,
+                active: period === option.value,
+                onSelect: () => setPeriod(option.value),
+              }))}
+              visibilityClass=""
+              className="w-full"
+            />
+          </div>
+
+          <div className="min-w-0">
+            <MobileDropdownNav
+              id="member-weapons-category-filter"
+              label="Categorie"
+              currentLabel={WEAPON_CATEGORY_OPTIONS.find((option) => option.value === selectedCategory)?.label ?? 'Selectionner'}
+              items={WEAPON_CATEGORY_OPTIONS.map((option) => ({
+                key: `category-${option.value}`,
+                label: option.label,
+                active: selectedCategory === option.value,
+                onSelect: () => setSelectedCategory(option.value),
+              }))}
+              visibilityClass=""
+              className="w-full"
+            />
+          </div>
+        </div>
+      </section>
+
+      <StickySectionNav
+        ariaLabel="Navigation des sections armes"
+        items={MEMBER_WEAPONS_SECTION_LINKS}
+        topClassName="top-24"
+        activeOffset={260}
+        className="mb-6"
+      />
+
+      <section id="sec-member-weapons-mastery" className="mb-6 app-panel scroll-mt-40 p-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Maitrise armes (carriere)</h2>
@@ -608,8 +759,9 @@ export default function MemberWeaponsPage() {
         ) : null}
 
         {!masteryLoading && masteryRows.length > 0 ? (
-          <div className="app-table-shell overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <>
+            <div className="app-table-shell overflow-x-auto">
+              <table className="min-w-full text-sm">
               <thead className="app-table-head text-left text-xs uppercase tracking-wide">
                 <tr>
                   <th className="px-3 py-2">
@@ -650,7 +802,7 @@ export default function MemberWeaponsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedMasteryRows.map((row) => {
+                {paginatedMasteryRows.map((row) => {
                   const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                   const accuracy = row.shots > 0 ? (row.hits / row.shots) * 100 : 0
 
@@ -672,24 +824,55 @@ export default function MemberWeaponsPage() {
                   )
                 })}
               </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+              </table>
+            </div>
 
-      <section className="mb-6 rounded border border-gray-200 bg-white p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Periode</p>
-        <SegmentedControl
-          options={PERIOD_OPTIONS.map((option) => ({
-            ...option,
-            disabled: loading,
-          }))}
-          value={period}
-          onChange={setPeriod}
-          size="sm"
-          fullWidthOnMobile
-          className="w-full sm:w-auto"
-        />
+            {sortedMasteryRows.length > PAGE_SIZE ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                <p>
+                  Lignes {masteryPaginationRange.start}-{masteryPaginationRange.end} sur {sortedMasteryRows.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setMasteryCurrentPage(1)}
+                    disabled={masteryCurrentPage === 1}
+                  >
+                    Premiere
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setMasteryCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={masteryCurrentPage === 1}
+                  >
+                    Precedent
+                  </button>
+                  <span className="tabular-nums text-xs font-semibold text-gray-500">
+                    Page {masteryCurrentPage} / {totalMasteryPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setMasteryCurrentPage((page) => Math.min(totalMasteryPages, page + 1))}
+                    disabled={masteryCurrentPage === totalMasteryPages}
+                  >
+                    Suivant
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setMasteryCurrentPage(totalMasteryPages)}
+                    disabled={masteryCurrentPage === totalMasteryPages}
+                  >
+                    Derniere
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </section>
 
       {loading ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
@@ -713,7 +896,13 @@ export default function MemberWeaponsPage() {
 
       {!loading && !error ? (
         payload && payload.rows.length > 0 ? (
-          <section className="app-panel p-4">
+          <section id="sec-member-weapons-telemetry" className="app-panel scroll-mt-40 p-4">
+            <div className="mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Stats armes (telemetrie)</h2>
+              <p className="text-sm text-gray-600">
+                Periode active: {periodLabel}. Performance detaillee par arme sur la categorie selectionnee.
+              </p>
+            </div>
             <div className="app-table-shell overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="app-table-head text-left text-xs uppercase tracking-wide">
@@ -766,7 +955,7 @@ export default function MemberWeaponsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedRows.map((row) => {
+                  {paginatedRows.map((row) => {
                     const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                     const podiumRank = podiumByWeapon.get(row.weaponName)
                     const podiumTone =
@@ -803,10 +992,55 @@ export default function MemberWeaponsPage() {
                 </tbody>
               </table>
             </div>
+
+            {sortedRows.length > PAGE_SIZE ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                <p>
+                  Lignes {paginationRange.start}-{paginationRange.end} sur {sortedRows.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    Premiere
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Precedent
+                  </button>
+                  <span className="tabular-nums text-xs font-semibold text-gray-500">
+                    Page {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Suivant
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Derniere
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : (
           <section className="rounded border border-slate-200 bg-white p-4 text-sm text-slate-700">
-            <p>Aucune donnee armes pour cette periode.</p>
+            <p>Aucune donnee armes pour cette periode/categorie.</p>
             {payload?.member.clanId ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link

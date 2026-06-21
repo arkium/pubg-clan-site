@@ -18,7 +18,7 @@ function sanitizeFileSegment(value: string) {
 function resolveCaptureDirectory() {
   const configuredDir = process.env.TELEMETRY_CAPTURE_FIXTURES_DIR?.trim()
   return configuredDir && configuredDir.length > 0
-    ? path.resolve(process.cwd(), configuredDir)
+    ? path.resolve(/*turbopackIgnore: true*/ process.cwd(), configuredDir)
     : path.join(process.cwd(), '.telemetry-captured')
 }
 

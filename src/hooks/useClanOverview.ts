@@ -33,6 +33,9 @@ export type ClanOverviewStats = {
       kills: TopPerformer
       damage: TopPerformer
       winRate: TopPerformer
+      assists: TopPerformer
+      revives: TopPerformer
+      survival: TopPerformer
     }
   } | null
 } | null

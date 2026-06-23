@@ -17,7 +17,7 @@ export function getInternalApiBaseUrl() {
   return `http://${DEFAULT_INTERNAL_HOST}:${port}`
 }
 
-export function getInternalCronAuthHeaders() {
+export function getInternalCronAuthHeaders(): Record<string, string> {
   const secret = process.env.CRON_BOOTSTRAP_SECRET?.trim()
 
   if (!secret) {

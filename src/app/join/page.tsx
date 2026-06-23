@@ -51,7 +51,9 @@ export default function JoinPage() {
 
       if (!response.ok) {
         const errorMessage =
-          typeof payload?.error === 'string' ? payload.error : 'Failed to join clan'
+          payload && 'error' in payload && typeof payload.error === 'string'
+            ? payload.error
+            : 'Failed to join clan'
         setError(errorMessage)
         setJoinStatus('error')
         return

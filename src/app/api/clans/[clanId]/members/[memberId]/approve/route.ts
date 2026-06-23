@@ -60,6 +60,7 @@ export async function POST(
         joinStatus: 'active',
       },
       include: {
+        clan: true,
         roles: {
           include: { role: true },
         },

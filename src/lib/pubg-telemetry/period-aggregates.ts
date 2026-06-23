@@ -659,49 +659,107 @@ async function recalculateTelemetryPeriodForClan(
   const telemetryDelegates = getTelemetryAggregateDelegates()
   const writeBatchSize = resolveAggregateWriteBatchSize()
 
-  const memberTelemetryRows = Array.from(memberAggregates.entries()).map(([memberId, aggregate]) => {
-    const matchesPlayed = Math.max(aggregate.matchesPlayed, 1)
-    const avgCircleDelayPercent = Number((aggregate.totalCircleDelayPercent / matchesPlayed).toFixed(2))
-    const avgSafeZonePresencePercent = Number((100 - avgCircleDelayPercent).toFixed(2))
-    const avgFirstContactPhase =
-      aggregate.firstKillPhaseSampleCount > 0
-        ? Number((aggregate.totalFirstKillPhase / aggregate.firstKillPhaseSampleCount).toFixed(2))
-        : 0
+  // Pass 1 — per-match averages and raw score values (unnormalized)
+  type MemberIntermediate = {
+    memberId: number
+    aggressionRaw: number  // (kills*8 + KO*4 + damage/150) / matchesPlayed — higher = better
+    supportRaw: number     // totalRevives / matchesPlayed — higher = better
+    ghostRaw: number       // totalBlueZoneHits / matchesPlayed — lower = better
+    avgCircleDelayPercent: number
+    avgSafeZonePresencePercent: number
+    avgFirstContactPhase: number
+    avgBlueZoneHits: number
+    avgCircleDelaySeconds: number
+    avgOnFootDistanceMeters: number
+    avgVehicleDistanceMeters: number
+    avgDamageTaken: number
+    avgVehicleRideEvents: number
+    avgVehicleLeaveEvents: number
+    avgPositionEvents: number
+    avgHealsUsed: number
+    avgHealAmount: number
+    avgBoostsUsed: number
+    maxVehicleSpeedKph: number
+    matchesPlayed: number
+  }
 
-    const aggressionRaw =
-      aggregate.totalKills * 8 +
-      aggregate.totalKnockouts * 4 +
-      aggregate.totalDamageDealt / 150
-
-    const supportRaw = aggregate.totalRevives * 22 + (aggregate.totalRevives / matchesPlayed) * 12
-
-    const zoneDisciplineRaw = 100 - (aggregate.totalBlueZoneHits / matchesPlayed) * 15
-
-    return {
-      memberId,
-      period: periodKey,
-      periodType: period,
-      aggressionScore: clampScore(aggressionRaw),
-      supportScore: clampScore(supportRaw),
-      zoneDisciplineScore: clampScore(zoneDisciplineRaw),
-      avgBlueZoneHits: Number((aggregate.totalBlueZoneHits / matchesPlayed).toFixed(2)),
-      avgFirstContactPhase,
-      avgCircleDelaySeconds: Number((aggregate.totalCircleDelaySeconds / matchesPlayed).toFixed(2)),
-      avgCircleDelayPercent,
-      avgSafeZonePresencePercent,
-      avgOnFootDistanceMeters: Number((aggregate.totalOnFootDistanceMeters / matchesPlayed).toFixed(2)),
-      avgVehicleDistanceMeters: Number((aggregate.totalVehicleDistanceMeters / matchesPlayed).toFixed(2)),
-      avgDamageTaken: Number((aggregate.totalDamageTaken / matchesPlayed).toFixed(2)),
-      avgVehicleRideEvents: Number((aggregate.totalVehicleRideEvents / matchesPlayed).toFixed(2)),
-      avgVehicleLeaveEvents: Number((aggregate.totalVehicleLeaveEvents / matchesPlayed).toFixed(2)),
-      avgPositionEvents: Number((aggregate.totalPositionEvents / matchesPlayed).toFixed(2)),
-      avgHealsUsed: Number((aggregate.totalHealsUsed / matchesPlayed).toFixed(2)),
-      avgHealAmount: Number((aggregate.totalHealAmount / matchesPlayed).toFixed(2)),
-      avgBoostsUsed: Number((aggregate.totalBoostsUsed / matchesPlayed).toFixed(2)),
-      maxVehicleSpeedKph: Number(aggregate.maxVehicleSpeedKph.toFixed(1)),
-      matchesPlayed: aggregate.matchesPlayed,
+  const memberIntermediates: MemberIntermediate[] = Array.from(memberAggregates.entries()).map(
+    ([memberId, aggregate]) => {
+      const matchesPlayed = Math.max(aggregate.matchesPlayed, 1)
+      const avgCircleDelayPercent = Number((aggregate.totalCircleDelayPercent / matchesPlayed).toFixed(2))
+      return {
+        memberId,
+        aggressionRaw:
+          (aggregate.totalKills * 8 +
+            aggregate.totalKnockouts * 4 +
+            aggregate.totalDamageDealt / 150) /
+          matchesPlayed,
+        supportRaw: aggregate.totalRevives / matchesPlayed,
+        ghostRaw: aggregate.totalBlueZoneHits / matchesPlayed,
+        avgCircleDelayPercent,
+        avgSafeZonePresencePercent: Number((100 - avgCircleDelayPercent).toFixed(2)),
+        avgFirstContactPhase:
+          aggregate.firstKillPhaseSampleCount > 0
+            ? Number((aggregate.totalFirstKillPhase / aggregate.firstKillPhaseSampleCount).toFixed(2))
+            : 0,
+        avgBlueZoneHits: Number((aggregate.totalBlueZoneHits / matchesPlayed).toFixed(2)),
+        avgCircleDelaySeconds: Number((aggregate.totalCircleDelaySeconds / matchesPlayed).toFixed(2)),
+        avgOnFootDistanceMeters: Number((aggregate.totalOnFootDistanceMeters / matchesPlayed).toFixed(2)),
+        avgVehicleDistanceMeters: Number(
+          (aggregate.totalVehicleDistanceMeters / matchesPlayed).toFixed(2)
+        ),
+        avgDamageTaken: Number((aggregate.totalDamageTaken / matchesPlayed).toFixed(2)),
+        avgVehicleRideEvents: Number((aggregate.totalVehicleRideEvents / matchesPlayed).toFixed(2)),
+        avgVehicleLeaveEvents: Number((aggregate.totalVehicleLeaveEvents / matchesPlayed).toFixed(2)),
+        avgPositionEvents: Number((aggregate.totalPositionEvents / matchesPlayed).toFixed(2)),
+        avgHealsUsed: Number((aggregate.totalHealsUsed / matchesPlayed).toFixed(2)),
+        avgHealAmount: Number((aggregate.totalHealAmount / matchesPlayed).toFixed(2)),
+        avgBoostsUsed: Number((aggregate.totalBoostsUsed / matchesPlayed).toFixed(2)),
+        maxVehicleSpeedKph: Number(aggregate.maxVehicleSpeedKph.toFixed(1)),
+        matchesPlayed: aggregate.matchesPlayed,
+      }
     }
-  })
+  )
+
+  // Pass 2 — find per-period maxima to normalize against the best player
+  const maxAggressionRaw = memberIntermediates.reduce((m, r) => Math.max(m, r.aggressionRaw), 0)
+  const maxSupportRaw = memberIntermediates.reduce((m, r) => Math.max(m, r.supportRaw), 0)
+  // Ghost: higher blueZoneHits = worse; the player with the most hits anchors the 0% end
+  const maxGhostRaw = memberIntermediates.reduce((m, r) => Math.max(m, r.ghostRaw), 0)
+
+  // Pass 3 — build final rows with clan-relative normalized scores (best = 100%)
+  const memberTelemetryRows = memberIntermediates.map((row) => ({
+    memberId: row.memberId,
+    period: periodKey,
+    periodType: period,
+    aggressionScore: clampScore(
+      maxAggressionRaw > 0 ? (row.aggressionRaw / maxAggressionRaw) * 100 : 0
+    ),
+    supportScore: clampScore(
+      maxSupportRaw > 0 ? (row.supportRaw / maxSupportRaw) * 100 : 0
+    ),
+    // If no player ever touched the blue zone all scores stay at 100%;
+    // otherwise the player with the most hits gets 0% and the cleanest gets 100%.
+    zoneDisciplineScore: clampScore(
+      maxGhostRaw > 0 ? (1 - row.ghostRaw / maxGhostRaw) * 100 : 100
+    ),
+    avgBlueZoneHits: row.avgBlueZoneHits,
+    avgFirstContactPhase: row.avgFirstContactPhase,
+    avgCircleDelaySeconds: row.avgCircleDelaySeconds,
+    avgCircleDelayPercent: row.avgCircleDelayPercent,
+    avgSafeZonePresencePercent: row.avgSafeZonePresencePercent,
+    avgOnFootDistanceMeters: row.avgOnFootDistanceMeters,
+    avgVehicleDistanceMeters: row.avgVehicleDistanceMeters,
+    avgDamageTaken: row.avgDamageTaken,
+    avgVehicleRideEvents: row.avgVehicleRideEvents,
+    avgVehicleLeaveEvents: row.avgVehicleLeaveEvents,
+    avgPositionEvents: row.avgPositionEvents,
+    avgHealsUsed: row.avgHealsUsed,
+    avgHealAmount: row.avgHealAmount,
+    avgBoostsUsed: row.avgBoostsUsed,
+    maxVehicleSpeedKph: row.maxVehicleSpeedKph,
+    matchesPlayed: row.matchesPlayed,
+  }))
 
   const clanSynergyRows = Array.from(pairAggregates.entries()).map(([pairKey, aggregate]) => {
     const { memberAId, memberBId } = parsePairKey(pairKey)

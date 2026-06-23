@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import {
@@ -506,9 +506,9 @@ export async function syncClanLifetimeStats(clanId: number) {
           vehicle: stats.vehicle,
           movement: stats.movement,
           other: stats.other,
-          statsSquad: stats.byMode.squad as object | null,
-          statsDuo: stats.byMode.duo as object | null,
-          statsSolo: stats.byMode.solo as object | null,
+          statsSquad: stats.byMode.squad ?? Prisma.JsonNull,
+          statsDuo: stats.byMode.duo ?? Prisma.JsonNull,
+          statsSolo: stats.byMode.solo ?? Prisma.JsonNull,
           lastRefreshedAt: now,
         },
         create: {
@@ -519,9 +519,9 @@ export async function syncClanLifetimeStats(clanId: number) {
           vehicle: stats.vehicle,
           movement: stats.movement,
           other: stats.other,
-          statsSquad: stats.byMode.squad as object | null,
-          statsDuo: stats.byMode.duo as object | null,
-          statsSolo: stats.byMode.solo as object | null,
+          statsSquad: stats.byMode.squad ?? Prisma.JsonNull,
+          statsDuo: stats.byMode.duo ?? Prisma.JsonNull,
+          statsSolo: stats.byMode.solo ?? Prisma.JsonNull,
           lastRefreshedAt: now,
         },
       })

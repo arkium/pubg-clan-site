@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     if (existingIdentity) {
       return NextResponse.json(
         {
-          error: `Your account is already linked to a member of "${existingIdentity.member.clan.name}". Use the clan dashboard instead.`,
+          error: `Your account is already linked to a member of "${existingIdentity.member.clan?.name ?? 'a clan'}". Use the clan dashboard instead.`,
         },
         { status: 409 }
       )
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     if (existingMember) {
       return NextResponse.json(
         {
-          error: `This PUBG account is already registered as a member of "${existingMember.clan.name}" (status: ${existingMember.joinStatus}).`,
+          error: `This PUBG account is already registered as a member of "${existingMember.clan?.name ?? 'a clan'}" (status: ${existingMember.joinStatus}).`,
         },
         { status: 409 }
       )

@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 
+import { isInternalCronRequest } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { analyzeMatchForSquads } from '@/lib/squad-detector'
+import { requireRole } from '@/middleware/auth-permission'
 
 function createMatchRecordId(memberId: number, matchId: string) {
   return `${memberId}-${matchId}`
@@ -19,7 +21,7 @@ function isMissingMatchError(error: unknown) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
   const { clanId } = await params
@@ -27,6 +29,16 @@ export async function POST(
 
   if (!parsedClanId) {
     return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+  }
+
+  if (!isInternalCronRequest(request)) {
+    const roleError = await requireRole(['Owner'])(request, {
+      clanId: parsedClanId,
+    })
+
+    if (roleError) {
+      return roleError
+    }
   }
 
   const logs: string[] = []

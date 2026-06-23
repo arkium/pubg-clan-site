@@ -52,6 +52,25 @@ Idées de stats et fonctionnalités qui apporteraient une vraie valeur au clan. 
 
 ---
 
+### Radar playstyle vs moyenne clan
+
+**Contexte :** la section "Évolution du playstyle" du dashboard membre affiche les 3 scores (Agressivité/Support/Zone) pour la période sélectionnée. Un radar permettrait de voir en un coup d'œil où le joueur se situe par rapport à la moyenne du clan sur ces 3 dimensions.
+
+**Pourquoi c'est utile :** "Je suis à 62 % d'agressivité" ne dit rien sans référence. Superposer le profil du joueur à la moyenne clan (ou à un profil type "Fragger idéal") rend l'information immédiatement lisible et actionnables — le joueur voit s'il est plus agressif, plus passif ou plus axé zone que ses coéquipiers.
+
+**Données disponibles :** les 3 scores sont déjà calculés par membre via `MemberTelemetryStats` pour chaque période. Il manque uniquement un endpoint `/api/clans/[clanId]/telemetry/playstyle-average?period=week` qui agrège ces scores sur tous les membres actifs du clan.
+
+**Ce qu'on peut construire :**
+- Radar SVG à 3 axes (Agressivité / Support / Zone) dans la section "Évolution du playstyle"
+- Deux séries superposées : joueur (rempli, coloré) vs moyenne clan (contour pointillé, neutre)
+- Le radar réagit au SegmentedControl Semaine/Mois/Tous déjà en place
+
+**Difficulté :** faible côté frontend (composant SVG autonome, pas de lib externe nécessaire). L'effort principal est l'endpoint d'agrégat clan + la décision de cacher le radar si moins de 3 membres ont des données télémétrie sur la période.
+
+**Page :** dashboard membre `/members/[id]/dashboard`, section "Évolution du playstyle".
+
+---
+
 ### Kill distance — Distribution
 
 **Pourquoi c'est utile :** un joueur peut avoir 50 kills mais tous à courte portée. Ça révèle un style de jeu et des axes de progression (apprendre les armes longue portée).

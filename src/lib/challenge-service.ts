@@ -134,6 +134,82 @@ export async function updateParticipantProgress(participantId: string, newProgre
   return participant
 }
 
+// Max squad placement in PUBG (number of squads per match). Used to invert placement
+// into a score where higher = better for survival_expert.
+const SURVIVAL_MAX_PLACEMENT = 25
+
+export async function refreshChallengeProgressForClan(clanId: number) {
+  const activeChallenges = await prisma.challenge.findMany({
+    where: { clanId, status: 'active' },
+    include: { participants: { select: { id: true, memberId: true } } },
+  })
+
+  for (const challenge of activeChallenges) {
+    for (const participant of challenge.participants) {
+      let progress: number | null = null
+
+      switch (challenge.type) {
+        case 'kill_race': {
+          const agg = await prisma.squadMember.aggregate({
+            where: {
+              memberId: participant.memberId,
+              squadMatch: { createdAt: { gte: challenge.startDate, lte: challenge.endDate } },
+            },
+            _sum: { kills: true },
+          })
+          progress = agg._sum.kills ?? 0
+          break
+        }
+        case 'damage_race': {
+          const agg = await prisma.squadMember.aggregate({
+            where: {
+              memberId: participant.memberId,
+              squadMatch: { createdAt: { gte: challenge.startDate, lte: challenge.endDate } },
+            },
+            _sum: { damage: true },
+          })
+          progress = Math.round(agg._sum.damage ?? 0)
+          break
+        }
+        case 'win_streak': {
+          progress = await prisma.squadMember.count({
+            where: {
+              memberId: participant.memberId,
+              squadMatch: {
+                placement: 1,
+                createdAt: { gte: challenge.startDate, lte: challenge.endDate },
+              },
+            },
+          })
+          break
+        }
+        case 'survival_expert': {
+          const agg = await prisma.squadMember.aggregate({
+            where: {
+              memberId: participant.memberId,
+              squadMatch: { createdAt: { gte: challenge.startDate, lte: challenge.endDate } },
+            },
+            _sum: { placement: true },
+            _count: true,
+          })
+          // SUM(maxPlacement - placement): higher score = better average placement
+          progress = agg._count * SURVIVAL_MAX_PLACEMENT - (agg._sum.placement ?? 0)
+          break
+        }
+        default:
+          break
+      }
+
+      if (progress !== null) {
+        await prisma.challengeParticipant.update({
+          where: { id: participant.id },
+          data: { progress },
+        })
+      }
+    }
+  }
+}
+
 export async function endChallenge(challengeId: string) {
   const challenge = await prisma.challenge.findUnique({
     where: { id: challengeId },

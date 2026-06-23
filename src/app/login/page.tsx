@@ -238,6 +238,15 @@ function LoginPageContent() {
             >
               {submitting ? 'Connexion...' : 'Se connecter'}
             </button>
+
+            <div className="border-t border-slate-200 pt-4 text-center">
+              <p className="text-xs text-slate-600">
+                Nouveau joueur ?{' '}
+                <Link href="/join" className="font-semibold text-slate-900 underline underline-offset-2 hover:text-slate-700">
+                  Rejoindre ou créer un clan
+                </Link>
+              </p>
+            </div>
           </form>
         </div>
       </section>

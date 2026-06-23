@@ -96,6 +96,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Liste des membres avec gestion des rôles (API requiert manage_members).',
   },
   {
+    navKey: 'clan.members-pending',
+    section: 'clan-section',
+    label: 'Demandes en attente',
+    hrefTemplate: '/clans/:clanId/members/pending',
+    defaultRole: 'admin',
+    description: 'Approuver les demandes d\'adhésion en attente.',
+  },
+  {
     navKey: 'clan.matches',
     section: 'clan-section',
     label: 'Matchs',

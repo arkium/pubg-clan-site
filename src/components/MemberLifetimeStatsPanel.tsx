@@ -1,6 +1,9 @@
 'use client'
 
 import Image from 'next/image'
+import { useState } from 'react'
+
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type LifetimeStats = {
   combat: {
@@ -41,8 +44,17 @@ type LifetimeStats = {
   }
 }
 
+type StatsByMode = {
+  squad: LifetimeStats | null
+  duo: LifetimeStats | null
+  solo: LifetimeStats | null
+}
+
+type GameMode = 'all' | 'squad' | 'duo' | 'solo'
+
 type MemberLifetimeStatsPanelProps = {
   lifetimeStats: LifetimeStats | null
+  statsByMode?: StatsByMode | null
   clanRanks: Record<string, 1 | 2 | 3 | null>
   loadingStats: boolean
   statsError: string
@@ -70,17 +82,22 @@ const SECTION_ICON_BY_KEY: Record<
 function SectionTitle({
   section,
   title,
+  statCount,
 }: {
   section: 'combat' | 'victory' | 'support' | 'vehicle' | 'movement' | 'other'
   title: string
+  statCount: number
 }) {
   const icon = SECTION_ICON_BY_KEY[section]
 
   return (
-    <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-      <Image src={icon.iconPath} alt={icon.alt} width={28} height={28} className="shrink-0" />
-      <span>{title}</span>
-    </h3>
+    <div className="member-lifetime-card-head mb-3 flex items-center justify-between gap-3">
+      <h3 className="flex items-center gap-2 text-lg font-semibold">
+        <Image src={icon.iconPath} alt={icon.alt} width={28} height={28} className="shrink-0" />
+        <span>{title}</span>
+      </h3>
+      <span className="member-lifetime-card-count text-xs font-semibold uppercase tracking-wide">{statCount} stats</span>
+    </div>
   )
 }
 
@@ -98,6 +115,23 @@ function formatDurationLong(seconds: number) {
 }
 
 function formatNumber(value: number) {
+  const absValue = Math.abs(value)
+
+  if (absValue >= 1_000_000_000) {
+    const compact = (value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')
+    return `${compact}b`
+  }
+
+  if (absValue >= 1_000_000) {
+    const compact = (value / 1_000_000).toFixed(1).replace(/\.0$/, '')
+    return `${compact}m`
+  }
+
+  if (absValue >= 1_000) {
+    const compact = (value / 1_000).toFixed(1).replace(/\.0$/, '')
+    return `${compact}k`
+  }
+
   return value.toLocaleString()
 }
 
@@ -106,7 +140,25 @@ function formatRatio(value: number) {
 }
 
 function formatDistanceMetersToKm(value: number) {
-  return `${(value / 1000).toFixed(2)} km`
+  const kilometers = value / 1000
+  const absKilometers = Math.abs(kilometers)
+
+  if (absKilometers >= 1_000_000_000) {
+    const compact = (kilometers / 1_000_000_000).toFixed(1).replace(/\.0$/, '')
+    return `${compact}b km`
+  }
+
+  if (absKilometers >= 1_000_000) {
+    const compact = (kilometers / 1_000_000).toFixed(1).replace(/\.0$/, '')
+    return `${compact}m km`
+  }
+
+  if (absKilometers >= 1_000) {
+    const compact = (kilometers / 1_000).toFixed(1).replace(/\.0$/, '')
+    return `${compact}k km`
+  }
+
+  return `${kilometers.toFixed(2)} km`
 }
 
 function StatRow({
@@ -124,9 +176,9 @@ function StatRow({
   const medal = rank ? MEDAL_BY_RANK[rank] : null
 
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="member-lifetime-stat-row member-lifetime-stat-tile">
       <dt className="member-lifetime-stat-label">{label}</dt>
-      <dd className="member-lifetime-stat-value flex items-center gap-1 text-lg font-semibold text-gray-900 sm:text-xl">
+      <dd className="member-lifetime-stat-value flex items-center gap-1 text-lg font-semibold text-gray-900 tabular-nums sm:text-xl">
         {medal ? <Image src={medal.iconPath} alt={medal.alt} width={16} height={16} /> : null}
         <span>{value}</span>
       </dd>
@@ -136,14 +188,29 @@ function StatRow({
 
 export default function MemberLifetimeStatsPanel({
   lifetimeStats,
+  statsByMode,
   clanRanks,
   loadingStats,
   statsError,
   lastRefreshedAt,
 }: MemberLifetimeStatsPanelProps) {
+  const [mode, setMode] = useState<GameMode>('all')
+
+  const modeOptions: Array<{ value: GameMode; label: string; disabled?: boolean }> = [
+    { value: 'all', label: 'Tous' },
+    { value: 'squad', label: 'Squad', disabled: !statsByMode?.squad },
+    { value: 'duo', label: 'Duo', disabled: !statsByMode?.duo },
+    { value: 'solo', label: 'Solo', disabled: !statsByMode?.solo },
+  ]
+
+  const displayedStats =
+    mode === 'all'
+      ? lifetimeStats
+      : (statsByMode?.[mode] ?? lifetimeStats)
+
   return (
-    <section className="member-lifetime-stats rounded bg-white p-6 shadow">
-      <div className="mb-4">
+    <section className="member-lifetime-stats member-lifetime-stats--v2 rounded bg-white p-6 shadow">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Statistiques globales</h2>
           <p className="text-sm text-gray-500">
@@ -155,6 +222,14 @@ export default function MemberLifetimeStatsPanel({
             </p>
           ) : null}
         </div>
+        {lifetimeStats ? (
+          <SegmentedControl
+            options={modeOptions}
+            value={mode}
+            onChange={setMode}
+            size="sm"
+          />
+        ) : null}
       </div>
 
       {loadingStats && !lifetimeStats ? (
@@ -163,65 +238,65 @@ export default function MemberLifetimeStatsPanel({
         <div className="member-lifetime-stats-alert rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {statsError}
         </div>
-      ) : lifetimeStats ? (
+      ) : displayedStats ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <article className="rounded border border-gray-200 p-4">
-            <SectionTitle section="combat" title="Combat" />
-            <dl className="space-y-2 text-sm">
-              <StatRow label="Kills" value={formatNumber(lifetimeStats.combat.kills)} metricKey="combat.kills" clanRanks={clanRanks} />
-              <StatRow label="Morts" value={formatNumber(lifetimeStats.combat.deaths)} metricKey="combat.deaths" clanRanks={clanRanks} />
-              <StatRow label="Ratio K/D" value={formatRatio(lifetimeStats.combat.kdRatio)} metricKey="combat.kdRatio" clanRanks={clanRanks} />
-              <StatRow label="Headshots" value={formatNumber(lifetimeStats.combat.headshots)} metricKey="combat.headshots" clanRanks={clanRanks} />
-              <StatRow label="Assists" value={formatNumber(lifetimeStats.combat.assists)} metricKey="combat.assists" clanRanks={clanRanks} />
-              <StatRow label="KO" value={formatNumber(lifetimeStats.combat.knockouts)} metricKey="combat.knockouts" clanRanks={clanRanks} />
-              <StatRow label="Serie max" value={formatNumber(lifetimeStats.combat.highestKillstreak)} metricKey="combat.highestKillstreak" clanRanks={clanRanks} />
-              <StatRow label="Distance max" value={`${lifetimeStats.combat.longestKill.toFixed(2)} m`} metricKey="combat.longestKill" clanRanks={clanRanks} />
-              <StatRow label="Teamkills" value={formatNumber(lifetimeStats.combat.teamkills)} metricKey="combat.teamkills" clanRanks={clanRanks} />
-              <StatRow label="Suicides" value={formatNumber(lifetimeStats.combat.suicides)} metricKey="combat.suicides" clanRanks={clanRanks} />
+          <article className="member-lifetime-card rounded border border-gray-200 p-4" data-kind="combat">
+            <SectionTitle section="combat" title="Combat" statCount={10} />
+            <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
+              <StatRow label="Kills" value={formatNumber(displayedStats.combat.kills)} metricKey={mode === 'all' ? 'combat.kills' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Morts" value={formatNumber(displayedStats.combat.deaths)} metricKey={mode === 'all' ? 'combat.deaths' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Ratio K/D" value={formatRatio(displayedStats.combat.kdRatio)} metricKey={mode === 'all' ? 'combat.kdRatio' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Headshots" value={formatNumber(displayedStats.combat.headshots)} metricKey={mode === 'all' ? 'combat.headshots' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Assists" value={formatNumber(displayedStats.combat.assists)} metricKey={mode === 'all' ? 'combat.assists' : undefined} clanRanks={clanRanks} />
+              <StatRow label="KO" value={formatNumber(displayedStats.combat.knockouts)} metricKey={mode === 'all' ? 'combat.knockouts' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Serie max" value={formatNumber(displayedStats.combat.highestKillstreak)} metricKey={mode === 'all' ? 'combat.highestKillstreak' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Distance max" value={`${displayedStats.combat.longestKill.toFixed(2)} m`} metricKey={mode === 'all' ? 'combat.longestKill' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Teamkills" value={formatNumber(displayedStats.combat.teamkills)} metricKey={mode === 'all' ? 'combat.teamkills' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Suicides" value={formatNumber(displayedStats.combat.suicides)} metricKey={mode === 'all' ? 'combat.suicides' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
 
-          <article className="rounded border border-gray-200 p-4">
-            <SectionTitle section="victory" title="Victoires" />
-            <dl className="space-y-2 text-sm">
-              <StatRow label="Victoires" value={formatNumber(lifetimeStats.victory.wins)} metricKey="victory.wins" clanRanks={clanRanks} />
-              <StatRow label="Defaites" value={formatNumber(lifetimeStats.victory.losses)} metricKey="victory.losses" clanRanks={clanRanks} />
-              <StatRow label="Ratio V/D" value={formatRatio(lifetimeStats.victory.winLossRatio)} metricKey="victory.winLossRatio" clanRanks={clanRanks} />
-              <StatRow label="Temps max en vie" value={formatDurationLong(lifetimeStats.victory.longestTimeAlive)} metricKey="victory.longestTimeAlive" clanRanks={clanRanks} />
+          <article className="member-lifetime-card rounded border border-gray-200 p-4" data-kind="victory">
+            <SectionTitle section="victory" title="Victoires" statCount={4} />
+            <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
+              <StatRow label="Victoires" value={formatNumber(displayedStats.victory.wins)} metricKey={mode === 'all' ? 'victory.wins' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Defaites" value={formatNumber(displayedStats.victory.losses)} metricKey={mode === 'all' ? 'victory.losses' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Ratio V/D" value={formatRatio(displayedStats.victory.winLossRatio)} metricKey={mode === 'all' ? 'victory.winLossRatio' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Temps max en vie" value={formatDurationLong(displayedStats.victory.longestTimeAlive)} metricKey={mode === 'all' ? 'victory.longestTimeAlive' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
 
-          <article className="rounded border border-gray-200 p-4">
-            <SectionTitle section="support" title="Support" />
-            <dl className="space-y-2 text-sm">
-              <StatRow label="Coequipiers releves" value={formatNumber(lifetimeStats.support.teammatesRevived)} metricKey="support.teammatesRevived" clanRanks={clanRanks} />
-              <StatRow label="Boosts utilises" value={formatNumber(lifetimeStats.support.boostsUsed)} metricKey="support.boostsUsed" clanRanks={clanRanks} />
-              <StatRow label="Soin" value={formatNumber(lifetimeStats.support.healed)} metricKey="support.healed" clanRanks={clanRanks} />
+          <article className="member-lifetime-card rounded border border-gray-200 p-4" data-kind="support">
+            <SectionTitle section="support" title="Support" statCount={3} />
+            <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
+              <StatRow label="Coequipiers releves" value={formatNumber(displayedStats.support.teammatesRevived)} metricKey={mode === 'all' ? 'support.teammatesRevived' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Boosts utilises" value={formatNumber(displayedStats.support.boostsUsed)} metricKey={mode === 'all' ? 'support.boostsUsed' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Soin" value={formatNumber(displayedStats.support.healed)} metricKey={mode === 'all' ? 'support.healed' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
 
-          <article className="rounded border border-gray-200 p-4">
-            <SectionTitle section="vehicle" title="Vehicules" />
-            <dl className="space-y-2 text-sm">
-              <StatRow label="Vehicules detruits" value={formatNumber(lifetimeStats.vehicle.vehiclesDestroyed)} metricKey="vehicle.vehiclesDestroyed" clanRanks={clanRanks} />
-              <StatRow label="Roadkills" value={formatNumber(lifetimeStats.vehicle.roadkills)} metricKey="vehicle.roadkills" clanRanks={clanRanks} />
+          <article className="member-lifetime-card rounded border border-gray-200 p-4" data-kind="vehicle">
+            <SectionTitle section="vehicle" title="Vehicules" statCount={2} />
+            <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
+              <StatRow label="Vehicules detruits" value={formatNumber(displayedStats.vehicle.vehiclesDestroyed)} metricKey={mode === 'all' ? 'vehicle.vehiclesDestroyed' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Roadkills" value={formatNumber(displayedStats.vehicle.roadkills)} metricKey={mode === 'all' ? 'vehicle.roadkills' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
 
-          <article className="rounded border border-gray-200 p-4">
-            <SectionTitle section="movement" title="Deplacements" />
-            <dl className="space-y-2 text-sm">
-              <StatRow label="Distance en vehicule" value={formatDistanceMetersToKm(lifetimeStats.movement.drivenDistance)} metricKey="movement.drivenDistance" clanRanks={clanRanks} />
-              <StatRow label="Distance a pied" value={formatDistanceMetersToKm(lifetimeStats.movement.walkedDistance)} metricKey="movement.walkedDistance" clanRanks={clanRanks} />
-              <StatRow label="Distance a la nage" value={formatDistanceMetersToKm(lifetimeStats.movement.swamDistance)} metricKey="movement.swamDistance" clanRanks={clanRanks} />
+          <article className="member-lifetime-card rounded border border-gray-200 p-4" data-kind="movement">
+            <SectionTitle section="movement" title="Deplacements" statCount={3} />
+            <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
+              <StatRow label="Distance en vehicule" value={formatDistanceMetersToKm(displayedStats.movement.drivenDistance)} metricKey={mode === 'all' ? 'movement.drivenDistance' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Distance a pied" value={formatDistanceMetersToKm(displayedStats.movement.walkedDistance)} metricKey={mode === 'all' ? 'movement.walkedDistance' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Distance a la nage" value={formatDistanceMetersToKm(displayedStats.movement.swamDistance)} metricKey={mode === 'all' ? 'movement.swamDistance' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
 
-          <article className="rounded border border-gray-200 p-4">
-            <SectionTitle section="other" title="Autres" />
-            <dl className="space-y-2 text-sm">
-              <StatRow label="Armes ramassees" value={formatNumber(lifetimeStats.other.weaponsPicked)} metricKey="other.weaponsPicked" clanRanks={clanRanks} />
-              <StatRow label="Degats infliges" value={formatNumber(lifetimeStats.other.damageGiven)} metricKey="other.damageGiven" clanRanks={clanRanks} />
+          <article className="member-lifetime-card rounded border border-gray-200 p-4" data-kind="other">
+            <SectionTitle section="other" title="Autres" statCount={2} />
+            <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
+              <StatRow label="Armes ramassees" value={formatNumber(displayedStats.other.weaponsPicked)} metricKey={mode === 'all' ? 'other.weaponsPicked' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Degats infliges" value={formatNumber(displayedStats.other.damageGiven)} metricKey={mode === 'all' ? 'other.damageGiven' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
         </div>

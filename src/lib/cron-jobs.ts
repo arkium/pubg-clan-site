@@ -3,7 +3,7 @@ import cron, { type ScheduledTask } from 'node-cron'
 
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
-import { getInternalApiBaseUrl } from '@/lib/internal-api'
+import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import {
   fetchCurrentSeason,
@@ -64,6 +64,7 @@ type NotificationService = {
 
 type ChallengeService = {
   endChallenge: (challengeId: string) => Promise<void>
+  refreshChallengeProgressForClan: (clanId: number) => Promise<void>
 }
 
 const globalForCron = globalThis as typeof globalThis & {
@@ -151,7 +152,10 @@ async function triggerClanSync(clanId: number) {
     `${getInternalApiBaseUrl()}/api/clans/${clanId}/sync-matches`,
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...getInternalCronAuthHeaders(),
+      },
     }
   )
 
@@ -860,6 +864,16 @@ async function runDailyClanSync() {
           continue
         }
 
+        try {
+          const { refreshChallengeProgressForClan } = await loadChallengeService()
+          await refreshChallengeProgressForClan(clan.id)
+        } catch (challengeError) {
+          console.warn(
+            `[Cron] Failed to refresh challenge progress for clan "${clan.name}" (${clan.id})`,
+            challengeError
+          )
+        }
+
         await finishCronExecution({
           id: execution.id,
           startedAt: execution.startedAt,
@@ -1040,7 +1054,7 @@ export async function sendNotificationsReminders(
 }
 
 export async function processChallenges() {
-  const { endChallenge } = await loadChallengeService()
+  const { endChallenge, refreshChallengeProgressForClan } = await loadChallengeService()
 
   if (globalForCron.challengeProcessingInProgress) {
     console.warn('[Cron] Challenge processing skipped because a previous run is still in progress')
@@ -1052,6 +1066,21 @@ export async function processChallenges() {
   console.info(`[Cron] Challenge processing started at ${now.toISOString()}`)
 
   try {
+    const clansWithActiveChallenges = await prisma.challenge.findMany({
+      where: { status: 'active' },
+      select: { clanId: true },
+      distinct: ['clanId'],
+    })
+
+    for (const { clanId } of clansWithActiveChallenges) {
+      try {
+        await refreshChallengeProgressForClan(clanId)
+        console.info(`[Cron] Challenge progress refreshed for clan ${clanId}`)
+      } catch (error) {
+        console.error(`[Cron] Failed to refresh challenge progress for clan ${clanId}`, error)
+      }
+    }
+
     const expiredChallenges = await prisma.challenge.findMany({
       where: {
         status: 'active',

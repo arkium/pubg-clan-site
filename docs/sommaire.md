@@ -22,8 +22,8 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
-| [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre |
-| [Clans](features/clans.md) | Structure clan, rôles, sync PUBG, overview, permissions par route, crons liés |
+| [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre, SuperUser, flux /join |
+| [Clans](features/clans.md) | Structure clan, hiérarchie rôles + matrice permissions, flux /join et membres pending, sync PUBG, overview, crons |
 | [Leaderboard](features/leaderboard.md) | Calcul classement interne, périodes, periodKey, progression, badges Top performers |
 | [Matchs](features/matches.md) | Modèles Match/SquadMatch/SquadMember, détection squad, sessions, stats des 13 champs API, synergies |
 | [Dashboard membre](features/member-dashboard.md) | Sections dashboard, PlayerStats vs MemberLifetimeStats, progression, squads fréquents, heatmap |
@@ -82,6 +82,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Cron](ops/cron.md) | 9 jobs planifiés, actions manuelles, table CronExecution, pages de pilotage, variables d'env |
 | [Paramètres admin](ops/settings.md) | 7 pages /settings/* — PUBG API, email, welcome, labels cartes/armes/phases, catégories armes |
 | [Permissions navigation](ops/nav-permissions.md) | Registre NavItemDef, rôles, couleurs, ordre drag & drop, page owner /settings/nav-permissions |
+| [Bootstrap SuperUser](ops/superuser-bootstrap.md) | Procédure CLI pour accorder/révoquer le statut SuperUser, prérequis, matrice des droits |
 
 ---
 

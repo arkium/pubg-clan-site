@@ -1,5 +1,6 @@
 const DEFAULT_INTERNAL_HOST = '127.0.0.1'
 const DEFAULT_INTERNAL_PORT = '3000'
+const INTERNAL_CRON_AUTH_HEADER = 'x-cron-bootstrap-secret'
 
 export function getInternalApiBaseUrl() {
   const configuredBaseUrl =
@@ -14,4 +15,27 @@ export function getInternalApiBaseUrl() {
   const port = process.env.PORT ?? DEFAULT_INTERNAL_PORT
 
   return `http://${DEFAULT_INTERNAL_HOST}:${port}`
+}
+
+export function getInternalCronAuthHeaders() {
+  const secret = process.env.CRON_BOOTSTRAP_SECRET?.trim()
+
+  if (!secret) {
+    return {}
+  }
+
+  return {
+    [INTERNAL_CRON_AUTH_HEADER]: secret,
+  }
+}
+
+export function isInternalCronRequest(request: Request) {
+  const expected = process.env.CRON_BOOTSTRAP_SECRET?.trim()
+
+  if (!expected) {
+    return false
+  }
+
+  const received = request.headers.get(INTERNAL_CRON_AUTH_HEADER)?.trim()
+  return received === expected
 }

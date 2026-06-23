@@ -1105,7 +1105,18 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-400" />
                     </span>
                     <span className="hidden text-left sm:block">
-                      <span className="block max-w-36 truncate text-xs font-semibold text-emerald-900">{playerName}</span>
+                      <span className="flex max-w-44 items-center gap-1.5">
+                        <span className="block max-w-36 truncate text-xs font-semibold text-emerald-900">{playerName}</span>
+                        {isSuperUser ? (
+                          <span
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-[9px] font-bold uppercase leading-none text-violet-700"
+                            title="Compte SuperUser"
+                            aria-label="Compte SuperUser"
+                          >
+                            S
+                          </span>
+                        ) : null}
+                      </span>
                       <span className="block text-[11px] font-medium text-emerald-700">Connecte</span>
                     </span>
                     <button

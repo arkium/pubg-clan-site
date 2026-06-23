@@ -85,14 +85,41 @@ export async function GET(
 
     const clan = await prisma.clan.findUnique({
       where: { id: parsedClanId },
-      select: { id: true },
+      select: { id: true, name: true },
     })
 
     if (!clan) {
       return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
     }
 
+    // Check query parameter for status filter
+    const url = new URL(request.url)
+    const statusFilter = url.searchParams.get('status')
+    const isPendingFilter = statusFilter === 'pending'
+
     await initializeDefaultRoles(parsedClanId)
+
+    // If filtering for pending members, return simpler response
+    if (isPendingFilter) {
+      const pendingMembers = await prisma.clanMember.findMany({
+        where: { clanId: parsedClanId, isActive: false, joinStatus: 'pending' },
+        select: {
+          id: true,
+          displayName: true,
+          pubgPlayerName: true,
+          platformShard: true,
+          isActive: true,
+          joinStatus: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      })
+
+      return NextResponse.json({
+        pending: pendingMembers,
+        clanName: clan.name,
+      })
+    }
 
     const members = await prisma.clanMember.findMany({
       where: { clanId: parsedClanId, isActive: true },

@@ -4,6 +4,7 @@ export const NOTIFICATION_TYPES = [
   'challenge_started',
   'report_ready',
   'invite_reminder',
+  'join_request',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]

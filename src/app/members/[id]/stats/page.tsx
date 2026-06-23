@@ -47,6 +47,12 @@ type LifetimeStats = {
   }
 }
 
+type StatsByMode = {
+  squad: LifetimeStats | null
+  duo: LifetimeStats | null
+  solo: LifetimeStats | null
+}
+
 type ClanMetricRanks = Record<string, 1 | 2 | 3 | null>
 
 type MemberSeasonStatsRow = {
@@ -87,6 +93,31 @@ const MEDAL_META: Record<1 | 2 | 3, { label: string; iconPath: string; alt: stri
   3: { label: 'Bronze', iconPath: '/icons/medal-bronze.svg', alt: 'Medaille bronze' },
 }
 
+const MEDAL_CARD_META: Record<
+  1 | 2 | 3,
+  {
+    accentClass: string
+    badgeClass: string
+    chipClass: string
+  }
+> = {
+  1: {
+    accentClass: 'member-medal-card--gold',
+    badgeClass: 'member-medal-badge--gold',
+    chipClass: 'member-medal-chip--gold',
+  },
+  2: {
+    accentClass: 'member-medal-card--silver',
+    badgeClass: 'member-medal-badge--silver',
+    chipClass: 'member-medal-chip--silver',
+  },
+  3: {
+    accentClass: 'member-medal-card--bronze',
+    badgeClass: 'member-medal-badge--bronze',
+    chipClass: 'member-medal-chip--bronze',
+  },
+}
+
 const METRIC_LABELS: Record<string, string> = {
   'combat.kills': 'Kills',
   'combat.deaths': 'Morts',
@@ -110,6 +141,24 @@ const METRIC_LABELS: Record<string, string> = {
   'movement.swamDistance': 'Distance nage',
   'other.weaponsPicked': 'Armes ramassees',
   'other.damageGiven': 'Degats infliges',
+}
+
+function formatCompactNumber(value: number) {
+  const absValue = Math.abs(value)
+
+  if (absValue >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}b`
+  }
+
+  if (absValue >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`
+  }
+
+  if (absValue >= 1_000) {
+    return `${(value / 1_000).toFixed(1).replace(/\.0$/, '')}k`
+  }
+
+  return value.toLocaleString('fr-FR')
 }
 
 const RANKED_TIER_CLASS: Record<string, string> = {
@@ -170,6 +219,7 @@ export default function MemberStatsPage() {
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
 
   const [lifetimeStats, setLifetimeStats] = useState<LifetimeStats | null>(null)
+  const [statsByMode, setStatsByMode] = useState<StatsByMode | null>(null)
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null)
   const [clanRanks, setClanRanks] = useState<ClanMetricRanks>({})
   const [loadingStats, setLoadingStats] = useState(true)
@@ -213,6 +263,7 @@ export default function MemberStatsPage() {
         const response = await fetch(`/api/members/${memberId}/stats`)
         const payload = (await response.json()) as {
           stats?: LifetimeStats
+          statsByMode?: StatsByMode | null
           clanRanks?: ClanMetricRanks
           lastRefreshedAt?: string | null
           error?: string
@@ -224,6 +275,7 @@ export default function MemberStatsPage() {
 
         if (!cancelled) {
           setLifetimeStats(payload.stats ?? null)
+          setStatsByMode(payload.statsByMode ?? null)
           setClanRanks(payload.clanRanks ?? {})
           setLastRefreshedAt(payload.lastRefreshedAt ?? null)
         }
@@ -429,17 +481,19 @@ export default function MemberStatsPage() {
         ) : null}
       </section>
 
-      <section className="member-stats-summary mb-4 overflow-hidden rounded-xl border border-amber-300/70 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 shadow-sm ring-1 ring-amber-100">
-        <div className="mb-3 flex items-start justify-between gap-3">
+      <section className="member-stats-summary member-stats-summary--medals member-stats-summary--kpi mb-4 overflow-hidden rounded-3xl border border-amber-300/70 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-4 shadow-sm ring-1 ring-amber-100">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Resume medailles</h2>
-            <p className="text-sm text-gray-700">
-              Classements top 3 du joueur sur les metriques globales du clan.
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-600">Repères clés</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Résumé express des points importants</h2>
+            <p className="mt-1 max-w-2xl text-sm text-gray-700">
+              Ce bloc rappelle les indicateurs les plus utiles pour lire rapidement la performance globale du joueur.
             </p>
           </div>
-          <p className="inline-flex min-h-10 min-w-[6.5rem] items-center justify-center rounded-full border border-amber-200 bg-white px-4 py-2 text-center text-base font-semibold text-gray-800 shadow-sm">
-            x{medalsByRank[1].length + medalsByRank[2].length + medalsByRank[3].length}
-          </p>
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white/90 px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm">
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+            x{medalsByRank[1].length + medalsByRank[2].length + medalsByRank[3].length} médailles
+          </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
@@ -447,46 +501,99 @@ export default function MemberStatsPage() {
             const rankValue = rank as 1 | 2 | 3
             const medal = MEDAL_META[rankValue]
             const labels = medalsByRank[rankValue]
+            const cardMeta = MEDAL_CARD_META[rankValue]
+            const topLabels = labels.slice(0, 3)
 
             return (
-              <article key={rank} className="rounded-xl border border-white/80 bg-white/85 p-3 shadow-sm">
-                <div className="mb-2 flex items-center gap-2">
-                  <Image src={medal.iconPath} alt={medal.alt} width={20} height={20} />
-                  <h3 className="text-base font-semibold text-gray-900">{medal.label}</h3>
+              <article key={rank} className={`member-medal-card ${cardMeta.accentClass}`} data-rank={rankValue}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-gray-500">Rang {rank}</p>
+                    <h3 className="mt-1 text-lg font-semibold tracking-tight text-gray-900">{medal.label}</h3>
+                  </div>
+                  <div className={`member-medal-badge ${cardMeta.badgeClass}`}>
+                    <Image src={medal.iconPath} alt={medal.alt} width={72} height={72} className="drop-shadow-[0_14px_16px_rgba(15,23,42,0.22)]" />
+                  </div>
                 </div>
-                <p className="text-3xl font-extrabold leading-none text-gray-900">{labels.length}</p>
-                <p className="mt-2 text-sm text-gray-700">
-                  {labels.length > 0 ? labels.slice(0, 3).join(', ') : 'Aucune metrique medalisee'}
-                </p>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-4xl font-black leading-none tracking-tight text-gray-900">{labels.length}</p>
+                    <p className="mt-1 text-sm font-medium text-gray-700">{labels.length > 1 ? 'médailles' : 'médaille'}</p>
+                  </div>
+                  <p className="max-w-[11rem] text-right text-xs leading-5 text-gray-600">
+                    {labels.length > 0 ? topLabels.join(' · ') : 'Aucune metrique medalisee'}
+                  </p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {topLabels.length > 0 ? (
+                    topLabels.map((label) => (
+                      <span key={label} className={`member-medal-chip ${cardMeta.chipClass}`}>
+                        {label}
+                      </span>
+                    ))
+                  ) : (
+                    <span className={`member-medal-chip ${cardMeta.chipClass}`}>En attente de podium</span>
+                  )}
+                </div>
               </article>
             )
           })}
         </div>
 
         {lifetimeStats ? (
-          <div className="mt-3 grid gap-2 rounded-xl border border-white/80 bg-white/80 p-3 sm:grid-cols-2 lg:grid-cols-4">
-            <article className="rounded-lg bg-white/70 p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Victoires</p>
-              <p className="mt-1 text-2xl font-bold leading-none text-gray-900">{lifetimeStats.victory.wins.toLocaleString()}</p>
-            </article>
-            <article className="rounded-lg bg-white/70 p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Ratio K/D</p>
-              <p className="mt-1 text-2xl font-bold leading-none text-gray-900">{lifetimeStats.combat.kdRatio.toFixed(2)}</p>
-            </article>
-            <article className="rounded-lg bg-white/70 p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Kills</p>
-              <p className="mt-1 text-2xl font-bold leading-none text-gray-900">{lifetimeStats.combat.kills.toLocaleString()}</p>
-            </article>
-            <article className="rounded-lg bg-white/70 p-2.5">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Degats infliges</p>
-              <p className="mt-1 text-2xl font-bold leading-none text-gray-900">{Math.round(lifetimeStats.other.damageGiven).toLocaleString()}</p>
-            </article>
+          <div className="member-kpi-strip mt-3 rounded-2xl border border-white/80 bg-white/80 p-3">
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">Vue synthétique</p>
+                <h3 className="text-base font-semibold text-gray-900">Les 4 signaux à retenir</h3>
+              </div>
+              <p className="hidden text-xs text-gray-500 sm:block">Lecture rapide des stats les plus parlantes</p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <article className="member-kpi-card member-kpi-card--gold">
+                <div className="member-kpi-card__head">
+                  <span className="member-kpi-card__dot" />
+                  <p>Victoires totales</p>
+                </div>
+                <p className="member-kpi-card__value">{lifetimeStats.victory.wins.toLocaleString()}</p>
+                <p className="member-kpi-card__hint">Nombre total de parties gagnées.</p>
+              </article>
+
+              <article className="member-kpi-card member-kpi-card--blue">
+                <div className="member-kpi-card__head">
+                  <span className="member-kpi-card__dot" />
+                  <p>Ratio K/D</p>
+                </div>
+                <p className="member-kpi-card__value">{lifetimeStats.combat.kdRatio.toFixed(2)}</p>
+                <p className="member-kpi-card__hint">Efficacité globale entre kills et morts.</p>
+              </article>
+
+              <article className="member-kpi-card member-kpi-card--emerald">
+                <div className="member-kpi-card__head">
+                  <span className="member-kpi-card__dot" />
+                  <p>Eliminations</p>
+                </div>
+                <p className="member-kpi-card__value">{lifetimeStats.combat.kills.toLocaleString()}</p>
+                <p className="member-kpi-card__hint">Volume d'éliminations sur la période.</p>
+              </article>
+
+              <article className="member-kpi-card member-kpi-card--rose">
+                <div className="member-kpi-card__head">
+                  <span className="member-kpi-card__dot" />
+                  <p>Dégâts infligés</p>
+                </div>
+                <p className="member-kpi-card__value">{formatCompactNumber(Math.round(lifetimeStats.other.damageGiven))}</p>
+                <p className="member-kpi-card__hint">Pression offensive totale produite.</p>
+              </article>
+            </div>
           </div>
         ) : null}
       </section>
 
       <MemberLifetimeStatsPanel
         lifetimeStats={lifetimeStats}
+        statsByMode={statsByMode}
         clanRanks={clanRanks}
         loadingStats={loadingStats}
         statsError={statsError}

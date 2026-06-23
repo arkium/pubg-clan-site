@@ -509,7 +509,11 @@ export async function searchPlayerByName(playerName: string, shard: string = 'st
       playerName: resolvedPlayerName,
       accountId: player.id,
     }
-  } catch (error) {
+  } catch (error: unknown) {
+    const status = (error as { status?: number }).status
+    if (status === 404) {
+      return null
+    }
     console.error('Error searching player:', error)
     throw error
   }
@@ -655,18 +659,7 @@ function aggregateGameModeStats(gameModeStats: Record<string, PubgGameModeStats>
   }, {})
 }
 
-export async function fetchLifetimeStats(
-  playerId: string,
-  shard: string = 'steam'
-): Promise<PubgLifetimeStats> {
-  ensurePubgApiKey()
-  const response = await queuedPubgGet<PubgLifetimeMatchesResponse>(
-    `/shards/${shard}/players/${playerId}/seasons/lifetime`
-  )
-  const gameModeStats = response.data.data?.attributes?.gameModeStats ?? {}
-  const sourceStats =
-    gameModeStats.all ?? (Object.keys(gameModeStats).length > 0 ? aggregateGameModeStats(gameModeStats) : {})
-
+function buildStatsFromMode(sourceStats: PubgGameModeStats): PubgLifetimeStats {
   const kills = toNumber(sourceStats.kills)
   const deaths = toNumber(sourceStats.losses)
   const wins = toNumber(sourceStats.wins)
@@ -708,6 +701,56 @@ export async function fetchLifetimeStats(
     other: {
       weaponsPicked: toNumber(sourceStats.weaponsAcquired),
       damageGiven: toNumber(sourceStats.damageDealt),
+    },
+  }
+}
+
+function getModeAggregate(
+  gameModeStats: Record<string, PubgGameModeStats>,
+  ...keys: string[]
+): PubgLifetimeStats | null {
+  const present = keys.filter((k) => k in gameModeStats)
+  if (present.length === 0) return null
+
+  const merged = present.reduce<PubgGameModeStats>((acc, k) => {
+    Object.entries(gameModeStats[k]).forEach(([key, value]) => {
+      if (typeof value === 'number') {
+        const statKey = key as keyof PubgGameModeStats
+        acc[statKey] = (acc[statKey] ?? 0) + value
+      }
+    })
+    return acc
+  }, {})
+
+  return buildStatsFromMode(merged)
+}
+
+export type PubgLifetimeStatsResult = PubgLifetimeStats & {
+  byMode: {
+    squad: PubgLifetimeStats | null
+    duo: PubgLifetimeStats | null
+    solo: PubgLifetimeStats | null
+  }
+}
+
+export async function fetchLifetimeStats(
+  playerId: string,
+  shard: string = 'steam'
+): Promise<PubgLifetimeStatsResult> {
+  ensurePubgApiKey()
+  const response = await queuedPubgGet<PubgLifetimeMatchesResponse>(
+    `/shards/${shard}/players/${playerId}/seasons/lifetime`
+  )
+  const gameModeStats = response.data.data?.attributes?.gameModeStats ?? {}
+  const sourceStats =
+    gameModeStats.all ?? (Object.keys(gameModeStats).length > 0 ? aggregateGameModeStats(gameModeStats) : {})
+
+  return {
+    ...buildStatsFromMode(sourceStats),
+    byMode: {
+      squad: getModeAggregate(gameModeStats, 'squad', 'squad-fpp'),
+      duo: getModeAggregate(gameModeStats, 'duo', 'duo-fpp'),
+      solo: getModeAggregate(gameModeStats, 'solo', 'solo-fpp'),
     },
   }
 }

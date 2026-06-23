@@ -56,15 +56,67 @@ model ClanMember {
 
 ## 3. Rôles et hiérarchie
 
-Les rôles système sont : **Owner**, **Admin**, **Member**. Des rôles custom peuvent être créés via `ClanRole`.
+### Hiérarchie complète
 
-| Rôle | Périmètre | Accès |
-|---|---|---|
-| Owner | Accès total au clan | Toutes actions, page cron, bootstrap, configuration |
-| Admin | Gestion du clan | Invitations, changement de rôle, sync matchs |
-| Member | Accès lecture | Consultation des pages du clan |
+```
+SuperUser (rôle plateforme, cumulable avec un rôle clan)
+  ├── Accès total à TOUS les clans
+  ├── Seul à pouvoir changer de clan actif dans l'UI
+  ├── Gère les triggers manuels cross-clan
+  ├── Peut créer / archiver des clans
+  ├── Peut être simultanément Owner d'un clan
+  └── Géré via script CLI (voir docs/ops/superuser-bootstrap.md)
 
-Les permissions sont vérifiées dans les routes API via `requireRole(['Owner'])` ou `requireRole(['Owner', 'Admin'])` avec vérification d'appartenance au clan (un Owner d'un clan A ne peut pas agir sur le clan B).
+Owner (par clan)
+  ├── Accès total à SON clan uniquement
+  ├── Gère membres, rôles, sync, config et cron de son clan
+  └── Ne peut pas agir sur un autre clan
+
+Admin (par clan)
+  ├── Gestion opérationnelle de SON clan uniquement
+  ├── Invitations, promotion Member ↔ Admin
+  ├── Sync des matchs
+  └── Ne peut pas promouvoir au rôle Owner ni accéder aux crons
+
+Moderator (par clan)
+  ├── Animation du clan : défis, annonces, notifications
+  ├── Peut inviter des membres (pas les retirer)
+  ├── Accès rapports + export
+  └── Aucune gestion de rôles, aucun accès sync/cron
+
+Member (par clan)
+  ├── Accès lecture seul à SON clan
+  └── Aucune action de gestion
+```
+
+### Matrice des permissions
+
+| Action | SuperUser | Owner | Admin | Moderator | Member |
+|---|---|---|---|---|---|
+| Voir toutes les pages d'un clan | ✅ tous clans | ✅ sien | ✅ sien | ✅ sien | ✅ sien |
+| Changer de clan actif | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Créer / archiver un clan | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Gérer les membres (inviter) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Retirer / archiver un membre | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Promouvoir Member ↔ Admin | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Promouvoir / révoquer Owner | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Gérer défis (créer, modifier) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Sync matchs manuel | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Sync stats manuel | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Voir / piloter cron de son clan | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Voir rapports | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Exporter rapports | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Gérer notifications / annonces | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Gérer config clan (settings) | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+### Implémentation
+
+- Les rôles clan sont stockés dans `ClanRole` / `ClanMemberRole`.
+- Le statut SuperUser est sur `UserAccount.isSuperUser` (booléen).
+- Les routes API vérifient via `requireRole(['Owner'])`, `requireRole(['Owner', 'Admin'])` ou `requireSuperUser()`.
+- Le bypass SuperUser est automatique : `ensureMemberInClan()` laisse passer si `isSuperUser = true`.
+- Un Owner du clan A ne peut pas agir sur le clan B (isolation garantie par `ensureMemberInClan()`).
+- La promotion/révocation du rôle Owner est réservée au SuperUser.
 
 ---
 
@@ -122,25 +174,71 @@ export type PubgClan = {
 
 ## 5. Gestion des membres
 
-### Ajout d'un membre
+### Ajout d'un membre — flux manuel (invitation)
 
-Les membres sont ajoutés manuellement (pas de sync automatique depuis l'API PUBG). L'ajout crée un enregistrement `ClanMember` avec le `pubgPlayerName`. Le `pubgAccountId` est résolu au premier appel API (sync matchs ou lifetime stats).
+Les membres peuvent être ajoutés manuellement par un Owner/Admin. L'ajout crée un enregistrement `ClanMember` avec le `pubgPlayerName`. Le `pubgAccountId` est résolu au premier appel API (sync matchs ou lifetime stats).
 
-### Invitation
-
-**Endpoint :** `POST /api/clans/[clanId]/members/[memberId]/invite`  
+**Endpoint invitation :** `POST /api/clans/[clanId]/members/[memberId]/invite`  
 **Permission requise :** `manage_members`
 
 Génère un token d'invitation et envoie un email ou un lien Discord. Voir `docs/features/auth.md` — section 3 pour le détail du flux d'activation.
 
+### Ajout d'un membre — flux auto-inscription (`/join`)
+
+Un nouveau joueur peut rejoindre ou créer un clan via la page `/join` sans intervention préalable d'un Owner.
+
+**Page :** `/join`  
+**Endpoint :** `POST /api/join`  
+**Accès :** tout utilisateur connecté sans identité membre active
+
+#### Flux
+
+1. Le joueur saisit son nom PUBG et sa plateforme (`steam`, `xbox`, `psn`, `kakao`).
+2. L'API résout le `pubgAccountId` via `searchPlayerByName()` (PUBG API).
+3. L'API récupère le `pubgClanId` du joueur via `fetchPlayerClan()`.
+
+**Cas 1 — Le clan PUBG existe déjà en DB :**
+- Crée un `ClanMember` avec `isActive: false`, `joinStatus: 'pending'`.
+- Lie le membre au `UserAccount` courant via `MemberIdentity`.
+- Le joueur attend la validation d'un Owner/Admin.
+
+**Cas 2 — Le clan PUBG est inconnu :**
+- Crée un nouveau `Clan` + un `ClanMember` actif.
+- Initialise les rôles par défaut du clan.
+- Assigne automatiquement le rôle Owner au joueur (fondateur).
+
+#### Gardes
+
+- Un utilisateur déjà lié à un membre (`MemberIdentity` existante) reçoit un 409.
+- Un `pubgAccountId` déjà présent en DB reçoit un 409 (évite les doublons).
+
+#### Validation des membres en attente
+
+**Page :** `/clans/[clanId]/members/pending`  
+**Endpoint approbation :** `POST /api/clans/[clanId]/members/[memberId]/approve`  
+**Endpoint rejet :** `POST /api/clans/[clanId]/members/[memberId]/reject`  
+**Permission requise :** Owner ou Admin
+
+L'approbation active le membre (`isActive: true`, `joinStatus: 'active'`) et lui assigne le rôle Member par défaut.
+
+La route `GET /api/clans/[clanId]/members?status=pending` retourne uniquement les membres en attente.
+
+### Champ `joinStatus`
+
+| Valeur | Signification |
+|---|---|
+| `active` | Membre actif (défaut, ajout manuel ou approbation) |
+| `pending` | En attente d'approbation (via flux /join) |
+| `archived` | Membre archivé (a quitté le clan) |
+
 ### Changement de rôle
 
 **Endpoint :** `PUT /api/clans/[clanId]/members/[memberId]/role`  
-**Permission requise :** Owner ou Admin selon la cible.
+**Permission requise :** Owner ou Admin selon la cible. Promouvoir/révoquer Owner requiert SuperUser.
 
 ### Archivage
 
-Un membre qui quitte le clan est passé à `isActive = false`. Il n'est plus inclus dans les calculs de stats ni dans les syncs, mais ses données historiques sont conservées.
+Un membre qui quitte le clan est passé à `isActive: false`, `joinStatus: 'archived'`. Il n'est plus inclus dans les calculs de stats ni dans les syncs, mais ses données historiques sont conservées.
 
 ---
 
@@ -209,17 +307,20 @@ Construit par `syncTrackedClanStats()` dans `src/lib/clan-service.ts` :
 
 ## 7. Permissions dans les routes API
 
-Les routes sensibles vérifient l'appartenance au clan ET le rôle :
+Les routes sensibles vérifient l'appartenance au clan ET le rôle. Le SuperUser bypasse automatiquement la vérification d'appartenance clan.
 
 | Route | Permission requise |
 |---|---|
 | `GET /api/clans/[clanId]/members` | Session active (lecture) |
-| `PUT /api/clans/[clanId]/members/[memberId]/role` | Owner ou Admin du clan |
+| `PUT /api/clans/[clanId]/members/[memberId]/role` | Owner ou Admin du clan (promotion Owner : SuperUser uniquement) |
 | `POST /api/clans/[clanId]/members/[memberId]/invite` | Permission `manage_members` |
-| `POST /api/clans/[clanId]/sync-matches` | Owner ou Admin du clan |
-| `POST /api/clans/[clanId]/sync-stats` | Owner du clan |
-| `GET /api/clans/[clanId]/cron-control` | Owner du clan |
-| `POST /api/clans/[clanId]/cron-control` | Owner du clan |
+| `POST /api/clans/[clanId]/members/[memberId]/approve` | Owner ou Admin du clan |
+| `POST /api/clans/[clanId]/members/[memberId]/reject` | Owner ou Admin du clan |
+| `POST /api/clans/[clanId]/sync-matches` | Owner du clan ou SuperUser |
+| `POST /api/clans/[clanId]/sync-stats` | Owner du clan ou SuperUser |
+| `GET /api/clans/[clanId]/cron-control` | Owner du clan ou SuperUser |
+| `POST /api/clans/[clanId]/cron-control` | Owner du clan ou SuperUser |
+| `POST /api/join` | Utilisateur connecté sans identité membre existante |
 
 ---
 

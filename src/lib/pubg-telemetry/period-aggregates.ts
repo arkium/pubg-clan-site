@@ -671,8 +671,7 @@ async function recalculateTelemetryPeriodForClan(
     const aggressionRaw =
       aggregate.totalKills * 8 +
       aggregate.totalKnockouts * 4 +
-      aggregate.totalDamageDealt / 150 -
-      aggregate.totalBlueZoneHits * 2
+      aggregate.totalDamageDealt / 150
 
     const supportRaw = aggregate.totalRevives * 22 + (aggregate.totalRevives / matchesPlayed) * 12
 

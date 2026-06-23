@@ -263,6 +263,40 @@ export async function notifyReportReady(
   })
 }
 
+export async function notifyJoinRequest(
+  clanId: number,
+  pendingMemberName: string,
+  pendingMemberId: number
+) {
+  const managingMembers = await prisma.clanMember.findMany({
+    where: {
+      clanId,
+      isActive: true,
+      roles: {
+        some: {
+          role: { name: { in: ['Owner', 'Admin'] } },
+        },
+      },
+    },
+    select: { id: true },
+  })
+
+  await Promise.all(
+    managingMembers.map((member) =>
+      createNotificationForMember({
+        memberId: member.id,
+        type: 'join_request',
+        title: 'Nouvelle demande d\'adhésion',
+        message: `${pendingMemberName} a demandé à rejoindre votre clan. Validez ou refusez depuis la page des membres en attente.`,
+        data: {
+          pendingMemberId,
+          clanId,
+        },
+      })
+    )
+  )
+}
+
 export async function notifyInviteReminder(memberId: number) {
   const now = new Date()
   const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000)

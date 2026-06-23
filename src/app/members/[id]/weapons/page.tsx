@@ -1038,27 +1038,7 @@ export default function MemberWeaponsPage() {
               </div>
             ) : null}
           </section>
-        ) : (
-          <section className="rounded border border-slate-200 bg-white p-4 text-sm text-slate-700">
-            <p>Aucune donnee armes pour cette periode/categorie.</p>
-            {payload?.member.clanId ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link
-                  href={`/clans/${payload.member.clanId}/settings/cron`}
-                  className="app-btn app-btn--sm app-btn--secondary"
-                >
-                  Ouvrir Ops Cron
-                </Link>
-                <Link
-                  href={`/clans/${payload.member.clanId}/telemetry/recoveries`}
-                  className="app-btn app-btn--sm app-btn--secondary"
-                >
-                  Voir Recoveries telemetry
-                </Link>
-              </div>
-            ) : null}
-          </section>
-        )
+        ) : null
       ) : null}
     </main>
   )

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import { syncTrackedClanStats } from '@/lib/clan-service'
+import { isInternalCronRequest } from '@/lib/internal-api'
+import { requireRole } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -8,7 +10,7 @@ function parseClanId(clanId: string) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
   try {
@@ -17,6 +19,16 @@ export async function POST(
 
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+    }
+
+    if (!isInternalCronRequest(request)) {
+      const roleError = await requireRole(['Owner'])(request, {
+        clanId: parsedClanId,
+      })
+
+      if (roleError) {
+        return roleError
+      }
     }
 
     const clan = await syncTrackedClanStats(parsedClanId)

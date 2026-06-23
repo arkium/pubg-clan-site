@@ -119,6 +119,9 @@ async function upsertStats(memberId: number, stats: Awaited<ReturnType<typeof fe
       vehicle: stats.vehicle,
       movement: stats.movement,
       other: stats.other,
+      statsSquad: stats.byMode.squad as object | null,
+      statsDuo: stats.byMode.duo as object | null,
+      statsSolo: stats.byMode.solo as object | null,
       lastRefreshedAt: now,
     },
     create: {
@@ -129,6 +132,9 @@ async function upsertStats(memberId: number, stats: Awaited<ReturnType<typeof fe
       vehicle: stats.vehicle,
       movement: stats.movement,
       other: stats.other,
+      statsSquad: stats.byMode.squad as object | null,
+      statsDuo: stats.byMode.duo as object | null,
+      statsSolo: stats.byMode.solo as object | null,
       lastRefreshedAt: now,
     },
   })
@@ -228,6 +234,11 @@ export async function GET(
       return NextResponse.json({
         memberId,
         stats: toLifetimeStats(cached),
+        statsByMode: {
+          squad: cached.statsSquad as LifetimeStats | null,
+          duo: cached.statsDuo as LifetimeStats | null,
+          solo: cached.statsSolo as LifetimeStats | null,
+        },
         clanRanks,
         lastRefreshedAt: cached.lastRefreshedAt,
       })
@@ -254,6 +265,11 @@ export async function GET(
       playerId,
       shard,
       stats,
+      statsByMode: {
+        squad: stats.byMode.squad,
+        duo: stats.byMode.duo,
+        solo: stats.byMode.solo,
+      },
       clanRanks,
       lastRefreshedAt: now,
     })
@@ -299,6 +315,11 @@ export async function POST(
       playerId,
       shard,
       stats,
+      statsByMode: {
+        squad: stats.byMode.squad,
+        duo: stats.byMode.duo,
+        solo: stats.byMode.solo,
+      },
       clanRanks,
       lastRefreshedAt: now,
     })

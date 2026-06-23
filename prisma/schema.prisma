@@ -627,6 +627,10 @@ model MemberLifetimeStats {
   movement Json
   other    Json
 
+  statsSquad Json?
+  statsDuo   Json?
+  statsSolo  Json?
+
   lastRefreshedAt DateTime
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

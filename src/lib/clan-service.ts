@@ -506,6 +506,9 @@ export async function syncClanLifetimeStats(clanId: number) {
           vehicle: stats.vehicle,
           movement: stats.movement,
           other: stats.other,
+          statsSquad: stats.byMode.squad as object | null,
+          statsDuo: stats.byMode.duo as object | null,
+          statsSolo: stats.byMode.solo as object | null,
           lastRefreshedAt: now,
         },
         create: {
@@ -516,6 +519,9 @@ export async function syncClanLifetimeStats(clanId: number) {
           vehicle: stats.vehicle,
           movement: stats.movement,
           other: stats.other,
+          statsSquad: stats.byMode.squad as object | null,
+          statsDuo: stats.byMode.duo as object | null,
+          statsSolo: stats.byMode.solo as object | null,
           lastRefreshedAt: now,
         },
       })

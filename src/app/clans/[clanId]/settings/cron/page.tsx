@@ -208,8 +208,13 @@ export default function CronSettingsPage() {
         | null
 
       if (!response.ok || !data || !('ok' in data) || !data.ok) {
-        if (response.status === 401 || response.status === 403) {
+        if (response.status === 401) {
           router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/settings/cron`)}`)
+          return
+        }
+
+        if (response.status === 403) {
+          router.replace(`/clans/${currentClanId}`)
           return
         }
 
@@ -266,6 +271,16 @@ export default function CronSettingsPage() {
       }
 
       if (!response.ok || !result?.ok) {
+        if (response.status === 401) {
+          router.replace(`/login?redirect=${encodeURIComponent(`/clans/${clanId}/settings/cron`)}`)
+          return
+        }
+
+        if (response.status === 403) {
+          router.replace(`/clans/${clanId}`)
+          return
+        }
+
         const fallback = rawResponseText
           ? `HTTP ${response.status}: ${rawResponseText.slice(0, 180)}`
           : `HTTP ${response.status}: reponse invalide du serveur`

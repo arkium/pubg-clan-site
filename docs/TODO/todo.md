@@ -36,20 +36,30 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] `/clans/[clanId]/drop-zones` — page et API présentes
 - [x] `/members/[id]/drop-zones` — page et API présentes
 - [x] Awards — 11 awards complets, service + route API + page UI avec emojis, labels, descriptions et formatage
-- [ ] Défis — le déclenchement de la mise à jour de `progress` n'est pas implémenté (aucun cron ni webhook ne met à jour les scores en temps réel)
+- [x] Défis — `refreshChallengeProgressForClan` câblée depuis `processChallenges` et `runDailyClanSync` (2026-06-23)
 
 ---
 
 ## P2 — Fonctionnalités incomplètes
 
-### Challenges — Progression non automatisée
+### ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
 
-Le cycle de vie des challenges est géré par `processChallenges` dans `cron-jobs.ts` (activation auto des `pending`, clôture des `active` expirés). Mais `updateParticipantProgress` n'est appelée **nulle part** en dehors de sa définition dans `challenge-service.ts` — aucun code ne relie les matchs joués aux scores des participants :
-- Aucun cron ne met à jour les scores des participants
-- Le lien entre les matchs sync et les types `kill_race`, `damage_race`, etc. n'est pas câblé
-- [ ] Câbler `updateParticipantProgress` depuis le cron de sync des matchs pour les types `kill_race` et `damage_race`
-- [ ] Câbler le type `survival_expert` (placement moyen) depuis les `SquadMember` récents
-- [ ] Câbler le type `win_streak` depuis les `SquadMatch.placement === 1`
+`refreshChallengeProgressForClan(clanId)` ajoutée dans `challenge-service.ts`.
+Appelée depuis deux points du cycle cron :
+1. `processChallenges()` — avant `endChallenge`, pour que les scores finaux soient à jour
+2. `runDailyClanSync()` — après import réussi de matchs
+
+| Type | Source | Calcul |
+|---|---|---|
+| `kill_race` | `SquadMember._sum.kills` | somme directe |
+| `damage_race` | `SquadMember._sum.damage` | `Math.round(sum)` |
+| `win_streak` | `SquadMember.count` where `placement=1` | count de victoires |
+| `survival_expert` | `SquadMember._sum.placement + _count` | `count×25 − sumPlacements` |
+| `squad_synergy` | — | non implémenté (composition multi-membres, hors scope) |
+
+- [x] Câbler `kill_race` et `damage_race`
+- [x] Câbler `survival_expert`
+- [x] Câbler `win_streak`
 
 ---
 
@@ -63,13 +73,14 @@ Les préférences `pushNotifications` sont stockées et lues, mais l'envoi réel
 
 ---
 
-### Stats lifetime — Pas de ventilation par mode
+### ~~Stats lifetime — Pas de ventilation par mode~~ — ✅ Complété le 2026-06-23
 
-`MemberLifetimeStats` agrège tous les modes (`solo`, `duo`, `squad`) ensemble via `aggregateGameModeStats()`. L'API PUBG fournit des données par mode.
-
-- [ ] Stocker les stats par mode de jeu dans la table (nouvelles colonnes JSON `combatSquad`, `combatDuo`, `combatSolo`)
-- [ ] Exposer le filtre par mode dans `GET /api/members/[id]/stats`
-- [ ] Mettre à jour `MemberLifetimeStatsPanel` pour afficher le sélecteur de mode
+- [x] Colonnes `statsSquad`, `statsDuo`, `statsSolo` (`Json?`) ajoutées dans `MemberLifetimeStats` + migration SQL
+- [x] `fetchLifetimeStats` dans `pubg.ts` retourne `byMode: { squad, duo, solo }` via helper `buildStatsFromMode` + `getModeAggregate` (squad+squad-fpp, duo+duo-fpp, solo+solo-fpp)
+- [x] `upsertStats` dans `route.ts` et `syncClanLifetimeStats` dans `clan-service.ts` stockent les colonnes par mode
+- [x] `GET /api/members/[id]/stats` expose `statsByMode` dans la réponse (cache et live)
+- [x] `MemberLifetimeStatsPanel` : `SegmentedControl` Tous / Squad / Duo / Solo — options désactivées si données absentes ; médailles de clan masquées hors mode "Tous"
+- [x] `page.tsx` : state `statsByMode` parsé depuis la réponse API, passé au panel
 
 ---
 
@@ -84,12 +95,12 @@ Le nettoyage des fichiers `.telemetry-captured/` et des jobs `failed` anciens es
 
 ---
 
-### Streaming JSON parser
+### ~~Streaming JSON parser~~ — ✅ Déjà implémenté (vérifié le 2026-06-23)
 
-`resync-files.ts` charge encore les fichiers télémétrie en mémoire complète avant de les passer au parser, malgré un streaming partiel. Sur les fichiers > 30 Mo, le heap peut dépasser les 512 Mo du worker.
-
-- [ ] Introduire un vrai streaming JSON (ex. librairie `jsonstream` ou `@streamparser/json`) pour éviter de tout charger avant de passer au parser
-- [ ] Tester sur des fichiers de 35 Mo+ pour valider la réduction d'empreinte mémoire
+Le parser `parseTelemetrySnapshotFromStream` dans `parser.ts` est un vrai streaming JSON character-by-character :
+- `resync-files.ts` utilise `createReadStream({ highWaterMark: 64 KB })` — jamais de lecture complète en mémoire
+- `consumeText()` suit `objectDepth` caractère par caractère ; `JSON.parse()` est appelé sur **un seul event** à la fois (quelques Ko)
+- À aucun moment le fichier entier n'est accumulé en mémoire — inutile d'introduire `jsonstream` ou `@streamparser/json`
 
 ---
 
@@ -110,9 +121,16 @@ Le nettoyage des fichiers `.telemetry-captured/` et des jobs `failed` anciens es
 
 Ces champs sont stockés en DB depuis la migration P1.1 mais n'ont pas tous de vue dédiée :
 
-- `headshotKills` par match — affiché dans la liste des matchs ?
-- `teamKills` — affiché nulle part
-- `swimDistance` — non affiché
+- `headshotKills` — ✅ affiché dans `/members/[id]/matches` (colonne du tableau) et agrégé dans map-stats (`totalHeadshots`). Absent des pages clan.
+- `teamKills` — ❌ non affiché nulle part. La variable `teamKills` dans les pages télémétrie est la somme des kills d'équipe, pas ce champ.
+- `swimDistance` — ❌ non affiché par match. Le lifetime agrégé `swamDistance` est bien présent dans `MemberLifetimeStatsPanel`.
+
+**Remarques (vérification 2026-06-23) :**
+
+- `headshotKills` est couvert à 2/3 : vue membre (/members/[id]/matches) et agrégat map-stats. Le seul endroit manquant est la liste de matchs du clan — valeur faible, pas prioritaire.
+- Le nom `teamKills` dans `src/app/clans/[clanId]/matches/[matchId]/telemetry/page.tsx` et sa copie dans `src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx` est trompeur : c'est une variable locale qui fait `group.members.reduce(...kills)`, pas `SquadMember.teamKills`. À ne pas confondre si on veut un jour afficher les team kills réels.
+- `swimDistance` par match a peu d'intérêt isolément (la distance de nage sur un match est anecdotique). L'agrégat lifetime suffit. Ce point peut rester hors scope sans impact utilisateur.
+- Si `teamKills` doit un jour être affiché, le bon endroit est la fiche de match du clan (`/clans/[clanId]/matches/[matchId]`) et le détail de match membre, pas la télémétrie.
 
 ---
 
@@ -147,3 +165,28 @@ Le calcul des awards (`computeClanAwards`) est entièrement à la volée à chaq
 - [x] Mettre à jour `docs/telemetry/ops.md` après le backfill v1 → v2
 - [ ] Documenter les pages UI `/drop-zones` une fois créées
 - [ ] Mettre à jour `docs/features/challenges.md` une fois la progression auto câblée
+
+---
+
+## Résumé — Ce qui reste à faire (au 2026-06-23)
+
+### Tâches ouvertes par priorité
+
+| Priorité | Catégorie | Item | Effort estimé |
+|---|---|---|---|
+| P1 | Ops | Supprimer les fichiers `.telemetry-captured/` obsolètes (backfill v1→v2 terminé) | < 1h |
+| P2 | Infra | Push notifications — choisir et brancher un service réel (FCM / Web Push VAPID) | 1–2j |
+| P2 | Ops | Auto-cleanup cron — brancher `queue-cleanup` nocturne (jobs queued > 24h, failed > 7j, fichiers capturés > 30j) | 2–4h |
+| P3 | Télémétrie | Parser `LogPlayerUseThrowable` (grenades/molotovs) | 2–4h |
+| P3 | Télémétrie | Parser `LogVehicleLeave.rideDistance` + `.maxSpeed` | 2–3h |
+| P3 | Télémétrie | Parser `CharacterWrapper.primaryWeaponFirst` (arme au moment du kill) | 4–8h |
+| P3 | UI | Afficher `teamKills` et `swimDistance` par match depuis `SquadMember` (`headshotKills` déjà couvert) | 1h |
+| P3 | Fiabilité | Vérifier et tester les crons `weekly_report` / `monthly_report` | 1–2h |
+| P3 | Performances | Cache awards `computeClanAwards` (TTL 10 min ou pré-calcul quotidien) | 2–4h |
+| Tech | Tests | Tests unitaires pour `awards-service.ts`, `report-generator.ts`, `stats-calculator.ts` | 4–8h |
+| Tech | Doc | Documenter `/drop-zones` + mettre à jour `docs/features/challenges.md` | 1h |
+
+### Ce qui n'est PAS à faire (hors scope confirmé)
+
+- `squad_synergy` challenge — calcul de composition multi-membres, complexité non justifiée
+- Streaming JSON parser — déjà implémenté nativement dans `parser.ts`

@@ -13,7 +13,8 @@ import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
-import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
+  import { getInternalCronAuthHeaders } from '@/lib/internal-api'
+import { getActorMemberId, isSuperUserSession, requireRole } from '@/middleware/auth-permission'
 
 type CronAction =
   | 'sync_matches'
@@ -113,6 +114,16 @@ async function getCronWorkerRuntimeStatus() {
   }
 }
 
+async function requireCronClanAccess(request: Request, clanId: number) {
+  if (await isSuperUserSession(request)) {
+    return null
+  }
+
+  return requireRole(['Owner'])(request, {
+    clanId,
+  })
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -125,9 +136,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireCronClanAccess(request, parsedClanId)
     if (roleError) {
       return roleError
     }
@@ -196,9 +205,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireCronClanAccess(request, parsedClanId)
     if (roleError) {
       return roleError
     }

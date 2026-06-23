@@ -30,7 +30,7 @@ Ce document décrit le système d'authentification du site : connexion, activati
 |---|---|
 | `activeMemberId` | ID du membre actif par défaut |
 | `defaultClanId` | ID du clan principal |
-| `canSwitchClan` | `true` si l'utilisateur a la permission wildcard `*` |
+| `canSwitchClan` | `true` si l'utilisateur est SuperUser (`isSuperUser = true`) |
 
 ### Effets côté client
 
@@ -182,9 +182,9 @@ La session est invalidée :
 
 La page applique deux gardes :
 1. **Authentification** : redirection vers `/login` si pas de session.
-2. **Permission switch clan** : `canSwitchClan` est `true` seulement si `permissions.includes('*')`. Si absente, redirection vers `/members`.
+2. **Permission switch clan** : `canSwitchClan` est `true` seulement si `isSuperUser = true`. Si absent, redirection vers `/members`.
 
-La page est donc réservée aux profils Owner/Admin global.
+La page est donc réservée aux SuperUsers.
 
 ### Chargement des clans
 
@@ -219,11 +219,13 @@ Comportements :
 
 ## 8. Switch de membre
 
-Un `UserAccount` peut être lié à plusieurs `ClanMember` via la table `MemberIdentity`. Cette liaison permet à un utilisateur de représenter plusieurs joueurs ou d'apparaître dans plusieurs clans.
+Un `UserAccount` peut être lié à plusieurs `ClanMember` via la table `MemberIdentity`.
 
 **Endpoint :** `POST /api/auth/switch-member`
 
 Permet de changer le membre actif sans déconnexion. Le `activeMemberId` de la session est mis à jour.
+
+**Restriction inter-clan :** changer de membre actif vers un membre d'un clan différent (switch inter-clan) est réservé au SuperUser. Un Owner/Admin/Member ne peut switcher que vers un membre du même clan. Toute tentative de switch inter-clan sans `isSuperUser = true` reçoit un 403.
 
 ---
 
@@ -236,7 +238,35 @@ Le changement de mot de passe en session exige la saisie du mot de passe actuel.
 
 ---
 
-## 10. Middlewares de protection
+## 10. SuperUser
+
+Le SuperUser est un rôle plateforme (cross-clan) stocké sur `UserAccount.isSuperUser`. Il est distinct des rôles clan (Owner/Admin/etc.).
+
+### Ce que le SuperUser peut faire
+
+- Accéder aux routes de tous les clans sans être membre.
+- Changer de clan actif dans l'UI (switch inter-clan).
+- Promouvoir / révoquer le rôle Owner.
+- Déclencher des opérations cross-clan.
+
+### Exposition dans la session
+
+`GET /api/auth/session` expose `isSuperUser: boolean` dans la réponse. Le hook `useAuthSession()` le rend disponible côté client.
+
+### Bootstrap et gestion
+
+Le statut SuperUser ne peut pas être attribué depuis l'UI — il faut passer par le script CLI. Voir [docs/ops/superuser-bootstrap.md](../ops/superuser-bootstrap.md).
+
+### Middlewares
+
+| Fonction | Fichier | Usage |
+|---|---|---|
+| `requireSuperUser(request)` | `src/middleware/auth-permission.ts` | Retourne 401/403 ou null — à appeler en début de handler |
+| `isSuperUserSession(request)` | `src/middleware/auth-permission.ts` | Retourne `boolean` — pour les guards hybrides (Owner OU SuperUser) |
+
+---
+
+## 11. Middlewares de protection
 
 Les routes API vérifient la session via `requireRole` ou une vérification directe de session.
 
@@ -245,9 +275,11 @@ Les routes API vérifient la session via `requireRole` ou une vérification dire
 
 Les routes publiques (sans session requise) sont : `/api/auth/login`, `/api/auth/activate`, `/api/auth/activate/context`, `/api/auth/password/forgot`, `/api/auth/password/reset`, `/api/auth/password/reset/context`, `/api/setup/status`.
 
+La route `POST /api/join` requiert une session mais pas de rôle clan — tout utilisateur authentifié sans identité membre active peut l'appeler.
+
 ---
 
-## 11. Modèles Prisma concernés
+## 12. Modèles Prisma concernés
 
 - `UserAccount` — compte utilisateur
 - `UserSession` — sessions actives
@@ -257,7 +289,7 @@ Les routes publiques (sans session requise) sont : `/api/auth/login`, `/api/auth
 
 ---
 
-## 12. Fichiers clés
+## 13. Fichiers clés
 
 | Fichier | Rôle |
 |---|---|

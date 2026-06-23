@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+
 import { prisma } from '@/lib/prisma'
 import { fetchLifetimeStats, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
@@ -119,9 +121,9 @@ async function upsertStats(memberId: number, stats: Awaited<ReturnType<typeof fe
       vehicle: stats.vehicle,
       movement: stats.movement,
       other: stats.other,
-      statsSquad: stats.byMode.squad as object | null,
-      statsDuo: stats.byMode.duo as object | null,
-      statsSolo: stats.byMode.solo as object | null,
+      statsSquad: stats.byMode.squad ?? Prisma.JsonNull,
+      statsDuo: stats.byMode.duo ?? Prisma.JsonNull,
+      statsSolo: stats.byMode.solo ?? Prisma.JsonNull,
       lastRefreshedAt: now,
     },
     create: {
@@ -132,9 +134,9 @@ async function upsertStats(memberId: number, stats: Awaited<ReturnType<typeof fe
       vehicle: stats.vehicle,
       movement: stats.movement,
       other: stats.other,
-      statsSquad: stats.byMode.squad as object | null,
-      statsDuo: stats.byMode.duo as object | null,
-      statsSolo: stats.byMode.solo as object | null,
+      statsSquad: stats.byMode.squad ?? Prisma.JsonNull,
+      statsDuo: stats.byMode.duo ?? Prisma.JsonNull,
+      statsSolo: stats.byMode.solo ?? Prisma.JsonNull,
       lastRefreshedAt: now,
     },
   })

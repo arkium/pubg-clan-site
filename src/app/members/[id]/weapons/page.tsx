@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
@@ -672,7 +671,6 @@ export default function MemberWeaponsPage() {
           showBackButton={false}
           framed={false}
         />
-        <SectionNav section="member-section" />
       </section>
 
       <section className="mb-6 rounded border border-gray-200 bg-white p-4">

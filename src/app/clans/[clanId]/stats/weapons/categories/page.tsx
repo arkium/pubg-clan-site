@@ -1,4 +1,3 @@
-﻿import SectionNav from '@/components/SectionNav'
 import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { prisma } from '@/lib/prisma'
@@ -216,7 +215,6 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
             Mapping utilisé pour classer les armes par catégorie dans la télémétrie.
           </p>
         </div>
-        <SectionNav section="clan-section" />
       </section>
 
       <section className="app-panel p-4">

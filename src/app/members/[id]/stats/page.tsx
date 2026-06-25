@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import MemberLifetimeStatsPanel from '@/components/MemberLifetimeStatsPanel'
-import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 
 type LifetimeStats = {
@@ -380,7 +379,6 @@ export default function MemberStatsPage() {
           showBackButton={false}
           framed={false}
         />
-        <SectionNav section="member-section" />
       </section>
 
       {statsError && lifetimeStats ? (

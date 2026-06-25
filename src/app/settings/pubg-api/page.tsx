@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 
 type ApiCallRow = {
   id: string
@@ -267,7 +266,6 @@ export default function PubgApiSettingsPage() {
           title="Monitoring PUBG API"
           subtitle="Suivi en temps réel des appels API, des erreurs 429 et de la latence moyenne."
         />
-        <SectionNav section="owner-menu" />
       </section>
       <section className="app-panel p-6 sm:p-8">
 

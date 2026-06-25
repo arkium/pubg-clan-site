@@ -3,7 +3,6 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -225,7 +224,6 @@ export default function ClanAwardsPage() {
           </button>
         </div>
 
-        <SectionNav section="clan-section" />
       </header>
 
       <section className="app-panel p-4">

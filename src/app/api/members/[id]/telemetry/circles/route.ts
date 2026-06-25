@@ -6,6 +6,7 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -60,6 +61,9 @@ export async function GET(
         status: 400,
       })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },

@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import type { NotificationPreferenceItem } from '@/types/notifications'
 
 function parseMemberId(value: string | string[] | undefined) {
@@ -133,7 +132,6 @@ export default function NotificationPreferencesPage() {
         </Link>
       </div>
 
-      <SectionNav section="member-section" />
 
       {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
       {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}

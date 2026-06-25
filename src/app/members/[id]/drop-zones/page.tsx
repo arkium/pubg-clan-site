@@ -4,7 +4,6 @@ import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
@@ -289,7 +288,6 @@ export default function MemberDropZonesPage() {
           showBackButton={false}
           framed={false}
         />
-        <SectionNav section="member-section" />
       </section>
 
       <section className="app-panel mb-5 p-4">

@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -58,7 +57,6 @@ export default function TelemetryMatchesPage() {
           title="Télémétrie — Soirées"
           subtitle="Soirées de jeu et état de récupération télémétrie par session."
         />
-        <SectionNav section="owner-menu" />
       </section>
 
       <section className="app-panel mb-5 p-4">

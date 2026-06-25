@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 const preferenceFields = [
   'squadDetected',
@@ -44,7 +45,7 @@ function getDefaultPreferences(memberId: number) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -54,6 +55,9 @@ export async function GET(
     if (!parsedMemberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     if (!(await ensureMemberExists(parsedMemberId))) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
@@ -86,6 +90,9 @@ export async function PATCH(
     if (!parsedMemberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     if (!(await ensureMemberExists(parsedMemberId))) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })

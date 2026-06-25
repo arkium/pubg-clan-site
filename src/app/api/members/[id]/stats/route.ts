@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { fetchLifetimeStats, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type LifetimeStats = {
   combat: {
@@ -226,6 +227,9 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
+
     const cached = await prisma.memberLifetimeStats.findUnique({
       where: { memberId },
     })
@@ -295,6 +299,9 @@ export async function POST(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const resolved = await resolvePlayerId(memberId)
 

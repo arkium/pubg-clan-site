@@ -67,6 +67,44 @@ async function ensureMemberInClan(memberId: number, clanId: number) {
   return !!member && member.isActive && member.clanId === clanId
 }
 
+/**
+ * Ensures the caller belongs to the same clan as the target member.
+ * SuperUsers bypass this check. Returns a 401/403/404 Response on failure, null on success.
+ */
+export async function requireSameClanAsMember(
+  targetMemberId: number,
+  request: Request
+): Promise<NextResponse | null> {
+  const session = await getSessionFromRequest(request)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const user = await prisma.userAccount.findUnique({
+    where: { id: session.userId },
+    select: { isSuperUser: true },
+  })
+  if (user?.isSuperUser) return null
+
+  const actorMemberId = session.activeMemberId
+  if (!actorMemberId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const targetMember = await prisma.clanMember.findUnique({
+    where: { id: targetMemberId },
+    select: { clanId: true },
+  })
+  if (!targetMember) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+  if (!targetMember.clanId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const actorMember = await prisma.clanMember.findUnique({
+    where: { id: actorMemberId },
+    select: { clanId: true, isActive: true },
+  })
+  if (!actorMember || !actorMember.isActive || actorMember.clanId !== targetMember.clanId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  return null
+}
+
 export function requirePermission(permission: string) {
   return async function checkPermission(request: Request, options?: PermissionGuardOptions) {
     const actorMemberId = await getActorMemberId(request)

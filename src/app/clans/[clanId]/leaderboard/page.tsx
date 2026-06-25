@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 
 import Leaderboard from '@/components/Leaderboard'
 import LeaderboardStats from '@/components/LeaderboardStats'
-import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -89,7 +88,6 @@ export default function LeaderboardPage() {
               Performances individuelles par période.
             </p>
             <p className="mt-1 text-xs text-gray-500">{formatLastUpdated(lastUpdatedAt)}</p>
-            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

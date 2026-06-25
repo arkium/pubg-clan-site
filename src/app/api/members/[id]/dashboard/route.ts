@@ -3,6 +3,7 @@ import { getMapLabels } from '@/lib/map-label-service'
 import { NextResponse } from 'next/server'
 
 import type { DashboardPeriod } from '@/types/dashboard'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type ClanMode = 'solo' | 'duo' | 'trio' | 'squad'
 
@@ -105,6 +106,9 @@ export async function GET(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const { searchParams } = new URL(request.url)
     const period = parsePeriod(searchParams.get('period'))

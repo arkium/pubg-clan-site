@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -701,7 +700,6 @@ export default function ClanStatsPage() {
               {data?.clan?.name ?? `Clan #${clanId}`} | Clan
             </h1>
             <p className="text-sm text-gray-600">Vue clan complete avec top 3 pour chaque statistique.</p>
-            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

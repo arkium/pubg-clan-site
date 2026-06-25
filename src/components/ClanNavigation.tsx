@@ -6,10 +6,11 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import NavIcon from '@/components/ui/NavIcon'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
-import { NAV_REGISTRY, getItemRole, type NavSection } from '@/lib/nav-permissions-registry'
+import { NAV_REGISTRY, getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 
 type ClanSummary = {
   id: number
@@ -195,193 +196,6 @@ function getToneClasses(tone: NavItem['tone'] | 'violet', active: boolean, darkM
   */
 }
 
-function renderNavIcon(label: string) {
-  const iconClass = 'h-4 w-4 shrink-0'
-
-  if (label === 'Dashboard') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Mon clan') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Zm0 2.1 4.5 1.7v3.5c0 2.4-1.7 4.5-4.5 5.7-2.8-1.2-4.5-3.3-4.5-5.7V6.3L10 4.6Zm-2.2 5.2h4.4v1.4H7.8V9.8Zm0-2.3h4.4v1.4H7.8V7.5Z"
-        />
-      </svg>
-    )
-  }
-
-  if (label === 'Mon compte') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Zm-4.2 3.3c.5-1 2.2-1.9 4.2-1.9s3.7.9 4.2 1.9H5.8Z"
-        />
-      </svg>
-    )
-  }
-
-  if (label === 'Ajouter un joueur') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 3.3a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Zm0 8.2c-3 0-5.4 1.5-5.4 3.5 0 .6.4 1 1 1h9c.6 0 1-.4 1-1 0-2-2.4-3.5-5.4-3.5Zm.8 1.2h1.4v1.5h1.5v1.4h-1.5v1.5h-1.4v-1.5H9.3v-1.4h1.5v-1.5Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Joueurs et rôles') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M7 4.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Zm6 0a2.3 2.3 0 1 0 0 4.6 2.3 2.3 0 0 0 0-4.6ZM3.9 14.7c0-1.8 1.9-3.2 4.1-3.2s4.1 1.4 4.1 3.2v.8h-8.2v-.8Zm9.5.8v-.8c0-.8-.3-1.6-.8-2.2 1.7.1 3.1 1.1 3.1 2.4v.6h-2.3Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Alias cartes PUBG') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M4.5 3.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15V5a1.5 1.5 0 0 0-1.5-1.5h-11ZM6 7h8v1.4H6V7Zm0 2.9h5.5v1.4H6V9.9Zm0 2.9h8v1.4H6v-1.4Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Accueil login') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 3.2 3.4 8.3v8.5h4.3v-5.1h4.6v5.1h4.3V8.3L10 3.2Zm0 1.9 5.1 4v6.2h-1.5v-5.1a1 1 0 0 0-1-1H7.4a1 1 0 0 0-1 1v5.1H4.9V9.1l5.1-4Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Dashboard télémétrie') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Erreurs télémétrie') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm-.75 3.25v5h1.5v-5h-1.5Zm0 6.5v1.5h1.5v-1.5h-1.5Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Sync batch manuel') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 3.2a6.8 6.8 0 1 0 6.8 6.8h-1.6A5.2 5.2 0 1 1 10 4.8V3.2Zm1.5 0v4.3l3.5-2-3.5-2.3Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Ouvrir Ops Cron') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 4.1a5.9 5.9 0 1 0 0 11.8 5.9 5.9 0 0 0 0-11.8Zm0 1.5a4.4 4.4 0 1 1 0 8.8 4.4 4.4 0 0 1 0-8.8Zm-.7 1.7v3.4c0 .2.1.4.3.6l2.3 1.8.9-1.1-2-1.5V7.3H9.3Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Test email') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M4.5 4A1.5 1.5 0 0 0 3 5.5v9A1.5 1.5 0 0 0 4.5 16h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 15.5 4h-11Zm0 1.5h11v.4L10 9.8 4.5 5.9v-.4Zm0 2.2 5 3.5a1 1 0 0 0 1 0l5-3.5v6.8h-11V7.7Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Monitoring PUBG API') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M3.5 4.5h13v11h-13v-11Zm1.5 1.5V14h10V6h-10Zm1.2 6.7 1.8-2.2 1.8 1.4 2.5-3.1 1.2 1-3.4 4.2-2.1-1.6-1.2 1.5-0.6-.6Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Recoveries telemetry') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 3.2a6.8 6.8 0 1 0 6.8 6.8h-1.6A5.2 5.2 0 1 1 10 4.8V3.2Zm.8 3H9.2v4.6l3.8 2.3.8-1.3-3-1.8V6.2Zm4.7-1 .9.9-2.1 2.1-.9-.9 2.1-2.1Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Télémétrie matchs') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 2a8 8 0 1 0 0 16A8 8 0 0 0 10 2Zm0 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm0 2.25a.75.75 0 0 0-.75.75v4.19l-2.72 2.72a.75.75 0 1 0 1.06 1.06l3-3A.75.75 0 0 0 10.75 11V6.5A.75.75 0 0 0 10 5.75Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Permissions nav') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Changer de clan') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M6.2 3.8H4v12.4h2.2V3.8Zm9.8 0H7.8v5h8.2l-1.6-2.5L16 3.8Zm0 7.4H7.8v5H16l-1.6-2.5 1.6-2.5Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Matchs') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M4.5 3A1.5 1.5 0 0 0 3 4.5v11A1.5 1.5 0 0 0 4.5 17h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 15.5 3h-11Zm.5 3h10v2H5V6Zm0 4h4v4H5v-4Zm6 0h4v4h-4v-4Z"
-        />
-      </svg>
-    )
-  }
-
-  if (label === 'Rapports') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M5 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10V7.8L12.2 5H5Zm7 1.7L14.3 7H12V4.7ZM6 10h8v1.5H6V10Zm0 3h8v1.5H6V13Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Joueurs') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M10 3.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM4 16a6 6 0 1 1 12 0H4Z" />
-      </svg>
-    )
-  }
-
-  if (label === 'Classement') {
-    return (
-      <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-        <path fill="currentColor" d="M4 16h3V9H4v7Zm4 0h4V5H8v11Zm5 0h3v-3h-3v3Z" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 20 20" className={iconClass} aria-hidden="true">
-      <path fill="currentColor" d="M3 5.5A2.5 2.5 0 0 1 5.5 3h9A2.5 2.5 0 0 1 17 5.5v9a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 3 14.5v-9Z" />
-    </svg>
-  )
-}
-
 function renderThemeIcon(theme: AppTheme) {
   const iconClass = 'h-4 w-4 shrink-0'
 
@@ -410,10 +224,41 @@ function isAppTheme(value: string): value is AppTheme {
   return value === 'light' || value === 'dark'
 }
 
+// ── Contextual sidebar nav ────────────────────────────────────────────────────
+
+const CTX_EXACT_MATCH_KEYS = new Set(['clan.stats'])
+
+const CTX_ROLE_TO_TARGET: Partial<Record<NavRole, NavSection>> = {
+  admin: 'admin-menu',
+  owner: 'owner-menu',
+  superuser: 'superuser-menu',
+}
+
+const CTX_SECTION_LABELS: Partial<Record<NavSection, string>> = {
+  'clan-section': 'Mon clan',
+  'member-section': 'Mon profil',
+  'admin-menu': 'Admin',
+  'owner-menu': 'Owner',
+  'superuser-menu': '★ SuperUser',
+}
+
+// Hrefs that must match exactly (not prefix) for section detection
+const CTX_EXACT_HREFS = new Set(['/clans', '/members'])
+
+type CtxItem = {
+  navKey: string
+  label: string
+  displayLabel: string
+  href: string
+  role: NavRole
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function ClanNavigation({ children }: ClanNavigationProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { clanId, clearClanId } = useSelectedClan()
+  const { clanId, clearClanId, setClanId } = useSelectedClan()
   const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, refresh } = useAuthSession()
   const [clan, setClan] = useState<ClanSummary | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -630,6 +475,129 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const showOwnerMenu = Boolean(isOwner && clanId)
   const showSuperUserMenu = isSuperUser
 
+  // ── Contextual sidebar section ──────────────────────────────────────────
+
+  // Member id to use for nav links (admin/owner/superuser may view another member's page)
+  const urlMemberId = (() => {
+    const match = pathname.match(/^\/members\/(\d+)/)
+    return match ? Number(match[1]) : null
+  })()
+  const memberIdForCtx =
+    (isSuperUser || isOwner || isAdmin) && urlMemberId ? urlMemberId : activeMemberId
+
+  function resolveCtxHref(template: string, memberId: number | null): string {
+    return (
+      template
+        .replace(':clanId', clanId ? String(clanId) : '___')
+        .replace(':memberId', memberId ? String(memberId) : '___')
+        .replace(/\/:[^/]+/g, '') || '/'
+    )
+  }
+
+  function isValidCtxHref(href: string): boolean {
+    return !href.includes('___') && href !== '/'
+  }
+
+  function ctxHrefMatchesPath(href: string, path: string): boolean {
+    if (!isValidCtxHref(href)) return false
+    if (CTX_EXACT_HREFS.has(href)) return path === href
+    return path === href || path.startsWith(`${href}/`)
+  }
+
+  function canAccessRole(role: NavRole): boolean {
+    if (role === 'hidden') return false
+    if (role === 'superuser') return isSuperUser
+    if (role === 'owner') return isOwner || isSuperUser
+    if (role === 'admin') return isAdmin || isSuperUser
+    return true
+  }
+
+  function isCtxActive(navKey: string, href: string): boolean {
+    if (CTX_EXACT_MATCH_KEYS.has(navKey)) return pathname === href
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
+
+  // Detect which nav section is currently active based on pathname
+  const activeSection = ((): NavSection | null => {
+    const sectionsToCheck: Array<{ section: NavSection; canSee: boolean }> = [
+      { section: 'superuser-menu', canSee: isSuperUser },
+      { section: 'owner-menu', canSee: isOwner || isSuperUser },
+      { section: 'admin-menu', canSee: isAdmin || isSuperUser },
+      { section: 'clan-section', canSee: true },
+      { section: 'member-section', canSee: true },
+    ]
+    for (const { section, canSee } of sectionsToCheck) {
+      if (!canSee) continue
+      const memberId = section === 'member-section' ? memberIdForCtx : activeMemberId
+      if (NAV_REGISTRY.some((i) => i.section === section && ctxHrefMatchesPath(resolveCtxHref(i.hrefTemplate, memberId), pathname))) {
+        return section
+      }
+    }
+    return null
+  })()
+
+  function getCtxSectionItems(section: NavSection): { regularItems: CtxItem[]; roleItems: CtxItem[] } {
+    const memberId = section === 'member-section' ? memberIdForCtx : activeMemberId
+    const native = NAV_REGISTRY.filter((i) => {
+      if (i.section !== section) return false
+      const role = getItemRole(i.navKey, navPerms.roles)
+      const target = CTX_ROLE_TO_TARGET[role]
+      return !target || target === section
+    })
+    const posOrder = navPerms.positions[section] as string[] | undefined
+    const orderedNative = posOrder
+      ? [...native].sort((a, b) => {
+          const ai = posOrder.indexOf(a.navKey)
+          const bi = posOrder.indexOf(b.navKey)
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+        })
+      : native
+    const promoted = NAV_REGISTRY.filter((i) => {
+      if (i.section === section) return false
+      const role = getItemRole(i.navKey, navPerms.roles)
+      return CTX_ROLE_TO_TARGET[role] === section
+    })
+    const promotedOrder = navPerms.promotedPositions[section] as string[] | undefined
+    const orderedPromoted = promotedOrder?.length
+      ? [...promoted].sort((a, b) => {
+          const ai = promotedOrder.indexOf(a.navKey)
+          const bi = promotedOrder.indexOf(b.navKey)
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
+        })
+      : promoted
+    const allItems: CtxItem[] = [...orderedNative, ...orderedPromoted]
+      .filter((i) => canAccessRole(getItemRole(i.navKey, navPerms.roles)))
+      .map((i) => ({
+        navKey: i.navKey,
+        label: i.label,
+        displayLabel: navPerms.labels[i.navKey] ?? i.label,
+        href: resolveCtxHref(i.hrefTemplate, memberId),
+        role: getItemRole(i.navKey, navPerms.roles),
+      }))
+      .filter((i) => isValidCtxHref(i.href))
+    const regularItems = allItems.filter((i) => i.role === 'none' || i.role === 'member')
+    const roleItems = allItems.filter((i) => i.role === 'admin' || i.role === 'owner' || i.role === 'superuser')
+    return { regularItems, roleItems }
+  }
+
+  const isViewingOtherMember =
+    activeSection === 'member-section' &&
+    (isSuperUser || isOwner || isAdmin) &&
+    urlMemberId !== null &&
+    activeMemberId !== null &&
+    urlMemberId !== activeMemberId
+  const myProfileHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : null
+  const myMemberClanId = members.find((m) => m.memberId === activeMemberId)?.clanId ?? null
+
+  function handleGoToMyProfile() {
+    if (isSuperUser && myMemberClanId && myMemberClanId !== clanId) {
+      setClanId(myMemberClanId)
+    }
+    router.push(myProfileHref ?? '/members')
+  }
+
+  // ── End contextual sidebar section ─────────────────────────────────────
+
   const activeMember = members.find((member) => member.memberId === activeMemberId) ?? null
   const playerName = activeMember?.displayName ?? email ?? 'Joueur'
   const playerInitial = playerName.trim().charAt(0).toUpperCase() || 'J'
@@ -761,6 +729,70 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     setMobileOpen(false)
   }
 
+  function renderCtxItem(item: CtxItem, mobile = false) {
+    const active = isCtxActive(item.navKey, item.href)
+    const roleClass =
+      item.role === 'owner'
+        ? ' sidebar-ctx-nav-item--owner'
+        : item.role === 'admin'
+          ? ' sidebar-ctx-nav-item--admin'
+          : item.role === 'superuser'
+            ? ' sidebar-ctx-nav-item--superuser'
+            : ''
+    return (
+      <Link
+        key={item.navKey}
+        href={item.href}
+        onClick={mobile ? closeMobileDrawer : undefined}
+        aria-current={active ? 'page' : undefined}
+        className={`sidebar-ctx-nav-item${active ? ' sidebar-ctx-nav-item--active' : ''}${roleClass}`}
+      >
+        <span className="sidebar-ctx-nav-icon">
+          <NavIcon label={item.label} />
+        </span>
+        {item.displayLabel}
+      </Link>
+    )
+  }
+
+  function renderCtxSection(mobile = false) {
+    if (!activeSection) return null
+    const sectionTitle = CTX_SECTION_LABELS[activeSection]
+    if (!sectionTitle) return null
+    const { regularItems, roleItems } = getCtxSectionItems(activeSection)
+    if (regularItems.length === 0 && roleItems.length === 0) return null
+    return (
+      <section className="mt-5">
+        <p className="sidebar-ctx-nav-title">{sectionTitle}</p>
+        <div className="sidebar-ctx-nav-list">
+          {regularItems.map((item) => renderCtxItem(item, mobile))}
+          {roleItems.length > 0 && regularItems.length > 0 && (
+            <div className="sidebar-ctx-nav-divider" />
+          )}
+          {roleItems.map((item) => renderCtxItem(item, mobile))}
+          {isViewingOtherMember && myProfileHref && (
+            <>
+              <div className="sidebar-ctx-nav-divider" />
+              <button
+                type="button"
+                className="sidebar-ctx-nav-item"
+                onClick={() => {
+                  if (mobile) closeMobileDrawer()
+                  handleGoToMyProfile()
+                }}
+              >
+                <span className="sidebar-ctx-nav-icon">
+                  <NavIcon label="Tableau de bord" />
+                </span>
+                ← Mon profil
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+    )
+  }
+
   function onMobileDrawerTransitionEnd() {
     if (!mobileOpen) {
       setMobilePanelVisible(false)
@@ -877,7 +909,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       >
         <span className="flex items-center gap-2">
           <span className={cx('transition-transform duration-200 group-hover:scale-110', active && 'scale-110')}>
-            {renderNavIcon(item.label)}
+            <NavIcon label={item.label} className="h-4 w-4 shrink-0" />
           </span>
           <span className="truncate">{displayLabel}</span>
         </span>
@@ -906,7 +938,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       >
         <span className="flex items-center gap-2">
           <span className={cx('transition-transform duration-200 group-hover:scale-110', active && 'scale-110')}>
-            {renderNavIcon(item.label)}
+            <NavIcon label={item.label} className="h-4 w-4 shrink-0" />
           </span>
           <span className="truncate">{displayLabel}</span>
         </span>
@@ -1006,7 +1038,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item))}</nav>
             </section>
 
-            {showAdminMenu ? (
+            {renderCtxSection()}
+
+            {activeSection !== 'admin-menu' && showAdminMenu ? (
               <section>
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Admin
@@ -1017,7 +1051,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               </section>
             ) : null}
 
-            {showOwnerMenu ? (
+            {activeSection !== 'owner-menu' && showOwnerMenu ? (
               <section>
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Owner
@@ -1028,7 +1062,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               </section>
             ) : null}
 
-            {showSuperUserMenu ? (
+            {activeSection !== 'superuser-menu' && showSuperUserMenu ? (
               <section>
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-violet-400' : 'text-violet-600')}>
                   ★ SuperUser
@@ -1230,7 +1264,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item, true))}</nav>
             </section>
 
-            {showAdminMenu ? (
+            {renderCtxSection(true)}
+
+            {activeSection !== 'admin-menu' && showAdminMenu ? (
               <section className="mt-5">
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Admin
@@ -1241,7 +1277,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               </section>
             ) : null}
 
-            {showOwnerMenu ? (
+            {activeSection !== 'owner-menu' && showOwnerMenu ? (
               <section className="mt-5">
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
                   Owner
@@ -1252,7 +1288,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               </section>
             ) : null}
 
-            {showSuperUserMenu ? (
+            {activeSection !== 'superuser-menu' && showSuperUserMenu ? (
               <section className="mt-5">
                 <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-violet-400' : 'text-violet-600')}>
                   ★ SuperUser

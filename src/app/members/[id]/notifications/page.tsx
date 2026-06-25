@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import SectionNav from '@/components/SectionNav'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import type { NotificationItem, NotificationType } from '@/types/notifications'
 import { NOTIFICATION_TYPES } from '@/types/notifications'
@@ -235,7 +234,6 @@ export default function NotificationsPage() {
           showBackButton={false}
           framed={false}
         />
-        <SectionNav section="member-section" />
       </section>
 
       <div className="mb-4 rounded border border-gray-200 bg-white p-4">

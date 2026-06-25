@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { getMapLabels } from '@/lib/map-label-service'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 const MATCH_SORT_KEYS = ['pubgCreatedAt', 'kills', 'damageDealt', 'placement'] as const
 type MatchSortKey = (typeof MATCH_SORT_KEYS)[number]
@@ -61,6 +62,9 @@ export async function GET(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const { searchParams } = new URL(request.url)
     const period = searchParams.get('period')

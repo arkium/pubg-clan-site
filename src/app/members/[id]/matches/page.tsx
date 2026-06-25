@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation'
 
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import SectionNav from '@/components/SectionNav'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import type {
@@ -299,7 +298,6 @@ export default function MatchesPage() {
             showBackButton={false}
             framed={false}
           />
-          <SectionNav section="member-section" />
         </section>
 
         {error ? (

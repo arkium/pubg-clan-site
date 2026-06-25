@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import SquadMatchList from '@/components/SquadMatchList'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
@@ -1000,7 +999,6 @@ export default function TelemetrySessionDatePage() {
           </p>
         </div>
         <div className="mt-3">
-          <SectionNav section="owner-menu" />
         </div>
       </header>
 

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 
 const WEAPON_KEYS = [
   'WeapAK47_C',
@@ -210,7 +209,6 @@ export default function WeaponLabelsSettingsPage() {
           title="Alias des armes PUBG"
           subtitle="Personnalise les noms affiches dans les pages telemetry (clan, membre, detail match)."
         />
-        <SectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">

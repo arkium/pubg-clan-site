@@ -8,7 +8,6 @@ import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 
 type WelcomeSettings = {
   badge: string
@@ -187,7 +186,6 @@ export default function ClanLoginWelcomeSettingsPage() {
               : "Personnalisez le texte affiché sur la page de connexion de ce clan."
           }
         />
-        <SectionNav section="admin-menu" />
       </section>
 
       <section className="app-panel p-5 sm:p-6">

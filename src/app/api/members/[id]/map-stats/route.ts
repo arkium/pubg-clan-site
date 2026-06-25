@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { mapDisplayName, getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -154,6 +155,9 @@ export async function GET(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },

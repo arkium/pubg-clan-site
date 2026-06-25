@@ -10,7 +10,6 @@ import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
 import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
-import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import PlacementBadge from '@/components/ui/PlacementBadge'
@@ -401,7 +400,6 @@ export default function DashboardPage() {
             showBackButton={false}
             framed={false}
           />
-          <SectionNav section="member-section" />
         </section>
 
         {/* Stats principales */}

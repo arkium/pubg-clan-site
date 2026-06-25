@@ -373,6 +373,78 @@
     .clan-submenu-link--active { border-color: var(--theme-subnav-active-border); background-color: var(--theme-subnav-active-bg); color: var(--theme-subnav-active-text); }
     .clan-nav-divider { display: inline-block; width: 1px; min-height: 1.5rem; background-color: var(--theme-subnav-border); opacity: 0.6; align-self: center; }
 
+    /* ── Sidebar contextuelle nav (refonte) ─────────────────────────── */
+    .sidebar-ctx-nav-title {
+      font-size: 0.625rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--theme-ui-text-muted);
+      padding: 0.125rem 0.5rem; margin-bottom: 0.125rem;
+    }
+    .sidebar-ctx-nav-list { display: flex; flex-direction: column; gap: 0.125rem; }
+    .sidebar-ctx-nav-item {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.375rem 0.5rem; border-radius: 0.5rem;
+      font-size: 0.8125rem; font-weight: 500; color: var(--theme-ui-text-secondary);
+      text-decoration: none; border: none; background: none; cursor: pointer; width: 100%;
+      transition: background-color 120ms, color 120ms;
+    }
+    .sidebar-ctx-nav-item:hover { background-color: var(--theme-ui-hover); color: var(--theme-ui-text); }
+    .sidebar-ctx-nav-item--active { background-color: rgb(30 64 175 / 0.08); color: rgb(30 64 175); font-weight: 600; }
+    html[data-app-theme='dark'] .sidebar-ctx-nav-item--active { background-color: rgb(96 165 250 / 0.12); color: rgb(147 197 253); }
+    .sidebar-ctx-nav-item--owner { color: var(--theme-owner-nav-text); }
+    .sidebar-ctx-nav-item--owner:hover { background-color: var(--theme-owner-nav-hover-bg); }
+    .sidebar-ctx-nav-item--owner.sidebar-ctx-nav-item--active { background-color: var(--theme-owner-nav-active-bg); color: var(--theme-owner-nav-active-text); }
+    .sidebar-ctx-nav-item--admin { color: var(--theme-admin-nav-text); }
+    .sidebar-ctx-nav-item--admin:hover { background-color: var(--theme-admin-nav-hover-bg); }
+    .sidebar-ctx-nav-item--admin.sidebar-ctx-nav-item--active { background-color: var(--theme-admin-nav-active-bg); color: var(--theme-admin-nav-active-text); }
+    .sidebar-ctx-nav-item--superuser { color: var(--theme-superuser-nav-text); }
+    .sidebar-ctx-nav-item--superuser:hover { background-color: var(--theme-superuser-nav-hover-bg); }
+    .sidebar-ctx-nav-item--superuser.sidebar-ctx-nav-item--active { background-color: var(--theme-superuser-nav-active-bg); color: var(--theme-superuser-nav-active-text); }
+    .sidebar-ctx-nav-divider { height: 1px; background-color: var(--app-border); margin: 0.25rem 0.5rem; }
+    .sidebar-ctx-nav-icon { display: inline-flex; width: 1rem; height: 1rem; flex-shrink: 0; align-items: center; justify-content: center; }
+
+    /* ── Overflow nav mobile (refonte) ──────────────────────────────── */
+    .mobile-overflow-nav { display: flex; align-items: center; gap: 0.375rem; flex-wrap: nowrap; }
+    .mobile-overflow-nav-item {
+      display: inline-flex; align-items: center; gap: 0.375rem; flex-shrink: 0;
+      border-radius: 9999px; border: 1px solid;
+      padding: 0.3125rem 0.75rem; font-size: 0.8125rem; font-weight: 600; white-space: nowrap;
+      transition: background-color 100ms, color 100ms;
+      border-color: var(--theme-nav-border); background-color: var(--theme-nav-bg); color: var(--theme-nav-text);
+      cursor: pointer; text-decoration: none;
+    }
+    .mobile-overflow-nav-item:hover { background-color: var(--theme-nav-hover-bg); color: var(--theme-nav-hover-text); }
+    .mobile-overflow-nav-item--active { border-color: var(--theme-nav-active-border); background-color: var(--theme-nav-active-bg); color: var(--theme-nav-active-text); }
+    .mobile-overflow-nav-item--owner { border-color: var(--theme-owner-nav-border); background-color: var(--theme-owner-nav-bg); color: var(--theme-owner-nav-text); }
+    .mobile-overflow-nav-item--admin { border-color: var(--theme-admin-nav-border); background-color: var(--theme-admin-nav-bg); color: var(--theme-admin-nav-text); }
+    .mobile-overflow-nav-more {
+      display: inline-flex; align-items: center; gap: 0.25rem; flex-shrink: 0;
+      border-radius: 9999px; border: 1px solid var(--theme-nav-border);
+      background-color: var(--theme-nav-bg); color: var(--theme-ui-text-muted);
+      padding: 0.3125rem 0.625rem; font-size: 0.8125rem; font-weight: 600;
+      cursor: pointer; white-space: nowrap; transition: background-color 100ms;
+    }
+    .mobile-overflow-nav-more:hover { background-color: var(--theme-nav-hover-bg); color: var(--theme-nav-hover-text); }
+    .mobile-overflow-nav-dropdown {
+      position: absolute; top: calc(100% + 0.375rem); left: 0; z-index: 50;
+      min-width: 180px; border: 1px solid var(--app-border);
+      border-radius: 0.75rem; background-color: var(--app-surface);
+      box-shadow: 0 4px 16px -2px rgb(15 23 42 / 0.12), 0 2px 4px -1px rgb(15 23 42 / 0.06);
+      padding: 0.375rem; display: flex; flex-direction: column; gap: 0.125rem;
+    }
+    html[data-app-theme='dark'] .mobile-overflow-nav-dropdown {
+      box-shadow: 0 4px 16px -2px rgb(2 6 23 / 0.6), 0 2px 4px -1px rgb(2 6 23 / 0.4);
+    }
+    .mobile-overflow-nav-dropdown-item {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 0.625rem; border-radius: 0.5rem;
+      font-size: 0.875rem; font-weight: 500; color: var(--theme-ui-text-secondary);
+      text-decoration: none; cursor: pointer; border: none; background: none; width: 100%; text-align: left;
+      transition: background-color 100ms;
+    }
+    .mobile-overflow-nav-dropdown-item:hover { background-color: var(--theme-ui-hover); color: var(--theme-ui-text); }
+    .mobile-overflow-nav-dropdown-item--active { color: rgb(30 64 175); font-weight: 600; }
+    html[data-app-theme='dark'] .mobile-overflow-nav-dropdown-item--active { color: rgb(147 197 253); }
+
     /* Pagination */
     .app-pagination { display: flex; align-items: center; gap: 0.5rem; }
     .app-pagination-button {
@@ -622,6 +694,9 @@
         </a>
         <a class="docs-sidebar-link" href="#navigation" onclick="setActive(this)">
           <span class="num">12</span> Navigation
+        </a>
+        <a class="docs-sidebar-link" href="#nav-refonte" onclick="setActive(this)" style="padding-left:1.75rem;font-size:0.75rem;">
+          ↳ Refonte nav
         </a>
         <a class="docs-sidebar-link" href="#pagination" onclick="setActive(this)">
           <span class="num">13</span> Pagination
@@ -2726,6 +2801,351 @@ border-gray-200  ← hardcodé</code>
             </div>
           </div>
         </div>
+        <!-- ═══ REFONTE : Sidebar contextuelle ═══ -->
+        <div class="docs-subsection" id="nav-refonte">
+          <div class="docs-subsection-title">🆕 Refonte — Sidebar contextuelle étendue (desktop)</div>
+          <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+
+            <!-- Light -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">Thème clair · Section : Mon clan · Actif : Classement</div>
+              <div data-app-theme="light" style="width:224px;height:480px;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;display:flex;flex-direction:column;background:#fff;">
+                <div style="padding:1rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:0.75rem;">
+                  <div style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:linear-gradient(135deg,#1e3a8a,#3b82f6);flex-shrink:0;"></div>
+                  <div>
+                    <div style="font-size:0.8125rem;font-weight:700;color:#0f172a;">Clan Alpha [AW]</div>
+                    <div style="font-size:0.625rem;color:#16a34a;font-weight:600;">Connecté</div>
+                  </div>
+                </div>
+                <div style="flex:1;overflow-y:auto;padding:0.75rem 0.5rem;display:flex;flex-direction:column;gap:1rem;">
+                  <div>
+                    <div class="sidebar-ctx-nav-title">Navigation</div>
+                    <div class="sidebar-ctx-nav-list">
+                      <a class="sidebar-ctx-nav-item" style="color:#0369a1;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z"/></svg></span>Dashboard</a>
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Z"/></svg></span>Mon clan</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Z"/></svg></span>Mon compte</a>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="sidebar-ctx-nav-title">Mon clan</div>
+                    <div class="sidebar-ctx-nav-list">
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z"/></svg></span>Vue d'ensemble</a>
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5 3.5h3v10H5v-10Zm4.5 3h3v7h-3v-7ZM14 2.5h3v11h-3v-11ZM3.5 15.5h13V17h-13v-1.5Z"/></svg></span>Classement</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM4 16a6 6 0 1 1 12 0H4Z"/></svg></span>Membres</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4.5 3A1.5 1.5 0 0 0 3 4.5v11A1.5 1.5 0 0 0 4.5 17h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 15.5 3h-11Zm.5 3h10v2H5V6Zm0 4h4v4H5v-4Zm6 0h4v4h-4v-4Z"/></svg></span>Matchs</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4 16h3V9H4v7Zm4 0h4V5H8v11Zm5 0h3v-3h-3v3Z"/></svg></span>Stats</a>
+                      <div class="sidebar-ctx-nav-divider"></div>
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--owner"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 4.1a5.9 5.9 0 1 0 0 11.8 5.9 5.9 0 0 0 0-11.8Zm0 1.5a4.4 4.4 0 1 1 0 8.8 4.4 4.4 0 0 1 0-8.8Zm-.7 1.7v3.4c0 .2.1.4.3.6l2.3 1.8.9-1.1-2-1.5V7.3H9.3Z"/></svg></span>Télémétrie</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dark -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">Thème sombre · Section : Mon clan · Actif : Classement</div>
+              <div data-app-theme="dark" style="width:224px;height:480px;border:1px solid #1e293b;border-radius:0.75rem;overflow:hidden;display:flex;flex-direction:column;background:#020617;">
+                <div style="padding:1rem;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:0.75rem;">
+                  <div style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:linear-gradient(135deg,#1e3a8a,#3b82f6);flex-shrink:0;"></div>
+                  <div>
+                    <div style="font-size:0.8125rem;font-weight:700;color:#e2e8f0;">Clan Alpha [AW]</div>
+                    <div style="font-size:0.625rem;color:#4ade80;font-weight:600;">Connecté</div>
+                  </div>
+                </div>
+                <div style="flex:1;overflow-y:auto;padding:0.75rem 0.5rem;display:flex;flex-direction:column;gap:1rem;">
+                  <div>
+                    <div class="sidebar-ctx-nav-title">Navigation</div>
+                    <div class="sidebar-ctx-nav-list">
+                      <a class="sidebar-ctx-nav-item" style="color:#7dd3fc;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z"/></svg></span>Dashboard</a>
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Z"/></svg></span>Mon clan</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Z"/></svg></span>Mon compte</a>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="sidebar-ctx-nav-title">Mon clan</div>
+                    <div class="sidebar-ctx-nav-list">
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z"/></svg></span>Vue d'ensemble</a>
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5 3.5h3v10H5v-10Zm4.5 3h3v7h-3v-7ZM14 2.5h3v11h-3v-11ZM3.5 15.5h13V17h-13v-1.5Z"/></svg></span>Classement</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM4 16a6 6 0 1 1 12 0H4Z"/></svg></span>Membres</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4.5 3A1.5 1.5 0 0 0 3 4.5v11A1.5 1.5 0 0 0 4.5 17h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 15.5 3h-11Zm.5 3h10v2H5V6Zm0 4h4v4H5v-4Zm6 0h4v4h-4v-4Z"/></svg></span>Matchs</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4 16h3V9H4v7Zm4 0h4V5H8v11Zm5 0h3v-3h-3v3Z"/></svg></span>Stats</a>
+                      <div class="sidebar-ctx-nav-divider"></div>
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--owner"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 4.1a5.9 5.9 0 1 0 0 11.8 5.9 5.9 0 0 0 0-11.8Zm0 1.5a4.4 4.4 0 1 1 0 8.8 4.4 4.4 0 0 1 0-8.8Zm-.7 1.7v3.4c0 .2.1.4.3.6l2.3 1.8.9-1.1-2-1.5V7.3H9.3Z"/></svg></span>Télémétrie</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dashboard — light -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">Thème clair · Section : Dashboard · Actif : Tableau de bord</div>
+              <div data-app-theme="light" style="width:224px;height:480px;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;display:flex;flex-direction:column;background:#fff;">
+                <div style="padding:1rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:0.75rem;">
+                  <div style="width:2.5rem;height:2.5rem;border-radius:0.5rem;background:linear-gradient(135deg,#1e3a8a,#3b82f6);flex-shrink:0;"></div>
+                  <div>
+                    <div style="font-size:0.8125rem;font-weight:700;color:#0f172a;">Clan Alpha [AW]</div>
+                    <div style="font-size:0.625rem;color:#16a34a;font-weight:600;">Connecté</div>
+                  </div>
+                </div>
+                <div style="flex:1;overflow-y:auto;padding:0.75rem 0.5rem;display:flex;flex-direction:column;gap:1rem;">
+                  <!-- Primaires : Dashboard actif -->
+                  <div>
+                    <div class="sidebar-ctx-nav-title">Navigation</div>
+                    <div class="sidebar-ctx-nav-list">
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active" style="background:rgb(37 99 235/0.08);color:rgb(37 99 235);"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z"/></svg></span>Dashboard</a>
+                      <a class="sidebar-ctx-nav-item" style="color:#0369a1;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Z"/></svg></span>Mon clan</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Z"/></svg></span>Mon compte</a>
+                    </div>
+                  </div>
+                  <!-- Section contextuelle : Mon profil -->
+                  <div>
+                    <div class="sidebar-ctx-nav-title">Mon profil</div>
+                    <div class="sidebar-ctx-nav-list">
+                      <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z"/></svg></span>Tableau de bord</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4 16h3V9H4v7Zm4 0h4V5H8v11Zm5 0h3v-3h-3v3Z"/></svg></span>Stats globales</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 10.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 10.5Zm0 3a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 13.5Zm0-6a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 7.5Zm6-2.25A.75.75 0 0 1 9.75 4.5h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 9 5.25Z"/></svg></span>Armes</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4.5 3.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15V5a1.5 1.5 0 0 0-1.5-1.5h-11ZM6 7h8v1.4H6V7Zm0 2.9h5.5v1.4H6V9.9Zm0 2.9h8v1.4H6v-1.4Z"/></svg></span>Cartes</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5 3.5A1.5 1.5 0 0 0 3.5 5v2A3.5 3.5 0 0 0 7 10.5h.3A2.75 2.75 0 0 0 9.25 12v1.76l-1.9.63a.75.75 0 0 0 .24 1.46h4.82a.75.75 0 0 0 .24-1.46l-1.9-.63V12a2.75 2.75 0 0 0 1.95-1.5H13A3.5 3.5 0 0 0 16.5 7V5A1.5 1.5 0 0 0 15 3.5H5Zm0 1.5H7v4H7A2 2 0 0 1 5 7V5Zm8 0h2v2a2 2 0 0 1-2 2h-.01V5Z"/></svg></span>Récompenses</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2a6 6 0 0 0-6 6v3.5L2.5 13v1h15v-1L16 11.5V8a6 6 0 0 0-6-6Zm0 16a2 2 0 0 0 2-2H8a2 2 0 0 0 2 2Z"/></svg></span>Notifications</a>
+                      <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4.5 4A1.5 1.5 0 0 0 3 5.5v9A1.5 1.5 0 0 0 4.5 16h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 15.5 4h-11Zm0 1.5h11v.4L10 9.8 4.5 5.9v-.4Zm0 2.2 5 3.5a1 1 0 0 0 1 0l5-3.5v6.8h-11V7.7Z"/></svg></span>Préférences notifs</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div style="flex:1;min-width:220px;font-size:0.8rem;color:var(--theme-ui-text-muted);line-height:1.7;padding-top:0.5rem;">
+              <strong style="color:var(--theme-ui-text);">Nouvelles classes CSS :</strong><br>
+              <code class="docs-code">.sidebar-ctx-nav-title</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-item</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-item--active</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-item--owner</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-item--admin</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-item--superuser</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-divider</code><br>
+              <code class="docs-code">.sidebar-ctx-nav-icon</code><br>
+              <br>
+              Le titre change selon le <code class="docs-code">pathname</code> :<br>
+              <code class="docs-code">/clans/…</code> → <em>"Mon clan"</em><br>
+              <code class="docs-code">/members/…</code> → <em>"Mon profil"</em><br>
+              <code class="docs-code">/settings/…</code> → <em>"Admin"</em> / <em>"Owner"</em><br><br>
+              <code class="docs-code">SectionNav</code> supprimé des pages sur desktop.
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ REFONTE : Drawer mobile unifié ═══ -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">🆕 Refonte — Drawer mobile unifié</div>
+          <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+
+            <!-- Light drawer -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">Thème clair · Section : Mon profil · Actif : Stats globales</div>
+              <div data-app-theme="light" style="width:272px;max-height:580px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:0.75rem;background:#fff;padding:1rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+                  <button style="width:2.25rem;height:2.25rem;border-radius:9999px;border:none;background:#f1f5f9;color:#334155;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5.22 4.28a.75.75 0 0 0-1.06 1.06L8.94 10l-4.78 4.66a.75.75 0 1 0 1.06 1.06L10 11.06l4.66 4.66a.75.75 0 0 0 1.06-1.06L11.06 10l4.66-4.66a.75.75 0 0 0-1.06-1.06L10 8.94 5.22 4.28Z"/></svg>
+                  </button>
+                  <div style="display:inline-flex;border:1px solid #e2e8f0;border-radius:9999px;padding:0.25rem;gap:0.125rem;">
+                    <button style="width:2rem;height:2rem;border-radius:9999px;border:none;background:#bae6fd;color:#0369a1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.875rem;">☀</button>
+                    <button style="width:2rem;height:2rem;border-radius:9999px;border:none;background:none;color:#64748b;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.875rem;">🌙</button>
+                  </div>
+                </div>
+                <div class="sidebar-ctx-nav-title" style="margin-bottom:0.375rem;">Navigation</div>
+                <div class="sidebar-ctx-nav-list" style="margin-bottom:1.25rem;">
+                  <a class="sidebar-ctx-nav-item" style="color:#0369a1;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z"/></svg></span>Dashboard</a>
+                  <a class="sidebar-ctx-nav-item" style="color:#0369a1;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Z"/></svg></span>Mon clan</a>
+                  <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Z"/></svg></span>Mon profil</a>
+                </div>
+                <div class="sidebar-ctx-nav-title" style="margin-bottom:0.375rem;">Mon profil</div>
+                <div class="sidebar-ctx-nav-list">
+                  <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 3h6v6H3V3Zm0 8h6v6H3v-6Zm8-8h6v6h-6V3Zm0 8h6v6h-6v-6Z"/></svg></span>Tableau de bord</a>
+                  <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4 16h3V9H4v7Zm4 0h4V5H8v11Zm5 0h3v-3h-3v3Z"/></svg></span>Stats globales</a>
+                  <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 10.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 3 10.5Z"/></svg></span>Armes</a>
+                  <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4.5 3.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15V5a1.5 1.5 0 0 0-1.5-1.5h-11Z"/></svg></span>Cartes</a>
+                  <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5 3.5A1.5 1.5 0 0 0 3.5 5v2A3.5 3.5 0 0 0 7 10.5h.3A2.75 2.75 0 0 0 9.25 12v1.76l-1.9.63a.75.75 0 0 0 .24 1.46h4.82a.75.75 0 0 0 .24-1.46l-1.9-.63V12a2.75 2.75 0 0 0 1.95-1.5H13A3.5 3.5 0 0 0 16.5 7V5A1.5 1.5 0 0 0 15 3.5H5Zm0 1.5H7v4H7A2 2 0 0 1 5 7V5Zm8 0h2v2a2 2 0 0 1-2 2h-.01V5Z"/></svg></span>Récompenses</a>
+                  <a class="sidebar-ctx-nav-item"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2a6 6 0 0 0-6 6v3.5L2.5 13v1h15v-1L16 11.5V8a6 6 0 0 0-6-6Zm0 16a2 2 0 0 0 2-2H8a2 2 0 0 0 2 2Z"/></svg></span>Notifications</a>
+                  <div class="sidebar-ctx-nav-divider"></div>
+                  <a class="sidebar-ctx-nav-item" style="color:#64748b;font-size:0.75rem;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Z"/></svg></span>← Mon profil</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dark drawer -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">Thème sombre · Section : Admin · Actif : Joueurs et rôles</div>
+              <div data-app-theme="dark" style="width:272px;max-height:580px;overflow-y:auto;border:1px solid #1e293b;border-radius:0.75rem;background:#020617;padding:1rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+                  <button style="width:2.25rem;height:2.25rem;border-radius:9999px;border:none;background:#1e293b;color:#e2e8f0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M5.22 4.28a.75.75 0 0 0-1.06 1.06L8.94 10l-4.78 4.66a.75.75 0 1 0 1.06 1.06L10 11.06l4.66 4.66a.75.75 0 0 0 1.06-1.06L11.06 10l4.66-4.66a.75.75 0 0 0-1.06-1.06L10 8.94 5.22 4.28Z"/></svg>
+                  </button>
+                  <div style="display:inline-flex;border:1px solid #334155;border-radius:9999px;padding:0.25rem;gap:0.125rem;">
+                    <button style="width:2rem;height:2rem;border-radius:9999px;border:none;background:none;color:#64748b;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.875rem;">☀</button>
+                    <button style="width:2rem;height:2rem;border-radius:9999px;border:none;background:#1e293b;color:#fbbf24;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.875rem;">🌙</button>
+                  </div>
+                </div>
+                <div style="font-size:0.625rem;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:#475569;margin-bottom:0.375rem;">Navigation</div>
+                <div class="sidebar-ctx-nav-list" style="margin-bottom:1.25rem;">
+                  <a class="sidebar-ctx-nav-item" style="color:#7dd3fc;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M3 11h6V3H3v8Zm8 6h6V9h-6v8ZM3 17h6v-4H3v4Zm8-10h6V3h-6v4Z"/></svg></span>Dashboard</a>
+                  <a class="sidebar-ctx-nav-item" style="color:#7dd3fc;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 2.5 3.5 5v4.8c0 3.4 2.5 6.2 6.5 7.7 4-1.5 6.5-4.3 6.5-7.7V5L10 2.5Z"/></svg></span>Mon clan</a>
+                  <a class="sidebar-ctx-nav-item" style="color:#94a3b8;"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Zm0 9.2c-3.6 0-6.5 1.9-6.5 4.3 0 .6.4 1 1 1h11c.6 0 1-.4 1-1 0-2.4-2.9-4.3-6.5-4.3Z"/></svg></span>Mon compte</a>
+                </div>
+                <div style="font-size:0.625rem;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:#475569;margin-bottom:0.375rem;">Admin</div>
+                <div class="sidebar-ctx-nav-list">
+                  <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--admin"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 3.3a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Zm0 8.2c-3 0-5.4 1.5-5.4 3.5 0 .6.4 1 1 1h9c.6 0 1-.4 1-1 0-2-2.4-3.5-5.4-3.5Zm.8 1.2h1.4v1.5h1.5v1.4h-1.5v1.5h-1.4v-1.5H9.3v-1.4h1.5v-1.5Z"/></svg></span>Ajouter un joueur</a>
+                  <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--admin sidebar-ctx-nav-item--active"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M7 4.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Zm6 0a2.3 2.3 0 1 0 0 4.6 2.3 2.3 0 0 0 0-4.6ZM3.9 14.7c0-1.8 1.9-3.2 4.1-3.2s4.1 1.4 4.1 3.2v.8h-8.2v-.8Zm9.5.8v-.8c0-.8-.3-1.6-.8-2.2 1.7.1 3.1 1.1 3.1 2.4v.6h-2.3Z"/></svg></span>Joueurs et rôles</a>
+                  <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--admin"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M4.5 3.5A1.5 1.5 0 0 0 3 5v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15V5a1.5 1.5 0 0 0-1.5-1.5h-11ZM6 7h8v1.4H6V7Zm0 2.9h5.5v1.4H6V9.9Zm0 2.9h8v1.4H6v-1.4Z"/></svg></span>Alias cartes PUBG</a>
+                  <a class="sidebar-ctx-nav-item sidebar-ctx-nav-item--admin"><span class="sidebar-ctx-nav-icon"><svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z"/></svg></span>Permissions nav</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div style="flex:1;min-width:220px;font-size:0.8rem;color:var(--theme-ui-text-muted);line-height:1.7;padding-top:0.5rem;">
+              <strong style="color:var(--theme-ui-text);">Changements :</strong><br>
+              Le drawer absorbe la sous-nav de section.<br>
+              <code class="docs-code">MobileDropdownNav</code> dans le contenu des pages supprimé.<br>
+              Les liens primaires restent en haut, la section active en dessous.<br><br>
+              <strong style="color:var(--theme-ui-text);">Comportement :</strong><br>
+              Cliquer un item → navigation + fermeture drawer.<br>
+              Item "← Mon profil" affiché si admin/owner/superUser consulte un autre membre.<br>
+              Même filtrage de permissions que la sidebar desktop.
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ REFONTE : Barre scrollable mobile ═══ -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">🆕 Refonte — Barre de sous-navigation overflow +N (mobile)</div>
+          <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+
+            <!-- Mockup fermé · light · Mon clan -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">État fermé · Thème clair · Section : Mon clan</div>
+              <div data-app-theme="light" style="width:320px;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;background:#f8fafc;">
+                <!-- Header mobile -->
+                <div style="padding:0.625rem 1rem;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:0.5rem;">
+                  <button style="width:2.25rem;height:2.25rem;flex-shrink:0;border-radius:9999px;border:none;background:#f8fafc;box-shadow:0 1px 2px rgb(0 0 0/0.06);color:#475569;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v1A1.5 1.5 0 0 1 15.5 8h-11A1.5 1.5 0 0 1 3 6.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 8h11A1.5 1.5 0 0 1 17 9.5v1A1.5 1.5 0 0 1 15.5 12h-11A1.5 1.5 0 0 1 3 10.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 12h11A1.5 1.5 0 0 1 17 13.5v1A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-1Z"/></svg>
+                  </button>
+                  <div style="min-width:0;">
+                    <div style="font-size:0.875rem;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Clan Alpha [AW]</div>
+                    <div style="font-size:0.6875rem;color:#16a34a;font-weight:600;">Session active</div>
+                  </div>
+                </div>
+                <!-- Barre overflow (fermée) — 3 items visibles + +3 -->
+                <div style="padding:0.5rem 0.875rem;background:#fff;border-bottom:1px solid #f1f5f9;">
+                  <div class="mobile-overflow-nav">
+                    <a class="mobile-overflow-nav-item">Vue d'ensemble</a>
+                    <a class="mobile-overflow-nav-item mobile-overflow-nav-item--active">Classement</a>
+                    <a class="mobile-overflow-nav-item">Membres</a>
+                    <button class="mobile-overflow-nav-more">+3 ▾</button>
+                  </div>
+                </div>
+                <!-- Contenu placeholder -->
+                <div style="padding:1.25rem 0.875rem;font-size:0.8125rem;color:#94a3b8;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center;">
+                  Contenu de la page…
+                </div>
+              </div>
+            </div>
+
+            <!-- Mockup dropdown ouvert · light · Mon profil (item actif en position cachée) -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">Dropdown ouvert · Thème clair · item actif en 6e position</div>
+              <div data-app-theme="light" style="width:320px;border:1px solid #e2e8f0;border-radius:0.75rem;overflow:hidden;background:#f8fafc;">
+                <!-- Header -->
+                <div style="padding:0.625rem 1rem;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:0.5rem;">
+                  <button style="width:2.25rem;height:2.25rem;flex-shrink:0;border-radius:9999px;border:none;background:#f8fafc;box-shadow:0 1px 2px rgb(0 0 0/0.06);color:#475569;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v1A1.5 1.5 0 0 1 15.5 8h-11A1.5 1.5 0 0 1 3 6.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 8h11A1.5 1.5 0 0 1 17 9.5v1A1.5 1.5 0 0 1 15.5 12h-11A1.5 1.5 0 0 1 3 10.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 12h11A1.5 1.5 0 0 1 17 13.5v1A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-1Z"/></svg>
+                  </button>
+                  <div style="min-width:0;">
+                    <div style="font-size:0.875rem;font-weight:700;color:#0f172a;">Clan Alpha [AW]</div>
+                    <div style="font-size:0.6875rem;color:#16a34a;font-weight:600;">Session active</div>
+                  </div>
+                </div>
+                <!-- Barre overflow + dropdown visible -->
+                <div style="padding:0.5rem 0.875rem;background:#fff;border-bottom:1px solid #f1f5f9;position:relative;">
+                  <div class="mobile-overflow-nav">
+                    <a class="mobile-overflow-nav-item">Tableau de bord</a>
+                    <a class="mobile-overflow-nav-item">Stats globales</a>
+                    <a class="mobile-overflow-nav-item">Armes</a>
+                    <button class="mobile-overflow-nav-more" style="background:#f1f5f9;color:#0f172a;">+4 ▴</button>
+                  </div>
+                  <!-- Dropdown ouvert (simulé en statique) -->
+                  <div class="mobile-overflow-nav-dropdown" style="top:calc(100% - 0.125rem);right:0;left:auto;">
+                    <button class="mobile-overflow-nav-dropdown-item">Cartes</button>
+                    <button class="mobile-overflow-nav-dropdown-item">Récompenses</button>
+                    <button class="mobile-overflow-nav-dropdown-item mobile-overflow-nav-dropdown-item--active">Notifications</button>
+                    <button class="mobile-overflow-nav-dropdown-item">Préf. notifications</button>
+                  </div>
+                </div>
+                <!-- Contenu placeholder (décalé pour laisser place au dropdown) -->
+                <div style="padding:1.25rem 0.875rem;padding-top:5.5rem;font-size:0.8125rem;color:#94a3b8;text-align:center;display:flex;align-items:center;justify-content:center;">
+                  Contenu de la page…
+                </div>
+              </div>
+            </div>
+
+            <!-- Mockup fermé · dark · Mon profil (item actif permuté en position 1) -->
+            <div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.5rem;">État fermé · Thème sombre · item actif permuté en tête</div>
+              <div data-app-theme="dark" style="width:320px;border:1px solid #1e293b;border-radius:0.75rem;overflow:hidden;background:#020617;">
+                <!-- Header dark -->
+                <div style="padding:0.625rem 1rem;background:#0f172a;border-bottom:1px solid #1e293b;display:flex;align-items:center;gap:0.5rem;">
+                  <button style="width:2.25rem;height:2.25rem;flex-shrink:0;border-radius:9999px;border:none;background:#1e293b;color:#cbd5e1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v1A1.5 1.5 0 0 1 15.5 8h-11A1.5 1.5 0 0 1 3 6.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 8h11A1.5 1.5 0 0 1 17 9.5v1A1.5 1.5 0 0 1 15.5 12h-11A1.5 1.5 0 0 1 3 10.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 12h11A1.5 1.5 0 0 1 17 13.5v1A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-1Z"/></svg>
+                  </button>
+                  <div style="min-width:0;">
+                    <div style="font-size:0.875rem;font-weight:700;color:#e2e8f0;">Clan Alpha [AW]</div>
+                    <div style="font-size:0.6875rem;color:#4ade80;font-weight:600;">Session active</div>
+                  </div>
+                </div>
+                <!-- Barre overflow dark — "Notifications" (pos 6) permuté en pos 1 -->
+                <div style="padding:0.5rem 0.875rem;background:#0f172a;border-bottom:1px solid #1e293b;">
+                  <div class="mobile-overflow-nav">
+                    <a class="mobile-overflow-nav-item mobile-overflow-nav-item--active">Notifications</a>
+                    <a class="mobile-overflow-nav-item">Tableau de bord</a>
+                    <a class="mobile-overflow-nav-item">Stats globales</a>
+                    <button class="mobile-overflow-nav-more">+4 ▾</button>
+                  </div>
+                </div>
+                <!-- Contenu placeholder dark -->
+                <div style="padding:1.25rem 0.875rem;font-size:0.8125rem;color:#475569;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center;">
+                  Contenu de la page…
+                </div>
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div style="flex:1;min-width:220px;font-size:0.8rem;color:var(--theme-ui-text-muted);line-height:1.7;padding-top:0.5rem;">
+              <strong style="color:var(--theme-ui-text);">Nouvelles classes CSS :</strong><br>
+              <code class="docs-code">.mobile-overflow-nav</code><br>
+              <code class="docs-code">.mobile-overflow-nav-item</code><br>
+              <code class="docs-code">.mobile-overflow-nav-item--active</code><br>
+              <code class="docs-code">.mobile-overflow-nav-item--owner</code><br>
+              <code class="docs-code">.mobile-overflow-nav-item--admin</code><br>
+              <code class="docs-code">.mobile-overflow-nav-more</code><br>
+              <code class="docs-code">.mobile-overflow-nav-dropdown</code><br>
+              <code class="docs-code">.mobile-overflow-nav-dropdown-item</code><br>
+              <code class="docs-code">.mobile-overflow-nav-dropdown-item--active</code><br>
+              <br>
+              <strong style="color:var(--theme-ui-text);">Comportement :</strong><br>
+              Zéro scroll horizontal — 3 items fixes + bouton "+N ▾".<br>
+              L'item actif est <em>toujours visible</em> : s'il est en position &gt;3, il est permuté en position 1 (mockup sombre).<br>
+              Le "+N" indique le nombre d'items cachés ; ▴/▾ signale l'état ouvert/fermé.<br>
+              Fermeture : clic en dehors ou navigation vers l'item sélectionné.<br>
+              <br>
+              <strong style="color:var(--theme-ui-text);">Résumé mobile final :</strong><br>
+              <code class="docs-code">[☰]</code> Drawer → liens primaires + section contextuelle<br>
+              Barre overflow +N → navigation rapide, zéro scroll
+            </div>
+          </div>
+        </div>
+
       </section>
       <!-- ══════════════════════════════════════════════════════════
            SECTION 13 — PAGINATION

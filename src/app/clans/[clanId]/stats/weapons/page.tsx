@@ -3,7 +3,6 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 
@@ -365,7 +364,6 @@ export default function ClanTelemetryWeaponsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Les armes du clan</h1>
             <p className="text-sm text-gray-600">Classement des armes par joueur sur la période sélectionnée.</p>
-            <SectionNav section="clan-section" />
           </div>
         </div>
       </header>

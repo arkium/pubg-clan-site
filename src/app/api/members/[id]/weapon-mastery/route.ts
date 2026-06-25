@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { fetchWeaponMastery, searchPlayerByName } from '@/lib/pubg'
 import { NextResponse } from 'next/server'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
   const memberId = Number(id)
@@ -33,7 +34,7 @@ async function resolvePlayerId(memberId: number) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -43,6 +44,9 @@ export async function GET(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const weapons = await prisma.memberWeaponMastery.findMany({
       where: { memberId },
@@ -57,7 +61,7 @@ export async function GET(
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -67,6 +71,9 @@ export async function POST(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const resolved = await resolvePlayerId(memberId)
     if (!resolved) {

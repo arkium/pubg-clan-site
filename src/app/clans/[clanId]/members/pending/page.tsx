@@ -3,7 +3,6 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -141,7 +140,6 @@ export default function PendingMembersPage() {
             <p className="text-sm text-gray-600">
               {clanName ? `${clanName} · ` : ''}Valide les nouveaux joueurs avant activation dans le clan.
             </p>
-            <SectionNav section="admin-menu" />
           </div>
         </div>
       </header>

@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
-import SectionNav from '@/components/SectionNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useClanOverview } from '@/hooks/useClanOverview'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -671,7 +670,6 @@ export default function ClanOverviewPage() {
         <p className="text-sm text-gray-600">
           Données PUBG officielles, roster et comparaison des membres.
         </p>
-        <SectionNav section="clan-section" />
       </header>
 
       {loading && <p className="text-sm text-gray-500">Chargement...</p>}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(memberId: string) {
   const parsed = Number(memberId)
@@ -18,6 +19,9 @@ export async function PATCH(
     if (!parsedMemberId || !notifId) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     const body = (await request.json().catch(() => null)) as { read?: boolean } | null
 
@@ -48,7 +52,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string; notifId: string }> }
 ) {
   try {
@@ -58,6 +62,9 @@ export async function DELETE(
     if (!parsedMemberId || !notifId) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     const deleteResult = await prisma.notification.deleteMany({
       where: {

@@ -112,20 +112,20 @@ type MemberWeaponAggregate = {
 type TelemetryAggregateDelegates = {
   memberTelemetryStats: {
     deleteMany: (args: { where: { period: string; member: { clanId: number } } }) => Promise<unknown>
-    createMany: (args: { data: Array<Record<string, unknown>> }) => Promise<unknown>
+    createMany: (args: { data: Array<Record<string, unknown>>; skipDuplicates?: boolean }) => Promise<unknown>
   }
   memberWeaponStats: {
     deleteMany: (args: { where: { period: string; member: { clanId: number } } }) => Promise<unknown>
-    createMany: (args: { data: Array<Record<string, unknown>> }) => Promise<unknown>
+    createMany: (args: { data: Array<Record<string, unknown>>; skipDuplicates?: boolean }) => Promise<unknown>
   }
   clanSynergyTelemetryStats: {
     deleteMany: (args: { where: { clanId: number; period: string } }) => Promise<unknown>
-    createMany: (args: { data: Array<Record<string, unknown>> }) => Promise<unknown>
+    createMany: (args: { data: Array<Record<string, unknown>>; skipDuplicates?: boolean }) => Promise<unknown>
   }
 }
 
-function getTelemetryAggregateDelegates(): TelemetryAggregateDelegates {
-  return prisma as unknown as TelemetryAggregateDelegates
+function getTelemetryAggregateDelegates(client: unknown = prisma): TelemetryAggregateDelegates {
+  return client as unknown as TelemetryAggregateDelegates
 }
 
 function resolveAggregateWriteBatchSize(): number {
@@ -656,7 +656,6 @@ async function recalculateTelemetryPeriodForClan(
     }
   }
 
-  const telemetryDelegates = getTelemetryAggregateDelegates()
   const writeBatchSize = resolveAggregateWriteBatchSize()
 
   // Pass 1 — per-match averages and raw score values (unnormalized)
@@ -805,8 +804,10 @@ async function recalculateTelemetryPeriodForClan(
     }
   )
 
-  await prisma.$transaction(async () => {
-    await telemetryDelegates.memberTelemetryStats.deleteMany({
+  await prisma.$transaction(async (tx) => {
+    const txDelegates = getTelemetryAggregateDelegates(tx)
+
+    await txDelegates.memberTelemetryStats.deleteMany({
       where: {
         period: periodKey,
         member: {
@@ -817,13 +818,13 @@ async function recalculateTelemetryPeriodForClan(
 
     if (memberTelemetryRows.length > 0) {
       for (const chunk of chunkRows(memberTelemetryRows, writeBatchSize)) {
-        await telemetryDelegates.memberTelemetryStats.createMany({
+        await txDelegates.memberTelemetryStats.createMany({
           data: chunk,
         })
       }
     }
 
-    await telemetryDelegates.memberWeaponStats.deleteMany({
+    await txDelegates.memberWeaponStats.deleteMany({
       where: {
         period: periodKey,
         member: {
@@ -834,13 +835,14 @@ async function recalculateTelemetryPeriodForClan(
 
     if (memberWeaponRows.length > 0) {
       for (const chunk of chunkRows(memberWeaponRows, writeBatchSize)) {
-        await telemetryDelegates.memberWeaponStats.createMany({
+        await txDelegates.memberWeaponStats.createMany({
           data: chunk,
+          skipDuplicates: true,
         })
       }
     }
 
-    await telemetryDelegates.clanSynergyTelemetryStats.deleteMany({
+    await txDelegates.clanSynergyTelemetryStats.deleteMany({
       where: {
         clanId,
         period: periodKey,
@@ -849,12 +851,12 @@ async function recalculateTelemetryPeriodForClan(
 
     if (clanSynergyRows.length > 0) {
       for (const chunk of chunkRows(clanSynergyRows, writeBatchSize)) {
-        await telemetryDelegates.clanSynergyTelemetryStats.createMany({
+        await txDelegates.clanSynergyTelemetryStats.createMany({
           data: chunk,
         })
       }
     }
-  })
+  }, { timeout: 30000 })
 
   return {
     period,

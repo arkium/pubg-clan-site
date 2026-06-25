@@ -1,11 +1,10 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { invalidateNavPermissionsCache } from '@/hooks/useNavPermissions'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 import {
   NAV_REGISTRY,
   NAV_SECTION_LABELS,
@@ -723,7 +722,6 @@ export default function NavPermissionsPage() {
           title="Permissions &amp; ordre de navigation"
           subtitle="Accès, ordre et titre de chaque bouton. Toutes les modifications sont enregistrées automatiquement."
         />
-        <SectionNav section="owner-menu" />
 
         {/* Legend */}
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">

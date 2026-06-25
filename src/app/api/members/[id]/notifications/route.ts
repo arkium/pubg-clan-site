@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { NOTIFICATION_TYPES, type NotificationType } from '@/types/notifications'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(memberId: string) {
   const parsed = Number(memberId)
@@ -42,6 +43,9 @@ export async function GET(
     if (!parsedMemberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     const limit = Math.min(parseIntParam(request.nextUrl.searchParams.get('limit'), 10), 50)
     const offset = parseIntParam(request.nextUrl.searchParams.get('offset'), 0)
@@ -90,6 +94,9 @@ export async function PATCH(
     if (!parsedMemberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     const body = (await request.json().catch(() => null)) as
       | { read?: boolean; all?: boolean; ids?: string[] }

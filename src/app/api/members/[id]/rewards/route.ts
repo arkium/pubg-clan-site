@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(memberId: string) {
   const parsed = Number(memberId)
@@ -8,7 +9,7 @@ function parseMemberId(memberId: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -18,6 +19,9 @@ export async function GET(
     if (!parsedMemberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({
       where: { id: parsedMemberId },

@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { resolveGameMode } from '@/lib/pubg-assets'
 
@@ -775,11 +774,9 @@ export default function TelemetryRecoveriesPage() {
           title="Récupérations télémétrie"
           subtitle="Vue de contrôle des téléchargements télémétrie, avec statuts, erreurs et empreinte parser."
         />
-        <SectionNav section="owner-menu" />
       </section>
 
       <section className="app-panel p-4">
-        {clanId ? <SectionNav section="clan-section" /> : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"

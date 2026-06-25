@@ -7,6 +7,7 @@ import {
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
 import { clamp01, getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
+import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type DropZonesScope = 'self' | 'member' | 'clan' | 'best'
@@ -136,6 +137,9 @@ export async function GET(
         status: 400,
       })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 
-import SectionNav from '@/components/SectionNav'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -619,7 +618,6 @@ export default function MemberMapStatsPage() {
           showBackButton={false}
           framed={false}
         />
-        <SectionNav section="member-section" />
       </section>
 
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

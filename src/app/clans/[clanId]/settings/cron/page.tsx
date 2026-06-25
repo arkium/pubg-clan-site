@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type CronAction =
@@ -326,7 +325,6 @@ export default function CronSettingsPage() {
           title="Pilotage des cron"
           subtitle="Contrôle de santé, vérification de la configuration, lancement manuel et historique des exécutions."
         />
-        <SectionNav section="owner-menu" />
       </section>
 
       <section className="app-panel p-4">

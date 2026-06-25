@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 
-import SectionNav from '@/components/SectionNav'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 import { isGameLabel } from '@/lib/phase-label-service'
@@ -1058,7 +1057,6 @@ export default function TelemetryMatchDetailPage() {
             Retour
           </Link>
         </div>
-        <SectionNav section="owner-menu" />
       </section>
 
       {loading ? <p className="text-sm text-slate-600">Chargement de la telemetrie...</p> : null}

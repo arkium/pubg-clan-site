@@ -9,7 +9,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SectionNav from '@/components/SectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type ClanRole = {
@@ -674,7 +673,6 @@ export default function ClanMembersSettingsPage() {
           subtitle="Cartes premium pour les membres du clan, leurs rôles et leurs invitations."
           actions={<Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>}
         />
-        <SectionNav section="admin-menu" />
       </section>
       {copyToast ? (
         <div

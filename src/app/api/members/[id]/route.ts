@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
-import { requirePermission, requireSuperUser } from '@/middleware/auth-permission'
+import { requirePermission, requireSuperUser, requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
   const parsed = Number(id)
@@ -16,7 +16,7 @@ const MoveMemberClanSchema = z.object({
 })
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -26,6 +26,9 @@ export async function GET(
     if (!memberId) {
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
+
+    const authError = await requireSameClanAsMember(memberId, request)
+    if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },

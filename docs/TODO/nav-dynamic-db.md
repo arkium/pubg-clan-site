@@ -24,66 +24,22 @@ Les phases 1 à 4 de `nav-refonte.md` sont **terminées**. Points importants pou
 
 ### Sous-menus Admin/Owner toujours visibles sur les pages SuperUser
 
-**Comportement actuel** (`ClanNavigation.tsx` lignes 1043–1074) :
-
-Quand `activeSection === 'superuser-menu'` : la section SuperUser s'affiche en entier via `renderCtxSection()`, **mais** Admin et Owner se réduisent à un seul bouton d'entrée car :
-```tsx
-{activeSection !== 'admin-menu' && showAdminMenu
-  ? renderSubmenuLink({ navKey: 'admin.entry', ... })   // bouton unique
-  : null}
-{activeSection !== 'owner-menu' && showOwnerMenu
-  ? renderSubmenuLink({ navKey: 'owner.entry', ... })   // bouton unique
-  : null}
-```
-
-**Comportement voulu :**
-Quand on est sur une page SuperUser, Admin et Owner restent complètement déployés (tous leurs items visibles), pas réduits à un seul bouton.
-
-**Fix dans `ClanNavigation.tsx` :**
 - [x] Extraire une fonction `renderFullCtxSection(section, title, titleClass, mobile)` réutilisable à partir de la logique existante de `renderCtxSection()`
-- [x] Quand `activeSection === 'superuser-menu'` ET `showAdminMenu` → rendre `renderFullCtxSection('admin-menu', 'Admin', 'sidebar-ctx-nav-title')` au lieu du bouton unique
-- [x] Quand `activeSection === 'superuser-menu'` ET `showOwnerMenu` → rendre `renderFullCtxSection('owner-menu', 'Owner', 'sidebar-ctx-nav-title')` au lieu du bouton unique
+- [x] Quand `activeSection === 'superuser-menu'` ET `showAdminMenu` → rendre `renderFullCtxSection('admin-menu', ...)` au lieu du bouton unique
+- [x] Quand `activeSection === 'superuser-menu'` ET `showOwnerMenu` → rendre `renderFullCtxSection('owner-menu', ...)` au lieu du bouton unique
 - [x] Même correction dans le drawer mobile
-- [ ] Étendre le même principe pour les pages Owner si jugé utile (SuperUser + Admin restent déployés)
-- [ ] Tester : rôle superuser sur `/settings/cron` → vérifier Admin et Owner visibles en entier
+- [x] Validé en production — Admin et Owner visibles en entier depuis une page SuperUser
 
 ---
 
 ## Phase 1 — Migration schema Prisma ✅
 
-### 1.1 Nouveau modèle `NavItem`
-
-```prisma
-model NavItem {
-  id              Int      @id @default(autoincrement())
-  navKey          String   @unique
-  section         String                         // NavSection native
-  label           String
-  hrefTemplate    String
-  defaultRole     String                         // NavRole
-  description     String   @default("")
-  sortOrder       Int      @default(0)           // ordre dans la section native
-  sectionOverride String?                        // si non-null : section d'affichage différente
-  roleOverride    String?                        // remplace defaultRole au runtime
-  labelOverride   String?                        // remplace label au runtime
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([section, sortOrder])
-  @@map("NavItem")
-}
-```
-
 - [x] Ajouter le modèle `NavItem` dans `prisma/schema.prisma`
 - [x] Créer la migration `20260628120000_add_nav_item` manuellement (drift DB détecté, reset impossible) + appliquer via `prisma db execute` + `prisma migrate resolve --applied`
-
-> Note : le fichier `prisma/migrations/20260621120000_add_superuser_and_join_status/migration.sql` a été restauré depuis git (il était absent, bloquant `prisma migrate dev`).
-
-### 1.2 Migration + seed
-
 - [x] Écrire `prisma/seed-nav-items.ts` — insère tous les items du `NAV_REGISTRY` actuel, `sortOrder` = index dans le tableau, idempotent via `upsert` sur `navKey`
 - [x] Exécuter le seed : **46 lignes** insérées en DB
+
+> Note : le fichier `prisma/migrations/20260621120000_add_superuser_and_join_status/migration.sql` a été restauré depuis git (il était absent, bloquant `prisma migrate dev`).
 
 ---
 
@@ -91,17 +47,18 @@ model NavItem {
 
 Fichier : `src/lib/nav-permissions-service.ts`
 
-- [x] Remplacer tous les `NAV_REGISTRY.filter(...)` / `NAV_REGISTRY.find(...)` par des requêtes Prisma `navItem.findMany` / `navItem.findUnique`
+- [x] Remplacer tous les `NAV_REGISTRY.filter(...)` / `NAV_REGISTRY.find(...)` par des requêtes Prisma
 - [x] Trier par `sortOrder` dans les requêtes (`orderBy: { sortOrder: 'asc' }`)
 - [x] Supprimer l'import `NAV_REGISTRY` du service
 - [x] `createNavItem(data)` — insère un nouvel item avec `sortOrder` = max de la section + 1
-- [x] `updateNavItem(navKey, patch)` — met à jour label, role, description, hrefTemplate
+- [x] `updateNavItem(navKey, patch)` — met à jour label, hrefTemplate, description
 - [x] `deleteNavItem(navKey)` — supprime l'item
-- [x] `reorderSection(section, orderedKeys)` — bulk update `sortOrder` sur les items de la section
+- [x] `setNavSectionOrder(section, orderedKeys)` — bulk update `sortOrder` (tous items de la section d'affichage, natifs ET role-promus)
 - [x] `moveToSection(navKey, targetSection)` — met à jour `sectionOverride`
-- [x] Adapter `getNavPositions()` / `getNavPromotedPositions()` pour lire `sortOrder` depuis la table
+- [x] `getNavPositions()` — retourne les items groupés par **section d'affichage réelle** (role-aware via `getDisplaySection()`)
+- [x] `getDisplaySection(row)` — helper interne : `ROLE_TO_DISPLAY_SECTION[effectiveRole] ?? (sectionOverride ?? section)`
 
-> Note : les 4 clés AppConfig nav (`nav_permissions`, `nav_positions`, `nav_promoted_positions`, `nav_labels`) ne sont plus lues/écrites. Le service lit et écrit exclusivement la table `NavItem`.
+> Note : les 4 clés AppConfig nav (`nav_permissions`, `nav_positions`, `nav_promoted_positions`, `nav_labels`) ne sont plus lues/écrites.
 
 ---
 
@@ -109,12 +66,14 @@ Fichier : `src/lib/nav-permissions-service.ts`
 
 Fichier : `src/app/api/settings/nav-permissions/route.ts`
 
-- [x] Enrichir la réponse GET avec les définitions complètes des items (`items: NavItemDef[]`)
-- [x] Conserver la rétro-compatibilité du contrat `{ roles, positions, promotedPositions, labels }`
-- [x] Ajouter `action: 'create'` → appelle `createNavItem`
-- [x] Ajouter `action: 'delete'` → appelle `deleteNavItem`
-- [x] Ajouter `action: 'move-section'` → appelle `moveToSection`
-- [x] Validation via `prisma.navItem.findUnique` au lieu de `NAV_REGISTRY.some`
+- [x] GET retourne `{ items, roles, positions, promotedPositions, labels }`
+- [x] `action: 'role'` → `setNavPermission`
+- [x] `action: 'position'` → `setNavSectionOrder` (flat, all items in display section)
+- [x] `action: 'label'` → `setNavLabel`
+- [x] `action: 'create'` → `createNavItem`
+- [x] `action: 'update'` → `updateNavItem` (label, hrefTemplate, description)
+- [x] `action: 'delete'` → `deleteNavItem`
+- [x] `action: 'move-section'` → `moveToSection`
 
 ---
 
@@ -124,10 +83,6 @@ Fichier : `src/components/ClanNavigation.tsx`
 
 - [x] Hook `useNavPermissions` retourne maintenant `items: NavItemDef[]` (initialisé avec `NAV_REGISTRY` comme fallback, remplacé par les données DB dès que l'API répond)
 - [x] `ClanNavigation.tsx` n'importe plus `NAV_REGISTRY` — tout vient du hook via `navPerms.items`
-- [x] `getCtxSectionItems(section)` — itère sur `navPerms.items` au lieu de `NAV_REGISTRY`
-- [x] `getFirstSectionHref(section, fallback)` — idem
-- [x] `isNavHidden(navKey)` — lit depuis `navPerms.items`
-- [x] Détection `activeSection` — itère sur `navPerms.items`
 - [x] Import `NAV_REGISTRY` retiré de `ClanNavigation.tsx`
 
 ---
@@ -136,23 +91,27 @@ Fichier : `src/components/ClanNavigation.tsx`
 
 Fichier : `src/app/settings/nav-permissions/page.tsx`
 
-- [x] La page charge `items` depuis l'API GET (plus besoin de `NAV_REGISTRY`)
-- [x] Import `NAV_REGISTRY` retiré de la page (remplacé par `allItems` state)
-- [x] Bouton "Ajouter un item" → modal avec champs navKey, section, label, hrefTemplate, defaultRole, description + validation + appel `PUT { action: 'create' }` + rechargement
-- [x] Icône poubelle sur chaque `SortableRow` + confirmation inline avant suppression + appel `PUT { action: 'delete' }` + retrait optimiste avec rollback
-- [x] Drag cross-section : glisser vers une section card différente → `PUT { action: 'move-section' }` + mise à jour optimiste avec rollback
+- [x] La page charge `items` depuis l'API GET — `allItems` state (plus de `NAV_REGISTRY`)
+- [x] État `displayOrder: Record<NavSection, string[]>` — liste plate par section d'affichage, sans distinction natif/promu
+- [x] `displaySections` : simple mapping `displayOrder[s]` → `NavItemDef[]`
+- [x] Drag & drop **libre** : n'importe quel item vers n'importe quelle position dans sa section, sans restriction native/promue
+- [x] Drag cross-section → `PUT { action: 'move-section' }` + mise à jour optimiste avec rollback
+- [x] Modal **Ajouter** → champs navKey, section, label, hrefTemplate, defaultRole, description + `PUT { action: 'create' }`
+- [x] Modal **Modifier** → champs section, label, hrefTemplate, description + `PUT { action: 'update' }` + éventuel `PUT { action: 'move-section' }` si section changée
+- [x] Icône poubelle + confirmation inline → `PUT { action: 'delete' }` + retrait optimiste avec rollback
+- [x] `handleRoleChange` : met à jour `displayOrder` si le changement de rôle déplace l'item entre sections
 
 ---
 
 ## Phase 6 — Nettoyage ✅
 
 - [x] `NAV_REGISTRY` marqué `@deprecated` dans `nav-permissions-registry.ts` (conservé comme fallback initial du hook)
-- [x] `getItemRole()` marqué `@deprecated` (fallback NAV_REGISTRY non atteint maintenant que `navPerms.roles` vient de la DB)
+- [x] `getItemRole()` marqué `@deprecated`
 - [x] Import `NAV_REGISTRY` supprimé du service et du composant `ClanNavigation.tsx`
-- [x] `docs/ops/nav-permissions.md` entièrement réécrit pour refléter l'architecture DB
+- [x] `docs/ops/nav-permissions.md` mis à jour
 - [x] `docs/sommaire.md` mis à jour
 - [ ] Supprimer les 4 clés AppConfig nav en production (après validation)
-- [ ] Supprimer complètement `NAV_REGISTRY` de `nav-permissions-registry.ts` (après validation en production — le hook n'en aura plus besoin)
+- [ ] Supprimer complètement `NAV_REGISTRY` de `nav-permissions-registry.ts` (après validation en production)
 
 ---
 
@@ -171,5 +130,5 @@ Phase 4 (ClanNavigation)                                 ✅
     ↓
 Phase 5 (page admin)                                     ✅
     ↓
-Phase 6 (nettoyage)                                      ✅ (partiel — 2 items post-validation prod restants)
+Phase 6 (nettoyage)                                      ✅ (2 items post-validation prod restants)
 ```

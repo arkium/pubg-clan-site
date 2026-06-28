@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import MemberLifetimeStatsPanel from '@/components/MemberLifetimeStatsPanel'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type LifetimeStats = {
   combat: {
@@ -169,6 +170,24 @@ const RANKED_TIER_CLASS: Record<string, string> = {
   Master: 'border-fuchsia-500/40 bg-fuchsia-50 text-fuchsia-800',
 }
 
+const RANKED_TIER_BORDER: Record<string, string> = {
+  Bronze: 'border-l-amber-700',
+  Silver: 'border-l-slate-400',
+  Gold: 'border-l-yellow-500',
+  Platinum: 'border-l-cyan-500',
+  Diamond: 'border-l-blue-500',
+  Master: 'border-l-fuchsia-500',
+}
+
+const RANKED_TIER_TEXT: Record<string, string> = {
+  Bronze: 'text-amber-700',
+  Silver: 'text-slate-500',
+  Gold: 'text-yellow-600',
+  Platinum: 'text-cyan-600',
+  Diamond: 'text-blue-600',
+  Master: 'text-fuchsia-600',
+}
+
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -213,6 +232,20 @@ function toKd(kills: number, matches: number, wins: number) {
   return (kills / losses).toFixed(2)
 }
 
+function toKda(kills: number, assists: number, matches: number, wins: number) {
+  const deaths = Math.max(1, matches - wins)
+  return ((kills + assists) / deaths).toFixed(2)
+}
+
+function StatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-sm font-bold text-gray-900">{value}</span>
+    </div>
+  )
+}
+
 export default function MemberStatsPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
@@ -227,6 +260,7 @@ export default function MemberStatsPage() {
   const [loadingSeasonStats, setLoadingSeasonStats] = useState(true)
   const [refreshingSeasonStats, setRefreshingSeasonStats] = useState(false)
   const [seasonStatsError, setSeasonStatsError] = useState('')
+  const [seasonFilter, setSeasonFilter] = useState<'saison' | 'ranked'>('saison')
 
   const medalsByRank = useMemo(() => {
     const grouped: Record<1 | 2 | 3, string[]> = { 1: [], 2: [], 3: [] }
@@ -390,21 +424,32 @@ export default function MemberStatsPage() {
       <section className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Saison & ranked</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Saison & Ranked</h2>
             <p className="text-sm text-gray-600">
-              Donnees PUBG de saison (ranked + normal squad) sur les 3 saisons les plus recentes.
+              Historique des 3 dernières saisons — normal squad et ranked.
             </p>
           </div>
-          <button
-            type="button"
-            className="app-btn app-btn--sm app-btn--secondary"
-            disabled={refreshingSeasonStats || loadingSeasonStats}
-            onClick={() => {
-              void refreshSeasonStats()
-            }}
-          >
-            {refreshingSeasonStats ? 'Rafraichissement...' : 'Rafraichir'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl
+              options={[
+                { value: 'saison', label: 'Saison' },
+                { value: 'ranked', label: 'Ranked' },
+              ]}
+              value={seasonFilter}
+              onChange={setSeasonFilter}
+              size="sm"
+            />
+            <button
+              type="button"
+              className="app-btn app-btn--sm app-btn--secondary"
+              disabled={refreshingSeasonStats || loadingSeasonStats}
+              onClick={() => {
+                void refreshSeasonStats()
+              }}
+            >
+              {refreshingSeasonStats ? 'Rafraîchissement...' : 'Rafraîchir'}
+            </button>
+          </div>
         </div>
 
         {seasonStatsError ? (
@@ -422,56 +467,98 @@ export default function MemberStatsPage() {
         ) : null}
 
         {!loadingSeasonStats && seasonStats.length > 0 ? (
-          <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {seasonStats.map((season) => {
-              const tierClass = season.rankedTier
-                ? RANKED_TIER_CLASS[season.rankedTier] ?? 'border-gray-300 bg-gray-50 text-gray-700'
-                : 'border-gray-300 bg-gray-50 text-gray-700'
+              if (seasonFilter === 'ranked') {
+                const tierBorderClass = season.rankedTier
+                  ? (RANKED_TIER_BORDER[season.rankedTier] ?? 'border-l-gray-400')
+                  : 'border-l-gray-300'
+                const tierTextClass = season.rankedTier
+                  ? (RANKED_TIER_TEXT[season.rankedTier] ?? 'text-gray-500')
+                  : 'text-gray-400'
+                const tierBadgeClass = season.rankedTier
+                  ? (RANKED_TIER_CLASS[season.rankedTier] ?? 'border-gray-300 bg-gray-50 text-gray-700')
+                  : 'border-gray-300 bg-gray-50 text-gray-400'
+                const avgDmg = season.rankedMatches > 0
+                  ? Math.round(season.rankedDamage / season.rankedMatches)
+                  : 0
+
+                return (
+                  <article
+                    key={season.id}
+                    className={`rounded-lg border border-gray-200 border-l-4 ${tierBorderClass} bg-white overflow-hidden`}
+                  >
+                    <div className="px-4 pt-4 pb-3 flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="font-bold text-gray-900">{formatSeasonShort(season.seasonId)}</span>
+                          {season.rankedTier && <span className="text-amber-500 text-sm leading-none">👑</span>}
+                        </div>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${tierBadgeClass}`}>
+                          {formatTier(season.rankedTier, season.rankedSubTier)}
+                        </span>
+                      </div>
+                      {season.rankedBestTier && season.rankedBestTier !== season.rankedTier ? (
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Best</p>
+                          <p className={`text-xs font-semibold ${tierTextClass}`}>
+                            {formatTier(season.rankedBestTier, season.rankedBestSubTier)}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="px-4 pb-4 divide-y divide-gray-100">
+                      <StatRow label="Points" value={Math.round(season.rankedPoints).toLocaleString('fr-FR')} />
+                      <StatRow label="K/D/A" value={toKda(season.rankedKills, season.rankedAssists, season.rankedMatches, season.rankedWins)} />
+                      <StatRow label="Win Rate" value={toPercent(season.rankedWins, season.rankedMatches)} />
+                      <StatRow label="Matchs" value={season.rankedMatches.toLocaleString('fr-FR')} />
+                      <StatRow label="Kills" value={season.rankedKills.toLocaleString('fr-FR')} />
+                      <StatRow label="Avg Dmg" value={avgDmg.toLocaleString('fr-FR')} />
+                    </div>
+
+                    <div className="px-4 pb-3 border-t border-gray-100">
+                      <p className="text-[10px] text-gray-400">
+                        Mis à jour le {new Date(season.lastRefreshedAt).toLocaleString('fr-FR')}
+                      </p>
+                    </div>
+                  </article>
+                )
+              }
+
+              // Vue Saison (normal squad)
+              const avgDmg = season.normalMatches > 0
+                ? Math.round(season.normalDamage / season.normalMatches)
+                : 0
 
               return (
-                <article key={season.id} className="rounded-lg border border-gray-200 bg-gray-50/40 p-3">
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-gray-900">{formatSeasonShort(season.seasonId)}</p>
-                    <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${tierClass}`}>
-                      {formatTier(season.rankedTier, season.rankedSubTier)}
-                    </span>
-                    <span className="rounded-full border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700">
-                      Best: {formatTier(season.rankedBestTier, season.rankedBestSubTier)}
-                    </span>
-                    <span className="rounded-full border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700">
-                      RP: {Math.round(season.rankedPoints).toLocaleString('fr-FR')}
+                <article
+                  key={season.id}
+                  className="rounded-lg border border-gray-200 border-l-4 border-l-emerald-500 bg-white overflow-hidden"
+                >
+                  <div className="px-4 pt-4 pb-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="font-bold text-gray-900">{formatSeasonShort(season.seasonId)}</span>
+                    </div>
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                      Normal Squad
                     </span>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded border border-gray-200 bg-white p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Ranked</p>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
-                        <p>Kills: <span className="font-semibold">{season.rankedKills.toLocaleString('fr-FR')}</span></p>
-                        <p>Damage: <span className="font-semibold">{Math.round(season.rankedDamage).toLocaleString('fr-FR')}</span></p>
-                        <p>Wins: <span className="font-semibold">{season.rankedWins.toLocaleString('fr-FR')}</span></p>
-                        <p>Matchs: <span className="font-semibold">{season.rankedMatches.toLocaleString('fr-FR')}</span></p>
-                        <p>K/D: <span className="font-semibold">{toKd(season.rankedKills, season.rankedMatches, season.rankedWins)}</span></p>
-                        <p>Winrate: <span className="font-semibold">{toPercent(season.rankedWins, season.rankedMatches)}</span></p>
-                      </div>
-                    </div>
-
-                    <div className="rounded border border-gray-200 bg-white p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Normal squad</p>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
-                        <p>Kills: <span className="font-semibold">{season.normalKills.toLocaleString('fr-FR')}</span></p>
-                        <p>Damage: <span className="font-semibold">{Math.round(season.normalDamage).toLocaleString('fr-FR')}</span></p>
-                        <p>Wins: <span className="font-semibold">{season.normalWins.toLocaleString('fr-FR')}</span></p>
-                        <p>Matchs: <span className="font-semibold">{season.normalMatches.toLocaleString('fr-FR')}</span></p>
-                        <p>K/D: <span className="font-semibold">{toKd(season.normalKills, season.normalMatches, season.normalWins)}</span></p>
-                        <p>Winrate: <span className="font-semibold">{toPercent(season.normalWins, season.normalMatches)}</span></p>
-                      </div>
-                    </div>
+                  <div className="px-4 pb-4 divide-y divide-gray-100">
+                    <StatRow label="Matchs" value={season.normalMatches.toLocaleString('fr-FR')} />
+                    <StatRow label="Kills" value={season.normalKills.toLocaleString('fr-FR')} />
+                    <StatRow label="K/D" value={toKd(season.normalKills, season.normalMatches, season.normalWins)} />
+                    <StatRow label="Win Rate" value={toPercent(season.normalWins, season.normalMatches)} />
+                    <StatRow label="Avg Dmg" value={avgDmg.toLocaleString('fr-FR')} />
+                    <StatRow label="Assists" value={season.normalAssists.toLocaleString('fr-FR')} />
                   </div>
 
-                  <p className="mt-2 text-xs text-gray-500">
-                    Mis a jour le {new Date(season.lastRefreshedAt).toLocaleString('fr-FR')}
-                  </p>
+                  <div className="px-4 pb-3 border-t border-gray-100">
+                    <p className="text-[10px] text-gray-400">
+                      Mis à jour le {new Date(season.lastRefreshedAt).toLocaleString('fr-FR')}
+                    </p>
+                  </div>
                 </article>
               )
             })}

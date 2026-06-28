@@ -189,6 +189,38 @@ export async function finishTelemetryAggregateRecalcQueueJobSuccess(
   })
 }
 
+export type TelemetryAggregateRecalcQueueStats = {
+  queued: number
+  running: number
+  success: number
+  failed: number
+  total: number
+  lastSuccessAt: Date | null
+}
+
+export async function getTelemetryAggregateRecalcQueueStats(): Promise<TelemetryAggregateRecalcQueueStats> {
+  const [queued, running, success, failed, lastSuccessRow] = await Promise.all([
+    prisma.cronExecution.count({ where: { action: TELEMETRY_AGGREGATE_RECALC_QUEUE_ACTION, status: 'queued' } }),
+    prisma.cronExecution.count({ where: { action: TELEMETRY_AGGREGATE_RECALC_QUEUE_ACTION, status: 'running' } }),
+    prisma.cronExecution.count({ where: { action: TELEMETRY_AGGREGATE_RECALC_QUEUE_ACTION, status: 'success' } }),
+    prisma.cronExecution.count({ where: { action: TELEMETRY_AGGREGATE_RECALC_QUEUE_ACTION, status: 'failed' } }),
+    prisma.cronExecution.findFirst({
+      where: { action: TELEMETRY_AGGREGATE_RECALC_QUEUE_ACTION, status: 'success' },
+      orderBy: { finishedAt: 'desc' },
+      select: { finishedAt: true },
+    }),
+  ])
+
+  return {
+    queued,
+    running,
+    success,
+    failed,
+    total: queued + running + success + failed,
+    lastSuccessAt: lastSuccessRow?.finishedAt ?? null,
+  }
+}
+
 export async function finishTelemetryAggregateRecalcQueueJobFailed(
   jobId: string,
   details: Prisma.JsonObject,

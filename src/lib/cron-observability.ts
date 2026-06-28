@@ -556,11 +556,11 @@ export async function finishCronExecution(params: {
   })
 }
 
-export async function getCronOverview(clanId: number) {
+export async function getCronOverview(clanId: number, take = 40) {
   const recent = await prisma.cronExecution.findMany({
     where: { clanId },
     orderBy: { startedAt: 'desc' },
-    take: 40,
+    take,
     select: {
       id: true,
       action: true,

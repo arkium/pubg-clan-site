@@ -142,7 +142,7 @@ export async function GET(
     }
 
     const [overview, configChecks, cronWorkerRuntime, latestPubgRateLimit] = await Promise.all([
-      getCronOverview(parsedClanId),
+      getCronOverview(parsedClanId, 200),
       getCronConfigurationChecks(),
       getCronWorkerRuntimeStatus(),
       getLatestPubgRateLimitSnapshot(),

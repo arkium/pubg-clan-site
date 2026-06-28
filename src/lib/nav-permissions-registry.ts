@@ -342,14 +342,6 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Déclenchement manuel d\'un batch de synchronisation télémétrie.',
   },
   {
-    navKey: 'owner.cron',
-    section: 'owner-menu',
-    label: 'Ouvrir Ops Cron',
-    hrefTemplate: '/clans/:clanId/settings/cron',
-    defaultRole: 'owner',
-    description: 'Interface de gestion des tâches cron.',
-  },
-  {
     navKey: 'owner.telemetry-recoveries',
     section: 'owner-menu',
     label: 'Recoveries telemetry',
@@ -399,6 +391,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
   },
 
   // --- SuperUser menu (sidebar) ---
+  {
+    navKey: 'superuser.cron',
+    section: 'superuser-menu',
+    label: 'Ops Cron',
+    hrefTemplate: '/settings/cron',
+    defaultRole: 'superuser',
+    description: 'Pilotage global des tâches cron et statut des workers télémétrie.',
+  },
   {
     navKey: 'superuser.switch-clan',
     section: 'superuser-menu',

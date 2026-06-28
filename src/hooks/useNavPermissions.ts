@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { NavRole } from '@/lib/nav-permissions-registry'
+import type { NavRole, NavItemDef } from '@/lib/nav-permissions-registry'
+import { NAV_REGISTRY } from '@/lib/nav-permissions-registry'
 
 const CACHE_KEY = 'nav_permissions_cache'
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 type NavPermissionsData = {
+  items: NavItemDef[]
   roles: Record<string, NavRole>
   positions: Record<string, string[]>
   promotedPositions: Record<string, string[]>
@@ -47,19 +49,26 @@ export function invalidateNavPermissionsCache() {
   }
 }
 
-const EMPTY: NavPermissionsData = { roles: {}, positions: {}, promotedPositions: {}, labels: {} }
+// NAV_REGISTRY sert de valeur initiale pendant le chargement de l'API
+const EMPTY: NavPermissionsData = {
+  items: NAV_REGISTRY,
+  roles: {},
+  positions: {},
+  promotedPositions: {},
+  labels: {},
+}
 
 export function useNavPermissions(): NavPermissionsData {
   const [data, setData] = useState<NavPermissionsData>(() => readCache() ?? EMPTY)
 
   useEffect(() => {
-    const cached = readCache()
-    if (cached) setData(cached)
-
     fetch('/api/settings/nav-permissions')
       .then((r) => r.json())
-      .then((payload: NavPermissionsData) => {
+      .then((payload: Partial<NavPermissionsData>) => {
         const safe: NavPermissionsData = {
+          items: Array.isArray(payload.items) && payload.items.length > 0
+            ? payload.items
+            : NAV_REGISTRY,
           roles: payload.roles ?? {},
           positions: payload.positions ?? {},
           promotedPositions: payload.promotedPositions ?? {},

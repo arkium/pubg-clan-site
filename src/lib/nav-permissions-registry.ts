@@ -35,6 +35,7 @@ export const NAV_ROLE_LABELS: Record<NavRole, string> = {
   hidden: 'Masqué',
 }
 
+/** @deprecated Source de vérité migrée vers la table NavItem en DB. Utilisé uniquement comme fallback initial dans useNavPermissions. */
 export const NAV_REGISTRY: NavItemDef[] = [
   // --- Navigation principale (sidebar) ---
   {
@@ -417,6 +418,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
   },
 ]
 
+/** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */
 export function getItemRole(navKey: string, overrides: Record<string, NavRole>): NavRole {
   if (navKey in overrides) return overrides[navKey]
   return NAV_REGISTRY.find((item) => item.navKey === navKey)?.defaultRole ?? 'none'

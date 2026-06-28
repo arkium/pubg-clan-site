@@ -6,7 +6,6 @@ import { useAuthSession } from '@/hooks/useAuthSession'
 import { invalidateNavPermissionsCache } from '@/hooks/useNavPermissions'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import {
-  NAV_REGISTRY,
   NAV_SECTION_LABELS,
   type NavRole,
   type NavSection,
@@ -43,13 +42,35 @@ const ROLE_TO_TARGET_SECTION: Partial<Record<NavRole, NavSection>> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function applyPositions(items: NavItemDef[], order: string[] | undefined): NavItemDef[] {
-  if (!order || order.length === 0) return items
-  return [...items].sort((a, b) => {
-    const ai = order.indexOf(a.navKey)
-    const bi = order.indexOf(b.navKey)
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-  })
+function getEffectiveDisplaySection(item: NavItemDef, pMap: PermissionMap): NavSection {
+  const effectiveRole = (pMap[item.navKey] ?? item.defaultRole) as NavRole
+  return (ROLE_TO_TARGET_SECTION[effectiveRole] ?? item.section) as NavSection
+}
+
+function buildDisplayOrder(items: NavItemDef[], positions: PositionMap, pMap: PermissionMap): Record<NavSection, string[]> {
+  const allKeys = new Set(items.map((i) => i.navKey))
+  const covered = new Set<string>()
+  const result: Record<NavSection, string[]> = {
+    'nav-primary': [],
+    'clan-section': [],
+    'member-section': [],
+    'admin-menu': [],
+    'owner-menu': [],
+    'superuser-menu': [],
+  }
+  for (const s of SECTION_ORDER) {
+    result[s] = (positions[s] ?? []).filter((k) => {
+      if (!allKeys.has(k)) return false
+      covered.add(k)
+      return true
+    })
+  }
+  for (const item of items) {
+    if (!covered.has(item.navKey)) {
+      result[getEffectiveDisplaySection(item, pMap)].push(item.navKey)
+    }
+  }
+  return result
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -117,10 +138,6 @@ function LabelEditor({ navKey, currentLabel, defaultLabel, labelSaveState, onSav
   const [inputVal, setInputVal] = useState(currentLabel)
   const inputRef = useRef<HTMLInputElement>(null)
   const isOverridden = currentLabel !== defaultLabel
-
-  useEffect(() => {
-    if (!editing) setInputVal(currentLabel)
-  }, [currentLabel, editing])
 
   function startEdit() {
     setInputVal(currentLabel)
@@ -225,6 +242,8 @@ function SortableRow({
   onDragStart,
   onDragEnter,
   onDragEnd,
+  onDelete,
+  onEdit,
 }: {
   item: NavItemDef
   index: number
@@ -242,7 +261,10 @@ function SortableRow({
   onDragStart: (navKey: string) => void
   onDragEnter: (navKey: string) => void
   onDragEnd: () => void
+  onDelete: (navKey: string) => void
+  onEdit: (navKey: string) => void
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const isRoleOverridden = currentRole !== item.defaultRole
 
   return (
@@ -260,7 +282,7 @@ function SortableRow({
           isRoleOverridden ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-200 bg-slate-50/60',
       ].join(' ')}
     >
-      {/* Drag handle — lighter style for promoted items */}
+      {/* Drag handle */}
       <div className="mt-0.5 shrink-0">
         <svg
           viewBox="0 0 20 20"
@@ -280,7 +302,6 @@ function SortableRow({
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        {/* Header: label editor + role badge */}
         <div className="flex flex-wrap items-center gap-2">
           <LabelEditor
             navKey={item.navKey}
@@ -303,13 +324,9 @@ function SortableRow({
           )}
         </div>
 
-        {/* Route */}
         <p className="mt-0.5 font-mono text-[11px] text-slate-400">{item.hrefTemplate}</p>
-
-        {/* Description */}
         <p className="mt-1 text-[11px] text-slate-500">{item.description}</p>
 
-        {/* Role selector */}
         <div className="mt-2">
           <RoleSelector
             navKey={item.navKey}
@@ -319,12 +336,54 @@ function SortableRow({
             onChange={onRoleChange}
           />
         </div>
-
       </div>
 
-      {/* Position counter */}
-      <div className="mt-0.5 shrink-0 text-right">
+      {/* Actions: position + edit + delete */}
+      <div className="mt-0.5 flex shrink-0 flex-col items-end gap-2">
         <span className="text-[10px] text-slate-400 tabular-nums">{index + 1} / {total}</span>
+        {confirmDelete ? (
+          <div className="flex items-center gap-1" onMouseDown={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => { setConfirmDelete(false); onDelete(item.navKey) }}
+              className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700"
+            >
+              Confirmer
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="rounded border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-50"
+            >
+              Annuler
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onEdit(item.navKey)}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
+              title="Modifier hrefTemplate et description"
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="rounded p-0.5 text-slate-200 transition hover:bg-red-50 hover:text-red-500"
+              title="Supprimer cet item"
+            >
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                <path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -349,6 +408,8 @@ function SectionCard({
   onDragStart,
   onDragEnter,
   onDragEnd,
+  onDelete,
+  onEdit,
 }: {
   section: NavSection
   items: NavItemDef[]
@@ -364,15 +425,19 @@ function SectionCard({
   onRoleChange: (navKey: string, role: NavRole) => void
   onLabelSave: (navKey: string, label: string) => void
   onDragStart: (section: NavSection, navKey: string) => void
-  onDragEnter: (navKey: string) => void
+  onDragEnter: (section: NavSection, navKey: string) => void
   onDragEnd: () => void
+  onDelete: (navKey: string) => void
+  onEdit: (navKey: string) => void
 }) {
   const counts: Record<NavRole, number> = { owner: 0, admin: 0, member: 0, none: 0, superuser: 0, hidden: 0 }
   items.forEach((item) => { counts[permissions[item.navKey] ?? item.defaultRole]++ })
 
   return (
-    <section className="app-panel p-4 sm:p-5">
-      {/* Section header */}
+    <section
+      className="app-panel p-4 sm:p-5"
+      onDragOver={(e) => e.preventDefault()}
+    >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
           <h2 className="text-sm font-bold text-slate-900">{NAV_SECTION_LABELS[section]}</h2>
@@ -394,7 +459,6 @@ function SectionCard({
         </div>
       </div>
 
-      {/* Sortable list */}
       <div className="space-y-2">
         {items.map((item, index) => (
           <SortableRow
@@ -413,12 +477,253 @@ function SectionCard({
             onRoleChange={onRoleChange}
             onLabelSave={onLabelSave}
             onDragStart={(key) => onDragStart(section, key)}
-            onDragEnter={onDragEnter}
+            onDragEnter={(key) => onDragEnter(section, key)}
             onDragEnd={onDragEnd}
+            onDelete={onDelete}
+            onEdit={onEdit}
           />
         ))}
       </div>
     </section>
+  )
+}
+
+// ─── Edit modal ───────────────────────────────────────────────────────────────
+
+function EditItemModal({ item, onClose, onSave }: {
+  item: NavItemDef
+  onClose: () => void
+  onSave: (navKey: string, patch: { label?: string; hrefTemplate?: string; description?: string; section?: NavSection }) => Promise<void>
+}) {
+  const [label, setLabel] = useState(item.label)
+  const [hrefTemplate, setHrefTemplate] = useState(item.hrefTemplate)
+  const [description, setDescription] = useState(item.description)
+  const [section, setSection] = useState<NavSection>(item.section)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!label.trim()) { setError('Le label est requis.'); return }
+    if (!hrefTemplate.trim() || !hrefTemplate.startsWith('/')) { setError('hrefTemplate doit commencer par /.'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(item.navKey, {
+        label: label.trim() !== item.label ? label.trim() : undefined,
+        hrefTemplate: hrefTemplate.trim() !== item.hrefTemplate ? hrefTemplate.trim() : undefined,
+        description: description.trim() !== item.description ? description.trim() : undefined,
+        section: section !== item.section ? section : undefined,
+      })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Modifier un item</h2>
+            <p className="mt-0.5 font-mono text-[11px] text-slate-400">{item.navKey}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+            </svg>
+          </button>
+        </div>
+        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4 p-5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Menu (section)</label>
+            <select
+              value={section}
+              onChange={(e) => setSection(e.target.value as NavSection)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
+            >
+              {SECTION_ORDER.map((s) => (
+                <option key={s} value={s}>{NAV_SECTION_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Label <span className="text-red-500">*</span></label>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              required
+            />
+            <p className="mt-1 text-[11px] text-slate-400">Label de base. Si un renommage inline existe, il prend le dessus.</p>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">hrefTemplate <span className="text-red-500">*</span></label>
+            <input
+              value={hrefTemplate}
+              onChange={(e) => setHrefTemplate(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none"
+            />
+          </div>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Sauvegarde…' : 'Enregistrer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Create modal ─────────────────────────────────────────────────────────────
+
+function CreateItemModal({ onClose, onCreate }: {
+  onClose: () => void
+  onCreate: (data: { navKey: string; section: NavSection; label: string; hrefTemplate: string; defaultRole: NavRole; description: string }) => Promise<void>
+}) {
+  const [navKey, setNavKey] = useState('')
+  const [section, setSection] = useState<NavSection>('clan-section')
+  const [label, setLabel] = useState('')
+  const [hrefTemplate, setHrefTemplate] = useState('/')
+  const [defaultRole, setDefaultRole] = useState<NavRole>('none')
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!navKey.trim() || !label.trim() || !hrefTemplate.trim()) {
+      setError('navKey, label et hrefTemplate sont requis.')
+      return
+    }
+    if (!hrefTemplate.startsWith('/')) {
+      setError('hrefTemplate doit commencer par /.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await onCreate({ navKey: navKey.trim(), section, label: label.trim(), hrefTemplate: hrefTemplate.trim(), defaultRole, description: description.trim() })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 className="text-sm font-bold text-slate-900">Ajouter un item de navigation</h2>
+          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
+              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+            </svg>
+          </button>
+        </div>
+        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4 p-5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">navKey <span className="text-red-500">*</span></label>
+            <input
+              value={navKey}
+              onChange={(e) => setNavKey(e.target.value)}
+              placeholder="ex: clan.new-page"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Section <span className="text-red-500">*</span></label>
+              <select
+                value={section}
+                onChange={(e) => setSection(e.target.value as NavSection)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
+              >
+                {SECTION_ORDER.map((s) => (
+                  <option key={s} value={s}>{NAV_SECTION_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Rôle par défaut</label>
+              <select
+                value={defaultRole}
+                onChange={(e) => setDefaultRole(e.target.value as NavRole)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>{ROLE_META[r].label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Label <span className="text-red-500">*</span></label>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="ex: Ma nouvelle page"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">hrefTemplate <span className="text-red-500">*</span></label>
+            <input
+              value={hrefTemplate}
+              onChange={(e) => setHrefTemplate(e.target.value)}
+              placeholder="ex: /clans/:clanId/ma-page"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="Description optionnelle"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none"
+            />
+          </div>
+          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Création…' : 'Créer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 
@@ -430,12 +735,17 @@ export default function NavPermissionsPage() {
   const isOwner = permissions.includes('*')
   const canAccess = isOwner || isSuperUser
 
+  const [allItems, setAllItems] = useState<NavItemDef[]>([])
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({})
   const [labelMap, setLabelMap] = useState<LabelMap>({})
-  const [promotedOrderMap, setPromotedOrderMap] = useState<Record<string, string[]>>({})
-  const [orderedSections, setOrderedSections] = useState<Record<NavSection, NavItemDef[]>>(
-    () => Object.fromEntries(SECTION_ORDER.map((s) => [s, NAV_REGISTRY.filter((i) => i.section === s)])) as Record<NavSection, NavItemDef[]>
-  )
+  const [displayOrder, setDisplayOrder] = useState<Record<NavSection, string[]>>(() => ({
+    'nav-primary': [],
+    'clan-section': [],
+    'member-section': [],
+    'admin-menu': [],
+    'owner-menu': [],
+    'superuser-menu': [],
+  }))
   const [dataLoaded, setDataLoaded] = useState(false)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
   const [feedbacks, setFeedbacks] = useState<Record<string, 'saved' | 'error' | null>>({})
@@ -443,80 +753,73 @@ export default function NavPermissionsPage() {
   const [positionSaveStates, setPositionSaveStates] = useState<Record<NavSection, SaveState>>(
     () => Object.fromEntries(SECTION_ORDER.map((s) => [s, 'idle'])) as Record<NavSection, SaveState>
   )
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingItem, setEditingItem] = useState<NavItemDef | null>(null)
 
-  // Items displayed per section — items with role admin/owner/superuser migrate to their target section card
-  const displaySections = useMemo(() => {
-    const result: Record<NavSection, NavItemDef[]> = Object.fromEntries(
-      SECTION_ORDER.map((s) => [s, [] as NavItemDef[]])
-    ) as Record<NavSection, NavItemDef[]>
-
-    // First pass: native items that stay in their section (no target or target === own section)
-    for (const section of SECTION_ORDER) {
-      for (const item of (orderedSections[section] ?? [])) {
-        const effectiveRole = permissionMap[item.navKey] ?? item.defaultRole
-        const target = ROLE_TO_TARGET_SECTION[effectiveRole]
-        if (!target || target === section) result[section].push(item)
-      }
-    }
-
-    // Second pass: promoted items — collect per target section, then apply saved promoted order
-    for (const targetSection of SECTION_ORDER) {
-      const promoted: NavItemDef[] = []
-      for (const section of SECTION_ORDER) {
-        if (section === targetSection) continue
-        for (const item of (orderedSections[section] ?? [])) {
-          const effectiveRole = permissionMap[item.navKey] ?? item.defaultRole
-          if (ROLE_TO_TARGET_SECTION[effectiveRole] === targetSection) promoted.push(item)
-        }
-      }
-      const order = promotedOrderMap[targetSection]
-      if (order && order.length > 0) {
-        promoted.sort((a, b) => {
-          const ai = order.indexOf(a.navKey)
-          const bi = order.indexOf(b.navKey)
-          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-        })
-      }
-      result[targetSection].push(...promoted)
-    }
-
-    return result
-  }, [orderedSections, permissionMap, promotedOrderMap])
-
-  // DnD state — refs for reliable cross-render logic, state for visual feedback
-  const draggingKey = useRef<string | null>(null)
-  const draggingSection = useRef<NavSection | null>(null)
-  const dragOverKey = useRef<string | null>(null)
-  const [draggingKeyState, setDraggingKeyState] = useState<string | null>(null)
-  const [dragOverKeyState, setDragOverKeyState] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!authenticated || !canAccess) return
-    fetch('/api/settings/nav-permissions')
+  function loadData() {
+    return fetch('/api/settings/nav-permissions')
       .then((r) => r.json())
-      .then((data: { roles: PermissionMap; positions: PositionMap; promotedPositions: Record<string, string[]>; labels: LabelMap }) => {
-        setPermissionMap(data.roles ?? {})
+      .then((data: { items?: NavItemDef[]; roles: PermissionMap; positions: PositionMap; labels: LabelMap }) => {
+        const items = Array.isArray(data.items) ? data.items : []
+        const roles = data.roles ?? {}
+        setAllItems(items)
+        setPermissionMap(roles)
         setLabelMap(data.labels ?? {})
-        setPromotedOrderMap(data.promotedPositions ?? {})
-        const pos = data.positions ?? {}
-        setOrderedSections(
-          Object.fromEntries(
-            SECTION_ORDER.map((s) => [s, applyPositions(NAV_REGISTRY.filter((i) => i.section === s), pos[s])])
-          ) as Record<NavSection, NavItemDef[]>
-        )
+        setDisplayOrder(buildDisplayOrder(items, data.positions ?? {}, roles))
         setDataLoaded(true)
       })
       .catch(() => setDataLoaded(true))
+  }
+
+  useEffect(() => {
+    if (!authenticated || !canAccess) return
+    void loadData()
   }, [authenticated, canAccess])
 
   useEffect(() => {
     if (!loading && !authenticated) router.replace('/login')
   }, [loading, authenticated, router])
 
+  // Flat ordered items per displayed section
+  const displaySections = useMemo(() => {
+    const itemByKey = Object.fromEntries(allItems.map((i) => [i.navKey, i]))
+    return Object.fromEntries(
+      SECTION_ORDER.map((s) => [
+        s,
+        (displayOrder[s] ?? []).map((k) => itemByKey[k]).filter((i): i is NavItemDef => Boolean(i)),
+      ])
+    ) as Record<NavSection, NavItemDef[]>
+  }, [allItems, displayOrder])
+
+  // DnD state
+  const draggingKey = useRef<string | null>(null)
+  const draggingSection = useRef<NavSection | null>(null)
+  const draggingTargetSection = useRef<NavSection | null>(null)
+  const dragOverKey = useRef<string | null>(null)
+  const [draggingKeyState, setDraggingKeyState] = useState<string | null>(null)
+  const [dragOverKeyState, setDragOverKeyState] = useState<string | null>(null)
+
   // ── Role change ──────────────────────────────────────────────────────────────
 
   async function handleRoleChange(navKey: string, role: NavRole) {
-    setPermissionMap((prev) => ({ ...prev, [navKey]: role }))
+    const item = allItems.find((i) => i.navKey === navKey)
+    if (!item) return
+
+    const prevSection = getEffectiveDisplaySection(item, permissionMap)
+    const newPermMap = { ...permissionMap, [navKey]: role }
+    const newSection = getEffectiveDisplaySection(item, newPermMap)
+
+    setPermissionMap(newPermMap)
+
+    if (prevSection !== newSection) {
+      setDisplayOrder((prev) => {
+        const next = { ...prev }
+        next[prevSection] = (prev[prevSection] ?? []).filter((k) => k !== navKey)
+        next[newSection] = [...(prev[newSection] ?? []), navKey]
+        return next
+      })
+    }
+
     setSaveStates((prev) => ({ ...prev, [navKey]: 'saving' }))
     setFeedbacks((prev) => ({ ...prev, [navKey]: null }))
 
@@ -531,8 +834,15 @@ export default function NavPermissionsPage() {
       setFeedbacks((prev) => ({ ...prev, [navKey]: 'saved' }))
       invalidateNavPermissionsCache()
     } catch {
-      const item = NAV_REGISTRY.find((i) => i.navKey === navKey)
-      if (item) setPermissionMap((prev) => ({ ...prev, [navKey]: item.defaultRole }))
+      setPermissionMap((prev) => ({ ...prev, [navKey]: item.defaultRole }))
+      if (prevSection !== newSection) {
+        setDisplayOrder((prev) => {
+          const next = { ...prev }
+          next[newSection] = (prev[newSection] ?? []).filter((k) => k !== navKey)
+          next[prevSection] = [...(prev[prevSection] ?? []), navKey]
+          return next
+        })
+      }
       setSaveStates((prev) => ({ ...prev, [navKey]: 'error' }))
       setFeedbacks((prev) => ({ ...prev, [navKey]: 'error' }))
     } finally {
@@ -546,16 +856,11 @@ export default function NavPermissionsPage() {
   // ── Label change ─────────────────────────────────────────────────────────────
 
   async function handleLabelSave(navKey: string, label: string) {
-    const prevLabel = labelMap[navKey] ?? NAV_REGISTRY.find((i) => i.navKey === navKey)?.label ?? ''
-    const defaultLabel = NAV_REGISTRY.find((i) => i.navKey === navKey)?.label ?? ''
+    const prevLabel = labelMap[navKey] ?? allItems.find((i) => i.navKey === navKey)?.label ?? ''
+    const defaultLabel = allItems.find((i) => i.navKey === navKey)?.label ?? ''
 
-    // Optimistic: if restoring default, remove from map; otherwise set new value
     if (label === defaultLabel || !label.trim()) {
-      setLabelMap((prev) => {
-        const next = { ...prev }
-        delete next[navKey]
-        return next
-      })
+      setLabelMap((prev) => { const next = { ...prev }; delete next[navKey]; return next })
     } else {
       setLabelMap((prev) => ({ ...prev, [navKey]: label }))
     }
@@ -571,7 +876,6 @@ export default function NavPermissionsPage() {
       setLabelSaveStates((prev) => ({ ...prev, [navKey]: 'saved' }))
       invalidateNavPermissionsCache()
     } catch {
-      // rollback
       if (prevLabel && prevLabel !== defaultLabel) {
         setLabelMap((prev) => ({ ...prev, [navKey]: prevLabel }))
       } else {
@@ -585,64 +889,171 @@ export default function NavPermissionsPage() {
     }
   }
 
+  // ── Delete ───────────────────────────────────────────────────────────────────
+
+  async function handleDelete(navKey: string) {
+    const item = allItems.find((i) => i.navKey === navKey)
+    if (!item) return
+
+    const itemSection = getEffectiveDisplaySection(item, permissionMap)
+
+    setAllItems((prev) => prev.filter((i) => i.navKey !== navKey))
+    setDisplayOrder((prev) => ({
+      ...prev,
+      [itemSection]: (prev[itemSection] ?? []).filter((k) => k !== navKey),
+    }))
+
+    try {
+      const r = await fetch('/api/settings/nav-permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', navKey }),
+      })
+      if (!r.ok) throw new Error((await r.json() as { error?: string }).error ?? 'Erreur')
+      invalidateNavPermissionsCache()
+    } catch {
+      setAllItems((prev) => [...prev, item])
+      setDisplayOrder((prev) => ({
+        ...prev,
+        [itemSection]: [...(prev[itemSection] ?? []), navKey],
+      }))
+    }
+  }
+
+  // ── Create ───────────────────────────────────────────────────────────────────
+
+  async function handleCreate(data: { navKey: string; section: NavSection; label: string; hrefTemplate: string; defaultRole: NavRole; description: string }) {
+    const r = await fetch('/api/settings/nav-permissions', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'create', data }),
+    })
+    if (!r.ok) {
+      const json = await r.json() as { error?: string }
+      throw new Error(json.error ?? 'Erreur')
+    }
+    invalidateNavPermissionsCache()
+    await loadData()
+  }
+
+  // ── Edit ─────────────────────────────────────────────────────────────────────
+
+  async function handleEditSave(navKey: string, patch: { label?: string; hrefTemplate?: string; description?: string; section?: NavSection }) {
+    const { section: targetSection, ...fieldPatch } = patch
+
+    const hasFieldChanges = Object.values(fieldPatch).some((v) => v !== undefined)
+    if (hasFieldChanges) {
+      const r = await fetch('/api/settings/nav-permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'update', navKey, patch: fieldPatch }),
+      })
+      if (!r.ok) {
+        const json = await r.json() as { error?: string }
+        throw new Error(json.error ?? 'Erreur')
+      }
+    }
+
+    if (targetSection) {
+      const r = await fetch('/api/settings/nav-permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'move-section', navKey, targetSection }),
+      })
+      if (!r.ok) {
+        const json = await r.json() as { error?: string }
+        throw new Error(json.error ?? 'Erreur')
+      }
+    }
+
+    invalidateNavPermissionsCache()
+    await loadData()
+  }
+
   // ── Drag & drop ──────────────────────────────────────────────────────────────
 
   function handleDragStart(section: NavSection, navKey: string) {
     draggingKey.current = navKey
     draggingSection.current = section
+    draggingTargetSection.current = section
     setDraggingKeyState(navKey)
   }
 
-  function handleDragEnter(navKey: string) {
+  function handleDragEnter(section: NavSection, navKey: string) {
     if (draggingKey.current === navKey) return
     dragOverKey.current = navKey
+    draggingTargetSection.current = section
     setDragOverKeyState(navKey)
   }
 
   function handleDragEnd() {
     const srcKey = draggingKey.current
     const tgtKey = dragOverKey.current
-    const section = draggingSection.current
+    const srcSection = draggingSection.current
+    const tgtSection = draggingTargetSection.current
 
     draggingKey.current = null
     draggingSection.current = null
+    draggingTargetSection.current = null
     dragOverKey.current = null
     setDraggingKeyState(null)
     setDragOverKeyState(null)
 
-    if (!srcKey || !tgtKey || srcKey === tgtKey || !section) return
+    if (!srcKey || !srcSection || !tgtSection) return
 
-    const nativeKeys = new Set((orderedSections[section] ?? []).map((i) => i.navKey))
-    const srcIsNative = nativeKeys.has(srcKey)
-    const tgtIsNative = nativeKeys.has(tgtKey)
-
-    if (srcIsNative && tgtIsNative) {
-      // Reorder native items in their native section
-      setOrderedSections((prev) => {
-        const current = prev[section] ?? []
-        const srcIdx = current.findIndex((i) => i.navKey === srcKey)
-        const tgtIdx = current.findIndex((i) => i.navKey === tgtKey)
-        if (srcIdx === -1 || tgtIdx === -1) return prev
-        const next = [...current]
-        const [moved] = next.splice(srcIdx, 1)
-        next.splice(tgtIdx, 0, moved)
-        void savePosition(section, next.map((i) => i.navKey))
-        return { ...prev, [section]: next }
-      })
-    } else if (!srcIsNative && !tgtIsNative) {
-      // Reorder promoted items within the display section
-      const promotedDisplay = (displaySections[section] ?? []).filter((i) => !nativeKeys.has(i.navKey))
-      const srcIdx = promotedDisplay.findIndex((i) => i.navKey === srcKey)
-      const tgtIdx = promotedDisplay.findIndex((i) => i.navKey === tgtKey)
-      if (srcIdx === -1 || tgtIdx === -1) return
-      const next = [...promotedDisplay]
-      const [moved] = next.splice(srcIdx, 1)
-      next.splice(tgtIdx, 0, moved)
-      const newOrder = next.map((i) => i.navKey)
-      setPromotedOrderMap((prev) => ({ ...prev, [section]: newOrder }))
-      void savePromotedPosition(section, newOrder)
+    if (srcSection !== tgtSection) {
+      void moveCrossSection(srcKey, tgtSection)
+      return
     }
-    // cross-drag native ↔ promoted: silently ignored
+
+    if (!tgtKey || srcKey === tgtKey) return
+
+    // Flat reorder within the displayed section — no native/promoted distinction
+    const current = displaySections[srcSection] ?? []
+    const srcIdx = current.findIndex((i) => i.navKey === srcKey)
+    const tgtIdx = current.findIndex((i) => i.navKey === tgtKey)
+    if (srcIdx === -1 || tgtIdx === -1) return
+
+    const next = [...current]
+    const [moved] = next.splice(srcIdx, 1)
+    next.splice(tgtIdx, 0, moved)
+    const orderedKeys = next.map((i) => i.navKey)
+
+    setDisplayOrder((prev) => ({ ...prev, [srcSection]: orderedKeys }))
+    void savePosition(srcSection, orderedKeys)
+  }
+
+  async function moveCrossSection(navKey: string, targetSection: NavSection) {
+    const item = allItems.find((i) => i.navKey === navKey)
+    if (!item) return
+
+    const prevSection = getEffectiveDisplaySection(item, permissionMap)
+
+    setAllItems((prev) => prev.map((i) => i.navKey === navKey ? { ...i, section: targetSection } : i))
+    setDisplayOrder((prev) => {
+      const next = { ...prev }
+      next[prevSection] = (prev[prevSection] ?? []).filter((k) => k !== navKey)
+      next[targetSection] = [...(prev[targetSection] ?? []), navKey]
+      return next
+    })
+
+    try {
+      const r = await fetch('/api/settings/nav-permissions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'move-section', navKey, targetSection }),
+      })
+      if (!r.ok) throw new Error()
+      invalidateNavPermissionsCache()
+    } catch {
+      setAllItems((prev) => prev.map((i) => i.navKey === navKey ? { ...i, section: prevSection } : i))
+      setDisplayOrder((prev) => {
+        const next = { ...prev }
+        next[targetSection] = (prev[targetSection] ?? []).filter((k) => k !== navKey)
+        next[prevSection] = [...(prev[prevSection] ?? []), navKey]
+        return next
+      })
+    }
   }
 
   async function savePosition(section: NavSection, orderedKeys: string[]) {
@@ -652,26 +1063,6 @@ export default function NavPermissionsPage() {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'position', section, orderedKeys }),
-      })
-      if (!r.ok) throw new Error()
-      setPositionSaveStates((prev) => ({ ...prev, [section]: 'saved' }))
-      invalidateNavPermissionsCache()
-    } catch {
-      setPositionSaveStates((prev) => ({ ...prev, [section]: 'error' }))
-    } finally {
-      setTimeout(() => {
-        setPositionSaveStates((prev) => ({ ...prev, [section]: 'idle' }))
-      }, 2500)
-    }
-  }
-
-  async function savePromotedPosition(section: NavSection, orderedKeys: string[]) {
-    setPositionSaveStates((prev) => ({ ...prev, [section]: 'saving' }))
-    try {
-      const r = await fetch('/api/settings/nav-permissions', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'promoted-position', section, orderedKeys }),
       })
       if (!r.ok) throw new Error()
       setPositionSaveStates((prev) => ({ ...prev, [section]: 'saved' }))
@@ -717,13 +1108,38 @@ export default function NavPermissionsPage() {
 
   return (
     <main className="app-container app-main">
-      <section className="app-panel mb-5 p-4">
-        <SettingsPageHeader
-          title="Permissions &amp; ordre de navigation"
-          subtitle="Accès, ordre et titre de chaque bouton. Toutes les modifications sont enregistrées automatiquement."
+      {showCreateModal && (
+        <CreateItemModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreate}
         />
+      )}
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={handleEditSave}
+        />
+      )}
 
-        {/* Legend */}
+      <section className="app-panel mb-5 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <SettingsPageHeader
+            title="Permissions &amp; ordre de navigation"
+            subtitle="Accès, ordre et titre de chaque bouton. Toutes les modifications sont enregistrées automatiquement."
+          />
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+          >
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
+              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
+            </svg>
+            Ajouter un item
+          </button>
+        </div>
+
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">
           <div className="flex flex-wrap gap-2">
             {ROLES.map((role) => {
@@ -752,7 +1168,7 @@ export default function NavPermissionsPage() {
               <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
               <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
             </svg>
-            Glisser pour réordonner
+            Glisser pour réordonner ou changer de section
           </span>
         </div>
       </section>
@@ -766,7 +1182,7 @@ export default function NavPermissionsPage() {
           {SECTION_ORDER.map((section) => {
             const items = displaySections[section] ?? []
             if (items.length === 0) return null
-            const nativeNavKeys = new Set((orderedSections[section] ?? []).map((i) => i.navKey))
+            const nativeNavKeys = new Set(allItems.filter((i) => i.section === section).map((i) => i.navKey))
             return (
               <SectionCard
                 key={section}
@@ -786,6 +1202,8 @@ export default function NavPermissionsPage() {
                 onDragStart={handleDragStart}
                 onDragEnter={handleDragEnter}
                 onDragEnd={handleDragEnd}
+                onDelete={handleDelete}
+                onEdit={(navKey) => setEditingItem(allItems.find((i) => i.navKey === navKey) ?? null)}
               />
             )
           })}

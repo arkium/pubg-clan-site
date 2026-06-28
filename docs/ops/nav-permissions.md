@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-Chaque bouton de navigation de l'application (sections clan, sections membre, menus admin/owner, navigation principale) est géré par un système de permissions dynamique. L'owner peut modifier les rôles requis, l'ordre d'affichage, les libellés et (pour la nav principale) les destinations cibles — sans toucher au code, depuis la page `/settings/nav-permissions`.
+Chaque bouton de navigation (sections clan/membre, menus admin/owner/superuser, navigation principale) est géré par un système de permissions stocké en base de données. L'owner peut modifier les rôles requis, l'ordre, les libellés et la section d'un item depuis `/settings/nav-permissions` — sans toucher au code, sans redéploiement.
 
 ---
 
@@ -10,15 +10,39 @@ Chaque bouton de navigation de l'application (sections clan, sections membre, me
 
 | Rôle | Fichier |
 |---|---|
-| Registre des items (source de vérité) | `src/lib/nav-permissions-registry.ts` |
-| Service DB (lecture/écriture AppConfig) | `src/lib/nav-permissions-service.ts` |
+| Types et fallback statique (déprecié) | `src/lib/nav-permissions-registry.ts` |
+| Service DB (CRUD table NavItem) | `src/lib/nav-permissions-service.ts` |
 | API REST | `src/app/api/settings/nav-permissions/route.ts` |
 | Hook client (cache sessionStorage) | `src/hooks/useNavPermissions.ts` |
-| Navigation principale sidebar | `src/components/ClanNavigation.tsx` |
-| Navigation section clan | `src/components/ClanSectionNav.tsx` |
-| Navigation section membre | `src/components/MemberSectionNav.tsx` |
-| Navigation section admin/owner | `src/components/SettingsSectionNav.tsx` |
-| Page de gestion owner | `src/app/settings/nav-permissions/page.tsx` |
+| Navigation sidebar | `src/components/ClanNavigation.tsx` |
+| Page de gestion owner/superuser | `src/app/settings/nav-permissions/page.tsx` |
+
+> `ClanSectionNav.tsx`, `MemberSectionNav.tsx` et `SettingsSectionNav.tsx` ont été supprimés lors de la refonte navigation (Phase 4 terminée).
+
+---
+
+## Table `NavItem` (source de vérité)
+
+```prisma
+model NavItem {
+  id              Int      @id @default(autoincrement())
+  navKey          String   @unique
+  section         String                     // NavSection native
+  label           String
+  hrefTemplate    String
+  defaultRole     String                     // NavRole
+  description     String   @default("")
+  sortOrder       Int      @default(0)       // ordre d'affichage dans la section native
+  sectionOverride String?                    // si non-null : section d'affichage différente de section
+  roleOverride    String?                    // remplace defaultRole au runtime
+  labelOverride   String?                    // remplace label au runtime
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+```
+
+Peuplée via `prisma/seed-nav-items.ts` (idempotent, `upsert` sur `navKey`).
 
 ---
 
@@ -27,127 +51,57 @@ Chaque bouton de navigation de l'application (sections clan, sections membre, me
 ```typescript
 type NavItemDef = {
   navKey: string         // clé unique, ex: 'clan.stats-weapons'
-  section: NavSection    // 'nav-primary' | 'clan-section' | 'member-section' | 'admin-menu' | 'owner-menu'
-  label: string          // libellé par défaut
+  section: NavSection    // section effective (sectionOverride ?? section)
+  label: string          // libellé effectif (labelOverride ?? label)
   hrefTemplate: string   // ex: '/clans/:clanId/stats/weapons'
-  defaultRole: NavRole   // valeur par défaut codée dans le registre
-  description: string    // explication courte pour la page de gestion
+  defaultRole: NavRole   // rôle effectif (roleOverride ?? defaultRole)
+  description: string
 }
 ```
 
 ---
 
-## Registre `NAV_REGISTRY`
+## Les six rôles
 
-Défini dans `src/lib/nav-permissions-registry.ts`. C'est la source de vérité : tout bouton absent du registre n'existe pas.
-
-### Sections et contenu
-
-| Section | Items (navKeys principaux) | Défaut rôle |
-|---|---|---|
-| `nav-primary` | `primary.dashboard`, `primary.mon-clan`, `primary.mon-compte` | `none` |
-| `clan-section` | `clan.challenges`, `clan.overview`, `clan.members`, `clan.matches`, `clan.stats`, `clan.stats-weapons`, `clan.stats-weapons-categories`, `clan.heatmap-kills`, `clan.positions`, `clan.drop-zones`, `clan.awards`, `clan.leaderboard`, `clan.reports` | mixte |
-| `member-section` | `member.dashboard`, `member.stats`, `member.weapons`, `member.map-stats`, `member.drop-zones`, `member.heatmap`, `member.matches`, `member.rewards`, `member.notifications`, `member.notification-preferences` | `none` |
-| `admin-menu` | `admin.add-player`, `admin.players-roles`, `admin.map-labels`, `admin.weapon-labels`, `admin.weapon-categories`, `admin.phase-labels`, `admin.login-welcome` | `admin` |
-| `owner-menu` | `owner.telemetry-dashboard`, `owner.telemetry-errors`, `owner.telemetry-sync-batch`, `owner.cron`, `owner.telemetry-recoveries`, `owner.telemetry-matches`, `owner.email-delivery`, `owner.pubg-api`, `owner.nav-permissions`, `owner.switch-clan` | `owner` |
-
-Rôles par défaut notables dans `clan-section` :
-- `none` : `clan.challenges`, `clan.matches`, `clan.stats`, `clan.awards`, `clan.leaderboard`, `clan.reports`.
-- `admin` : `clan.overview`, `clan.members`.
-- `owner` : `clan.stats-weapons`, `clan.stats-weapons-categories`, `clan.heatmap-kills`, `clan.positions`, `clan.drop-zones`.
-
-Pour ajouter un bouton : ajouter une entrée dans `NAV_REGISTRY` avec un `navKey` unique, puis ajouter le lien dans le composant de navigation correspondant. Aucune autre modification n'est nécessaire.
-
----
-
-## Les cinq rôles
-
-| Rôle | Valeur | Qui peut voir |
-|---|---|---|
-| `none` | Tous | Tous les utilisateurs (pas de garde d'auth sur le bouton) |
-| `member` | Membre | Utilisateurs avec session valide |
-| `admin` | Admin | Utilisateurs avec `manage_members`, `manage_roles`, `manage_settings` ou `*` |
-| `owner` | Owner | Utilisateurs avec la permission wildcard `*` |
-| `hidden` | Masqué | Personne — bouton invisible et désactivé pour tous, y compris l'owner |
-
-La hiérarchie est inclusive : un owner voit tout sauf `hidden`. Le rôle `hidden` est orthogonal — il s'applique indépendamment du rôle de l'utilisateur.
-
-Implémentation dans les composants de navigation :
-
-```typescript
-function canAccess(role: NavRole, isOwner: boolean, isAdmin: boolean): boolean {
-  if (role === 'hidden') return false
-  if (role === 'none' || role === 'member') return true
-  if (role === 'admin') return isAdmin
-  if (role === 'owner') return isOwner
-  return true
-}
-
-// isOwner = permissions.includes('*')
-// isAdmin = permissions.includes('*') || permissions.includes('manage_members')
-//         || permissions.includes('manage_roles') || permissions.includes('manage_settings')
-```
-
----
-
-## Couleurs d'indication visuelle
-
-Les liens de navigation affichent une bordure colorée selon le rôle requis.
-
-| Rôle | Couleur | Classes CSS |
-|---|---|---|
-| `none` / `member` | Aucune (style standard) | `clan-section-nav-link` |
-| `admin` | Rouge | `clan-section-nav-link--admin` / `--admin-active` |
-| `owner` | Ambre/doré | `clan-section-nav-link--owner` / `--owner-active` |
-| `hidden` | (badge dans page gestion uniquement) | — |
-
-Utilitaire `getRoleLinkClass(role, active, variant)` dans `nav-permissions-registry.ts` :
-
-```typescript
-getRoleLinkClass('admin', false, 'section')  // → 'clan-section-nav-link--admin'
-getRoleLinkClass('owner', true,  'section')  // → 'clan-section-nav-link--owner-active'
-getRoleLinkClass('admin', false, 'submenu')  // → 'clan-submenu-link--admin'
-getRoleLinkClass('none',  true,  'section')  // → 'clan-section-nav-link--active'
-```
-
-Ne jamais hardcoder `border-red-400` directement dans un composant de navigation — utiliser `getRoleLinkClass`.
-
----
-
-## Stockage — Table `AppConfig`
-
-Les overrides sont stockés dans la table `AppConfig` (modèle Prisma existant). Seules les surcharges par rapport aux valeurs par défaut du registre sont persistées. Si l'owner remet un item à son rôle par défaut, l'entrée est supprimée.
-
-| Clé AppConfig | Contenu | Type |
-|---|---|---|
-| `nav_permissions` | Overrides de rôle | `Record<navKey, NavRole>` |
-| `nav_positions` | Ordres personnalisés par section | `Record<section, string[]>` |
-| `nav_labels` | Libellés personnalisés | `Record<navKey, string>` |
-| `nav_targets` | Destinations des boutons `nav-primary` | `Record<navKey, string>` |
+| Rôle | Qui peut voir |
+|---|---|
+| `none` | Tous les utilisateurs |
+| `member` | Utilisateurs avec session valide |
+| `admin` | Permission `manage_members`, `manage_roles`, `manage_settings` ou `*` |
+| `owner` | Permission wildcard `*` |
+| `superuser` | Flag `isSuperUser` uniquement |
+| `hidden` | Personne — bouton invisible pour tous |
 
 ---
 
 ## Service `nav-permissions-service.ts`
 
-Fonctions principales :
+Toutes les lectures/écritures passent par la table `NavItem`.
+
+### Fonctions de lecture
 
 | Fonction | Rôle |
 |---|---|
-| `getNavPermissionOverrides()` | Lit les overrides de rôle depuis `AppConfig` |
-| `getNavItemRole(navKey)` | Retourne le rôle effectif (override ou défaut) |
-| `setNavPermission(navKey, role)` | Écrit ou supprime un override de rôle |
-| `getNavPositions()` | Lit les ordres personnalisés |
-| `setNavSectionOrder(section, orderedKeys)` | Valide et persiste l'ordre d'une section |
-| `getNavLabels()` | Lit les libellés personnalisés |
-| `setNavLabel(navKey, label)` | Écrit ou supprime un libellé |
-| `getNavTargets()` | Lit les destinations personnalisées (`nav-primary`) |
-| `setNavTarget(navKey, targetNavKey)` | Valide et persiste une destination |
+| `getAllNavItems()` | Tous les items actifs (avec overrides appliqués) |
+| `getNavPermissions()` | `[{ navKey, role }]` — rôle effectif par item |
+| `getNavItemRole(navKey)` | Rôle effectif d'un item |
+| `getNavPositions()` | `{ section: navKey[] }` — ordre par section |
+| `getNavPromotedPositions()` | Items déplacés via `sectionOverride` |
+| `getNavLabels()` | `{ navKey: label }` — libellés overridés |
+| `getNavPermissionOverrides()` | `{ navKey: role }` — items avec `roleOverride` |
 
-`setNavSectionOrder` valide que `orderedKeys` contient exactement tous les navKeys de la section.
+### Fonctions d'écriture
 
-Destinations configurables (`nav-primary`) :
-- `primary.mon-clan` → doit pointer vers un item de la section `clan-section`.
-- `primary.dashboard` → doit pointer vers un item de la section `member-section`.
+| Fonction | Rôle |
+|---|---|
+| `setNavPermission(navKey, role)` | Met `roleOverride` (null si retour au défaut) |
+| `setNavLabel(navKey, label)` | Met `labelOverride` (null si retour au défaut) |
+| `setNavSectionOrder(section, orderedKeys)` | Bulk update `sortOrder` |
+| `setNavPromotedOrder(section, orderedKeys)` | Bulk update `sortOrder` pour items promus |
+| `createNavItem(data)` | Crée un nouvel item avec `sortOrder` max+1 |
+| `updateNavItem(navKey, patch)` | Patch label/hrefTemplate/description/defaultRole |
+| `deleteNavItem(navKey)` | Supprime l'item |
+| `moveToSection(navKey, targetSection)` | Met `sectionOverride` |
 
 ---
 
@@ -157,22 +111,22 @@ Route : `src/app/api/settings/nav-permissions/route.ts`
 
 ### GET `/api/settings/nav-permissions`
 
-Public (pas d'authentification requise). Retourne uniquement les overrides :
+Public. Retourne les définitions complètes + états effectifs :
 
 ```json
 {
-  "roles":     { "clan.stats-weapons": "owner" },
-  "positions": { "clan-section": ["clan.matches", "clan.stats", "..."] },
-  "labels":    { "clan.matches": "Parties" },
-  "targets":   { "primary.mon-clan": "clan.members" }
+  "items": [
+    { "navKey": "clan.matches", "section": "clan-section", "label": "Matchs",
+      "hrefTemplate": "/clans/:clanId/matches", "defaultRole": "none", "description": "..." }
+  ],
+  "roles":             { "clan.stats-weapons": "owner" },
+  "positions":         { "clan-section": ["clan.matches", "clan.stats", "..."] },
+  "promotedPositions": { "admin-menu": ["clan.overview"] },
+  "labels":            { "clan.matches": "Parties" }
 }
 ```
 
-Les clés absentes du retour utilisent les valeurs par défaut du registre côté client.
-
-### PUT `/api/settings/nav-permissions`
-
-Owner uniquement (`requireRole(['Owner'])`). Corps JSON avec `action` :
+### PUT `/api/settings/nav-permissions` — Owner/SuperUser requis
 
 ```json
 // Changer un rôle
@@ -181,72 +135,78 @@ Owner uniquement (`requireRole(['Owner'])`). Corps JSON avec `action` :
 // Réordonner une section
 { "action": "position", "section": "clan-section", "orderedKeys": ["clan.matches", "..."] }
 
+// Réordonner les items promus dans une section cible
+{ "action": "promoted-position", "section": "admin-menu", "orderedKeys": ["clan.overview"] }
+
 // Renommer un bouton
 { "action": "label", "navKey": "clan.matches", "label": "Parties" }
 
-// Changer la destination d'un bouton nav-primary
-{ "action": "target", "navKey": "primary.mon-clan", "targetNavKey": "clan.members" }
+// Créer un nouvel item
+{ "action": "create", "data": { "navKey": "clan.new-page", "section": "clan-section",
+  "label": "Ma page", "hrefTemplate": "/clans/:clanId/ma-page",
+  "defaultRole": "none", "description": "..." } }
+
+// Supprimer un item
+{ "action": "delete", "navKey": "clan.new-page" }
+
+// Déplacer vers une autre section
+{ "action": "move-section", "navKey": "clan.overview", "targetSection": "admin-menu" }
 ```
 
 ---
 
 ## Hook client `useNavPermissions`
 
-Utilisé par tous les composants de navigation pour charger rôles, positions, libellés et destinations en une seule requête.
-
-- Cache `sessionStorage` avec TTL 5 minutes (clé `nav_permissions_cache`).
-- Retourne `{ roles, positions, labels, targets }`.
-- En cas d'erreur fetch : retourne des objets vides — les valeurs par défaut du registre s'appliquent.
-- `invalidateNavPermissionsCache()` : vide le cache (à appeler après tout PUT réussi).
+- Initialise avec `NAV_REGISTRY` comme fallback pendant le chargement de l'API.
+- Cache `sessionStorage` TTL 5 min (clé `nav_permissions_cache`).
+- Retourne `{ items, roles, positions, promotedPositions, labels }`.
+- `items` contient les définitions complètes depuis la DB dès que l'API répond.
+- `invalidateNavPermissionsCache()` : vide le cache (appeler après tout PUT réussi).
 
 ---
 
 ## Page de gestion `/settings/nav-permissions`
 
-Accès : Owner uniquement (redirection sinon).
+Accès : Owner ou SuperUser.
 
-### Structure
+### Fonctionnalités
 
-Un panneau par section, dans l'ordre : `nav-primary`, `clan-section`, `member-section`, `admin-menu`, `owner-menu`.
+- **Créer** : bouton "Ajouter un item" → modal avec champs navKey, section, label, hrefTemplate, defaultRole, description.
+- **Modifier le rôle** : sélecteur inline (sauvegarde immédiate au clic).
+- **Renommer** : clic sur le crayon → input inline → save au blur ou Entrée.
+- **Réordonner** : drag & drop dans la même section (HTML5 natif).
+- **Déplacer entre sections** : glisser un item vers une carte de section différente → `move-section`.
+- **Supprimer** : icône poubelle → confirmation inline → delete.
 
-### Chaque carte d'item affiche
+### Affichage
 
-- Poignée de drag (6 points) — pour réordonner.
-- Badge de position (#N dans la section).
-- Compteur N/total.
-- Nom de l'item et badge de rôle actuel.
-- Badge "Modifié" si le rôle diffère du défaut du registre.
-- Route (`hrefTemplate`) en monospace.
-- Description de la fonctionnalité.
-- Sélecteur de rôle : 5 boutons (`Tous`, `Membre`, `Admin`, `Owner`, `Masqué`). Le défaut du registre est marqué d'un ✦.
-- Champ libellé : input texte avec auto-save à la perte de focus.
-- Sélecteur de destination (section `nav-primary` uniquement).
-- Feedback inline : `✓ Sauvegardé` / `✗ Erreur` (disparaît après 2 s).
-
-### Drag & drop
-
-Implémenté via l'API HTML5 native (`draggable`, `onDragStart`, `onDragEnter`, `onDragEnd`). Pas de librairie externe. La réorganisation est limitée à l'intérieur d'une même section. En cas d'erreur API lors du drop, le feedback s'affiche mais l'ordre local n'est pas rollback (rechargement de page pour réinitialiser).
-
-### Auto-save
-
-- Changement de rôle : PUT immédiat au clic.
-- Changement d'ordre : PUT au drop.
-- Changement de libellé : PUT au blur (perte de focus).
-- Changement de destination : PUT à la sélection.
-- Après chaque PUT réussi : `invalidateNavPermissionsCache()`.
+- Un panneau (`app-panel`) par section dans l'ordre `nav-primary → clan → member → admin → owner → superuser`.
+- Items avec `sectionOverride` apparaissent en tirets dans leur section d'affichage, avec fond distinct.
+- Badge ✦ sur le bouton de rôle correspondant au `defaultRole`.
+- Badge "Modifié" si `roleOverride` actif. Badge "Renommé" si `labelOverride` actif.
 
 ---
 
 ## Ajouter un nouveau bouton de navigation
 
-1. Ajouter l'entrée dans `NAV_REGISTRY` avec un `navKey` unique, la section, le label, le `hrefTemplate`, le `defaultRole` et la description.
-2. Ajouter le lien dans le composant de navigation correspondant (`ClanSectionNav`, `MemberSectionNav`, `SettingsSectionNav`) en utilisant le même `navKey`.
-3. Pour les pages admin/owner, inclure `<SettingsSectionNav section="admin-menu" />` (ou `owner-menu`) en haut du `<main>`.
-4. La page `/settings/nav-permissions` et l'API découvrent automatiquement le nouvel item.
+Depuis l'UI : page `/settings/nav-permissions` → bouton **"Ajouter un item"**.
+
+Aucune modification de code requise. L'item est immédiatement visible dans la navigation après création (le hook invalide son cache après l'opération réussie).
 
 ---
 
-## Limites connues
+## `NAV_REGISTRY` — statut déprecié
 
-- Le drag & drop ne fonctionne pas entre sections.
-- Pas de rollback de position en cas d'erreur API — rechargement de page requis.
+`NAV_REGISTRY` dans `src/lib/nav-permissions-registry.ts` est marqué `@deprecated`. Il sert uniquement de valeur initiale dans `useNavPermissions` pendant le premier rendu (avant que l'API réponde). La source de vérité est désormais la table `NavItem`.
+
+`getItemRole()` dans le même fichier est également déprecié : avec `navPerms.roles` chargé depuis la DB, le fallback vers `NAV_REGISTRY` n'est plus atteint.
+
+---
+
+## Seed
+
+```bash
+npx tsx prisma/seed-nav-items.ts
+```
+
+Idempotent (upsert sur `navKey`). À relancer si vous restaurez la DB ou si les defaults du registre ont changé.

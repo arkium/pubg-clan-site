@@ -81,7 +81,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Déploiement production](ops/deployment.md) | Variables d'env, build, 4 processus à démarrer, units systemd, migration DB, rollback, healthchecks |
 | [Cron](ops/cron.md) | 9 jobs planifiés, actions manuelles, table CronExecution, pages de pilotage, variables d'env |
 | [Paramètres admin](ops/settings.md) | 7 pages /settings/* — PUBG API, email, welcome, labels cartes/armes/phases, catégories armes |
-| [Permissions navigation](ops/nav-permissions.md) | Registre NavItemDef, rôles, couleurs, ordre drag & drop, page owner /settings/nav-permissions |
+| [Permissions navigation](ops/nav-permissions.md) | Table NavItem en DB, CRUD depuis l'UI, rôles, ordre drag & drop inter-sections, page owner/superuser |
 | [Bootstrap SuperUser](ops/superuser-bootstrap.md) | Procédure CLI pour accorder/révoquer le statut SuperUser, prérequis, matrice des droits |
 
 ---

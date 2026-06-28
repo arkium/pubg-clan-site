@@ -85,18 +85,18 @@ Déclenché à minuit chaque nuit. Traite les challenges expirés (`endChallenge
 
 ---
 
-## Actions manuelles (page ops cron clan)
+## Actions manuelles (page ops cron SuperUser)
 
-La page `/clans/[clanId]/settings/cron` (Owner uniquement) expose des boutons pour déclencher manuellement les actions sur un seul clan via `POST /api/clans/[clanId]/cron-control`.
+La page `/settings/cron` (SuperUser uniquement) expose des boutons pour déclencher manuellement les actions sur le clan actif via `POST /api/clans/[clanId]/cron-control`.
 
 | Action | Bouton | Ce qu'elle fait |
 |---|---|---|
-| `sync_matches` | Sync matchs | Import matchs PUBG + détection squads pour le clan |
-| `sync_lifetime_stats` | Sync stats lifetime | Rafraîchit les stats lifetime PUBG pour le clan |
-| `generate_weekly_report` | Rapport hebdo | Génère le rapport de la semaine précédente pour le clan |
-| `generate_monthly_report` | Rapport mensuel | Génère le rapport du mois précédent pour le clan |
-
-L'action `sync_stats` (recalcul stats) n'est plus exposée en bouton — elle se déclenche automatiquement après un `sync_matches` réussi avec de nouveaux matchs.
+| `sync_matches` | Sync matchs | Import matchs PUBG + détection squads. Déclenche automatiquement `sync_stats` si de nouveaux matchs sont importés. |
+| `sync_stats` | Recalcul stats | Recalcul des agrégats stats du clan sans appel API PUBG. |
+| `sync_telemetry_aggregates` | Recalcul agrégats télémétrie | Recalcul des périodes d'agrégats télémétrie (positions, armes, synergies). |
+| `sync_lifetime_stats` | Sync stats lifetime | Rafraîchit les stats lifetime PUBG pour tous les membres du clan. |
+| `generate_weekly_report` | Rapport hebdo | Génère le rapport de la semaine précédente pour le clan. |
+| `generate_monthly_report` | Rapport mensuel | Génère le rapport du mois précédent pour le clan. |
 
 ---
 
@@ -134,81 +134,127 @@ Pour `sync_matches`, `details` peut contenir :
 
 ---
 
-## Page admin globale `/settings/cron`
+## Page ops cron SuperUser `/settings/cron`
 
-Page d'entrée qui redirige automatiquement vers `/clans/[clanId]/settings/cron` du clan actif. Ne contient pas de contenu propre.
+Accès : SuperUser uniquement. Vérifié côté client par `useAuthSession().isSuperUser` et côté API par `isSuperUserSession`.
 
----
+La page opère sur le **clan actif** (sélectionné via `useSelectedClan`). Elle consolide en un seul endroit la supervision des trois pipelines indépendants.
 
-## Page ops clan `/clans/[clanId]/settings/cron`
+### Bloc santé (4 cards métriques)
 
-Accès : Owner uniquement. Vérifié côté API par `requireRole(['Owner'])`.
-
-Blocs affichés :
-
-### Bloc santé
-
-Agrège via `getCronOverview(clanId)` :
+Agrège via `GET /api/clans/[clanId]/cron-control` (`take: 200`) :
 - Taux de succès récent.
-- Nombre d'exécutions récentes.
+- Total exécutions récentes / terminées.
 - Jobs en cours (`running`).
-- Echecs récents.
-- Date du dernier sync lifetime.
+- Échecs récents.
+
+### Bloc statut des workers
+
+Affiche 3 panneaux côte à côte via `GET /api/settings/cron-workers-status` :
+
+| Panneau | Source de données |
+|---|---|
+| Cron scheduler (Next.js) | `runtime.webWorker` dans la réponse `cron-control` |
+| `telemetry:worker` | Lock file `.telemetry-resync-worker.lock` + stats queue `CronExecution` |
+| `telemetry:aggregates:worker` | Lock file `.telemetry-aggregate-worker.lock` + stats queue `CronExecution` |
+
+Les lock files sont lus par l'API depuis le filesystem (même machine). La vivacité du process est testée via `process.kill(pid, 0)`.
+
+### Bloc dernière exécution par action
+
+Tableau synthétique : une ligne par action connue (13 actions), source `latestByAction` dans la réponse `cron-control`. Ligne vide si aucune exécution trouvée.
+
+### Bloc actions manuelles
+
+6 boutons avec descriptif fonctionnel. Voir section "Actions manuelles" ci-dessus.
 
 ### Bloc configuration
 
 `getCronConfigurationChecks()` vérifie les variables d'environnement et leur cohérence. Chaque check retourne un statut `ok`, `warning` ou `error`. Variables vérifiées :
 
-**Runtime cron :** `ENABLE_CRON_JOBS`, `ENABLE_CRON_BOOTSTRAP`, `DATABASE_URL`, `INTERNAL_APP_URL`.
+**Système & API :** `ENABLE_CRON_JOBS`, `ENABLE_CRON_BOOTSTRAP`, `DATABASE_URL`, `INTERNAL_APP_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, `PUBG_API_KEY`, `NODE_ENV`.
 
 **Télémétrie :** `TELEMETRY_SYNC_ENABLED`, `TELEMETRY_PARSER_VERSION`, `TELEMETRY_MAX_MATCHES_PER_RUN`, `TELEMETRY_SYNC_CONCURRENCY`, `TELEMETRY_RETRY_MAX`, `TELEMETRY_FETCH_TIMEOUT_MS`, `TELEMETRY_MAX_ASSET_SIZE_MB`, `TELEMETRY_CAPTURE_FIXTURES`, `TELEMETRY_CAPTURE_FIXTURES_DIR`, `TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES`.
 
-**Reminders :** `CLAN_ONLINE_REMINDER_CRON`, `WEEKLY_REPORT_REMINDER_CRON`.
+**Schedules :** toutes les variables `*_CRON` avec description en langage naturel.
 
-**Intégrité :** validité des expressions cron.
-
-### Bloc rate limit PUBG API
-
-Snapshot des headers rate-limit les plus récents observés lors des appels PUBG : `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `observedAt`. Permet de vérifier si les syncs approchent du plafond.
-
-### Bloc runtime cron worker
-
-Sonde `GET /api/internal/cron/status` (header `x-cron-bootstrap-secret` = `CRON_BOOTSTRAP_SECRET`). Confirme si le worker cron est actif et si les jobs sont activés.
+Snapshot rate limit PUBG API en pied de section.
 
 ### Bloc historique
 
-Liste les dernières entrées `CronExecution` pour ce clan. Colonnes : action, statut, début, durée, source, message.
+Dernières 200 entrées `CronExecution` (toutes actions, tous workers). Pagination 10 lignes. Filtres Action et Statut. Lignes expandables pour voir le JSON `details`.
 
 ---
 
-## Routes API internes
+## Workers télémétrie
 
-| Route | Méthode | Rôle |
+En plus du cron scheduler (dans Next.js), deux workers Node.js séparés gèrent le backfill télémétrie :
+
+| Commande | Action `CronExecution` | Rôle |
 |---|---|---|
-| `/api/clans/[clanId]/cron-control` | GET | Statut health cron du clan (rate limit, checks, overview, historique) |
-| `/api/clans/[clanId]/cron-control` | POST | Déclencher une action manuelle |
-| `/api/internal/cron/bootstrap` | POST | Démarrer les crons (header secret requis) |
-| `/api/internal/cron/status` | GET | Vérifier si le worker cron est actif (header secret requis) |
+| `npm run telemetry:worker` | `telemetry_resync_file` | Télécharge et parse les fichiers de télémétrie capturés |
+| `npm run telemetry:aggregates:worker` | `telemetry_recalc_aggregates` | Recalcule les agrégats de période à partir des données parsées |
+
+Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indépendants du scheduler Next.js. Ils utilisent un lock file JSON pour le single-instance et récupèrent automatiquement les jobs bloqués (`running` > seuil) au démarrage.
+
+---
+
+## Routes API
+
+| Route | Méthode | Accès | Rôle |
+|---|---|---|---|
+| `/api/clans/[clanId]/cron-control` | GET | Owner ou SuperUser | Statut health cron du clan (rate limit, checks, overview, historique — `take: 200`) |
+| `/api/clans/[clanId]/cron-control` | POST | Owner ou SuperUser | Déclencher une action manuelle sur le clan |
+| `/api/settings/cron-workers-status` | GET | SuperUser | Statut des workers télémétrie (lock files + stats queue) |
+| `/api/internal/cron/bootstrap` | POST | Secret header | Démarrer les crons (header `x-cron-bootstrap-secret` requis) |
+| `/api/internal/cron/status` | GET | Secret header | Vérifier si le worker cron est actif |
 
 ---
 
 ## Variables d'environnement
 
+### Scheduler Next.js
+
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `ENABLE_CRON_JOBS` | — | `true` sur le worker cron uniquement |
+| `ENABLE_CRON_JOBS` | `false` | `true` sur le worker cron uniquement |
+| `ENABLE_CRON_BOOTSTRAP` | `false` | Active l'endpoint HTTP interne de statut cron |
 | `CRON_BOOTSTRAP_SECRET` | — | Secret partagé entre web worker et worker cron |
-| `CLAN_MATCH_SYNC_CRON` | `0 2 * * *` | Expression cron sync matchs |
+| `INTERNAL_CRON_STATUS_URL` | `http://127.0.0.1:3001/api/internal/cron/status` | URL sondée par la page ops pour vérifier le cron scheduler |
 | `CLAN_MATCH_SYNC_TIMEZONE` | `UTC` | Timezone des expressions cron |
-| `CLAN_STATS_RECALC_CRON` | `0 3 * * *` | Expression cron recalcul stats |
-| `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 4 * * *` | Expression cron lifetime |
-| `CLAN_SEASON_STATS_SYNC_CRON` | `0 5 * * *` | Expression cron saison ranked |
-| `CLAN_ONLINE_REMINDER_CRON` | `0 18 * * *` | Expression cron rappels online |
-| `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | Expression cron rappels rapport |
-| `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Expression cron rapport hebdo |
-| `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Expression cron rapport mensuel |
-| `INTERNAL_APP_URL` | — | URL interne du web worker (ex : `http://127.0.0.1:3000`) |
-| `TELEMETRY_SYNC_ENABLED` | — | `true` pour activer la sync télémétrie dans le cron |
+| `CLAN_MATCH_SYNC_CRON` | `0 2 * * *` | Sync matchs |
+| `CLAN_STATS_RECALC_CRON` | `0 3 * * *` | Recalcul stats |
+| `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 4 * * *` | Stats lifetime |
+| `CLAN_SEASON_STATS_SYNC_CRON` | `0 5 * * *` | Stats saison ranked |
+| `CLAN_ONLINE_REMINDER_CRON` | `0 18 * * *` | Rappels online |
+| `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | Rappels rapport hebdo |
+| `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Génération rapport hebdo |
+| `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génération rapport mensuel |
+
+### Télémétrie sync (cron + workers)
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `TELEMETRY_SYNC_ENABLED` | `false` | Active la sync télémétrie dans `daily_sync` |
+| `TELEMETRY_MAX_MATCHES_PER_RUN` | `50` | Nombre max de matchs par run de sync |
+| `TELEMETRY_SYNC_CONCURRENCY` | `2` | Concurrence de téléchargement |
+| `TELEMETRY_RETRY_MAX` | `2` | Tentatives max par fichier |
+| `TELEMETRY_FETCH_TIMEOUT_MS` | `30000` | Timeout de téléchargement (ms) |
+| `TELEMETRY_MAX_ASSET_SIZE_MB` | `250` | Taille max d'un fichier (Mo) |
+
+### Workers télémétrie
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `TELEMETRY_RESYNC_WORKER_POLL_MS` | `2000` | Délai de polling du worker resync (ms) |
+| `TELEMETRY_RESYNC_WORKER_MAX_PARALLEL` | `1` | Parallélisme max du worker resync |
+| `TELEMETRY_RESYNC_STUCK_RECOVERY_MS` | `120000` | Délai avant récupération d'un job bloqué |
+| `TELEMETRY_WORKER_MEMORY_THRESHOLD_PCT` | `80` | Seuil mémoire déclenchant la backpressure (%) |
+| `TELEMETRY_WORKER_MEMORY_CRITICAL_PCT` | `95` | Seuil mémoire critique → arrêt du worker (%) |
+| `TELEMETRY_AGGREGATE_WORKER_POLL_MS` | `3000` | Délai de polling du worker agrégats (ms) |
+| `TELEMETRY_AGGREGATE_WORKER_MAX_PARALLEL` | `1` | Parallélisme max du worker agrégats |
+
+Voir `.env.example` pour la liste complète des variables disponibles avec leurs valeurs par défaut.
 
 ---
 

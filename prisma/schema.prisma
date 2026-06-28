@@ -772,3 +772,23 @@ model PubgApiCallLog {
   @@index([source, startedAt])
   @@map("PubgApiCallLog")
 }
+
+model NavItem {
+  id              Int      @id @default(autoincrement())
+  navKey          String   @unique
+  section         String
+  label           String
+  hrefTemplate    String
+  defaultRole     String
+  description     String   @default("")
+  sortOrder       Int      @default(0)
+  sectionOverride String?
+  roleOverride    String?
+  labelOverride   String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([section, sortOrder])
+  @@map("NavItem")
+}

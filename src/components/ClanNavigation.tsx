@@ -10,7 +10,7 @@ import NavIcon from '@/components/ui/NavIcon'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
-import { NAV_REGISTRY, getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
+import { getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 
 type ClanSummary = {
   id: number
@@ -383,7 +383,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   function isNavHidden(navKey: string): boolean {
     const role = navPerms.roles[navKey]
     if (role !== undefined) return role === 'hidden'
-    return NAV_REGISTRY.find((i) => i.navKey === navKey)?.defaultRole === 'hidden'
+    return navPerms.items.find((i) => i.navKey === navKey)?.defaultRole === 'hidden'
   }
 
   function resolveHref(template: string): string {
@@ -414,7 +414,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
 
   function getFirstSectionHref(section: NavSection, fallback: string): string {
-    const items = NAV_REGISTRY.filter((i) => {
+    const items = navPerms.items.filter((i) => {
       if (i.section !== section) return false
       if (i.navKey === 'owner.switch-clan') return false
       const role = getItemRole(i.navKey, navPerms.roles)
@@ -529,7 +529,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     for (const { section, canSee } of sectionsToCheck) {
       if (!canSee) continue
       const memberId = section === 'member-section' ? memberIdForCtx : activeMemberId
-      if (NAV_REGISTRY.some((i) => i.section === section && ctxHrefMatchesPath(resolveCtxHref(i.hrefTemplate, memberId), pathname))) {
+      if (navPerms.items.some((i) => i.section === section && ctxHrefMatchesPath(resolveCtxHref(i.hrefTemplate, memberId), pathname))) {
         return section
       }
     }
@@ -538,7 +538,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
   function getCtxSectionItems(section: NavSection): { regularItems: CtxItem[]; roleItems: CtxItem[] } {
     const memberId = section === 'member-section' ? memberIdForCtx : activeMemberId
-    const native = NAV_REGISTRY.filter((i) => {
+    const native = navPerms.items.filter((i) => {
       if (i.section !== section) return false
       const role = getItemRole(i.navKey, navPerms.roles)
       const target = CTX_ROLE_TO_TARGET[role]
@@ -552,7 +552,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
         })
       : native
-    const promoted = NAV_REGISTRY.filter((i) => {
+    const promoted = navPerms.items.filter((i) => {
       if (i.section === section) return false
       const role = getItemRole(i.navKey, navPerms.roles)
       return CTX_ROLE_TO_TARGET[role] === section
@@ -755,22 +755,19 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     )
   }
 
-  function renderCtxSection(mobile = false) {
-    if (!activeSection) return null
-    const sectionTitle = CTX_SECTION_LABELS[activeSection]
-    if (!sectionTitle) return null
-    const { regularItems, roleItems } = getCtxSectionItems(activeSection)
+  function renderFullCtxSection(section: NavSection, sectionTitle: string, titleClass: string, mobile = false) {
+    const { regularItems, roleItems } = getCtxSectionItems(section)
     if (regularItems.length === 0 && roleItems.length === 0) return null
     return (
       <section className="mt-5">
-        <p className="sidebar-ctx-nav-title">{sectionTitle}</p>
+        <p className={titleClass}>{sectionTitle}</p>
         <div className="sidebar-ctx-nav-list">
           {regularItems.map((item) => renderCtxItem(item, mobile))}
           {roleItems.length > 0 && regularItems.length > 0 && (
             <div className="sidebar-ctx-nav-divider" />
           )}
           {roleItems.map((item) => renderCtxItem(item, mobile))}
-          {isViewingOtherMember && myProfileHref && (
+          {isViewingOtherMember && myProfileHref && section === activeSection && (
             <>
               <div className="sidebar-ctx-nav-divider" />
               <button
@@ -791,6 +788,13 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         </div>
       </section>
     )
+  }
+
+  function renderCtxSection(mobile = false) {
+    if (!activeSection) return null
+    const sectionTitle = CTX_SECTION_LABELS[activeSection]
+    if (!sectionTitle) return null
+    return renderFullCtxSection(activeSection, sectionTitle, 'sidebar-ctx-nav-title', mobile)
   }
 
   function onMobileDrawerTransitionEnd() {
@@ -1041,25 +1045,33 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             {renderCtxSection()}
 
             {activeSection !== 'admin-menu' && showAdminMenu ? (
-              <section>
-                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                  Admin
-                </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' })}
-                </div>
-              </section>
+              activeSection === 'superuser-menu'
+                ? renderFullCtxSection('admin-menu', 'Admin', 'sidebar-ctx-nav-title')
+                : (
+                  <section>
+                    <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                      Admin
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' })}
+                    </div>
+                  </section>
+                )
             ) : null}
 
             {activeSection !== 'owner-menu' && showOwnerMenu ? (
-              <section>
-                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                  Owner
-                </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
-                </div>
-              </section>
+              activeSection === 'superuser-menu'
+                ? renderFullCtxSection('owner-menu', 'Owner', 'sidebar-ctx-nav-title')
+                : (
+                  <section>
+                    <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                      Owner
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
+                    </div>
+                  </section>
+                )
             ) : null}
 
             {activeSection !== 'superuser-menu' && showSuperUserMenu ? (
@@ -1267,25 +1279,33 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             {renderCtxSection(true)}
 
             {activeSection !== 'admin-menu' && showAdminMenu ? (
-              <section className="mt-5">
-                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                  Admin
-                </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' }, true)}
-                </div>
-              </section>
+              activeSection === 'superuser-menu'
+                ? renderFullCtxSection('admin-menu', 'Admin', 'sidebar-ctx-nav-title', true)
+                : (
+                  <section className="mt-5">
+                    <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                      Admin
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' }, true)}
+                    </div>
+                  </section>
+                )
             ) : null}
 
             {activeSection !== 'owner-menu' && showOwnerMenu ? (
-              <section className="mt-5">
-                <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
-                  Owner
-                </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
-                </div>
-              </section>
+              activeSection === 'superuser-menu'
+                ? renderFullCtxSection('owner-menu', 'Owner', 'sidebar-ctx-nav-title', true)
+                : (
+                  <section className="mt-5">
+                    <p className={cx('mb-2 text-xs font-semibold uppercase tracking-[0.16em]', appTheme === 'dark' ? 'text-slate-400' : 'text-slate-500')}>
+                      Owner
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
+                    </div>
+                  </section>
+                )
             ) : null}
 
             {activeSection !== 'superuser-menu' && showSuperUserMenu ? (

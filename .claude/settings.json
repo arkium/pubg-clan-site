@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(netstat -ano)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}

@@ -738,6 +738,16 @@ model CronExecution {
   @@map("CronExecution")
 }
 
+model CronSchedule {
+  key        String   @id
+  expression String
+  timezone   String   @default("UTC")
+  updatedAt  DateTime @updatedAt
+  updatedBy  Int?
+
+  @@map("CronSchedule")
+}
+
 model PubgApiCallLog {
   id String @id @default(cuid())
 

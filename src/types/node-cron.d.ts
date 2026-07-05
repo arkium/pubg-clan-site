@@ -18,8 +18,11 @@ declare module 'node-cron' {
     options?: ScheduleOptions
   ): ScheduledTask
 
+  export function validate(expression: string): boolean
+
   const cron: {
     schedule: typeof schedule
+    validate: typeof validate
   }
 
   export default cron

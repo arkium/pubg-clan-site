@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  initCronJobs()
+  await initCronJobs()
 
   return NextResponse.json({
     ok: true,

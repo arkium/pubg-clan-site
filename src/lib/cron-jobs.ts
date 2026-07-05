@@ -12,49 +12,22 @@ import {
   fetchWeaponMastery,
   searchPlayerByName,
 } from '@/lib/pubg'
-import { syncTelemetryBatchForRecentSquadMatches } from '@/lib/pubg-telemetry/job'
-import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
+import { listSquadMatchesNeedingTelemetry } from '@/lib/pubg-telemetry/backlog'
+import { upsertFailedTelemetrySnapshot } from '@/lib/pubg-telemetry/index'
+import { enqueueTelemetryLiveSyncJobs } from '@/lib/pubg-telemetry/live-sync-queue'
 import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
-const DAILY_SYNC_SCHEDULE = process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *'
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
-const STATS_RECALC_SCHEDULE = process.env.CLAN_STATS_RECALC_CRON ?? '0 3 * * *'
-const LIFETIME_STATS_SYNC_SCHEDULE = process.env.CLAN_LIFETIME_STATS_SYNC_CRON ?? '0 4 * * *'
-const SEASON_STATS_SYNC_SCHEDULE = process.env.CLAN_SEASON_STATS_SYNC_CRON ?? '0 5 * * *'
-const CLAN_ONLINE_REMINDER_SCHEDULE =
-  process.env.CLAN_ONLINE_REMINDER_CRON ?? '0 18 * * *'
-const WEEKLY_REPORT_REMINDER_SCHEDULE =
-  process.env.WEEKLY_REPORT_REMINDER_CRON ?? '0 9 * * *'
-const WEEKLY_REPORT_GENERATION_SCHEDULE =
-  process.env.WEEKLY_REPORT_GENERATION_CRON ?? '0 8 * * 1'
-const MONTHLY_REPORT_GENERATION_SCHEDULE =
-  process.env.MONTHLY_REPORT_GENERATION_CRON ?? '0 8 1 * *'
 const MAX_SYNC_ATTEMPTS = 3
 
 type TelemetryCronSyncSummary = {
   status: 'success' | 'partial' | 'failed' | 'skipped'
   reason: string
   scanned: number
-  parsed: number
-  failed: number
-  skipped: number
-  metrics: {
-    bytesDownloaded: number
-    fetchMatchMs: number
-    downloadAssetMs: number
-    parseMs: number
-    persistMs: number
-  }
-}
-
-type TelemetryAggregateCronSummary = {
-  status: 'success' | 'partial' | 'failed' | 'skipped'
-  reason: string
-  periodsUpdated: number
-  memberTelemetryRows: number
-  memberWeaponRows: number
-  clanSynergyRows: number
+  queuedCount: number
+  alreadyQueuedCount: number
+  skippedNoAccount: number
 }
 
 type NotificationService = {
@@ -112,13 +85,13 @@ function getTelemetryMaxMatchesPerRun() {
   return Math.min(Math.floor(value), 200)
 }
 
-function getTelemetryBatchConcurrency() {
-  const value = Number(process.env.TELEMETRY_SYNC_CONCURRENCY ?? '2')
-  if (!Number.isFinite(value) || value <= 0) {
+function getTelemetryRetryMax() {
+  const value = Number(process.env.TELEMETRY_RETRY_MAX ?? '2')
+  if (!Number.isFinite(value) || value < 0) {
     return 2
   }
 
-  return Math.min(Math.floor(value), 8)
+  return Math.min(Math.floor(value), 5)
 }
 
 function getFailureTracker() {
@@ -223,136 +196,71 @@ async function runTelemetryBatchForClan(clanId: number): Promise<TelemetryCronSy
       status: 'skipped',
       reason: 'telemetry_sync_disabled',
       scanned: 0,
-      parsed: 0,
-      failed: 0,
-      skipped: 0,
-      metrics: {
-        bytesDownloaded: 0,
-        fetchMatchMs: 0,
-        downloadAssetMs: 0,
-        parseMs: 0,
-        persistMs: 0,
-      },
+      queuedCount: 0,
+      alreadyQueuedCount: 0,
+      skippedNoAccount: 0,
     }
   }
 
   try {
-    const result = await syncTelemetryBatchForRecentSquadMatches({
+    const parserVersion = process.env.TELEMETRY_PARSER_VERSION?.trim() || 'v1'
+    const backlog = await listSquadMatchesNeedingTelemetry(getTelemetryMaxMatchesPerRun(), {
       clanId,
-      maxMatchesPerRun: getTelemetryMaxMatchesPerRun(),
-      concurrency: getTelemetryBatchConcurrency(),
+      parserVersion,
+      retryMax: getTelemetryRetryMax(),
     })
 
-    if (result.failed > 0 && result.parsed > 0) {
-      return {
-        status: 'partial',
-        reason: 'batch_completed_with_failures',
-        scanned: result.scanned,
-        parsed: result.parsed,
-        failed: result.failed,
-        skipped: result.skipped,
-        metrics: result.metrics,
+    const matchesToQueue: {
+      squadMatchId: string
+      pubgMatchId: string
+      anyPlayerId: string
+      shard: string
+    }[] = []
+    let skippedNoAccount = 0
+
+    for (const match of backlog) {
+      const candidateMember = match.members.find((entry) => !!entry.member.pubgAccountId)
+
+      if (!candidateMember?.member.pubgAccountId) {
+        await upsertFailedTelemetrySnapshot({
+          squadMatchId: match.id,
+          parserVersion,
+          errorCode: 'PUBG_ACCOUNT_ID_MISSING',
+          errorMessage: 'No clan member with PUBG account id found for this squad match',
+        })
+        skippedNoAccount += 1
+        continue
       }
+
+      matchesToQueue.push({
+        squadMatchId: match.id,
+        pubgMatchId: match.pubgMatchId,
+        anyPlayerId: candidateMember.member.pubgAccountId,
+        shard: candidateMember.member.platformShard,
+      })
     }
 
-    if (result.failed > 0) {
-      return {
-        status: 'failed',
-        reason: 'batch_completed_with_only_failures',
-        scanned: result.scanned,
-        parsed: result.parsed,
-        failed: result.failed,
-        skipped: result.skipped,
-        metrics: result.metrics,
-      }
-    }
+    const enqueueResult = await enqueueTelemetryLiveSyncJobs({
+      clanId,
+      matches: matchesToQueue,
+    })
 
     return {
       status: 'success',
-      reason: result.scanned > 0 ? 'batch_completed' : 'no_match_to_process',
-      scanned: result.scanned,
-      parsed: result.parsed,
-      failed: result.failed,
-      skipped: result.skipped,
-      metrics: result.metrics,
+      reason: backlog.length > 0 ? 'batch_queued' : 'no_match_to_process',
+      scanned: backlog.length,
+      queuedCount: enqueueResult.queuedCount,
+      alreadyQueuedCount: enqueueResult.alreadyQueuedCount,
+      skippedNoAccount,
     }
   } catch (error) {
     return {
       status: 'failed',
       reason: error instanceof Error ? error.message : 'telemetry_batch_failed',
       scanned: 0,
-      parsed: 0,
-      failed: 0,
-      skipped: 0,
-      metrics: {
-        bytesDownloaded: 0,
-        fetchMatchMs: 0,
-        downloadAssetMs: 0,
-        parseMs: 0,
-        persistMs: 0,
-      },
-    }
-  }
-}
-
-async function runTelemetryAggregateRefreshForClan(
-  clanId: number,
-  telemetrySync: TelemetryCronSyncSummary
-): Promise<TelemetryAggregateCronSummary> {
-  if (!isTelemetrySyncEnabled()) {
-    return {
-      status: 'skipped',
-      reason: 'telemetry_sync_disabled',
-      periodsUpdated: 0,
-      memberTelemetryRows: 0,
-      memberWeaponRows: 0,
-      clanSynergyRows: 0,
-    }
-  }
-
-  if (telemetrySync.parsed <= 0) {
-    return {
-      status: 'skipped',
-      reason: 'no_new_telemetry_snapshot',
-      periodsUpdated: 0,
-      memberTelemetryRows: 0,
-      memberWeaponRows: 0,
-      clanSynergyRows: 0,
-    }
-  }
-
-  try {
-    const aggregateResult = await recalculateTelemetryPeriodAggregatesForClan(clanId)
-    const periodsUpdated = aggregateResult.summaries.length
-    const memberTelemetryRows = aggregateResult.summaries.reduce(
-      (sum, summary) => sum + summary.memberTelemetryRows,
-      0
-    )
-    const memberWeaponRows = aggregateResult.summaries.reduce(
-      (sum, summary) => sum + summary.memberWeaponRows,
-      0
-    )
-    const clanSynergyRows = aggregateResult.summaries.reduce(
-      (sum, summary) => sum + summary.clanSynergyRows,
-      0
-    )
-
-    return {
-      status: 'success',
-      reason: 'period_aggregates_refreshed',
-      periodsUpdated,
-      memberTelemetryRows,
-      memberWeaponRows,
-      clanSynergyRows,
-    }
-  } catch (error) {
-    return {
-      status: 'failed',
-      reason: error instanceof Error ? error.message : 'telemetry_aggregate_refresh_failed',
-      periodsUpdated: 0,
-      memberTelemetryRows: 0,
-      memberWeaponRows: 0,
-      clanSynergyRows: 0,
+      queuedCount: 0,
+      alreadyQueuedCount: 0,
+      skippedNoAccount: 0,
     }
   }
 }
@@ -785,7 +693,6 @@ async function runDailyClanSync() {
         const errorsCount = result?.errorsCount ?? result?.errors?.length ?? 0
         const isPartialSync = result?.status === 'partial' || errorsCount > 0
         const telemetrySync = await runTelemetryBatchForClan(clan.id)
-        const telemetryAggregateSync = await runTelemetryAggregateRefreshForClan(clan.id, telemetrySync)
         syncedClans += 1
         importedMatches += clanImportedMatches
         failureTracker.set(clan.id, 0)
@@ -805,7 +712,6 @@ async function runDailyClanSync() {
               errorsCount,
               errorsPreview: result?.errorsPreview ?? result?.errors?.slice(0, 5),
               telemetrySync,
-              telemetryAggregateSync,
               statsSync: {
                 status: 'skipped',
                 reason: 'partial_import',
@@ -826,7 +732,6 @@ async function runDailyClanSync() {
             details: {
               importedMatches: clanImportedMatches,
               telemetrySync,
-              telemetryAggregateSync,
               statsSync: {
                 status: 'skipped',
                 reason: 'no_new_matches',
@@ -852,7 +757,6 @@ async function runDailyClanSync() {
             details: {
               importedMatches: clanImportedMatches,
               telemetrySync,
-              telemetryAggregateSync,
               statsSync: {
                 status: 'failed',
                 reason: statsErrorMessage,
@@ -882,7 +786,6 @@ async function runDailyClanSync() {
           details: {
             importedMatches: clanImportedMatches,
             telemetrySync,
-            telemetryAggregateSync,
             statsSync: {
               status: 'success',
               reason: 'post_import_recalc',
@@ -1066,20 +969,25 @@ export async function processChallenges() {
   console.info(`[Cron] Challenge processing started at ${now.toISOString()}`)
 
   try {
+    const activeClans = await prisma.clan.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { id: 'asc' },
+    })
+
+    if (activeClans.length === 0) {
+      console.info('[Cron] No active clans found for challenge processing')
+      return
+    }
+
     const clansWithActiveChallenges = await prisma.challenge.findMany({
       where: { status: 'active' },
       select: { clanId: true },
       distinct: ['clanId'],
     })
-
-    for (const { clanId } of clansWithActiveChallenges) {
-      try {
-        await refreshChallengeProgressForClan(clanId)
-        console.info(`[Cron] Challenge progress refreshed for clan ${clanId}`)
-      } catch (error) {
-        console.error(`[Cron] Failed to refresh challenge progress for clan ${clanId}`, error)
-      }
-    }
+    const clanIdsWithActiveChallenges = new Set(
+      clansWithActiveChallenges.map((entry) => entry.clanId)
+    )
 
     const expiredChallenges = await prisma.challenge.findMany({
       where: {
@@ -1088,14 +996,11 @@ export async function processChallenges() {
       },
       select: { id: true, clanId: true },
     })
-
+    const expiredByClan = new Map<number, typeof expiredChallenges>()
     for (const challenge of expiredChallenges) {
-      try {
-        await endChallenge(challenge.id)
-        console.info(`[Cron] Challenge ${challenge.id} (clan ${challenge.clanId}) ended`)
-      } catch (error) {
-        console.error(`[Cron] Failed to end challenge ${challenge.id}`, error)
-      }
+      const list = expiredByClan.get(challenge.clanId) ?? []
+      list.push(challenge)
+      expiredByClan.set(challenge.clanId, list)
     }
 
     const pendingToActivate = await prisma.challenge.findMany({
@@ -1105,21 +1010,80 @@ export async function processChallenges() {
       },
       select: { id: true, clanId: true },
     })
-
+    const pendingByClan = new Map<number, typeof pendingToActivate>()
     for (const challenge of pendingToActivate) {
+      const list = pendingByClan.get(challenge.clanId) ?? []
+      list.push(challenge)
+      pendingByClan.set(challenge.clanId, list)
+    }
+
+    let totalEnded = 0
+    let totalActivated = 0
+
+    for (const clan of activeClans) {
+      const execution = await startCronExecution({
+        clanId: clan.id,
+        action: 'challenge_processing',
+        source: 'scheduler',
+      })
+
       try {
-        await prisma.challenge.update({
-          where: { id: challenge.id },
-          data: { status: 'active' },
+        let refreshed = false
+        if (clanIdsWithActiveChallenges.has(clan.id)) {
+          await refreshChallengeProgressForClan(clan.id)
+          refreshed = true
+          console.info(`[Cron] Challenge progress refreshed for clan ${clan.id}`)
+        }
+
+        let endedCount = 0
+        for (const challenge of expiredByClan.get(clan.id) ?? []) {
+          try {
+            await endChallenge(challenge.id)
+            endedCount += 1
+            console.info(`[Cron] Challenge ${challenge.id} (clan ${clan.id}) ended`)
+          } catch (error) {
+            console.error(`[Cron] Failed to end challenge ${challenge.id}`, error)
+          }
+        }
+
+        let activatedCount = 0
+        for (const challenge of pendingByClan.get(clan.id) ?? []) {
+          try {
+            await prisma.challenge.update({
+              where: { id: challenge.id },
+              data: { status: 'active' },
+            })
+            activatedCount += 1
+            console.info(`[Cron] Challenge ${challenge.id} (clan ${clan.id}) activated`)
+          } catch (error) {
+            console.error(`[Cron] Failed to activate challenge ${challenge.id}`, error)
+          }
+        }
+
+        totalEnded += endedCount
+        totalActivated += activatedCount
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'success',
+          message: `Challenge processing completed: refreshed=${refreshed}, ended=${endedCount}, activated=${activatedCount}`,
+          details: { refreshed, endedCount, activatedCount },
         })
-        console.info(`[Cron] Challenge ${challenge.id} (clan ${challenge.clanId}) activated`)
       } catch (error) {
-        console.error(`[Cron] Failed to activate challenge ${challenge.id}`, error)
+        console.error(`[Cron] Challenge processing failed for clan ${clan.id}`, error)
+
+        await finishCronExecution({
+          id: execution.id,
+          startedAt: execution.startedAt,
+          status: 'failed',
+          message: error instanceof Error ? error.message : 'Challenge processing failed',
+        }).catch(() => undefined)
       }
     }
 
     console.info(
-      `[Cron] Challenge processing finished — ended: ${expiredChallenges.length}, activated: ${pendingToActivate.length}`
+      `[Cron] Challenge processing finished — ended: ${totalEnded}, activated: ${totalActivated}`
     )
   } catch (error) {
     console.error('[Cron] Challenge processing failed', error)
@@ -1128,7 +1092,119 @@ export async function processChallenges() {
   }
 }
 
-export function initCronJobs() {
+export type CronScheduleKey =
+  | 'daily_sync'
+  | 'daily_stats_recalc'
+  | 'daily_lifetime_stats_sync'
+  | 'daily_season_stats_sync'
+  | 'clan_online_reminder'
+  | 'weekly_report_reminder'
+  | 'weekly_report_auto'
+  | 'monthly_report_auto'
+  | 'challenge_processing'
+
+type CronScheduleGlobalKey =
+  | 'clanSyncCronTask'
+  | 'statsRecalcCronTask'
+  | 'lifetimeStatsSyncCronTask'
+  | 'seasonStatsSyncCronTask'
+  | 'clanReminderCronTask'
+  | 'reportReminderCronTask'
+  | 'weeklyReportCronTask'
+  | 'monthlyReportCronTask'
+  | 'challengeProcessingCronTask'
+
+type CronScheduleDefinition = {
+  key: CronScheduleKey
+  envVar: string
+  defaultExpression: string
+  globalKey: CronScheduleGlobalKey
+  run: () => Promise<void>
+}
+
+const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
+  {
+    key: 'daily_sync',
+    envVar: 'CLAN_MATCH_SYNC_CRON',
+    defaultExpression: '0 2 * * *',
+    globalKey: 'clanSyncCronTask',
+    run: runDailyClanSync,
+  },
+  {
+    key: 'daily_stats_recalc',
+    envVar: 'CLAN_STATS_RECALC_CRON',
+    defaultExpression: '0 3 * * *',
+    globalKey: 'statsRecalcCronTask',
+    run: recalculateStatsDaily,
+  },
+  {
+    key: 'daily_lifetime_stats_sync',
+    envVar: 'CLAN_LIFETIME_STATS_SYNC_CRON',
+    defaultExpression: '0 4 * * *',
+    globalKey: 'lifetimeStatsSyncCronTask',
+    run: syncLifetimeStatsDaily,
+  },
+  {
+    key: 'daily_season_stats_sync',
+    envVar: 'CLAN_SEASON_STATS_SYNC_CRON',
+    defaultExpression: '0 5 * * *',
+    globalKey: 'seasonStatsSyncCronTask',
+    run: syncSeasonStatsDaily,
+  },
+  {
+    key: 'clan_online_reminder',
+    envVar: 'CLAN_ONLINE_REMINDER_CRON',
+    defaultExpression: '0 18 * * *',
+    globalKey: 'clanReminderCronTask',
+    run: () => sendNotificationsReminders('clan_online'),
+  },
+  {
+    key: 'weekly_report_reminder',
+    envVar: 'WEEKLY_REPORT_REMINDER_CRON',
+    defaultExpression: '0 9 * * *',
+    globalKey: 'reportReminderCronTask',
+    run: () => sendNotificationsReminders('weekly_report'),
+  },
+  {
+    key: 'weekly_report_auto',
+    envVar: 'WEEKLY_REPORT_GENERATION_CRON',
+    defaultExpression: '0 8 * * 1',
+    globalKey: 'weeklyReportCronTask',
+    run: () => generateReportsAutomatically('weekly'),
+  },
+  {
+    key: 'monthly_report_auto',
+    envVar: 'MONTHLY_REPORT_GENERATION_CRON',
+    defaultExpression: '0 8 1 * *',
+    globalKey: 'monthlyReportCronTask',
+    run: () => generateReportsAutomatically('monthly'),
+  },
+  {
+    key: 'challenge_processing',
+    envVar: 'CHALLENGE_PROCESSING_CRON',
+    defaultExpression: '0 0 * * *',
+    globalKey: 'challengeProcessingCronTask',
+    run: processChallenges,
+  },
+]
+
+async function resolveEffectiveCronExpressions(): Promise<Map<CronScheduleKey, string>> {
+  const overrides = await prisma.cronSchedule.findMany()
+  const overrideByKey = new Map(overrides.map((row) => [row.key, row.expression]))
+
+  const effective = new Map<CronScheduleKey, string>()
+  for (const definition of CRON_SCHEDULE_DEFINITIONS) {
+    const expression =
+      overrideByKey.get(definition.key) ??
+      process.env[definition.envVar] ??
+      definition.defaultExpression
+    effective.set(definition.key, expression)
+  }
+
+  return effective
+}
+
+export async function initCronJobs() {
   if (globalForCron.clanSyncCronInitialized) {
     return
   }
@@ -1140,123 +1216,66 @@ export function initCronJobs() {
     return
   }
 
-  globalForCron.clanSyncCronTask = cron.schedule(
-    DAILY_SYNC_SCHEDULE,
-    async () => {
-      await runDailyClanSync()
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.statsRecalcCronTask = cron.schedule(
-    STATS_RECALC_SCHEDULE,
-    async () => {
-      await recalculateStatsDaily()
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.lifetimeStatsSyncCronTask = cron.schedule(
-    LIFETIME_STATS_SYNC_SCHEDULE,
-    async () => {
-      await syncLifetimeStatsDaily()
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.seasonStatsSyncCronTask = cron.schedule(
-    SEASON_STATS_SYNC_SCHEDULE,
-    async () => {
-      await syncSeasonStatsDaily()
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.clanReminderCronTask = cron.schedule(
-    CLAN_ONLINE_REMINDER_SCHEDULE,
-    async () => {
-      await sendNotificationsReminders('clan_online')
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.reportReminderCronTask = cron.schedule(
-    WEEKLY_REPORT_REMINDER_SCHEDULE,
-    async () => {
-      await sendNotificationsReminders('weekly_report')
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.weeklyReportCronTask = cron.schedule(
-    WEEKLY_REPORT_GENERATION_SCHEDULE,
-    async () => {
-      await generateReportsAutomatically('weekly')
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.monthlyReportCronTask = cron.schedule(
-    MONTHLY_REPORT_GENERATION_SCHEDULE,
-    async () => {
-      await generateReportsAutomatically('monthly')
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  globalForCron.challengeProcessingCronTask = cron.schedule(
-    '0 0 * * *',
-    async () => {
-      await processChallenges()
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
+  // Set before the first await: two concurrent calls to initCronJobs() must not
+  // both pass this guard and create duplicate ScheduledTasks.
   globalForCron.clanSyncCronInitialized = true
 
-  console.info(
-    `[Cron] Nightly clan sync scheduled with "${DAILY_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
+  const effectiveExpressions = await resolveEffectiveCronExpressions()
+
+  for (const definition of CRON_SCHEDULE_DEFINITIONS) {
+    const expression = effectiveExpressions.get(definition.key) ?? definition.defaultExpression
+
+    globalForCron[definition.globalKey] = cron.schedule(
+      expression,
+      async () => {
+        await definition.run()
+      },
+      {
+        timezone: DAILY_SYNC_TIMEZONE,
+      }
+    )
+
+    console.info(`[Cron] "${definition.key}" scheduled with "${expression}" (${DAILY_SYNC_TIMEZONE})`)
+  }
+}
+
+export function rescheduleJob(key: string, newExpression: string): boolean {
+  const definition = CRON_SCHEDULE_DEFINITIONS.find((entry) => entry.key === key)
+  if (!definition) {
+    return false
+  }
+
+  globalForCron[definition.globalKey]?.stop()
+
+  globalForCron[definition.globalKey] = cron.schedule(
+    newExpression,
+    async () => {
+      await definition.run()
+    },
+    {
+      timezone: DAILY_SYNC_TIMEZONE,
+    }
   )
-  console.info(
-    `[Cron] Daily stats recalculation scheduled with "${STATS_RECALC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info(
-    `[Cron] Daily lifetime stats sync scheduled with "${LIFETIME_STATS_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info(
-    `[Cron] Daily season stats sync scheduled with "${SEASON_STATS_SYNC_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info(
-    `[Cron] Clan online reminders scheduled with "${CLAN_ONLINE_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info(
-    `[Cron] Weekly report reminders scheduled with "${WEEKLY_REPORT_REMINDER_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info(
-    `[Cron] Weekly report generation scheduled with "${WEEKLY_REPORT_GENERATION_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info(
-    `[Cron] Monthly report generation scheduled with "${MONTHLY_REPORT_GENERATION_SCHEDULE}" (${DAILY_SYNC_TIMEZONE})`
-  )
-  console.info('[Cron] Challenge processing scheduled daily at midnight')
+
+  console.info(`[Cron] "${definition.key}" rescheduled to "${newExpression}" (${DAILY_SYNC_TIMEZONE})`)
+  return true
+}
+
+export async function getEffectiveCronSchedules() {
+  const overrides = await prisma.cronSchedule.findMany()
+  const overrideByKey = new Map(overrides.map((row) => [row.key, row.expression]))
+
+  return CRON_SCHEDULE_DEFINITIONS.map((definition) => {
+    const dbExpression = overrideByKey.get(definition.key)
+    const expression = dbExpression ?? process.env[definition.envVar] ?? definition.defaultExpression
+
+    return {
+      key: definition.key,
+      expression,
+      timezone: DAILY_SYNC_TIMEZONE,
+      source: dbExpression ? ('db' as const) : ('env' as const),
+    }
+  })
 }
 
 export function isCronJobsInitialized() {

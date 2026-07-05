@@ -98,8 +98,15 @@ type WorkerLockInfo = {
 
 type WorkersPayload = {
   ok: boolean
-  resyncWorker: { lock: WorkerLockInfo; queue: WorkerQueueStats }
+  resyncWorker: { lock: WorkerLockInfo; queue: WorkerQueueStats; liveSyncQueue?: WorkerQueueStats }
   aggregateWorker: { lock: WorkerLockInfo; queue: WorkerQueueStats }
+}
+
+type CronScheduleEntry = {
+  key: string
+  expression: string
+  timezone: string
+  source: 'db' | 'env'
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +155,18 @@ const MANUAL_ACTIONS: { action: CronAction; label: string }[] = [
 
 const HISTORY_PAGE_SIZE = 10
 
+const SCHEDULE_LABELS: Record<string, string> = {
+  daily_sync: 'Sync quotidien clans',
+  daily_stats_recalc: 'Recalcul stats quotidien',
+  daily_lifetime_stats_sync: 'Sync lifetime quotidienne',
+  daily_season_stats_sync: 'Sync season stats quotidienne',
+  clan_online_reminder: 'Rappel présence en ligne',
+  weekly_report_reminder: 'Rappel rapport hebdo',
+  weekly_report_auto: 'Génération auto rapport hebdo',
+  monthly_report_auto: 'Génération auto rapport mensuel',
+  challenge_processing: 'Traitement des challenges',
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -185,8 +204,12 @@ function partitionChecks(items: CronCheck[]) {
   return {
     system: items.filter((c) => !c.key.startsWith('telemetry_') && !c.key.endsWith('_cron')),
     telemetry: items.filter((c) => c.key.startsWith('telemetry_')),
-    schedules: items.filter((c) => c.key.endsWith('_cron')),
   }
+}
+
+function looksLikeCronExpression(value: string) {
+  const parts = value.trim().split(/\s+/)
+  return parts.length === 5
 }
 
 function formatDetailsSnippet(details: unknown): string | null {
@@ -251,6 +274,113 @@ function CheckGroupTable({ items, title, description }: { items: CronCheck[]; ti
   )
 }
 
+function ScheduleEditorTable({
+  schedules,
+  drafts,
+  busyKey,
+  feedback,
+  onDraftChange,
+  onApply,
+  onReset,
+}: {
+  schedules: CronScheduleEntry[]
+  drafts: Record<string, string>
+  busyKey: string | null
+  feedback: Record<string, { type: 'error' | 'success'; message: string }>
+  onDraftChange: (key: string, value: string) => void
+  onApply: (key: string) => void
+  onReset: (key: string) => void
+}) {
+  if (schedules.length === 0) {
+    return <p className="text-xs text-slate-500">Chargement des schedules...</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-semibold text-slate-800">Schedules cron</p>
+        <p className="text-xs text-slate-500">
+          Expressions cron actives (fuseau {schedules[0]?.timezone ?? 'UTC'}). Modifiable sans redémarrage —
+          appliqué immédiatement au process courant.
+        </p>
+      </div>
+      <div className="app-table-shell overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-2 py-2">Tâche</th>
+              <th className="px-2 py-2">Source</th>
+              <th className="px-2 py-2">Expression</th>
+              <th className="px-2 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {schedules.map((entry) => {
+              const draft = drafts[entry.key] ?? entry.expression
+              const isBusy = busyKey === entry.key
+              const rowFeedback = feedback[entry.key]
+              return (
+                <tr key={entry.key} className="app-table-row align-top">
+                  <td className="px-2 py-2 font-medium text-slate-900">
+                    {SCHEDULE_LABELS[entry.key] ?? entry.key}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                        entry.source === 'db'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      {entry.source === 'db' ? 'personnalisé' : '.env'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      type="text"
+                      value={draft}
+                      onChange={(e) => onDraftChange(entry.key, e.target.value)}
+                      disabled={isBusy}
+                      className="w-40 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-slate-700"
+                    />
+                    {rowFeedback && (
+                      <p className={`mt-1 text-xs ${rowFeedback.type === 'error' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        {rowFeedback.message}
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onApply(entry.key)}
+                        disabled={isBusy || draft.trim() === entry.expression.trim()}
+                        className="app-btn app-btn--sm app-btn--secondary"
+                      >
+                        {isBusy ? '...' : 'Appliquer'}
+                      </button>
+                      {entry.source === 'db' && (
+                        <button
+                          type="button"
+                          onClick={() => onReset(entry.key)}
+                          disabled={isBusy}
+                          className="text-xs text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+                        >
+                          Réinitialiser
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function WorkerPanel({
   title,
   subtitle,
@@ -301,6 +431,12 @@ export default function CronSettingsPage() {
   const [info, setInfo] = useState<string | null>(null)
   const [payload, setPayload] = useState<CronStatusPayload | null>(null)
   const [workers, setWorkers] = useState<WorkersPayload | null>(null)
+  const [schedules, setSchedules] = useState<CronScheduleEntry[]>([])
+  const [scheduleDrafts, setScheduleDrafts] = useState<Record<string, string>>({})
+  const [scheduleBusyKey, setScheduleBusyKey] = useState<string | null>(null)
+  const [scheduleFeedback, setScheduleFeedback] = useState<
+    Record<string, { type: 'error' | 'success'; message: string }>
+  >({})
 
   // Pagination + filters for history
   const [historyPage, setHistoryPage] = useState(1)
@@ -329,6 +465,29 @@ export default function CronSettingsPage() {
       }
     } catch {
       // Non-bloquant — workers info est optionnelle
+    }
+  }, [])
+
+  const loadSchedules = useCallback(async () => {
+    try {
+      const response = await fetch('/api/settings/cron-schedules', { cache: 'no-store' })
+      const data = (await response.json().catch(() => null)) as
+        | { ok: boolean; schedules: CronScheduleEntry[] }
+        | null
+      if (response.ok && data?.ok) {
+        setSchedules(data.schedules)
+        setScheduleDrafts((prev) => {
+          const next = { ...prev }
+          for (const entry of data.schedules) {
+            if (next[entry.key] === undefined) {
+              next[entry.key] = entry.expression
+            }
+          }
+          return next
+        })
+      }
+    } catch {
+      // Non-bloquant — schedules info est optionnelle
     }
   }, [])
 
@@ -369,7 +528,8 @@ export default function CronSettingsPage() {
 
     void loadStatus(clanId)
     void loadWorkers()
-  }, [authLoading, authenticated, isSuperUser, clanId, clanHydrated, loadStatus, loadWorkers])
+    void loadSchedules()
+  }, [authLoading, authenticated, isSuperUser, clanId, clanHydrated, loadStatus, loadWorkers, loadSchedules])
 
   async function runAction(action: CronAction) {
     if (!clanId || pendingAction) return
@@ -420,6 +580,100 @@ export default function CronSettingsPage() {
       await loadStatus(clanId)
     } finally {
       setPendingAction(null)
+    }
+  }
+
+  async function applySchedule(key: string) {
+    const expression = (scheduleDrafts[key] ?? '').trim()
+
+    if (!looksLikeCronExpression(expression)) {
+      setScheduleFeedback((prev) => ({
+        ...prev,
+        [key]: { type: 'error', message: 'Expression cron invalide (5 segments attendus)' },
+      }))
+      return
+    }
+
+    setScheduleBusyKey(key)
+    setScheduleFeedback((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+
+    try {
+      const response = await fetch('/api/settings/cron-schedules', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key, expression }),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { ok: boolean; schedules?: CronScheduleEntry[]; error?: string }
+        | null
+
+      if (!response.ok || !data?.ok) {
+        setScheduleFeedback((prev) => ({
+          ...prev,
+          [key]: { type: 'error', message: data?.error ?? `HTTP ${response.status}` },
+        }))
+        return
+      }
+
+      if (data.schedules) {
+        setSchedules(data.schedules)
+        const updated = data.schedules.find((entry) => entry.key === key)
+        if (updated) {
+          setScheduleDrafts((prev) => ({ ...prev, [key]: updated.expression }))
+        }
+      }
+      setScheduleFeedback((prev) => ({ ...prev, [key]: { type: 'success', message: 'Appliqué' } }))
+    } catch {
+      setScheduleFeedback((prev) => ({
+        ...prev,
+        [key]: { type: 'error', message: 'Réponse non reçue' },
+      }))
+    } finally {
+      setScheduleBusyKey(null)
+    }
+  }
+
+  async function resetSchedule(key: string) {
+    setScheduleBusyKey(key)
+    setScheduleFeedback((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+
+    try {
+      const response = await fetch(`/api/settings/cron-schedules/${key}`, { method: 'DELETE' })
+      const data = (await response.json().catch(() => null)) as
+        | { ok: boolean; schedules?: CronScheduleEntry[]; error?: string }
+        | null
+
+      if (!response.ok || !data?.ok) {
+        setScheduleFeedback((prev) => ({
+          ...prev,
+          [key]: { type: 'error', message: data?.error ?? `HTTP ${response.status}` },
+        }))
+        return
+      }
+
+      if (data.schedules) {
+        setSchedules(data.schedules)
+        const updated = data.schedules.find((entry) => entry.key === key)
+        if (updated) {
+          setScheduleDrafts((prev) => ({ ...prev, [key]: updated.expression }))
+        }
+      }
+      setScheduleFeedback((prev) => ({ ...prev, [key]: { type: 'success', message: 'Réinitialisé' } }))
+    } catch {
+      setScheduleFeedback((prev) => ({
+        ...prev,
+        [key]: { type: 'error', message: 'Réponse non reçue' },
+      }))
+    } finally {
+      setScheduleBusyKey(null)
     }
   }
 
@@ -482,6 +736,7 @@ export default function CronSettingsPage() {
     const w = workers?.resyncWorker
     const lock = w?.lock
     const q = w?.queue
+    const liveQ = w?.liveSyncQueue
     let badge = 'Inconnu'
     let badgeStatus: 'ok' | 'warning' | 'error' = 'warning'
     if (lock) {
@@ -493,10 +748,14 @@ export default function CronSettingsPage() {
     const details = [
       { label: 'PID', value: lock ? String(lock.pid) : '-' },
       { label: 'Lock depuis', value: lock ? getLockAgeLabel(lock.acquiredAt) : '-' },
-      { label: 'En file', value: q ? String(q.queued) : '-' },
-      { label: 'En cours', value: q ? String(q.running) : '-' },
-      { label: 'Échoués', value: q ? String(q.failed) : '-' },
-      { label: 'Terminés', value: q ? String(q.success) : '-' },
+      { label: 'Resync fichier — en file', value: q ? String(q.queued) : '-' },
+      { label: 'Resync fichier — en cours', value: q ? String(q.running) : '-' },
+      { label: 'Resync fichier — échoués', value: q ? String(q.failed) : '-' },
+      { label: 'Resync fichier — terminés', value: q ? String(q.success) : '-' },
+      { label: 'Live sync — en file', value: liveQ ? String(liveQ.queued) : '-' },
+      { label: 'Live sync — en cours', value: liveQ ? String(liveQ.running) : '-' },
+      { label: 'Live sync — échoués', value: liveQ ? String(liveQ.failed) : '-' },
+      { label: 'Live sync — terminés', value: liveQ ? String(liveQ.success) : '-' },
     ]
     return { badge, badgeStatus, details }
   }, [workers])
@@ -777,10 +1036,14 @@ export default function CronSettingsPage() {
             title="Télémétrie"
             description="Variables contrôlant le pipeline de synchronisation et de parsing des fichiers télémétrie."
           />
-          <CheckGroupTable
-            items={checks.schedules}
-            title="Expressions cron (schedules)"
-            description="Expressions cron actives. La colonne Info donne la description en langage naturel du schedule."
+          <ScheduleEditorTable
+            schedules={schedules}
+            drafts={scheduleDrafts}
+            busyKey={scheduleBusyKey}
+            feedback={scheduleFeedback}
+            onDraftChange={(key, value) => setScheduleDrafts((prev) => ({ ...prev, [key]: value }))}
+            onApply={(key) => void applySchedule(key)}
+            onReset={(key) => void resetSchedule(key)}
           />
 
           {/* Rate limit PUBG API */}

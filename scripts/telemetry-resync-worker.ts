@@ -7,6 +7,14 @@ import { Prisma } from '@prisma/client'
 
 import { getTelemetryFixtureCaptureMaxBytes } from '@/lib/pubg-telemetry/fixture-capture'
 import { enqueueTelemetryAggregateRecalcJob } from '@/lib/pubg-telemetry/aggregate-recalc-queue'
+import { syncTelemetryForSquadMatch } from '@/lib/pubg-telemetry/index'
+import {
+  claimNextTelemetryLiveSyncJob,
+  finishTelemetryLiveSyncJobFailed,
+  finishTelemetryLiveSyncJobSuccess,
+  getTelemetryLiveSyncQueueStats,
+  recoverStuckTelemetryLiveSyncJobs,
+} from '@/lib/pubg-telemetry/live-sync-queue'
 import {
   claimNextTelemetryResyncQueueJob,
   finishTelemetryResyncQueueJobFailed,
@@ -23,6 +31,27 @@ import { MemoryMonitor } from '@/lib/pubg-telemetry/memory-monitor'
 import { BackpressureController } from '@/lib/pubg-telemetry/worker-backpressure'
 import { WorkerHealthMonitor } from '@/lib/pubg-telemetry/worker-health'
 import { TELEMETRY_RESYNC_QUEUE_ACTION } from '@/lib/pubg-telemetry/resync-queue'
+
+function resolveLiveSyncParserVersion() {
+  const raw = process.env.TELEMETRY_PARSER_VERSION?.trim()
+  return raw && raw.length > 0 ? raw : 'v1'
+}
+
+function resolveLiveSyncTimeoutMs() {
+  const value = Number(process.env.TELEMETRY_FETCH_TIMEOUT_MS ?? '30000')
+  if (!Number.isFinite(value) || value <= 0) {
+    return 30000
+  }
+  return Math.floor(value)
+}
+
+function resolveLiveSyncMaxAssetSizeBytes() {
+  const valueMb = Number(process.env.TELEMETRY_MAX_ASSET_SIZE_MB ?? '250')
+  if (!Number.isFinite(valueMb) || valueMb <= 0) {
+    return 250 * 1024 * 1024
+  }
+  return Math.floor(valueMb * 1024 * 1024)
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -450,6 +479,122 @@ async function processOneJob(
   return { processed, durationMs }
 }
 
+async function processOneLiveSyncJob(
+  workerId: string,
+  backpressure: BackpressureController,
+  health: WorkerHealthMonitor
+): Promise<{ processed: boolean; durationMs: number }> {
+  const startTime = Date.now()
+
+  const jobResult = await backpressure.processWithBackpressure(
+    async () => {
+      const job = await claimNextTelemetryLiveSyncJob(workerId)
+      if (!job) {
+        return null
+      }
+
+      console.info('[TelemetryLiveSyncWorker] job claimed', {
+        workerId,
+        jobId: job.id,
+        clanId: job.clanId,
+        squadMatchId: job.details.squadMatchId,
+      })
+
+      try {
+        const syncResult = await syncTelemetryForSquadMatch({
+          squadMatchId: job.details.squadMatchId,
+          pubgMatchId: job.details.pubgMatchId,
+          anyPlayerId: job.details.anyPlayerId,
+          shard: job.details.shard,
+          parserVersion: resolveLiveSyncParserVersion(),
+          timeoutMs: resolveLiveSyncTimeoutMs(),
+          maxAssetSizeBytes: resolveLiveSyncMaxAssetSizeBytes(),
+        })
+
+        if (syncResult.status === 'failed') {
+          await finishTelemetryLiveSyncJobFailed(
+            job.id,
+            {
+              squadMatchId: job.details.squadMatchId,
+              status: syncResult.status,
+              errorCode: syncResult.errorCode,
+              errorMessage: syncResult.errorMessage,
+              bytesDownloaded: syncResult.bytesDownloaded,
+              contentLength: syncResult.contentLength,
+            },
+            `Telemetry live sync failed: ${syncResult.errorMessage ?? 'unknown error'}`
+          )
+          return true
+        }
+
+        const aggregateQueue = await enqueueTelemetryAggregateRecalcJob({
+          clanId: job.clanId,
+          requestedByResyncJobId: job.id,
+        })
+
+        await finishTelemetryLiveSyncJobSuccess(
+          job.id,
+          {
+            squadMatchId: job.details.squadMatchId,
+            status: syncResult.status,
+            pubgMatchId: syncResult.pubgMatchId,
+            bytesDownloaded: syncResult.bytesDownloaded,
+            contentLength: syncResult.contentLength,
+            aggregatesWarning: aggregateQueue.enqueued
+              ? `Recalcul des aggregates queue (job: ${aggregateQueue.jobId})`
+              : `Recalcul des aggregates deja en cours/queue (job: ${aggregateQueue.jobId})`,
+          },
+          `Telemetry live sync success (${job.details.squadMatchId})`
+        )
+
+        const queue = await getTelemetryLiveSyncQueueStats()
+        console.info('[TelemetryLiveSyncWorker] job success', {
+          workerId,
+          jobId: job.id,
+          clanId: job.clanId,
+          squadMatchId: job.details.squadMatchId,
+          durationMs: Date.now() - startTime,
+          queue,
+        })
+
+        return true
+      } catch (error) {
+        await finishTelemetryLiveSyncJobFailed(
+          job.id,
+          {
+            squadMatchId: job.details.squadMatchId,
+            status: 'exception',
+            errorMessage: error instanceof Error ? error.message : String(error),
+          },
+          error instanceof Error ? error.message : String(error)
+        )
+
+        console.error('[TelemetryLiveSyncWorker] job failed', {
+          workerId,
+          jobId: job.id,
+          clanId: job.clanId,
+          squadMatchId: job.details.squadMatchId,
+          durationMs: Date.now() - startTime,
+          error: error instanceof Error ? error.message : String(error),
+        })
+
+        return true
+      }
+    },
+    `live-sync-job-${Date.now()}`,
+    workerId
+  )
+
+  const durationMs = Date.now() - startTime
+  const processed = jobResult !== null
+
+  if (processed) {
+    health.recordJobEnd(jobResult === true, durationMs)
+  }
+
+  return { processed, durationMs }
+}
+
 async function main() {
   const workerId = resolveWorkerId()
   const once = process.argv.includes('--once')
@@ -513,6 +658,15 @@ async function main() {
     console.warn('[TelemetryResyncWorker] recovered stuck jobs', { workerId, recovered, stuckRecoveryMs })
   }
 
+  const recoveredLiveSync = await recoverStuckTelemetryLiveSyncJobs(workerId, stuckRecoveryMs)
+  if (recoveredLiveSync > 0) {
+    console.warn('[TelemetryLiveSyncWorker] recovered stuck jobs', {
+      workerId,
+      recovered: recoveredLiveSync,
+      stuckRecoveryMs,
+    })
+  }
+
   const monitor = new MemoryMonitor({
     thresholdPercent: memoryThresholdPercent,
     criticalThresholdPercent: memoryCriticalPercent,
@@ -535,11 +689,13 @@ async function main() {
         const metrics = health.getMetrics()
         const bpStatus = backpressure.getStatus()
         const queue = await getTelemetryResyncQueueStats()
+        const liveSyncQueue = await getTelemetryLiveSyncQueueStats()
         console.info('[TelemetryResyncWorker] metrics', {
           ...metrics,
           memoryTrend: health.getMemoryTrend(),
           pressure: bpStatus,
           queue,
+          liveSyncQueue,
         })
       })().catch((error) => {
         console.warn('[TelemetryResyncWorker] metrics snapshot failed', {
@@ -557,7 +713,17 @@ async function main() {
         health
       )
 
-      if (!processed) {
+      if (processed) {
+        continue
+      }
+
+      const { processed: processedLiveSync } = await processOneLiveSyncJob(
+        workerId,
+        backpressure,
+        health
+      )
+
+      if (!processedLiveSync) {
         if (once) {
           break
         }

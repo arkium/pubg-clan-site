@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { getTelemetryResyncQueueStats } from '@/lib/pubg-telemetry/resync-queue'
+import { getTelemetryLiveSyncQueueStats } from '@/lib/pubg-telemetry/live-sync-queue'
 import { getTelemetryAggregateRecalcQueueStats } from '@/lib/pubg-telemetry/aggregate-recalc-queue'
 import { isSuperUserSession } from '@/middleware/auth-permission'
 
@@ -46,10 +47,11 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Acces reserve au SuperUser' }, { status: 403 })
   }
 
-  const [resyncLock, aggregateLock, resyncQueue, aggregateQueue] = await Promise.all([
+  const [resyncLock, aggregateLock, resyncQueue, liveSyncQueue, aggregateQueue] = await Promise.all([
     readWorkerLock('.telemetry-resync-worker.lock'),
     readWorkerLock('.telemetry-aggregate-worker.lock'),
     getTelemetryResyncQueueStats(),
+    getTelemetryLiveSyncQueueStats(),
     getTelemetryAggregateRecalcQueueStats(),
   ])
 
@@ -58,6 +60,7 @@ export async function GET(request: Request) {
     resyncWorker: {
       lock: resyncLock,
       queue: resyncQueue,
+      liveSyncQueue,
     },
     aggregateWorker: {
       lock: aggregateLock,

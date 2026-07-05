@@ -20,9 +20,11 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `weekly_report_reminder` | `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | Envoie les rappels de rapport hebdomadaire disponible |
 | `weekly_report_auto` | `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Génère le rapport hebdomadaire pour tous les clans actifs |
 | `monthly_report_auto` | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génère le rapport mensuel pour tous les clans actifs |
-| `challenge_processing` | (fixe) | `0 0 * * *` | Traitement des challenges expirés |
+| `challenge_processing` | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges expirés |
 
-La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`). Toutes les expressions cron utilisent cette même timezone.
+La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune aux 9 schedules.
+
+Ces 9 schedules sont éditables sans redémarrage depuis `/settings/cron` (SuperUser) — voir la section "Schedules éditables" ci-dessous. La variable d'environnement reste le fallback si aucune valeur personnalisée n'est enregistrée en base.
 
 ---
 
@@ -36,7 +38,7 @@ Pour chaque clan :
 - Appelle `POST /api/clans/[clanId]/sync-matches` (endpoint interne).
 - Pour chaque membre actif : résolution du `pubgAccountId` si absent, récupération des matchs récents PUBG, import incrémental, upsert des lignes `Match`, détection des squads (`SquadMatch` / `SquadMember`).
 - Retry par clan : jusqu'à `MAX_SYNC_ATTEMPTS` (3) tentatives.
-- Si `TELEMETRY_SYNC_ENABLED=true` : enqueue un batch de jobs de télémétrie après l'import.
+- Si `TELEMETRY_SYNC_ENABLED=true` : met en file les matchs nécessitant une télémétrie (action `telemetry_live_sync`, voir plus bas) — aucun téléchargement/parsing n'est fait en-process dans `daily_sync` lui-même.
 
 Garde-fous post-import :
 - Import `partial` → recalcul des stats ignoré (stats existantes conservées).
@@ -81,7 +83,7 @@ Déclenché à 5 h pour tous les clans actifs.
 
 ### `challenge_processing` — Challenges
 
-Déclenché à minuit chaque nuit. Traite les challenges expirés (`endChallenge`). Note : ce job n'écrit pas d'entrée `CronExecution` (pas de `startCronExecution` / `finishCronExecution` dans `processChallenges`).
+Déclenché à minuit chaque nuit pour tous les clans actifs. Pour chaque clan : rafraîchit la progression des challenges actifs (si le clan en a), termine les challenges expirés (`endChallenge`), active les challenges `pending` dont la date de début est passée. Écrit une ligne `CronExecution` par clan actif (`details: { refreshed, endedCount, activatedCount }`).
 
 ---
 
@@ -174,11 +176,20 @@ Tableau synthétique : une ligne par action connue (13 actions), source `latestB
 
 **Système & API :** `ENABLE_CRON_JOBS`, `ENABLE_CRON_BOOTSTRAP`, `DATABASE_URL`, `INTERNAL_APP_URL`, `APP_URL`, `NEXT_PUBLIC_APP_URL`, `PUBG_API_KEY`, `NODE_ENV`.
 
-**Télémétrie :** `TELEMETRY_SYNC_ENABLED`, `TELEMETRY_PARSER_VERSION`, `TELEMETRY_MAX_MATCHES_PER_RUN`, `TELEMETRY_SYNC_CONCURRENCY`, `TELEMETRY_RETRY_MAX`, `TELEMETRY_FETCH_TIMEOUT_MS`, `TELEMETRY_MAX_ASSET_SIZE_MB`, `TELEMETRY_CAPTURE_FIXTURES`, `TELEMETRY_CAPTURE_FIXTURES_DIR`, `TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES`.
+**Télémétrie :** `TELEMETRY_SYNC_ENABLED`, `TELEMETRY_PARSER_VERSION`, `TELEMETRY_MAX_MATCHES_PER_RUN`, `TELEMETRY_SYNC_CONCURRENCY`, `TELEMETRY_RETRY_MAX`, `TELEMETRY_FETCH_TIMEOUT_MS`, `TELEMETRY_MAX_ASSET_SIZE_MB`, `TELEMETRY_CAPTURE_FIXTURES`, `TELEMETRY_CAPTURE_FIXTURES_DIR`, `TELEMETRY_CAPTURE_FIXTURE_MAX_BYTES`. Note : `TELEMETRY_SYNC_CONCURRENCY` ne s'applique plus qu'à titre historique — le parallélisme réel de `telemetry_live_sync` est celui du worker (voir "Workers télémétrie").
 
-**Schedules :** toutes les variables `*_CRON` avec description en langage naturel.
+**Schedules :** un tableau éditable (pas juste des checks statiques) — voir la section "Schedules éditables" ci-dessous.
 
 Snapshot rate limit PUBG API en pied de section.
+
+### Schedules éditables
+
+Les 9 schedules du tableau "Jobs planifiés" sont stockés en base dans la table `CronSchedule` (`key`, `expression`, `timezone`, `updatedAt`, `updatedBy`) et pilotables sans redémarrage depuis la section "Schedules cron" de `/settings/cron` :
+
+- La valeur effective est : ligne `CronSchedule` si elle existe, sinon la variable d'environnement, sinon le défaut codé en dur. Badge "personnalisé" (vert) vs `.env` (neutre) selon la source.
+- `PUT /api/settings/cron-schedules` (SuperUser) : valide l'expression (`node-cron` `cron.validate`), upsert `CronSchedule`, reprogramme immédiatement la tâche dans le process courant via `rescheduleJob()`.
+- `DELETE /api/settings/cron-schedules/[key]` (SuperUser) : supprime l'override, revient à la valeur `.env`/défaut.
+- **Limite connue** : `rescheduleJob()` ne modifie que le `ScheduledTask` du process Next.js qui a reçu la requête. Sur une infrastructure multi-instances, les autres instances gardent l'ancienne expression jusqu'à leur prochain redémarrage (qui relira alors `CronSchedule` à jour au bootstrap). Pas de synchronisation inter-instances en temps réel.
 
 ### Bloc historique
 
@@ -192,10 +203,13 @@ En plus du cron scheduler (dans Next.js), deux workers Node.js séparés gèrent
 
 | Commande | Action `CronExecution` | Rôle |
 |---|---|---|
-| `npm run telemetry:worker` | `telemetry_resync_file` | Télécharge et parse les fichiers de télémétrie capturés |
+| `npm run telemetry:worker` | `telemetry_resync_file` | Télécharge et parse les fichiers de télémétrie capturés (backfill manuel, requiert `TELEMETRY_CAPTURE_FIXTURES`) |
+| `npm run telemetry:worker` | `telemetry_live_sync` | Téléchargement + parsing **stream** (aucun fichier disque) des matchs mis en file par `daily_sync`. Même process/lock que `telemetry_resync_file` — une seule boucle alterne entre les deux types de job. Sur succès, enfile automatiquement un job `telemetry_recalc_aggregates`. |
 | `npm run telemetry:aggregates:worker` | `telemetry_recalc_aggregates` | Recalcule les agrégats de période à partir des données parsées |
 
 Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indépendants du scheduler Next.js. Ils utilisent un lock file JSON pour le single-instance et récupèrent automatiquement les jobs bloqués (`running` > seuil) au démarrage.
+
+`telemetry_live_sync` n'a pas de retry immédiat ni de priorisation répliquée dans le worker : un job en échec reste `failed`, et c'est le prochain passage de `daily_sync` qui relira le backlog (`SquadMatchTelemetry.status`) et ré-enfilera l'entrée si elle est toujours éligible.
 
 ---
 
@@ -205,7 +219,10 @@ Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indé
 |---|---|---|---|
 | `/api/clans/[clanId]/cron-control` | GET | Owner ou SuperUser | Statut health cron du clan (rate limit, checks, overview, historique — `take: 200`) |
 | `/api/clans/[clanId]/cron-control` | POST | Owner ou SuperUser | Déclencher une action manuelle sur le clan |
-| `/api/settings/cron-workers-status` | GET | SuperUser | Statut des workers télémétrie (lock files + stats queue) |
+| `/api/settings/cron-workers-status` | GET | SuperUser | Statut des workers télémétrie (lock files + stats queue, y compris `telemetry_live_sync`) |
+| `/api/settings/cron-schedules` | GET | SuperUser | Valeur effective des 9 schedules (expression + source db/env) |
+| `/api/settings/cron-schedules` | PUT | SuperUser | Modifier l'expression d'un schedule (upsert `CronSchedule` + reschedule immédiat) |
+| `/api/settings/cron-schedules/[key]` | DELETE | SuperUser | Réinitialiser un schedule à sa valeur `.env`/défaut |
 | `/api/internal/cron/bootstrap` | POST | Secret header | Démarrer les crons (header `x-cron-bootstrap-secret` requis) |
 | `/api/internal/cron/status` | GET | Secret header | Vérifier si le worker cron est actif |
 
@@ -230,6 +247,7 @@ Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indé
 | `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | Rappels rapport hebdo |
 | `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Génération rapport hebdo |
 | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génération rapport mensuel |
+| `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges |
 
 ### Télémétrie sync (cron + workers)
 
@@ -266,4 +284,5 @@ Voir `.env.example` pour la liste complète des variables disponibles avec leurs
 - Ajuster `CLAN_MATCH_SYNC_TIMEZONE` (ex : `Europe/Paris`) si les horaires métier ne sont pas UTC.
 - En cas d'incident télémétrie, désactiver d'abord `TELEMETRY_SYNC_ENABLED` avant toute action plus intrusive.
 - Traiter les warnings de configuration dans le bloc checks avant de considérer la supervision comme fiable.
-- **Risque de blocage event-loop si `TELEMETRY_SYNC_ENABLED=true`** : `daily_sync` télécharge et parse la télémétrie **en-process**, dans le même thread Node.js que le serveur HTTP Next.js (pas d'offload vers un `worker_thread`, contrairement aux deux workers dédiés). Le parseur streaming (`parser.ts`) rend la main entre deux chunks réseau, mais le traitement de chaque chunk (parsing + application des événements) est synchrone et CPU-bound — pendant cette fenêtre, les autres requêtes HTTP du site attendent. Les gardes-fous existants (`TELEMETRY_MAX_MATCHES_PER_RUN`, `TELEMETRY_SYNC_CONCURRENCY`, horaire par défaut à 2h = faible trafic) limitent l'impact mais ne l'éliminent pas. Voir la piste de découplage proposée dans `docs/TODO/TODO-settings-cron-refonte.md` (section "Suggestions futures" → "Découpler la télémétrie de `daily_sync`") — garder le téléchargement/parsing 100% stream (aucun fichier écrit sur disque), juste déplacé vers le worker existant via une nouvelle file dédiée.
+- **Blocage event-loop résolu** : `daily_sync` ne télécharge/parse plus la télémétrie en-process. Quand `TELEMETRY_SYNC_ENABLED=true`, il se contente d'enfiler les matchs éligibles (action `telemetry_live_sync`) ; le téléchargement + parsing stream a lieu dans `npm run telemetry:worker`, un process séparé du serveur HTTP. Ce worker doit tourner pour que la télémétrie automatique progresse — si absent, les jobs s'accumulent en `queued` (visible dans le panneau `telemetry:worker` de `/settings/cron`) sans jamais bloquer le site.
+- **Éditer un schedule affecte uniquement le process courant** : si l'app tourne sur plusieurs instances Next.js, `rescheduleJob()` ne touche que celle qui a reçu la requête `PUT` — voir "Schedules éditables" ci-dessus.

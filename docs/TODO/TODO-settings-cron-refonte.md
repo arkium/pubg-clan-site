@@ -187,12 +187,35 @@ Les workers servent au **backfill/resync de fichiers capturés** — pipeline d�
 
 Aujourd'hui les expressions cron sont lues depuis `process.env` au démarrage — impossible à changer sans redémarrer le serveur.
 
-**Migration Prisma**
+**Hors périmètre :** cette étape ne concerne que les 9 `ScheduledTask` de `cron-jobs.ts` (le scheduler `node-cron` intégré à Next.js). Les deux workers télémétrie (`telemetry:worker`, `telemetry:aggregates:worker`) sont des process Node.js séparés qui tournent en boucle infinie avec un délai de polling fixe (`TELEMETRY_RESYNC_WORKER_POLL_MS`, etc.), pas une expression cron — ils ne sont donc pas concernés par cette étape et ne le seront pas. Le seul lien entre les deux : le job cron `daily_sync` peut déclencher une synchronisation télémétrie **en-process** (si `TELEMETRY_SYNC_ENABLED=true`), indépendamment des workers.
+
+**4a. Inventaire complet des schedules concernés**
+
+L'exemple initial ne montrait que 2 clés (`daily_sync`, `daily_stats_recalc`) à titre illustratif. `src/lib/cron-jobs.ts` déclare en réalité **9 `ScheduledTask`**, à couvrir intégralement :
+
+| Clé `CronSchedule` | `ScheduledTask` (`globalForCron`) | Env var actuelle | Défaut | Action `CronExecution` associée |
+|---|---|---|---|---|
+| `daily_sync` | `clanSyncCronTask` | `CLAN_MATCH_SYNC_CRON` | `0 2 * * *` | `daily_sync` |
+| `daily_stats_recalc` | `statsRecalcCronTask` | `CLAN_STATS_RECALC_CRON` | `0 3 * * *` | `daily_stats_recalc` |
+| `daily_lifetime_stats_sync` | `lifetimeStatsSyncCronTask` | `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 4 * * *` | `daily_lifetime_stats_sync` |
+| `daily_season_stats_sync` | `seasonStatsSyncCronTask` | `CLAN_SEASON_STATS_SYNC_CRON` | `0 5 * * *` | `daily_season_stats_sync` |
+| `clan_online_reminder` | `clanReminderCronTask` | `CLAN_ONLINE_REMINDER_CRON` | `0 18 * * *` | *(aucune — notification pure, n'apparaît pas dans le tableau "Dernière exécution par action")* |
+| `weekly_report_reminder` | `reportReminderCronTask` | `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | *(aucune — idem)* |
+| `weekly_report_auto` | `weeklyReportCronTask` | `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | `weekly_report_auto` |
+| `monthly_report_auto` | `monthlyReportCronTask` | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | `monthly_report_auto` |
+| `challenge_processing` | `challengeProcessingCronTask` | **aucune — hardcodé `'0 0 * * *'`** | `0 0 * * *` | `challenge_processing` |
+
+Points à ne pas oublier :
+- `challenge_processing` n'a **pas d'env var aujourd'hui** (contrairement aux 8 autres) — il faut d'abord introduire `CHALLENGE_PROCESSING_CRON` (avec fallback `'0 0 * * *'`) avant de pouvoir le rendre pilotable, sinon il n'y a pas de valeur "par défaut" cohérente à afficher/restaurer.
+- `clan_online_reminder` et `weekly_report_reminder` n'écrivent jamais de ligne `CronExecution` : ils sont absents de `KNOWN_ACTIONS` et du tableau "Dernière exécution par action" (Étape 2d). Il faut donc les ajouter explicitement à la section Schedules (2f) même s'ils ne concernent que l'affichage des fréquences, pas l'historique.
+- Toutes les tâches partagent aujourd'hui le même fuseau `DAILY_SYNC_TIMEZONE` (dérivé de `CLAN_MATCH_SYNC_TIMEZONE`). Le modèle `CronSchedule` prévoit un champ `timezone` par ligne, mais pour la V1 il est recommandé de **ne pas** l'exposer dans l'UI (garder un fuseau global unique) afin de ne pas complexifier la validation — à documenter comme limitation volontaire.
+
+**4b. Migration Prisma**
 - [ ] Créer la table `CronSchedule` :
 
 ```prisma
 model CronSchedule {
-  key        String   @id  // ex: 'daily_sync', 'daily_stats_recalc'
+  key        String   @id  // une des 9 clés ci-dessus
   expression String        // ex: '0 2 * * *'
   timezone   String   @default("UTC")
   updatedAt  DateTime @updatedAt
@@ -201,18 +224,29 @@ model CronSchedule {
 ```
 
 - [ ] Générer et appliquer la migration
+- [ ] Pas de seed initial : la table démarre vide. Tant qu'aucune ligne n'existe pour une clé, le fallback `.env` (ou défaut hardcodé) reste actif. Un `PUT` fait un upsert (crée l'override), un `DELETE` supprime la ligne pour revenir au défaut.
 
-**`src/lib/cron-jobs.ts`**
-- [ ] Au bootstrap (`initializeCronJobs`), lire les expressions depuis `CronSchedule` en priorité, `.env` en fallback
-- [ ] Exposer une fonction `rescheduleJob(key, newExpression)` : `task.stop()` + créer un nouveau `ScheduledTask`
+**`src/lib/cron-jobs.ts` — refonte**
+- [ ] Remplacer les constantes `*_SCHEDULE` lues directement en tête de fichier par un registre unique (clé → `{ envVar, default, globalKey, taskFactory }`) couvrant les 9 entrées de 4a, y compris l'ajout de `CHALLENGE_PROCESSING_CRON`
+- [ ] `initCronJobs()` devient **async** : une requête `prisma.cronSchedule.findMany()` au bootstrap construit une Map clé → expression effective (DB > env > défaut), puis crée les 9 `ScheduledTask` à partir de cette map
+- [ ] Exposer `rescheduleJob(key: string, newExpression: string)` : retrouve le `ScheduledTask` courant via le registre, `task.stop()`, recrée un nouveau `ScheduledTask` avec la même factory/timezone, remplace la référence dans `globalForCron`
+- [ ] Exposer `getEffectiveCronSchedules()` : retourne pour chacune des 9 clés `{ key, expression, timezone, source: 'db' | 'env' }`, utilisé par l'API de lecture (voir 4d)
+- [ ] Mettre à jour l'appelant `src/app/api/internal/cron/bootstrap/route.ts` (`initCronJobs()` → `await initCronJobs()`), seul call site existant
 
 **API**
-- [ ] Ajouter `PUT /api/settings/cron-schedules` (SuperUser uniquement) : valider l'expression via `cron.validate()`, persister en base, appeler `rescheduleJob`
+- [ ] `GET /api/settings/cron-schedules` (SuperUser uniquement) : retourne `getEffectiveCronSchedules()`. Manquait dans la version initiale du plan — sans lecture de l'état courant (valeur + source db/env), l'UI ne peut pas afficher les fréquences actuelles avant modification
+- [ ] `PUT /api/settings/cron-schedules` (SuperUser uniquement) : body `{ key, expression }`, valider via `cron.validate()`, upsert `CronSchedule`, appeler `rescheduleJob`
+- [ ] `DELETE /api/settings/cron-schedules/[key]` (SuperUser uniquement) : supprime la ligne DB (retour au défaut `.env`/hardcodé), appelle `rescheduleJob` avec la valeur par défaut recalculée
 
 **UI**
-- [ ] Dans la section "Schedules" (Étape 2e) : rendre les expressions éditables (champ texte inline + bouton Appliquer)
+- [ ] Dans la section "Schedules" (Étape 2f) : passer d'un affichage statique à un tableau éditable listant les **9** clés de 4a (pas seulement celles visibles dans le tableau "Dernière exécution par action")
+- [ ] Badge de source par ligne : `.env` (neutre) vs `personnalisé` (coloré) si une ligne `CronSchedule` existe
+- [ ] Champ texte inline + bouton "Appliquer" (`PUT`) + bouton "Réinitialiser" visible seulement si override actif (`DELETE`)
 - [ ] Validation côté client de l'expression cron avant envoi
-- [ ] Feedback immédiat (succès/erreur)
+- [ ] Feedback immédiat (succès/erreur) par ligne
+
+**Limite connue à documenter (non bloquante pour la V1)**
+- [ ] `initCronJobs()` est gardé par un flag process-local (`clanSyncCronInitialized`). Si l'app tourne sur plusieurs instances Next.js, `rescheduleJob` ne modifie que le `ScheduledTask` de l'instance ayant reçu la requête `PUT` — les autres instances gardent l'ancienne expression jusqu'à leur prochain redémarrage (qui relira alors `CronSchedule` à jour). Aucun mécanisme de synchronisation inter-instances n'est prévu ; à noter dans `docs/ops/cron.md`.
 
 ---
 
@@ -227,12 +261,49 @@ model CronSchedule {
 | `src/app/api/settings/cron-workers-status/route.ts` | Créer (lock fichiers + stats queue) | ✅ Créé |
 | `src/lib/cron-observability.ts` | `getCronOverview` accepte `take` | ✅ Livré |
 | `src/lib/pubg-telemetry/aggregate-recalc-queue.ts` | Ajout `getTelemetryAggregateRecalcQueueStats` | ✅ Livré |
-| `src/lib/cron-jobs.ts` | Étape 4 seulement | En attente |
-| `prisma/schema.prisma` | Étape 4 seulement | En attente |
+| `src/lib/cron-jobs.ts` | Étape 4 seulement — registre des 9 schedules, `initCronJobs` async, `rescheduleJob`, `getEffectiveCronSchedules` | En attente |
+| `prisma/schema.prisma` | Étape 4 seulement — modèle `CronSchedule` | En attente |
+| `src/app/api/internal/cron/bootstrap/route.ts` | Étape 4 seulement — `await initCronJobs()` | En attente |
+| `.env.example` | Étape 4 seulement — ajouter `CHALLENGE_PROCESSING_CRON` | En attente |
+| `src/app/api/settings/cron-schedules/route.ts` | Étape 4 seulement — créer (`GET`/`PUT`) | En attente |
+| `src/app/api/settings/cron-schedules/[key]/route.ts` | Étape 4 seulement — créer (`DELETE`) | En attente |
+| `docs/ops/cron.md` | Étape 4 seulement — documenter la limite multi-instances | En attente |
 
 ---
 
 ## Suggestions futures (non planifiées)
+
+### Découpler la télémétrie de `daily_sync` — nouvelle file "live sync", 100% stream, aucun fichier sur disque
+
+**Problème :** quand `TELEMETRY_SYNC_ENABLED=true`, `daily_sync` télécharge et parse la télémétrie **en-process** (`syncTelemetryBatchForRecentSquadMatches` puis `recalculateTelemetryPeriodAggregatesForClan`, dans `cron-jobs.ts`), sur le même thread que le serveur HTTP Next.js — pas d'offload `worker_thread`. Le parseur streaming (`parser.ts`) traite chaque chunk réseau de façon synchrone/CPU-bound ; entre deux chunks il rend la main, mais pendant le traitement d'un chunk les autres requêtes du site attendent. Détail dans `docs/ops/cron.md` (section "Bonnes pratiques d'exploitation").
+
+**⚠️ Piste écartée — ne pas router via la queue `telemetry_resync_file` existante.** Cette queue (`enqueueTelemetryResyncJobs` + `telemetry:worker`) ne fait *pas* de téléchargement live : elle rejoue un fichier déjà capturé sur disque (`resyncTelemetryFromCapturedFile`, `src/lib/pubg-telemetry/resync-files.ts`). Si le fichier n'existe pas dans `TELEMETRY_CAPTURE_FIXTURES_DIR`, le job échoue (`status: 'missing'`). Or `TELEMETRY_CAPTURE_FIXTURES` est à `false` par défaut et explicitement "réservé au développement, ne pas activer en production" (`.env.example:111-114`). Router `daily_sync` vers cette queue ferait donc échouer tous les jobs en prod — et l'activer reviendrait à écrire un fichier JSON par match sur disque, ce qu'on veut justement éviter (volume élevé de matchs importés quotidiennement).
+
+**Le chemin qui reste 100% stream (à préserver tel quel) :** `syncTelemetryForSquadMatch` (`src/lib/pubg-telemetry/index.ts:114-190`) — déjà utilisé aujourd'hui par `daily_sync`. `downloadTelemetryFromAsset()` renvoie un `ReadableStream` branché directement sur `parseTelemetrySnapshotFromStream()` : aucune écriture disque, la capture fixture n'est qu'un effet de bord optionnel (`.tee()`) totalement absent de ce chemin. **Ce code ne doit pas changer** — seul son lieu d'exécution doit bouger.
+
+**Proposition :** créer une file **distincte** de la resync-fichier, dédiée au live-sync, et faire exécuter ce même code stream par le worker déjà existant (process séparé, déjà monitoré mémoire/backpressure — cf. mémoire "Phase 2 memory protection complete") au lieu du process Next.js.
+
+- [ ] Nouveau module `src/lib/pubg-telemetry/live-sync-queue.ts`, même pattern que `resync-queue.ts` mais action dédiée `telemetry_live_sync` et `details: { squadMatchId, pubgMatchId, anyPlayerId, shard }` (pas de `resetBeforeSync`/fichier — non pertinent ici)
+- [ ] Dans `runTelemetryBatchForClan` (`cron-jobs.ts`) : remplacer l'appel à `syncTelemetryBatchForRecentSquadMatches(...)` par `listSquadMatchesNeedingTelemetry(...)` (lecture Prisma, déjà utilisée par `job.ts`) puis `enqueueTelemetryLiveSyncJobs({ clanId, matches })`
+- [ ] Dans `scripts/telemetry-resync-worker.ts` (ou un second claim-loop dans le même process — pas un 3ᵉ script à opérer) : ajouter la prise en charge de l'action `telemetry_live_sync` en appelant **directement** `syncTelemetryForSquadMatch` (le même code stream qu'aujourd'hui, juste déplacé de process) — ne pas passer par `resyncTelemetryFromCapturedFile`
+- [ ] Chaînage du recalcul d'agrégats identique à l'existant (`enqueueTelemetryAggregateRecalcJob` une fois le job live-sync terminé avec succès)
+- [ ] Supprimer l'appel direct à `recalculateTelemetryPeriodAggregatesForClan` dans `runTelemetryAggregateRefreshForClan` — devenu inutile
+- [ ] Adapter le résumé stocké dans `CronExecution` (`action: daily_sync`) : remplacer `parsed`/`failed`/`metrics` par un résumé de mise en queue (`queuedCount`, `alreadyQueuedCount`) — le résultat réel par match est visible dans les lignes `telemetry_live_sync`
+- [ ] `TELEMETRY_SYNC_ENABLED` garde le même rôle (active/désactive la télémétrie auto), mais gate désormais une mise en queue rapide plutôt qu'une exécution bloquante
+- [ ] Dashboard `/settings/cron` (Étape 2c/2d) : ajouter `telemetry_live_sync` aux actions suivies, à côté de `telemetry_resync_file`
+
+**Effet :** `daily_sync` ne fait plus aucun appel réseau ni parsing CPU-bound — uniquement des lectures/écritures Prisma courtes (quelques ms), bornées par `TELEMETRY_MAX_MATCHES_PER_RUN`. Le téléchargement+parsing reste **100% stream, zéro fichier sur disque**, exactement comme aujourd'hui — seul le process qui l'exécute change. Le risque de blocage de l'event-loop disparaît complètement, sans introduire de dépendance à la capture fixture ni de charge disque supplémentaire.
+
+**Compromis à assumer :**
+- La télémétrie n'est plus disponible immédiatement après le cron — elle devient éventuellement cohérente, au rythme du worker (poll `TELEMETRY_RESYNC_WORKER_POLL_MS`, parallélisme à définir pour la nouvelle file — probablement une variable dédiée plutôt que de réutiliser `TELEMETRY_RESYNC_WORKER_MAX_PARALLEL`, pour ne pas faire concurrence aux jobs de resync-fichier).
+- Nécessite que le worker tourne en continu — déjà une exigence opérationnelle documentée pour le backfill manuel, mais devient désormais aussi une dépendance du chemin **automatique**. Si le worker est à l'arrêt, les jobs `telemetry_live_sync` s'accumulent en `queued` (visible dans le dashboard) plutôt que d'échouer silencieusement.
+- `TELEMETRY_SYNC_CONCURRENCY` (utilisé aujourd'hui par le batch en-process) devient sans effet sur ce chemin — à remplacer par une variable de parallélisme côté worker pour cette nouvelle file, et à documenter clairement dans `docs/ops/cron.md` pour éviter toute confusion avec les variables `TELEMETRY_RESYNC_WORKER_*` existantes (qui restent, elles, spécifiques au fichier capturé).
+
+**Piste secondaire — le 3ᵉ chemin manuel synchrone (hors périmètre initial, à évaluer séparément) :** `syncTelemetryForSelectedSquadMatches` (`src/lib/pubg-telemetry/manual-sync.ts:309-718`) est un **troisième** chemin de sync télémétrie, distinct des deux ci-dessus : il télécharge et parse en stream (comme `daily_sync`), mais de façon **synchrone dans la requête API** elle-même (pas de queue), donc potentiellement bloquant sur le même thread Next.js le temps de traiter les matchs sélectionnés. Impact plus limité que `daily_sync` (déclenché uniquement par un SuperUser, sur un nombre de matchs choisi manuellement), mais le même principe s'applique.
+
+- [ ] Si ce chemin manuel traite parfois des lots significatifs, envisager de le faire passer par la même file `telemetry_live_sync` plutôt que d'exécuter `syncTelemetryForSelectedSquadMatches` en direct dans la route API
+- [ ] À ne traiter qu'après validation du chemin `daily_sync` → `telemetry_live_sync` (réutiliser la même file une fois éprouvée, pas la dupliquer)
+- [ ] Vérifier au passage si la fonctionnalité de capture fixture (`fetchTelemetryFilesForSelectedSquadMatches`, effet de bord `.tee()`) reste nécessaire sur ce chemin ou si elle peut être découplée
 
 ### Purge de l'historique cron
 

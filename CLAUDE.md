@@ -2,6 +2,20 @@
 
 # PUBG Clan Site — Guide agent
 
+## Quick Navigation
+
+| Section | Purpose |
+|---------|---------|
+| [Stack](#stack) | Tech versions & Node.js constraints |
+| [Organisation du code](#organisation-du-code) | Folder structure & key files |
+| [Patterns de pages](#patterns-de-pages) | Server vs Client components |
+| [Thème et UI](#thème-et-ui--règles-pour-nouvelles-pages) | CSS tokens, components, layout |
+| [Data Fetching & Session](#data-fetching--session) | Client hooks, API routes, auth |
+| [Workers & CLI](#workers--cli-scripts) | Telemetry, batch sync, cron |
+| [Environment & Gotchas](#environment--known-issues) | Critical issues & workarounds |
+| [Scripts](#scripts-utiles) | Development & deployment commands |
+| [Documentation](#documentation) | Project docs index |
+
 ## Stack
 
 | Technologie | Version | Notes |
@@ -166,6 +180,231 @@ Ne jamais lire/écrire le thème directement depuis une page — passer par les 
 - [ ] Contenu centré et borné à 1024px sur desktop
 - [ ] Mobile testé (espacement, overflow, navigation)
 
+## Data Fetching & Session
+
+### Client Data Fetching (Majority of Pages)
+
+Pages are `'use client'` and use **custom hooks** to fetch data:
+
+```tsx
+'use client'
+import { useLeaderboard } from '@/hooks/useLeaderboard'
+import { useParams } from 'next/navigation'
+
+export default function LeaderboardPage() {
+  const params = useParams<{ clanId: string }>()
+  const clanId = Number(params.clanId)
+  
+  const { data, loading, error } = useLeaderboard(clanId)
+  
+  if (loading) return <div>Loading...</div>
+  if (error) return <div>Error: {error.message}</div>
+  return <div>{data.players.map(p => <div key={p.id}>{p.name}</div>)}</div>
+}
+```
+
+**Key hooks** (see `src/hooks/`):
+- `useSelectedClan()` — Current clan context (localStorage + change events)
+- `useAuthSession()` — Session state + logout on 401
+- `useLeaderboard()`, `useMatchHistory()`, `usePlayerStats()` — Data fetching with cancellation
+
+**Pattern:**
+1. Hook calls `fetch('/api/...', { cache: 'no-store' })`
+2. Manages loading/error state internally
+3. Cancels requests if component unmounts (`AbortController`)
+4. Calls `POST /api/auth/logout` on 401 to purge expired token
+
+### API Routes (Standard Web API)
+
+All under `src/app/api/`. **MUST return standard `Response`, NOT `NextResponse`**.
+
+Pattern:
+```typescript
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ clanId: string }> }
+) {
+  const { clanId } = await params  // ← ALWAYS await params (Next.js 16)
+  
+  try {
+    const data = await prisma.clan.findUnique({
+      where: { id: Number(clanId) }
+    })
+    return Response.json({ data })
+  } catch (error) {
+    console.error('Error:', error)
+    return Response.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    )
+  }
+}
+```
+
+**Important:**
+- Params is always a `Promise` → must `await` before use
+- Return `Response.json()`, not `NextResponse.json()`
+- Handle errors with try-catch; log them
+- Set proper HTTP status codes (200, 400, 401, 404, 500)
+
+### Session & Auth (Client-Side)
+
+Session is **cookie-based** with server-side validation:
+
+1. **Cookie:** `pubg_clan_session` (HTTP-only, set by auth routes)
+2. **Validation:** `src/app/layout.tsx` (async Server Component)
+   ```typescript
+   const session = await getSessionFromToken(cookies())
+   ```
+3. **Client Hook:** `useAuthSession()` calls `GET /api/auth/session`
+   - Returns `{ user, expires, role }`
+   - Auto-logs out on 401 (expired token)
+
+**Auth Flow:**
+- `POST /api/auth/login` → validates password → sets cookie → redirects
+- `POST /api/auth/logout` → clears cookie
+- `POST /api/auth/activate` → sets up SuperUser (first run only)
+
+**Guard Routes:**
+- `src/proxy.ts` (edge middleware) redirects based on `setupState`:
+  - `first_run` → `/setup`
+  - `pending_activation` → `/activate`
+  - `completed` → check session cookie → proceed
+
+## Workers & CLI Scripts
+
+### Telemetry Worker (Infinite Loop)
+
+```bash
+npm run telemetry:worker     # Runs forever (512 MB memory limit)
+npm run telemetry:worker:once  # One pass then exit
+```
+
+**What it does:**
+1. Fetches jobs from `TelemetryResyncJob` queue (status = `pending`)
+2. Downloads match telemetry from PUBG CDN
+3. Parses squad members, stats, heatmaps
+4. Stores in database (`Match`, `SquadMatch`, `SquadMember`, etc.)
+5. Auto-recovers stuck jobs (`running` > 10 min)
+6. Pauses on database backpressure (lag detected)
+
+**Known Issue:** Node.js 22 `Readable.toWeb()` memory leak on sequential parses.
+**Workaround:** [src/lib/pubg-telemetry/resync-files.ts](src/lib/pubg-telemetry/resync-files.ts) uses manual `ReadableStream` adapter.
+
+### Batch CLI (Enqueue Jobs)
+
+```bash
+npm run telemetry:batch -- --clan 1 --all-matches
+npm run telemetry:batch -- --all-clans --all-matches
+npm run telemetry:batch -- --recalc-aggregates
+```
+
+**Flags:**
+- `--clan <id>` — Sync matches for one clan
+- `--all-clans` — Sync all registered clans
+- `--all-matches` — Include old matches (slow)
+- `--recalc-aggregates` — Trigger period stats recalculation
+
+### Cron Jobs (Automatic)
+
+Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
+1. Next.js internal API endpoint: `POST /api/internal/cron/trigger`
+2. External cron service (Linux systemd timers in production)
+
+**Scheduled Jobs:**
+```
+0 2 * * *  →  Clan match sync (latest matches from PUBG API)
+0 3 * * *  →  Recalc leaderboard & badges (stats-calculator.ts)
+0 4 * * *  →  Lifetime stats sync (season averages)
+0 5 * * *  →  Ranked season data sync
+0 18 * * *  →  Send online reminders (if enabled)
+0 8 * * 1  →  Weekly report generation
+0 8 1 * *  →  Monthly report generation
+```
+
+**Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.
+**Tracking:** `CronExecution` table stores execution logs.
+
+### Other CLI Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run make-superuser -- user@example.com` | Grant/revoke SuperUser status |
+| `npm run scores:recalc` | Manually recalculate leaderboard positions & badges |
+| `npm run sync:pubg-assets` | Fetch weapon/map/phase labels from PUBG API (seeds `Label` table) |
+
+## Environment & Known Issues
+
+### Critical: Environment Variables
+
+| Variable | Used For | Where to Set |
+|----------|----------|--------------|
+| `DATABASE_URL` | Prisma + scripts | `.env` (Prisma reads this for CLI) or `.env.local` (Next.js) |
+| `PUBG_API_KEY` | PUBG API client | `.env` or `.env.local` |
+| `AUTH_BOOTSTRAP_SECRET` | SuperUser activation token | `.env` |
+| `SMTP_URL` (optional) | Email delivery (reports, notifications) | `.env` |
+| `ENABLE_CRON_JOBS` | Toggle cron scheduling | `.env` (default: `true`) |
+
+**Note:** Prisma CLI commands read `.env`, not `.env.local`. Keep `DATABASE_URL` in `.env` for migrations.
+
+### Known Gotchas
+
+#### 1. **Node.js 22 `Readable.toWeb()` Bug**
+- **Issue:** Sequential parses trigger V8 fatal error (exit code 5, unrecoverable)
+- **Where:** Telemetry file parsing
+- **Fix:** Use manual `ReadableStream` adapter in [resync-files.ts](src/lib/pubg-telemetry/resync-files.ts)
+- **Consequence:** **NEVER** call `Readable.toWeb()` in this codebase
+
+#### 2. **PUBG API Format Variance**
+- **Issue:** `clan.data` returned as object OR array; sometimes `clans.data` vs `clans`
+- **Fix:** Parser accepts both formats; fallback to "Ungrouped" clan
+- **Impact:** Clan sync may silently downgrade members to ungrouped
+
+#### 3. **Avatar URL Resolution**
+- **Issue:** Avatar is on `UserAccount`, NOT `ClanMember`
+- **Path:** `ClanMember.identities[0].user.avatarUrl`
+- **Gotcha:** API response format may differ; normalize before storing
+
+#### 4. **Prisma in Edge Runtime**
+- **Issue:** Prisma imports cause bundling errors in edge middleware
+- **Location:** `src/proxy.ts` (no Prisma, no session logic allowed)
+- **Fix:** Delegate to `/api/auth/session` for session checks
+
+#### 5. **useSearchParams() SSR Hydration Mismatch**
+- **Issue:** Next.js 16 warns if `useSearchParams()` used in Server-rendered page
+- **Fix:** Wrap in `<Suspense>` with fallback
+- **Pattern:**
+  ```tsx
+  'use client'
+  import { Suspense } from 'react'
+  
+  function MyComponent() {
+    const params = useSearchParams()  // Safe inside Suspense
+    return <div>{params.get('q')}</div>
+  }
+  
+  export default function Page() {
+    return <Suspense fallback={<div>Loading...</div>}>
+      <MyComponent />
+    </Suspense>
+  }
+  ```
+
+#### 6. **Session Cookie Expiry Not Auto-Purged**
+- **Issue:** Expired token stays in browser; no logout redirect until next fetch
+- **Fix:** `useAuthSession()` hook detects 401 and calls logout + clears cookie
+- **Gotcha:** Manual page refresh may show stale data briefly
+
+#### 7. **Theme Flash on Page Load**
+- **Fix:** `ThemeInitializer` component runs early to set `data-app-theme` before hydration
+- **Gotcha:** If theme reads from wrong source, flash occurs
+
+#### 8. **Rate Limiting Strategy**
+- **Setting:** `AppConfig.pubg_api_rate_limit_rpm` (default: 10 RPM)
+- **Override via UI:** `/settings/pubg-api-rate-limit` (admin only)
+- **Override via CLI:** Set env var `PUBG_API_RATE_LIMIT_RPM` before running worker
+- **Fallback:** If DB query fails, reads from env var
+
 ## Gotchas connus
 
 ### Node.js 22 — `Readable.toWeb()` bug
@@ -208,14 +447,50 @@ Voir `docs/telemetry-worker-crash-fix.md` pour l'historique du bug et les correc
 ## Scripts utiles
 
 ```bash
-npm run dev                    # Dev avec webpack (--max-old-space-size=8192)
-npm run telemetry:worker       # Worker résync télémétrie (boucle infinie)
-npm run telemetry:worker:once  # Worker une passe puis exit
-npm run telemetry:batch        # Enqueue batch de jobs depuis CLI
-npm run build                  # Build production (+ copy-standalone-assets)
-npm run test:telemetry         # Tests Vitest
-npm run lint                   # ESLint
+npm run dev                           # Dev server + webpack watch (8 GB heap required)
+npm run dev:turbopack                # Experimental Turbopack dev (faster rebuilds)
+npm run telemetry:worker             # Infinite resync worker (512 MB memory limit)
+npm run telemetry:worker:once        # Single pass then exit
+npm run telemetry:aggregates:worker  # Aggregate period stats from match data
+npm run telemetry:batch -- <FLAGS>   # Enqueue sync jobs (see Workers & CLI section)
+npm run scores:recalc                # Recalculate leaderboard & badges
+npm run make-superuser -- EMAIL      # Grant/revoke SuperUser status
+npm run sync:pubg-assets             # Fetch asset labels (weapons, maps, phases)
+npm run build                        # Production standalone build
+npm run start                        # Run production server (requires .next/standalone)
+npm run lint                         # Run ESLint
+npm run test:telemetry               # Run Vitest (telemetry parser tests only)
 ```
+
+### Memory Allocation
+
+- **Dev:** `--max-old-space-size=8192` (webpack cache is memory-intensive)
+- **Worker:** Capped at 512 MB (monitor via `ps aux | grep node`)
+- **Batch:** Standard (inherits from shell)
+
+### Database Migrations
+
+```bash
+# Auto-apply pending migrations (required on deploy)
+npx prisma migrate deploy
+
+# Create migration from schema changes
+npx prisma migrate dev --name <description>
+
+# Reset DB (WARNING: deletes all data)
+npx prisma migrate reset
+```
+
+### Production Deployment
+
+1. Apply migrations: `npx prisma migrate deploy`
+2. Build: `npm run build`
+3. Copy `/.next/standalone` to production
+4. Set `.env` (DATABASE_URL, API keys, secrets)
+5. Start process: `npm start`
+6. Or use systemd: `systemctl restart pubg-clan-site-web`
+
+See [deployment.md](docs/ops/deployment.md) for full Linux/systemd setup.
 
 ## Documentation
 

@@ -291,51 +291,58 @@ export default function MatchesPage() {
   return (
     <main className="app-page-surface min-h-screen px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="app-panel overflow-hidden">
+          <div className="p-4">
           <MemberPageHeader
             title="Matchs du joueur"
             subtitle="Matchs importes deja stockes et recuperation manuelle des derniers matchs PUBG."
             showBackButton={false}
             framed={false}
           />
+          </div>
+
+          {!matchInfo ? (
+            <div className="border-t border-slate-200 px-6 py-6">
+              <p className="text-sm text-gray-500">
+                Les donnees de matchs sont indisponibles pour ce joueur.
+              </p>
+            </div>
+          ) : (
+            <div className="border-t border-slate-200">
+              <MatchHistory
+                matches={historyData.matches}
+                totalCount={historyData.totalCount}
+                mapLabels={historyData.mapLabels}
+                title="Matchs importes"
+                subtitle="Disponibles dans la DB"
+                period={historyPeriod}
+                onPeriodChange={(value) => {
+                  setHistoryPeriod(value)
+                  setHistoryOffset(0)
+                }}
+                limit={HISTORY_LIMIT}
+                offset={historyOffset}
+                onOffsetChange={setHistoryOffset}
+                sortKey={historySortKey}
+                sortDir={historySortDir}
+                onSortChange={(nextSortKey, nextSortDir) => {
+                  setHistorySortKey(nextSortKey)
+                  setHistorySortDir(nextSortDir)
+                  setHistoryOffset(0)
+                }}
+                loading={loadingHistory}
+                unframed
+              />
+            </div>
+          )}
         </section>
 
         {error ? (
           <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
         ) : null}
 
-        {!matchInfo ? (
-          <section className="rounded bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">
-              Les donnees de matchs sont indisponibles pour ce joueur.
-            </p>
-          </section>
-        ) : (
+        {matchInfo ? (
           <>
-            <MatchHistory
-              matches={historyData.matches}
-              totalCount={historyData.totalCount}
-              mapLabels={historyData.mapLabels}
-              title="Matchs importes"
-              subtitle="Disponibles dans la DB"
-              period={historyPeriod}
-              onPeriodChange={(value) => {
-                setHistoryPeriod(value)
-                setHistoryOffset(0)
-              }}
-              limit={HISTORY_LIMIT}
-              offset={historyOffset}
-              onOffsetChange={setHistoryOffset}
-              sortKey={historySortKey}
-              sortDir={historySortDir}
-              onSortChange={(nextSortKey, nextSortDir) => {
-                setHistorySortKey(nextSortKey)
-                setHistorySortDir(nextSortDir)
-                setHistoryOffset(0)
-              }}
-              loading={loadingHistory}
-            />
-
             {authLoading || canImportMatches ? (
               <section className="app-panel p-6">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -435,7 +442,7 @@ export default function MatchesPage() {
               </section>
             ) : null}
           </>
-        )}
+        ) : null}
       </div>
     </main>
   )

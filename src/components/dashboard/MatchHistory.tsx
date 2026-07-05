@@ -107,6 +107,7 @@ interface MatchHistoryProps {
   loading?: boolean
   title?: string
   subtitle?: string
+  unframed?: boolean
 }
 
 export default function MatchHistory({
@@ -124,6 +125,7 @@ export default function MatchHistory({
   loading,
   title = 'Historique des matchs',
   subtitle,
+  unframed = false,
 }: MatchHistoryProps) {
   const periods: DashboardPeriod[] = ['week', 'month', 'all']
   const periodLabels: Record<DashboardPeriod, string> = {
@@ -145,7 +147,7 @@ export default function MatchHistory({
   const currentPage = Math.floor(offset / limit) + 1
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+    <section className={unframed ? undefined : 'rounded-lg border border-gray-200 bg-white shadow-sm'}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>

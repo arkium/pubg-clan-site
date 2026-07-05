@@ -293,17 +293,15 @@ export default function MemberHeatmapPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="app-panel mb-5 p-4">
         <MemberPageHeader
           title="Calendrier d'activite"
           subtitle="Repartition de l'activite par jour et par heure."
           showBackButton={false}
           framed={false}
         />
-      </section>
-
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <div className="flex flex-wrap items-end gap-3">
           <MobileDropdownNav
             id={`heatmap-scope-${memberId}`}
             label="Filtre"
@@ -414,6 +412,8 @@ export default function MemberHeatmapPage() {
           <div className="w-full rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900">
             <p className="mt-1 font-medium">{payload?.scopeLabel ?? 'Chargement...'}</p>
             <p className="mt-1 text-xs text-cyan-800">{payload?.matchCount ?? 0} match(s) utilises</p>
+          </div>
+
           </div>
         </div>
       </section>

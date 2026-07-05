@@ -281,17 +281,15 @@ export default function MemberDropZonesPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="app-panel mb-5 p-4">
         <MemberPageHeader
           title="Drop zones"
           subtitle="Positions d'atterrissage du joueur (points + zones d'influence) selon la période."
           showBackButton={false}
           framed={false}
         />
-      </section>
-
-      <section className="app-panel mb-5 p-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div className="min-w-0">
             <MobileDropdownNav
               id="member-drop-zones-scope-filter"
@@ -407,6 +405,8 @@ export default function MemberDropZonesPage() {
               visibilityClass=""
               className="w-full"
             />
+          </div>
+
           </div>
         </div>
       </section>

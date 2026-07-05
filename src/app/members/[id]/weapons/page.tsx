@@ -671,10 +671,8 @@ export default function MemberWeaponsPage() {
           showBackButton={false}
           framed={false}
         />
-      </section>
 
-      <section className="mb-6 rounded border border-gray-200 bg-white p-4">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="min-w-0">
             <MobileDropdownNav
               id="member-weapons-period-filter"

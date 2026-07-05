@@ -7,6 +7,7 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -109,7 +110,13 @@ export async function GET(
         if (normalizedStatus === 'success') {
           acc.success += 1
         } else if (normalizedStatus === 'failed') {
-          acc.failed += 1
+          // Data past PUBG's ~14-15 day retention window is permanently gone —
+          // counted separately so "failed" reflects actual pipeline problems to fix.
+          if (isTelemetryDataExpiredError(row.errorCode, row.errorMessage)) {
+            acc.expired += 1
+          } else {
+            acc.failed += 1
+          }
         } else {
           acc.pending += 1
         }
@@ -123,6 +130,7 @@ export async function GET(
       {
         success: 0,
         failed: 0,
+        expired: 0,
         pending: 0,
         withParsedPayload: 0,
       }
@@ -132,6 +140,7 @@ export async function GET(
       total: rows.length,
       success: counts.success,
       failed: counts.failed,
+      expired: counts.expired,
       pending: counts.pending,
       withParsedPayload: counts.withParsedPayload,
     }

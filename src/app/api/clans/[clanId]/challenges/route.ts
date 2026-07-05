@@ -5,7 +5,7 @@ import {
   type CreateChallengeInput,
 } from '@/lib/challenge-service'
 import { prisma } from '@/lib/prisma'
-import { requirePermission } from '@/middleware/auth-permission'
+import { requireNavPermission, requirePermission } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -30,6 +30,9 @@ export async function GET(
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
+
+    const roleError = await requireNavPermission('clan.challenges')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     const clan = await prisma.clan.findUnique({
       where: { id: parsedClanId },

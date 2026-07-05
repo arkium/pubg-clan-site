@@ -5,24 +5,22 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { TELEMETRY_LIVE_SYNC_QUEUE_ACTION } from '@/lib/pubg-telemetry/live-sync-queue'
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import { requireRole } from '@/middleware/auth-permission'
 
 type TimeWindow = '24h' | '7d' | '30d' | 'all'
 
-type TelemetrySyncDetails = {
+// Shape written by scripts/telemetry-resync-worker.ts (processOneLiveSyncJob) via
+// finishTelemetryLiveSyncJobSuccess/Failed — see src/lib/pubg-telemetry/live-sync-queue.ts.
+type LiveSyncJobDetails = {
+  squadMatchId?: string
+  pubgMatchId?: string
   status?: string
-  reason?: string
-  scanned?: number
-  parsed?: number
-  failed?: number
-  skipped?: number
-  metrics?: {
-    bytesDownloaded?: number
-    fetchMatchMs?: number
-    downloadAssetMs?: number
-    parseMs?: number
-    persistMs?: number
-  }
+  errorCode?: string | null
+  errorMessage?: string | null
+  bytesDownloaded?: number
+  contentLength?: number | null
 }
 
 function parseClanId(clanId: string) {
@@ -64,27 +62,12 @@ function getWindowStart(window: TimeWindow) {
   return new Date(now - 7 * 24 * 60 * 60 * 1000)
 }
 
-function asFiniteNumber(value: unknown) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 0
-  }
-
-  return value
-}
-
-function asTelemetrySyncDetails(value: unknown): TelemetrySyncDetails | null {
+function asLiveSyncJobDetails(value: unknown): LiveSyncJobDetails {
   if (!value || typeof value !== 'object') {
-    return null
+    return {}
   }
 
-  const details = value as Record<string, unknown>
-  const telemetrySync = details.telemetrySync
-
-  if (!telemetrySync || typeof telemetrySync !== 'object') {
-    return null
-  }
-
-  return telemetrySync as TelemetrySyncDetails
+  return value as LiveSyncJobDetails
 }
 
 function percentile(values: number[], ratio: number) {
@@ -124,10 +107,16 @@ export async function GET(
     const limit = parseLimit(url.searchParams.get('limit'))
     const startedAtGte = getWindowStart(window)
 
+    // Telemetry download/parse work moved off the daily_sync request thread and into
+    // the telemetry_live_sync queue (processed by telemetry-resync-worker.ts) — each
+    // job here is one match, not a batch, so per-run metrics are computed from these
+    // job rows directly instead of daily_sync's CronExecution.details (which no longer
+    // carries parsed/failed/metrics fields since that migration).
     const executions = await prisma.cronExecution.findMany({
       where: {
         clanId: parsedClanId,
-        action: 'daily_sync',
+        action: TELEMETRY_LIVE_SYNC_QUEUE_ACTION,
+        status: { in: ['success', 'failed'] },
         ...(startedAtGte
           ? {
               startedAt: {
@@ -145,114 +134,114 @@ export async function GET(
         status: true,
         startedAt: true,
         finishedAt: true,
-        durationMs: true,
         details: true,
       },
     })
 
     const rows = executions.map((execution) => {
-      const telemetrySync = asTelemetrySyncDetails(execution.details)
-      const metrics = telemetrySync?.metrics
+      const jobDetails = asLiveSyncJobDetails(execution.details)
+      const durationMs =
+        execution.finishedAt && execution.startedAt
+          ? Math.max(0, execution.finishedAt.getTime() - execution.startedAt.getTime())
+          : null
+      const expired =
+        execution.status === 'failed' &&
+        isTelemetryDataExpiredError(jobDetails.errorCode, jobDetails.errorMessage)
 
       return {
         id: execution.id,
+        squadMatchId: jobDetails.squadMatchId ?? null,
+        pubgMatchId: jobDetails.pubgMatchId ?? null,
         startedAt: execution.startedAt.toISOString(),
         finishedAt: execution.finishedAt?.toISOString() ?? null,
-        cronStatus: execution.status,
-        durationMs: execution.durationMs,
-        telemetry: {
-          status: telemetrySync?.status ?? 'unknown',
-          reason: telemetrySync?.reason ?? null,
-          scanned: asFiniteNumber(telemetrySync?.scanned),
-          parsed: asFiniteNumber(telemetrySync?.parsed),
-          failed: asFiniteNumber(telemetrySync?.failed),
-          skipped: asFiniteNumber(telemetrySync?.skipped),
-          bytesDownloaded: asFiniteNumber(metrics?.bytesDownloaded),
-          fetchMatchMs: asFiniteNumber(metrics?.fetchMatchMs),
-          downloadAssetMs: asFiniteNumber(metrics?.downloadAssetMs),
-          parseMs: asFiniteNumber(metrics?.parseMs),
-          persistMs: asFiniteNumber(metrics?.persistMs),
-        },
+        durationMs,
+        status: execution.status === 'success' ? ('success' as const) : ('failed' as const),
+        expired,
+        errorCode: jobDetails.errorCode ?? null,
+        errorMessage: jobDetails.errorMessage ?? null,
+        bytesDownloaded: typeof jobDetails.bytesDownloaded === 'number' ? jobDetails.bytesDownloaded : 0,
       }
     })
 
     const summary = rows.reduce(
       (acc, row) => {
         acc.runs += 1
-        acc.scanned += row.telemetry.scanned
-        acc.parsed += row.telemetry.parsed
-        acc.failed += row.telemetry.failed
-        acc.skipped += row.telemetry.skipped
-        acc.bytesDownloaded += row.telemetry.bytesDownloaded
-        acc.fetchMatchMs += row.telemetry.fetchMatchMs
-        acc.downloadAssetMs += row.telemetry.downloadAssetMs
-        acc.parseMs += row.telemetry.parseMs
-        acc.persistMs += row.telemetry.persistMs
+        acc.bytesDownloaded += row.bytesDownloaded
+
+        if (row.status === 'success') {
+          acc.success += 1
+        } else if (row.expired) {
+          acc.expired += 1
+        } else {
+          acc.failed += 1
+        }
+
+        if (row.durationMs !== null) {
+          acc.durationMsValues.push(row.durationMs)
+        }
+
         return acc
       },
       {
         runs: 0,
-        scanned: 0,
-        parsed: 0,
+        success: 0,
         failed: 0,
-        skipped: 0,
+        expired: 0,
         bytesDownloaded: 0,
-        fetchMatchMs: 0,
-        downloadAssetMs: 0,
-        parseMs: 0,
-        persistMs: 0,
+        durationMsValues: [] as number[],
       }
     )
 
-    const runsWithTelemetry = rows.filter((row) => row.telemetry.status !== 'unknown')
-    const successfulRuns = runsWithTelemetry.filter((row) => row.telemetry.status === 'success').length
-    const failedRuns = runsWithTelemetry.filter((row) => row.telemetry.failed > 0).length
+    // Expired PUBG data is excluded from the rate denominator — it's not a pipeline
+    // failure, so it shouldn't count against the health of the sync pipeline.
+    const ratedRunsCount = summary.success + summary.failed
+    const successRate = ratedRunsCount > 0 ? (summary.success / ratedRunsCount) * 100 : 0
+    const failedRate = ratedRunsCount > 0 ? (summary.failed / ratedRunsCount) * 100 : 0
 
-    const successRate =
-      runsWithTelemetry.length > 0 ? (successfulRuns / runsWithTelemetry.length) * 100 : 0
-    const failedRate =
-      runsWithTelemetry.length > 0 ? (failedRuns / runsWithTelemetry.length) * 100 : 0
-
-    const p95 = {
-      fetchMatchMs: percentile(
-        rows.map((row) => row.telemetry.fetchMatchMs).filter((value) => value > 0),
-        0.95
-      ),
-      downloadAssetMs: percentile(
-        rows.map((row) => row.telemetry.downloadAssetMs).filter((value) => value > 0),
-        0.95
-      ),
-      parseMs: percentile(
-        rows.map((row) => row.telemetry.parseMs).filter((value) => value > 0),
-        0.95
-      ),
-      persistMs: percentile(
-        rows.map((row) => row.telemetry.persistMs).filter((value) => value > 0),
-        0.95
-      ),
-    }
+    const durationP95Ms = percentile(summary.durationMsValues, 0.95)
 
     const thresholds = {
       failedRateMax: 5,
-      parseP95MaxMs: 3000,
+      durationP95MaxMs: 15_000,
     }
 
     const alerts = [
       {
         key: 'failed_rate',
-        label: 'Taux runs en echec',
+        label: 'Taux jobs en echec',
         value: failedRate,
         threshold: thresholds.failedRateMax,
         status: failedRate <= thresholds.failedRateMax ? 'ok' : 'warning',
       },
       {
-        key: 'parse_p95_ms',
-        label: 'Latence parse p95',
-        value: p95.parseMs,
-        threshold: thresholds.parseP95MaxMs,
-        status: p95.parseMs <= thresholds.parseP95MaxMs ? 'ok' : 'warning',
+        key: 'duration_p95_ms',
+        label: 'Latence job p95',
+        value: durationP95Ms,
+        threshold: thresholds.durationP95MaxMs,
+        status: durationP95Ms <= thresholds.durationP95MaxMs ? 'ok' : 'warning',
       },
     ] as const
+
+    const data = {
+      summary: {
+        runs: summary.runs,
+        success: summary.success,
+        failed: summary.failed,
+        expired: summary.expired,
+        bytesDownloaded: summary.bytesDownloaded,
+      },
+      health: {
+        ratedRuns: ratedRunsCount,
+        successRate,
+        failedRate,
+        thresholds,
+        alerts,
+      },
+      latency: {
+        p95DurationMs: durationP95Ms,
+      },
+      series: rows,
+    }
 
     return NextResponse.json(
       buildTelemetrySuccessResponse(
@@ -263,36 +252,12 @@ export async function GET(
           limit,
           count: rows.length,
         },
-        {
-          summary,
-          health: {
-            runsWithTelemetry: runsWithTelemetry.length,
-            successRate,
-            failedRate,
-            thresholds,
-            alerts,
-          },
-          latency: {
-            p95,
-          },
-          series: rows,
-        },
+        data,
         {
           clanId: parsedClanId,
           window,
           limit,
-          summary,
-          health: {
-            runsWithTelemetry: runsWithTelemetry.length,
-            successRate,
-            failedRate,
-            thresholds,
-            alerts,
-          },
-          latency: {
-            p95,
-          },
-          series: rows,
+          ...data,
         }
       )
     )

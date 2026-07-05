@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import {
   buildTelemetryErrorResponse,
@@ -48,7 +49,7 @@ type MatchTelemetryRow = {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ clanId: string; matchId: string }> }
 ) {
   try {
@@ -60,6 +61,9 @@ export async function GET(
         status: 400,
       })
     }
+
+    const roleError = await requireNavPermission('clan.matches')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     if (!matchId || typeof matchId !== 'string') {
       return NextResponse.json(buildTelemetryErrorResponse('Invalid match id', 'INVALID_MATCH_ID'), {

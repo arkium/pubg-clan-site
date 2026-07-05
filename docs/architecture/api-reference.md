@@ -99,12 +99,12 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 | GET | `/api/clans/[clanId]/cron-control` | `requireRole(['Owner'])` ou SuperUser | ⚠️ Admin web uniquement | Statut santé cron du clan — voir [Cron](../ops/cron.md) |
 | POST | `/api/clans/[clanId]/cron-control` | `requireRole(['Owner'])` ou SuperUser | ⚠️ Admin web uniquement | Déclenche une action cron manuelle — voir [Cron](../ops/cron.md) |
 | GET | `/api/clans/[clanId]/dev/runtime-status` | `requireRole(['Owner'])` | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
-| GET | `/api/clans/[clanId]/lifetime-stats` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Stats lifetime agrégées de tous les membres du clan — détail ci-dessous |
-| GET | `/api/clans/[clanId]/leaderboard` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Classement clan par période/tri — voir [Leaderboard](../features/leaderboard.md) |
-| GET | `/api/clans/[clanId]/squad-analysis` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Analyse des compositions squad récurrentes — détail ci-dessous |
+| GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Stats lifetime agrégées de tous les membres du clan — détail ci-dessous |
+| GET | `/api/clans/[clanId]/leaderboard` | `requireNavPermission('clan.leaderboard')` | ✅ Pertinent | Classement clan par période/tri — voir [Leaderboard](../features/leaderboard.md) |
+| GET | `/api/clans/[clanId]/squad-analysis` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Analyse des compositions squad récurrentes — détail ci-dessous |
 | GET | `/api/clans/[clanId]/awards` | `requireRole(['Owner','Admin','Member'])` | ✅ Pertinent | 11 awards fun calculés par période — voir [Awards](../features/awards.md) |
 
-> **Point à vérifier (auth) :** `leaderboard`, `lifetime-stats`, `squad-analysis` et `matches` (voir domaine Matchs) n'appliquent aucun `requireRole`/`requirePermission`/`requireSameClanAsMember` — seul un `clanId` numérique valide est vérifié. Toutes les autres routes clan-scope appliquent un contrôle de rôle. Cette absence semble intentionnelle (données de lecture jugées non sensibles) mais mérite une confirmation humaine avant exposition mobile publique.
+> **Historique :** `leaderboard`, `lifetime-stats`, `squad-analysis` et `matches` (voir domaine Matchs) n'appliquaient auparavant aucun contrôle de rôle (seul un `clanId` numérique valide était vérifié). Un `requireNavPermission` a été ajouté sur chacune (2026-07-05, décision : accès configurable par rôle plutôt qu'un rôle figé, voir [Plan application mobile](mobile-app-plan.md)) — `clan.leaderboard`/`clan.matches` réutilisent les clés nav existantes des pages web correspondantes ; `squad-analysis` et `lifetime-stats` réutilisent `clan.stats` (aucune page dédiée à `squad-analysis` ne consomme encore cette route).
 
 ### Détail — `GET /api/clans/[clanId]/roles`
 
@@ -199,9 +199,9 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
-| GET | `/api/clans/[clanId]/matches` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Matchs squad du clan (sessions, synergies, top performers) — voir [Matchs](../features/matches.md) |
+| GET | `/api/clans/[clanId]/matches` | `requireNavPermission('clan.matches')` | ✅ Pertinent | Matchs squad du clan (sessions, synergies, top performers) — voir [Matchs](../features/matches.md) |
 | POST | `/api/clans/[clanId]/sync-matches` | `requireRole(['Owner'])` (bypass si appel cron interne) | ⚠️ Admin web uniquement | Sync matchs PUBG pour tous les membres actifs — voir [Matchs](../features/matches.md) |
-| GET | `/api/clans/[clanId]/matches/[matchId]/telemetry` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Détail télémétrie d'un match précis (scope clan) — non documenté ailleurs, détail ci-dessous |
+| GET | `/api/clans/[clanId]/matches/[matchId]/telemetry` | `requireNavPermission('clan.matches')` | ✅ Pertinent | Détail télémétrie d'un match précis (scope clan) — non documenté ailleurs, détail ci-dessous |
 | GET | `/api/members/[id]/matches` | `requireSameClanAsMember` | ✅ Pertinent | Historique matchs membre ou détection de matchs récents non importés — voir [Matchs](../features/matches.md) |
 | GET | `/api/matches/[matchId]` | Aucun (query `shard`/`playerId` requis) | ✅ Pertinent | Détail d'un match PUBG pour import — voir [Matchs](../features/matches.md) |
 | POST | `/api/matches/[matchId]` | Aucun (body `memberId`/`shard`/`playerId`) | ✅ Pertinent | Importe un match en base pour un membre — voir [Matchs](../features/matches.md) |
@@ -234,14 +234,16 @@ Non documenté ailleurs — variante clan-scope du détail télémétrie (à dis
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
-| GET | `/api/clans/[clanId]/challenges` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Liste défis du clan (filtre `?status=`) — voir [Défis](../features/challenges.md) |
+| GET | `/api/clans/[clanId]/challenges` | `requireNavPermission('clan.challenges')` | ✅ Pertinent | Liste défis du clan (filtre `?status=`) — voir [Défis](../features/challenges.md) |
 | POST | `/api/clans/[clanId]/challenges` | `requirePermission('edit_clan')` | ⚠️ Admin web uniquement | Crée un défi — voir [Défis](../features/challenges.md) |
-| GET | `/api/clans/[clanId]/challenges/[challengeId]` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Détail d'un défi + participants — voir [Défis](../features/challenges.md) |
+| GET | `/api/clans/[clanId]/challenges/[challengeId]` | `requireNavPermission('clan.challenges')` | ✅ Pertinent | Détail d'un défi + participants — voir [Défis](../features/challenges.md) |
 | POST | `/api/clans/[clanId]/challenges/[challengeId]/join` | Session (via `getActorMemberId`, membre du clan requis) | ✅ Pertinent | Rejoint un défi actif — voir [Défis](../features/challenges.md) |
-| GET | `/api/clans/[clanId]/challenges/[challengeId]/leaderboard` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Classement des participants d'un défi — voir [Défis](../features/challenges.md) |
+| GET | `/api/clans/[clanId]/challenges/[challengeId]/leaderboard` | `requireNavPermission('clan.challenges')` | ✅ Pertinent | Classement des participants d'un défi — voir [Défis](../features/challenges.md) |
 | GET | `/api/clans/[clanId]/reports` | `requirePermission('view_reports')` | ✅ Pertinent | Liste paginée des rapports (filtre `?type=`) — voir [Rapports](../features/reports.md) |
-| GET | `/api/clans/[clanId]/reports/[reportId]` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Détail complet d'un rapport — voir [Rapports](../features/reports.md) |
-| GET | `/api/clans/[clanId]/reports/[reportId]/export` | Aucun contrôle explicite (route ouverte) | ✅ Pertinent | Export HTML/PDF/JSON (`?format=`) — voir [Rapports](../features/reports.md) |
+| GET | `/api/clans/[clanId]/reports/[reportId]` | `requireNavPermission('clan.reports')` | ✅ Pertinent | Détail complet d'un rapport — voir [Rapports](../features/reports.md) |
+| GET | `/api/clans/[clanId]/reports/[reportId]/export` | `requireNavPermission('clan.reports')` | ✅ Pertinent | Export HTML/PDF/JSON (`?format=`) — voir [Rapports](../features/reports.md) |
+
+> **Historique :** `challenges` (liste + détail + leaderboard) et `reports` (détail + export) n'appliquaient auparavant aucun contrôle de rôle. Un `requireNavPermission` a été ajouté (2026-07-05), réutilisant les clés nav existantes `clan.challenges` / `clan.reports` des pages web correspondantes.
 
 ---
 
@@ -322,7 +324,7 @@ Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/a
 | POST | `/import-file` | `requireRole(['Owner'])` | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/backfill-null-json` | `requireRole(['Owner'])` | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
 
-> **Écart docs vs code relevé :** [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) indiquent `requireRole(['Owner'])` pour `weapons`, `positions`, `heatmap` et `drop-zones`. La lecture du code montre que ces 4 routes utilisent en réalité `requireNavPermission(...)`, un contrôle par rôle **configurable** via `/settings/nav-permissions` (clés `clan.stats-weapons`, `clan.positions`, `clan.heatmap-kills`, `clan.drop-zones`) — donc pas nécessairement restreint à l'Owner selon la configuration du clan. Les deux docs existants semblent ne pas avoir été mis à jour après ce refactor ; à corriger dans une prochaine passe et à vérifier avant de coder la logique d'accès mobile.
+> Les 4 routes `weapons`, `positions`, `heatmap` et `drop-zones` utilisent `requireNavPermission(...)`, un contrôle par rôle **configurable** via `/settings/nav-permissions` (clés `clan.stats-weapons`, `clan.positions`, `clan.heatmap-kills`, `clan.drop-zones`) — pas une restriction Owner figée. [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) ont été corrigés en conséquence (2026-07-05).
 
 ### Détail — `GET` / `POST /api/clans/[clanId]/telemetry/sync-selected-enqueue`
 

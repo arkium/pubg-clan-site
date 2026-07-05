@@ -172,7 +172,7 @@ Retourne les métriques de gestion des cercles par membre. Source : agrégats `M
 
 ### GET /positions
 
-**Auth :** Owner uniquement
+**Auth :** permission `clan.positions` (configurable par rôle, voir `/settings/nav-permissions`)
 **Query params :** `?period=week|month|all`, `?map=Baltic_Main` (optionnel)
 
 Retourne les échantillons de positions sur carte (`positionSamples` dans `SquadMatchTelemetry`). Les positions sont normalisées en coordonnées brutes PUBG (repère métrique).
@@ -181,7 +181,7 @@ Retourne les échantillons de positions sur carte (`positionSamples` dans `Squad
 
 ### GET /heatmap
 
-**Auth :** Owner uniquement
+**Auth :** permission `clan.heatmap-kills` (configurable par rôle, voir `/settings/nav-permissions`)
 **Query params :** `?period=week|month|all`, `?map=Baltic_Main` (optionnel)
 
 Retourne une grille de densité de kills par cellule sur la carte, pour overlay visuel.
@@ -208,7 +208,7 @@ Retourne les stats véhicules par membre (événements `LogVehicleRide`, `LogVeh
 
 ### GET /drop-zones
 
-**Auth :** Owner uniquement
+**Auth :** permission `clan.drop-zones` (configurable par rôle, voir `/settings/nav-permissions`)
 **Query params :** `?period=week|month|all` (défaut : `week`)
 
 **Réponse :**

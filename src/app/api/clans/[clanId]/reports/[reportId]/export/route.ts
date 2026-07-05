@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { requireNavPermission } from '@/middleware/auth-permission'
 import {
   formatReportAsHTML,
   generateReportPdf,
@@ -35,6 +36,9 @@ export async function GET(
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
+
+    const roleError = await requireNavPermission('clan.reports')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     const detail = await getReportDetail(parsedClanId, reportId)
 

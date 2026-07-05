@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
 import type {
@@ -243,6 +244,9 @@ export async function GET(
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
+
+    const roleError = await requireNavPermission('clan.matches')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     const period = parsePeriod(request.nextUrl.searchParams.get('period'))
     const requestedGameMode = request.nextUrl.searchParams.get('gameMode')?.trim() ?? ''

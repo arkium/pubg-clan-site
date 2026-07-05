@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 
 type LifetimeStats = {
@@ -65,7 +66,7 @@ function toLifetimeStats(row: {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
   try {
@@ -75,6 +76,9 @@ export async function GET(
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
+
+    const roleError = await requireNavPermission('clan.stats')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     const clan = await prisma.clan.findUnique({
       where: { id: parsedClanId },

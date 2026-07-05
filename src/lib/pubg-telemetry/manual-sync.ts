@@ -14,6 +14,7 @@ import {
   normalizeErrorMessage,
 } from '@/lib/pubg-telemetry/persistence-payload'
 import { persistTelemetryJsonFieldsWithSql } from '@/lib/pubg-telemetry/persistence-fallback'
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import { prisma } from '@/lib/prisma'
 
 export type ManualTelemetrySyncItemResult = {
@@ -259,7 +260,11 @@ export async function syncTelemetryForSquadMatchFromStream(
       deathSamplesCount: parsed.deathSamples.length,
     }
   } catch (error) {
-    const message = normalizeErrorMessage(error instanceof Error ? error.message : String(error))
+    const rawMessage = error instanceof Error ? error.message : String(error)
+    const message = normalizeErrorMessage(rawMessage)
+    const errorCode = isTelemetryDataExpiredError(null, rawMessage)
+      ? 'TELEMETRY_DATA_EXPIRED'
+      : 'TELEMETRY_IMPORT_FAILED'
     const now = new Date()
 
     await prisma.squadMatchTelemetry.upsert({
@@ -276,7 +281,7 @@ export async function syncTelemetryForSquadMatchFromStream(
         sourceGeneratedAt: input.sourceGeneratedAt ? new Date(input.sourceGeneratedAt) : null,
         contentLength: input.contentLength,
         bytesDownloaded: 0,
-        errorCode: 'TELEMETRY_IMPORT_FAILED',
+        errorCode,
         errorMessage: message,
       },
       create: {
@@ -290,7 +295,7 @@ export async function syncTelemetryForSquadMatchFromStream(
         sourceGeneratedAt: input.sourceGeneratedAt ? new Date(input.sourceGeneratedAt) : null,
         contentLength: input.contentLength,
         bytesDownloaded: 0,
-        errorCode: 'TELEMETRY_IMPORT_FAILED',
+        errorCode,
         errorMessage: message,
       },
     })
@@ -301,7 +306,7 @@ export async function syncTelemetryForSquadMatchFromStream(
       status: 'failed',
       bytesDownloaded: 0,
       contentLength: input.contentLength,
-      errorCode: 'TELEMETRY_IMPORT_FAILED',
+      errorCode,
       errorMessage: message,
     }
   }
@@ -647,9 +652,11 @@ export async function syncTelemetryForSelectedSquadMatches(
         captureError: captureErrorMessage,
       })
     } catch (error) {
-      const message = normalizeErrorMessage(
-        error instanceof Error ? error.message : String(error)
-      )
+      const rawMessage = error instanceof Error ? error.message : String(error)
+      const message = normalizeErrorMessage(rawMessage)
+      const errorCode = isTelemetryDataExpiredError(null, rawMessage)
+        ? 'TELEMETRY_DATA_EXPIRED'
+        : 'TELEMETRY_SYNC_FAILED'
       const now = new Date()
 
       await prisma.squadMatchTelemetry.upsert({
@@ -666,7 +673,7 @@ export async function syncTelemetryForSelectedSquadMatches(
           sourceGeneratedAt: null,
           contentLength: null,
           bytesDownloaded: 0,
-          errorCode: 'TELEMETRY_SYNC_FAILED',
+          errorCode,
           errorMessage: message,
         },
         create: {
@@ -680,7 +687,7 @@ export async function syncTelemetryForSelectedSquadMatches(
           sourceGeneratedAt: null,
           contentLength: null,
           bytesDownloaded: 0,
-          errorCode: 'TELEMETRY_SYNC_FAILED',
+          errorCode,
           errorMessage: message,
         },
       })
@@ -691,7 +698,7 @@ export async function syncTelemetryForSelectedSquadMatches(
         status: 'failed',
         bytesDownloaded: 0,
         contentLength: null,
-        errorCode: 'TELEMETRY_SYNC_FAILED',
+        errorCode,
         errorMessage: message,
         captureFilePath,
         captureEventCount,

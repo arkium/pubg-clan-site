@@ -87,7 +87,7 @@ Les valeurs `xPct`/`yPct` s'utilisent directement en CSS `left`/`top` sur une im
 
 ### `GET /api/clans/[clanId]/telemetry/drop-zones`
 
-**Auth** : `requireRole(['Owner'])` — réservé à l'owner du clan.
+**Auth** : `requireNavPermission('clan.drop-zones')` — rôle requis configurable via `/settings/nav-permissions` (pas figé sur Owner).
 **Query param** : `?period=week` (défaut) | `month` | `all`
 
 **Réponse 200** (enveloppée dans `buildTelemetrySuccessResponse`) :
@@ -181,4 +181,4 @@ Vue individuelle — points de landing d'un seul membre, avec mise en avant de s
 
 - Les données `landingSamples` ne sont présentes que pour les matchs parsés après l'application de la migration SQL (ajout de la colonne `landingSamples JSON NULL`). Les matchs antérieurs ne sont pas backfillés.
 - Les matchs parsés avec le parser v1 (avant la migration) n'ont pas non plus de `landingSamples`.
-- L'auth de la route clan est restrictive (Owner uniquement). Si un accès Member est souhaité, modifier `requireRole` dans la route.
+- L'auth de la route clan passe par `requireNavPermission('clan.drop-zones')` — le rôle minimal requis se configure depuis `/settings/nav-permissions`, pas besoin de modifier le code pour élargir ou restreindre l'accès.

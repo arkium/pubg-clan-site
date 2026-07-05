@@ -38,6 +38,7 @@ type TelemetryRecoveriesPayload = {
     total: number
     success: number
     failed: number
+    expired: number
     pending: number
     withParsedPayload: number
   }
@@ -48,145 +49,66 @@ type SortKey = 'updatedAt' | 'status' | 'bytesDownloaded'
 type SortDirection = 'asc' | 'desc'
 type KpiWindow = '24h' | '7d' | '30d' | 'all'
 
+// One row per telemetry_live_sync job (one match), not per daily_sync batch —
+// see docs/TODO/TODO-settings-cron-refonte.md ("Dashboard observability").
 type TelemetryObservabilitySeriesRow = {
   id: string
+  squadMatchId: string | null
+  pubgMatchId: string | null
   startedAt: string
   finishedAt: string | null
-  cronStatus: string
   durationMs: number | null
-  telemetry: {
-    status: string
-    reason: string | null
-    scanned: number
-    parsed: number
-    failed: number
-    skipped: number
-    bytesDownloaded: number
-    fetchMatchMs: number
-    downloadAssetMs: number
-    parseMs: number
-    persistMs: number
+  status: 'success' | 'failed'
+  expired: boolean
+  errorCode: string | null
+  errorMessage: string | null
+  bytesDownloaded: number
+}
+
+type TelemetryObservabilitySummary = {
+  runs: number
+  success: number
+  failed: number
+  expired: number
+  bytesDownloaded: number
+}
+
+type TelemetryObservabilityHealth = {
+  ratedRuns: number
+  successRate: number
+  failedRate: number
+  thresholds: {
+    failedRateMax: number
+    durationP95MaxMs: number
   }
+  alerts: Array<{
+    key: string
+    label: string
+    value: number
+    threshold: number
+    status: 'ok' | 'warning'
+  }>
 }
 
 type TelemetryObservabilityPayload = {
   ok: boolean
   data?: {
-    summary?: {
-      runs: number
-      scanned: number
-      parsed: number
-      failed: number
-      skipped: number
-      bytesDownloaded: number
-      fetchMatchMs: number
-      downloadAssetMs: number
-      parseMs: number
-      persistMs: number
-    }
-    health?: {
-      runsWithTelemetry: number
-      successRate: number
-      failedRate: number
-      thresholds: {
-        failedRateMax: number
-        parseP95MaxMs: number
-      }
-      alerts: Array<{
-        key: string
-        label: string
-        value: number
-        threshold: number
-        status: 'ok' | 'warning'
-      }>
-    }
-    latency?: {
-      p95: {
-        fetchMatchMs: number
-        downloadAssetMs: number
-        parseMs: number
-        persistMs: number
-      }
-    }
+    summary?: TelemetryObservabilitySummary
+    health?: TelemetryObservabilityHealth
+    latency?: { p95DurationMs: number }
     series?: TelemetryObservabilitySeriesRow[]
   }
-  summary?: {
-    runs: number
-    scanned: number
-    parsed: number
-    failed: number
-    skipped: number
-    bytesDownloaded: number
-    fetchMatchMs: number
-    downloadAssetMs: number
-    parseMs: number
-    persistMs: number
-  }
-  health?: {
-    runsWithTelemetry: number
-    successRate: number
-    failedRate: number
-    thresholds: {
-      failedRateMax: number
-      parseP95MaxMs: number
-    }
-    alerts: Array<{
-      key: string
-      label: string
-      value: number
-      threshold: number
-      status: 'ok' | 'warning'
-    }>
-  }
-  latency?: {
-    p95: {
-      fetchMatchMs: number
-      downloadAssetMs: number
-      parseMs: number
-      persistMs: number
-    }
-  }
+  summary?: TelemetryObservabilitySummary
+  health?: TelemetryObservabilityHealth
+  latency?: { p95DurationMs: number }
   series?: TelemetryObservabilitySeriesRow[]
   error?: { message?: string }
 }
 
 type NormalizedTelemetryObservability = {
-  summary: {
-    runs: number
-    scanned: number
-    parsed: number
-    failed: number
-    skipped: number
-    bytesDownloaded: number
-    fetchMatchMs: number
-    downloadAssetMs: number
-    parseMs: number
-    persistMs: number
-  }
-  health: {
-    runsWithTelemetry: number
-    successRate: number
-    failedRate: number
-    thresholds: {
-      failedRateMax: number
-      parseP95MaxMs: number
-    }
-    alerts: Array<{
-      key: string
-      label: string
-      value: number
-      threshold: number
-      status: 'ok' | 'warning'
-    }>
-  }
-  latency: {
-    p95: {
-      fetchMatchMs: number
-      downloadAssetMs: number
-      parseMs: number
-      persistMs: number
-    }
-  }
+  summary: TelemetryObservabilitySummary
+  health: TelemetryObservabilityHealth
+  latency: { p95DurationMs: number }
   series: TelemetryObservabilitySeriesRow[]
 }
 
@@ -723,9 +645,17 @@ export default function TelemetryRecoveriesPage() {
             return Number.isFinite(updatedAt) && now - updatedAt <= maxAgeMs
           })
 
+    // Expired PUBG data is excluded from the denominator too — it's not a pipeline
+    // failure, so it shouldn't drag down the success rate meant to measure that.
+    const scopedRowsExcludingExpired = scopedRows.filter(
+      (row) => !(row.status === 'failed' && isTelemetryDataExpiredError(row.errorCode, row.errorMessage))
+    )
+
     const successRate =
-      scopedRows.length > 0
-        ? (scopedRows.filter((row) => row.status === 'success').length / scopedRows.length) * 100
+      scopedRowsExcludingExpired.length > 0
+        ? (scopedRowsExcludingExpired.filter((row) => row.status === 'success').length /
+            scopedRowsExcludingExpired.length) *
+          100
         : null
 
     const medianBytes = median(
@@ -821,7 +751,7 @@ export default function TelemetryRecoveriesPage() {
 
       {payload ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Lignes chargees</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{payload.summary.total}</p>
@@ -833,6 +763,10 @@ export default function TelemetryRecoveriesPage() {
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Echecs</p>
               <p className="mt-2 text-2xl font-bold text-rose-700">{payload.summary.failed}</p>
+            </article>
+            <article className="app-panel p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Expirees (PUBG)</p>
+              <p className="mt-2 text-2xl font-bold text-slate-500">{payload.summary.expired}</p>
             </article>
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">En attente</p>
@@ -916,22 +850,26 @@ export default function TelemetryRecoveriesPage() {
 
             {!loadingObservability && !observabilityError && observabilityPayload ? (
               <>
+                <p className="mt-2 text-xs text-slate-500">
+                  Un job = un match traite par le worker telemetry (file <code className="bg-slate-100 px-1 rounded">telemetry_live_sync</code>), plus par run de sync quotidien.
+                </p>
+
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                   <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Runs</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Jobs</p>
                     <p className="mt-2 text-2xl font-bold text-slate-900">{observabilityPayload.summary.runs}</p>
                   </article>
                   <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Scanned</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{observabilityPayload.summary.scanned}</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Succes</p>
+                    <p className="mt-2 text-2xl font-bold text-emerald-700">{observabilityPayload.summary.success}</p>
                   </article>
                   <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Parsed</p>
-                    <p className="mt-2 text-2xl font-bold text-emerald-700">{observabilityPayload.summary.parsed}</p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Failed</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Echecs</p>
                     <p className="mt-2 text-2xl font-bold text-rose-700">{observabilityPayload.summary.failed}</p>
+                  </article>
+                  <article className="app-panel p-4">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Expirees (PUBG)</p>
+                    <p className="mt-2 text-2xl font-bold text-slate-500">{observabilityPayload.summary.expired}</p>
                   </article>
                   <article className="app-panel p-4">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Bytes telecharges</p>
@@ -943,36 +881,9 @@ export default function TelemetryRecoveriesPage() {
 
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Fetch p95</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Jobs notes (hors expires)</p>
                     <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatMilliseconds(observabilityPayload.latency.p95.fetchMatchMs)}
-                    </p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Download p95</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatMilliseconds(observabilityPayload.latency.p95.downloadAssetMs)}
-                    </p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Parse p95</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatMilliseconds(observabilityPayload.latency.p95.parseMs)}
-                    </p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Persist p95</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatMilliseconds(observabilityPayload.latency.p95.persistMs)}
-                    </p>
-                  </article>
-                </div>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Runs telemetry</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {observabilityPayload.health.runsWithTelemetry}
+                      {observabilityPayload.health.ratedRuns}
                     </p>
                   </article>
                   <article className="app-panel p-4">
@@ -988,9 +899,9 @@ export default function TelemetryRecoveriesPage() {
                     </p>
                   </article>
                   <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Seuil parse p95</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Duree job p95</p>
                     <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatMilliseconds(observabilityPayload.health.thresholds.parseP95MaxMs)}
+                      {formatMilliseconds(observabilityPayload.latency.p95DurationMs)}
                     </p>
                   </article>
                 </div>
@@ -1003,9 +914,9 @@ export default function TelemetryRecoveriesPage() {
                     >
                       <p className="font-semibold">{alert.label}</p>
                       <p className="text-xs">
-                        Valeur: {alert.key === 'parse_p95_ms' ? formatMilliseconds(alert.value) : formatPercent(alert.value)}
+                        Valeur: {alert.key === 'duration_p95_ms' ? formatMilliseconds(alert.value) : formatPercent(alert.value)}
                         {' · '}Seuil:{' '}
-                        {alert.key === 'parse_p95_ms'
+                        {alert.key === 'duration_p95_ms'
                           ? formatMilliseconds(alert.threshold)
                           : formatPercent(alert.threshold)}
                       </p>
@@ -1017,40 +928,36 @@ export default function TelemetryRecoveriesPage() {
                   <table className="min-w-full text-left text-sm">
                     <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
                       <tr>
-                        <th className="px-2 py-2">Run</th>
-                        <th className="px-2 py-2">Statut telemetry</th>
-                        <th className="px-2 py-2 text-right">Scanned</th>
-                        <th className="px-2 py-2 text-right">Parsed</th>
-                        <th className="px-2 py-2 text-right">Failed</th>
+                        <th className="px-2 py-2">Job</th>
+                        <th className="px-2 py-2">Match PUBG</th>
+                        <th className="px-2 py-2">Statut</th>
                         <th className="px-2 py-2 text-right">Bytes</th>
-                        <th className="px-2 py-2 text-right">Parse</th>
+                        <th className="px-2 py-2 text-right">Duree</th>
                       </tr>
                     </thead>
                     <tbody>
                       {observabilityPayload.series.slice(0, 8).map((row) => (
                         <tr key={row.id} className="app-table-row align-top">
                           <td className="px-2 py-2 text-slate-700">{formatDateTime(row.startedAt)}</td>
+                          <td className="px-2 py-2 text-slate-700">{row.pubgMatchId ?? '-'}</td>
                           <td className="px-2 py-2">
                             <span
                               className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                                row.telemetry.status === 'success'
+                                row.status === 'success'
                                   ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                  : row.telemetry.failed > 0
-                                    ? 'border-rose-200 bg-rose-50 text-rose-800'
-                                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                                  : row.expired
+                                    ? 'border-gray-300 bg-gray-100 text-gray-700'
+                                    : 'border-rose-200 bg-rose-50 text-rose-800'
                               }`}
                             >
-                              {row.telemetry.status}
+                              {row.status === 'success' ? 'success' : row.expired ? 'expire (PUBG)' : 'failed'}
                             </span>
                           </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">{row.telemetry.scanned}</td>
-                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">{row.telemetry.parsed}</td>
-                          <td className="px-2 py-2 text-right tabular-nums text-slate-700">{row.telemetry.failed}</td>
                           <td className="px-2 py-2 text-right tabular-nums text-slate-700">
-                            {formatBytes(row.telemetry.bytesDownloaded)}
+                            {formatBytes(row.bytesDownloaded)}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums text-slate-700">
-                            {formatMilliseconds(row.telemetry.parseMs)}
+                            {row.durationMs !== null ? formatMilliseconds(row.durationMs) : '-'}
                           </td>
                         </tr>
                       ))}

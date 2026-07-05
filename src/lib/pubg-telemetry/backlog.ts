@@ -52,38 +52,49 @@ export async function listSquadMatchesNeedingTelemetry(
   const retryMax = normalizeRetryMax(options.retryMax)
 
   const whereClause = {
-    OR: [
+    AND: [
       {
-        telemetry: null,
-      },
-      {
-        telemetry: {
-          is: {
-            status: 'failed',
-            ...(retryMax !== null
-              ? {
-                  attemptCount: {
-                    lt: retryMax,
-                  },
-                }
-              : {}),
-            OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
+        OR: [
+          {
+            telemetry: null,
           },
-        },
-      },
-      ...(parserVersion
-        ? [
-            {
-              telemetry: {
-                is: {
-                  parserVersion: {
-                    not: parserVersion,
-                  },
-                },
+          {
+            telemetry: {
+              is: {
+                status: 'failed',
+                ...(retryMax !== null
+                  ? {
+                      attemptCount: {
+                        lt: retryMax,
+                      },
+                    }
+                  : {}),
+                OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
               },
             },
-          ]
-        : []),
+          },
+          ...(parserVersion
+            ? [
+                {
+                  telemetry: {
+                    is: {
+                      parserVersion: {
+                        not: parserVersion,
+                      },
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        // A match whose telemetry (or the match itself) is confirmed gone for good
+        // past PUBG's ~14-15 day retention window never becomes available again —
+        // exclude it permanently, regardless of attemptCount/retryMax or a parser
+        // version bump above (retrying would just waste API calls on a certain 404).
+        OR: [{ telemetry: null }, { telemetry: { is: { errorCode: { not: 'TELEMETRY_DATA_EXPIRED' } } } }],
+      },
     ],
     ...(typeof options.clanId === 'number'
       ? {

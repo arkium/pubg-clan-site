@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import type {
   LeaderboardHighlights,
@@ -526,6 +527,9 @@ export async function GET(
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
+
+    const roleError = await requireNavPermission('clan.leaderboard')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     const period = parsePeriod(request.nextUrl.searchParams.get('period'))
     const sortBy = parseSortBy(request.nextUrl.searchParams.get('sortBy'))

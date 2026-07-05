@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 
 function parseClanId(clanId: string) {
@@ -8,7 +9,7 @@ function parseClanId(clanId: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ clanId: string; challengeId: string }> }
 ) {
   try {
@@ -18,6 +19,9 @@ export async function GET(
     if (!parsedClanId) {
       return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
     }
+
+    const roleError = await requireNavPermission('clan.challenges')(request, { clanId: parsedClanId })
+    if (roleError) return roleError
 
     const challenge = await prisma.challenge.findUnique({
       where: { id: challengeId },

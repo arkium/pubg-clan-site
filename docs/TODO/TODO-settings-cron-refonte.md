@@ -2,7 +2,7 @@
 
 Créé le 2026-06-28. Décisions arrêtées le 2026-06-28. **Étapes 1–3 livrées le 2026-06-28.**
 
-**Mise à jour 2026-07-05** (suite au déploiement prod réel) : bug de résolution des lock files en build `standalone` trouvé et corrigé, avec garde-fou de config ajouté pour qu'il ne puisse plus réapparaître silencieusement ; 2 des 3 chemins manuels synchrones migrés vers la file `telemetry_live_sync` (le 3ᵉ, à 1 seul match, reste volontairement synchrone) ; widget de suivi temps réel ajouté au mode "Direct Sync" ; badge "Télémétrie expirée (PUBG)" ajouté sur la carte match de la page session **et** sur la page recoveries pour les 404 dus à la rétention ~14-15 jours de l'API PUBG (détection partagée via `telemetry-error-presentation.ts`) ; reste la classification backend (`errorCode` dédié + exclusion backlog + correction des compteurs résumé) — voir "Suggestions futures" pour le détail complet.
+**Mise à jour 2026-07-05** (suite au déploiement prod réel) : bug de résolution des lock files en build `standalone` trouvé et corrigé, avec garde-fou de config ajouté pour qu'il ne puisse plus réapparaître silencieusement ; 2 des 3 chemins manuels synchrones migrés vers la file `telemetry_live_sync` (le 3ᵉ, à 1 seul match, reste volontairement synchrone) ; widget de suivi temps réel ajouté au mode "Direct Sync" ; classification complète des 404 "données PUBG expirées" livrée de bout en bout : `errorCode` dédié côté backend, exclusion définitive du backlog, badges neutres sur la page session et la page recoveries, compteurs résumé séparés, et réécriture complète du dashboard observability (qui affichait des zéros depuis la migration `telemetry_live_sync`) — voir "Suggestions futures" pour le détail complet.
 
 ---
 
@@ -378,21 +378,16 @@ Points à ne pas oublier :
 
 **Pas de migration nécessaire :** `SquadMatchTelemetry.status` et `.errorCode` sont des `String` libres en base (pas d'enum Prisma), donc une nouvelle valeur ne casse rien côté schéma — seulement le code de lecture/affichage à mettre à jour pour la reconnaître.
 
-- [ ] Ajouter la détection 404 dédiée (match + asset) et le nouvel `errorCode` côté backend (`syncTelemetryForSquadMatch`)
-- [ ] Exclure ce cas de `listSquadMatchesNeedingTelemetry()` (backlog) définitivement, pas seulement au-delà de `retryMax`
-- [ ] Adapter l'affichage `/clans/[clanId]/telemetry/recoveries` (page dédiée, rendu indépendant de `SquadMatchList` — pas encore touchée) pour distinguer "expiré" de "échec réel"
-- [ ] Vérifier si des matchs déjà en base sont dans ce cas (requête sur `errorMessage LIKE '%(404)%'`) pour les reclasser rétroactivement plutôt que d'attendre leur prochain passage en backlog
-- [ ] Une fois l'`errorCode` dédié livré côté backend, simplifier `isTelemetryDataExpiredError()` (voir ci-dessous) pour ne plus se fier qu'à `errorCode === 'TELEMETRY_DATA_EXPIRED'` (la détection par contenu du message devient alors un simple fallback de compatibilité)
+**✅ Entièrement livré le 2026-07-05** (backend + UI + dashboard observability) :
 
-**Volet UI — ✅ Livré le 2026-07-05 (page session + page recoveries)**
+- [x] Détection 404 dédiée (match + asset) et nouvel `errorCode: 'TELEMETRY_DATA_EXPIRED'` côté backend — `syncTelemetryForSquadMatch()` (`src/lib/pubg-telemetry/index.ts`), et les 2 chemins synchrones restants dans `manual-sync.ts` (`syncTelemetryForSquadMatchFromStream`, `syncTelemetryForSelectedSquadMatches`)
+- [x] Exclusion définitive de `listSquadMatchesNeedingTelemetry()` (`backlog.ts`) — un `whereClause` en `AND` retire tout match dont `telemetry.errorCode === 'TELEMETRY_DATA_EXPIRED'`, y compris via la branche de rebuild sur bump de `parserVersion` (qui aurait sinon pu le réintroduire)
+- [x] `isTelemetryDataExpiredError(errorCode, errorMessage)` extraite dans un module partagé `src/lib/pubg-telemetry/telemetry-error-presentation.ts` (une seule détection, réutilisée par le backend ET les 2 pages UI)
+- [x] `/clans/[clanId]/telemetry/matches/session/[date]` (`SquadMatchList.tsx`) — badge "Parser KO" (rouge) remplacé par "Télémétrie expirée (PUBG)" (gris, neutre) + bloc d'erreur neutre explicatif
+- [x] `/clans/[clanId]/telemetry/recoveries` (`page.tsx` + `route.ts`) — badge de ligne "expiré (PUBG)" (gris), compteur résumé séparé (`summary.expired`, distinct de `summary.failed`), et taux de succès KPI qui exclut les expirés du dénominateur
+- [x] Dashboard "observability" de la même page — entièrement réécrit (`GET /api/clans/[clanId]/telemetry/observability`) : lisait auparavant `daily_sync.details.telemetrySync.{parsed,failed,metrics}`, un format devenu obsolète et toujours à zéro depuis la migration vers la file `telemetry_live_sync` (section précédente). Lit maintenant directement les jobs `telemetry_live_sync` (1 ligne = 1 match traité par le worker, pas un batch) : succès/échecs/expirés, bytes, durée p95 (calculée `finishedAt - startedAt` du job, le détail fetch/download/parse/persist par étape n'est plus capturé à ce niveau et n'est donc plus affiché)
 
-En attendant la classification backend, un badge visuel neutre a été ajouté sur les deux surfaces qui affichent les échecs télémétrie :
-
-- [x] `isTelemetryDataExpiredError(errorCode, errorMessage)` extraite dans un module partagé `src/lib/pubg-telemetry/telemetry-error-presentation.ts` (évite la duplication entre les deux pages) — détecte dès aujourd'hui les deux formats de message 404 connus (`/matches/... (404)` et `Telemetry asset download failed (404)`), et reconnaîtra aussi le futur `errorCode: 'TELEMETRY_DATA_EXPIRED'` une fois livré côté backend
-- [x] `/clans/[clanId]/telemetry/matches/session/[date]` (`SquadMatchList.tsx`) — badge "Parser KO" (rouge) remplacé par "Télémétrie expirée (PUBG)" (gris, neutre) + bloc d'erreur neutre explicatif quand ce cas est détecté
-- [x] `/clans/[clanId]/telemetry/recoveries` (`page.tsx`) — badge de statut de ligne "expiré (PUBG)" (gris) au lieu de "failed" (rouge) + cellule Erreur avec message explicatif neutre, même détection réutilisée
-
-**Reste (backend, hors scope UI) :** les compteurs résumé (`payload.summary.failed`, KPI taux de succès/échec, dashboard observability) comptent toujours ces cas dans "failed" — seule la classification backend (`errorCode` dédié + exclusion du backlog, items ci-dessus) corrigera ça au niveau des chiffres, pas seulement de l'affichage ligne par ligne.
+**Décision prise (pas de backfill rétroactif) :** les lignes déjà en base avec l'ancien `errorCode` générique mais un message 404 restent telles quelles — `isTelemetryDataExpiredError()` les détecte déjà correctement via le message dans toute l'UI (page session, recoveries, observability), donc l'écart ne concerne que l'export CSV et une requête SQL directe sur `errorCode`. Jugé non prioritaire vu l'effort d'un script de migration pour un gain marginal.
 
 ### Purge de l'historique cron
 

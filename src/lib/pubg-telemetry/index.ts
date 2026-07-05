@@ -8,6 +8,7 @@ import {
   normalizeErrorMessage,
 } from '@/lib/pubg-telemetry/persistence-payload'
 import { persistTelemetryJsonFieldsWithSql } from '@/lib/pubg-telemetry/persistence-fallback'
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import { prisma } from '@/lib/prisma'
 
 export type SyncTelemetryForSquadMatchInput = {
@@ -294,20 +295,24 @@ export async function syncTelemetryForSquadMatch(
       },
     }
   } catch (error) {
-    const message = normalizeErrorMessage(error instanceof Error ? error.message : String(error))
+    const rawMessage = error instanceof Error ? error.message : String(error)
+    const message = normalizeErrorMessage(rawMessage)
+    const errorCode = isTelemetryDataExpiredError(null, rawMessage)
+      ? 'TELEMETRY_DATA_EXPIRED'
+      : 'TELEMETRY_SYNC_FAILED'
 
     logTelemetryStep({
       step: 'failed',
       squadMatchId: input.squadMatchId,
       pubgMatchId: input.pubgMatchId,
       durationMs: Date.now() - startedAt,
-      errorCode: 'TELEMETRY_SYNC_FAILED',
+      errorCode,
     })
 
     await upsertFailedTelemetrySnapshot({
       squadMatchId: input.squadMatchId,
       parserVersion: input.parserVersion,
-      errorCode: 'TELEMETRY_SYNC_FAILED',
+      errorCode,
       errorMessage: message,
     })
 
@@ -317,7 +322,7 @@ export async function syncTelemetryForSquadMatch(
       status: 'failed',
       bytesDownloaded: 0,
       contentLength: null,
-      errorCode: 'TELEMETRY_SYNC_FAILED',
+      errorCode,
       errorMessage: message,
       durationMs: Date.now() - startedAt,
       metrics: {

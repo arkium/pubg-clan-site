@@ -49,26 +49,6 @@ function formatRuntimeUptime(totalSeconds: number) {
   return `${seconds}s`
 }
 
-function compactWhitespace(value: string) {
-  return value.replace(/\s+/g, ' ').trim()
-}
-
-function summarizeAggregateWarning(rawWarning: string): { summary: string; details: string | null } {
-  const normalized = compactWhitespace(rawWarning)
-  if (normalized.length === 0) return { summary: 'Recalcul des agrégats en échec.', details: null }
-
-  const unknownArgumentMatch = rawWarning.match(/Unknown argument\s+[`']?([A-Za-z0-9_]+)[`']?/)
-  if (unknownArgumentMatch) {
-    return {
-      summary: `Recalcul des agrégats en échec: client Prisma non synchronisé (${unknownArgumentMatch[1]}).`,
-      details: rawWarning,
-    }
-  }
-
-  if (normalized.length <= 220) return { summary: normalized.endsWith('.') ? normalized : `${normalized}.`, details: null }
-  return { summary: `${normalized.slice(0, 217)}...`, details: rawWarning }
-}
-
 function buildNetworkAwareErrorMessage(prefix: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
   const normalizedMessage = message.toLowerCase()
@@ -495,96 +475,50 @@ export default function TelemetrySessionDatePage() {
     setTelemetrySyncMessage(null)
     setTelemetrySyncErrors([])
     setTelemetrySyncCaptureNotes([])
+    setTelemetrySyncAggregateDetails(null)
 
     try {
-      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected`, {
+      // Enqueues into the same live-sync queue the automatic cron uses — the
+      // always-running telemetry-resync-worker process (not this web request)
+      // downloads, parses and persists the telemetry, so this call returns immediately.
+      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected-enqueue`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ squadMatchIds: selectedMatchIds, recalculateAggregates: true }),
+        body: JSON.stringify({ squadMatchIds: selectedMatchIds }),
       })
 
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean
         error?: string
-        successCount?: number
-        failedCount?: number
-        processedCount?: number
-        aggregatesRecalculated?: boolean
-        aggregates?: {
-          periodsUpdated?: number
-          memberTelemetryRows?: number
-          memberWeaponRows?: number
-          clanSynergyRows?: number
-        } | null
-        aggregatesWarning?: string | null
-        captureEnabled?: boolean
-        captureMaxBytes?: number
+        queuedCount?: number
+        alreadyQueuedCount?: number
+        skippedCount?: number
+        selectedCount?: number
         results?: Array<{
           squadMatchId: string
-          status: 'success' | 'failed'
+          status: 'queued' | 'already_queued' | 'skipped'
           errorCode?: string | null
-          errorMessage: string | null
-          captureFilePath?: string
-          captureEventCount?: number
-          captureBytesRead?: number
-          captureWasTruncated?: boolean
-          captureError?: string
+          errorMessage?: string | null
         }>
       } | null
 
       if (!response.ok || !payload?.ok) {
-        setTelemetrySyncMessage(payload?.error ?? 'Echec de la récupération télémétrie.')
-        setTelemetrySyncAggregateDetails(null)
+        setTelemetrySyncMessage(payload?.error ?? 'Echec de la mise en file télémétrie.')
         return
       }
 
-      const failedEntries = (payload.results ?? [])
-        .filter((entry) => entry.status === 'failed')
+      const skippedEntries = (payload.results ?? [])
+        .filter((entry) => entry.status === 'skipped')
         .map((entry) => `${entry.squadMatchId}: ${entry.errorMessage ?? 'erreur inconnue'}`)
 
-      const capturedEntries = (payload.results ?? []).filter((entry) => !!entry.captureFilePath)
-      const truncatedEntries = capturedEntries.filter((entry) => entry.captureWasTruncated === true)
-      const captureErrorEntries = (payload.results ?? [])
-        .filter((entry) => !!entry.captureError)
-        .map((entry) => `${entry.squadMatchId}: ${entry.captureError}`)
-      const captureNotAttemptedEntries = (payload.results ?? []).filter(
-        (entry) => !entry.captureFilePath && !entry.captureError
-      )
-      const captureFailedCount = (payload.results ?? []).filter((entry) => !!entry.captureError).length
-      const captureDisabledCount = payload.captureEnabled === false ? payload.processedCount ?? 0 : 0
-      const captureNotAttemptedCount = Math.max(0, captureNotAttemptedEntries.length - captureDisabledCount)
-      const captureMaxBytesLabel = payload.captureMaxBytes
-        ? `${(payload.captureMaxBytes / (1024 * 1024)).toFixed(1)} Mo`
-        : 'limite inconnue'
-
-      const captureNotes: string[] = [
-        `Captures: ${capturedEntries.length} réussie(s), ${captureNotAttemptedCount + captureDisabledCount} non tentée(s), ${captureFailedCount} en erreur.`,
-      ]
-      if (truncatedEntries.length > 0) captureNotes.push(`Fichiers tronqués: ${truncatedEntries.length} (limite ${captureMaxBytesLabel}).`)
-      if (captureDisabledCount > 0) captureNotes.push('Raison non tentée: capture désactivée (TELEMETRY_CAPTURE_FIXTURES=false).')
-      else if (captureNotAttemptedCount > 0) captureNotes.push('Raison non tentée: capture non lancée pour certains matchs.')
-      if (captureErrorEntries.length > 0) captureNotes.push(...captureErrorEntries.slice(0, 10))
-
-      let aggregateDetails: string | null = null
-      const aggregatePart = payload.aggregatesRecalculated
-        ? payload.aggregates
-          ? ` Agrégats recalculés: ${payload.aggregates.memberWeaponRows ?? 0} lignes armes membre, ${payload.aggregates.memberTelemetryRows ?? 0} lignes membres, ${payload.aggregates.clanSynergyRows ?? 0} lignes synergies (${payload.aggregates.periodsUpdated ?? 0} période(s)).`
-          : payload.aggregatesWarning
-            ? (() => { const warning = summarizeAggregateWarning(payload.aggregatesWarning!); aggregateDetails = warning.details; return ` ${warning.summary}` })()
-            : ' Recalcul des agrégats demandé, sans détail de retour.'
-        : ''
-
       setTelemetrySyncMessage(
-        `Resync URL terminé: ${payload.successCount ?? 0} succès, ${payload.failedCount ?? 0} échec(s), ${payload.processedCount ?? 0} match(s) traité(s).${aggregatePart}`
+        `Mise en file terminée: ${payload.queuedCount ?? 0} match(s) mis en file pour le worker télémétrie, ${payload.alreadyQueuedCount ?? 0} déjà en file, ${payload.skippedCount ?? 0} ignoré(s). Le worker (telemetry-resync-worker) les traitera automatiquement.`
       )
-      setTelemetrySyncAggregateDetails(aggregateDetails)
-      setTelemetrySyncErrors(failedEntries)
-      setTelemetrySyncCaptureNotes(captureNotes)
+      setTelemetrySyncErrors(skippedEntries)
       setTelemetryClearMessage(null)
       refresh()
     } catch (err) {
-      setTelemetrySyncMessage(buildNetworkAwareErrorMessage('Echec du resync URL télémétrie.', err))
-      setTelemetrySyncAggregateDetails(null)
+      setTelemetrySyncMessage(buildNetworkAwareErrorMessage('Echec de la mise en file télémétrie.', err))
     } finally {
       setTelemetrySyncLoading(false)
     }
@@ -1071,15 +1005,15 @@ export default function TelemetrySessionDatePage() {
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold text-lg">⚡ Direct Sync</h3>
-                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Rapide</span>
+                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Worker</span>
                 </div>
-                <p className="text-sm text-gray-700 mb-3">Télécharge depuis PUBG, capture et traite en une seule opération.</p>
+                <p className="text-sm text-gray-700 mb-3">Met en file pour le worker télémétrie (traitement en arrière-plan).</p>
                 <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                  <li>✓ Résultat immédiat</li>
+                  <li>✓ Non-bloquant pour le web</li>
                   <li>✓ Pas de fichiers locaux</li>
-                  <li>⚠ Peut timeout si gros batch</li>
+                  <li>✓ Traité automatiquement par le worker</li>
                 </ul>
-                <div className="text-xs text-gray-500">Reco: &lt;50 matchs</div>
+                <div className="text-xs text-gray-500">Reco: toutes tailles de batch</div>
               </div>
 
               <div
@@ -1154,17 +1088,12 @@ export default function TelemetrySessionDatePage() {
               <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-4">
                 <h3 className="font-semibold text-green-900 mb-2">Mode Direct Sync</h3>
                 <p className="text-sm text-green-800 mb-3">
-                  Télécharge les matchs sélectionnés depuis PUBG API, les capture localement ET les traite en une seule opération.
+                  Met les matchs sélectionnés en file pour le worker télémétrie (telemetry-resync-worker), qui les télécharge et les traite en arrière-plan. Non bloquant pour le serveur web.
                 </p>
                 <button type="button" onClick={runManualTelemetrySync} className="app-btn app-btn--md app-btn--primary"
                   disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
-                  {telemetrySyncLoading ? 'Resync URL en cours...' : `Direct Sync (${selectedMatchIds.length} matchs)`}
+                  {telemetrySyncLoading ? 'Mise en file...' : `Direct Sync (${selectedMatchIds.length} matchs)`}
                 </button>
-                <label className="mt-3 inline-flex items-start gap-2 text-xs text-green-700">
-                  <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                    checked={forceResync} onChange={(e) => setForceResync(e.target.checked)} disabled={telemetrySyncLoading} />
-                  <span>Forcer le resync même si déjà Parser OK (mode dev)</span>
-                </label>
               </div>
             )}
 
@@ -1292,18 +1221,9 @@ export default function TelemetrySessionDatePage() {
               </div>
             ) : null}
 
-            {telemetrySyncCaptureNotes.length > 0 && telemetrySyncMode === 'direct' ? (
-              <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
-                <p className="text-xs font-medium text-amber-900 mb-2">Notes de capture:</p>
-                <ul className="text-xs text-amber-800 space-y-1 list-disc pl-5">
-                  {telemetrySyncCaptureNotes.map((line) => <li key={line}>{line}</li>)}
-                </ul>
-              </div>
-            ) : null}
-
             {telemetrySyncErrors.length > 0 && telemetrySyncMode === 'direct' ? (
               <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200">
-                <p className="text-xs font-medium text-rose-900 mb-2">Erreurs:</p>
+                <p className="text-xs font-medium text-rose-900 mb-2">Ignorés:</p>
                 <ul className="text-xs text-rose-800 space-y-1 list-disc pl-5">
                   {telemetrySyncErrors.slice(0, 5).map((line) => <li key={line}>{line}</li>)}
                 </ul>

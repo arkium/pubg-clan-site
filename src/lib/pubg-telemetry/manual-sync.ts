@@ -5,6 +5,7 @@ import {
   getTelemetryFixtureCaptureMaxBytes,
   isTelemetryFixtureCaptureEnabled,
 } from '@/lib/pubg-telemetry/fixture-capture'
+import { enqueueTelemetryLiveSyncJobs } from '@/lib/pubg-telemetry/live-sync-queue'
 import { parseTelemetrySnapshotFromStream, type ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import {
   buildTelemetrySuccessBasePayload,
@@ -713,6 +714,142 @@ export async function syncTelemetryForSelectedSquadMatches(
     skippedCount: Math.max(0, squadMatchIds.length - sanitizedIds.length),
     captureEnabled,
     captureMaxBytes,
+    results,
+  }
+}
+
+export type ManualTelemetryEnqueueItemResult = {
+  squadMatchId: string
+  pubgMatchId: string
+  status: 'queued' | 'already_queued' | 'skipped'
+  errorCode?: string | null
+  errorMessage?: string | null
+}
+
+export type ManualTelemetryEnqueueResult = {
+  requestedCount: number
+  selectedCount: number
+  queuedCount: number
+  alreadyQueuedCount: number
+  skippedCount: number
+  results: ManualTelemetryEnqueueItemResult[]
+}
+
+// Unlike syncTelemetryForSelectedSquadMatches, this never downloads/parses telemetry
+// itself — it only writes queue rows. The already-running telemetry-resync-worker
+// process (claimNextTelemetryLiveSyncJob) picks them up and does the actual work,
+// so the web process stays light regardless of asset size or match count.
+export async function enqueueTelemetryForSelectedSquadMatches(
+  clanId: number,
+  squadMatchIds: string[],
+  triggeredBy?: number | null
+): Promise<ManualTelemetryEnqueueResult> {
+  const sanitizedIds = sanitizeSquadMatchIds(squadMatchIds)
+
+  if (sanitizedIds.length === 0) {
+    return {
+      requestedCount: squadMatchIds.length,
+      selectedCount: 0,
+      queuedCount: 0,
+      alreadyQueuedCount: 0,
+      skippedCount: 0,
+      results: [],
+    }
+  }
+
+  const matches = await prisma.squadMatch.findMany({
+    where: {
+      id: { in: sanitizedIds },
+      members: {
+        some: {
+          member: {
+            clanId,
+          },
+        },
+      },
+    },
+    include: {
+      members: {
+        include: {
+          member: {
+            select: {
+              pubgAccountId: true,
+              platformShard: true,
+            },
+          },
+        },
+        orderBy: {
+          memberId: 'asc',
+        },
+      },
+    },
+  })
+
+  const foundIds = new Set(matches.map((match) => match.id))
+  const missingIds = sanitizedIds.filter((id) => !foundIds.has(id))
+
+  const results: ManualTelemetryEnqueueItemResult[] = missingIds.map((squadMatchId) => ({
+    squadMatchId,
+    pubgMatchId: 'unknown',
+    status: 'skipped',
+    errorCode: 'SQUAD_MATCH_NOT_FOUND',
+    errorMessage: 'Squad match not found for this clan',
+  }))
+
+  const matchesToQueue: { squadMatchId: string; pubgMatchId: string; anyPlayerId: string; shard: string }[] = []
+
+  for (const match of matches) {
+    const candidateMember = match.members.find((entry) => !!entry.member.pubgAccountId)
+
+    if (!candidateMember?.member.pubgAccountId) {
+      results.push({
+        squadMatchId: match.id,
+        pubgMatchId: match.pubgMatchId,
+        status: 'skipped',
+        errorCode: 'PUBG_ACCOUNT_ID_MISSING',
+        errorMessage: 'No clan member with PUBG account id found for this squad match',
+      })
+      continue
+    }
+
+    matchesToQueue.push({
+      squadMatchId: match.id,
+      pubgMatchId: match.pubgMatchId,
+      anyPlayerId: candidateMember.member.pubgAccountId,
+      shard: candidateMember.member.platformShard,
+    })
+  }
+
+  const enqueueResult = await enqueueTelemetryLiveSyncJobs({
+    clanId,
+    matches: matchesToQueue,
+    triggeredBy,
+  })
+
+  const pubgMatchIdByQueued = new Map(matchesToQueue.map((match) => [match.squadMatchId, match.pubgMatchId]))
+
+  for (const squadMatchId of enqueueResult.queuedMatchIds) {
+    results.push({
+      squadMatchId,
+      pubgMatchId: pubgMatchIdByQueued.get(squadMatchId) ?? 'unknown',
+      status: 'queued',
+    })
+  }
+
+  for (const squadMatchId of enqueueResult.alreadyQueuedMatchIds) {
+    results.push({
+      squadMatchId,
+      pubgMatchId: pubgMatchIdByQueued.get(squadMatchId) ?? 'unknown',
+      status: 'already_queued',
+    })
+  }
+
+  return {
+    requestedCount: squadMatchIds.length,
+    selectedCount: sanitizedIds.length,
+    queuedCount: enqueueResult.queuedCount,
+    alreadyQueuedCount: enqueueResult.alreadyQueuedCount,
+    skippedCount: results.filter((item) => item.status === 'skipped').length,
     results,
   }
 }

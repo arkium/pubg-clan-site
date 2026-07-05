@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
+import {
+  getTelemetryLiveSyncQueueStats,
+  TELEMETRY_LIVE_SYNC_QUEUE_ACTION,
+} from '@/lib/pubg-telemetry/live-sync-queue'
+import { prisma } from '@/lib/prisma'
 import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
@@ -57,6 +62,62 @@ export async function POST(
     console.error('Manual telemetry enqueue failed:', error)
     return NextResponse.json(
       { error: 'Failed to enqueue telemetry for selected matches' },
+      { status: 500 }
+    )
+  }
+}
+
+// Lets the "Direct Sync" panel poll progress after enqueueing — mirrors the live
+// status widget already used by "Queue Resync" mode (telemetry_resync_file), but
+// reads the telemetry_live_sync queue instead.
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string }> }
+) {
+  try {
+    const { clanId } = await params
+    const parsedClanId = parseClanId(clanId)
+
+    if (!parsedClanId) {
+      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+    }
+
+    const roleError = await requireRole(['Owner'])(request, {
+      clanId: parsedClanId,
+    })
+    if (roleError) {
+      return roleError
+    }
+
+    const [queue, recentJobs] = await Promise.all([
+      getTelemetryLiveSyncQueueStats({ clanId: parsedClanId }),
+      prisma.cronExecution.findMany({
+        where: {
+          clanId: parsedClanId,
+          action: TELEMETRY_LIVE_SYNC_QUEUE_ACTION,
+        },
+        select: {
+          id: true,
+          status: true,
+          message: true,
+          createdAt: true,
+          finishedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ])
+
+    return NextResponse.json({
+      ok: true,
+      clanId: parsedClanId,
+      queue,
+      recentJobs,
+    })
+  } catch (error) {
+    console.error('Manual telemetry enqueue status failed:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch telemetry enqueue status' },
       { status: 500 }
     )
   }

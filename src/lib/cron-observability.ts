@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { isAbsolute as isAbsolutePath } from 'node:path'
 
 import { getPubgApiRateLimitRpm } from '@/lib/pubg-rate-limit-config-service'
 import { prisma } from '@/lib/prisma'
@@ -446,6 +447,55 @@ function getTelemetryEnvChecks(): CronConfigCheck[] {
   ]
 }
 
+// In a Next.js standalone build, server.js calls process.chdir() into .next/standalone
+// at startup — so relative lock file paths silently point at the wrong directory and
+// /api/settings/cron-workers-status reports workers as "Inactif" even when they run fine.
+// This check surfaces that misconfiguration instead of leaving it silent (see
+// docs/TODO/TODO-settings-cron-refonte.md, "Bug de production decouvert et corrige").
+function isStandaloneRuntimeCwd() {
+  return process.cwd().replace(/\\/g, '/').endsWith('/.next/standalone')
+}
+
+function getTelemetryWorkerLockPathChecks(): CronConfigCheck[] {
+  const standaloneRuntime = isStandaloneRuntimeCwd()
+
+  function checkLockPath(key: string, label: string, raw: string | undefined): CronConfigCheck {
+    const trimmed = raw?.trim()
+    const isAbsolute = !!trimmed && isAbsolutePath(trimmed)
+
+    if (!standaloneRuntime || isAbsolute) {
+      return {
+        key,
+        label,
+        status: 'ok',
+        value: trimmed || '(non defini, resolu depuis le repertoire courant)',
+      }
+    }
+
+    return {
+      key,
+      label,
+      status: 'error',
+      value: trimmed || '(non defini)',
+      hint:
+        'Build standalone detectee (process.cwd() se termine par .next/standalone) : definir un chemin absolu identique a celui utilise par les workers telemetrie, sinon /settings/cron affichera "Inactif" meme si le worker tourne. Voir docs/ops/deployment.md.',
+    }
+  }
+
+  return [
+    checkLockPath(
+      'telemetry_resync_worker_lock_file',
+      'TELEMETRY_RESYNC_WORKER_LOCK_FILE',
+      process.env.TELEMETRY_RESYNC_WORKER_LOCK_FILE
+    ),
+    checkLockPath(
+      'telemetry_aggregate_worker_lock_file',
+      'TELEMETRY_AGGREGATE_WORKER_LOCK_FILE',
+      process.env.TELEMETRY_AGGREGATE_WORKER_LOCK_FILE
+    ),
+  ]
+}
+
 function getScheduleChecks(): CronConfigCheck[] {
   const checks = [
     {
@@ -499,7 +549,8 @@ function getScheduleChecks(): CronConfigCheck[] {
 export async function getCronConfigurationChecks() {
   const envChecks = await getCronEnvChecks()
   const telemetryEnvChecks = getTelemetryEnvChecks()
-  return [...envChecks, ...telemetryEnvChecks, ...getScheduleChecks()]
+  const telemetryLockPathChecks = getTelemetryWorkerLockPathChecks()
+  return [...envChecks, ...telemetryEnvChecks, ...telemetryLockPathChecks, ...getScheduleChecks()]
 }
 
 export async function startCronExecution(params: {

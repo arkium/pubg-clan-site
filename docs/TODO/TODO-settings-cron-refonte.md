@@ -2,6 +2,8 @@
 
 Créé le 2026-06-28. Décisions arrêtées le 2026-06-28. **Étapes 1–3 livrées le 2026-06-28.**
 
+**Mise à jour 2026-07-05** (suite au déploiement prod réel) : bug de résolution des lock files en build `standalone` trouvé et corrigé, avec garde-fou de config ajouté pour qu'il ne puisse plus réapparaître silencieusement ; 2 des 3 chemins manuels synchrones migrés vers la file `telemetry_live_sync` (le 3ᵉ, à 1 seul match, reste volontairement synchrone) ; widget de suivi temps réel ajouté au mode "Direct Sync" ; badge "Télémétrie expirée (PUBG)" ajouté sur la carte match de la page session **et** sur la page recoveries pour les 404 dus à la rétention ~14-15 jours de l'API PUBG (détection partagée via `telemetry-error-presentation.ts`) ; reste la classification backend (`errorCode` dédié + exclusion backlog + correction des compteurs résumé) — voir "Suggestions futures" pour le détail complet.
+
 ---
 
 ## Contexte
@@ -50,6 +52,18 @@ Les workers servent au **backfill/resync de fichiers capturés** — pipeline d�
 - Lire les lock fichiers depuis l'API → PID vivant ? âge du lock ?
 - Lire la queue en base → `queued`, `running`, `success`, `failed` par type de worker
 - Afficher la dernière exécution (`lastJobAt` déduit du dernier `CronExecution` en `success`)
+
+### ⚠️ Bug de production découvert et corrigé — 2026-07-05
+
+**Symptôme :** en prod (build `standalone` + systemd), les panneaux `telemetry:worker` et `telemetry:aggregates:worker` de `/settings/cron` affichaient en permanence "Inactif" (PID `-`, "Lock depuis" `-`) alors que les deux services systemd tournaient correctement (confirmé via `systemctl status` + logs `single-instance lock acquired`).
+
+**Cause racine :** le `server.js` généré par Next.js en sortie `standalone` exécute `process.chdir(__dirname)` au démarrage (`node_modules/next/dist/build/utils.js:1085`), où `__dirname` = `<projet>/.next/standalone`. `src/app/api/settings/cron-workers-status/route.ts` résolvait le chemin des fichiers de lock via `join(process.cwd(), filename)` — donc, une fois le web/cron worker démarré, il cherchait `.next/standalone/.telemetry-*.lock` au lieu de `<projet>/.telemetry-*.lock`, là où les workers télémétrie (process séparés, jamais chdir'd) écrivent réellement. Résultat : `ENOENT` → `lock = null` → badge "Inactif", indépendamment de l'état réel des workers.
+
+**Correctif appliqué :**
+- `src/app/api/settings/cron-workers-status/route.ts` : résolution du chemin de lock via les mêmes variables d'environnement que les workers (`TELEMETRY_RESYNC_WORKER_LOCK_FILE`, `TELEMETRY_AGGREGATE_WORKER_LOCK_FILE`), avec passage direct si la valeur est un chemin absolu — n'utilise plus `process.cwd()` du process web comme ancre.
+- `docs/ops/deployment.md` : les deux variables doivent désormais être définies en **chemin absolu** dans le `.env` partagé de production (ex. `/home/smk/apps/pubg-clan-site/.telemetry-resync-worker.lock`), identique pour le process web/cron et les deux workers.
+
+**Portée :** ce bug affecte **toute** l'Étape 2c ("Statut workers ✅ Résolu" ci-dessus) dans une build `standalone` — le panneau était livré et fonctionnel en `npm run dev` (pas de `chdir`), mais silencieusement cassé en production packagée. À vérifier après toute nouvelle installation prod tant qu'aucun check de config n'alerte dessus (voir suggestion ci-dessous).
 
 ---
 
@@ -262,6 +276,11 @@ Points à ne pas oublier :
 | `scripts/telemetry-resync-worker.ts` | Second claim-loop `telemetry_live_sync` (même process/lock) | ✅ Livré |
 | `src/app/api/settings/cron-workers-status/route.ts` | Ajout stats `telemetry_live_sync` | ✅ Livré |
 | `docs/ops/cron.md` | Section "Schedules éditables", limite multi-instances, variables, bloc "risque résolu" | ✅ Livré |
+| `src/app/api/settings/cron-workers-status/route.ts` | Fix résolution lock path en mode standalone (`process.cwd()` invalide après `chdir`) → résolution via `TELEMETRY_*_LOCK_FILE` | ✅ Livré (2026-07-05) |
+| `docs/ops/deployment.md` | Doc systemd réelle (4 services), variables lock path en chemin absolu, mécanisme bootstrap cron réel | ✅ Livré (2026-07-05) |
+| `src/lib/pubg-telemetry/manual-sync.ts` | Ajout `enqueueTelemetryForSelectedSquadMatches` | ✅ Livré (2026-07-05) |
+| `src/app/api/clans/[clanId]/telemetry/sync-selected-enqueue/route.ts` | Créé | ✅ Livré (2026-07-05) |
+| `src/app/clans/[clanId]/telemetry/matches/session/[date]/page.tsx` | Bouton "Direct Sync" migré vers `sync-selected-enqueue` (non-bloquant) | ✅ Livré (2026-07-05) |
 
 ---
 
@@ -294,11 +313,86 @@ Points à ne pas oublier :
 
 **Effet :** `daily_sync` ne fait plus aucun appel réseau ni parsing CPU-bound — uniquement des lectures/écritures Prisma courtes (quelques ms), bornées par `TELEMETRY_MAX_MATCHES_PER_RUN`. Le téléchargement+parsing reste **100% stream, zéro fichier sur disque**, exactement comme aujourd'hui — seul le process qui l'exécute change.
 
-**Piste secondaire — le 3ᵉ chemin manuel synchrone (hors périmètre initial, à évaluer séparément) :** `syncTelemetryForSelectedSquadMatches` (`src/lib/pubg-telemetry/manual-sync.ts:309-718`) est un **troisième** chemin de sync télémétrie, distinct des deux ci-dessus : il télécharge et parse en stream (comme `daily_sync`), mais de façon **synchrone dans la requête API** elle-même (pas de queue), donc potentiellement bloquant sur le même thread Next.js le temps de traiter les matchs sélectionnés. Impact plus limité que `daily_sync` (déclenché uniquement par un SuperUser, sur un nombre de matchs choisi manuellement), mais le même principe s'applique.
+**Piste secondaire — le 3ᵉ chemin manuel synchrone — ✅ Livré le 2026-07-05 (2 points d'entrée sur 3 migrés, 1 laissé volontairement)**
 
-- [ ] Si ce chemin manuel traite parfois des lots significatifs, envisager de le faire passer par la même file `telemetry_live_sync` plutôt que d'exécuter `syncTelemetryForSelectedSquadMatches` en direct dans la route API
-- [ ] À ne traiter qu'après validation du chemin `daily_sync` → `telemetry_live_sync` (réutiliser la même file une fois éprouvée, pas la dupliquer)
-- [ ] Vérifier au passage si la fonctionnalité de capture fixture (`fetchTelemetryFilesForSelectedSquadMatches`, effet de bord `.tee()`) reste nécessaire sur ce chemin ou si elle peut être découplée
+`syncTelemetryForSelectedSquadMatches` (`src/lib/pubg-telemetry/manual-sync.ts`) était appelé en synchrone (pas de queue, bloquant le thread Next.js le temps du traitement) depuis **3 points d'entrée** différents. Les deux qui acceptaient un batch de taille arbitraire ont été migrés vers la file `telemetry_live_sync` — sans dupliquer la file existante :
+
+- [x] Nouvelle fonction `enqueueTelemetryForSelectedSquadMatches` (`manual-sync.ts`) — résout les matchs sélectionnés (compte PUBG + shard) et appelle `enqueueTelemetryLiveSyncJobs` (même file que `daily_sync`)
+- [x] Nouvelle route `POST /api/clans/[clanId]/telemetry/sync-selected-enqueue` (+ `GET` pour le suivi, voir section suivante)
+- [x] Bouton "Direct Sync" de `/clans/[clanId]/telemetry/matches/session/[date]` migré vers cette route — retour immédiat, traitement asynchrone par `telemetry-resync-worker.ts` (claim `telemetry_live_sync`, déjà actif en prod)
+- [x] Mode "Direct Sync" de `sync-batch-manual/page.tsx` (outil de dev, batch arbitraire) migré vers la même route — c'était le point d'entrée à risque réel identifié dans le tableau ci-dessous
+
+**Reste synchrone (décision volontaire, pas un oubli) :**
+
+| Fichier | Usage | Risque |
+|---|---|---|
+| `src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx` | Bouton resync **1 seul match** (`squadMatchIds: [matchId]`) | Faible — pas de raison de migrer |
+| `src/app/clans/[clanId]/matches/[matchId]/telemetry/page.tsx` | Idem, 1 seul match | Faible |
+
+- [ ] Vérifier au passage si la fonctionnalité de capture fixture (`fetchTelemetryFilesForSelectedSquadMatches`, effet de bord `.tee()`) reste nécessaire sur les chemins restants ou si elle peut être découplée
+
+### Garde-fou config pour le bug de lock path (standalone) — ✅ Livré le 2026-07-05
+
+**Contexte :** le bug décrit plus haut ("Bug de production découvert et corrigé — 2026-07-05") est silencieux : si `TELEMETRY_RESYNC_WORKER_LOCK_FILE`/`TELEMETRY_AGGREGATE_WORKER_LOCK_FILE` ne sont pas définis en chemin absolu sur une nouvelle installation `standalone`, le dashboard affichera de nouveau "Inactif" sans qu'aucune erreur n'apparaisse dans les logs — seul un rapprochement manuel avec `systemctl status` permet de le détecter (c'est ainsi qu'il a été trouvé).
+
+- [x] Nouveau check dans `getCronConfigurationChecks()` (`src/lib/cron-observability.ts`, groupe "Télémétrie") : détecte le mode standalone via `process.cwd()` se terminant par `.next/standalone`, passe en `error` si l'une des deux variables n'est pas un chemin absolu dans ce contexte, avec message pointant vers `docs/ops/deployment.md`
+
+### Feedback temps réel pour le mode "Direct Sync" — ✅ Livré le 2026-07-05
+
+**Contexte :** le mode "Queue Resync" affiche un petit widget de suivi en direct (`queueLiveStatus`, poll 5s sur `getTelemetryResyncQueueStats`). Le mode "Direct Sync" n'avait aucun suivi équivalent après le clic.
+
+- [x] `GET /api/clans/[clanId]/telemetry/sync-selected-enqueue` — expose `getTelemetryLiveSyncQueueStats({ clanId })` + les 20 derniers jobs `telemetry_live_sync`
+- [x] Widget de suivi en direct ajouté au panneau "Direct Sync" (`directQueueLiveStatus`, poll 5s, même présentation que le widget Queue Resync)
+
+### Classifier les 404 "données PUBG expirées" — ne pas les traiter comme un échec applicatif
+
+**Contexte :** l'API PUBG (matchs comme assets de télémétrie CDN) ne conserve les données que ~14-15 jours. Passé ce délai, un `GET /shards/{shard}/matches/{id}` (ou le téléchargement de l'asset télémétrie) répond 404 — de façon définitive, ce match ne redeviendra jamais disponible.
+
+**Exemple réel observé (2026-07-05) :**
+
+| Champ | Valeur |
+|---|---|
+| Match | `da088b74-6b79-4123-a2e7-8a73aff2768e` (Squad TPP #2, Chimera_Main) |
+| Créé le | 14/06/2026 22:21:55 (~21 jours avant la dernière tentative) |
+| Dernière tentative | 05/07/2026 18:01:27 |
+| `errorCode` | `TELEMETRY_SYNC_FAILED` (générique) |
+| `errorMessage` | `[PUBG] API request failed (404) GET /shards/steam/matches/da088b74-6b79-4123-a2e7-8a73aff2768e` |
+| Statut affiché | `failed` — indiscernable d'un vrai bug à corriger |
+
+**Ce qui existe déjà (pas un bug bloquant) :** le système ne boucle pas indéfiniment dessus :
+- `listSquadMatchesNeedingTelemetry()` (`src/lib/pubg-telemetry/backlog.ts`) ne réinclut un match en échec dans le backlog que si `attemptCount < TELEMETRY_RETRY_MAX` (défaut 2, plafonné à 5) — passé ce seuil, le match sort définitivement de la file.
+- `isRetryableTelemetryFailure()` (`src/lib/pubg-telemetry/job.ts:155-178`) ne retente immédiatement dans un même run que sur timeout/429/500-504 — un 404 n'y figure pas, donc pas de retry en boucle serrée.
+
+**Le vrai problème :** ce 404 est catégorisé avec le même `errorCode: TELEMETRY_SYNC_FAILED` générique que n'importe quelle autre erreur (`src/lib/pubg-telemetry/index.ts:296-312`, catch-all). Conséquences :
+1. **Gaspillage de tentatives** — 2 à 5 appels PUBG API consommés (sur plusieurs runs de cron, potentiellement plusieurs jours) sur un match qu'on sait perdu dès la 1ère réponse 404, alors qu'on pourrait l'exclure immédiatement du backlog.
+2. **Bruit dans le suivi** — `/clans/[clanId]/telemetry/recoveries` affiche ce cas exactement comme un échec applicatif à corriger, alors que c'est un état normal et attendu (donnée expirée côté PUBG, rien à réparer côté code).
+
+**Proposition :**
+
+1. Détecter spécifiquement le 404 aux deux points d'échec possibles :
+   - `fetchMatchDetailsWithTelemetryAsset()` (`src/lib/pubg.ts`) — le match lui-même n'existe plus côté API PUBG (message contient `/matches/` et `(404)`)
+   - `downloadTelemetryFromAsset()` (`src/lib/pubg-telemetry/client.ts:89-91`) — le match existe encore mais l'asset CDN a expiré (message `Telemetry asset download failed (404)`)
+2. Leur assigner un `errorCode` dédié (`TELEMETRY_DATA_EXPIRED` par ex.) au lieu du générique `TELEMETRY_SYNC_FAILED`, dans `syncTelemetryForSquadMatch()` (`src/lib/pubg-telemetry/index.ts`).
+3. Exclure ce statut de `listSquadMatchesNeedingTelemetry()` (`backlog.ts`) — ne plus le réinclure du tout dans le backlog, même sous le seuil `attemptCount < retryMax` (contrairement à un échec transitoire, il n'y a aucune raison de retenter).
+4. Distinguer ce cas dans l'UI (`/clans/[clanId]/telemetry/recoveries` et la page session) — badge neutre ("Donnée PUBG expirée", gris/informatif) plutôt que rouge "Échec", pour ne pas laisser croire à un bug à corriger.
+
+**Pas de migration nécessaire :** `SquadMatchTelemetry.status` et `.errorCode` sont des `String` libres en base (pas d'enum Prisma), donc une nouvelle valeur ne casse rien côté schéma — seulement le code de lecture/affichage à mettre à jour pour la reconnaître.
+
+- [ ] Ajouter la détection 404 dédiée (match + asset) et le nouvel `errorCode` côté backend (`syncTelemetryForSquadMatch`)
+- [ ] Exclure ce cas de `listSquadMatchesNeedingTelemetry()` (backlog) définitivement, pas seulement au-delà de `retryMax`
+- [ ] Adapter l'affichage `/clans/[clanId]/telemetry/recoveries` (page dédiée, rendu indépendant de `SquadMatchList` — pas encore touchée) pour distinguer "expiré" de "échec réel"
+- [ ] Vérifier si des matchs déjà en base sont dans ce cas (requête sur `errorMessage LIKE '%(404)%'`) pour les reclasser rétroactivement plutôt que d'attendre leur prochain passage en backlog
+- [ ] Une fois l'`errorCode` dédié livré côté backend, simplifier `isTelemetryDataExpiredError()` (voir ci-dessous) pour ne plus se fier qu'à `errorCode === 'TELEMETRY_DATA_EXPIRED'` (la détection par contenu du message devient alors un simple fallback de compatibilité)
+
+**Volet UI — ✅ Livré le 2026-07-05 (page session + page recoveries)**
+
+En attendant la classification backend, un badge visuel neutre a été ajouté sur les deux surfaces qui affichent les échecs télémétrie :
+
+- [x] `isTelemetryDataExpiredError(errorCode, errorMessage)` extraite dans un module partagé `src/lib/pubg-telemetry/telemetry-error-presentation.ts` (évite la duplication entre les deux pages) — détecte dès aujourd'hui les deux formats de message 404 connus (`/matches/... (404)` et `Telemetry asset download failed (404)`), et reconnaîtra aussi le futur `errorCode: 'TELEMETRY_DATA_EXPIRED'` une fois livré côté backend
+- [x] `/clans/[clanId]/telemetry/matches/session/[date]` (`SquadMatchList.tsx`) — badge "Parser KO" (rouge) remplacé par "Télémétrie expirée (PUBG)" (gris, neutre) + bloc d'erreur neutre explicatif quand ce cas est détecté
+- [x] `/clans/[clanId]/telemetry/recoveries` (`page.tsx`) — badge de statut de ligne "expiré (PUBG)" (gris) au lieu de "failed" (rouge) + cellule Erreur avec message explicatif neutre, même détection réutilisée
+
+**Reste (backend, hors scope UI) :** les compteurs résumé (`payload.summary.failed`, KPI taux de succès/échec, dashboard observability) comptent toujours ces cas dans "failed" — seule la classification backend (`errorCode` dédié + exclusion du backlog, items ci-dessus) corrigera ça au niveau des chiffres, pas seulement de l'affichage ligne par ligne.
 
 ### Purge de l'historique cron
 

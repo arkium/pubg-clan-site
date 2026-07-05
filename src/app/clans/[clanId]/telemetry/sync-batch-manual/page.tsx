@@ -45,13 +45,13 @@ export default function TelemetrySyncBatchPage() {
     setResult(null)
 
     try {
-      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected`, {
+      // Enqueues into the same telemetry_live_sync queue the automatic cron uses —
+      // the always-running telemetry-resync-worker process does the actual download
+      // + parsing, so this call returns immediately instead of blocking the web request.
+      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected-enqueue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          squadMatchIds,
-          recalculateAggregates: recalcAgg,
-        }),
+        body: JSON.stringify({ squadMatchIds }),
       })
 
       const data = await response.json()
@@ -234,18 +234,18 @@ export default function TelemetrySyncBatchPage() {
             >
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-semibold text-lg">Direct Sync</h3>
-                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Rapide</span>
+                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Worker</span>
               </div>
               <p className="text-sm text-gray-700 mb-3">
-                Télécharge, capture et traite en une seule opération.
+                Met en file pour le worker télémétrie (telemetry-resync-worker), qui télécharge et traite en arrière-plan.
               </p>
               <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                <li>✓ Résultat immédiat</li>
+                <li>✓ Non-bloquant, quelle que soit la taille du batch</li>
                 <li>✓ Pas de fichiers locaux</li>
-                <li>⚠ Peut bloquer si gros batch</li>
+                <li>✓ Agrégats recalculés automatiquement après succès</li>
               </ul>
               <div className="text-xs text-gray-500">
-                Recommandé: &lt;50 matches
+                Recommandé: toutes tailles de batch
               </div>
             </div>
 
@@ -307,7 +307,7 @@ export default function TelemetrySyncBatchPage() {
         <div className="border rounded-lg p-4 bg-slate-50">
           <h2 className="text-xl font-semibold mb-3">Étape 3: Options</h2>
           <div className="space-y-3">
-            {syncMode !== 'capture' && (
+            {syncMode === 'queue' && (
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -317,7 +317,7 @@ export default function TelemetrySyncBatchPage() {
                 <span>Réinitialiser télémétrie avant traitement</span>
               </label>
             )}
-            {syncMode !== 'capture' && (
+            {syncMode === 'queue' && (
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -326,6 +326,11 @@ export default function TelemetrySyncBatchPage() {
                 />
                 <span>Recalculer agrégats après traitement</span>
               </label>
+            )}
+            {syncMode === 'direct' && (
+              <p className="text-sm text-gray-600">
+                Pas d&apos;options: la mise en file gère elle-même le recalcul des agrégats après succès.
+              </p>
             )}
             {syncMode === 'capture' && (
               <p className="text-sm text-gray-600">
@@ -345,7 +350,7 @@ export default function TelemetrySyncBatchPage() {
                 disabled={loading || squadMatchIds.length === 0}
                 className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 disabled:bg-gray-400 font-semibold"
               >
-                {loading ? 'Traitement...' : 'Direct Sync'}
+                {loading ? 'Mise en file...' : 'Direct Sync'}
               </button>
             )}
             {syncMode === 'capture' && (

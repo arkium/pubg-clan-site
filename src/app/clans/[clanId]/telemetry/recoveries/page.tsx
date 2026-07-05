@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { resolveGameMode } from '@/lib/pubg-assets'
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 
 type TelemetryRecoveryRow = {
   id: string
@@ -1202,11 +1203,19 @@ export default function TelemetryRecoveriesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedRows.map((row) => (
+                  {sortedRows.map((row) => {
+                    const telemetryDataExpired =
+                      row.status === 'failed' && isTelemetryDataExpiredError(row.errorCode, row.errorMessage)
+
+                    return (
                     <tr key={row.id} className="app-table-row align-top">
                       <td className="px-2 py-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(row.status)}`}>
-                          {row.status}
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                            telemetryDataExpired ? 'border-gray-300 bg-gray-100 text-gray-700' : statusClass(row.status)
+                          }`}
+                        >
+                          {telemetryDataExpired ? 'expiré (PUBG)' : row.status}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-slate-800">
@@ -1253,20 +1262,32 @@ export default function TelemetryRecoveriesPage() {
                       </td>
                       <td className="max-w-sm px-2 py-2 text-slate-700">
                         {row.errorCode || row.errorMessage ? (
-                          <>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">
-                              {row.errorCode ?? 'ERROR'}
-                            </p>
-                            <p className="line-clamp-3 text-xs text-rose-700">
-                              {row.errorMessage ?? 'Erreur sans message'}
-                            </p>
-                          </>
+                          telemetryDataExpired ? (
+                            <>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Télémétrie expirée
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                Donnée PUBG hors délai de rétention (~14-15 jours) — ne redeviendra jamais disponible.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+                                {row.errorCode ?? 'ERROR'}
+                              </p>
+                              <p className="line-clamp-3 text-xs text-rose-700">
+                                {row.errorMessage ?? 'Erreur sans message'}
+                              </p>
+                            </>
+                          )
                         ) : (
                           <span className="text-xs text-slate-500">-</span>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                   {sortedRows.length === 0 ? (
                     <tr className="app-table-row">
                       <td colSpan={7} className="px-2 py-6 text-center text-sm text-slate-500">

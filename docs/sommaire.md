@@ -13,6 +13,8 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Stack](architecture/stack.md) | Tech stack, contraintes Node 22 / Next 16.x, gotchas critiques, variables d'environnement, commandes npm |
 | [Data model](architecture/data-model.md) | 31 modèles Prisma par domaine, relations clés, champs métier importants, stratégie de périodes |
 | [Structure du code](architecture/code-structure.md) | Organisation des dossiers, patterns page / hook / route API / service, conventions de nommage |
+| [Plan application mobile](architecture/mobile-app-plan.md) | React Native vs Flutter, chantier auth (cookie → token), plan de développement par phases |
+| [Référence API](architecture/api-reference.md) | Vue d'ensemble de toutes les routes API, auth requise, pertinence pour le mobile |
 
 ---
 

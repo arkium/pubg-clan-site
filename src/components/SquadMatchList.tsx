@@ -3,6 +3,7 @@ import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 import Link from 'next/link'
 
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
 interface SquadMatchListProps {
@@ -184,6 +185,9 @@ export default function SquadMatchList({
           const telemetryStatus = match.telemetry?.status ?? 'pending'
           const telemetryBytes = formatTelemetryBytes(match.telemetry?.bytesDownloaded)
           const localFileStatus = telemetryFileStatusByMatchId?.[match.id] ?? 'unknown'
+          const telemetryDataExpired =
+            telemetryStatus === 'failed' &&
+            isTelemetryDataExpiredError(match.telemetry?.errorCode, match.telemetry?.errorMessage)
 
           return (
             <li
@@ -219,8 +223,14 @@ export default function SquadMatchList({
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${resultTone(match.isWin)}`}>
                     {match.isWin ? 'Victoire' : 'Défaite'}
                   </span>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${parserTelemetryTone(telemetryStatus)}`}>
-                    {parserTelemetryLabel(telemetryStatus)}
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      telemetryDataExpired
+                        ? 'border-gray-300 bg-gray-100 text-gray-700'
+                        : parserTelemetryTone(telemetryStatus)
+                    }`}
+                  >
+                    {telemetryDataExpired ? 'Télémétrie expirée (PUBG)' : parserTelemetryLabel(telemetryStatus)}
                   </span>
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${fileStatusTone(localFileStatus)}`}>
                     {fileStatusLabel(localFileStatus)}
@@ -362,10 +372,19 @@ export default function SquadMatchList({
               ) : null}
 
               {match.telemetry?.status === 'failed' && match.telemetry.errorMessage ? (
-                <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-[11px] text-rose-900">
-                  <p className="text-[9px] font-semibold uppercase tracking-wide text-rose-700">Erreur télémétrie</p>
-                  <p className="mt-1 line-clamp-3">{match.telemetry.errorMessage}</p>
-                </div>
+                telemetryDataExpired ? (
+                  <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-2.5 py-2 text-[11px] text-gray-700">
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-500">Télémétrie indisponible</p>
+                    <p className="mt-1">
+                      Donnée expirée côté PUBG (rétention ~14-15 jours) — ce match ne sera plus jamais disponible, ce n&apos;est pas une erreur à corriger.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-2 text-[11px] text-rose-900">
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-rose-700">Erreur télémétrie</p>
+                    <p className="mt-1 line-clamp-3">{match.telemetry.errorMessage}</p>
+                  </div>
+                )
               ) : null}
 
               <div className="mt-3">

@@ -167,6 +167,26 @@ type QueueLiveStatusResponse = {
   }>
 }
 
+type LiveSyncQueueStatusResponse = {
+  ok?: boolean
+  error?: string
+  queue?: {
+    queued?: number
+    running?: number
+    remaining?: number
+    success?: number
+    failed?: number
+    total?: number
+  }
+  recentJobs?: Array<{
+    id: string
+    status: string
+    message: string | null
+    createdAt: string
+    finishedAt: string | null
+  }>
+}
+
 const SAFE_RESYNC_BATCH_LIMIT = 1
 
 export default function TelemetrySessionDatePage() {
@@ -236,6 +256,24 @@ export default function TelemetrySessionDatePage() {
   const [queueLiveStatusError, setQueueLiveStatusError] = useState<string | null>(null)
   const [queueCleanupLoading, setQueueCleanupLoading] = useState(false)
   const [queueCleanupMessage, setQueueCleanupMessage] = useState<string | null>(null)
+  const [directQueueLiveStatus, setDirectQueueLiveStatus] = useState<{
+    queued: number
+    running: number
+    remaining: number
+    success: number
+    failed: number
+    total: number
+    updatedAt: number
+    recentJobs: Array<{
+      id: string
+      status: string
+      message: string | null
+      createdAt: string
+      finishedAt: string | null
+    }>
+  } | null>(null)
+  const [directQueueLiveStatusLoading, setDirectQueueLiveStatusLoading] = useState(false)
+  const [directQueueLiveStatusError, setDirectQueueLiveStatusError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -442,6 +480,63 @@ export default function TelemetrySessionDatePage() {
 
     void loadQueueLiveStatus(true)
     const timer = window.setInterval(() => { void loadQueueLiveStatus(false) }, 5000)
+    return () => { cancelled = true; window.clearInterval(timer) }
+  }, [clanId, telemetrySyncMode])
+
+  useEffect(() => {
+    if (!clanId || telemetrySyncMode !== 'direct') {
+      setDirectQueueLiveStatus(null)
+      setDirectQueueLiveStatusError(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function loadDirectQueueLiveStatus(initialLoad: boolean) {
+      if (initialLoad) setDirectQueueLiveStatusLoading(true)
+
+      try {
+        const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected-enqueue`, { method: 'GET', cache: 'no-store' })
+        const payload = (await response.json().catch(() => null)) as LiveSyncQueueStatusResponse | null
+        if (cancelled) return
+
+        if (!response.ok || !payload?.ok) {
+          setDirectQueueLiveStatusError(payload?.error ?? 'Statut de file indisponible')
+          return
+        }
+
+        const queued = payload.queue?.queued ?? 0
+        const running = payload.queue?.running ?? 0
+        const success = payload.queue?.success ?? 0
+        const failed = payload.queue?.failed ?? 0
+        const total = payload.queue?.total ?? queued + running + success + failed
+
+        setDirectQueueLiveStatus({
+          queued,
+          running,
+          remaining: payload.queue?.remaining ?? queued + running,
+          success,
+          failed,
+          total,
+          updatedAt: Date.now(),
+          recentJobs: (payload.recentJobs ?? []).slice(0, 5).map((job) => ({
+            id: job.id,
+            status: job.status,
+            message: job.message,
+            createdAt: job.createdAt,
+            finishedAt: job.finishedAt,
+          })),
+        })
+        setDirectQueueLiveStatusError(null)
+      } catch {
+        if (!cancelled) setDirectQueueLiveStatusError('Statut de file indisponible')
+      } finally {
+        if (!cancelled && initialLoad) setDirectQueueLiveStatusLoading(false)
+      }
+    }
+
+    void loadDirectQueueLiveStatus(true)
+    const timer = window.setInterval(() => { void loadDirectQueueLiveStatus(false) }, 5000)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [clanId, telemetrySyncMode])
 
@@ -1094,6 +1189,37 @@ export default function TelemetrySessionDatePage() {
                   disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
                   {telemetrySyncLoading ? 'Mise en file...' : `Direct Sync (${selectedMatchIds.length} matchs)`}
                 </button>
+
+                <div className="mt-3 rounded-lg border border-green-200 bg-white/70 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-green-900">Etat de la file en direct (telemetry_live_sync)</p>
+                    <p className="text-[11px] text-green-700">Actualisation auto: 5s</p>
+                  </div>
+                  {directQueueLiveStatusLoading && !directQueueLiveStatus ? <p className="mt-2 text-xs text-green-700">Chargement du statut...</p> : null}
+                  {directQueueLiveStatus ? (
+                    <>
+                      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-green-900">Restants: <strong>{directQueueLiveStatus.remaining}</strong></div>
+                        <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sky-900">En attente: <strong>{directQueueLiveStatus.queued}</strong></div>
+                        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">En cours: <strong>{directQueueLiveStatus.running}</strong></div>
+                        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-900">Succès: <strong>{directQueueLiveStatus.success}</strong></div>
+                        <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-rose-900">Echecs: <strong>{directQueueLiveStatus.failed}</strong></div>
+                        <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-900">Total: <strong>{directQueueLiveStatus.total}</strong></div>
+                      </div>
+                      <p className="mt-2 text-[11px] text-green-700">Derniere mise a jour: {new Date(directQueueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
+                      {directQueueLiveStatus.recentJobs.length > 0 ? (
+                        <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-green-800">
+                          {directQueueLiveStatus.recentJobs.map((job) => (
+                            <li key={job.id} className="rounded border border-green-100 bg-green-50/60 px-2 py-1">
+                              <span className="font-medium">{job.status.toUpperCase()}</span>{' - '}{job.message ?? 'Sans message'}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {directQueueLiveStatusError ? <p className="mt-2 text-xs text-amber-800">{directQueueLiveStatusError}</p> : null}
+                </div>
               </div>
             )}
 

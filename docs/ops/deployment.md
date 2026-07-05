@@ -50,7 +50,9 @@
 | Variable | Défaut | Requis sur |
 |---|---|---|
 | `ENABLE_CRON_JOBS` | — | Worker cron uniquement (`true`) |
-| `CRON_BOOTSTRAP_SECRET` | — | Web worker ET worker cron (partagé) |
+| `ENABLE_CRON_BOOTSTRAP` | `false` | Legacy, à laisser `false` — le bootstrap passe désormais par `POST /api/internal/cron/bootstrap` (voir `ExecStartPost` du worker cron) |
+| `CRON_BOOTSTRAP_SECRET` | — | Web worker ET worker cron (partagé) — protège `/api/internal/cron/bootstrap` et `/api/internal/cron/status` |
+| `INTERNAL_CRON_STATUS_URL` | `http://127.0.0.1:3001/api/internal/cron/status` | Web worker uniquement — permet au dashboard `/clans/[clanId]/settings/cron` de sonder l'état du worker cron |
 | `CLAN_MATCH_SYNC_CRON` | `0 2 * * *` | Optionnel |
 | `CLAN_MATCH_SYNC_TIMEZONE` | `UTC` | Optionnel |
 | `CLAN_STATS_RECALC_CRON` | `0 3 * * *` | Optionnel |
@@ -79,11 +81,17 @@
 | `TELEMETRY_WORKER_GC_ENABLED` | `false` | Active le GC explicite dans le worker |
 | `TELEMETRY_RESYNC_STUCK_RECOVERY_MS` | `60000` | Délai avant récupération des jobs bloqués |
 | `TELEMETRY_RESYNC_WORKER_MAX_PARALLEL` | `1` | Parallélisme du worker resync |
-| `TELEMETRY_RESYNC_WORKER_LOCK_FILE` | `.telemetry-resync-worker.lock` | Fichier de verrou resync |
+| `TELEMETRY_RESYNC_WORKER_LOCK_FILE` | `.telemetry-resync-worker.lock` | Fichier de verrou resync — **en production standalone, utiliser un chemin absolu** (voir note ci-dessous) |
 | `TELEMETRY_RESYNC_WORKER_LOCK_STALE_MS` | `1800000` | Délai de péremption du verrou resync |
 | `TELEMETRY_AGGREGATE_WORKER_MAX_PARALLEL` | `1` | Parallélisme du worker agrégats |
-| `TELEMETRY_AGGREGATE_WORKER_LOCK_FILE` | `.telemetry-aggregate-worker.lock` | Fichier de verrou agrégats |
+| `TELEMETRY_AGGREGATE_WORKER_LOCK_FILE` | `.telemetry-aggregate-worker.lock` | Fichier de verrou agrégats — **en production standalone, utiliser un chemin absolu** (voir note ci-dessous) |
 | `TELEMETRY_AGGREGATE_WORKER_LOCK_STALE_MS` | `1800000` | Délai de péremption du verrou agrégats |
+
+> **Important en production (build `standalone`)** : le `server.js` généré par Next.js fait un `process.chdir()` vers `.next/standalone` au démarrage, donc `process.cwd()` du web/cron worker ne pointe plus vers la racine du projet. Le dashboard `/settings/cron` lit ces deux variables pour localiser les fichiers de verrou (`route.ts` de `cron-workers-status`) — si elles sont laissées en valeur relative par défaut, le dashboard affichera à tort "Inactif" même quand les workers tournent correctement. **Définir un chemin absolu** dans le `.env` partagé, identique à celui utilisé par les workers (donc dans le même répertoire que `WorkingDirectory`) :
+> ```
+> TELEMETRY_RESYNC_WORKER_LOCK_FILE=/home/smk/apps/pubg-clan-site/.telemetry-resync-worker.lock
+> TELEMETRY_AGGREGATE_WORKER_LOCK_FILE=/home/smk/apps/pubg-clan-site/.telemetry-aggregate-worker.lock
+> ```
 
 ---
 
@@ -139,27 +147,47 @@ npm run telemetry:aggregates:worker:once
 
 ### Worker cron (si séparé du web)
 
-Le worker cron est l'application Next.js elle-même démarrée avec `ENABLE_CRON_JOBS=true`. Il n'y a pas de processus distinct — c'est une instance du web server avec les crons activés.
+Le worker cron est l'application Next.js elle-même démarrée avec `ENABLE_CRON_JOBS=true` sur un port dédié (ex. `3001`). Ce n'est pas un binaire différent — c'est une deuxième instance du serveur standalone.
+
+Contrairement à `ENABLE_CRON_BOOTSTRAP` (legacy, à laisser `false`), l'initialisation des crons se fait via un appel explicite à l'endpoint interne après démarrage :
+
+```bash
+curl -fsS -X POST http://127.0.0.1:3001/api/internal/cron/bootstrap \
+  -H "x-cron-bootstrap-secret: ${CRON_BOOTSTRAP_SECRET}"
+```
+
+En systemd, cet appel se fait typiquement via `ExecStartPost` (voir exemple ci-dessous). Le web worker (port `3000`) peut ensuite sonder l'état du worker cron via `GET /api/internal/cron/status` (même secret), utilisé par le dashboard `/clans/[clanId]/settings/cron`.
 
 ---
 
 ## Exemples de units systemd
 
+Ci-dessous une configuration réelle à 4 services (web + cron + 2 workers télémétrie), adaptée à un déploiement type `/home/<user>/apps/pubg-clan-site`. Adapter `User`, `WorkingDirectory` et les secrets à votre environnement.
+
+**Un seul fichier `.env` à la racine du projet, partagé par les 4 services** — aucun `EnvironmentFile=` n'est nécessaire dans les units :
+- Le web et le worker cron (Next.js standalone) chargent `.env` automatiquement au démarrage.
+- Les workers télémétrie (`telemetry-resync-worker.ts`, `telemetry-aggregate-worker.ts`) le chargent via `import 'dotenv/config'` en tête de script, à condition que `WorkingDirectory` pointe vers la racine du projet (là où se trouve `.env`).
+
+Les `Environment=` déclarées directement dans une unit systemd sont déjà présentes dans l'environnement du process **avant** que Node ne démarre — dotenv ne les écrase donc jamais. C'est ce qui permet de garder un seul `.env` avec des valeurs par défaut (ex. `ENABLE_CRON_JOBS=true`, `ENABLE_CRON_BOOTSTRAP=true`) tout en les surchargeant service par service dans chaque unit (le web force `ENABLE_CRON_JOBS=false`, le worker cron force `ENABLE_CRON_BOOTSTRAP=false` car le bootstrap passe par l'appel `ExecStartPost` explicite, pas par cette variable legacy).
+
 ### Application web
 
 ```ini
 [Unit]
-Description=PUBG Clan Site — Web
+Description=PUBG Clan Site Web
 After=network.target
 
 [Service]
 Type=simple
-User=pubg
-WorkingDirectory=/srv/pubg-clan-site
-ExecStart=node .next/standalone/server.js
-EnvironmentFile=/srv/pubg-clan-site/.env
+User=smk
+WorkingDirectory=/home/smk/apps/pubg-clan-site
+Environment=NODE_ENV=production
 Environment=PORT=3000
+Environment=ENABLE_CRON_BOOTSTRAP=false
 Environment=ENABLE_CRON_JOBS=false
+Environment="CRON_BOOTSTRAP_SECRET=ton-secret-long"
+Environment="INTERNAL_CRON_STATUS_URL=http://127.0.0.1:3001/api/internal/cron/status"
+ExecStart=/usr/bin/node /home/smk/apps/pubg-clan-site/.next/standalone/server.js
 Restart=always
 RestartSec=5
 
@@ -169,21 +197,26 @@ WantedBy=multi-user.target
 
 ### Worker cron
 
+Tourne sur un port dédié (`3001`), avec les crons activés. Le `ExecStartPost` déclenche le bootstrap des jobs après un court délai (le temps que le serveur écoute).
+
 ```ini
 [Unit]
-Description=PUBG Clan Site — Cron Worker
-After=network.target pubg-clan-web.service
+Description=PUBG Clan Site Cron Worker
+After=network.target
 
 [Service]
 Type=simple
-User=pubg
-WorkingDirectory=/srv/pubg-clan-site
-ExecStart=node .next/standalone/server.js
-EnvironmentFile=/srv/pubg-clan-site/.env
+User=smk
+WorkingDirectory=/home/smk/apps/pubg-clan-site
+Environment=NODE_ENV=production
 Environment=PORT=3001
+Environment=ENABLE_CRON_BOOTSTRAP=false
 Environment=ENABLE_CRON_JOBS=true
+Environment="CRON_BOOTSTRAP_SECRET=ton-secret-long"
+ExecStart=/usr/bin/node /home/smk/apps/pubg-clan-site/.next/standalone/server.js
+ExecStartPost=/bin/sh -lc 'sleep 2; curl -fsS -X POST http://127.0.0.1:3001/api/internal/cron/bootstrap -H "x-cron-bootstrap-secret: ${CRON_BOOTSTRAP_SECRET}"'
 Restart=always
-RestartSec=10
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -191,17 +224,41 @@ WantedBy=multi-user.target
 
 ### Worker télémétrie resync
 
+Tourne en boucle infinie via `tsx` (pas de build requis pour ce process — il tourne hors du bundle standalone Next.js). Nécessite `DATABASE_URL`, `PUBG_API_KEY` et les variables `TELEMETRY_*` dans son environnement.
+
 ```ini
 [Unit]
-Description=PUBG Clan Site — Telemetry Resync Worker
+Description=PUBG Clan Site Telemetry Resync Worker
 After=network.target
 
 [Service]
 Type=simple
-User=pubg
-WorkingDirectory=/srv/pubg-clan-site
-ExecStart=node --max-old-space-size=2048 --expose-gc node_modules/tsx/dist/cli.mjs scripts/telemetry-resync-worker.ts
-EnvironmentFile=/srv/pubg-clan-site/.env
+User=smk
+WorkingDirectory=/home/smk/apps/pubg-clan-site
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --max-old-space-size=2048 --expose-gc node_modules/tsx/dist/cli.mjs scripts/telemetry-resync-worker.ts
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Worker agrégats télémétrie
+
+Recalcule les agrégats de période (`TelemetryPeriodAggregate`) à partir des matchs déjà parsés par le worker resync. Peut tourner en continu ou être remplacé par une exécution ponctuelle (`telemetry:aggregates:worker:once`) déclenchée par un timer systemd si vous préférez un batch périodique plutôt qu'une boucle infinie.
+
+```ini
+[Unit]
+Description=PUBG Clan Site Telemetry Aggregates Worker
+After=network.target
+
+[Service]
+Type=simple
+User=smk
+WorkingDirectory=/home/smk/apps/pubg-clan-site
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node --max-old-space-size=2048 --expose-gc node_modules/tsx/dist/cli.mjs scripts/telemetry-aggregate-worker.ts
 Restart=always
 RestartSec=15
 

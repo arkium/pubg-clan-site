@@ -1,6 +1,6 @@
 import 'server-only'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
 import { getTelemetryResyncQueueStats } from '@/lib/pubg-telemetry/resync-queue'
 import { getTelemetryLiveSyncQueueStats } from '@/lib/pubg-telemetry/live-sync-queue'
@@ -19,9 +19,20 @@ type WorkerLockInfo = {
   alive: boolean
 } | null
 
-async function readWorkerLock(filename: string): Promise<WorkerLockInfo> {
+// In standalone output, the running process has chdir'd into .next/standalone,
+// so process.cwd() no longer points at the project root where workers write their
+// lock files. Resolve against the same *_LOCK_FILE env vars the workers use instead.
+function resolveLockFilePath(envVar: string, defaultFilename: string): string {
+  const configured = process.env[envVar]?.trim()
+  if (configured) {
+    return isAbsolute(configured) ? configured : join(process.cwd(), configured)
+  }
+  return join(process.cwd(), defaultFilename)
+}
+
+async function readWorkerLock(path: string): Promise<WorkerLockInfo> {
   try {
-    const raw = await readFile(join(process.cwd(), filename), 'utf-8')
+    const raw = await readFile(path, 'utf-8')
     const data = JSON.parse(raw) as LockFileData
 
     if (typeof data.pid !== 'number' || !data.acquiredAt) {
@@ -47,9 +58,18 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Acces reserve au SuperUser' }, { status: 403 })
   }
 
+  const resyncLockPath = resolveLockFilePath(
+    'TELEMETRY_RESYNC_WORKER_LOCK_FILE',
+    '.telemetry-resync-worker.lock'
+  )
+  const aggregateLockPath = resolveLockFilePath(
+    'TELEMETRY_AGGREGATE_WORKER_LOCK_FILE',
+    '.telemetry-aggregate-worker.lock'
+  )
+
   const [resyncLock, aggregateLock, resyncQueue, liveSyncQueue, aggregateQueue] = await Promise.all([
-    readWorkerLock('.telemetry-resync-worker.lock'),
-    readWorkerLock('.telemetry-aggregate-worker.lock'),
+    readWorkerLock(resyncLockPath),
+    readWorkerLock(aggregateLockPath),
     getTelemetryResyncQueueStats(),
     getTelemetryLiveSyncQueueStats(),
     getTelemetryAggregateRecalcQueueStats(),

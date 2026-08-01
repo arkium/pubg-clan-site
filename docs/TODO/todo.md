@@ -137,7 +137,12 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Appliquer cinq plages logarithmiques `Très faible`, `Faible`, `Modérée`, `Forte` et `Point chaud`
 - [x] Afficher les bornes absolues, le seuil adaptatif et le maximum de la métrique courante
 - [x] Afficher les métriques de densité en cellules graduées et conserver des points gradués pour les événements ponctuels
+- [x] Distinguer les événements ponctuels (`Kill`, `KO`, `Revive`, `Véhicule`, `Mort`) des zones de densité (`Tirs`, `Dégâts`) avec des marqueurs contrastés, des compteurs et un fond cartographique atténué
+- [x] Afficher tous les événements ponctuels sans seuil et placer les marqueurs au-dessus des périmètres de villes
 - [x] Conserver les couleurs par métrique en vue combinée `Tous`
+- [x] Simplifier le filtre de cercle en plages tactiques `Toutes`, `Début` (phases 1–2), `Milieu` (phases 3–4) et `Fin` (phases 5–8)
+- [x] Réutiliser les phases entières persistées sans migration ni backfill : chaque transition décimale reste rattachée à sa phase de départ
+- [x] Appliquer la plage tactique aux métriques, au Top 5 et au cercle moyen, puis identifier celui-ci comme zone de sécurité moyenne
 - [x] Vérifier le rendu desktop/mobile, le Top 5, le centrage sur Pochinki et l'absence de débordement horizontal
 
 #### Phase 2 — Persistance des métriques de positions
@@ -146,7 +151,8 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 
 ##### Cadrage fonctionnel et technique
 
-- [x] Conserver les catégories UI `Mouvement`, `Combat` et `Équipe` comme regroupements de navigation
+- [x] Limiter la page Positions aux catégories UI `Combat` et `Équipe` ; exclure `Mouvement` de cette page
+- [x] Conserver les métriques persistées `position` et `rotation` pour les dashboards et analyses, sans les exposer dans cette page
 - [x] Traiter les vues comme des métriques persistables plutôt que comme des catégories de stockage
 - [x] Séparer explicitement les rôles dans les métriques : dégâts infligés/reçus, KO infligé/reçu, revive donné/reçu
 - [x] Ne pas persister la vue combinée `Tous`, qui doit être reconstruite depuis les métriques élémentaires
@@ -156,33 +162,35 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 
 ##### Modèle et alimentation
 
-- [ ] Créer le modèle Prisma `PositionMetricCell` avec `squadMatchId`, `clanId`, `memberId`, `mapName`, `phase`, `metric`, `xIndex`, `yIndex`, `eventCount` et `matchDate`
-- [ ] Ajouter les relations vers `SquadMatch` et `ClanMember`, ainsi que les index nécessaires aux périodes, cartes, membres et métriques
-- [ ] Définir une contrainte unique sur `(squadMatchId, memberId, phase, metric, xIndex, yIndex)`
-- [ ] Créer la migration SQL additive sans modifier les colonnes JSON télémétriques existantes
-- [ ] Extraire un helper pur qui transforme les échantillons d'un match en cellules persistables
-- [ ] Couvrir les métriques `position`, `rotation`, `kill`, `shot`, `damage_dealt`, `damage_taken`, `knockout_dealt`, `knockout_taken`, `revive_given`, `revive_received`, `vehicle` et `death`
-- [ ] Pondérer correctement les tirs et dégâts avec leur champ `count`
+- [x] Créer le modèle Prisma `PositionMetricCell` avec `squadMatchId`, `clanId`, `memberId`, `mapName`, `phase`, `metric`, `xIndex`, `yIndex`, `eventCount` et `matchDate`
+- [x] Ajouter les relations vers `SquadMatch` et `ClanMember`, ainsi que les index nécessaires aux périodes, cartes, membres et métriques
+- [x] Définir une contrainte unique sur `(squadMatchId, memberId, phase, metric, xIndex, yIndex)`
+- [x] Créer et appliquer la migration SQL additive sans modifier les colonnes JSON télémétriques existantes
+- [x] Extraire un helper pur qui transforme les échantillons d'un match en cellules persistables
+- [x] Couvrir les métriques `position`, `rotation`, `kill`, `shot`, `damage_dealt`, `damage_taken`, `knockout_dealt`, `knockout_taken`, `revive_given`, `revive_received`, `vehicle` et `death`
+- [x] Pondérer correctement les tirs et dégâts avec leur champ `count`
 - [ ] Alimenter les cellules dans la même transaction que la persistance télémétrique du match
-- [ ] Supprimer puis recréer uniquement les cellules du match traité afin de garantir l'idempotence
-- [ ] Ajouter des tests unitaires pour la grille, les phases, les rôles, les poids et le remplacement idempotent
+- [x] Supprimer puis recréer uniquement les cellules du match traité afin de garantir l'idempotence
+- [x] Ajouter des tests unitaires pour la grille, les phases, les rôles et les poids, puis valider le remplacement idempotent sur la base
 
 ##### Backfill et validation des données
 
-- [ ] Ajouter un script CLI de backfill avec filtres `--clan`, `--limit` et reprise contrôlée
-- [ ] Backfiller les télémétries existantes sans supprimer les JSON sources
-- [ ] Vérifier qu'un second backfill ne modifie pas le nombre de cellules persistées
+- [x] Ajouter un script CLI de backfill avec filtres `--clan`, `--limit` et reprise contrôlée
+- [x] Backfiller les `1 284` télémétries du clan 1 sans supprimer les JSON sources (`161 900` cellules)
+- [x] Vérifier qu'un second backfill ne modifie pas le nombre de cellules persistées (`161 900` avant/après)
 - [ ] Comparer les agrégats persistés avec la route actuelle sur plusieurs cartes, membres, phases et métriques
-- [ ] Mesurer le volume de lignes, la durée du backfill et la taille de stockage avant généralisation
+- [x] Mesurer le volume, la durée et le stockage : environ `139 s`, `161 900` lignes, `97,4 MiB` (`24,1 MiB` données + `73,3 MiB` index)
 
 ##### API et performances
 
-- [ ] Créer un service partagé d'agrégation des cellules par période, carte, membre, phase et métrique
-- [ ] Migrer `GET /api/clans/[clanId]/telemetry/positions` vers `PositionMetricCell`
-- [ ] Conserver temporairement un fallback vers les JSON tant que le backfill n'est pas complet
+- [x] Retirer la catégorie `Mouvement`, les vues `Prédilection`, `Rotation` et `Lignes`, ainsi que leurs textes et contrôles de la page Positions
+- [x] Supprimer le chargement API des trajectoires devenu inutile sur cette page, sans supprimer les données sources ni les cellules persistées
+- [x] Créer un service partagé d'agrégation des cellules par période, carte, membre, phase et métrique
+- [x] Migrer `GET /api/clans/[clanId]/telemetry/positions` vers `PositionMetricCell`
+- [x] Conserver temporairement un fallback vers les JSON tant que le backfill n'est pas complet
 - [ ] Supprimer le fallback et le cache mémoire lorsque les données persistées sont validées
 - [ ] Vérifier que les filtres et le Top 5 restent identiques avant/après migration
-- [ ] Mesurer un premier chargement à froid et viser moins d'une seconde sur la période hebdomadaire
+- [x] Mesurer un premier chargement à froid inférieur à une seconde sur la période hebdomadaire (`692 ms`, cache vide)
 - [ ] Ajouter des tests de route ou de service couvrant les semaines vides et les filtres combinés
 
 ##### Dashboards clan et membre

@@ -18,6 +18,7 @@
     "telemetry:aggregates:worker:once": "node --max-old-space-size=2048 --expose-gc node_modules/tsx/dist/cli.mjs scripts/telemetry-aggregate-worker.ts --once",
     "telemetry:batch": "tsx scripts/telemetry-batch.ts",
     "telemetry:drop-pressure:backfill": "tsx scripts/backfill-drop-pressure.ts",
+    "telemetry:position-metrics:backfill": "tsx scripts/backfill-position-metrics.ts",
     "scores:recalc": "tsx scripts/recalc-scores.ts",
     "make-superuser": "tsx scripts/make-superuser.ts",
     "build": "next build",

@@ -11,14 +11,15 @@ import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
-import { isGameLabel } from '@/lib/phase-label-service'
+import {
+  TACTICAL_PHASE_OPTIONS,
+  tacticalPhaseLabel,
+  type TacticalPhase,
+} from '@/lib/tactical-phase'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
-type HeatmapCategory = 'mouvement' | 'combat' | 'equipe'
+type HeatmapCategory = 'combat' | 'equipe'
 type HeatmapView =
-  | 'predilection'
-  | 'rotation'
-  | 'rotation-lines'
   | 'kill'
   | 'shot'
   | 'damage'
@@ -28,8 +29,6 @@ type HeatmapView =
   | 'death'
 type HeatmapViewSelection = HeatmapView | 'all'
 type HeatmapRole = 'a' | 'b'
-type PhaseFilter = 'all' | number
-
 type HeatmapCell = {
   xIndex: number
   yIndex: number
@@ -57,14 +56,6 @@ type MemberOption = {
   points: number
 }
 
-type TrajectoryLine = {
-  fromX: number
-  fromY: number
-  toX: number
-  toY: number
-  count: number
-}
-
 type SafeZoneOverlay = {
   x: number
   y: number
@@ -79,16 +70,13 @@ type PositionsHeatmapResponse = {
   selectedMap: string | null
   selectedMapLabel: string | null
   selectedMemberKey: string | null
-  selectedPhase: PhaseFilter
+  selectedPhase: TacticalPhase
   maps: Array<{
     mapName: string
     matches: number
   }>
   members: MemberOption[]
   phases: number[]
-  positions: HeatmapCell[]
-  rotations: HeatmapCell[]
-  trajectoryLines: TrajectoryLine[]
   deaths: HeatmapCell[]
   kills: HeatmapCell[]
   shots: HeatmapCell[]
@@ -116,17 +104,11 @@ const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
 ]
 
 const CATEGORY_OPTIONS: Array<{ value: HeatmapCategory; label: string }> = [
-  { value: 'mouvement', label: 'Mouvement' },
   { value: 'combat', label: 'Combat' },
   { value: 'equipe', label: 'Équipe' },
 ]
 
 const VIEW_OPTIONS_BY_CATEGORY: Record<HeatmapCategory, Array<{ value: HeatmapView; label: string }>> = {
-  mouvement: [
-    { value: 'predilection', label: 'Prédilection' },
-    { value: 'rotation', label: 'Rotation' },
-    { value: 'rotation-lines', label: 'Lignes' },
-  ],
   combat: [
     { value: 'kill', label: 'Kill' },
     { value: 'shot', label: 'Tirs' },
@@ -141,7 +123,6 @@ const VIEW_OPTIONS_BY_CATEGORY: Record<HeatmapCategory, Array<{ value: HeatmapVi
 }
 
 const DEFAULT_VIEW_BY_CATEGORY: Record<HeatmapCategory, HeatmapView> = {
-  mouvement: 'predilection',
   combat: 'kill',
   equipe: 'revive',
 }
@@ -193,9 +174,6 @@ function mapAssetPath(mapName: string) {
 
 function dotColor(view: HeatmapView): string {
   switch (view) {
-    case 'predilection': return '0, 206, 255'
-    case 'rotation':
-    case 'rotation-lines': return '126, 92, 255'
     case 'death': return '255, 84, 106'
     case 'kill': return '255, 200, 0'
     case 'shot': return '180, 80, 255'
@@ -215,24 +193,23 @@ function dotColorForRole(view: HeatmapView, role: HeatmapRole): string {
 
 function viewLabel(view: HeatmapView, role: HeatmapRole): string {
   const roleOptions = ROLE_OPTIONS_BY_VIEW[view]
-  if (!roleOptions) return VIEW_OPTIONS_BY_CATEGORY.mouvement.find(o => o.value === view)?.label
-    ?? VIEW_OPTIONS_BY_CATEGORY.combat.find(o => o.value === view)?.label
+  if (!roleOptions) return VIEW_OPTIONS_BY_CATEGORY.combat.find(o => o.value === view)?.label
     ?? VIEW_OPTIONS_BY_CATEGORY.equipe.find(o => o.value === view)?.label
     ?? view
   return roleOptions[role === 'a' ? 0 : 1].label
 }
 
 function pointSize(ratio: number) {
-  return 10 + ratio * 34
-}
-
-function opacityFor(ratio: number) {
-  return 0.18 + ratio * 0.8
+  return 10 + Math.sqrt(ratio) * 20
 }
 
 function minimumHeatCount(maximum: number) {
   if (maximum <= 0) return 0
-  return Math.max(1, Math.floor(Math.log2(maximum)))
+  return Math.max(1, Math.floor(Math.log10(maximum)))
+}
+
+function isPointView(view: HeatmapView) {
+  return view === 'kill' || view === 'knockout' || view === 'revive' || view === 'vehicle' || view === 'death'
 }
 
 function buildHeatRanges(minimum: number, maximum: number): HeatRange[] {
@@ -286,16 +263,8 @@ function locationForPercent(xPct: number, yPct: number, locations: MapLocation[]
   return closestLocation
 }
 
-function phaseLabelFrom(value: PhaseFilter, labels: Record<string, string>) {
-  if (value === 'all') return 'Toutes les phases'
-  return isGameLabel(Number(value), labels)
-}
-
 function pickCells(payload: PositionsHeatmapResponse, view: HeatmapView, role: HeatmapRole): HeatmapCell[] {
   switch (view) {
-    case 'predilection': return payload.positions
-    case 'rotation': return payload.rotations
-    case 'rotation-lines': return []
     case 'death': return payload.deaths
     case 'kill': return payload.kills ?? []
     case 'shot': return payload.shots ?? []
@@ -349,20 +318,16 @@ function pickAllCategoryLayers(payload: PositionsHeatmapResponse, category: Heat
         label: 'Revive',
         color: dotColor('revive'),
         cells: mergeCells(payload.revivesGiven ?? [], payload.revivesTaken ?? []),
+        dot: true,
       },
-      { key: 'vehicle', label: 'Véhicule', color: dotColor('vehicle'), cells: payload.vehicles ?? [] },
-      { key: 'death', label: 'Mort', color: dotColor('death'), cells: payload.deaths ?? [] },
+      { key: 'vehicle', label: 'Véhicule', color: dotColor('vehicle'), cells: payload.vehicles ?? [], dot: true },
+      { key: 'death', label: 'Mort', color: dotColor('death'), cells: payload.deaths ?? [], dot: true },
     ]
   }
   return [] as HeatmapLayer[]
 }
 
 const LEGEND_BY_CATEGORY: Record<HeatmapCategory, Array<{ color: string; label: string; desc: string }>> = {
-  mouvement: [
-    { color: 'rgb(0,206,255)', label: 'Prédilection', desc: 'Positions échantillonnées toutes les ~10 s.' },
-    { color: 'rgb(126,92,255)', label: 'Rotation', desc: 'Point médian de chaque segment de déplacement.' },
-    { color: 'rgb(126,92,255)', label: 'Lignes', desc: 'Vecteurs de mouvement — direction et fréquence.' },
-  ],
   combat: [
     { color: 'rgb(255,200,0)', label: 'Kill', desc: 'Position du tueur membre du clan au moment du kill.' },
     { color: 'rgb(180,80,255)', label: 'Tirs', desc: 'Clusters de tirs — pondérés par volume réel.' },
@@ -409,16 +374,15 @@ export default function ClanPositionsHeatmapPage() {
   const [period, setPeriod] = useState<TelemetryPeriod>('week')
   const [mapName, setMapName] = useState('')
   const [memberKey, setMemberKey] = useState('')
-  const [phase, setPhase] = useState<PhaseFilter>('all')
-  const [category, setCategory] = useState<HeatmapCategory>('mouvement')
-  const [view, setView] = useState<HeatmapViewSelection>('predilection')
+  const [phase, setPhase] = useState<TacticalPhase>('all')
+  const [category, setCategory] = useState<HeatmapCategory>('combat')
+  const [view, setView] = useState<HeatmapViewSelection>('kill')
   const [role, setRole] = useState<HeatmapRole>('a')
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [showLocationBoundaries, setShowLocationBoundaries] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<PositionsHeatmapResponse | null>(null)
-
   function handleCategoryChange(next: HeatmapCategory) {
     setCategory(next)
     setView(DEFAULT_VIEW_BY_CATEGORY[next])
@@ -452,7 +416,6 @@ export default function ClanPositionsHeatmapPage() {
         if (phase !== 'all') {
           query.set('phase', String(phase))
         }
-
         const data = await fetchPositions(`/api/clans/${clanId}/telemetry/positions?${query.toString()}`)
 
         if (!cancelled) {
@@ -498,7 +461,7 @@ export default function ClanPositionsHeatmapPage() {
       label: viewLabel(view, role),
       color: dotColorForRole(view, role),
       cells: pickCells(payload, view, role),
-      dot: view === 'kill' || view === 'knockout',
+      dot: isPointView(view),
     }]
   }, [payload, view, role, category])
 
@@ -527,16 +490,11 @@ export default function ClanPositionsHeatmapPage() {
       .slice(0, 5)
   }, [activeLocations, layers, payload?.gridSize])
 
-  const lines = useMemo(() => {
-    if (!payload || view !== 'rotation-lines') return [] as TrajectoryLine[]
-    return payload.trajectoryLines
-  }, [payload, view])
-
   const maxCellCount = useMemo(
     () => layers.reduce((globalMax, layer) => Math.max(globalMax, layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)), 0),
     [layers],
   )
-  const usesDensityGradation = view !== 'all' && view !== 'rotation-lines'
+  const usesDensityGradation = view !== 'all' && !isPointView(view)
   const minimumHeat = useMemo(
     () => usesDensityGradation ? minimumHeatCount(maxCellCount) : 0,
     [maxCellCount, usesDensityGradation],
@@ -567,8 +525,6 @@ export default function ClanPositionsHeatmapPage() {
     ),
     [layers, minimumHeat, usesDensityGradation],
   )
-  const maxLineCount = useMemo(() => lines.reduce((max, line) => Math.max(max, line.count), 0), [lines])
-  const totalLineCount = useMemo(() => lines.reduce((sum, line) => sum + line.count, 0), [lines])
   const analyzedMatches = useMemo(() => {
     if (!payload) return 0
     if (payload.selectedMap) {
@@ -586,11 +542,11 @@ export default function ClanPositionsHeatmapPage() {
       : 'Tous les membres'
 
   const periodLabel = PERIOD_OPTIONS.find((entry) => entry.value === period)?.label ?? 'Semaine'
-  const categoryLabel = CATEGORY_OPTIONS.find((entry) => entry.value === category)?.label ?? 'Mouvement'
+  const categoryLabel = CATEGORY_OPTIONS.find((entry) => entry.value === category)?.label ?? 'Combat'
   const viewLabelCurrent = view === 'all'
     ? 'Tous'
     : VIEW_OPTIONS_BY_CATEGORY[category].find((entry) => entry.value === view)?.label ?? viewLabel(view, role)
-  const selectedPhaseLabel = phaseLabelFrom(phase, payload?.phaseLabels ?? {})
+  const selectedPhaseLabel = tacticalPhaseLabel(phase)
 
   const periodItems = PERIOD_OPTIONS.map((entry) => ({
     key: `period-${entry.value}`,
@@ -633,20 +589,12 @@ export default function ClanPositionsHeatmapPage() {
   const selectedLocationLabel = activeLocations.find((location) => location.id === selectedLocationId)?.name
     ?? 'Carte entière'
 
-  const phaseItems = [
-    {
-      key: 'phase-all',
-      label: 'Toutes les phases',
-      active: phase === 'all',
-      onSelect: () => setPhase('all'),
-    },
-    ...((payload?.phases ?? []).map((entry) => ({
-      key: `phase-${entry}`,
-      label: phaseLabelFrom(entry, payload?.phaseLabels ?? {}),
-      active: phase === entry,
-      onSelect: () => setPhase(entry),
-    }))),
-  ]
+  const phaseItems = TACTICAL_PHASE_OPTIONS.map((entry) => ({
+    key: `phase-${entry.value}`,
+    label: entry.label,
+    active: phase === entry.value,
+    onSelect: () => setPhase(entry.value),
+  }))
 
   const categoryItems = CATEGORY_OPTIONS.map((entry) => ({
     key: `category-${entry.value}`,
@@ -655,16 +603,13 @@ export default function ClanPositionsHeatmapPage() {
     onSelect: () => handleCategoryChange(entry.value),
   }))
 
-  const canSelectAllViews = category === 'combat' || category === 'equipe'
   const viewItems = [
-    ...(canSelectAllViews
-      ? [{
-          key: 'view-all',
-          label: 'Tous',
-          active: view === 'all',
-          onSelect: () => handleViewChange('all'),
-        }]
-      : []),
+    {
+      key: 'view-all',
+      label: 'Tous',
+      active: view === 'all',
+      onSelect: () => handleViewChange('all'),
+    },
     ...VIEW_OPTIONS_BY_CATEGORY[category].map((entry) => ({
       key: `view-${entry.value}`,
       label: entry.label,
@@ -701,15 +646,15 @@ export default function ClanPositionsHeatmapPage() {
       <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Heatmaps positions clan</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Cartographie tactique du clan</h1>
             <p className="mt-1 text-sm text-slate-200">
-              Mouvement, combat et équipe — filtres membre, phase et période.
+              Zones de combat et d’entraide par ville, joueur et période.
             </p>
           </div>
           <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs text-slate-100">
             <p>Carte: {selectedMapLabel}</p>
             <p>Membre: {selectedMemberLabel}</p>
-            <p>Phase: {phaseLabelFrom(phase, payload?.phaseLabels ?? {})}</p>
+            <p>Phase: {tacticalPhaseLabel(phase)}</p>
           </div>
         </div>
         <div className="mt-3">
@@ -724,17 +669,6 @@ export default function ClanPositionsHeatmapPage() {
               label="Periode"
               currentLabel={periodLabel}
               items={periodItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-location-filter"
-              label="Ville"
-              currentLabel={selectedLocationLabel}
-              items={locationItems}
               visibilityClass=""
               className="w-full"
             />
@@ -840,205 +774,40 @@ export default function ClanPositionsHeatmapPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
             <span className="text-slate-600">Matchs analyses: {formatNumber(analyzedMatches)}</span>
             <span className="text-slate-600">
-              Événements visibles: {formatNumber(view === 'rotation-lines' ? totalLineCount : visibleEventCount)}
+              Événements visibles: {formatNumber(visibleEventCount)}
             </span>
             <span className="text-slate-600">
               Cellules visibles: {formatNumber(visibleRenderedCells)} / {formatNumber(totalRenderedCells)}
             </span>
             <span className="text-slate-600">
-              Intensite max: {formatNumber(view === 'rotation-lines' ? maxLineCount : maxCellCount)}
+              Intensite max: {formatNumber(maxCellCount)}
             </span>
           </div>
-          <div>
-            <DropZoneMapViewport
-              ref={mapViewportRef}
-              boundariesVisible={showLocationBoundaries}
-              onBoundariesVisibleChange={setShowLocationBoundaries}
-            >
-              {payload.selectedMap ? (
-                <>
-                  <Image
-                    src={mapAssetPath(payload.selectedMap)}
-                    alt={selectedMapLabel}
-                    fill
-                    className="object-cover opacity-85"
-                    sizes="(max-width: 1280px) 100vw, 70vw"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
-                </>
-              ) : null}
 
-              <div className="absolute inset-0 overflow-hidden">
-                {showLocationBoundaries ? activeLocations.map((location) => (
-                  <div
-                    key={location.id}
-                    className={`pointer-events-none absolute z-10 rounded-full border ${
-                      selectedLocationId === location.id
-                        ? 'border-cyan-300 bg-cyan-300/15 shadow-[0_0_20px_rgba(103,232,249,0.45)]'
-                        : 'border-white/40 bg-slate-950/5'
-                    }`}
-                    style={{
-                      left: `${location.xPct}%`,
-                      top: `${location.yPct}%`,
-                      width: `${location.radiusPct * 2}%`,
-                      aspectRatio: '1',
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  >
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/75 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
-                      {location.name}
-                    </span>
-                  </div>
-                )) : null}
-                {view === 'rotation-lines' ? (
-                  <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {payload.safeZoneOverlay ? (
-                      <circle
-                        cx={payload.safeZoneOverlay.x}
-                        cy={payload.safeZoneOverlay.y}
-                        r={payload.safeZoneOverlay.r}
-                        fill="none"
-                        stroke="rgba(52, 211, 153, 0.7)"
-                        strokeWidth={0.5}
-                        strokeDasharray="2 1.5"
-                      />
-                    ) : null}
-                    {lines.map((line, index) => {
-                      const ratio = maxLineCount > 0 ? clamp01(line.count / maxLineCount) : 0
-                      return (
-                        <g key={`${line.fromX}-${line.fromY}-${line.toX}-${line.toY}-${index}`}>
-                          <line
-                            x1={line.fromX}
-                            y1={line.fromY}
-                            x2={line.toX}
-                            y2={line.toY}
-                            stroke="rgba(174, 122, 255, 0.88)"
-                            strokeWidth={0.3 + ratio * 0.7}
-                            strokeLinecap="round"
-                            opacity={0.2 + ratio * 0.75}
-                          />
-                          <circle cx={line.toX} cy={line.toY} r={0.14 + ratio * 0.22} fill="rgba(240, 219, 255, 0.9)" />
-                        </g>
-                      )
-                    })}
-                  </svg>
-                ) : (
-                  <>
-                    {payload.safeZoneOverlay ? (
-                      <svg
-                        className="absolute inset-0 h-full w-full"
-                        viewBox="0 0 100 100"
-                        preserveAspectRatio="none"
-                        style={{ pointerEvents: 'none' }}
-                      >
-                        <circle
-                          cx={payload.safeZoneOverlay.x}
-                          cy={payload.safeZoneOverlay.y}
-                          r={payload.safeZoneOverlay.r}
-                          fill="rgba(52, 211, 153, 0.06)"
-                          stroke="rgba(52, 211, 153, 0.7)"
-                          strokeWidth={0.5}
-                          strokeDasharray="2 1.5"
-                        />
-                      </svg>
-                    ) : null}
-                    {layers.map((layer) => {
-                      const layerMaxCount = layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)
-                      return layer.cells.map((cell) => {
-                        const ratio = layerMaxCount > 0 ? clamp01(cell.count / layerMaxCount) : 0
-                        if (usesDensityGradation && cell.count < minimumHeat) return null
-
-                        const heatRange = usesDensityGradation ? heatRangeForCount(cell.count, heatRanges) : null
-                        const intensity = usesDensityGradation
-                          ? logarithmicIntensity(cell.count, minimumHeat, layerMaxCount)
-                          : ratio
-                        const left = ((cell.xIndex + 0.5) / payload.gridSize) * 100
-                        const top = ((cell.yIndex + 0.5) / payload.gridSize) * 100
-                        const size = pointSize(ratio)
-
-                        if (layer.dot) {
-                          const dotSize = 6 + intensity * 12
-                          const markerColor = heatRange?.color ?? `rgb(${layer.color})`
-                          return (
-                            <div
-                              key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
-                              className="absolute rounded-full"
-                              style={{
-                                left: `${left}%`,
-                                top: `${top}%`,
-                                width: `${dotSize}px`,
-                                height: `${dotSize}px`,
-                                transform: 'translate(-50%, -50%)',
-                                backgroundColor: markerColor,
-                                boxShadow: `0 0 ${3 + intensity * 6}px ${markerColor}`,
-                                mixBlendMode: 'screen',
-                              }}
-                              title={`${layer.label} · ${heatRange?.label ?? 'Intensité relative'} · ${formatNumber(cell.count)} événements`}
-                            >
-                              {cell.count > 1 ? (
-                                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] font-black leading-none text-slate-950">
-                                  {cell.count}
-                                </span>
-                              ) : null}
-                            </div>
-                          )
-                        }
-                        if (usesDensityGradation && heatRange) {
-                          return (
-                            <div
-                              key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
-                              className="absolute rounded-[35%] border border-black/10"
-                              style={{
-                                left: `${left}%`,
-                                top: `${top}%`,
-                                width: `${100 / payload.gridSize}%`,
-                                height: `${100 / payload.gridSize}%`,
-                                transform: 'translate(-50%, -50%)',
-                                backgroundColor: heatRange.color,
-                                opacity: 0.35 + intensity * 0.5,
-                              }}
-                              title={`${layer.label} · ${heatRange.label} · ${formatNumber(cell.count)} événements`}
-                            />
-                          )
-                        }
-                        return (
-                          <div
-                            key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
-                            className="absolute rounded-full"
-                            style={{
-                              left: `${left}%`,
-                              top: `${top}%`,
-                              width: `${size}px`,
-                              height: `${size}px`,
-                              transform: 'translate(-50%, -50%)',
-                              background: `radial-gradient(circle, rgba(${layer.color}, ${opacityFor(ratio)}) 0%, rgba(${layer.color}, 0.45) 35%, rgba(${layer.color}, 0) 100%)`,
-                              filter: 'blur(0.6px)',
-                              mixBlendMode: 'screen',
-                            }}
-                            title={`${layer.label} x:${cell.xIndex} y:${cell.yIndex} c:${cell.count}`}
-                          />
-                        )
-                      })
-                    })}
-                  </>
-                )}
-              </div>
-
-              <div className="absolute bottom-4 left-4 z-30 rounded border border-cyan-300/35 bg-slate-950/80 px-4 py-2 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Carte visible</p>
-                <p className="mt-0.5 text-lg font-bold leading-tight text-white">{selectedMapLabel}</p>
-              </div>
-            </DropZoneMapViewport>
-          </div>
-
-          <div className="border-t border-slate-200 px-4 py-5 sm:px-6">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Top 5 des zones</h2>
-                <p className="text-xs text-gray-500">Classement des villes pour la vue {viewLabelCurrent.toLowerCase()}.</p>
+                <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des zones</p>
+                <h2 className="mt-1 text-lg font-semibold text-gray-900">
+                  {topZones[0]
+                    ? `Zone principale : ${topZones[0].location.name}`
+                    : 'Aucune zone urbaine identifiée'}
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Classement des villes pour la vue {viewLabelCurrent.toLowerCase()}.
+                </p>
               </div>
-              <span className="text-xs text-gray-500">{selectedMapLabel}</span>
+              <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                <MobileDropdownNav
+                  id="positions-location-filter"
+                  label="Ville"
+                  currentLabel={selectedLocationLabel}
+                  items={locationItems}
+                  visibilityClass=""
+                  className="w-full"
+                />
+                <span className="pb-2 text-xs text-gray-500">{selectedMapLabel}</span>
+              </div>
             </div>
             {topZones.length > 0 ? (
               <div className="app-table-shell overflow-x-auto">
@@ -1089,6 +858,157 @@ export default function ClanPositionsHeatmapPage() {
                 Aucune zone urbaine identifiée pour cette vue.
               </p>
             )}
+          </div>
+
+          <div>
+            <DropZoneMapViewport
+              ref={mapViewportRef}
+              boundariesVisible={showLocationBoundaries}
+              onBoundariesVisibleChange={setShowLocationBoundaries}
+            >
+              {payload.selectedMap ? (
+                <>
+                  <Image
+                    src={mapAssetPath(payload.selectedMap)}
+                    alt={selectedMapLabel}
+                    fill
+                    className="object-cover opacity-80 brightness-[0.72] saturate-[0.8] contrast-[1.08]"
+                    sizes="(max-width: 1280px) 100vw, 70vw"
+                    unoptimized
+                  />
+                  <div className="absolute inset-0 bg-slate-950/20" />
+                </>
+              ) : null}
+
+              <div className="absolute inset-0 overflow-hidden">
+                {showLocationBoundaries ? activeLocations.map((location) => (
+                  <div
+                    key={location.id}
+                    className={`pointer-events-none absolute z-10 rounded-full border ${
+                      selectedLocationId === location.id
+                        ? 'border-cyan-300 bg-cyan-300/15 shadow-[0_0_20px_rgba(103,232,249,0.45)]'
+                        : 'border-white/25 bg-transparent'
+                    }`}
+                    style={{
+                      left: `${location.xPct}%`,
+                      top: `${location.yPct}%`,
+                      width: `${location.radiusPct * 2}%`,
+                      aspectRatio: '1',
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  >
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/75 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
+                      {location.name}
+                    </span>
+                  </div>
+                )) : null}
+                <>
+                    {payload.safeZoneOverlay ? (
+                      <svg
+                        className="absolute inset-0 h-full w-full"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        <circle
+                          cx={payload.safeZoneOverlay.x}
+                          cy={payload.safeZoneOverlay.y}
+                          r={payload.safeZoneOverlay.r}
+                          fill="rgba(52, 211, 153, 0.06)"
+                          stroke="rgba(52, 211, 153, 0.7)"
+                          strokeWidth={0.5}
+                          strokeDasharray="2 1.5"
+                        />
+                      </svg>
+                    ) : null}
+                    {layers.map((layer) => {
+                      const layerMaxCount = layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)
+                      return layer.cells.map((cell) => {
+                        const ratio = layerMaxCount > 0 ? clamp01(cell.count / layerMaxCount) : 0
+                        if (usesDensityGradation && cell.count < minimumHeat) return null
+
+                        const heatRange = usesDensityGradation ? heatRangeForCount(cell.count, heatRanges) : null
+                        const intensity = usesDensityGradation
+                          ? logarithmicIntensity(cell.count, minimumHeat, layerMaxCount)
+                          : ratio
+                        const left = ((cell.xIndex + 0.5) / payload.gridSize) * 100
+                        const top = ((cell.yIndex + 0.5) / payload.gridSize) * 100
+                        const size = pointSize(ratio)
+
+                        if (layer.dot) {
+                          const dotSize = 12 + Math.sqrt(ratio) * 16
+                          const markerColor = `rgb(${layer.color})`
+                          return (
+                            <div
+                              key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
+                              className="absolute z-20 flex items-center justify-center rounded-full border-2 border-white/90 font-black text-slate-950"
+                              style={{
+                                left: `${left}%`,
+                                top: `${top}%`,
+                                width: `${dotSize}px`,
+                                height: `${dotSize}px`,
+                                transform: 'translate(-50%, -50%)',
+                                backgroundColor: markerColor,
+                                boxShadow: `0 0 0 2px rgba(2, 6, 23, 0.78), 0 0 ${8 + ratio * 10}px rgba(${layer.color}, 0.9)`,
+                              }}
+                              title={`${layer.label} · ${heatRange?.label ?? 'Intensité relative'} · ${formatNumber(cell.count)} événements`}
+                            >
+                              {cell.count > 1 ? (
+                                <span className="text-[9px] leading-none">
+                                  {cell.count}
+                                </span>
+                              ) : null}
+                            </div>
+                          )
+                        }
+                        if (usesDensityGradation && heatRange) {
+                          return (
+                            <div
+                              key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
+                              className="absolute z-20 rounded-[28%] border border-white/75"
+                              style={{
+                                left: `${left}%`,
+                                top: `${top}%`,
+                                width: `${100 / payload.gridSize}%`,
+                                height: `${100 / payload.gridSize}%`,
+                                transform: 'translate(-50%, -50%)',
+                                backgroundColor: heatRange.color,
+                                boxShadow: '0 0 0 1px rgba(2, 6, 23, 0.7), 0 2px 8px rgba(2, 6, 23, 0.5)',
+                                opacity: 0.62 + intensity * 0.33,
+                              }}
+                              title={`${layer.label} · ${heatRange.label} · ${formatNumber(cell.count)} événements`}
+                            />
+                          )
+                        }
+                        return (
+                          <div
+                            key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
+                            className="absolute z-20 rounded-[30%] border border-white/70"
+                            style={{
+                              left: `${left}%`,
+                              top: `${top}%`,
+                              width: `${size}px`,
+                              height: `${size}px`,
+                              transform: 'translate(-50%, -50%)',
+                              backgroundColor: `rgba(${layer.color}, ${0.68 + ratio * 0.27})`,
+                              boxShadow: `0 0 0 1px rgba(2, 6, 23, 0.72), 0 0 ${5 + ratio * 8}px rgba(${layer.color}, 0.65)`,
+                            }}
+                            title={`${layer.label} x:${cell.xIndex} y:${cell.yIndex} c:${cell.count}`}
+                          />
+                        )
+                      })
+                    })}
+                </>
+              </div>
+
+              <div className="absolute bottom-4 left-4 z-30 rounded border border-cyan-300/35 bg-slate-950/80 px-4 py-2 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Carte visible</p>
+                <p className="mt-0.5 text-lg font-bold leading-tight text-white">{selectedMapLabel}</p>
+                {payload.safeZoneOverlay ? (
+                  <p className="mt-1 text-[10px] text-emerald-200">Cercle vert : zone de sécurité moyenne</p>
+                ) : null}
+              </div>
+            </DropZoneMapViewport>
           </div>
         </section>
       ) : null}

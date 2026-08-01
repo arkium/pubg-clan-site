@@ -11,10 +11,10 @@ datasource db {
 }
 
 model Clan {
-  id            Int      @id @default(autoincrement())
-  name          String
-  tag           String
-  platformShard String   @default("steam")
+  id                  Int       @id @default(autoincrement())
+  name                String
+  tag                 String
+  platformShard       String    @default("steam")
   pubgClanId          String?
   clanStats           Json?
   clanLevel           Int?
@@ -22,18 +22,19 @@ model Clan {
   pubgCreatedAt       DateTime?
   pubgMemberCount     Int?
   pubgMembersSyncedAt DateTime?
-  isActive            Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  members ClanMember[]
-  roles   ClanRole[]
-  reports Report[]
+  members                   ClanMember[]
+  roles                     ClanRole[]
+  reports                   Report[]
   clanSynergyTelemetryStats ClanSynergyTelemetryStats[]
-  challenges Challenge[]
-  invites MemberInvite[]
-  cronExecutions CronExecution[]
-  clanConfigs ClanConfig[]
+  challenges                Challenge[]
+  invites                   MemberInvite[]
+  cronExecutions            CronExecution[]
+  clanConfigs               ClanConfig[]
+  positionMetricCells       PositionMetricCell[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -53,26 +54,27 @@ model ClanMember {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  matches                Match[]
-  lifetimeStats          MemberLifetimeStats?
-  seasonStats            MemberSeasonStats[]
-  weaponMastery          MemberWeaponMastery[]
-  squadMembers           SquadMember[]
-  playerStats            PlayerStats[]
-  memberWeaponStats      MemberWeaponStats[]
-  memberTelemetryStats   MemberTelemetryStats[]
-  dropPressureStats      DropPressureStat[]
+  matches                   Match[]
+  lifetimeStats             MemberLifetimeStats?
+  seasonStats               MemberSeasonStats[]
+  weaponMastery             MemberWeaponMastery[]
+  squadMembers              SquadMember[]
+  playerStats               PlayerStats[]
+  memberWeaponStats         MemberWeaponStats[]
+  memberTelemetryStats      MemberTelemetryStats[]
+  dropPressureStats         DropPressureStat[]
+  positionMetricCells       PositionMetricCell[]
   telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
   telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
-  notifications          Notification[]
-  notificationPreference NotificationPreference?
-  roles                  ClanMemberRole[]
-  challengeParticipants  ChallengeParticipant[]
-  playerRewards          PlayerRewards?
-  invites                MemberInvite[]
-  identities             MemberIdentity[]
-  sentInvites            MemberInvite[]        @relation("InviteSender")
-  activeSessions         UserSession[]         @relation("SessionActiveMember")
+  notifications             Notification[]
+  notificationPreference    NotificationPreference?
+  roles                     ClanMemberRole[]
+  challengeParticipants     ChallengeParticipant[]
+  playerRewards             PlayerRewards?
+  invites                   MemberInvite[]
+  identities                MemberIdentity[]
+  sentInvites               MemberInvite[]              @relation("InviteSender")
+  activeSessions            UserSession[]               @relation("SessionActiveMember")
 
   @@unique([pubgPlayerName, platformShard])
   @@map("ClanMember")
@@ -90,18 +92,18 @@ model UserAccount {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  identities MemberIdentity[]
-  sessions   UserSession[]
-  invites    MemberInvite[]
+  identities          MemberIdentity[]
+  sessions            UserSession[]
+  invites             MemberInvite[]
   passwordResetTokens PasswordResetToken[]
 
   @@map("UserAccount")
 }
 
 model MemberIdentity {
-  id       Int         @id @default(autoincrement())
-  userId   Int
-  user     UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     Int         @id @default(autoincrement())
+  userId Int
+  user   UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   memberId Int        @unique
   member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -114,24 +116,24 @@ model MemberIdentity {
 }
 
 model MemberInvite {
-  id          String   @id @default(cuid())
-  clanId      Int
-  clan        Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
-  memberId    Int
-  member      ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  email       String
-  tokenHash   String   @unique
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  revokedAt   DateTime?
+  email      String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  revokedAt  DateTime?
 
-  invitedByUserId   Int?
-  invitedByUser     UserAccount? @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  invitedByUserId Int?
+  invitedByUser   UserAccount? @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
 
   invitedByMemberId Int?
-  invitedByMember   ClanMember?  @relation("InviteSender", fields: [invitedByMemberId], references: [id], onDelete: SetNull)
+  invitedByMember   ClanMember? @relation("InviteSender", fields: [invitedByMemberId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -141,14 +143,14 @@ model MemberInvite {
 }
 
 model UserSession {
-  id             String     @id @default(cuid())
-  userId         Int
-  user           UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String      @id @default(cuid())
+  userId Int
+  user   UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tokenHash      String     @unique
-  expiresAt      DateTime
-  revokedAt      DateTime?
-  createdAt      DateTime   @default(now())
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
   activeMemberId Int?
   activeMember   ClanMember? @relation("SessionActiveMember", fields: [activeMemberId], references: [id], onDelete: SetNull)
@@ -158,24 +160,24 @@ model UserSession {
 }
 
 model PasswordResetToken {
-  id        String      @id @default(cuid())
-  userId    Int
-  user      UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String      @id @default(cuid())
+  userId Int
+  user   UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId, expiresAt, usedAt, revokedAt])
   @@map("PasswordResetToken")
 }
 
 model ClanRole {
-  id          Int    @id @default(autoincrement())
-  clanId      Int
-  clan        Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  id     Int  @id @default(autoincrement())
+  clanId Int
+  clan   Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   name        String
   description String?
@@ -313,9 +315,10 @@ model SquadMatch {
   placement   Int
   createdAt   DateTime
 
-  members SquadMember[]
-  telemetry SquadMatchTelemetry?
-  dropPressureStats DropPressureStat[]
+  members             SquadMember[]
+  telemetry           SquadMatchTelemetry?
+  dropPressureStats   DropPressureStat[]
+  positionMetricCells PositionMetricCell[]
 
   totalKills   Int
   totalDamage  Float
@@ -333,59 +336,59 @@ model SquadMember {
   memberId Int
   member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  kills          Int
-  damage         Float
-  assists        Int
-  revives        Int
-  placement      Int
-  knockouts      Int   @default(0)
-  headshotKills  Int   @default(0)
-  timeSurvived   Int   @default(0)
-  rideDistance   Float @default(0)
-  walkDistance   Float @default(0)
-  swimDistance   Float @default(0)
-  boosts         Int   @default(0)
-  heals          Int   @default(0)
-  vehicleDestroys Int  @default(0)
-  roadKills      Int   @default(0)
-  longestKill    Float @default(0)
-  teamKills      Int   @default(0)
-  weaponsAcquired Int  @default(0)
+  kills           Int
+  damage          Float
+  assists         Int
+  revives         Int
+  placement       Int
+  knockouts       Int   @default(0)
+  headshotKills   Int   @default(0)
+  timeSurvived    Int   @default(0)
+  rideDistance    Float @default(0)
+  walkDistance    Float @default(0)
+  swimDistance    Float @default(0)
+  boosts          Int   @default(0)
+  heals           Int   @default(0)
+  vehicleDestroys Int   @default(0)
+  roadKills       Int   @default(0)
+  longestKill     Float @default(0)
+  teamKills       Int   @default(0)
+  weaponsAcquired Int   @default(0)
 
   @@unique([squadMatchId, memberId])
   @@map("SquadMember")
 }
 
 model SquadMatchTelemetry {
-  id          String    @id @default(cuid())
-  squadMatchId String   @unique
-  squadMatch  SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  squadMatchId String     @unique
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
 
-  status         String
-  attemptCount   Int      @default(0)
-  lastAttemptAt  DateTime?
-  nextRetryAt    DateTime?
-  parserVersion  String
-  parsedAt       DateTime
-  sourceGeneratedAt DateTime?
-  contentLength  Int?
-  bytesDownloaded Int?
-  summary           Json?
-  weaponStats       Json?
-  memberStats       Json?
-  positionSamples   Json?
+  status             String
+  attemptCount       Int       @default(0)
+  lastAttemptAt      DateTime?
+  nextRetryAt        DateTime?
+  parserVersion      String
+  parsedAt           DateTime
+  sourceGeneratedAt  DateTime?
+  contentLength      Int?
+  bytesDownloaded    Int?
+  summary            Json?
+  weaponStats        Json?
+  memberStats        Json?
+  positionSamples    Json?
   trajectorySegments Json?
-  deathSamples      Json?
-  landingSamples    Json?
-  phaseSnapshots    Json?
-  killSamples       Json?
-  shotSamples       Json?
-  damageSamples     Json?
-  knockoutSamples   Json?
-  reviveSamples     Json?
-  vehicleSamples    Json?
-  errorCode         String?
-  errorMessage   String?   @db.Text
+  deathSamples       Json?
+  landingSamples     Json?
+  phaseSnapshots     Json?
+  killSamples        Json?
+  shotSamples        Json?
+  damageSamples      Json?
+  knockoutSamples    Json?
+  reviveSamples      Json?
+  vehicleSamples     Json?
+  errorCode          String?
+  errorMessage       String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -401,13 +404,13 @@ model DropPressureStat {
   memberId     Int
   member       ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  mapName                    String
-  x                          Float
-  y                          Float
-  matchDate                  DateTime
-  nearbyPlayerCount250m      Int
-  nearbyOpponentCount250m    Int?
-  pressureLevel              String
+  mapName                 String
+  x                       Float
+  y                       Float
+  matchDate               DateTime
+  nearbyPlayerCount250m   Int
+  nearbyOpponentCount250m Int?
+  pressureLevel           String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -418,10 +421,37 @@ model DropPressureStat {
   @@map("DropPressureStat")
 }
 
+model PositionMetricCell {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  clanId       Int
+  clan         Clan       @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  memberId     Int
+  member       ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  mapName    String
+  phase      Int
+  metric     String
+  xIndex     Int
+  yIndex     Int
+  eventCount Int
+  matchDate  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([squadMatchId, memberId, phase, metric, xIndex, yIndex], map: "PositionMetricCell_match_metric_cell_key")
+  @@index([clanId, matchDate, mapName, metric])
+  @@index([memberId, matchDate, metric])
+  @@index([clanId, mapName, phase, metric])
+  @@map("PositionMetricCell")
+}
+
 model PlayerStats {
-  id         String     @id @default(cuid())
-  memberId   Int
-  member     ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id       String     @id @default(cuid())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   period     String // "week-2026-20", "month-2026-05", "all-time"
   periodType String // "week" | "month" | "all"
@@ -455,15 +485,15 @@ model MemberWeaponStats {
   period     String
   periodType String
 
-  weaponName   String
-  kills        Int   @default(0)
-  headshots    Int   @default(0)
-  shotsFired   Int   @default(0)
-  hitsLanded   Int   @default(0)
-  avgDistance  Float @default(0)
-  maxDistance  Float @default(0)
-  totalDamage  Float @default(0)
-  matchCount   Int   @default(0)
+  weaponName  String
+  kills       Int    @default(0)
+  headshots   Int    @default(0)
+  shotsFired  Int    @default(0)
+  hitsLanded  Int    @default(0)
+  avgDistance Float  @default(0)
+  maxDistance Float  @default(0)
+  totalDamage Float  @default(0)
+  matchCount  Int    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -481,25 +511,25 @@ model MemberTelemetryStats {
   period     String
   periodType String
 
-  aggressionScore     Float @default(0)
-  supportScore        Float @default(0)
-  zoneDisciplineScore Float @default(0)
-  avgBlueZoneHits     Float @default(0)
-  avgFirstContactPhase Float @default(0)
-  avgCircleDelaySeconds Float @default(0)
-  avgCircleDelayPercent Float @default(0)
+  aggressionScore            Float @default(0)
+  supportScore               Float @default(0)
+  zoneDisciplineScore        Float @default(0)
+  avgBlueZoneHits            Float @default(0)
+  avgFirstContactPhase       Float @default(0)
+  avgCircleDelaySeconds      Float @default(0)
+  avgCircleDelayPercent      Float @default(0)
   avgSafeZonePresencePercent Float @default(0)
-  avgOnFootDistanceMeters Float @default(0)
-  avgVehicleDistanceMeters Float @default(0)
-  avgDamageTaken Float @default(0)
-  avgVehicleRideEvents Float @default(0)
-  avgVehicleLeaveEvents Float @default(0)
-  avgPositionEvents   Float @default(0)
-  avgHealsUsed        Float @default(0)
-  avgHealAmount       Float @default(0)
-  avgBoostsUsed       Float @default(0)
-  maxVehicleSpeedKph  Float @default(0)
-  matchesPlayed       Int   @default(0)
+  avgOnFootDistanceMeters    Float @default(0)
+  avgVehicleDistanceMeters   Float @default(0)
+  avgDamageTaken             Float @default(0)
+  avgVehicleRideEvents       Float @default(0)
+  avgVehicleLeaveEvents      Float @default(0)
+  avgPositionEvents          Float @default(0)
+  avgHealsUsed               Float @default(0)
+  avgHealAmount              Float @default(0)
+  avgBoostsUsed              Float @default(0)
+  maxVehicleSpeedKph         Float @default(0)
+  matchesPlayed              Int   @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -510,9 +540,9 @@ model MemberTelemetryStats {
 }
 
 model ClanSynergyTelemetryStats {
-  id       String @id @default(cuid())
-  clanId   Int
-  clan     Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   memberAId Int
   memberA   ClanMember @relation("TelemetrySynergyMemberA", fields: [memberAId], references: [id], onDelete: Cascade)
@@ -535,9 +565,9 @@ model ClanSynergyTelemetryStats {
 }
 
 model Report {
-  id          String   @id @default(cuid())
-  clanId      Int
-  clan        Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   type        String
   periodStart DateTime
@@ -701,9 +731,9 @@ model ChallengeParticipant {
   memberId Int
   member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  progress   Int
-  rank       Int?
-  reward     Int?
+  progress Int
+  rank     Int?
+  reward   Int?
 
   joinedAt   DateTime  @default(now())
   finishedAt DateTime?
@@ -749,7 +779,7 @@ model CronExecution {
   triggeredBy Int?
   source      String @default("manual")
 
-  startedAt  DateTime @default(now())
+  startedAt  DateTime  @default(now())
   finishedAt DateTime?
   durationMs Int?
 
@@ -791,7 +821,7 @@ model PubgApiCallLog {
   rateLimitRemaining Int?
   rateLimitResetAt   DateTime?
 
-  startedAt  DateTime @default(now())
+  startedAt  DateTime  @default(now())
   finishedAt DateTime?
   durationMs Int?
 

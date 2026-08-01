@@ -139,10 +139,10 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'clan.positions',
     section: 'clan-section',
-    label: 'Positions',
+    label: 'Cartographie tactique',
     hrefTemplate: '/clans/:clanId/stats/positions',
     defaultRole: 'owner',
-    description: 'Analyse des positions via télémétrie — API /telemetry/positions.',
+    description: 'Cartographie des événements de combat et d’équipe via télémétrie — API /telemetry/positions.',
   },
   {
     navKey: 'clan.drop-zones',

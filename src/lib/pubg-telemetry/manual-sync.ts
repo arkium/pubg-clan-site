@@ -17,6 +17,7 @@ import { persistTelemetryJsonFieldsWithSql } from '@/lib/pubg-telemetry/persiste
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import { prisma } from '@/lib/prisma'
 import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistence'
+import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
 
 export type ManualTelemetrySyncItemResult = {
   squadMatchId: string
@@ -247,6 +248,7 @@ export async function syncTelemetryForSquadMatchFromStream(
     })
 
     await persistDropPressureStatsForMatch(match.id, parsed.landingSamples)
+    await persistPositionMetricCellsForMatch(match.id, parsed)
 
     console.info('[TelemetrySync] persist-json-done', { squadMatchId: match.id })
 

@@ -3,8 +3,10 @@ import { cookies } from 'next/headers'
 import packageJson from '../../package.json'
 
 import ClanNavigation from '@/components/ClanNavigation'
+import DatabaseUnavailable from '@/components/DatabaseUnavailable'
 import ThemeInitializer from '@/components/ThemeInitializer'
 import { getSessionFromToken } from '@/lib/auth-session'
+import { getDatabaseErrorPresentation } from '@/lib/database-error'
 import { getSetupState } from '@/lib/setup-service'
 
 import './globals.css'
@@ -24,10 +26,35 @@ export default async function RootLayout({
   const now = new Date()
   const monthLabel = now.toLocaleString('fr-FR', { month: 'long' })
   const yearMonthLabel = `${monthLabel.charAt(0).toUpperCase()}${monthLabel.slice(1)} ${now.getFullYear()}`
-  const setupState = await getSetupState()
-  const cookieStore = await cookies()
-  const sessionToken = cookieStore.get('pubg_clan_session')?.value ?? null
-  const session = await getSessionFromToken(sessionToken)
+  let setupState
+  let session
+
+  try {
+    setupState = await getSetupState()
+    const cookieStore = await cookies()
+    const sessionToken = cookieStore.get('pubg_clan_session')?.value ?? null
+    session = await getSessionFromToken(sessionToken)
+  } catch (error) {
+    const databaseError = getDatabaseErrorPresentation(error)
+
+    if (!databaseError) {
+      throw error
+    }
+
+    console.error('[RootLayout] Database initialization failed', {
+      name: error instanceof Error ? error.name : 'UnknownError',
+    })
+
+    return (
+      <html lang="fr" className="h-full antialiased" suppressHydrationWarning>
+        <body className="min-h-full bg-gray-50 text-gray-900" suppressHydrationWarning>
+          <ThemeInitializer />
+          <DatabaseUnavailable {...databaseError} />
+        </body>
+      </html>
+    )
+  }
+
   const showAppShell = setupState === 'completed' && Boolean(session)
 
   const footer = (

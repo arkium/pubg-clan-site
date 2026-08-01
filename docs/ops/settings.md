@@ -88,7 +88,7 @@ Le message est lu par la page `/login` et affiché dans l'encart d'accueil. Perm
 
 ---
 
-## `/settings/map-labels` — Labels des cartes PUBG
+## `/settings/map-labels` — Cartes PUBG, labels et villes
 
 Accès : Admin (`admin.map-labels`).
 
@@ -102,13 +102,22 @@ Chaque carte est présentée avec son aperçu image (`MapImage`) et un champ tex
 
 Stocké dans `AppConfig` sous une clé dédiée (JSON `Record<mapKey, string>`).
 
+La vue **Villes et zones** permet aussi de configurer des périmètres circulaires sur chaque carte disposant d'un asset. Une ville contient un identifiant, un nom, un centre `xPct/yPct`, un `radiusPct` et un statut actif. Le centre peut être placé par clic ou saisi manuellement ; l'interface règle le diamètre de `0,5 %` à `50 %`.
+
+L'éditeur propose un zoom de `1×` à `4×` par pas de `0,5×`. La carte agrandie se déplace avec les barres de défilement, la molette ou le geste tactile. Le changement de niveau conserve le centre visible et la sélection d'une ville la recentre. Les coordonnées restent exprimées par rapport à la carte complète, quel que soit le niveau de zoom.
+
+Un référentiel initial de 162 villes et zones couvre les 9 cartes dont l'image WebP est disponible. Les actions de préremplissage de la carte courante ou de toutes les cartes fusionnent ces valeurs par identifiant sans écraser les villes déjà personnalisées.
+
+Les villes sont stockées séparément dans `AppConfig` sous la clé `pubg_map_locations`. `Range_Main` et `Heaven_Main` restent indisponibles dans l'éditeur géographique tant que leurs images ne sont pas présentes sous `public/maps/pubg/`.
+
 ### Route API
 
-`GET/PUT /api/settings/map-labels` — corps PUT `{ labels: Record<string, string> }`.
+- `GET/PUT /api/settings/map-labels` — corps PUT `{ labels: Record<string, string> }`.
+- `GET/PUT /api/settings/map-locations` — corps PUT `{ locations: Record<string, MapLocation[]> }`.
 
 ### Impact sur l'app
 
-Les labels sont utilisés partout où une carte est affichée : stats par carte, heatmap, drop zones, SessionRecap, filtres.
+Les labels sont utilisés partout où une carte est affichée : stats par carte, heatmap, drop zones, SessionRecap, filtres. Les périmètres constituent le référentiel géographique réutilisable pour associer ensuite les positions télémétriques aux villes.
 
 ---
 

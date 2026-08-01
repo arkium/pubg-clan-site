@@ -58,6 +58,25 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Vérifier dans le navigateur que les points membres ont `opacity: 1` et une couleur sans canal alpha
 - [x] Vérifier les seuils adaptatifs `5` sur `Semaine` et `9` sur `Tous`
 
+### ~~Cartes PUBG — Gestion des villes et périmètres~~ — ✅ Complété le 2026-08-01
+
+- [x] Ajouter un stockage séparé `AppConfig.pubg_map_locations` sans modifier le contrat des alias de cartes
+- [x] Ajouter le service de normalisation des villes avec coordonnées en pourcentage, rayon et statut actif
+- [x] Ajouter `GET/PUT /api/settings/map-locations` avec permission `manage_settings` et validation Zod
+- [x] Ajouter les vues `Alias des cartes` et `Villes et zones` dans `/settings/map-labels`
+- [x] Permettre la sélection d'une carte, l'ajout, la modification, l'activation et la suppression d'une ville
+- [x] Permettre le positionnement du centre par clic sur la carte et la saisie manuelle des coordonnées
+- [x] Permettre le réglage du diamètre de `0,5 %` à `50 %` avec aperçu circulaire immédiat
+- [x] Préremplir les 9 cartes disponibles avec 162 villes et zones issues des noms visibles sur les assets WebP
+- [x] Permettre le préremplissage non destructif de la carte sélectionnée ou de toutes les cartes
+- [x] Ajouter un zoom de `1×` à `4×`, sa réinitialisation et le déplacement dans la carte agrandie
+- [x] Conserver le centre visible pendant le zoom et recentrer la carte lors de la sélection d'une ville
+- [x] Conserver des coordonnées cartographiques exactes lors d'un placement sur une carte zoomée
+- [x] Désactiver l'édition géographique de `Range_Main` et `Heaven_Main` tant que leurs images sont absentes
+- [x] Valider un aller-retour API `PUT -> GET` puis restaurer la configuration initiale
+- [x] Valider ESLint et les diagnostics VS Code sur le service, l'API et la page
+- [x] Vérifier l'éditeur dans le navigateur sur desktop et mobile sans débordement horizontal
+
 ---
 
 ## P2 — Fonctionnalités incomplètes

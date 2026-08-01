@@ -264,6 +264,8 @@ Toutes ces routes pilotent des pages `/settings/*` réservées Owner/Admin/Super
 | PUT | `/api/settings/login-welcome` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour le message d'accueil global — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/map-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels lisibles des cartes PUBG — voir [Paramètres admin](../ops/settings.md) |
 | PUT | `/api/settings/map-labels` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les labels de cartes — voir [Paramètres admin](../ops/settings.md) |
+| GET | `/api/settings/map-locations` | `manage_settings` ou `*` | ✅ Pertinent | Villes et périmètres configurés par carte — voir [Paramètres admin](../ops/settings.md) |
+| PUT | `/api/settings/map-locations` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les villes, centres et rayons des cartes — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/nav-permissions` | Aucun contrôle explicite en lecture | ⚠️ Admin web uniquement | Registre de navigation (items, rôles, positions, labels) — voir [Permissions navigation](../ops/nav-permissions.md) |
 | PUT | `/api/settings/nav-permissions` | SuperUser ou `requireRole(['Owner'])` | ⚠️ Admin web uniquement | Modifie rôle/position/label/CRUD d'une entrée de nav — voir [Permissions navigation](../ops/nav-permissions.md) |
 | GET | `/api/settings/phase-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels des phases de jeu — voir [Paramètres admin](../ops/settings.md) |

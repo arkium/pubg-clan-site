@@ -39,6 +39,25 @@ Les matchs parsés **avant** l'application de cette migration ne contiennent pas
 
 Seules les cellules avec `count > 0` figurent dans le tableau `heatmap`. La grille 40x40 correspond à des cellules d'environ 2 % de la carte.
 
+### Statistiques par ville
+
+La page membre associe chaque `LandingPoint` aux villes actives configurées dans `pubg_map_locations`. Un point appartient à une ville lorsque la distance entre ses coordonnées `xPct/yPct` et le centre de la ville est inférieure ou égale à son `radiusPct`.
+
+Lorsque plusieurs périmètres se chevauchent, le point est affecté à la ville dont le ratio `distance / radiusPct` est le plus faible. Chaque point ne compte donc que pour une seule ville.
+
+Le Top 5 affiché au-dessus de la carte est recalculé selon la portée, la période et la carte actives. Il expose :
+
+- le nombre d'atterrissages dans la ville ;
+- la part de tous les atterrissages de la carte ;
+- le nombre de matchs distincts ;
+- le nombre de membres distincts ;
+- le membre ayant le plus d'atterrissages dans la ville, accompagné de son total ;
+- la ville favorite, définie comme celle qui contient le plus d'atterrissages.
+
+En cas d'égalité entre membres dans une ville, le nom affiché est le premier par ordre alphabétique.
+
+Le filtre par ville limite les points affichés et reconstruit la heatmap à partir de ces seuls points. L'affichage des périmètres est facultatif ; cette couche se place au-dessus de la heatmap et sous les points individuels.
+
 ---
 
 ## Normalisation des coordonnées
@@ -114,6 +133,9 @@ type DropZonesData = {
   gridSize: 40
   points: LandingPoint[]
   heatmap: HeatmapCell[]  // uniquement les cellules count > 0
+  options: {
+    mapLocations: Record<string, MapLocation[]> // villes actives uniquement
+  }
 }
 ```
 

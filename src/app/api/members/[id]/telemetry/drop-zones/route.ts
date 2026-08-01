@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
+import { getMapLocations } from '@/lib/map-location-service'
 import { prisma } from '@/lib/prisma'
 import {
   buildTelemetryErrorResponse,
@@ -133,7 +133,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid member id', 'INVALID_MEMBER_ID'), {
+      return Response.json(buildTelemetryErrorResponse('Invalid member id', 'INVALID_MEMBER_ID'), {
         status: 400,
       })
     }
@@ -153,7 +153,7 @@ export async function GET(
     })
 
     if (!member) {
-      return NextResponse.json(buildTelemetryErrorResponse('Member not found', 'MEMBER_NOT_FOUND'), {
+      return Response.json(buildTelemetryErrorResponse('Member not found', 'MEMBER_NOT_FOUND'), {
         status: 404,
       })
     }
@@ -440,8 +440,15 @@ export async function GET(
         count,
       }
     })
+    const configuredLocations = await getMapLocations()
+    const activeLocations = Object.fromEntries(
+      Object.entries(configuredLocations).map(([mapName, locations]) => [
+        mapName,
+        locations.filter((location) => location.enabled),
+      ])
+    )
 
-    return NextResponse.json(
+    return Response.json(
       buildTelemetrySuccessResponse(
         {
           scope: effectiveScope === 'clan' ? 'clan' : 'member',
@@ -449,6 +456,7 @@ export async function GET(
           period,
           periodKey,
           count: landingPoints.length,
+          scopeLabel,
         },
         {
           member: {
@@ -459,6 +467,7 @@ export async function GET(
           options: {
             members: memberOptions,
             bestModes: ['duo', 'trio', 'squad'] as BestMode[],
+            mapLocations: activeLocations,
           },
           selected: {
             memberId,
@@ -481,10 +490,10 @@ export async function GET(
     )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+      return Response.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
-    return NextResponse.json(buildTelemetryErrorResponse('Failed to load member drop zones'), {
+    return Response.json(buildTelemetryErrorResponse('Failed to load member drop zones'), {
       status: 500,
     })
   }

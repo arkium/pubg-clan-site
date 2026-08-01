@@ -77,6 +77,20 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Valider ESLint et les diagnostics VS Code sur le service, l'API et la page
 - [x] Vérifier l'éditeur dans le navigateur sur desktop et mobile sans débordement horizontal
 
+### ~~Drop zones membre — Statistiques par ville~~ — ✅ Complété le 2026-08-01
+
+- [x] Associer chaque atterrissage à une seule ville active selon son centre et son rayon configurés
+- [x] Résoudre les chevauchements par le plus faible ratio `distance / rayon`
+- [x] Afficher au-dessus de la carte un Top 5 avec rang, ville, atterrissages, part, matchs et membres
+- [x] Afficher pour chaque ville le membre qui y atterrit le plus souvent et son nombre d'atterrissages
+- [x] Aligner le Top 5 sur le standard `app-table-*` avec podium, chiffres tabulaires et vue mobile dédiée
+- [x] Afficher la ville favorite et les totaux en ville / hors périmètre
+- [x] Ajouter un filtre par ville qui limite les points et recalcule la heatmap
+- [x] Ajouter l'affichage facultatif des périmètres entre la heatmap et les points
+- [x] Afficher `Dropzone : <ville>` dans l'infobulle de chaque point
+- [x] Vérifier avec les données réelles que Pochinki est favorite avec 3 atterrissages sur la période active
+- [x] Vérifier le rendu mobile sans débordement horizontal de page
+
 ---
 
 ## P2 — Fonctionnalités incomplètes

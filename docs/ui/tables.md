@@ -2,7 +2,7 @@
 
 ## Résumé
 
-L'application ne dispose pas d'un composant `<Table>` générique partagé. Chaque tableau conserve son propre markup et ses espacements, mais la base visuelle est centralisée dans `src/app/globals.css` via des tokens CSS et des surcharges de thème (`app-table*`).
+L'application ne dispose pas d'un composant `<Table>` générique partagé. Chaque tableau conserve son propre markup, mais la base visuelle est centralisée dans `src/app/globals.css` via les classes `app-table-shell`, `app-table-head`, `app-table-row`, les variantes de podium et les tokens de thème.
 
 Les tableaux les plus interactifs sont le classement clan, l'historique des matchs membre, l'historique PUBG API et le rapport détaillé. La pagination n'existe que sur les vues d'historique chargeant par pages. Le tri côté serveur est utilisé pour `MatchHistory` ; les autres tableaux trient localement.
 
@@ -46,7 +46,16 @@ La base commune des tableaux se trouve dans `src/app/globals.css` :
 - Classes d'enveloppe : `app-panel`, `app-panel-muted`.
 - Surcharges thème sous `body[data-app-theme]` pour les couleurs de fond, texte et bordure.
 
-Il n'existe pas de classe `app-table-*` imposée globalement, mais les styles de tableaux réutilisent les tokens CSS de thème. Les en-têtes utilisent typiquement `text-gray-500` (remappé vers `--theme-ui-text-muted`) et les lignes `border-gray-200` (remappé vers `--theme-ui-border`).
+Le standard des tableaux de classement utilise :
+
+- `app-table-shell` pour le cadre, le fond, le rayon et l'ombre ;
+- `app-table-head` pour l'en-tête thémé ;
+- `app-table-row` pour les séparateurs et le survol ;
+- `app-table-row--top1`, `--top2` et `--top3` pour les rangs du podium ;
+- `app-podium-badge` et ses variantes `--gold`, `--silver`, `--bronze` pour les rangs ;
+- `tabular-nums` et un alignement à droite pour les métriques numériques.
+
+Lorsqu'un tableau comporte trop de colonnes pour le mobile, une vue en liste synthétique remplace le tableau à partir du breakpoint `md` au lieu d'imposer un défilement horizontal à toute la page.
 
 ---
 
@@ -127,4 +136,4 @@ Le changement de période ou de mode (`clan` / `inclus_solo`) déclenche un nouv
 
 ## Homogénéisation future
 
-Pour homogénéiser les tableaux, le point d'entrée recommandé est la création de classes utilitaires communes dans `src/app/globals.css` (ex : `app-table`, `app-table-head`, `app-table-row`) faisant reposer leurs couleurs sur les tokens `--theme-ui-*` existants.
+Les tableaux historiques qui n'utilisent pas encore ces classes peuvent migrer progressivement vers ce standard sans introduire de composant générique tant que leurs comportements restent très différents.

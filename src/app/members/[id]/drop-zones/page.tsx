@@ -8,6 +8,7 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
+import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type ViewMode = 'mix' | 'heatmap' | 'points'
@@ -62,6 +63,7 @@ type DropZonesResponse = {
         displayName: string
       }>
       bestModes?: BestMode[]
+      mapLocations?: MapLocations
     }
     selected?: {
       memberId?: number
@@ -173,6 +175,41 @@ function heatOpacity(count: number, minimum: number, max: number) {
   return 0.1 + intensity * 0.5
 }
 
+function locationForPoint(point: LandingPoint, locations: MapLocation[]) {
+  let closestLocation: MapLocation | null = null
+  let closestRatio = Number.POSITIVE_INFINITY
+
+  for (const location of locations) {
+    const distance = Math.hypot(point.xPct - location.xPct, point.yPct - location.yPct)
+    const ratio = distance / location.radiusPct
+    if (ratio <= 1 && ratio < closestRatio) {
+      closestLocation = location
+      closestRatio = ratio
+    }
+  }
+
+  return closestLocation
+}
+
+function heatmapFromPoints(points: LandingPoint[], gridSize: number): HeatmapCell[] {
+  const cells = new Map<string, HeatmapCell>()
+
+  for (const point of points) {
+    const xIndex = Math.min(Math.floor((point.xPct / 100) * gridSize), gridSize - 1)
+    const yIndex = Math.min(Math.floor((point.yPct / 100) * gridSize), gridSize - 1)
+    const key = `${point.mapName}:${xIndex}:${yIndex}`
+    const current = cells.get(key)
+    cells.set(key, {
+      mapName: point.mapName,
+      xIndex,
+      yIndex,
+      count: (current?.count ?? 0) + 1,
+    })
+  }
+
+  return Array.from(cells.values())
+}
+
 function extractErrorMessage(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== 'object') {
     return fallback
@@ -207,6 +244,8 @@ export default function MemberDropZonesPage() {
   const [targetMemberId, setTargetMemberId] = useState<number | null>(null)
   const [bestMode, setBestMode] = useState<BestMode>('duo')
   const [selectedMap, setSelectedMap] = useState('')
+  const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [showLocationBoundaries, setShowLocationBoundaries] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<DropZonesResponse | null>(null)
@@ -314,13 +353,72 @@ export default function MemberDropZonesPage() {
 
   const activeMap = selectedMap && maps.includes(selectedMap) ? selectedMap : maps[0] || ''
 
-  const filteredPoints = useMemo(() => {
+  const mapPoints = useMemo(() => {
     return (payload?.data.points ?? []).filter((point) => point.mapName === activeMap)
   }, [activeMap, payload?.data.points])
 
+  const activeLocations = useMemo(() => {
+    return (payload?.data.options?.mapLocations?.[activeMap] ?? [])
+      .filter((location) => location.enabled)
+      .sort((left, right) => left.name.localeCompare(right.name, 'fr-FR'))
+  }, [activeMap, payload?.data.options?.mapLocations])
+
+  const selectedLocation = activeLocations.find((location) => location.id === selectedLocationId)
+
+  const cityStats = useMemo(() => {
+    const pointsByLocation = new Map<string, LandingPoint[]>()
+
+    for (const point of mapPoints) {
+      const location = locationForPoint(point, activeLocations)
+      if (!location) continue
+      const points = pointsByLocation.get(location.id) ?? []
+      points.push(point)
+      pointsByLocation.set(location.id, points)
+    }
+
+    return activeLocations
+      .map((location) => {
+        const points = pointsByLocation.get(location.id) ?? []
+        const memberCounts = new Map<number, { name: string; count: number }>()
+        for (const point of points) {
+          const current = memberCounts.get(point.memberId)
+          memberCounts.set(point.memberId, {
+            name: point.memberName,
+            count: (current?.count ?? 0) + 1,
+          })
+        }
+        const topMember = Array.from(memberCounts.values()).sort(
+          (left, right) => right.count - left.count || left.name.localeCompare(right.name, 'fr-FR')
+        )[0] ?? null
+
+        return {
+          location,
+          count: points.length,
+          share: mapPoints.length > 0 ? (points.length / mapPoints.length) * 100 : 0,
+          matches: new Set(points.map((point) => point.matchId)).size,
+          members: new Set(points.map((point) => point.memberId)).size,
+          topMember,
+        }
+      })
+      .filter((stat) => stat.count > 0)
+      .sort((left, right) => right.count - left.count || left.location.name.localeCompare(right.location.name, 'fr-FR'))
+  }, [activeLocations, mapPoints])
+
+  const topCityStats = cityStats.slice(0, 5)
+  const favoriteCity = topCityStats[0]
+  const locatedPointCount = cityStats.reduce((total, stat) => total + stat.count, 0)
+
+  const filteredPoints = useMemo(() => {
+    if (!selectedLocation) return mapPoints
+    return mapPoints.filter((point) => locationForPoint(point, activeLocations)?.id === selectedLocation.id)
+  }, [activeLocations, mapPoints, selectedLocation])
+
   const filteredHeatmap = useMemo(() => {
+    if (selectedLocation) {
+      return heatmapFromPoints(filteredPoints, payload?.data.gridSize || 40)
+    }
     return (payload?.data.heatmap ?? []).filter((cell) => cell.mapName === activeMap)
-  }, [activeMap, payload?.data.heatmap])
+  }, [activeMap, filteredPoints, payload?.data.gridSize, payload?.data.heatmap, selectedLocation])
 
   const maxHeat = useMemo(() => {
     return filteredHeatmap.reduce((max, cell) => Math.max(max, cell.count), 0)
@@ -470,7 +568,10 @@ export default function MemberDropZonesPage() {
                 key: `map-${mapName}`,
                 label: mapDisplayName(mapName, {}),
                 active: activeMap === mapName,
-                onSelect: () => setSelectedMap(mapName),
+                onSelect: () => {
+                  setSelectedMap(mapName)
+                  setSelectedLocationId('')
+                },
               }))}
               visibilityClass=""
               className="w-full"
@@ -495,6 +596,209 @@ export default function MemberDropZonesPage() {
               <span className="text-slate-600">
                 Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
               </span>
+            </div>
+
+            <div className="border-b border-slate-200 bg-white px-4 py-4">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des dropzones</p>
+                  <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                    {favoriteCity
+                      ? `Dropzone favorite : ${favoriteCity.location.name}`
+                      : 'Aucun atterrissage dans une ville configuree'}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {formatNumber(locatedPointCount)} en ville · {formatNumber(mapPoints.length - locatedPointCount)} hors périmètre
+                  </p>
+                </div>
+
+                <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                  <MobileDropdownNav
+                    id="member-drop-zones-location-filter"
+                    label="Ville"
+                    currentLabel={selectedLocation?.name ?? 'Toutes les villes'}
+                    items={[
+                      {
+                        key: 'all-locations',
+                        label: 'Toutes les villes',
+                        active: !selectedLocation,
+                        onSelect: () => setSelectedLocationId(''),
+                      },
+                      ...activeLocations.map((location) => ({
+                        key: location.id,
+                        label: location.name,
+                        active: selectedLocation?.id === location.id,
+                        onSelect: () => setSelectedLocationId(location.id),
+                      })),
+                    ]}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+
+                  <label className="flex h-10 cursor-pointer items-center gap-2 rounded border border-slate-300 px-3 text-sm font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={showLocationBoundaries}
+                      onChange={(event) => setShowLocationBoundaries(event.target.checked)}
+                      className="h-4 w-4 accent-cyan-600"
+                    />
+                    Périmètres
+                  </label>
+                </div>
+              </div>
+
+              {topCityStats.length > 0 ? (
+                <>
+                  <div className="app-table-shell hidden overflow-hidden md:block">
+                    <table className="w-full table-fixed text-sm">
+                      <colgroup>
+                        <col style={{ width: '8%' }} />
+                        <col style={{ width: '25%' }} />
+                        <col style={{ width: '13%' }} />
+                        <col style={{ width: '10%' }} />
+                        <col style={{ width: '10%' }} />
+                        <col style={{ width: '10%' }} />
+                        <col style={{ width: '24%' }} />
+                      </colgroup>
+                      <thead className="app-table-head text-xs uppercase tracking-wide">
+                      <tr>
+                        <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
+                        <th className="px-4 py-3 text-left whitespace-nowrap">Dropzone</th>
+                        <th className="px-4 py-3 text-right whitespace-nowrap">Atterrissages</th>
+                        <th className="px-4 py-3 text-right whitespace-nowrap">Part</th>
+                        <th className="px-4 py-3 text-right whitespace-nowrap">Matchs</th>
+                        <th className="px-4 py-3 text-right whitespace-nowrap">Membres</th>
+                        <th className="px-4 py-3 text-left whitespace-nowrap">Membre principal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topCityStats.map((stat, index) => {
+                        const rank = index + 1
+                        const rowClassName = rank === 1
+                          ? 'app-table-row app-table-row--top1'
+                          : rank === 2
+                            ? 'app-table-row app-table-row--top2'
+                            : rank === 3
+                              ? 'app-table-row app-table-row--top3'
+                              : 'app-table-row'
+
+                        return (
+                        <tr
+                          key={stat.location.id}
+                          className={`${rowClassName}${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
+                        >
+                          <td className="px-4 py-3 text-center">
+                            {rank <= 3 ? (
+                              <span className={`app-podium-badge ${
+                                rank === 1
+                                  ? 'app-podium-badge--gold'
+                                  : rank === 2
+                                    ? 'app-podium-badge--silver'
+                                    : 'app-podium-badge--bronze'
+                              }`}>
+                                #{rank}
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-gray-500">#{rank}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLocationId(stat.location.id)}
+                              className="max-w-full truncate text-left font-semibold text-cyan-700 hover:underline"
+                            >
+                              {stat.location.name}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
+                          <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
+                          <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
+                          <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
+                          <td className="px-4 py-3 font-medium text-gray-700">
+                            {stat.topMember
+                              ? (
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span className="app-avatar flex h-7 w-7 shrink-0 items-center justify-center text-xs font-semibold text-gray-700">
+                                      {stat.topMember.name.charAt(0).toUpperCase()}
+                                    </span>
+                                    <span className="min-w-0 truncate">{stat.topMember.name}</span>
+                                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                                      {formatNumber(stat.topMember.count)}
+                                    </span>
+                                  </span>
+                                )
+                              : '—'}
+                          </td>
+                        </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  </div>
+
+                  <div className="app-table-shell overflow-hidden md:hidden">
+                    <ul>
+                      {topCityStats.map((stat, index) => {
+                        const rank = index + 1
+                        const rowClassName = rank === 1
+                          ? 'app-table-row app-table-row--top1'
+                          : rank === 2
+                            ? 'app-table-row app-table-row--top2'
+                            : rank === 3
+                              ? 'app-table-row app-table-row--top3'
+                              : 'app-table-row'
+
+                        return (
+                          <li
+                            key={stat.location.id}
+                            className={`${rowClassName} p-3${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className={`app-podium-badge mt-0.5 ${
+                                rank === 1
+                                  ? 'app-podium-badge--gold'
+                                  : rank === 2
+                                    ? 'app-podium-badge--silver'
+                                    : rank === 3
+                                      ? 'app-podium-badge--bronze'
+                                      : 'border-gray-200 bg-gray-100 text-gray-700'
+                              }`}>
+                                #{rank}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedLocationId(stat.location.id)}
+                                  className="block max-w-full truncate text-left text-sm font-semibold text-cyan-700 hover:underline"
+                                >
+                                  {stat.location.name}
+                                </button>
+                                <p className="mt-1 text-xs text-gray-500">
+                                  {formatNumber(stat.matches)} match{stat.matches > 1 ? 's' : ''} · {formatNumber(stat.members)} membre{stat.members > 1 ? 's' : ''}
+                                </p>
+                                {stat.topMember ? (
+                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-700">
+                                    <span className="font-medium">Membre principal :</span>
+                                    <span className="truncate">{stat.topMember.name}</span>
+                                    <span className="shrink-0 font-semibold tabular-nums">({formatNumber(stat.topMember.count)})</span>
+                                  </p>
+                                ) : null}
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <p className="text-base font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</p>
+                                <p className="text-xs text-gray-500 tabular-nums">
+                                  {stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+                                </p>
+                              </div>
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
             </div>
 
             <div className="relative aspect-square bg-slate-950">
@@ -544,22 +848,47 @@ export default function MemberDropZonesPage() {
                   </div>
                 ) : null}
 
-                {(viewMode === 'mix' || viewMode === 'points')
-                  ? filteredPoints.map((point, idx) => (
+                {showLocationBoundaries
+                  ? activeLocations.map((location) => (
                       <div
-                        key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
-                        className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
+                        key={`location:${location.id}`}
+                        className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
+                          selectedLocation?.id === location.id
+                            ? 'border-cyan-300 bg-cyan-400/15 ring-2 ring-white/80'
+                            : 'border-white/75 bg-white/5'
+                        }`}
                         style={{
-                          left: `${point.xPct}%`,
-                          top: `${point.yPct}%`,
-                          transform: 'translate(-50%, -50%)',
-                          backgroundColor: '#06B6D4',
-                          opacity: 1,
-                          zIndex: 20,
+                          left: `${location.xPct}%`,
+                          top: `${location.yPct}%`,
+                          width: `${location.radiusPct * 2}%`,
+                          aspectRatio: '1',
+                          zIndex: 15,
                         }}
-                        title={`${point.memberName} - ${mapDisplayName(point.mapName, {})}`}
+                        title={location.name}
                       />
                     ))
+                  : null}
+
+                {(viewMode === 'mix' || viewMode === 'points')
+                  ? filteredPoints.map((point, idx) => {
+                      const pointLocation = locationForPoint(point, activeLocations)
+
+                      return (
+                        <div
+                          key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
+                          className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
+                          style={{
+                            left: `${point.xPct}%`,
+                            top: `${point.yPct}%`,
+                            transform: 'translate(-50%, -50%)',
+                            backgroundColor: '#06B6D4',
+                            opacity: 1,
+                            zIndex: 20,
+                          }}
+                          title={`${point.memberName} - ${mapDisplayName(point.mapName, {})} - Dropzone : ${pointLocation?.name ?? 'Hors ville'}`}
+                        />
+                      )
+                    })
                   : null}
               </div>
             </div>

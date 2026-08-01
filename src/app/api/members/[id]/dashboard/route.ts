@@ -1,11 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import { getMapLabels } from '@/lib/map-label-service'
+import { getLastWeekKeys } from '@/lib/dashboard-progression'
 
 import type { DashboardPeriod } from '@/types/dashboard'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 import {
   getDropPressureDashboardStats,
   getDropPressureMemberRanking,
+  getDropPressureTimeline,
 } from '@/lib/drop-pressure-stats'
 
 type ClanMode = 'solo' | 'duo' | 'trio' | 'squad'
@@ -50,22 +52,6 @@ function getPeriodKey(period: DashboardPeriod): string {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
   const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
   return `week-${d.getUTCFullYear()}-${String(weekNo).padStart(2, '0')}`
-}
-
-function getLastFourWeekKeys(): string[] {
-  const keys: string[] = []
-  const now = new Date()
-  for (let i = 3; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i * 7)
-    const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    const dayNum = utc.getUTCDay() || 7
-    utc.setUTCDate(utc.getUTCDate() + 4 - dayNum)
-    const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1))
-    const weekNo = Math.ceil(((utc.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
-    keys.push(`week-${utc.getUTCFullYear()}-${String(weekNo).padStart(2, '0')}`)
-  }
-  return keys
 }
 
 function getDateRangeForDashboardPeriod(period: DashboardPeriod): {
@@ -144,11 +130,12 @@ export async function GET(
       return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    const [dropPressure, dropPressureRanking] = await Promise.all([
+    const [dropPressure, dropPressureRanking, dropPressureTimeline] = await Promise.all([
       getDropPressureDashboardStats({ memberId, period }),
       member.clanId
         ? getDropPressureMemberRanking({ clanId: member.clanId, period })
         : Promise.resolve([]),
+      getDropPressureTimeline({ memberId }),
     ])
 
     // 2. Fetch player stats for the period
@@ -179,8 +166,8 @@ export async function GET(
       }
     }
 
-    // 4. Progression: last 4 weeks
-    const weekKeys = getLastFourWeekKeys()
+    // 4. Progression: last 8 weeks
+    const weekKeys = getLastWeekKeys()
     const progressionStats = await prisma.playerStats.findMany({
       where: { memberId, period: { in: weekKeys } },
     })
@@ -402,6 +389,7 @@ export async function GET(
       squads,
       dropPressure,
       dropPressureRanking,
+      dropPressureTimeline,
       mapLabels: await getMapLabels(),
       period,
     })

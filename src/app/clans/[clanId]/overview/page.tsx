@@ -12,6 +12,7 @@ import type { ClanMatchesResponse } from '@/types/squad-matches'
 import type {
   DropPressureDashboardStats,
   DropPressureRankingEntry,
+  DropPressureTimelinePoint,
 } from '@/types/drop-pressure'
 
 type DiffResult = {
@@ -395,6 +396,7 @@ export default function ClanOverviewPage() {
   const [periodError, setPeriodError] = useState('')
   const [dropPressure, setDropPressure] = useState<DropPressureDashboardStats | null>(null)
   const [dropPressureRanking, setDropPressureRanking] = useState<DropPressureRankingEntry[]>([])
+  const [dropPressureTimeline, setDropPressureTimeline] = useState<DropPressureTimelinePoint[]>([])
   const [dropPressureLoading, setDropPressureLoading] = useState(false)
   const [dropPressureError, setDropPressureError] = useState('')
 
@@ -623,6 +625,7 @@ export default function ClanOverviewPage() {
         const payload = (await response.json()) as {
           stats?: DropPressureDashboardStats
           ranking?: DropPressureRankingEntry[]
+          timeline?: DropPressureTimelinePoint[]
           error?: string
         }
         if (!response.ok || !payload.stats) {
@@ -631,11 +634,13 @@ export default function ClanOverviewPage() {
         if (!cancelled) {
           setDropPressure(payload.stats)
           setDropPressureRanking(payload.ranking ?? [])
+          setDropPressureTimeline(payload.timeline ?? [])
         }
       } catch (loadError) {
         if (!cancelled) {
           setDropPressure(null)
           setDropPressureRanking([])
+          setDropPressureTimeline([])
           setDropPressureError(
             loadError instanceof Error
               ? loadError.message
@@ -969,6 +974,7 @@ export default function ClanOverviewPage() {
             href={`/clans/${clanId}/drop-zones`}
             periodLabel={periodTitle(selectedPeriod)}
             ranking={dropPressureRanking}
+            timeline={dropPressureTimeline}
           />
 
           {/* Bloc 3 — Diff PUBG vs site */}

@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
+import { getMapLocations, type MapLocations } from '@/lib/map-location-service'
 import { getPhaseLabels } from '@/lib/phase-label-service'
 import {
   buildTelemetryErrorResponse,
@@ -69,6 +69,11 @@ type MapSummary = {
   deathPoints: number
 }
 
+type MapSummaryRow = {
+  mapName: string
+  matches: bigint | number
+}
+
 type SafeZoneOverlay = {
   x: number
   y: number
@@ -102,6 +107,9 @@ type SelectedHeatmapData = {
   note: string
   mapLabels: Record<string, string>
   phaseLabels: Record<string, string>
+  options: {
+    mapLocations: MapLocations
+  }
 }
 
 type TelemetryRow = {
@@ -123,6 +131,8 @@ type ColumnPresenceRow = {
 }
 
 const GRID_SIZE = 40
+const CACHE_TTL_MS = 5 * 60 * 1000
+const positionsResponseCache = new Map<string, { expiresAt: number; body: unknown }>()
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -321,7 +331,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+      return Response.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
         status: 400,
       })
     }
@@ -339,6 +349,14 @@ export async function GET(
     const mapName = parseMap(url.searchParams.get('map'))
     const memberKey = parseMemberKey(url.searchParams.get('memberKey'))
     const phaseFilter = parsePhase(url.searchParams.get('phase'))
+    const cacheKey = [parsedClanId, period, mapName ?? '', memberKey ?? '', phaseFilter].join(':')
+    const cached = positionsResponseCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return Response.json(cached.body, {
+        headers: { 'X-Positions-Cache': 'HIT' },
+      })
+    }
+    if (cached) positionsResponseCache.delete(cacheKey)
 
     const bounds = getPeriodBounds(period)
     const dateFilter = bounds
@@ -385,7 +403,37 @@ export async function GET(
     const selectReviveSamples = hasNewColumns ? Prisma.sql`t.reviveSamples` : Prisma.sql`JSON_ARRAY()`
     const selectVehicleSamples = hasNewColumns ? Prisma.sql`t.vehicleSamples` : Prisma.sql`JSON_ARRAY()`
 
-    const rows = await prisma.$queryRaw<TelemetryRow[]>(Prisma.sql`
+    const mapSummaryRows = await prisma.$queryRaw<MapSummaryRow[]>(Prisma.sql`
+      SELECT
+        sm.mapName,
+        COUNT(*) AS matches
+      FROM SquadMatchTelemetry t
+      INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
+      WHERE t.status = 'success'
+        ${dateFilter}
+        AND EXISTS (
+          SELECT 1
+          FROM SquadMember sdm
+          INNER JOIN ClanMember cm ON cm.id = sdm.memberId
+          WHERE sdm.squadMatchId = sm.id
+            AND cm.clanId = ${parsedClanId}
+        )
+      GROUP BY sm.mapName
+      ORDER BY matches DESC, sm.mapName ASC
+    `)
+
+    const maps = mapSummaryRows.map((row) => ({
+      mapName: row.mapName,
+      matches: Number(row.matches),
+      positionPoints: 0,
+      rotationPoints: 0,
+      deathPoints: 0,
+    }))
+    const selectedMap = mapName && maps.some((entry) => entry.mapName === mapName)
+      ? mapName
+      : maps[0]?.mapName ?? null
+
+    const rows = selectedMap ? await prisma.$queryRaw<TelemetryRow[]>(Prisma.sql`
       SELECT
         sm.mapName,
         ${selectPositionSamples} AS positionSamples,
@@ -402,6 +450,7 @@ export async function GET(
       INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
       WHERE t.status = 'success'
         ${dateFilter}
+        AND sm.mapName = ${selectedMap}
         AND EXISTS (
           SELECT 1
           FROM SquadMember sdm
@@ -410,7 +459,7 @@ export async function GET(
             AND cm.clanId = ${parsedClanId}
         )
       ORDER BY sm.createdAt DESC
-    `)
+    `) : []
 
     const clanMembers = await prisma.clanMember.findMany({
       where: { clanId: parsedClanId },
@@ -452,41 +501,18 @@ export async function GET(
       return inputKey
     }
 
-    const mapSummaries = new Map<string, MapSummary>()
-
-    for (const row of rows) {
-      const current = mapSummaries.get(row.mapName) ?? {
-        mapName: row.mapName,
-        matches: 0,
-        positionPoints: 0,
-        rotationPoints: 0,
-        deathPoints: 0,
-      }
-
-      current.matches += 1
-      current.positionPoints += asArray<unknown>(row.positionSamples).length
-      current.rotationPoints += asArray<unknown>(row.trajectorySegments).length
-      current.deathPoints += asArray<unknown>(row.deathSamples).length
-      mapSummaries.set(row.mapName, current)
-    }
-
-    const maps = Array.from(mapSummaries.values()).sort((left, right) => {
-      if (right.matches !== left.matches) {
-        return right.matches - left.matches
-      }
-
-      return left.mapName.localeCompare(right.mapName)
-    })
-
-    const mapLabels = await getMapLabels()
-    const phaseLabels = await getPhaseLabels()
-    const selectedMap = mapName && maps.some((entry) => entry.mapName === mapName)
-      ? mapName
-      : maps[0]?.mapName ?? null
-
-    const selectedRows = selectedMap
-      ? rows.filter((row) => row.mapName === selectedMap)
-      : []
+    const [mapLabels, phaseLabels, configuredLocations] = await Promise.all([
+      getMapLabels(),
+      getPhaseLabels(),
+      getMapLocations(),
+    ])
+    const activeLocations = Object.fromEntries(
+      Object.entries(configuredLocations).map(([locationMapName, locations]) => [
+        locationMapName,
+        locations.filter((location) => location.enabled),
+      ])
+    )
+    const selectedRows = rows
 
     const positions = new Map<string, HeatmapCell>()
     const rotations = new Map<string, HeatmapCell>()
@@ -788,10 +814,12 @@ export async function GET(
       note,
       mapLabels,
       phaseLabels,
+      options: {
+        mapLocations: activeLocations,
+      },
     }
 
-    return NextResponse.json(
-      buildTelemetrySuccessResponse(
+    const responseBody = buildTelemetrySuccessResponse(
         {
           scope: 'clan',
           clanId: parsedClanId,
@@ -807,14 +835,38 @@ export async function GET(
           ...payload,
         }
       )
-    )
+    positionsResponseCache.set(cacheKey, {
+      expiresAt: Date.now() + CACHE_TTL_MS,
+      body: responseBody,
+    })
+    if (!mapName && selectedMap) {
+      const selectedMapCacheKey = [
+        parsedClanId,
+        period,
+        selectedMap,
+        memberKey ?? '',
+        phaseFilter,
+      ].join(':')
+      positionsResponseCache.set(selectedMapCacheKey, {
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        body: responseBody,
+      })
+    }
+    if (positionsResponseCache.size > 100) {
+      const oldestKey = positionsResponseCache.keys().next().value
+      if (oldestKey) positionsResponseCache.delete(oldestKey)
+    }
+
+    return Response.json(responseBody, {
+      headers: { 'X-Positions-Cache': 'MISS' },
+    })
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+      return Response.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry positions heatmap failed:', error)
-    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry heatmap'), {
+    return Response.json(buildTelemetryErrorResponse('Failed to load telemetry heatmap'), {
       status: 500,
     })
   }

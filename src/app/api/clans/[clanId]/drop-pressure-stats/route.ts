@@ -1,6 +1,7 @@
 import {
   getDropPressureDashboardStats,
   getDropPressureMemberRanking,
+  getDropPressureTimeline,
 } from '@/lib/drop-pressure-stats'
 import { requirePermission } from '@/middleware/auth-permission'
 import type { DropPressurePeriod } from '@/types/drop-pressure'
@@ -32,9 +33,10 @@ export async function GET(
   if (permissionError) return permissionError
 
   const period = parsePeriod(new URL(request.url).searchParams.get('period'))
-  const [stats, ranking] = await Promise.all([
+  const [stats, ranking, timeline] = await Promise.all([
     getDropPressureDashboardStats({ clanId: parsedClanId, period }),
     getDropPressureMemberRanking({ clanId: parsedClanId, period }),
+    getDropPressureTimeline({ clanId: parsedClanId }),
   ])
-  return Response.json({ stats, ranking, period })
+  return Response.json({ stats, ranking, timeline, period })
 }

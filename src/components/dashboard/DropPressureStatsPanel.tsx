@@ -5,11 +5,16 @@ import Link from 'next/link'
 import { ArrowDown, ArrowUp, ArrowUpDown, Flame, MapPin, Target, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { sortDropPressureRanking } from '@/lib/drop-pressure-ranking'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import {
+  getDropPressureRankingDisplay,
+  sortDropPressureRanking,
+} from '@/lib/drop-pressure-ranking'
 import type {
   DropPressureDashboardStats,
   DropPressureRankingEntry,
   DropPressureRankingSortKey,
+  DropPressureTimelinePoint,
 } from '@/types/drop-pressure'
 
 type DropPressureStatsPanelProps = {
@@ -19,8 +24,15 @@ type DropPressureStatsPanelProps = {
   href: string
   periodLabel: string
   ranking?: DropPressureRankingEntry[]
+  timeline?: DropPressureTimelinePoint[]
   currentMemberId?: number
 }
+
+type TimelineMetric =
+  | 'averageNearbyOpponents250m'
+  | 'averageNearbyPlayers250m'
+  | 'hotDropShare'
+  | 'dropCount'
 
 const MEDAL_BY_RANK = {
   1: { iconPath: '/icons/medal-gold.svg', alt: 'Médaille or, rang 1' },
@@ -28,9 +40,109 @@ const MEDAL_BY_RANK = {
   3: { iconPath: '/icons/medal-bronze.svg', alt: 'Médaille bronze, rang 3' },
 } as const
 
+const TIMELINE_METRICS: Array<{ value: TimelineMetric; label: string }> = [
+  { value: 'averageNearbyOpponents250m', label: 'Adversaires' },
+  { value: 'averageNearbyPlayers250m', label: 'Joueurs proches' },
+  { value: 'hotDropShare', label: 'Hot drops (%)' },
+  { value: 'dropCount', label: 'Drops' },
+]
+
+const TIMELINE_META: Record<TimelineMetric, { color: string; suffix: string }> = {
+  averageNearbyOpponents250m: { color: '#f97316', suffix: '' },
+  averageNearbyPlayers250m: { color: '#3b82f6', suffix: '' },
+  hotDropShare: { color: '#ef4444', suffix: ' %' },
+  dropCount: { color: '#06b6d4', suffix: '' },
+}
+
 function formatAverage(value: number | null) {
   if (value === null) return 'N/D'
   return value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+function timelineValue(point: DropPressureTimelinePoint, metric: TimelineMetric) {
+  return point[metric] ?? 0
+}
+
+function formatTimelineValue(value: number, metric: TimelineMetric) {
+  if (metric === 'dropCount') return Math.round(value).toLocaleString('fr-FR')
+  const formatted = value.toLocaleString('fr-FR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })
+  return `${formatted}${TIMELINE_META[metric].suffix}`
+}
+
+function DropPressureTimelineChart({
+  timeline,
+  metric,
+}: {
+  timeline: DropPressureTimelinePoint[]
+  metric: TimelineMetric
+}) {
+  const values = timeline.map((point) => timelineValue(point, metric))
+  const max = Math.max(...values, 1)
+  const width = 640
+  const height = 150
+  const paddingX = 12
+  const paddingY = 14
+  const points = values.map((value, index) => ({
+    x: values.length === 1
+      ? width / 2
+      : paddingX + (index / (values.length - 1)) * (width - paddingX * 2),
+    y: paddingY + (1 - value / max) * (height - paddingY * 2),
+  }))
+  const path = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`)
+    .join(' ')
+  const area = points.length > 0
+    ? `${path} L${points[points.length - 1]!.x},${height - paddingY} L${points[0]!.x},${height - paddingY} Z`
+    : ''
+  const latest = values[values.length - 1] ?? 0
+  const previous = values[values.length - 2]
+  const trend = previous === undefined || latest === previous ? '→' : latest > previous ? '↑' : '↓'
+  const color = TIMELINE_META[metric].color
+  const metricLabel = TIMELINE_METRICS.find((item) => item.value === metric)?.label ?? metric
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_9rem] lg:items-end">
+      <div className="min-w-0">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className="h-36 w-full overflow-visible"
+          role="img"
+          aria-label={`Évolution de ${metricLabel} sur huit semaines`}
+        >
+          <path d={area} fill={color} fillOpacity="0.1" />
+          <path d={path} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((point, index) => (
+            <circle
+              key={timeline[index]?.period}
+              cx={point.x}
+              cy={point.y}
+              r="4"
+              fill="var(--theme-ui-surface)"
+              stroke={color}
+              strokeWidth="2.5"
+            >
+              <title>{timeline[index]?.label} : {formatTimelineValue(values[index] ?? 0, metric)}</title>
+            </circle>
+          ))}
+        </svg>
+        <div className="mt-1 grid grid-cols-8 text-[11px] text-gray-500">
+          {timeline.map((point) => (
+            <span key={point.period} className="text-center">{point.label}</span>
+          ))}
+        </div>
+      </div>
+      <div className="app-panel-muted rounded-lg px-4 py-3 text-left lg:text-right">
+        <p className="text-2xl font-black tabular-nums" style={{ color }}>
+          {trend} {formatTimelineValue(latest, metric)}
+        </p>
+        <p className="text-xs text-gray-500">semaine courante</p>
+      </div>
+    </div>
+  )
 }
 
 export default function DropPressureStatsPanel({
@@ -40,21 +152,20 @@ export default function DropPressureStatsPanel({
   href,
   periodLabel,
   ranking = [],
+  timeline = [],
   currentMemberId,
 }: DropPressureStatsPanelProps) {
   const [sortKey, setSortKey] = useState<DropPressureRankingSortKey>('averageNearbyOpponents250m')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [timelineMetric, setTimelineMetric] = useState<TimelineMetric>('averageNearbyOpponents250m')
   const sortedRanking = useMemo(
     () => sortDropPressureRanking(ranking, sortKey, sortDirection),
     [ranking, sortDirection, sortKey]
   )
-  const topFive = sortedRanking.slice(0, 5)
-  const currentMemberIndex = currentMemberId
-    ? sortedRanking.findIndex((entry) => entry.memberId === currentMemberId)
-    : -1
-  const currentMemberOutsideTop = currentMemberIndex >= 5
-    ? sortedRanking[currentMemberIndex]
-    : null
+  const { topEntries, pinnedEntry } = getDropPressureRankingDisplay(
+    sortedRanking,
+    currentMemberId
+  )
 
   function changeSort(nextSortKey: DropPressureRankingSortKey) {
     if (sortKey === nextSortKey) {
@@ -171,6 +282,29 @@ export default function DropPressureStatsPanel({
           })}
           </div>
 
+          {timeline.length > 0 && (
+            <div className="mt-6 border-t border-gray-200 pt-5">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Évolution sur les 8 dernières semaines
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Tendance hebdomadaire issue des drops persistés.
+                  </p>
+                </div>
+                <SegmentedControl
+                  options={TIMELINE_METRICS}
+                  value={timelineMetric}
+                  onChange={setTimelineMetric}
+                  size="xs"
+                  wrap
+                />
+              </div>
+              <DropPressureTimelineChart timeline={timeline} metric={timelineMetric} />
+            </div>
+          )}
+
           {ranking.length > 0 && (
             <div className="mt-6">
               <div className="mb-3">
@@ -204,13 +338,13 @@ export default function DropPressureStatsPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {topFive.map((entry, index) => renderRankingRow(entry, index + 1))}
-                    {currentMemberOutsideTop && (
+                    {topEntries.map(({ entry, rank }) => renderRankingRow(entry, rank))}
+                    {pinnedEntry && (
                       <>
                         <tr aria-hidden="true">
                           <td colSpan={7} className="border-y border-dashed border-gray-200 px-3 py-1 text-center text-xs text-gray-400">•••</td>
                         </tr>
-                        {renderRankingRow(currentMemberOutsideTop, currentMemberIndex + 1, true)}
+                        {renderRankingRow(pinnedEntry.entry, pinnedEntry.rank, true)}
                       </>
                     )}
                   </tbody>

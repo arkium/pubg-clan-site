@@ -2,10 +2,15 @@ import type { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { sortDropPressureRanking } from '@/lib/drop-pressure-ranking'
+import {
+  buildDropPressureWeeklyTimeline,
+  getDropPressureTimelineStart,
+} from '@/lib/drop-pressure-timeline'
 import type {
   DropPressureDashboardStats,
   DropPressurePeriod,
   DropPressureRankingEntry,
+  DropPressureTimelinePoint,
 } from '@/types/drop-pressure'
 
 function getPeriodBounds(period: DropPressurePeriod, now = new Date()) {
@@ -149,4 +154,28 @@ export async function getDropPressureMemberRanking(input: {
     }),
     'averageNearbyOpponents250m'
   )
+}
+
+export async function getDropPressureTimeline(input: {
+  memberId?: number
+  clanId?: number
+  weekCount?: number
+}): Promise<DropPressureTimelinePoint[]> {
+  const weekCount = Math.max(1, Math.min(input.weekCount ?? 8, 52))
+  const now = new Date()
+  const rows = await prisma.dropPressureStat.findMany({
+    where: {
+      ...(input.memberId ? { memberId: input.memberId } : {}),
+      ...(input.clanId ? { member: { clanId: input.clanId, isActive: true } } : {}),
+      matchDate: { gte: getDropPressureTimelineStart(now, weekCount) },
+    },
+    select: {
+      matchDate: true,
+      nearbyPlayerCount250m: true,
+      nearbyOpponentCount250m: true,
+      pressureLevel: true,
+    },
+  })
+
+  return buildDropPressureWeeklyTimeline(rows, now, weekCount)
 }

@@ -136,6 +136,8 @@ npm run telemetry:drop-pressure:backfill -- --clan 1 --limit 500
 
 Les dashboards membre et clan agrègent cette table selon les périodes calendaires `week`, `month` et `all`. Ils affichent six cartes KPI puis un classement triable des cinq membres selon le nombre de drops, les moyennes de proximité, le maximum ou la part de hot drops. Le dashboard membre conserve toujours la ligne du membre consulté avec son rang réel lorsqu'il se trouve hors du Top 5.
 
+Une courbe intitulée « Évolution sur les 8 dernières semaines » complète les deux dashboards. Elle conserve les semaines sans drop dans l'axe et permet de basculer entre les adversaires moyens, les joueurs proches moyens, la part de hot drops et le volume de drops.
+
 ### `GET /api/clans/[clanId]/telemetry/drop-zones`
 
 **Auth** : `requireNavPermission('clan.drop-zones')` — rôle requis configurable via `/settings/nav-permissions` (pas figé sur Owner).

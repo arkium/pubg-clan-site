@@ -8,7 +8,14 @@ import {
   summarizeDropPressure,
 } from '@/lib/drop-zone-pressure'
 import { buildDropPressureStatRows } from '@/lib/drop-pressure-persistence'
-import { sortDropPressureRanking } from '@/lib/drop-pressure-ranking'
+import {
+  getDropPressureRankingDisplay,
+  sortDropPressureRanking,
+} from '@/lib/drop-pressure-ranking'
+import {
+  buildDropPressureWeeklyTimeline,
+  getDropPressureTimelineStart,
+} from '@/lib/drop-pressure-timeline'
 
 describe('drop-zone pressure', () => {
   it('counts unique other players inside the 250 meter radius', () => {
@@ -138,5 +145,79 @@ describe('drop-zone pressure', () => {
     expect(
       sortDropPressureRanking(entries, 'hotDropShare', 'asc').map((entry) => entry.memberId)
     ).toEqual([2, 1, 3])
+    expect(
+      sortDropPressureRanking(entries, 'averageNearbyOpponents250m', 'asc').map((entry) => entry.memberId)
+    ).toEqual([2, 1, 3])
+
+    const extendedEntries = Array.from({ length: 7 }, (_, index) => ({
+      ...entries[0]!,
+      memberId: index + 1,
+      displayName: `Joueur ${index + 1}`,
+      dropCount: 100 - index,
+    }))
+    const display = getDropPressureRankingDisplay(extendedEntries, 7)
+    expect(display.topEntries.map(({ entry, rank }) => [entry.memberId, rank])).toEqual([
+      [1, 1],
+      [2, 2],
+      [3, 3],
+      [4, 4],
+      [5, 5],
+    ])
+    expect(display.pinnedEntry).toMatchObject({
+      entry: { memberId: 7 },
+      rank: 7,
+    })
+    expect(getDropPressureRankingDisplay(extendedEntries, 3).pinnedEntry).toBeNull()
+  })
+
+  it('builds consecutive weekly pressure buckets including empty weeks', () => {
+    const timeline = buildDropPressureWeeklyTimeline(
+      [
+        {
+          matchDate: new Date('2026-07-21T12:00:00.000Z'),
+          nearbyPlayerCount250m: 4,
+          nearbyOpponentCount250m: 2,
+          pressureLevel: 'contested',
+        },
+        {
+          matchDate: new Date('2026-07-22T12:00:00.000Z'),
+          nearbyPlayerCount250m: 10,
+          nearbyOpponentCount250m: 6,
+          pressureLevel: 'hot',
+        },
+      ],
+      new Date('2026-08-01T12:00:00.000Z'),
+      3
+    )
+
+    expect(timeline.map((point) => point.label)).toEqual(['S29', 'S30', 'S31'])
+    expect(timeline.map((point) => point.dropCount)).toEqual([0, 2, 0])
+    expect(timeline[1]).toMatchObject({
+      averageNearbyPlayers250m: 7,
+      averageNearbyOpponents250m: 4,
+      hotDropShare: 50,
+    })
+  })
+
+  it('keeps ISO week labels correct across a year boundary', () => {
+    const timeline = buildDropPressureWeeklyTimeline(
+      [],
+      new Date('2027-01-05T12:00:00.000Z'),
+      3
+    )
+
+    expect(timeline.map((point) => point.label)).toEqual(['S52', 'S53', 'S1'])
+    expect(timeline.map((point) => point.period)).toEqual([
+      '2026-12-21',
+      '2026-12-28',
+      '2027-01-04',
+    ])
+  })
+
+  it('starts a requested timeline on Monday and normalizes invalid week counts', () => {
+    expect(getDropPressureTimelineStart(new Date('2026-08-02T12:00:00.000Z'), 3))
+      .toEqual(new Date('2026-07-13T00:00:00.000Z'))
+    expect(getDropPressureTimelineStart(new Date('2026-08-01T12:00:00.000Z'), 0))
+      .toEqual(new Date('2026-07-27T00:00:00.000Z'))
   })
 })

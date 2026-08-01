@@ -28,6 +28,7 @@ const defaultDashboard: DashboardResponse = {
     levelCounts: { calm: 0, contested: 0, hot: 0, veryHot: 0 },
   },
   dropPressureRanking: [],
+  dropPressureTimeline: [],
   mapLabels: {},
   period: 'week',
 }

@@ -125,6 +125,77 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Réinitialiser le viewport lors d'un changement de carte ou de portée
 - [x] Valider ESLint et les diagnostics VS Code sur le composant et les deux pages
 
+### ~~Positions clan — Carte, villes, gradation et classement~~ — ✅ Complété le 2026-08-01
+
+- [x] Mesurer le chargement réel de `GET /api/clans/[clanId]/telemetry/positions` sur les données hebdomadaires
+- [x] Limiter le chargement des colonnes JSON lourdes à la carte sélectionnée
+- [x] Supprimer le second chargement automatique de la carte initiale et dédupliquer les requêtes React simultanées
+- [x] Ajouter un cache serveur de cinq minutes après vérification des permissions
+- [x] Réutiliser le viewport des drop zones avec zoom, molette, déplacement et centrage
+- [x] Exposer les villes actives, afficher leurs périmètres et ajouter un filtre avec centrage
+- [x] Ajouter un Top 5 dynamique des villes pour la métrique visible avec podium et parts
+- [x] Appliquer cinq plages logarithmiques `Très faible`, `Faible`, `Modérée`, `Forte` et `Point chaud`
+- [x] Afficher les bornes absolues, le seuil adaptatif et le maximum de la métrique courante
+- [x] Afficher les métriques de densité en cellules graduées et conserver des points gradués pour les événements ponctuels
+- [x] Conserver les couleurs par métrique en vue combinée `Tous`
+- [x] Vérifier le rendu desktop/mobile, le Top 5, le centrage sur Pochinki et l'absence de débordement horizontal
+
+#### Phase 2 — Persistance des métriques de positions
+
+Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON télémétriques par des cellules persistantes, afin de supprimer le chargement à froid d'environ 20 secondes et de rendre ces données exploitables dans les dashboards.
+
+##### Cadrage fonctionnel et technique
+
+- [x] Conserver les catégories UI `Mouvement`, `Combat` et `Équipe` comme regroupements de navigation
+- [x] Traiter les vues comme des métriques persistables plutôt que comme des catégories de stockage
+- [x] Séparer explicitement les rôles dans les métriques : dégâts infligés/reçus, KO infligé/reçu, revive donné/reçu
+- [x] Ne pas persister la vue combinée `Tous`, qui doit être reconstruite depuis les métriques élémentaires
+- [x] Ne pas persister d'image de heatmap ni chaque combinaison de filtres
+- [x] Retenir une granularité par match, membre, carte, phase, métrique et cellule `40 × 40`
+- [x] Prévoir une contrainte d'unicité permettant le remplacement idempotent des cellules d'un match reparsé
+
+##### Modèle et alimentation
+
+- [ ] Créer le modèle Prisma `PositionMetricCell` avec `squadMatchId`, `clanId`, `memberId`, `mapName`, `phase`, `metric`, `xIndex`, `yIndex`, `eventCount` et `matchDate`
+- [ ] Ajouter les relations vers `SquadMatch` et `ClanMember`, ainsi que les index nécessaires aux périodes, cartes, membres et métriques
+- [ ] Définir une contrainte unique sur `(squadMatchId, memberId, phase, metric, xIndex, yIndex)`
+- [ ] Créer la migration SQL additive sans modifier les colonnes JSON télémétriques existantes
+- [ ] Extraire un helper pur qui transforme les échantillons d'un match en cellules persistables
+- [ ] Couvrir les métriques `position`, `rotation`, `kill`, `shot`, `damage_dealt`, `damage_taken`, `knockout_dealt`, `knockout_taken`, `revive_given`, `revive_received`, `vehicle` et `death`
+- [ ] Pondérer correctement les tirs et dégâts avec leur champ `count`
+- [ ] Alimenter les cellules dans la même transaction que la persistance télémétrique du match
+- [ ] Supprimer puis recréer uniquement les cellules du match traité afin de garantir l'idempotence
+- [ ] Ajouter des tests unitaires pour la grille, les phases, les rôles, les poids et le remplacement idempotent
+
+##### Backfill et validation des données
+
+- [ ] Ajouter un script CLI de backfill avec filtres `--clan`, `--limit` et reprise contrôlée
+- [ ] Backfiller les télémétries existantes sans supprimer les JSON sources
+- [ ] Vérifier qu'un second backfill ne modifie pas le nombre de cellules persistées
+- [ ] Comparer les agrégats persistés avec la route actuelle sur plusieurs cartes, membres, phases et métriques
+- [ ] Mesurer le volume de lignes, la durée du backfill et la taille de stockage avant généralisation
+
+##### API et performances
+
+- [ ] Créer un service partagé d'agrégation des cellules par période, carte, membre, phase et métrique
+- [ ] Migrer `GET /api/clans/[clanId]/telemetry/positions` vers `PositionMetricCell`
+- [ ] Conserver temporairement un fallback vers les JSON tant que le backfill n'est pas complet
+- [ ] Supprimer le fallback et le cache mémoire lorsque les données persistées sont validées
+- [ ] Vérifier que les filtres et le Top 5 restent identiques avant/après migration
+- [ ] Mesurer un premier chargement à froid et viser moins d'une seconde sur la période hebdomadaire
+- [ ] Ajouter des tests de route ou de service couvrant les semaines vides et les filtres combinés
+
+##### Dashboards clan et membre
+
+- [ ] Définir les KPI réellement utiles : événements en ville, ville favorite, zone de combat favorite et part du Top 5
+- [ ] Ajouter un Top 5 des villes commutable entre présence, kills, dégâts et revives sur le dashboard clan
+- [ ] Ajouter une carte miniature ou un lien préfiltré vers la page Positions sans dupliquer la heatmap complète
+- [ ] Ajouter une évolution sur les huit dernières semaines avec conservation des semaines vides
+- [ ] Ajouter au dashboard membre ses trois villes principales, sa zone de combat favorite et ses parts de kills/dégâts par ville
+- [ ] Comparer les métriques du membre avec la moyenne du clan uniquement lorsque l'échantillon est suffisant
+- [ ] Réutiliser les composants de podium, tableau et graphique déjà employés pour la pression au drop
+- [ ] Vérifier les thèmes clair/sombre et les rendus desktop/mobile sur les deux dashboards
+
 ### Drop zones — Pression au drop dans un rayon de 250 m
 
 La première phase valide le principe à partir des `landingSamples` déjà stockés, sans migration. La métrique est nommée **pression au drop** : elle mesure la fréquentation autour du point d'atterrissage, pas l'agressivité réelle du joueur.
@@ -161,7 +232,7 @@ La première phase valide le principe à partir des `landingSamples` déjà stoc
 - [x] Ajouter un panneau partagé de statistiques persistantes aux dashboards membre et clan
 - [x] Afficher les drops/matchs analysés, moyennes joueurs/adversaires, maximum et part de hot drops
 - [x] Vérifier les API authentifiées et les rendus desktop/mobile sur les données backfillées
-- [ ] Ajouter une évolution temporelle de la pression au drop après validation du stockage
+- [x] Ajouter une évolution temporelle de la pression au drop après validation du stockage
 
 ---
 

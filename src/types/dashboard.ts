@@ -5,6 +5,7 @@ export type DashboardMatchSortDirection = 'asc' | 'desc'
 import type {
   DropPressureDashboardStats,
   DropPressureRankingEntry,
+  DropPressureTimelinePoint,
 } from '@/types/drop-pressure'
 
 export interface DashboardMember {
@@ -78,6 +79,7 @@ export interface DashboardResponse {
   squads: SquadFrequencyEntry[]
   dropPressure: DropPressureDashboardStats
   dropPressureRanking: DropPressureRankingEntry[]
+  dropPressureTimeline: DropPressureTimelinePoint[]
   mapLabels: Record<string, string>
   period: DashboardPeriod
 }

@@ -1,9 +1,10 @@
 import Image from 'next/image'
 
 import { DISTINCTION_BADGE_META, isDistinctionBadgeKey } from '@/lib/distinction-badges'
-import type { DashboardStats as DashboardStatsType, ClanAverage } from '@/types/dashboard'
+import type { DashboardStats as DashboardStatsType, ClanAverage, DashboardProgression } from '@/types/dashboard'
 import type { DashboardPeriod } from '@/types/dashboard'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import ProgressionChart from '@/components/dashboard/ProgressionChart'
 
 const PERIOD_LABELS: Record<DashboardPeriod, string> = {
   week: 'Semaine',
@@ -43,11 +44,18 @@ function StatCard({ label, value, sub, trend, highlight }: StatCardProps) {
 interface PlayerStatsProps {
   stats: DashboardStatsType | null
   clanAverage: ClanAverage | null
+  progression: DashboardProgression[]
   period: DashboardPeriod
   onPeriodChange: (period: DashboardPeriod) => void
 }
 
-export default function PlayerStats({ stats, clanAverage, period, onPeriodChange }: PlayerStatsProps) {
+export default function PlayerStats({
+  stats,
+  clanAverage,
+  progression,
+  period,
+  onPeriodChange,
+}: PlayerStatsProps) {
   if (!stats) {
     return (
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -149,6 +157,8 @@ export default function PlayerStats({ stats, clanAverage, period, onPeriodChange
           sub={`${stats.totalAssists} assists · ${stats.totalRevives} revives`}
         />
       </div>
+
+      <ProgressionChart progression={progression} embedded />
     </section>
   )
 }

@@ -2,11 +2,15 @@
 
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
+import DropZoneMapViewport, {
+  type DropZoneMapViewportHandle,
+} from '@/components/drop-zones/DropZoneMapViewport'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
+import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 import { isGameLabel } from '@/lib/phase-label-service'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
@@ -38,6 +42,13 @@ type HeatmapLayer = {
   color: string
   cells: HeatmapCell[]
   dot?: boolean
+}
+
+type HeatRange = {
+  min: number
+  max: number
+  color: string
+  label: string
 }
 
 type MemberOption = {
@@ -92,6 +103,9 @@ type PositionsHeatmapResponse = {
   gridSize: number
   mapLabels: Record<string, string>
   phaseLabels: Record<string, string>
+  options?: {
+    mapLocations?: MapLocations
+  }
   note: string | null
 }
 
@@ -147,6 +161,14 @@ const ROLE_OPTIONS_BY_VIEW: Partial<Record<HeatmapView, [RoleOption, RoleOption]
     { value: 'b', label: 'Reçu' },
   ],
 }
+
+const HEAT_RANGE_STEPS = [
+  { ratio: 0.2, color: '#A5D6A7', label: 'Très faible' },
+  { ratio: 0.4, color: '#4CAF50', label: 'Faible' },
+  { ratio: 0.6, color: '#FFEB3B', label: 'Modérée' },
+  { ratio: 0.8, color: '#FB8C00', label: 'Forte' },
+  { ratio: 1, color: '#B71C1C', label: 'Point chaud' },
+] as const
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
@@ -206,6 +228,62 @@ function pointSize(ratio: number) {
 
 function opacityFor(ratio: number) {
   return 0.18 + ratio * 0.8
+}
+
+function minimumHeatCount(maximum: number) {
+  if (maximum <= 0) return 0
+  return Math.max(1, Math.floor(Math.log2(maximum)))
+}
+
+function buildHeatRanges(minimum: number, maximum: number): HeatRange[] {
+  if (minimum <= 0 || maximum <= 0) return []
+
+  const ranges: HeatRange[] = []
+  const minimumLog = Math.log(minimum)
+  const logarithmicSpan = Math.log(maximum) - minimumLog
+  let rangeMinimum = minimum
+
+  for (const step of HEAT_RANGE_STEPS) {
+    if (rangeMinimum > maximum) break
+    const logarithmicMaximum = Math.floor(Math.exp(minimumLog + logarithmicSpan * step.ratio))
+    const rangeMaximum = step.ratio === 1
+      ? maximum
+      : Math.min(maximum, Math.max(rangeMinimum, logarithmicMaximum))
+    ranges.push({ ...step, min: rangeMinimum, max: rangeMaximum })
+    rangeMinimum = rangeMaximum + 1
+  }
+
+  return ranges
+}
+
+function heatRangeLabel(range: HeatRange) {
+  return range.min === range.max
+    ? formatNumber(range.min)
+    : `${formatNumber(range.min)}–${formatNumber(range.max)}`
+}
+
+function heatRangeForCount(count: number, ranges: HeatRange[]) {
+  return ranges.find((range) => count >= range.min && count <= range.max) ?? null
+}
+
+function logarithmicIntensity(count: number, minimum: number, maximum: number) {
+  if (maximum <= minimum) return 1
+  return clamp01((Math.log(count) - Math.log(minimum)) / (Math.log(maximum) - Math.log(minimum)))
+}
+
+function locationForPercent(xPct: number, yPct: number, locations: MapLocation[]) {
+  let closestLocation: MapLocation | null = null
+  let closestRatio = Number.POSITIVE_INFINITY
+
+  for (const location of locations) {
+    const ratio = Math.hypot(xPct - location.xPct, yPct - location.yPct) / location.radiusPct
+    if (ratio <= 1 && ratio < closestRatio) {
+      closestLocation = location
+      closestRatio = ratio
+    }
+  }
+
+  return closestLocation
 }
 
 function phaseLabelFrom(value: PhaseFilter, labels: Record<string, string>) {
@@ -301,9 +379,32 @@ const LEGEND_BY_CATEGORY: Record<HeatmapCategory, Array<{ color: string; label: 
   ],
 }
 
+const pendingPositionRequests = new Map<string, Promise<PositionsHeatmapResponse>>()
+
+function fetchPositions(url: string) {
+  const pending = pendingPositionRequests.get(url)
+  if (pending) return pending
+
+  const request = fetch(url, { cache: 'no-store' })
+    .then(async (response) => {
+      const data = (await response.json()) as PositionsHeatmapResponse | { error?: { message?: string } }
+      if (!response.ok) {
+        const fallback = 'Impossible de charger les heatmaps positions'
+        const message = 'error' in data ? data.error?.message ?? fallback : fallback
+        throw new Error(message)
+      }
+      return data as PositionsHeatmapResponse
+    })
+    .finally(() => pendingPositionRequests.delete(url))
+
+  pendingPositionRequests.set(url, request)
+  return request
+}
+
 export default function ClanPositionsHeatmapPage() {
   const params = useParams()
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
+  const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
   const [period, setPeriod] = useState<TelemetryPeriod>('week')
   const [mapName, setMapName] = useState('')
@@ -312,6 +413,8 @@ export default function ClanPositionsHeatmapPage() {
   const [category, setCategory] = useState<HeatmapCategory>('mouvement')
   const [view, setView] = useState<HeatmapViewSelection>('predilection')
   const [role, setRole] = useState<HeatmapRole>('a')
+  const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [showLocationBoundaries, setShowLocationBoundaries] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<PositionsHeatmapResponse | null>(null)
@@ -350,25 +453,11 @@ export default function ClanPositionsHeatmapPage() {
           query.set('phase', String(phase))
         }
 
-        const response = await fetch(`/api/clans/${clanId}/telemetry/positions?${query.toString()}`, {
-          cache: 'no-store',
-        })
-        const data = (await response.json()) as PositionsHeatmapResponse | { error?: { message?: string } }
-
-        if (!response.ok) {
-          const fallback = 'Impossible de charger les heatmaps positions'
-          const message = typeof data === 'object' && data && 'error' in data ? data.error?.message ?? fallback : fallback
-          throw new Error(message)
-        }
+        const data = await fetchPositions(`/api/clans/${clanId}/telemetry/positions?${query.toString()}`)
 
         if (!cancelled) {
-          const nextPayload = data as PositionsHeatmapResponse
+          const nextPayload = data
           setPayload(nextPayload)
-
-          const nextMap = nextPayload.selectedMap ?? nextPayload.maps[0]?.mapName ?? ''
-          if (nextMap !== mapName) {
-            setMapName(nextMap)
-          }
 
           const nextMember = nextPayload.selectedMemberKey ?? ''
           if (nextMember !== memberKey) {
@@ -413,6 +502,31 @@ export default function ClanPositionsHeatmapPage() {
     }]
   }, [payload, view, role, category])
 
+  const activeLocations = useMemo(() => {
+    if (!payload?.selectedMap) return []
+    return payload.options?.mapLocations?.[payload.selectedMap] ?? []
+  }, [payload])
+
+  const topZones = useMemo(() => {
+    const counts = new Map<string, { location: MapLocation; count: number }>()
+    for (const layer of layers) {
+      for (const cell of layer.cells) {
+        const xPct = ((cell.xIndex + 0.5) / (payload?.gridSize ?? 1)) * 100
+        const yPct = ((cell.yIndex + 0.5) / (payload?.gridSize ?? 1)) * 100
+        const location = locationForPercent(xPct, yPct, activeLocations)
+        if (!location) continue
+        const current = counts.get(location.id)
+        counts.set(location.id, {
+          location,
+          count: (current?.count ?? 0) + cell.count,
+        })
+      }
+    }
+    return Array.from(counts.values())
+      .sort((left, right) => right.count - left.count || left.location.name.localeCompare(right.location.name, 'fr'))
+      .slice(0, 5)
+  }, [activeLocations, layers, payload?.gridSize])
+
   const lines = useMemo(() => {
     if (!payload || view !== 'rotation-lines') return [] as TrajectoryLine[]
     return payload.trajectoryLines
@@ -422,11 +536,37 @@ export default function ClanPositionsHeatmapPage() {
     () => layers.reduce((globalMax, layer) => Math.max(globalMax, layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)), 0),
     [layers],
   )
+  const usesDensityGradation = view !== 'all' && view !== 'rotation-lines'
+  const minimumHeat = useMemo(
+    () => usesDensityGradation ? minimumHeatCount(maxCellCount) : 0,
+    [maxCellCount, usesDensityGradation],
+  )
+  const heatRanges = useMemo(
+    () => buildHeatRanges(minimumHeat, maxCellCount),
+    [maxCellCount, minimumHeat],
+  )
   const totalCellCount = useMemo(
     () => layers.reduce((sum, layer) => sum + layer.cells.reduce((layerSum, cell) => layerSum + cell.count, 0), 0),
     [layers],
   )
   const totalRenderedCells = useMemo(() => layers.reduce((sum, layer) => sum + layer.cells.length, 0), [layers])
+  const visibleRenderedCells = useMemo(
+    () => layers.reduce(
+      (sum, layer) => sum + layer.cells.filter((cell) => !usesDensityGradation || cell.count >= minimumHeat).length,
+      0,
+    ),
+    [layers, minimumHeat, usesDensityGradation],
+  )
+  const visibleEventCount = useMemo(
+    () => layers.reduce(
+      (sum, layer) => sum + layer.cells.reduce(
+        (layerSum, cell) => layerSum + (!usesDensityGradation || cell.count >= minimumHeat ? cell.count : 0),
+        0,
+      ),
+      0,
+    ),
+    [layers, minimumHeat, usesDensityGradation],
+  )
   const maxLineCount = useMemo(() => lines.reduce((max, line) => Math.max(max, line.count), 0), [lines])
   const totalLineCount = useMemo(() => lines.reduce((sum, line) => sum + line.count, 0), [lines])
   const analyzedMatches = useMemo(() => {
@@ -462,9 +602,36 @@ export default function ClanPositionsHeatmapPage() {
   const mapItems = (payload?.maps ?? []).map((entry) => ({
       key: `map-${entry.mapName}`,
       label: mapDisplayName(entry.mapName, payload?.mapLabels ?? {}),
-      active: mapName === entry.mapName,
-      onSelect: () => setMapName(entry.mapName),
+      active: (mapName || payload?.selectedMap) === entry.mapName,
+      onSelect: () => {
+        setMapName(entry.mapName)
+        setSelectedLocationId('')
+        mapViewportRef.current?.reset()
+      },
     }))
+
+  const locationItems = [
+    {
+      key: 'location-all',
+      label: 'Carte entière',
+      active: selectedLocationId === '',
+      onSelect: () => {
+        setSelectedLocationId('')
+        mapViewportRef.current?.reset()
+      },
+    },
+    ...activeLocations.map((location) => ({
+      key: `location-${location.id}`,
+      label: location.name,
+      active: selectedLocationId === location.id,
+      onSelect: () => {
+        setSelectedLocationId(location.id)
+        mapViewportRef.current?.focusLocation(location)
+      },
+    })),
+  ]
+  const selectedLocationLabel = activeLocations.find((location) => location.id === selectedLocationId)?.name
+    ?? 'Carte entière'
 
   const phaseItems = [
     {
@@ -564,9 +731,20 @@ export default function ClanPositionsHeatmapPage() {
 
           <div className="min-w-0">
             <MobileDropdownNav
+              id="positions-location-filter"
+              label="Ville"
+              currentLabel={selectedLocationLabel}
+              items={locationItems}
+              visibilityClass=""
+              className="w-full"
+            />
+          </div>
+
+          <div className="min-w-0">
+            <MobileDropdownNav
               id="positions-map-filter"
               label="Carte"
-              currentLabel={mapName ? mapDisplayName(mapName, payload?.mapLabels ?? {}) : 'Aucune carte'}
+              currentLabel={payload?.selectedMap ? mapDisplayName(payload.selectedMap, payload.mapLabels) : 'Aucune carte'}
               items={mapItems}
               visibilityClass=""
               className="w-full"
@@ -629,6 +807,30 @@ export default function ClanPositionsHeatmapPage() {
             </div>
           ))}
         </div>
+        {usesDensityGradation && heatRanges.length > 0 ? (
+          <div className="mt-4 border-t border-slate-200 pt-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-slate-700">
+                Gradation de {viewLabelCurrent.toLowerCase()} · échelle logarithmique
+              </p>
+              <p className="text-xs text-slate-500">
+                Seuil visible {formatNumber(minimumHeat)} · maximum {formatNumber(maxCellCount)}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+              {heatRanges.map((range) => (
+                <div key={`${range.min}-${range.max}`} className="flex items-center gap-2 text-slate-600">
+                  <span className="h-3 w-5 shrink-0 rounded-sm border border-black/10" style={{ backgroundColor: range.color }} />
+                  <span><strong className="font-semibold text-slate-700">{range.label}</strong> {heatRangeLabel(range)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : view === 'all' ? (
+          <p className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
+            Vue combinée : la couleur identifie la métrique ; la taille et l’opacité indiquent son intensité relative.
+          </p>
+        ) : null}
       </section>
 
       {loading ? <p className="mb-4 text-sm text-slate-600">Chargement des heatmaps positions...</p> : null}
@@ -638,15 +840,21 @@ export default function ClanPositionsHeatmapPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
             <span className="text-slate-600">Matchs analyses: {formatNumber(analyzedMatches)}</span>
             <span className="text-slate-600">
-              Points visibles: {formatNumber(view === 'rotation-lines' ? totalLineCount : totalCellCount)}
+              Événements visibles: {formatNumber(view === 'rotation-lines' ? totalLineCount : visibleEventCount)}
             </span>
-            <span className="text-slate-600">Cellules heatmap: {formatNumber(totalRenderedCells)}</span>
+            <span className="text-slate-600">
+              Cellules visibles: {formatNumber(visibleRenderedCells)} / {formatNumber(totalRenderedCells)}
+            </span>
             <span className="text-slate-600">
               Intensite max: {formatNumber(view === 'rotation-lines' ? maxLineCount : maxCellCount)}
             </span>
           </div>
           <div>
-            <div className="relative aspect-square bg-slate-950">
+            <DropZoneMapViewport
+              ref={mapViewportRef}
+              boundariesVisible={showLocationBoundaries}
+              onBoundariesVisibleChange={setShowLocationBoundaries}
+            >
               {payload.selectedMap ? (
                 <>
                   <Image
@@ -662,6 +870,27 @@ export default function ClanPositionsHeatmapPage() {
               ) : null}
 
               <div className="absolute inset-0 overflow-hidden">
+                {showLocationBoundaries ? activeLocations.map((location) => (
+                  <div
+                    key={location.id}
+                    className={`pointer-events-none absolute z-10 rounded-full border ${
+                      selectedLocationId === location.id
+                        ? 'border-cyan-300 bg-cyan-300/15 shadow-[0_0_20px_rgba(103,232,249,0.45)]'
+                        : 'border-white/40 bg-slate-950/5'
+                    }`}
+                    style={{
+                      left: `${location.xPct}%`,
+                      top: `${location.yPct}%`,
+                      width: `${location.radiusPct * 2}%`,
+                      aspectRatio: '1',
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  >
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/75 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
+                      {location.name}
+                    </span>
+                  </div>
+                )) : null}
                 {view === 'rotation-lines' ? (
                   <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                     {payload.safeZoneOverlay ? (
@@ -718,12 +947,19 @@ export default function ClanPositionsHeatmapPage() {
                       const layerMaxCount = layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)
                       return layer.cells.map((cell) => {
                         const ratio = layerMaxCount > 0 ? clamp01(cell.count / layerMaxCount) : 0
+                        if (usesDensityGradation && cell.count < minimumHeat) return null
+
+                        const heatRange = usesDensityGradation ? heatRangeForCount(cell.count, heatRanges) : null
+                        const intensity = usesDensityGradation
+                          ? logarithmicIntensity(cell.count, minimumHeat, layerMaxCount)
+                          : ratio
                         const left = ((cell.xIndex + 0.5) / payload.gridSize) * 100
                         const top = ((cell.yIndex + 0.5) / payload.gridSize) * 100
                         const size = pointSize(ratio)
 
                         if (layer.dot) {
-                          const dotSize = 5 + ratio * 10
+                          const dotSize = 6 + intensity * 12
+                          const markerColor = heatRange?.color ?? `rgb(${layer.color})`
                           return (
                             <div
                               key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
@@ -734,11 +970,35 @@ export default function ClanPositionsHeatmapPage() {
                                 width: `${dotSize}px`,
                                 height: `${dotSize}px`,
                                 transform: 'translate(-50%, -50%)',
-                                backgroundColor: `rgba(${layer.color}, ${0.6 + ratio * 0.4})`,
-                                boxShadow: `0 0 ${3 + ratio * 5}px rgba(${layer.color}, 0.9)`,
+                                backgroundColor: markerColor,
+                                boxShadow: `0 0 ${3 + intensity * 6}px ${markerColor}`,
                                 mixBlendMode: 'screen',
                               }}
-                              title={`${layer.label} x:${cell.xIndex} y:${cell.yIndex} c:${cell.count}`}
+                              title={`${layer.label} · ${heatRange?.label ?? 'Intensité relative'} · ${formatNumber(cell.count)} événements`}
+                            >
+                              {cell.count > 1 ? (
+                                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] font-black leading-none text-slate-950">
+                                  {cell.count}
+                                </span>
+                              ) : null}
+                            </div>
+                          )
+                        }
+                        if (usesDensityGradation && heatRange) {
+                          return (
+                            <div
+                              key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
+                              className="absolute rounded-[35%] border border-black/10"
+                              style={{
+                                left: `${left}%`,
+                                top: `${top}%`,
+                                width: `${100 / payload.gridSize}%`,
+                                height: `${100 / payload.gridSize}%`,
+                                transform: 'translate(-50%, -50%)',
+                                backgroundColor: heatRange.color,
+                                opacity: 0.35 + intensity * 0.5,
+                              }}
+                              title={`${layer.label} · ${heatRange.label} · ${formatNumber(cell.count)} événements`}
                             />
                           )
                         }
@@ -765,11 +1025,70 @@ export default function ClanPositionsHeatmapPage() {
                 )}
               </div>
 
-              <div className="absolute left-4 top-4 rounded-xl border border-cyan-300/35 bg-slate-950/70 px-4 py-2 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
+              <div className="absolute bottom-4 left-4 z-30 rounded border border-cyan-300/35 bg-slate-950/80 px-4 py-2 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Carte visible</p>
                 <p className="mt-0.5 text-lg font-bold leading-tight text-white">{selectedMapLabel}</p>
               </div>
+            </DropZoneMapViewport>
+          </div>
+
+          <div className="border-t border-slate-200 px-4 py-5 sm:px-6">
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Top 5 des zones</h2>
+                <p className="text-xs text-gray-500">Classement des villes pour la vue {viewLabelCurrent.toLowerCase()}.</p>
+              </div>
+              <span className="text-xs text-gray-500">{selectedMapLabel}</span>
             </div>
+            {topZones.length > 0 ? (
+              <div className="app-table-shell overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="app-table-head">
+                    <tr>
+                      <th className="w-16 px-3 py-2 text-center">Rang</th>
+                      <th className="px-3 py-2 text-left">Ville</th>
+                      <th className="px-3 py-2 text-right">Événements</th>
+                      <th className="px-3 py-2 text-right">Part visible</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topZones.map((zone, index) => {
+                      const rank = index + 1
+                      const medal = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null
+                      return (
+                        <tr key={zone.location.id} className={`app-table-row ${rank <= 3 ? `app-table-row--top${rank}` : ''}`}>
+                          <td className="px-3 py-3 text-center font-semibold">
+                            {medal ? (
+                              <Image src={`/icons/medal-${medal}.svg`} alt={`Médaille, rang ${rank}`} width={24} height={24} className="mx-auto h-6 w-6" />
+                            ) : rank}
+                          </td>
+                          <td className="px-3 py-3 font-medium text-gray-900">
+                            <button
+                              type="button"
+                              className="hover:text-cyan-600 hover:underline"
+                              onClick={() => {
+                                setSelectedLocationId(zone.location.id)
+                                mapViewportRef.current?.focusLocation(zone.location)
+                              }}
+                            >
+                              {zone.location.name}
+                            </button>
+                          </td>
+                          <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-900">{formatNumber(zone.count)}</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-gray-600">
+                            {totalCellCount > 0 ? `${((zone.count / totalCellCount) * 100).toFixed(1).replace('.', ',')} %` : '0 %'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="app-panel-muted rounded-lg px-4 py-5 text-sm text-gray-500">
+                Aucune zone urbaine identifiée pour cette vue.
+              </p>
+            )}
           </div>
         </section>
       ) : null}

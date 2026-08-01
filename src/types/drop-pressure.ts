@@ -33,3 +33,13 @@ export type DropPressureRankingEntry = {
   maximumNearbyPlayers250m: number
   hotDropShare: number
 }
+
+export type DropPressureTimelinePoint = {
+  period: string
+  label: string
+  startDate: string
+  dropCount: number
+  averageNearbyPlayers250m: number
+  averageNearbyOpponents250m: number | null
+  hotDropShare: number
+}

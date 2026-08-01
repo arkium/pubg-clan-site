@@ -66,17 +66,22 @@ function Sparkline({ values, min, max, width, height }: SparklineProps) {
 
 interface ProgressionChartProps {
   progression: DashboardProgression[]
+  embedded?: boolean
 }
 
-export default function ProgressionChart({ progression }: ProgressionChartProps) {
+export default function ProgressionChart({ progression, embedded = false }: ProgressionChartProps) {
   const [metric, setMetric] = useState<MetricKey>('totalKills')
 
   const metrics: MetricKey[] = ['totalKills', 'totalDamage', 'winRate', 'matchesPlayed']
+  const title = `Évolution sur les ${progression.length || 8} dernières semaines`
+  const sectionClassName = embedded
+    ? 'mt-6 border-t border-gray-200 pt-5'
+    : 'rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6'
 
   if (progression.length === 0) {
     return (
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-gray-900">Progression (4 semaines)</h2>
+      <section className={sectionClassName}>
+        <h3 className="mb-2 text-base font-semibold text-gray-900">{title}</h3>
         <p className="text-sm text-gray-500">Aucune donnée de progression disponible.</p>
       </section>
     )
@@ -94,9 +99,9 @@ export default function ProgressionChart({ progression }: ProgressionChartProps)
     trend === '↑' ? 'text-green-600' : trend === '↓' ? 'text-red-500' : 'text-gray-400'
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+    <section className={sectionClassName}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">Progression (4 semaines)</h2>
+        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
         <SegmentedControl
           options={metrics.map((m) => ({ value: m, label: METRIC_LABELS[m] }))}
           value={metric}

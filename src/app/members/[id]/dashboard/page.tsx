@@ -8,7 +8,6 @@ import { usePlayerDashboard, usePlayerMatches } from '@/hooks/usePlayerDashboard
 import PlayerStats from '@/components/dashboard/PlayerStats'
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
-import ProgressionChart from '@/components/dashboard/ProgressionChart'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
@@ -393,6 +392,7 @@ export default function DashboardPage() {
     mapLabels,
     dropPressure,
     dropPressureRanking,
+    dropPressureTimeline,
   } = data
 
   const comparisonRefPeriod = getReferencePeriod(selectedComparisonPeriod)
@@ -416,6 +416,7 @@ export default function DashboardPage() {
         <PlayerStats
           stats={stats}
           clanAverage={clanAverage}
+          progression={progression}
           period={period}
           onPeriodChange={setPeriod}
         />
@@ -425,6 +426,7 @@ export default function DashboardPage() {
           href={`/members/${memberId}/drop-zones`}
           periodLabel={period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Tous'}
           ranking={dropPressureRanking}
+          timeline={dropPressureTimeline}
           currentMemberId={memberId}
         />
 
@@ -1026,11 +1028,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Progression + Radar */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <ProgressionChart progression={progression} />
-          <ComparisonRadar stats={stats} clanAverage={clanAverage} />
-        </div>
+        <ComparisonRadar stats={stats} clanAverage={clanAverage} />
 
         {/* Squad frequency + Top performances */}
         <div className="grid gap-6 md:grid-cols-2">

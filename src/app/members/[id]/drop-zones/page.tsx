@@ -32,6 +32,13 @@ type HeatmapCell = {
   count: number
 }
 
+type HeatRange = {
+  min: number
+  max: number
+  color: string
+  label: string
+}
+
 type DropZonesResponse = {
   ok: boolean
   meta: {
@@ -80,6 +87,14 @@ const VIEW_MODE_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: 'points', label: 'Points' },
 ]
 
+const HEAT_RANGE_STEPS = [
+  { ratio: 0.2, color: '#A5D6A7', label: 'Tres faible' },
+  { ratio: 0.4, color: '#4CAF50', label: 'Faible' },
+  { ratio: 0.6, color: '#FFEB3B', label: 'Moderee' },
+  { ratio: 0.8, color: '#FB8C00', label: 'Forte' },
+  { ratio: 1, color: '#B71C1C', label: 'Point chaud' },
+] as const
+
 const SCOPE_OPTIONS: Array<{ value: DropZonesScope; label: string }> = [
   { value: 'self', label: 'Le joueur' },
   { value: 'member', label: 'Un joueur specifique' },
@@ -106,12 +121,56 @@ function mapAssetPath(mapName: string) {
   return `/maps/pubg/${mapName}.webp`
 }
 
-function clamp01(value: number) {
-  return Math.max(0, Math.min(1, value))
-}
-
 function formatNumber(value: number) {
   return value.toLocaleString('fr-FR')
+}
+
+function minimumHeatCount(max: number) {
+  if (max <= 0) return 0
+  return Math.max(1, Math.floor(Math.log2(max)))
+}
+
+function buildHeatRanges(minimum: number, max: number): HeatRange[] {
+  if (minimum <= 0 || max <= 0) return []
+
+  const ranges: HeatRange[] = []
+  const minimumLog = Math.log(minimum)
+  const logarithmicSpan = Math.log(max) - minimumLog
+  let min = minimum
+
+  for (const step of HEAT_RANGE_STEPS) {
+    if (min > max) break
+
+    const logarithmicMax = Math.floor(Math.exp(minimumLog + logarithmicSpan * step.ratio))
+    const rangeMax = step.ratio === 1
+      ? max
+      : Math.min(max, Math.max(min, logarithmicMax))
+
+    ranges.push({
+      min,
+      max: rangeMax,
+      color: step.color,
+      label: step.label,
+    })
+    min = rangeMax + 1
+  }
+
+  return ranges
+}
+
+function heatRangeLabel(range: HeatRange) {
+  return range.min === range.max
+    ? formatNumber(range.min)
+    : `${formatNumber(range.min)}-${formatNumber(range.max)}`
+}
+
+function heatOpacity(count: number, minimum: number, max: number) {
+  if (count < minimum || minimum <= 0 || max <= 0) return 0
+  if (max <= minimum) return 0.6
+
+  const minimumLog = Math.log(minimum)
+  const intensity = (Math.log(count) - minimumLog) / (Math.log(max) - minimumLog)
+  return 0.1 + intensity * 0.5
 }
 
 function extractErrorMessage(payload: unknown, fallback: string) {
@@ -267,6 +326,17 @@ export default function MemberDropZonesPage() {
     return filteredHeatmap.reduce((max, cell) => Math.max(max, cell.count), 0)
   }, [filteredHeatmap])
 
+  const minimumHeat = useMemo(() => minimumHeatCount(maxHeat), [maxHeat])
+
+  const visibleHeatmap = useMemo(() => {
+    return filteredHeatmap.filter((cell) => cell.count >= minimumHeat)
+  }, [filteredHeatmap, minimumHeat])
+
+  const heatRanges = useMemo(
+    () => buildHeatRanges(minimumHeat, maxHeat),
+    [maxHeat, minimumHeat]
+  )
+
   const displayedMatchCount = useMemo(() => {
     return new Set(filteredPoints.map((point) => point.matchId)).size
   }, [filteredPoints])
@@ -421,8 +491,10 @@ export default function MemberDropZonesPage() {
               <span className="font-medium text-slate-800">Filtre: {payload?.meta.scopeLabel ?? scopeLabelMap[scope]}</span>
               <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
               <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
-              <span className="text-slate-600">Points visibles: {formatNumber(filteredPoints.length)}</span>
-              <span className="text-slate-600">Cellules heatmap: {formatNumber(filteredHeatmap.length)}</span>
+              <span className="text-slate-600">Dropzones visibles: {formatNumber(filteredPoints.length)}</span>
+              <span className="text-slate-600">
+                Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
+              </span>
             </div>
 
             <div className="relative aspect-square bg-slate-950">
@@ -441,43 +513,49 @@ export default function MemberDropZonesPage() {
               ) : null}
 
               <div className="absolute inset-0 overflow-hidden">
-                {(viewMode === 'mix' || viewMode === 'heatmap')
-                  ? filteredHeatmap.map((cell) => {
-                      const ratio = maxHeat > 0 ? clamp01(cell.count / maxHeat) : 0
-                      const left = ((cell.xIndex + 0.5) / (payload.data.gridSize || 40)) * 100
-                      const top = ((cell.yIndex + 0.5) / (payload.data.gridSize || 40)) * 100
-                      const size = 22 + ratio * 36
+                {(viewMode === 'mix' || viewMode === 'heatmap') ? (
+                  <div
+                    className="absolute inset-0 grid"
+                    style={{
+                      gridTemplateColumns: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
+                      gridTemplateRows: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
+                      zIndex: 10,
+                    }}
+                  >
+                    {visibleHeatmap.map((cell) => {
+                      const rangeIndex = heatRanges.findIndex((entry) => cell.count <= entry.max)
+                      const range = heatRanges[rangeIndex]
+                      const opacity = heatOpacity(cell.count, minimumHeat, maxHeat)
 
                       return (
                         <div
                           key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
-                          className="absolute rounded-full"
                           style={{
-                            left: `${left}%`,
-                            top: `${top}%`,
-                            width: `${size}px`,
-                            height: `${size}px`,
-                            transform: 'translate(-50%, -50%)',
-                            background:
-                              'radial-gradient(circle, rgba(255,93,93,0.7) 0%, rgba(255,142,67,0.45) 35%, rgba(255,142,67,0) 100%)',
-                            filter: 'blur(0.5px)',
-                            mixBlendMode: 'screen',
+                            gridColumn: cell.xIndex + 1,
+                            gridRow: cell.yIndex + 1,
+                            backgroundColor: range?.color ?? 'transparent',
+                            borderRadius: '35%',
+                            opacity,
                           }}
-                          title={`Cellule ${cell.xIndex}/${cell.yIndex} - ${cell.count}`}
+                          title={`Zone ${cell.xIndex}/${cell.yIndex} - ${formatNumber(cell.count)} atterrissage${cell.count > 1 ? 's' : ''} - ${range?.label ?? 'Aucune activite'}`}
                         />
                       )
-                    })
-                  : null}
+                    })}
+                  </div>
+                ) : null}
 
                 {(viewMode === 'mix' || viewMode === 'points')
                   ? filteredPoints.map((point, idx) => (
                       <div
                         key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
-                        className="absolute h-2.5 w-2.5 rounded-full border border-white bg-cyan-400 shadow"
+                        className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
                         style={{
                           left: `${point.xPct}%`,
                           top: `${point.yPct}%`,
                           transform: 'translate(-50%, -50%)',
+                          backgroundColor: '#06B6D4',
+                          opacity: 1,
+                          zIndex: 20,
                         }}
                         title={`${point.memberName} - ${mapDisplayName(point.mapName, {})}`}
                       />
@@ -485,6 +563,27 @@ export default function MemberDropZonesPage() {
                   : null}
               </div>
             </div>
+
+            {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
+              <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-700">
+                  <span className="font-semibold text-slate-900">Densite relative</span>
+                  {heatRanges.map((range) => (
+                    <span key={`${range.min}-${range.max}`} className="inline-flex items-center gap-1.5">
+                      <span
+                        className="h-3.5 w-3.5 border border-black/15"
+                        style={{ backgroundColor: range.color }}
+                        aria-hidden="true"
+                      />
+                      <span>{range.label} {heatRangeLabel(range)}</span>
+                    </span>
+                  ))}
+                  <span className="text-slate-500">
+                    Seuil : {formatNumber(minimumHeat)} · Maximum : {formatNumber(maxHeat)} atterrissage{maxHeat > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : (
           <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>

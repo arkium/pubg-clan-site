@@ -1,6 +1,6 @@
 # Points à faire — PUBG Clan Site
 
-Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-06-21.
+Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-01.
 
 ---
 
@@ -37,6 +37,26 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] `/members/[id]/drop-zones` — page et API présentes
 - [x] Awards — 11 awards complets, service + route API + page UI avec emojis, labels, descriptions et formatage
 - [x] Défis — `refreshChallengeProgressForClan` câblée depuis `processChallenges` et `runDailyClanSync` (2026-06-23)
+
+### ~~Drop zones membre — Lisibilité de la heatmap~~ — ✅ Complété le 2026-08-01
+
+- [x] Remplacer les halos circulaires par des cellules carrées jointives alignées sur la grille télémétrie `40 × 40`
+- [x] Appliquer cinq plages de couleur logarithmiques recalculées selon le maximum de la période, du filtre et de la carte actifs
+- [x] Utiliser la palette vert clair, vert, jaune, orange et rouge pour distinguer les niveaux de densité
+- [x] Faire varier logarithmiquement la transparence de `10 %` à `60 %` entre la plus faible cellule et le maximum courant
+- [x] Masquer les faibles densités sous un seuil adaptatif `max(1, floor(log2(maximum)))`
+- [x] Recalculer les cinq plages depuis le seuil visible et afficher le compteur `cellules visibles / cellules totales`
+- [x] Conserver des aplats sans halo pour ne pas masquer le fond de carte
+- [x] Appliquer un arrondi uniforme de `35 %` aux quatre coins de toutes les cellules de densité visibles, sans condition de voisinage
+- [x] Afficher les points de drop zones des membres au-dessus de la couche de densité
+- [x] Forcer les points de drop zones des membres en cyan totalement opaque, y compris en thème sombre
+- [x] Ajouter une légende affichant les bornes absolues, le libellé de chaque niveau et le maximum courant
+- [x] Conserver le détail au survol avec les coordonnées, le nombre d'atterrissages et le niveau de densité
+- [x] Valider la page avec ESLint ciblé
+- [x] Vérifier dans le navigateur les périodes `Semaine` (maximum 63) et `Tous` (maximum 717)
+- [x] Vérifier dans le navigateur les bornes d'opacité, l'absence de halo, l'arrondi uniforme sur les cinq niveaux et l'ordre des couches
+- [x] Vérifier dans le navigateur que les points membres ont `opacity: 1` et une couleur sans canal alpha
+- [x] Vérifier les seuils adaptatifs `5` sur `Semaine` et `9` sur `Tous`
 
 ---
 

@@ -23,8 +23,10 @@ export type DropZoneMapViewportHandle = {
 
 type DropZoneMapViewportProps = {
   children: ReactNode
-  boundariesVisible: boolean
-  onBoundariesVisibleChange: (visible: boolean) => void
+  boundariesVisible?: boolean
+  onBoundariesVisibleChange?: (visible: boolean) => void
+  showBoundaryControl?: boolean
+  onMapClick?: (xPct: number, yPct: number) => void
 }
 
 const MIN_ZOOM = 1
@@ -37,11 +39,18 @@ type DragState = {
   startY: number
   scrollLeft: number
   scrollTop: number
+  moved: boolean
 }
 
 const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapViewportProps>(
   function DropZoneMapViewport(
-    { children, boundariesVisible, onBoundariesVisibleChange },
+    {
+      children,
+      boundariesVisible = false,
+      onBoundariesVisibleChange,
+      showBoundaryControl = true,
+      onMapClick,
+    },
     ref
   ) {
     const viewportRef = useRef<HTMLDivElement>(null)
@@ -92,7 +101,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
 
     function startDragging(event: ReactPointerEvent<HTMLDivElement>) {
       const viewport = viewportRef.current
-      if (!viewport || event.button !== 0 || zoom <= MIN_ZOOM) return
+      if (!viewport || event.button !== 0) return
 
       dragRef.current = {
         pointerId: event.pointerId,
@@ -100,9 +109,10 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
         startY: event.clientY,
         scrollLeft: viewport.scrollLeft,
         scrollTop: viewport.scrollTop,
+        moved: false,
       }
       viewport.setPointerCapture(event.pointerId)
-      setDragging(true)
+      if (zoom > MIN_ZOOM) setDragging(true)
       event.preventDefault()
     }
 
@@ -111,8 +121,16 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       const drag = dragRef.current
       if (!viewport || !drag || drag.pointerId !== event.pointerId) return
 
-      viewport.scrollLeft = drag.scrollLeft - (event.clientX - drag.startX)
-      viewport.scrollTop = drag.scrollTop - (event.clientY - drag.startY)
+      const deltaX = event.clientX - drag.startX
+      const deltaY = event.clientY - drag.startY
+      if (Math.hypot(deltaX, deltaY) >= 5) {
+        drag.moved = true
+      }
+
+      if (zoom > MIN_ZOOM && drag.moved) {
+        viewport.scrollLeft = drag.scrollLeft - deltaX
+        viewport.scrollTop = drag.scrollTop - deltaY
+      }
       event.preventDefault()
     }
 
@@ -124,6 +142,13 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       if (viewport.hasPointerCapture(event.pointerId)) {
         viewport.releasePointerCapture(event.pointerId)
       }
+      if (!drag.moved && onMapClick) {
+        const bounds = viewport.getBoundingClientRect()
+        onMapClick(
+          ((viewport.scrollLeft + event.clientX - bounds.left) / viewport.scrollWidth) * 100,
+          ((viewport.scrollTop + event.clientY - bounds.top) / viewport.scrollHeight) * 100
+        )
+      }
       dragRef.current = null
       setDragging(false)
     }
@@ -131,8 +156,9 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
     useImperativeHandle(ref, () => ({ focusLocation, reset }))
 
     useEffect(() => {
-      const viewport = viewportRef.current
-      if (!viewport) return
+      const viewportElement = viewportRef.current
+      if (!viewportElement) return
+      const activeViewport = viewportElement
 
       function handleWheel(event: WheelEvent) {
         if (event.deltaY === 0) return
@@ -143,26 +169,26 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
         )
         if (nextZoom === zoomRef.current) return
 
-        const bounds = viewport.getBoundingClientRect()
+        const bounds = activeViewport.getBoundingClientRect()
         const pointerX = event.clientX - bounds.left
         const pointerY = event.clientY - bounds.top
-        const anchorX = (viewport.scrollLeft + pointerX) / viewport.scrollWidth
-        const anchorY = (viewport.scrollTop + pointerY) / viewport.scrollHeight
+        const anchorX = (activeViewport.scrollLeft + pointerX) / activeViewport.scrollWidth
+        const anchorY = (activeViewport.scrollTop + pointerY) / activeViewport.scrollHeight
 
         event.preventDefault()
         zoomRef.current = nextZoom
         setZoom(nextZoom)
         requestAnimationFrame(() => {
-          viewport.scrollTo({
-            left: anchorX * viewport.scrollWidth - pointerX,
-            top: anchorY * viewport.scrollHeight - pointerY,
+          activeViewport.scrollTo({
+            left: anchorX * activeViewport.scrollWidth - pointerX,
+            top: anchorY * activeViewport.scrollHeight - pointerY,
             behavior: 'auto',
           })
         })
       }
 
-      viewport.addEventListener('wheel', handleWheel, { passive: false })
-      return () => viewport.removeEventListener('wheel', handleWheel)
+      activeViewport.addEventListener('wheel', handleWheel, { passive: false })
+      return () => activeViewport.removeEventListener('wheel', handleWheel)
     }, [])
 
     return (
@@ -174,7 +200,11 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           onPointerUp={stopDragging}
           onPointerCancel={stopDragging}
           className={`absolute inset-0 overflow-auto overscroll-contain select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-            zoom > MIN_ZOOM ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+            zoom > MIN_ZOOM
+              ? (dragging ? 'cursor-grabbing' : 'cursor-grab')
+              : onMapClick
+                ? 'cursor-crosshair'
+                : 'cursor-default'
           }`}
           data-drop-zone-map-viewport
         >
@@ -187,12 +217,12 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           </div>
         </div>
 
-        <div className="group absolute left-3 top-3 z-40">
+        {showBoundaryControl ? <div className="group absolute left-3 top-3 z-40">
           <button
             type="button"
             aria-pressed={boundariesVisible}
             aria-describedby="drop-zone-boundaries-help"
-            onClick={() => onBoundariesVisibleChange(!boundariesVisible)}
+            onClick={() => onBoundariesVisibleChange?.(!boundariesVisible)}
             className={`inline-flex h-10 items-center gap-2 rounded border px-3 text-xs font-semibold shadow-lg backdrop-blur transition-colors ${
               boundariesVisible
                 ? 'border-cyan-300/70 bg-cyan-500/90 text-slate-950'
@@ -210,7 +240,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           >
             Chaque cercle définit la zone utilisée pour associer un atterrissage à une ville.
           </div>
-        </div>
+        </div> : null}
 
         <div className="absolute right-3 top-3 z-40 flex h-10 items-stretch overflow-hidden rounded border border-white/25 bg-slate-950/80 text-white shadow-lg backdrop-blur">
           <button

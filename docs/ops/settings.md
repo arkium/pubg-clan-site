@@ -104,7 +104,9 @@ Stocké dans `AppConfig` sous une clé dédiée (JSON `Record<mapKey, string>`).
 
 La vue **Villes et zones** permet aussi de configurer des périmètres circulaires sur chaque carte disposant d'un asset. Une ville contient un identifiant, un nom, un centre `xPct/yPct`, un `radiusPct` et un statut actif. Le centre peut être placé par clic ou saisi manuellement ; l'interface règle le diamètre de `0,5 %` à `50 %`.
 
-L'éditeur propose un zoom de `1×` à `4×` par pas de `0,5×`. La carte agrandie se déplace avec les barres de défilement, la molette ou le geste tactile. Le changement de niveau conserve le centre visible et la sélection d'une ville la recentre. Les coordonnées restent exprimées par rapport à la carte complète, quel que soit le niveau de zoom.
+L'éditeur utilise le même viewport moderne que les pages drop zones. Les contrôles superposés proposent un zoom de `1×` à `4×` par pas de `0,5×` et une réinitialisation. La molette zoome sous le curseur sans faire défiler la page ; une carte agrandie se déplace par glisser-déposer, avec des curseurs `grab`/`grabbing` et sans barres de défilement visibles. La sélection ou l'ajout d'une ville passe au minimum à `2×` et centre son périmètre.
+
+Un clic simple place le centre de la ville sélectionnée, tandis qu'un mouvement d'au moins `5 px` déplace la carte sans modifier la ville. Les coordonnées restent exprimées par rapport à la carte complète, quel que soit le niveau de zoom ou le défilement du viewport.
 
 Un référentiel initial de 162 villes et zones couvre les 9 cartes dont l'image WebP est disponible. Les actions de préremplissage de la carte courante ou de toutes les cartes fusionnent ces valeurs par identifiant sans écraser les villes déjà personnalisées.
 

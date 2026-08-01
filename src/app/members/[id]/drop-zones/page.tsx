@@ -7,11 +7,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DropZoneMapViewport, {
   type DropZoneMapViewportHandle,
 } from '@/components/drop-zones/DropZoneMapViewport'
+import DropPressureLegend from '@/components/drop-zones/DropPressureLegend'
+import DropPressureMarker from '@/components/drop-zones/DropPressureMarker'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
+import {
+  DROP_PRESSURE_LEVELS,
+  summarizeDropPressure,
+  type DropPressureLevel,
+} from '@/lib/drop-zone-pressure'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type ViewMode = 'mix' | 'heatmap' | 'points'
@@ -27,6 +34,8 @@ type LandingPoint = {
   y: number
   xPct: number
   yPct: number
+  nearbyPlayerCount250m: number
+  pressureLevel: DropPressureLevel
 }
 
 type HeatmapCell = {
@@ -403,6 +412,7 @@ export default function MemberDropZonesPage() {
         const topMember = Array.from(memberCounts.values()).sort(
           (left, right) => right.count - left.count || left.name.localeCompare(right.name, 'fr-FR')
         )[0] ?? null
+        const pressure = summarizeDropPressure(points)
 
         return {
           location,
@@ -411,6 +421,7 @@ export default function MemberDropZonesPage() {
           matches: new Set(points.map((point) => point.matchId)).size,
           members: new Set(points.map((point) => point.memberId)).size,
           topMember,
+          pressure,
         }
       })
       .filter((stat) => stat.count > 0)
@@ -425,6 +436,8 @@ export default function MemberDropZonesPage() {
     if (!selectedLocation) return mapPoints
     return mapPoints.filter((point) => locationForPoint(point, activeLocations)?.id === selectedLocation.id)
   }, [activeLocations, mapPoints, selectedLocation])
+
+  const pressureStats = useMemo(() => summarizeDropPressure(filteredPoints), [filteredPoints])
 
   const filteredHeatmap = useMemo(() => {
     if (selectedLocation) {
@@ -608,6 +621,13 @@ export default function MemberDropZonesPage() {
               <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
               <span className="text-slate-600">Dropzones visibles: {formatNumber(filteredPoints.length)}</span>
               <span className="text-slate-600">
+                Pression moyenne: {pressureStats.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+              </span>
+              <span className="text-slate-600">Maximum: {formatNumber(pressureStats.maximum)}</span>
+              <span className="text-slate-600">
+                Hot drops: {pressureStats.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+              </span>
+              <span className="text-slate-600">
                 Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
               </span>
             </div>
@@ -714,6 +734,9 @@ export default function MemberDropZonesPage() {
                             >
                               {stat.location.name}
                             </button>
+                            <p className="mt-1 text-xs font-normal text-gray-500">
+                              Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
+                            </p>
                           </td>
                           <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
                           <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
@@ -780,6 +803,9 @@ export default function MemberDropZonesPage() {
                                 </button>
                                 <p className="mt-1 text-xs text-gray-500">
                                   {formatNumber(stat.matches)} match{stat.matches > 1 ? 's' : ''} · {formatNumber(stat.members)} membre{stat.members > 1 ? 's' : ''}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
                                 </p>
                                 {stat.topMember ? (
                                   <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-700">
@@ -890,26 +916,24 @@ export default function MemberDropZonesPage() {
                 {(viewMode === 'mix' || viewMode === 'points')
                   ? filteredPoints.map((point, idx) => {
                       const pointLocation = locationForPoint(point, activeLocations)
+                      const pressure = DROP_PRESSURE_LEVELS[point.pressureLevel]
 
                       return (
-                        <div
+                        <DropPressureMarker
                           key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
-                          className="absolute h-2.5 w-2.5 rounded-full border border-white shadow"
-                          style={{
-                            left: `${point.xPct}%`,
-                            top: `${point.yPct}%`,
-                            transform: 'translate(-50%, -50%)',
-                            backgroundColor: '#06B6D4',
-                            opacity: 1,
-                            zIndex: 20,
-                          }}
-                          title={`${point.memberName} - ${mapDisplayName(point.mapName, {})} - Dropzone : ${pointLocation?.name ?? 'Hors ville'}`}
+                          xPct={point.xPct}
+                          yPct={point.yPct}
+                          pressureLevel={point.pressureLevel}
+                          borderColor="#ffffff"
+                          title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${formatNumber(point.nearbyPlayerCount250m)} joueur${point.nearbyPlayerCount250m > 1 ? 's' : ''} à moins de 250 m · ${pressure.label}`}
                         />
                       )
                     })
                   : null}
               </div>
             </DropZoneMapViewport>
+
+            {(viewMode === 'mix' || viewMode === 'points') ? <DropPressureLegend /> : null}
 
             {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">

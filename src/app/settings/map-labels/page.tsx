@@ -5,7 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
+import DropZoneMapViewport, {
+  type DropZoneMapViewportHandle,
+} from '@/components/drop-zones/DropZoneMapViewport'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import FilterDropdown from '@/components/ui/FilterDropdown'
 import MapImage from '@/components/ui/MapImage'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
@@ -48,7 +52,7 @@ const VIEW_OPTIONS: Array<{ value: SettingsView; label: string }> = [
 export default function MapLabelsSettingsPage() {
   const router = useRouter()
   const { loading, authenticated, permissions } = useAuthSession()
-  const mapViewportRef = useRef<HTMLDivElement>(null)
+  const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
   const [labels, setLabels] = useState<MapLabels>({})
   const [locations, setLocations] = useState<MapLocations>({})
@@ -56,7 +60,6 @@ export default function MapLabelsSettingsPage() {
   const [view, setView] = useState<SettingsView>('labels')
   const [selectedMap, setSelectedMap] = useState<string>(MAP_KEYS[0])
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
-  const [mapZoom, setMapZoom] = useState(1)
   const [saving, setSaving] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -225,36 +228,7 @@ export default function MapLabelsSettingsPage() {
   }
 
   function centerMapOnLocation(location: MapLocation) {
-    const viewport = mapViewportRef.current
-    if (!viewport) return
-
-    viewport.scrollTo({
-      left: (location.xPct / 100) * viewport.scrollWidth - viewport.clientWidth / 2,
-      top: (location.yPct / 100) * viewport.scrollHeight - viewport.clientHeight / 2,
-      behavior: 'smooth',
-    })
-  }
-
-  function changeMapZoom(nextZoom: number) {
-    const viewport = mapViewportRef.current
-    const boundedZoom = Math.max(1, Math.min(4, nextZoom))
-    const centerX = viewport
-      ? (viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth
-      : 0.5
-    const centerY = viewport
-      ? (viewport.scrollTop + viewport.clientHeight / 2) / viewport.scrollHeight
-      : 0.5
-
-    setMapZoom(boundedZoom)
-    requestAnimationFrame(() => {
-      const nextViewport = mapViewportRef.current
-      if (!nextViewport) return
-
-      nextViewport.scrollTo({
-        left: centerX * nextViewport.scrollWidth - nextViewport.clientWidth / 2,
-        top: centerY * nextViewport.scrollHeight - nextViewport.clientHeight / 2,
-      })
-    })
+    mapViewportRef.current?.focusLocation(location)
   }
 
   function loadDefaultLocationsForSelectedMap() {
@@ -310,13 +284,12 @@ export default function MapLabelsSettingsPage() {
     setSelectedLocationId(null)
   }
 
-  function placeSelectedLocation(event: React.MouseEvent<HTMLButtonElement>) {
+  function placeSelectedLocation(xPct: number, yPct: number) {
     if (!selectedLocationId) return
 
-    const bounds = event.currentTarget.getBoundingClientRect()
     updateSelectedLocation({
-      xPct: Number((((event.clientX - bounds.left) / bounds.width) * 100).toFixed(2)),
-      yPct: Number((((event.clientY - bounds.top) / bounds.height) * 100).toFixed(2)),
+      xPct: Number(xPct.toFixed(2)),
+      yPct: Number(yPct.toFixed(2)),
     })
   }
 
@@ -470,8 +443,7 @@ export default function MapLabelsSettingsPage() {
                   onClick={() => {
                     setSelectedMap(mapKey)
                     setSelectedLocationId(null)
-                    setMapZoom(1)
-                    mapViewportRef.current?.scrollTo({ left: 0, top: 0 })
+                    mapViewportRef.current?.reset()
                   }}
                   className={`min-w-0 rounded border p-2 text-left transition-colors ${
                     !MAP_KEYS_WITH_ASSETS.has(mapKey)
@@ -492,110 +464,77 @@ export default function MapLabelsSettingsPage() {
 
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.75fr)]">
               <div className="min-w-0 space-y-2">
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary h-9 w-9 p-0 text-lg"
-                    onClick={() => changeMapZoom(mapZoom - 0.5)}
-                    disabled={mapZoom <= 1}
-                    title="Reduire le zoom"
-                    aria-label="Reduire le zoom"
-                  >
-                    −
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary min-w-16"
-                    onClick={() => changeMapZoom(1)}
-                    title="Reinitialiser le zoom"
-                    aria-label="Reinitialiser le zoom"
-                  >
-                    {mapZoom.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}×
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary h-9 w-9 p-0 text-lg"
-                    onClick={() => changeMapZoom(mapZoom + 0.5)}
-                    disabled={mapZoom >= 4}
-                    title="Augmenter le zoom"
-                    aria-label="Augmenter le zoom"
-                  >
-                    +
-                  </button>
-                </div>
-
-                <div
+                <DropZoneMapViewport
                   ref={mapViewportRef}
-                  className="aspect-square w-full overflow-auto rounded border border-gray-300 bg-slate-950"
-                  data-map-viewport
+                  showBoundaryControl={false}
+                  onMapClick={placeSelectedLocation}
                 >
-                  <button
-                    type="button"
-                    onClick={placeSelectedLocation}
-                    className="relative block shrink-0 cursor-crosshair overflow-hidden bg-slate-950"
-                    style={{
-                      width: `${mapZoom * 100}%`,
-                      aspectRatio: '1',
-                    }}
-                    aria-label={`Carte de ${labels[selectedMap] ?? selectedMap}`}
-                  >
-                    <Image
-                      src={`/maps/pubg/${selectedMap}.webp`}
-                      alt={labels[selectedMap] ?? selectedMap}
-                      fill
-                      className="object-fill"
-                      sizes="(min-width: 1024px) 56vw, 100vw"
-                      unoptimized
-                    />
-                    {selectedMapLocations.filter((location) => location.enabled).map((location) => (
-                      <span
-                        key={location.id}
-                        className={`absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-[10px] font-semibold text-white shadow ${
+                  <Image
+                    src={`/maps/pubg/${selectedMap}.webp`}
+                    alt={labels[selectedMap] ?? selectedMap}
+                    fill
+                    className="object-fill"
+                    sizes="(min-width: 1024px) 56vw, 100vw"
+                    unoptimized
+                  />
+                  {selectedMapLocations.filter((location) => location.enabled).map((location) => (
+                    <span
+                      key={location.id}
+                      className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-[10px] font-semibold text-white shadow"
+                      style={{
+                        left: `${location.xPct}%`,
+                        top: `${location.yPct}%`,
+                        width: `${location.radiusPct * 2}%`,
+                        aspectRatio: '1',
+                        border: `2px solid ${
                           location.id === selectedLocationId
-                            ? 'border-cyan-200 bg-cyan-700/55 ring-2 ring-white'
-                            : 'border-white/80 bg-slate-950/45'
-                        }`}
-                        style={{
-                          left: `${location.xPct}%`,
-                          top: `${location.yPct}%`,
-                          width: `${location.radiusPct * 2}%`,
-                          aspectRatio: '1',
-                        }}
-                      >
-                        <span className="max-w-full truncate px-1">{location.name}</span>
-                      </span>
-                    ))}
-                  </button>
-                </div>
+                            ? 'rgb(165 243 252)'
+                            : 'rgb(255 255 255 / 0.8)'
+                        }`,
+                        borderRadius: '50%',
+                        backgroundColor:
+                          location.id === selectedLocationId
+                            ? 'rgb(14 116 144 / 0.55)'
+                            : 'rgb(2 6 23 / 0.45)',
+                        boxShadow:
+                          location.id === selectedLocationId
+                            ? '0 0 0 2px rgb(255 255 255)'
+                            : undefined,
+                      }}
+                    >
+                      <span className="max-w-full truncate px-1">{location.name}</span>
+                    </span>
+                  ))}
+                </DropZoneMapViewport>
               </div>
 
               <div className="space-y-4">
-                <div className="app-panel-muted p-3">
-                  <div className="space-y-2">
-                    {selectedMapLocations.length === 0 ? (
-                      <p className="text-sm text-gray-600">Aucune ville configuree.</p>
-                    ) : selectedMapLocations.map((location) => (
-                      <button
-                        key={location.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedLocationId(location.id)
-                          centerMapOnLocation(location)
-                        }}
-                        className={`flex w-full items-center justify-between gap-2 rounded border px-3 py-2 text-left text-sm ${
-                          location.id === selectedLocationId
-                            ? 'border-blue-500 bg-blue-50 text-blue-800'
-                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        <span className="truncate font-medium">{location.name}</span>
-                        <span className="shrink-0 text-xs text-gray-500">
-                          Ø {(location.radiusPct * 2).toFixed(1)}%
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <FilterDropdown
+                  id="map-location-select"
+                  label="Ville ou zone"
+                  value={selectedLocationId ?? ''}
+                  disabled={selectedMapLocations.length === 0}
+                  options={[
+                    {
+                      value: '',
+                      label:
+                        selectedMapLocations.length === 0
+                          ? 'Aucune ville configuree'
+                          : 'Selectionner une ville',
+                    },
+                    ...selectedMapLocations.map((location) => ({
+                      value: location.id,
+                      label: `${location.name} — Ø ${(location.radiusPct * 2).toFixed(1)}%`,
+                    })),
+                  ]}
+                  onChange={(locationId) => {
+                    setSelectedLocationId(locationId || null)
+                    const location = selectedMapLocations.find((item) => item.id === locationId)
+                    if (location) {
+                      centerMapOnLocation(location)
+                    }
+                  }}
+                />
 
                 {selectedLocation ? (
                   <div className="app-panel-muted space-y-4 p-4">

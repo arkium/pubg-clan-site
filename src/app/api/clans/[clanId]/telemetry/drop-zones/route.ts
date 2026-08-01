@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client'
 
+import {
+  countNearbyPlayers,
+  dropPressureLevel,
+  type DropPressureLevel,
+  type DropPressureSample,
+} from '@/lib/drop-zone-pressure'
 import { getMapLocations } from '@/lib/map-location-service'
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
@@ -20,6 +26,8 @@ type LandingPoint = {
   y: number
   xPct: number
   yPct: number
+  nearbyPlayerCount250m: number
+  pressureLevel: DropPressureLevel
 }
 
 type HeatmapCell = {
@@ -163,18 +171,19 @@ export async function GET(
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
       const samples = parseLandingSamples(row.landingSamples)
+      const pressureSamples: DropPressureSample[] = samples.flatMap((sample) => {
+        const memberKey =
+          typeof sample.memberKey === 'string' ? sample.memberKey.trim().toLowerCase() : ''
+        const x = typeof sample.x === 'number' ? sample.x : null
+        const y = typeof sample.y === 'number' ? sample.y : null
+        return memberKey && x !== null && y !== null ? [{ memberKey, x, y }] : []
+      })
       const accountId = row.pubgAccountId?.toLowerCase()
       const playerName = row.pubgPlayerName?.toLowerCase()
       const matchAlreadyProcessed = processedHeatmapMatchIds.has(row.squadMatchId)
 
-      for (const sample of samples as LandingSampleRow[]) {
-        const memberKey =
-          typeof sample.memberKey === 'string' ? sample.memberKey.toLowerCase() : null
-        if (!memberKey) continue
-
-        const x = typeof sample.x === 'number' ? sample.x : null
-        const y = typeof sample.y === 'number' ? sample.y : null
-        if (x === null || y === null) continue
+      for (const sample of pressureSamples) {
+        const { memberKey, x, y } = sample
 
         const mapBounds = getMapBounds(mapName)
         const xPct = clamp01(x / mapBounds.width) * 100
@@ -186,6 +195,7 @@ export async function GET(
           (playerName !== undefined && memberKey === playerName)
 
         if (isClanMember) {
+          const nearbyPlayerCount250m = countNearbyPlayers(pressureSamples, memberKey, x, y)
           landingPoints.push({
             memberId: row.memberId,
             memberName: row.memberName,
@@ -195,6 +205,8 @@ export async function GET(
             y,
             xPct: Number(xPct.toFixed(2)),
             yPct: Number(yPct.toFixed(2)),
+            nearbyPlayerCount250m,
+            pressureLevel: dropPressureLevel(nearbyPlayerCount250m),
           })
         }
 

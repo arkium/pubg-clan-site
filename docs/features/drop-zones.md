@@ -58,6 +58,23 @@ En cas d'égalité entre membres dans une ville, le nom affiché est le premier 
 
 Le filtre par ville limite les points affichés et reconstruit la heatmap à partir de ces seuls points. Les périmètres circulaires blancs sont visibles par défaut ; leur bouton superposé permet de masquer cette couche, placée au-dessus de la heatmap et sous les points individuels.
 
+### Pression au drop
+
+Chaque drop suivi est comparé aux autres `landingSamples` du même match. Les joueurs sont dédupliqués par `memberKey`, le joueur suivi est exclu, puis les joueurs situés à moins de `250 m` (`25 000` unités PUBG) sont comptés.
+
+Le marqueur unique remplace l'ancien point et son remplissage indique le niveau provisoire :
+
+| Niveau | Joueurs proches | Couleur |
+|---|---:|---|
+| Calme | 0–2 | Vert |
+| Contesté | 3–7 | Jaune |
+| Hot drop | 8–15 | Orange |
+| Très chaud | 16+ | Rouge |
+
+Sur la page clan, le contour du marqueur conserve la couleur du membre. L'infobulle expose le membre, la ville, le nombre de joueurs proches et le niveau. Les indicateurs affichent la pression moyenne, le maximum et la part de hot drops selon la période et les filtres actifs. Le Top 5 des villes ajoute sa pression moyenne et son taux de hot drops.
+
+Ces valeurs sont actuellement calculées à la volée depuis les JSON existants. Les seuils doivent être calibrés avec plusieurs matchs réels avant toute persistance ou agrégation historique dédiée.
+
 Les cartes membre et clan utilisent le même viewport interactif. Les contrôles superposés proposent un zoom de `1×` à `4×` par pas de `0,5×`, conservent le centre visible lors d'un zoom manuel et réinitialisent la carte entière depuis le bouton du niveau courant. La molette applique les mêmes pas de zoom en conservant sous le curseur le point de carte visé, sans faire défiler la page pendant une variation effective. Une carte agrandie se déplace directement par glisser-déposer à la souris, avec des curseurs `grab` et `grabbing` ; les barres de défilement sont masquées et le déplacement tactile natif reste disponible. La sélection d'une ville depuis le filtre ou le Top 5 passe au minimum à `2×` et centre automatiquement son périmètre.
 
 ---

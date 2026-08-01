@@ -72,6 +72,12 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Ajouter un zoom de `1×` à `4×`, sa réinitialisation et le déplacement dans la carte agrandie
 - [x] Conserver le centre visible pendant le zoom et recentrer la carte lors de la sélection d'une ville
 - [x] Conserver des coordonnées cartographiques exactes lors d'un placement sur une carte zoomée
+- [x] Remplacer les contrôles externes par le viewport moderne partagé avec les pages drop zones
+- [x] Superposer les contrôles de zoom sur la carte et masquer les barres de défilement
+- [x] Permettre le zoom sous le curseur avec la molette et le déplacement par glisser-déposer
+- [x] Distinguer un clic de placement d'un glisser de carte avec un seuil de mouvement
+- [x] Passer au minimum à `2×` et centrer la carte lors de l'ajout ou de la sélection d'une ville
+- [x] Vérifier le clic de placement à zoom `2×`, le drag sans déplacement de la ville et le rendu mobile sans débordement
 - [x] Désactiver l'édition géographique de `Range_Main` et `Heaven_Main` tant que leurs images sont absentes
 - [x] Valider un aller-retour API `PUT -> GET` puis restaurer la configuration initiale
 - [x] Valider ESLint et les diagnostics VS Code sur le service, l'API et la page
@@ -118,6 +124,41 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Passer à `2×` et centrer la ville lors d'une sélection depuis le filtre ou le Top 5
 - [x] Réinitialiser le viewport lors d'un changement de carte ou de portée
 - [x] Valider ESLint et les diagnostics VS Code sur le composant et les deux pages
+
+### Drop zones — Pression au drop dans un rayon de 250 m
+
+La première phase valide le principe à partir des `landingSamples` déjà stockés, sans migration. La métrique est nommée **pression au drop** : elle mesure la fréquentation autour du point d'atterrissage, pas l'agressivité réelle du joueur.
+
+#### Phase 1 — Calcul à la volée et validation UI
+
+- [x] Pour chaque drop suivi, sélectionner uniquement les `landingSamples` du même match
+- [x] Dédupliquer les joueurs par `memberKey` avant le comptage
+- [x] Compter les autres joueurs dans un rayon réel de `250 m` (`25 000` unités PUBG)
+- [x] Exposer `nearbyPlayerCount250m` pour chaque point dans les API membre et clan
+- [x] Ajouter un niveau provisoire : `Calme` (0–2), `Contesté` (3–7), `Hot drop` (8–15), `Très chaud` (16+)
+- [x] Remplacer chaque point par un marqueur unique dont le remplissage indique la pression
+- [x] Conserver la couleur du membre sur le contour du marqueur dans la page clan
+- [x] Ajouter une légende commune des quatre niveaux sur les pages membre et clan
+- [x] Ajouter à l'infobulle le nombre de joueurs à moins de 250 m et le niveau de pression
+- [x] Afficher la moyenne, le maximum et le pourcentage de hot drops pour `Semaine`, `Mois` et `Tous`
+- [x] Ajouter au Top 5 des villes leur pression moyenne et leur part de hot drops
+- [x] Vérifier par le code que les filtres de portée, joueur, carte et ville recalculent les indicateurs
+- [x] Ajouter des tests unitaires pour la frontière des 250 m, la déduplication, les seuils et les agrégats
+- [x] Valider ESLint, les diagnostics TypeScript et le build de production
+- [ ] Valider les résultats sur plusieurs matchs réels en comparant les points proches sur la carte
+- [ ] Ajuster et valider les seuils de pression à partir de la distribution observée
+- [ ] Vérifier les rendus desktop/mobile et les thèmes clair/sombre sur les deux pages
+
+#### Phase 2 — Persistance et historique après validation
+
+- [ ] Décider si les performances observées justifient la persistance des résultats dérivés
+- [ ] Si nécessaire, créer un stockage par drop avec `matchId`, `memberId`, coordonnées, date du match, nombre de joueurs proches et niveau
+- [ ] Stocker séparément le nombre total de joueurs proches et, si les données le permettent, le nombre d'adversaires proches
+- [ ] Calculer et stocker la pression lors du parsing des nouveaux matchs
+- [ ] Backfiller les matchs existants qui possèdent déjà des `landingSamples`
+- [ ] Garantir l'idempotence du parsing et du backfill pour éviter les doublons
+- [ ] Ajouter une `periodKey` ou une plage de dates pour consulter et comparer d'anciennes semaines et d'anciens mois
+- [ ] Ajouter une évolution temporelle de la pression au drop après validation du stockage
 
 ---
 

@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client'
 
+import {
+  countNearbyPlayers,
+  dropPressureLevel,
+  type DropPressureLevel,
+  type DropPressureSample,
+} from '@/lib/drop-zone-pressure'
 import { getMapLocations } from '@/lib/map-location-service'
 import { prisma } from '@/lib/prisma'
 import {
@@ -22,6 +28,8 @@ type LandingPoint = {
   y: number
   xPct: number
   yPct: number
+  nearbyPlayerCount250m: number
+  pressureLevel: DropPressureLevel
 }
 
 type HeatmapCell = {
@@ -396,15 +404,16 @@ export async function GET(
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
       const samples = parseLandingSamples(row.landingSamples)
-
-      for (const sample of samples) {
+      const pressureSamples: DropPressureSample[] = samples.flatMap((sample) => {
         const memberKey =
-          typeof sample.memberKey === 'string' ? sample.memberKey.toLowerCase() : null
-        if (!memberKey) continue
-
+          typeof sample.memberKey === 'string' ? sample.memberKey.trim().toLowerCase() : ''
         const x = typeof sample.x === 'number' ? sample.x : null
         const y = typeof sample.y === 'number' ? sample.y : null
-        if (x === null || y === null) continue
+        return memberKey && x !== null && y !== null ? [{ memberKey, x, y }] : []
+      })
+
+      for (const sample of pressureSamples) {
+        const { memberKey, x, y } = sample
 
         const mapBounds = getMapBounds(mapName)
         const xPct = clamp01(x / mapBounds.width) * 100
@@ -412,6 +421,7 @@ export async function GET(
 
         const trackedMember = trackedMemberKeys.get(memberKey)
         if (trackedMember) {
+          const nearbyPlayerCount250m = countNearbyPlayers(pressureSamples, memberKey, x, y)
           landingPoints.push({
             memberId: trackedMember.memberId,
             memberName: trackedMember.memberName,
@@ -421,6 +431,8 @@ export async function GET(
             y,
             xPct: Number(xPct.toFixed(2)),
             yPct: Number(yPct.toFixed(2)),
+            nearbyPlayerCount250m,
+            pressureLevel: dropPressureLevel(nearbyPlayerCount250m),
           })
         }
 

@@ -2,8 +2,11 @@
 
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
+import DropZoneMapViewport, {
+  type DropZoneMapViewportHandle,
+} from '@/components/drop-zones/DropZoneMapViewport'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
@@ -237,6 +240,7 @@ function extractErrorMessage(payload: unknown, fallback: string) {
 export default function MemberDropZonesPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
+  const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
   const [period, setPeriod] = useState<TelemetryPeriod>('week')
   const [viewMode, setViewMode] = useState<ViewMode>('mix')
@@ -245,7 +249,7 @@ export default function MemberDropZonesPage() {
   const [bestMode, setBestMode] = useState<BestMode>('duo')
   const [selectedMap, setSelectedMap] = useState('')
   const [selectedLocationId, setSelectedLocationId] = useState('')
-  const [showLocationBoundaries, setShowLocationBoundaries] = useState(false)
+  const [showLocationBoundaries, setShowLocationBoundaries] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<DropZonesResponse | null>(null)
@@ -364,6 +368,15 @@ export default function MemberDropZonesPage() {
   }, [activeMap, payload?.data.options?.mapLocations])
 
   const selectedLocation = activeLocations.find((location) => location.id === selectedLocationId)
+
+  function selectLocation(location: MapLocation | null) {
+    setSelectedLocationId(location?.id ?? '')
+    if (location) {
+      mapViewportRef.current?.focusLocation(location)
+    } else {
+      mapViewportRef.current?.reset()
+    }
+  }
 
   const cityStats = useMemo(() => {
     const pointsByLocation = new Map<string, LandingPoint[]>()
@@ -571,6 +584,7 @@ export default function MemberDropZonesPage() {
                 onSelect: () => {
                   setSelectedMap(mapName)
                   setSelectedLocationId('')
+                  mapViewportRef.current?.reset()
                 },
               }))}
               visibilityClass=""
@@ -622,28 +636,18 @@ export default function MemberDropZonesPage() {
                         key: 'all-locations',
                         label: 'Toutes les villes',
                         active: !selectedLocation,
-                        onSelect: () => setSelectedLocationId(''),
+                        onSelect: () => selectLocation(null),
                       },
                       ...activeLocations.map((location) => ({
                         key: location.id,
                         label: location.name,
                         active: selectedLocation?.id === location.id,
-                        onSelect: () => setSelectedLocationId(location.id),
+                        onSelect: () => selectLocation(location),
                       })),
                     ]}
                     visibilityClass=""
                     className="w-full"
                   />
-
-                  <label className="flex h-10 cursor-pointer items-center gap-2 rounded border border-slate-300 px-3 text-sm font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={showLocationBoundaries}
-                      onChange={(event) => setShowLocationBoundaries(event.target.checked)}
-                      className="h-4 w-4 accent-cyan-600"
-                    />
-                    Périmètres
-                  </label>
                 </div>
               </div>
 
@@ -705,7 +709,7 @@ export default function MemberDropZonesPage() {
                           <td className="px-4 py-3 font-medium text-gray-900">
                             <button
                               type="button"
-                              onClick={() => setSelectedLocationId(stat.location.id)}
+                              onClick={() => selectLocation(stat.location)}
                               className="max-w-full truncate text-left font-semibold text-cyan-700 hover:underline"
                             >
                               {stat.location.name}
@@ -769,7 +773,7 @@ export default function MemberDropZonesPage() {
                               <div className="min-w-0 flex-1">
                                 <button
                                   type="button"
-                                  onClick={() => setSelectedLocationId(stat.location.id)}
+                                  onClick={() => selectLocation(stat.location)}
                                   className="block max-w-full truncate text-left text-sm font-semibold text-cyan-700 hover:underline"
                                 >
                                   {stat.location.name}
@@ -801,7 +805,11 @@ export default function MemberDropZonesPage() {
               ) : null}
             </div>
 
-            <div className="relative aspect-square bg-slate-950">
+            <DropZoneMapViewport
+              ref={mapViewportRef}
+              boundariesVisible={showLocationBoundaries}
+              onBoundariesVisibleChange={setShowLocationBoundaries}
+            >
               {activeMap ? (
                 <>
                   <Image
@@ -852,16 +860,26 @@ export default function MemberDropZonesPage() {
                   ? activeLocations.map((location) => (
                       <div
                         key={`location:${location.id}`}
-                        className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${
-                          selectedLocation?.id === location.id
-                            ? 'border-cyan-300 bg-cyan-400/15 ring-2 ring-white/80'
-                            : 'border-white/75 bg-white/5'
-                        }`}
+                        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
                         style={{
                           left: `${location.xPct}%`,
                           top: `${location.yPct}%`,
                           width: `${location.radiusPct * 2}%`,
                           aspectRatio: '1',
+                          border: `2px solid ${
+                            selectedLocation?.id === location.id
+                              ? 'rgb(103 232 249)'
+                              : 'rgba(255, 255, 255, 0.88)'
+                          }`,
+                          borderRadius: '50%',
+                          backgroundColor:
+                            selectedLocation?.id === location.id
+                              ? 'rgb(34 211 238 / 0.15)'
+                              : 'rgb(255 255 255 / 0.05)',
+                          boxShadow:
+                            selectedLocation?.id === location.id
+                              ? '0 0 0 2px rgb(255 255 255 / 0.8)'
+                              : undefined,
                           zIndex: 15,
                         }}
                         title={location.name}
@@ -891,7 +909,7 @@ export default function MemberDropZonesPage() {
                     })
                   : null}
               </div>
-            </div>
+            </DropZoneMapViewport>
 
             {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
               <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">

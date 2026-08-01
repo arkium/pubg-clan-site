@@ -56,7 +56,9 @@ Le Top 5 affiché au-dessus de la carte est recalculé selon la portée, la pér
 
 En cas d'égalité entre membres dans une ville, le nom affiché est le premier par ordre alphabétique.
 
-Le filtre par ville limite les points affichés et reconstruit la heatmap à partir de ces seuls points. L'affichage des périmètres est facultatif ; cette couche se place au-dessus de la heatmap et sous les points individuels.
+Le filtre par ville limite les points affichés et reconstruit la heatmap à partir de ces seuls points. Les périmètres circulaires blancs sont visibles par défaut ; leur bouton superposé permet de masquer cette couche, placée au-dessus de la heatmap et sous les points individuels.
+
+Les cartes membre et clan utilisent le même viewport interactif. Les contrôles superposés proposent un zoom de `1×` à `4×` par pas de `0,5×`, conservent le centre visible lors d'un zoom manuel et réinitialisent la carte entière depuis le bouton du niveau courant. La molette applique les mêmes pas de zoom en conservant sous le curseur le point de carte visé, sans faire défiler la page pendant une variation effective. Une carte agrandie se déplace directement par glisser-déposer à la souris, avec des curseurs `grab` et `grabbing` ; les barres de défilement sont masquées et le déplacement tactile natif reste disponible. La sélection d'une ville depuis le filtre ou le Top 5 passe au minimum à `2×` et centre automatiquement son périmètre.
 
 ---
 
@@ -185,17 +187,20 @@ type DropZonesData = {
 
 ### `/clans/[clanId]/drop-zones`
 
-Vue clan — points de landing de tous les membres actifs sur la période, superposés sur l'image de la carte. Recommandations de rendu :
-- Image de carte en `position: relative` comme conteneur
-- Points colorés par membre (`left: xPct%`, `top: yPct%`)
-- Overlay heatmap (grille 40x40) avec transparence proportionnelle à `count / count_max`
-- Sélecteur de période (`SegmentedControl`)
-- Légende : couleur → nom du membre
-- Filtre par carte si plusieurs cartes dans la période
+Vue clan — points de landing de tous les membres actifs sur la période, superposés sur l'image de la carte. Elle reprend les mêmes statistiques par ville et le même rendu de densité que la page membre :
+
+- Top 5 standardisé avec ville favorite, atterrissages, part, matchs, membres et membre principal ;
+- filtres par période, affichage, carte, joueur et ville ;
+- périmètres circulaires visibles par défaut et masquables depuis la carte ;
+- zoom `1×–4×` par contrôles ou molette et recentrage automatique sur la ville sélectionnée ;
+- déplacement de la carte agrandie par glisser-déposer, sans barres de défilement visibles ;
+- heatmap carrée `40 × 40`, plages logarithmiques, seuil adaptatif et opacité de `10 %` à `60 %` ;
+- points opaques colorés par membre au-dessus des périmètres et de la densité ;
+- vue mobile en liste synthétique sans défilement horizontal de page.
 
 ### `/members/[id]/drop-zones`
 
-Vue individuelle — points de landing d'un seul membre, avec mise en avant de ses zones préférées.
+Vue individuelle — points de landing d'un membre, du clan ou de sa meilleure formation, avec mise en avant des zones préférées, le même référentiel de villes et les mêmes interactions de carte que la vue clan.
 
 ---
 

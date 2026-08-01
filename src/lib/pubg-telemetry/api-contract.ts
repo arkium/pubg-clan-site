@@ -2,6 +2,7 @@ type TelemetryScope = 'clan' | 'member'
 
 type TelemetryMeta = {
   scope: TelemetryScope
+  scopeLabel?: string
   clanId?: number
   memberId?: number
   period?: 'week' | 'month' | 'all'

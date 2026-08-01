@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
+import { getMapLocations } from '@/lib/map-location-service'
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import {
@@ -109,7 +109,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+      return Response.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
         status: 400,
       })
     }
@@ -219,8 +219,15 @@ export async function GET(
         count,
       }
     })
+    const configuredLocations = await getMapLocations()
+    const activeLocations = Object.fromEntries(
+      Object.entries(configuredLocations).map(([mapName, locations]) => [
+        mapName,
+        locations.filter((location) => location.enabled),
+      ])
+    )
 
-    return NextResponse.json(
+    return Response.json(
       buildTelemetrySuccessResponse(
         {
           scope: 'clan',
@@ -233,6 +240,9 @@ export async function GET(
           gridSize: GRID_SIZE,
           points: landingPoints,
           heatmap: heatmapCells,
+          options: {
+            mapLocations: activeLocations,
+          },
         },
         {
           clanId: parsedClanId,
@@ -244,11 +254,11 @@ export async function GET(
     )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+      return Response.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Drop zones telemetry failed:', error)
-    return NextResponse.json(buildTelemetryErrorResponse('Failed to load drop zones'), {
+    return Response.json(buildTelemetryErrorResponse('Failed to load drop zones'), {
       status: 500,
     })
   }

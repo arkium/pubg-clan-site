@@ -91,6 +91,34 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 - [x] Vérifier avec les données réelles que Pochinki est favorite avec 3 atterrissages sur la période active
 - [x] Vérifier le rendu mobile sans débordement horizontal de page
 
+### ~~Drop zones clan — Alignement avec la page membre~~ — ✅ Complété le 2026-08-01
+
+- [x] Exposer les villes actives dans `GET /api/clans/[clanId]/telemetry/drop-zones`
+- [x] Remplacer les halos radiaux par la grille carrée logarithmique `40 × 40`
+- [x] Appliquer le seuil adaptatif, l'opacité `10 %–60 %`, les cinq couleurs et la légende dynamique
+- [x] Ajouter le Top 5 standard `app-table-*` avec membre principal et vue mobile dédiée
+- [x] Ajouter les statistiques en ville / hors périmètre et la ville favorite
+- [x] Ajouter le filtre par ville avec recalcul des points et de la heatmap
+- [x] Ajouter l'affichage facultatif des périmètres et les infobulles `Dropzone : <ville>`
+- [x] Conserver les points colorés par membre au-dessus des périmètres et de la densité
+- [x] Aligner les libellés et compteurs du bandeau sur les données filtrées
+- [x] Vérifier Pochinki sur les données clan : 17 atterrissages, 6 matchs, 6 membres, Damarz principal avec 4
+- [x] Vérifier le filtre Pochinki : 97 → 17 points et heatmap recalculée
+- [x] Vérifier les rendus desktop et mobile sans débordement horizontal
+
+### ~~Drop zones — Navigation cartographique~~ — ✅ Complété le 2026-08-01
+
+- [x] Partager le viewport cartographique entre les pages membre et clan
+- [x] Afficher les périmètres circulaires blancs par défaut sur les deux pages
+- [x] Remplacer la case à cocher par un bouton superposé expliquant le principe d'association aux villes
+- [x] Ajouter un zoom superposé de `1×` à `4×` avec niveau courant et réinitialisation
+- [x] Ajouter le zoom et dézoom à la molette en conservant le point situé sous le curseur
+- [x] Permettre le déplacement de la carte zoomée par glisser-déposer et masquer les barres de défilement
+- [x] Conserver le centre visible lors d'un changement de zoom manuel
+- [x] Passer à `2×` et centrer la ville lors d'une sélection depuis le filtre ou le Top 5
+- [x] Réinitialiser le viewport lors d'un changement de carte ou de portée
+- [x] Valider ESLint et les diagnostics VS Code sur le composant et les deux pages
+
 ---
 
 ## P2 — Fonctionnalités incomplètes

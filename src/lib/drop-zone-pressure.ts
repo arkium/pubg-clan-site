@@ -5,8 +5,14 @@ export type DropPressureLevel = 'calm' | 'contested' | 'hot' | 'very_hot'
 
 export type DropPressureSample = {
   memberKey: string
+  teamId?: number
   x: number
   y: number
+}
+
+export type DropPressureBreakdown = {
+  nearbyPlayerCount: number
+  nearbyOpponentCount: number | null
 }
 
 export const DROP_PRESSURE_LEVELS: Record<
@@ -32,8 +38,25 @@ export function countNearbyPlayers(
   targetX: number,
   targetY: number
 ) {
+  return countNearbyPlayersBreakdown(
+    samples,
+    targetMemberKey,
+    targetX,
+    targetY
+  ).nearbyPlayerCount
+}
+
+export function countNearbyPlayersBreakdown(
+  samples: DropPressureSample[],
+  targetMemberKey: string,
+  targetX: number,
+  targetY: number
+): DropPressureBreakdown {
   const normalizedTargetKey = targetMemberKey.trim().toLowerCase()
   const uniquePlayers = new Map<string, DropPressureSample>()
+  const targetTeamId = samples.find(
+    (sample) => sample.memberKey.trim().toLowerCase() === normalizedTargetKey
+  )?.teamId
 
   for (const sample of samples) {
     const memberKey = sample.memberKey.trim().toLowerCase()
@@ -41,17 +64,27 @@ export function countNearbyPlayers(
     uniquePlayers.set(memberKey, sample)
   }
 
-  let count = 0
+  let nearbyPlayerCount = 0
+  let nearbyOpponentCount = 0
+  let opponentCountComplete = targetTeamId !== undefined
   const radiusSquared = DROP_PRESSURE_RADIUS_UNITS ** 2
   for (const sample of uniquePlayers.values()) {
     const deltaX = sample.x - targetX
     const deltaY = sample.y - targetY
     if (deltaX ** 2 + deltaY ** 2 <= radiusSquared) {
-      count += 1
+      nearbyPlayerCount += 1
+      if (targetTeamId === undefined || sample.teamId === undefined) {
+        opponentCountComplete = false
+      } else if (sample.teamId !== targetTeamId) {
+        nearbyOpponentCount += 1
+      }
     }
   }
 
-  return count
+  return {
+    nearbyPlayerCount,
+    nearbyOpponentCount: opponentCountComplete ? nearbyOpponentCount : null,
+  }
 }
 
 export function summarizeDropPressure(

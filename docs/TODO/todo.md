@@ -151,13 +151,16 @@ La première phase valide le principe à partir des `landingSamples` déjà stoc
 
 #### Phase 2 — Persistance et historique après validation
 
-- [ ] Décider si les performances observées justifient la persistance des résultats dérivés
-- [ ] Si nécessaire, créer un stockage par drop avec `matchId`, `memberId`, coordonnées, date du match, nombre de joueurs proches et niveau
-- [ ] Stocker séparément le nombre total de joueurs proches et, si les données le permettent, le nombre d'adversaires proches
-- [ ] Calculer et stocker la pression lors du parsing des nouveaux matchs
-- [ ] Backfiller les matchs existants qui possèdent déjà des `landingSamples`
-- [ ] Garantir l'idempotence du parsing et du backfill pour éviter les doublons
-- [ ] Ajouter une `periodKey` ou une plage de dates pour consulter et comparer d'anciennes semaines et d'anciens mois
+- [x] Décider si les performances observées justifient la persistance des résultats dérivés
+- [x] Créer `DropPressureStat`, un stockage par drop avec match, membre, coordonnées, date, joueurs proches et niveau
+- [x] Stocker séparément le nombre total de joueurs proches et le nombre d'adversaires proches grâce au `teamId`
+- [x] Calculer et stocker la pression lors du parsing des nouveaux matchs
+- [x] Backfiller les matchs existants qui possèdent déjà des `landingSamples` (`1 284` matchs, `3 443` drops)
+- [x] Garantir l'idempotence du parsing et du backfill avec l'unicité `(squadMatchId, memberId)` et le remplacement transactionnel
+- [x] Utiliser `matchDate` pour consulter les fenêtres calendaires `Semaine`, `Mois` et `Tous`
+- [x] Ajouter un panneau partagé de statistiques persistantes aux dashboards membre et clan
+- [x] Afficher les drops/matchs analysés, moyennes joueurs/adversaires, maximum et part de hot drops
+- [x] Vérifier les API authentifiées et les rendus desktop/mobile sur les données backfillées
 - [ ] Ajouter une évolution temporelle de la pression au drop après validation du stockage
 
 ---

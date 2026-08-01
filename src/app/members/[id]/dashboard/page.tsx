@@ -13,6 +13,7 @@ import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import PlacementBadge from '@/components/ui/PlacementBadge'
+import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
 import type {
   DashboardMatchSortDirection,
   DashboardMatchSortKey,
@@ -383,7 +384,16 @@ export default function DashboardPage() {
     )
   }
 
-  const { stats, clanAverage, progression, topPerformances, squads, mapLabels } = data
+  const {
+    stats,
+    clanAverage,
+    progression,
+    topPerformances,
+    squads,
+    mapLabels,
+    dropPressure,
+    dropPressureRanking,
+  } = data
 
   const comparisonRefPeriod = getReferencePeriod(selectedComparisonPeriod)
   const comparisonCurrentStats = telemetryComparison[selectedComparisonPeriod]
@@ -408,6 +418,14 @@ export default function DashboardPage() {
           clanAverage={clanAverage}
           period={period}
           onPeriodChange={setPeriod}
+        />
+
+        <DropPressureStatsPanel
+          stats={dropPressure}
+          href={`/members/${memberId}/drop-zones`}
+          periodLabel={period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Tous'}
+          ranking={dropPressureRanking}
+          currentMemberId={memberId}
         />
 
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

@@ -123,6 +123,19 @@ Les valeurs `xPct`/`yPct` s'utilisent directement en CSS `left`/`top` sur une im
 
 ## Contrat API
 
+## Persistance de la pression au drop
+
+Chaque drop d'un membre suivi est persisté dans `DropPressureStat` avec une contrainte unique sur le couple `(squadMatchId, memberId)`. La ligne conserve la carte, les coordonnées, la date du match, le nombre total de joueurs à moins de 250 m, le nombre d'adversaires identifié par `teamId` et le niveau de pression.
+
+Les nouveaux parsings remplacent transactionnellement les lignes du match. L'historique existant se reconstruit de manière idempotente avec :
+
+```bash
+npm run telemetry:drop-pressure:backfill
+npm run telemetry:drop-pressure:backfill -- --clan 1 --limit 500
+```
+
+Les dashboards membre et clan agrègent cette table selon les périodes calendaires `week`, `month` et `all`. Ils affichent six cartes KPI puis un classement triable des cinq membres selon le nombre de drops, les moyennes de proximité, le maximum ou la part de hot drops. Le dashboard membre conserve toujours la ligne du membre consulté avec son rang réel lorsqu'il se trouve hors du Top 5.
+
 ### `GET /api/clans/[clanId]/telemetry/drop-zones`
 
 **Auth** : `requireNavPermission('clan.drop-zones')` — rôle requis configurable via `/settings/nav-permissions` (pas figé sur Owner).

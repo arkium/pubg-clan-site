@@ -10,6 +10,7 @@ import {
 import { persistTelemetryJsonFieldsWithSql } from '@/lib/pubg-telemetry/persistence-fallback'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import { prisma } from '@/lib/prisma'
+import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistence'
 
 export type SyncTelemetryForSquadMatchInput = {
   squadMatchId: string
@@ -269,6 +270,8 @@ export async function syncTelemetryForSquadMatch(
         bytes: bytesRead,
       })
     }
+
+    await persistDropPressureStatsForMatch(input.squadMatchId, parsed.landingSamples)
 
     logTelemetryStep({
       step: 'complete',

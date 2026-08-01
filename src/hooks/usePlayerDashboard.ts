@@ -17,6 +17,17 @@ const defaultDashboard: DashboardResponse = {
   progression: [],
   topPerformances: [],
   squads: [],
+  dropPressure: {
+    dropCount: 0,
+    matchCount: 0,
+    averageNearbyPlayers250m: 0,
+    averageNearbyOpponents250m: null,
+    maximumNearbyPlayers250m: 0,
+    hotDropCount: 0,
+    hotDropShare: 0,
+    levelCounts: { calm: 0, contested: 0, hot: 0, veryHot: 0 },
+  },
+  dropPressureRanking: [],
   mapLabels: {},
   period: 'week',
 }

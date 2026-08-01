@@ -5,9 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
 import { useClanOverview } from '@/hooks/useClanOverview'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { ClanMatchesResponse } from '@/types/squad-matches'
+import type {
+  DropPressureDashboardStats,
+  DropPressureRankingEntry,
+} from '@/types/drop-pressure'
 
 type DiffResult = {
   pubgClanId: string
@@ -388,6 +393,10 @@ export default function ClanOverviewPage() {
   const [periodSnapshot, setPeriodSnapshot] = useState<OverviewTrackedSnapshot | null>(null)
   const [periodLoading, setPeriodLoading] = useState(false)
   const [periodError, setPeriodError] = useState('')
+  const [dropPressure, setDropPressure] = useState<DropPressureDashboardStats | null>(null)
+  const [dropPressureRanking, setDropPressureRanking] = useState<DropPressureRankingEntry[]>([])
+  const [dropPressureLoading, setDropPressureLoading] = useState(false)
+  const [dropPressureError, setDropPressureError] = useState('')
 
   const [diff, setDiff] = useState<DiffResult | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
@@ -419,9 +428,6 @@ export default function ClanOverviewPage() {
 
   useEffect(() => {
     if (!clanId || selectedPeriod === 'all') {
-      setPeriodSnapshot(null)
-      setPeriodError('')
-      setPeriodLoading(false)
       return
     }
 
@@ -597,6 +603,51 @@ export default function ClanOverviewPage() {
 
     void fetchPeriodSnapshot()
 
+    return () => {
+      cancelled = true
+    }
+  }, [clanId, selectedPeriod])
+
+  useEffect(() => {
+    if (!clanId) return
+    let cancelled = false
+
+    async function loadDropPressure() {
+      try {
+        setDropPressureLoading(true)
+        setDropPressureError('')
+        const response = await fetch(
+          `/api/clans/${clanId}/drop-pressure-stats?period=${selectedPeriod}`,
+          { cache: 'no-store' }
+        )
+        const payload = (await response.json()) as {
+          stats?: DropPressureDashboardStats
+          ranking?: DropPressureRankingEntry[]
+          error?: string
+        }
+        if (!response.ok || !payload.stats) {
+          throw new Error(payload.error ?? 'Impossible de charger la pression au drop')
+        }
+        if (!cancelled) {
+          setDropPressure(payload.stats)
+          setDropPressureRanking(payload.ranking ?? [])
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setDropPressure(null)
+          setDropPressureRanking([])
+          setDropPressureError(
+            loadError instanceof Error
+              ? loadError.message
+              : 'Impossible de charger la pression au drop'
+          )
+        }
+      } finally {
+        if (!cancelled) setDropPressureLoading(false)
+      }
+    }
+
+    void loadDropPressure()
     return () => {
       cancelled = true
     }
@@ -910,6 +961,15 @@ export default function ClanOverviewPage() {
               </div>
             </section>
           )}
+
+          <DropPressureStatsPanel
+            stats={dropPressure}
+            loading={dropPressureLoading}
+            error={dropPressureError}
+            href={`/clans/${clanId}/drop-zones`}
+            periodLabel={periodTitle(selectedPeriod)}
+            ranking={dropPressureRanking}
+          />
 
           {/* Bloc 3 — Diff PUBG vs site */}
           <section className="app-panel p-6">

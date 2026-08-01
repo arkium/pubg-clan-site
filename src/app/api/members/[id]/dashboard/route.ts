@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import { getMapLabels } from '@/lib/map-label-service'
-import { NextResponse } from 'next/server'
 
 import type { DashboardPeriod } from '@/types/dashboard'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
+import {
+  getDropPressureDashboardStats,
+  getDropPressureMemberRanking,
+} from '@/lib/drop-pressure-stats'
 
 type ClanMode = 'solo' | 'duo' | 'trio' | 'squad'
 
@@ -104,7 +107,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request)
@@ -114,7 +117,6 @@ export async function GET(
     const period = parsePeriod(searchParams.get('period'))
     const periodKey = getPeriodKey(period)
     const dateRange = getDateRangeForDashboardPeriod(period)
-
     // 1. Fetch member
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
@@ -139,8 +141,15 @@ export async function GET(
     })
 
     if (!member) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
+
+    const [dropPressure, dropPressureRanking] = await Promise.all([
+      getDropPressureDashboardStats({ memberId, period }),
+      member.clanId
+        ? getDropPressureMemberRanking({ clanId: member.clanId, period })
+        : Promise.resolve([]),
+    ])
 
     // 2. Fetch player stats for the period
     const playerStat = await prisma.playerStats.findUnique({
@@ -361,7 +370,7 @@ export async function GET(
         .slice(0, 10)
     }
 
-    return NextResponse.json({
+    return Response.json({
       member: {
         id: member.id,
         displayName: member.displayName,
@@ -391,11 +400,13 @@ export async function GET(
         pubgCreatedAt: m.pubgCreatedAt.toISOString(),
       })),
       squads,
+      dropPressure,
+      dropPressureRanking,
       mapLabels: await getMapLabels(),
       period,
     })
   } catch (error) {
     console.error('Error fetching dashboard:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

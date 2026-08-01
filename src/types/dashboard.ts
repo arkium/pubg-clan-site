@@ -2,6 +2,11 @@ export type DashboardPeriod = 'week' | 'month' | 'all'
 export type DashboardMatchSortKey = 'pubgCreatedAt' | 'kills' | 'damageDealt' | 'placement'
 export type DashboardMatchSortDirection = 'asc' | 'desc'
 
+import type {
+  DropPressureDashboardStats,
+  DropPressureRankingEntry,
+} from '@/types/drop-pressure'
+
 export interface DashboardMember {
   id: number
   displayName: string
@@ -71,6 +76,8 @@ export interface DashboardResponse {
   progression: DashboardProgression[]
   topPerformances: TopPerformance[]
   squads: SquadFrequencyEntry[]
+  dropPressure: DropPressureDashboardStats
+  dropPressureRanking: DropPressureRankingEntry[]
   mapLabels: Record<string, string>
   period: DashboardPeriod
 }

@@ -61,6 +61,7 @@ model ClanMember {
   playerStats            PlayerStats[]
   memberWeaponStats      MemberWeaponStats[]
   memberTelemetryStats   MemberTelemetryStats[]
+  dropPressureStats      DropPressureStat[]
   telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
   telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
   notifications          Notification[]
@@ -314,6 +315,7 @@ model SquadMatch {
 
   members SquadMember[]
   telemetry SquadMatchTelemetry?
+  dropPressureStats DropPressureStat[]
 
   totalKills   Int
   totalDamage  Float
@@ -390,6 +392,30 @@ model SquadMatchTelemetry {
 
   @@index([status, updatedAt])
   @@map("SquadMatchTelemetry")
+}
+
+model DropPressureStat {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  memberId     Int
+  member       ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  mapName                    String
+  x                          Float
+  y                          Float
+  matchDate                  DateTime
+  nearbyPlayerCount250m      Int
+  nearbyOpponentCount250m    Int?
+  pressureLevel              String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([squadMatchId, memberId])
+  @@index([memberId, matchDate])
+  @@index([matchDate, pressureLevel])
+  @@map("DropPressureStat")
 }
 
 model PlayerStats {

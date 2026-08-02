@@ -820,9 +820,9 @@ type PubgWeaponMasteryStatsTotal = {
   HeadShots?: number
   Defeats?: number
   Groggies?: number
-  Damage?: number
-  Shots?: number
-  Hits?: number
+  DamagePlayer?: number
+  // LongestKill only exists in OfficialStatsTotal/CompetitiveStatsTotal — StatsTotal (legacy) never has it
+  LongestKill?: number
 }
 
 type PubgWeaponMasteryItem = {
@@ -856,6 +856,7 @@ export type PubgWeaponMasteryEntry = {
   shots: number
   hits: number
   damage: number
+  longestKillDistance: number
   level: number
   xpTotal: number
   tier: number
@@ -1011,17 +1012,25 @@ export async function fetchWeaponMastery(
     const summary = response.data.data?.attributes?.weaponSummaries ?? {}
 
     return Object.entries(summary).map(([weaponId, data]) => {
-      // OfficialStatsTotal is the active tracker post-patch 18.2; StatsTotal is frozen legacy data
-      const stats = data.OfficialStatsTotal ?? data.StatsTotal
+      // OfficialStatsTotal is the active tracker post-patch 18.2; StatsTotal is frozen legacy data.
+      // Merge field by field rather than picking one object wholesale, since a weapon can have
+      // real post-18.2 activity (OfficialStatsTotal) while its legacy totals stayed frozen at zero, or vice versa.
+      const official = data.OfficialStatsTotal
+      const legacy = data.StatsTotal
+      const competitive = data.CompetitiveStatsTotal
       return {
         weaponId,
         weaponName: deriveWeaponName(weaponId),
-        kills: stats?.Kills ?? 0,
-        headshots: stats?.HeadShots ?? 0,
-        knockouts: stats?.Defeats ?? 0,
-        shots: stats?.Shots ?? 0,
-        hits: stats?.Hits ?? 0,
-        damage: stats?.Damage ?? 0,
+        kills: official?.Kills ?? legacy?.Kills ?? 0,
+        headshots: official?.HeadShots ?? legacy?.HeadShots ?? 0,
+        // Groggies = knockdowns; Defeats is a distinct (near-always zero) PUBG metric, not a knockout count.
+        knockouts: official?.Groggies ?? legacy?.Groggies ?? 0,
+        // The weapon_mastery endpoint has never exposed shot/hit counts — only DamagePlayer.
+        shots: 0,
+        hits: 0,
+        damage: official?.DamagePlayer ?? legacy?.DamagePlayer ?? 0,
+        // LongestKill only lives in OfficialStatsTotal/CompetitiveStatsTotal — never in legacy StatsTotal.
+        longestKillDistance: official?.LongestKill ?? competitive?.LongestKill ?? 0,
         level: data.LevelCurrent ?? 0,
         xpTotal: data.XPTotal ?? 0,
         tier: data.TierCurrent ?? 0,

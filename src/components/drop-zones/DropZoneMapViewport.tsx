@@ -208,7 +208,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           onPointerMove={dragMap}
           onPointerUp={stopDragging}
           onPointerCancel={stopDragging}
-          className={`absolute inset-0 overflow-auto overscroll-contain select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          className={`absolute inset-0 touch-none overflow-auto overscroll-contain select-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
             zoom > MIN_ZOOM
               ? (dragging ? 'cursor-grabbing' : 'cursor-grab')
               : onMapClick

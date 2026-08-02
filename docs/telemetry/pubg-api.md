@@ -31,6 +31,24 @@ CDN télémétrie : `https://assets.pubg.com` — hors quota, fichiers lourds.
 
 **Season stats** : le cron `daily_season_stats_sync` tourne à `0 5 * * *` (configurable via `CLAN_SEASON_STATS_SYNC_CRON`). Il met à jour `MemberSeasonStats` et `MemberWeaponMastery` en parallèle pour tous les clans actifs. Les stats ranked retiennent le meilleur mode squad (`squad-fpp` prioritaire sur `squad`).
 
+**Weapon mastery — structure réelle des champs.** Source officielle : `https://documentation.pubg.com/en/mastery-endpoint.html`, schéma exact `https://documentation.pubg.com/en/_static/swagger/en/schemas/weaponSummary.yml` (vérifié le 2026-08-02, recoupé avec l'écran "Maîtrise des armes" du client PUBG). Chaque arme expose jusqu'à trois blocs de stats au même schéma, `StatsTotal` (legacy, gelé depuis le patch 18.2), `OfficialStatsTotal` (tracker actif post-18.2) et `CompetitiveStatsTotal` (ranked uniquement) :
+
+| Champ API | Présent dans | Description officielle | Utilisé pour |
+|---|---|---|---|
+| `Kills` | les trois blocs | "The total number of kills for the player" | `MemberWeaponMastery.kills` |
+| `HeadShots` | les trois blocs | "The total headshots that the player has done in their career" | `MemberWeaponMastery.headshots` — **compte des coups en headshot, pas des kills** malgré le libellé officiel ambigu ; peut dépasser `Kills` (constaté sur M24 : `HeadShots=205` pour `Kills=173`, recoupé avec l'écran officiel PUBG) |
+| `Groggies` | les trois blocs | "The total number of times that the player has caused another player to become groggy during their career" | `MemberWeaponMastery.knockouts` (knockdowns) — confirmé officiellement |
+| `Defeats` | les trois blocs | "The total number of defeats in their career" | quasi toujours `0` — **pas** un compteur de knockouts, la doc officielle ne fait aucun lien entre `Defeats` et les knockdowns |
+| `DamagePlayer` | les trois blocs | "The total damage that the player has done in their career" | `MemberWeaponMastery.damage` — confirmé officiellement comme un total carrière, pas une moyenne (le "Dgt moyens" affiché par le client PUBG n'a pas d'équivalent dans ce schéma) |
+| `LongestKill` | `OfficialStatsTotal`/`CompetitiveStatsTotal` uniquement (absent de `StatsTotal`) | "The longest distance that the player got a kill for" | non consommé — match exact vérifié contre l'écran PUBG (M24 : `LongestKill=458` = "Élim. la plus lointaine (m)") |
+| `MostKillsInAGame`, `MostDefeatsInAGame` | les trois blocs | records par match | non consommés |
+
+**Aucun champ `Shots`/`Hits` (ou équivalent) n'existe dans ce schéma officiel** — la précision par arme (`hits / shots`) ne peut donc pas être calculée depuis `weapon_mastery`. Les colonnes `MemberWeaponMastery.shots`/`.hits` restent à `0` par construction ; seule la télémétrie match-par-match (`MemberWeaponStats.shotsFired`/`hitsLanded`, via `LogWeaponFireCount`/`LogPlayerTakeDamage`) fournit une vraie précision, mais sur la période trackée, pas sur la carrière complète.
+
+**Le "Taux de headshot (%)" affiché par le client PUBG n'est pas `HeadShots / Kills`** — vérifié directement contre l'écran officiel du jeu sur deux armes (MP5K : jeu `7,44 %` vs `HeadShots/Kills` = `40,8 %` ; M24 : jeu `34,5 %` vs `HeadShots/Kills` = `118,5 %`, impossible car > 100 %). Le vrai calcul du jeu utilise un dénominateur non exposé par l'API publique.
+
+Le code (`fetchWeaponMastery` dans `src/lib/pubg.ts`) fusionne `OfficialStatsTotal` et `StatsTotal` **champ par champ** (pas un choix d'objet entier) : certaines armes ont une activité réelle uniquement post-18.2 (legacy à zéro) ou l'inverse, donc piocher tout un bloc au lieu de l'autre sous-évalue silencieusement des armes.
+
 ---
 
 ## Endpoints disponibles mais non consommés

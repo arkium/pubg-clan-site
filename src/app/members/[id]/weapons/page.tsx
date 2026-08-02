@@ -81,6 +81,7 @@ type WeaponMasteryEntry = {
   shots: number
   hits: number
   damage: number
+  longestKillDistance: number
   level: number
   xpTotal: number
   tier: number
@@ -92,7 +93,7 @@ type WeaponMasteryResponse = {
   weapons: WeaponMasteryEntry[]
 }
 
-type MasterySortKey = 'weapon' | 'kills' | 'headshots' | 'headshotRate' | 'accuracy' | 'damage' | 'level'
+type MasterySortKey = 'weapon' | 'kills' | 'knockouts' | 'damage' | 'headshots' | 'longestKillDistance' | 'level'
 type WeaponCategoryFilter = 'ALL' | WeaponCategory
 
 const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
@@ -104,23 +105,23 @@ const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
 const PAGE_SIZE = 10
 
 const WEAPON_CATEGORY_OPTIONS: Array<{ value: WeaponCategoryFilter; label: string }> = [
-  { value: 'ALL', label: 'Toutes categories' },
+  { value: 'ALL', label: 'Toutes catégories' },
   { value: 'AR', label: 'AR - Fusils d\'assaut' },
-  { value: 'DMR', label: 'DMR - Fusils de precision' },
+  { value: 'DMR', label: 'DMR - Fusils de précision' },
   { value: 'SR', label: 'SR - Snipers' },
   { value: 'SMG', label: 'SMG - Pistolets-mitrailleurs' },
   { value: 'LMG', label: 'LMG - Mitrailleuses' },
-  { value: 'SG', label: 'SG - Fusils a pompe' },
+  { value: 'SG', label: 'SG - Fusils à pompe' },
   { value: 'PISTOL', label: 'PISTOL - Pistolets' },
-  { value: 'MELEE', label: 'MELEE - Melee' },
+  { value: 'MELEE', label: 'MELEE - Mêlée' },
   { value: 'THROWABLE', label: 'THROWABLE - Explosifs' },
-  { value: 'SPECIAL', label: 'SPECIAL - Special' },
+  { value: 'SPECIAL', label: 'SPECIAL - Spécial' },
   { value: 'OTHER', label: 'OTHER - Autre' },
 ]
 
 const MEMBER_WEAPONS_SECTION_LINKS: StickySectionNavItem[] = [
-  { id: 'sec-member-weapons-mastery', label: 'Maitrise armes', icon: 'combat' },
-  { id: 'sec-member-weapons-telemetry', label: 'Stats telemetrie', icon: 'other' },
+  { id: 'sec-member-weapons-mastery', label: 'Maîtrise armes', icon: 'combat' },
+  { id: 'sec-member-weapons-telemetry', label: 'Stats télémétrie', icon: 'other' },
 ]
 
 function parseMemberId(value: string | string[] | undefined) {
@@ -439,20 +440,8 @@ export default function MemberWeaponsPage() {
         return compareText(left.weaponName, right.weaponName)
       }
 
-      if (masterySortKey === 'headshotRate') {
-        const leftRate = left.kills > 0 ? (left.headshots / left.kills) * 100 : 0
-        const rightRate = right.kills > 0 ? (right.headshots / right.kills) * 100 : 0
-        const compare = compareNumber(leftRate, rightRate)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponName, right.weaponName)
-      }
-
-      if (masterySortKey === 'accuracy') {
-        const leftAcc = left.shots > 0 ? (left.hits / left.shots) * 100 : 0
-        const rightAcc = right.shots > 0 ? (right.hits / right.shots) * 100 : 0
-        const compare = compareNumber(leftAcc, rightAcc)
+      if (masterySortKey === 'knockouts') {
+        const compare = compareNumber(left.knockouts, right.knockouts)
         if (compare !== 0) {
           return compare * factor
         }
@@ -461,6 +450,14 @@ export default function MemberWeaponsPage() {
 
       if (masterySortKey === 'damage') {
         const compare = compareNumber(left.damage, right.damage)
+        if (compare !== 0) {
+          return compare * factor
+        }
+        return compareText(left.weaponName, right.weaponName)
+      }
+
+      if (masterySortKey === 'longestKillDistance') {
+        const compare = compareNumber(left.longestKillDistance, right.longestKillDistance)
         if (compare !== 0) {
           return compare * factor
         }
@@ -587,13 +584,13 @@ export default function MemberWeaponsPage() {
       const payload = (await response.json()) as { error?: string }
 
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Rafraichissement de la maitrise impossible')
+        throw new Error(payload.error ?? 'Rafraîchissement de la maîtrise impossible')
       }
 
       setReloadNonce((current) => current + 1)
     } catch (error) {
       setMasteryError(
-        error instanceof Error ? error.message : 'Rafraichissement de la maitrise impossible'
+        error instanceof Error ? error.message : 'Rafraîchissement de la maîtrise impossible'
       )
     } finally {
       setMasteryRefreshing(false)
@@ -667,7 +664,7 @@ export default function MemberWeaponsPage() {
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
           title="Vos armes"
-          subtitle="Top armes, headshots et distance moyenne sur la periode selectionnee."
+          subtitle="Top armes, headshots et distance moyenne sur la période sélectionnée."
           showBackButton={false}
           framed={false}
         />
@@ -676,8 +673,8 @@ export default function MemberWeaponsPage() {
           <div className="min-w-0">
             <MobileDropdownNav
               id="member-weapons-period-filter"
-              label="Periode"
-              currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Selectionner'}
+              label="Période"
+              currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Sélectionner'}
               items={PERIOD_OPTIONS.map((option) => ({
                 key: `period-${option.value}`,
                 label: option.label,
@@ -692,8 +689,8 @@ export default function MemberWeaponsPage() {
           <div className="min-w-0">
             <MobileDropdownNav
               id="member-weapons-category-filter"
-              label="Categorie"
-              currentLabel={WEAPON_CATEGORY_OPTIONS.find((option) => option.value === selectedCategory)?.label ?? 'Selectionner'}
+              label="Catégorie"
+              currentLabel={WEAPON_CATEGORY_OPTIONS.find((option) => option.value === selectedCategory)?.label ?? 'Sélectionner'}
               items={WEAPON_CATEGORY_OPTIONS.map((option) => ({
                 key: `category-${option.value}`,
                 label: option.label,
@@ -718,13 +715,13 @@ export default function MemberWeaponsPage() {
       <section id="sec-member-weapons-mastery" className="mb-6 app-panel scroll-mt-40 p-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Maitrise armes (carriere)</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Maîtrise armes (carrière)</h2>
             <p className="text-sm text-gray-600">
-              Source PUBG weapon mastery: kills, precision, degats et niveau global par arme.
+              Source PUBG weapon mastery : kills, neutralisations, dégâts, headshots, distance et niveau global par arme.
             </p>
             {latestMasteryRefreshAt ? (
               <p className="mt-1 text-xs text-gray-500">
-                Derniere synchro: {formatDateTime(latestMasteryRefreshAt)}
+                Dernière synchro : {formatDateTime(latestMasteryRefreshAt)}
               </p>
             ) : null}
           </div>
@@ -736,7 +733,7 @@ export default function MemberWeaponsPage() {
               void refreshWeaponMastery()
             }}
           >
-            {masteryRefreshing ? 'Rafraichissement...' : 'Rafraichir'}
+            {masteryRefreshing ? 'Rafraîchissement...' : 'Rafraîchir'}
           </button>
         </div>
 
@@ -751,7 +748,7 @@ export default function MemberWeaponsPage() {
         ) : null}
 
         {!masteryLoading && masteryRows.length === 0 ? (
-          <p className="text-sm text-gray-600">Aucune donnee de maitrise disponible.</p>
+          <p className="text-sm text-gray-600">Aucune donnée de maîtrise disponible.</p>
         ) : null}
 
         {!masteryLoading && masteryRows.length > 0 ? (
@@ -771,23 +768,28 @@ export default function MemberWeaponsPage() {
                     </button>
                   </th>
                   <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('headshots')}>
-                      Headshots{masterySortLabel('headshots')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('headshotRate')}>
-                      Headshot %{masterySortLabel('headshotRate')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('accuracy')}>
-                      Precision %{masterySortLabel('accuracy')}
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('knockouts')}>
+                      Neutralisations{masterySortLabel('knockouts')}
                     </button>
                   </th>
                   <th className="px-3 py-2 text-right">
                     <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('damage')}>
-                      Degats{masterySortLabel('damage')}
+                      Dégâts{masterySortLabel('damage')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      className="font-semibold"
+                      title="Coups en tête portés avec cette arme (donnée API PUBG), pas des kills en headshot"
+                      onClick={() => handleMasterySortClick('headshots')}
+                    >
+                      Headshots{masterySortLabel('headshots')}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('longestKillDistance')}>
+                      Distance{masterySortLabel('longestKillDistance')}
                     </button>
                   </th>
                   <th className="px-3 py-2 text-right">
@@ -799,9 +801,6 @@ export default function MemberWeaponsPage() {
               </thead>
               <tbody>
                 {paginatedMasteryRows.map((row) => {
-                  const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
-                  const accuracy = row.shots > 0 ? (row.hits / row.shots) * 100 : 0
-
                   return (
                     <tr key={row.weaponId} className="app-table-row">
                       <td className="px-3 py-2 text-gray-900">
@@ -811,10 +810,10 @@ export default function MemberWeaponsPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatPercent(accuracy)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.knockouts)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatNumber(Math.round(row.damage))}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.longestKillDistance)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.level)}</td>
                     </tr>
                   )
@@ -894,9 +893,9 @@ export default function MemberWeaponsPage() {
         payload && payload.rows.length > 0 ? (
           <section id="sec-member-weapons-telemetry" className="app-panel scroll-mt-40 p-4">
             <div className="mb-3">
-              <h2 className="text-lg font-semibold text-gray-900">Stats armes (telemetrie)</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Stats armes (télémétrie)</h2>
               <p className="text-sm text-gray-600">
-                Periode active: {periodLabel}. Performance detaillee par arme sur la categorie selectionnee.
+                Période active : {periodLabel}. Performance détaillée par arme sur la catégorie sélectionnée.
               </p>
             </div>
             <div className="app-table-shell overflow-x-auto">
@@ -930,7 +929,7 @@ export default function MemberWeaponsPage() {
                     </th>
                     <th className="px-3 py-2 text-right">
                       <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
-                        Precision{sortLabel('accuracy')}
+                        Précision{sortLabel('accuracy')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">

@@ -653,15 +653,16 @@ model MemberWeaponMastery {
   weaponId   String
   weaponName String
 
-  kills     Int   @default(0)
-  headshots Int   @default(0)
-  knockouts Int   @default(0)
-  shots     Int   @default(0)
-  hits      Int   @default(0)
-  damage    Float @default(0)
-  level     Int   @default(0)
-  xpTotal   Int   @default(0)
-  tier      Int   @default(0)
+  kills               Int   @default(0)
+  headshots           Int   @default(0)
+  knockouts           Int   @default(0)
+  shots               Int   @default(0)
+  hits                Int   @default(0)
+  damage              Float @default(0)
+  longestKillDistance Float @default(0)
+  level               Int   @default(0)
+  xpTotal             Int   @default(0)
+  tier                Int   @default(0)
 
   lastRefreshedAt DateTime
   createdAt       DateTime @default(now())

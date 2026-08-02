@@ -51,26 +51,34 @@ Vue agrégée des stats armes de tous les membres actifs du clan.
 
 API PUBG `GET /shards/{shard}/players/{playerId}/weapon_mastery` — données de carrière complète du joueur, non filtrables par période.
 
+**Schéma officiel** : `https://documentation.pubg.com/en/mastery-endpoint.html` (OpenAPI spec exact : `https://documentation.pubg.com/en/_static/swagger/en/schemas/weaponSummary.yml`). Chaque arme expose jusqu'à trois blocs de stats au même schéma de champs — `StatsTotal` (legacy, gelé depuis le patch 18.2), `OfficialStatsTotal` (tracker actif, contient aussi `LongestKill`), `CompetitiveStatsTotal` (ranked uniquement, contient aussi `LongestKill`).
+
 ### Modèle de données (`MemberWeaponMastery`)
 
-| Champ DB | Type | Description |
-|---|---|---|
-| `weaponId` | string | Identifiant interne PUBG (ex. `Item_Weapon_AK47_C`) |
-| `weaponName` | string | Nom humain dérivé (préfixe `Item_Weapon_` et suffixe `_C` supprimés) |
-| `kills` | number | Kills totaux avec cette arme sur toute la carrière |
-| `headshots` | number | Headshots totaux |
-| `knockouts` | number | Knockdowns (ennemis mis à terre) |
-| `shots` | number | Tirs effectués (carrière) |
-| `hits` | number | Tirs ayant touché (carrière) |
-| `damage` | number | Dégâts totaux infligés |
-| `level` | number | Niveau de maîtrise PUBG (1 à 10+) |
-| `xpTotal` | number | XP total accumulé |
-| `tier` | number | Tier de médaille |
-| `lastRefreshedAt` | string | ISO 8601 — date du dernier refresh depuis l'API PUBG |
+| Champ DB | Type | Description | Champ API source, avec description officielle |
+|---|---|---|---|
+| `weaponId` | string | Identifiant interne PUBG (ex. `Item_Weapon_AK47_C`) | — |
+| `weaponName` | string | Nom humain dérivé (préfixe `Item_Weapon_` et suffixe `_C` supprimés) | — |
+| `kills` | number | Kills totaux avec cette arme sur toute la carrière | `Kills` — *"The total number of kills for the player"* |
+| `headshots` | number | Compte de **coups** en headshot, **pas** des kills en headshot — peut dépasser `kills` (constaté : M24 `HeadShots=205` pour `Kills=173`). Explication plausible : un coup en tête qui met l'adversaire à terre (knockdown) compte dans `HeadShots`, mais si l'équipe adverse le réanime avant l'achèvement, ça n'incrémente jamais `Kills`. Sémantique différente de `MemberWeaponStats.headshots` (télémétrie), qui lui est un compte de kills | `HeadShots` — *"The total headshots that the player has done in their career"* (libellé officiel ambigu ; nos données confirment que ce n'est pas limité aux kills) |
+| `knockouts` | number | Knockdowns (ennemis mis à terre) | `Groggies` — *"The total number of times that the player has caused another player to become groggy during their career"*. **Pas** `Defeats`, qui est un compteur PUBG distinct (*"The total number of defeats in their career"*), quasi toujours à `0` et sans lien documenté avec les knockdowns |
+| `shots` | number | Toujours `0` — voir note ci-dessous | Aucun champ équivalent dans le schéma officiel |
+| `hits` | number | Toujours `0` — même limitation que `shots` | Aucun champ équivalent dans le schéma officiel |
+| `damage` | number | Dégâts **totaux** infligés sur la carrière (pas une moyenne) | `DamagePlayer` — *"The total damage that the player has done in their career"* |
+| `level` | number | Niveau de maîtrise PUBG (1 à 10+) | `LevelCurrent` |
+| `xpTotal` | number | XP total accumulé | `XPTotal` |
+| `tier` | number | Tier de médaille | `TierCurrent` |
+| `lastRefreshedAt` | string | ISO 8601 — date du dernier refresh depuis l'API PUBG | — |
+
+**Champ API disponible mais non capturé** : `LongestKill` (*"The longest distance that the player got a kill for"*, présent dans `OfficialStatsTotal`/`CompetitiveStatsTotal` mais absent de `StatsTotal`) — match exact vérifié contre l'écran "Maîtrise des armes" du client PUBG (M24 : `LongestKill=458` = "Élim. la plus lointaine (m)" affiché en jeu).
+
+**"Dgt moyens" affiché par le client PUBG** (moyenne de dégâts) ne correspond à aucun champ du schéma officiel — le jeu la calcule avec une donnée interne non exposée par cette API publique. Ne pas essayer de la reproduire depuis `weapon_mastery`.
 
 Métriques dérivées (calculées côté client) :
-- Taux de headshot : `headshots / kills * 100`
-- Précision : `hits / shots * 100`
+- "Headshot %" affiché en UI : `headshots / kills * 100` — **confirmé faux contre l'écran officiel PUBG**, pas juste une approximation dégradée. MP5K : jeu `7,44 %` vs notre calcul `40,8 %`. M24 : jeu `34,5 %` vs notre calcul `118,5 %` (dépasse 100 %, cas impossible). Le vrai taux de headshot PUBG se calcule sur un dénominateur (tirs ou touches totales) que l'API publique `weapon_mastery` n'expose pas et que le schéma officiel ne documente nulle part — `HeadShots/Kills` n'a aucun rapport avec cette métrique.
+- Précision : `hits / shots * 100` — **toujours `0 %` en pratique**, `weapon_mastery` n'expose aucun champ de tirs/touches dans son schéma officiel (voir `docs/telemetry/pubg-api.md` — section Weapon mastery)
+
+**Note** : `shots`/`hits` sont conservés dans le modèle Prisma pour compatibilité mais ne peuvent pas être alimentés depuis cette source. Seule la télémétrie match-par-match (`MemberWeaponStats`, section 1 ci-dessus) fournit une vraie précision, mais limitée à la période trackée, pas à la carrière.
 
 ### Refresh
 

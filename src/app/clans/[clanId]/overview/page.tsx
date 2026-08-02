@@ -197,29 +197,29 @@ function TopPerformerCard({
   }
 
   return (
-    <article className="app-panel-muted relative min-h-56 overflow-hidden rounded-2xl px-5 py-5 lg:min-h-44 lg:px-3 lg:py-3">
+    <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
-      <div className="relative flex h-full flex-col">
-        <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full lg:mb-3 lg:h-9 lg:w-9 ${toneClasses[tone]}`}>
+      <div className="relative">
+        <div className={`mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
           <TopPerformerIcon icon={icon} />
         </div>
-        <p className="text-xs uppercase tracking-wide text-gray-500 lg:text-[10px]">{label}</p>
+        <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
       {performer ? (
         <>
           <p
-            className="mt-2 truncate text-2xl font-extrabold leading-tight text-gray-900 lg:text-xl"
+            className="mt-1 truncate text-sm font-semibold text-gray-900"
             title={performer.displayName}
           >
             {performer.displayName}
           </p>
-          <p className="mt-3 flex items-baseline gap-1.5 overflow-hidden tabular-nums text-4xl font-black leading-none lg:text-2xl">
-            <span className={`shrink-0 ${accentClasses[tone]}`}>{formatValue(performer.value)}</span>
-            {valueUnit && <span className="truncate text-3xl font-medium text-gray-500 lg:text-lg">{valueUnit}</span>}
+          <p className="mt-1 flex items-baseline gap-1 overflow-hidden tabular-nums">
+            <span className={`text-2xl font-black leading-none ${accentClasses[tone]}`}>{formatValue(performer.value)}</span>
+            {valueUnit && <span className="truncate text-xs font-medium text-gray-500">{valueUnit}</span>}
           </p>
-          <p className="mt-auto pt-3 text-sm text-gray-500 lg:text-xs">{performer.matchesPlayed} matchs</p>
+          <p className="mt-2 text-[11px] text-gray-500">{performer.matchesPlayed} matchs</p>
         </>
       ) : (
-        <p className="mt-2 text-sm text-gray-500">—</p>
+        <p className="mt-1 text-sm text-gray-500">—</p>
       )}
       </div>
     </article>
@@ -915,7 +915,7 @@ export default function ClanOverviewPage() {
               </div>
 
               <h3 className="mb-3 text-sm font-semibold text-gray-700">Top performers</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                 <TopPerformerCard
                   label="Top Fragger"
                   performer={activeTopPerformers?.kills ?? null}

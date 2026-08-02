@@ -9,7 +9,7 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function ClansPage() {
   const router = useRouter()
-  const { setClanId } = useSelectedClan()
+  const { setClanId, syncCanSwitchClan } = useSelectedClan()
   const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,10 +27,14 @@ export default function ClansPage() {
       return
     }
 
+    // Keep the persisted switch flag in sync with the live session, since the
+    // one written at login time can go stale (e.g. SuperUser status granted since).
+    syncCanSwitchClan(isSuperUser)
+
     if (!canSwitchClan) {
       router.replace('/members')
     }
-  }, [authLoading, authenticated, canSwitchClan, router])
+  }, [authLoading, authenticated, canSwitchClan, isSuperUser, router, syncCanSwitchClan])
 
   useEffect(() => {
     if (authLoading || !authenticated || !canSwitchClan) {

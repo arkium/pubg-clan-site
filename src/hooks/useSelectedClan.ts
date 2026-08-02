@@ -156,6 +156,15 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
     return true
   }, [])
 
+  const syncCanSwitchClan = useCallback((allowed: boolean) => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(CLAN_SWITCH_ALLOWED_STORAGE_KEY, allowed ? '1' : '0')
+    setCanSwitchClanState(allowed)
+  }, [])
+
   const clearClanId = useCallback(() => {
     if (typeof window === 'undefined') {
       return
@@ -173,5 +182,6 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
     canSwitchClan,
     setClanId,
     clearClanId,
+    syncCanSwitchClan,
   }
 }

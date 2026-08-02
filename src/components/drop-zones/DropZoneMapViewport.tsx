@@ -27,11 +27,13 @@ type DropZoneMapViewportProps = {
   onBoundariesVisibleChange?: (visible: boolean) => void
   showBoundaryControl?: boolean
   onMapClick?: (xPct: number, yPct: number) => void
+  onSwipeMap?: (direction: 'prev' | 'next') => void
 }
 
 const MIN_ZOOM = 1
 const MAX_ZOOM = 4
 const ZOOM_STEP = 0.5
+const SWIPE_THRESHOLD_PX = 60
 
 type DragState = {
   pointerId: number
@@ -50,6 +52,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       onBoundariesVisibleChange,
       showBoundaryControl = true,
       onMapClick,
+      onSwipeMap,
     },
     ref
   ) {
@@ -148,6 +151,12 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           ((viewport.scrollLeft + event.clientX - bounds.left) / viewport.scrollWidth) * 100,
           ((viewport.scrollTop + event.clientY - bounds.top) / viewport.scrollHeight) * 100
         )
+      } else if (drag.moved && zoomRef.current === MIN_ZOOM && onSwipeMap) {
+        const deltaX = event.clientX - drag.startX
+        const deltaY = event.clientY - drag.startY
+        if (Math.abs(deltaX) >= SWIPE_THRESHOLD_PX && Math.abs(deltaX) > Math.abs(deltaY)) {
+          onSwipeMap(deltaX < 0 ? 'next' : 'prev')
+        }
       }
       dragRef.current = null
       setDragging(false)

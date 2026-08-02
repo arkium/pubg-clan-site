@@ -366,6 +366,23 @@ export default function MemberDropZonesPage() {
 
   const activeMap = selectedMap && maps.includes(selectedMap) ? selectedMap : maps[0] || ''
 
+  function selectMap(mapName: string) {
+    setSelectedMap(mapName)
+    setSelectedLocationId('')
+    mapViewportRef.current?.reset()
+  }
+
+  function handleSwipeMap(direction: 'prev' | 'next') {
+    if (maps.length < 2) return
+    const currentIndex = maps.indexOf(activeMap)
+    if (currentIndex === -1) return
+    const nextIndex =
+      direction === 'next'
+        ? (currentIndex + 1) % maps.length
+        : (currentIndex - 1 + maps.length) % maps.length
+    selectMap(maps[nextIndex])
+  }
+
   const mapPoints = useMemo(() => {
     return (payload?.data.points ?? []).filter((point) => point.mapName === activeMap)
   }, [activeMap, payload?.data.points])
@@ -594,11 +611,7 @@ export default function MemberDropZonesPage() {
                 key: `map-${mapName}`,
                 label: mapDisplayName(mapName, {}),
                 active: activeMap === mapName,
-                onSelect: () => {
-                  setSelectedMap(mapName)
-                  setSelectedLocationId('')
-                  mapViewportRef.current?.reset()
-                },
+                onSelect: () => selectMap(mapName),
               }))}
               visibilityClass=""
               className="w-full"
@@ -835,6 +848,7 @@ export default function MemberDropZonesPage() {
               ref={mapViewportRef}
               boundariesVisible={showLocationBoundaries}
               onBoundariesVisibleChange={setShowLocationBoundaries}
+              onSwipeMap={handleSwipeMap}
             >
               {activeMap ? (
                 <>

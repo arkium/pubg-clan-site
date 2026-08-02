@@ -555,15 +555,31 @@ export default function ClanPositionsHeatmapPage() {
     onSelect: () => setPeriod(entry.value),
   }))
 
+  function selectMap(nextMapName: string) {
+    setMapName(nextMapName)
+    setSelectedLocationId('')
+    mapViewportRef.current?.reset()
+  }
+
+  const activeMapName = mapName || payload?.selectedMap || ''
+  const mapNames = (payload?.maps ?? []).map((entry) => entry.mapName)
+
+  function handleSwipeMap(direction: 'prev' | 'next') {
+    if (loading || mapNames.length < 2) return
+    const currentIndex = mapNames.indexOf(activeMapName)
+    if (currentIndex === -1) return
+    const nextIndex =
+      direction === 'next'
+        ? (currentIndex + 1) % mapNames.length
+        : (currentIndex - 1 + mapNames.length) % mapNames.length
+    selectMap(mapNames[nextIndex])
+  }
+
   const mapItems = (payload?.maps ?? []).map((entry) => ({
       key: `map-${entry.mapName}`,
       label: mapDisplayName(entry.mapName, payload?.mapLabels ?? {}),
-      active: (mapName || payload?.selectedMap) === entry.mapName,
-      onSelect: () => {
-        setMapName(entry.mapName)
-        setSelectedLocationId('')
-        mapViewportRef.current?.reset()
-      },
+      active: activeMapName === entry.mapName,
+      onSelect: () => selectMap(entry.mapName),
     }))
 
   const locationItems = [
@@ -865,6 +881,7 @@ export default function ClanPositionsHeatmapPage() {
               ref={mapViewportRef}
               boundariesVisible={showLocationBoundaries}
               onBoundariesVisibleChange={setShowLocationBoundaries}
+              onSwipeMap={handleSwipeMap}
             >
               {payload.selectedMap ? (
                 <>

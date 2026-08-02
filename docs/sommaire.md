@@ -2,7 +2,7 @@
 
 Index de toute la documentation technique du projet. Chaque doc décrit le comportement réel du code actuel.
 
-**Mise à jour :** 2026-06-16 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
+**Mise à jour :** 2026-08-02 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
 
 ---
 
@@ -92,14 +92,13 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
-| [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3 — backfill, pages manquantes, fonctionnalités incomplètes |
-| [Suggestions](TODO/suggestions.md) | Stats intéressantes à mettre en place, nouvelles fonctionnalités, axes d'amélioration |
+| [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3, idées de comparaison inter-clans, suggestions de stats et fonctionnalités |
 
 ---
 
 ## Archive
 
-Les 37 fichiers de l'ancienne documentation sont conservés dans [archive/](archive/) et ne sont plus maintenus. Ils servent de référence historique uniquement.
+Les 43 fichiers de l'ancienne documentation sont conservés dans [archive/](archive/) et ne sont plus maintenus. Ils servent de référence historique uniquement.
 
 ---
 
@@ -117,6 +116,7 @@ Les 37 fichiers de l'ancienne documentation sont conservés dans [archive/](arch
 - Armes / Précision → [Armes](features/weapons.md) + [Parser](telemetry/parser.md)
 - Awards → [Awards](features/awards.md)
 - Season ranked → [Season stats](features/season-stats.md)
+- Zones de drop / pression au drop → [Zones de drop](features/drop-zones.md)
 
 ### Travailler sur la télémétrie
 1. [Vue d'ensemble](telemetry/overview.md) — architecture générale

@@ -219,6 +219,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: "Stats armes du joueur.",
   },
   {
+    navKey: 'member.nemesis',
+    section: 'member-section',
+    label: 'Némésis',
+    hrefTemplate: '/members/:memberId/nemesis',
+    defaultRole: 'none',
+    description: 'Qui a le plus tué le joueur, et qui il a le plus tué.',
+  },
+  {
     navKey: 'member.map-stats',
     section: 'member-section',
     label: 'Cartes',
@@ -357,6 +365,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     hrefTemplate: '/clans/:clanId/telemetry/matches',
     defaultRole: 'owner',
     description: 'Vue des jobs de télémétrie par match.',
+  },
+  {
+    navKey: 'owner.encountered-opponents',
+    section: 'owner-menu',
+    label: 'Adversaires rencontrés',
+    hrefTemplate: '/clans/:clanId/telemetry/opponents',
+    defaultRole: 'owner',
+    description: 'Joueurs et clans adverses croisés en match, non trackés.',
   },
   {
     navKey: 'owner.email-delivery',

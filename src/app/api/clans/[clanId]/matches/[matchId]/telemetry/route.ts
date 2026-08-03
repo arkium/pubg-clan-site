@@ -161,6 +161,17 @@ export async function GET(
         .map((entry) => [entry.member.pubgAccountId as string, entry.member.displayName])
     )
 
+    const encounteredPlayers = await prisma.encounteredPlayer.findMany({
+      where: { clanId: parsedClanId },
+      select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
+    })
+    const opponentIdentityMap = Object.fromEntries(
+      encounteredPlayers.map((entry) => [
+        entry.pubgAccountId,
+        { name: entry.pubgPlayerName, clanTag: entry.pubgClanTag },
+      ])
+    )
+
     const payload = {
       match: {
         id: row.squadMatchId,
@@ -208,6 +219,7 @@ export async function GET(
       weaponLabels,
       phaseLabels,
       memberIdentityMap,
+      opponentIdentityMap,
     }
 
     return NextResponse.json(

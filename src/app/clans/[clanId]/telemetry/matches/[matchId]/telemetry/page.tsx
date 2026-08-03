@@ -116,6 +116,7 @@ type MatchTelemetryResponse = {
     weaponLabels?: Record<string, string>
     phaseLabels?: Record<string, string>
     memberIdentityMap?: Record<string, string>
+    opponentIdentityMap?: Record<string, { name: string; clanTag: string | null }>
   }
   error?: {
     message?: string
@@ -174,11 +175,26 @@ function normalizeAccountId(value: string) {
   return `account.${normalized}`
 }
 
+function isBotMemberKey(value: string) {
+  return /^ai\./i.test(value.trim())
+}
+
 function resolveTelemetryMemberLabel(
   memberKey: string,
-  memberIdentityMap?: Record<string, string>
+  memberIdentityMap?: Record<string, string>,
+  opponentIdentityMap?: Record<string, { name: string; clanTag: string | null }>
 ) {
   const trimmedKey = memberKey.trim()
+
+  if (isBotMemberKey(trimmedKey)) {
+    return {
+      label: 'Bot',
+      tone: 'bot' as const,
+      accountId: trimmedKey,
+      clanTag: null as string | null,
+    }
+  }
+
   const accountLike = /^account\./i.test(trimmedKey)
 
   if (!accountLike) {
@@ -186,15 +202,29 @@ function resolveTelemetryMemberLabel(
       label: trimmedKey || 'Unknown',
       tone: 'known' as const,
       accountId: null,
+      clanTag: null as string | null,
     }
   }
 
-  const resolved = memberIdentityMap?.[normalizeAccountId(trimmedKey)]
+  const normalized = normalizeAccountId(trimmedKey)
+
+  const resolved = memberIdentityMap?.[normalized]
   if (resolved) {
     return {
       label: resolved,
       tone: 'resolved' as const,
       accountId: trimmedKey,
+      clanTag: null as string | null,
+    }
+  }
+
+  const opponent = opponentIdentityMap?.[normalized]
+  if (opponent) {
+    return {
+      label: opponent.name,
+      tone: 'opponent' as const,
+      accountId: trimmedKey,
+      clanTag: opponent.clanTag,
     }
   }
 
@@ -202,6 +232,7 @@ function resolveTelemetryMemberLabel(
     label: trimmedKey,
     tone: 'unresolved' as const,
     accountId: trimmedKey,
+    clanTag: null as string | null,
   }
 }
 
@@ -866,6 +897,7 @@ export default function TelemetryMatchDetailPage() {
   const weaponLabels = payload?.weaponLabels
   const phaseLabels = payload?.phaseLabels ?? {}
   const memberIdentityMap = payload?.memberIdentityMap
+  const opponentIdentityMap = payload?.opponentIdentityMap
 
   const summary = toTelemetrySummary(telemetry?.summary)
   const weaponStats = toTelemetryWeaponStats(telemetry?.weaponStats)
@@ -1325,19 +1357,31 @@ export default function TelemetryMatchDetailPage() {
                       <div className="grid min-w-[760px] grid-cols-2 gap-2 xl:grid-cols-4">
                         {group.members.map((member) => (
                           (() => {
-                            const resolved = resolveTelemetryMemberLabel(member.memberKey, memberIdentityMap)
+                            const resolved = resolveTelemetryMemberLabel(
+                              member.memberKey,
+                              memberIdentityMap,
+                              opponentIdentityMap
+                            )
                             const cardTone =
                               resolved.tone === 'resolved'
                                 ? 'border-emerald-200 bg-emerald-50'
-                                : resolved.tone === 'unresolved'
-                                  ? 'border-amber-200 bg-amber-50'
-                                  : 'border-slate-200 bg-slate-50'
+                                : resolved.tone === 'opponent'
+                                  ? 'border-sky-200 bg-sky-50'
+                                  : resolved.tone === 'bot'
+                                    ? 'border-slate-300 bg-slate-100'
+                                    : resolved.tone === 'unresolved'
+                                      ? 'border-amber-200 bg-amber-50'
+                                      : 'border-slate-200 bg-slate-50'
                             const badgeTone =
                               resolved.tone === 'resolved'
                                 ? 'border-emerald-300 bg-white text-emerald-700'
-                                : resolved.tone === 'unresolved'
-                                  ? 'border-amber-300 bg-white text-amber-700'
-                                  : 'border-slate-300 bg-white text-slate-600'
+                                : resolved.tone === 'opponent'
+                                  ? 'border-sky-300 bg-white text-sky-700'
+                                  : resolved.tone === 'bot'
+                                    ? 'border-slate-400 bg-white text-slate-600'
+                                    : resolved.tone === 'unresolved'
+                                      ? 'border-amber-300 bg-white text-amber-700'
+                                      : 'border-slate-300 bg-white text-slate-600'
 
                             return (
                               <article key={member.memberKey} className={`min-w-0 overflow-hidden rounded-lg border px-3 py-2 ${cardTone}`}>
@@ -1347,6 +1391,16 @@ export default function TelemetryMatchDetailPage() {
                                     {resolved.tone === 'resolved' ? (
                                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
                                         Membre du clan
+                                      </span>
+                                    ) : null}
+                                    {resolved.tone === 'opponent' ? (
+                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                        {resolved.clanTag ? `Adversaire · [${resolved.clanTag}]` : 'Adversaire identifié'}
+                                      </span>
+                                    ) : null}
+                                    {resolved.tone === 'bot' ? (
+                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                        Bot
                                       </span>
                                     ) : null}
                                     {resolved.tone === 'unresolved' ? (

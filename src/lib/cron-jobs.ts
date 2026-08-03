@@ -7,6 +7,7 @@ import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/interna
 import { prisma } from '@/lib/prisma'
 import {
   fetchCurrentSeason,
+  fetchPlayerClan,
   fetchPlayerRankedStats,
   fetchPlayerSeasonStats,
   fetchWeaponMastery,
@@ -58,7 +59,13 @@ const globalForCron = globalThis as typeof globalThis & {
   reportGenerationInProgress?: boolean
   challengeProcessingCronTask?: ScheduledTask
   challengeProcessingInProgress?: boolean
+  encounteredPlayerResolutionCronTask?: ScheduledTask
+  encounteredPlayerResolutionInProgress?: boolean
 }
+
+const ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE = 5
+const ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION = 2
+const ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS = 3
 
 function isCronWorkerEnabled() {
   if (process.env.ENABLE_CRON_JOBS === 'true') {
@@ -1092,6 +1099,75 @@ export async function processChallenges() {
   }
 }
 
+async function resolveEncounteredPlayerClans() {
+  if (globalForCron.encounteredPlayerResolutionInProgress) {
+    console.warn('[Cron] Encountered player clan resolution skipped — previous run still in progress')
+    return
+  }
+
+  globalForCron.encounteredPlayerResolutionInProgress = true
+  const startedAt = new Date()
+  console.info(`[Cron] Encountered player clan resolution started at ${startedAt.toISOString()}`)
+
+  try {
+    const candidates = await prisma.encounteredPlayer.findMany({
+      where: {
+        clanResolvedAt: null,
+        encounterCount: { gte: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION },
+        resolveAttempts: { lt: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS },
+      },
+      orderBy: [{ encounterCount: 'desc' }, { lastSeenAt: 'desc' }],
+      take: ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE,
+    })
+
+    if (candidates.length === 0) {
+      return
+    }
+
+    let resolvedCount = 0
+    let failedCount = 0
+
+    for (const candidate of candidates) {
+      try {
+        const clan = await fetchPlayerClan(candidate.pubgAccountId, candidate.platformShard)
+
+        await prisma.encounteredPlayer.update({
+          where: { id: candidate.id },
+          data: {
+            clanResolvedAt: new Date(),
+            pubgClanId: clan?.id ?? null,
+            pubgClanTag: clan?.tag ?? null,
+            pubgClanName: clan?.name ?? null,
+          },
+        })
+
+        resolvedCount += 1
+      } catch (error) {
+        failedCount += 1
+        console.error(
+          `[Cron] Failed to resolve clan for encountered player ${candidate.pubgAccountId}`,
+          error
+        )
+
+        await prisma.encounteredPlayer
+          .update({
+            where: { id: candidate.id },
+            data: { resolveAttempts: { increment: 1 } },
+          })
+          .catch(() => undefined)
+      }
+    }
+
+    console.info(
+      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — resolved=${resolvedCount}, failed=${failedCount}, batch=${candidates.length}`
+    )
+  } catch (error) {
+    console.error('[Cron] Encountered player clan resolution failed before processing batch', error)
+  } finally {
+    globalForCron.encounteredPlayerResolutionInProgress = false
+  }
+}
+
 export type CronScheduleKey =
   | 'daily_sync'
   | 'daily_stats_recalc'
@@ -1102,6 +1178,7 @@ export type CronScheduleKey =
   | 'weekly_report_auto'
   | 'monthly_report_auto'
   | 'challenge_processing'
+  | 'encountered_player_clan_resolution'
 
 type CronScheduleGlobalKey =
   | 'clanSyncCronTask'
@@ -1113,6 +1190,7 @@ type CronScheduleGlobalKey =
   | 'weeklyReportCronTask'
   | 'monthlyReportCronTask'
   | 'challengeProcessingCronTask'
+  | 'encounteredPlayerResolutionCronTask'
 
 type CronScheduleDefinition = {
   key: CronScheduleKey
@@ -1185,6 +1263,13 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '0 0 * * *',
     globalKey: 'challengeProcessingCronTask',
     run: processChallenges,
+  },
+  {
+    key: 'encountered_player_clan_resolution',
+    envVar: 'ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON',
+    defaultExpression: '*/30 * * * *',
+    globalKey: 'encounteredPlayerResolutionCronTask',
+    run: resolveEncounteredPlayerClans,
   },
 ]
 

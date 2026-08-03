@@ -225,6 +225,7 @@ export function parseStoredPositionSnapshot(row: Record<keyof StoredPositionSnap
     memberStats: [],
     landingSamples: [],
     phaseSnapshots: [],
+    killFeedSamples: [],
     positionSamples: storedArray(row.positionSamples),
     trajectorySegments: storedArray(row.trajectorySegments),
     deathSamples: storedArray(row.deathSamples),

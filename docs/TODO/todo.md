@@ -705,7 +705,9 @@ Le rôle Moderator existe en DB mais n'a pas de fonctions définies. Quatre axes
 
 ## Idées — Suivi des adversaires rencontrés en match
 
-Discuté le 2026-08-03. Objectif différent de la section "Comparaison de performances entre clans" ci-dessus : il ne s'agit pas de comparer deux clans déjà suivis, mais d'exploiter les rosters adverses (non trackés) déjà présents dans chaque match pour (1) repérer les clans potentiellement intéressants à ajouter plus tard, (2) mesurer la fréquence de croisement avec certains joueurs/clans, (3) savoir qui nous tue et qui on tue. **Discussion uniquement — aucune implémentation à ce stade.**
+Discuté le 2026-08-03. Objectif différent de la section "Comparaison de performances entre clans" ci-dessus : il ne s'agit pas de comparer deux clans déjà suivis, mais d'exploiter les rosters adverses (non trackés) déjà présents dans chaque match pour (1) repérer les clans potentiellement intéressants à ajouter plus tard, (2) mesurer la fréquence de croisement avec certains joueurs/clans, (3) savoir qui nous tue et qui on tue.
+
+**Items 1, 2 et 3 déployés le 2026-08-03** (voir détail par item ci-dessous). Item 4 partiellement couvert en bonus de l'item 3 (compteurs bots kill/death), le comptage `botCount` par match reste à faire.
 
 ### Règle d'appel API — à respecter strictement
 
@@ -716,59 +718,72 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
 - Les infos de roster adverses (nom, `accountId`, placement, kills) proviennent du match déjà synchronisé (`analyzeMatchForSquads`, [squad-detector.ts:213](../../src/lib/squad-detector.ts#L213)) — **aucun appel API supplémentaire** pour cette partie, uniquement pour la résolution du clan.
 - **Bots identifiés gratuitement, sans appel API.** Confirmé empiriquement le 2026-08-03 sur des télémétries réelles (`.telemetry-captured/`, échantillon 130 comptes dont 4 bots) : les comptes bots ont un `accountId` au format `ai.<nombre>` (ex. `ai.325`), les vrais joueurs au format `account.<guid>` (ex. `account.16c80fae97c9468f923e5b45d8f34d92`) — distinction structurelle fiable à 100 %, aucune heuristique de nom nécessaire. **Ne jamais appeler `fetchPlayerClan` pour un `accountId` commençant par `ai.`** — un bot n'a structurellement aucun clan à résoudre, l'appel serait gaspillé.
 
-### 1. Identification légère des adversaires (sans créer de `Clan`/`ClanMember`)
+### ~~1. Identification légère des adversaires (sans créer de `Clan`/`ClanMember`)~~ — ✅ Déployé le 2026-08-03
 
 **Pourquoi c'est utile :** repérer les clans qui reviennent souvent en face de nous, pour décider plus tard de les ajouter officiellement — sans les mélanger avec la table `ClanMember` (qui sert au tracking actif "Ungrouped" inclus).
 
 **Données disponibles :** rosters de match déjà résolus par `analyzeMatchForSquads` ; `fetchPlayerClan()` déjà implémenté dans `pubg.ts` pour la résolution ponctuelle.
 
-- [ ] Créer une table légère `EncounteredPlayer` (`pubgAccountId` unique, `pubgPlayerName`, `platformShard`, `pubgClanId`/`pubgClanTag` nullable, `firstSeenAt`, `lastSeenAt`) — volontairement séparée de `Clan`/`ClanMember`
-- [ ] Brancher la capture des participants adverses au moment du sync de match (`analyzeMatchForSquads` ou juste après), sans appel API supplémentaire à ce stade
-- [ ] Ajouter une tâche basse priorité, séparée de la queue de sync clan, qui résout le clan **uniquement** pour les `pubgAccountId` sans `pubgClanTag` renseigné (un seul appel par joueur, jamais de re-fetch)
-- [ ] Décider d'un seuil avant résolution (ex. résoudre seulement après 2–3 croisements) pour limiter le volume d'appels sur des rencontres isolées
-- [ ] Vue simple (page ou export) listant les clans adverses les plus rencontrés, non trackés, avec nombre de croisements — support à la décision manuelle d'ajout
-- [ ] **Cas d'usage concret identifié le 2026-08-03** : `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` ([page.tsx:1328](../../src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx#L1328)) n'affiche aujourd'hui que l'`accountId` brut pour l'équipe adverse — `memberIdentityMap` n'est construit que depuis les membres du clan suivi ([route.ts:158-162](../../src/app/api/clans/[clanId]/matches/[matchId]/telemetry/route.ts#L158)). Étendre cette map (ou en ajouter une seconde) avec `EncounteredPlayer.pubgPlayerName` pour résoudre aussi les noms adverses — gratuit, le nom vient déjà de `ResolvedPubgMatch.rosters[].participants[].playerName`, aucun appel API supplémentaire (contrairement au tag de clan)
-- [ ] Sur cette même page, afficher explicitement "Bot" à la place du nom PUBG généré pour tout `accountId` préfixé `ai.`, une fois la détection branchée
+- [x] Créer une table légère `EncounteredPlayer` (`pubgAccountId` unique par clan, `pubgPlayerName`, `platformShard`, `pubgClanId`/`pubgClanTag`/`pubgClanName` nullables, `clanResolvedAt`, `resolveAttempts`, `firstSeenAt`, `lastSeenAt`) — migration `20260803120000_add_encountered_player`, volontairement séparée de `Clan`/`ClanMember`
+- [x] Brancher la capture des participants adverses au moment du sync de match — `captureEncounteredPlayers()` dans [encountered-players.ts](../../src/lib/encountered-players.ts), appelée juste après `analyzeMatchForSquads` dans [sync-matches/route.ts](../../src/app/api/clans/[clanId]/sync-matches/route.ts), exclut les comptes `ai.*` (bots) et les membres du clan suivi, aucun appel API supplémentaire
+- [x] Ajouter une tâche basse priorité, séparée de la queue de sync clan, qui résout le clan **uniquement** pour les `pubgAccountId` non résolus — cron `encountered_player_clan_resolution` dans [cron-jobs.ts](../../src/lib/cron-jobs.ts) (`resolveEncounteredPlayerClans`), toutes les 30 min par défaut (`ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON`), batch de 5, un seul appel par joueur (jamais de re-fetch), max 3 tentatives en cas d'échec réseau
+- [x] Décider d'un seuil avant résolution — fixé à 2 croisements minimum (`ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION`)
+- [x] Vue listant les clans adverses les plus rencontrés, non trackés, avec nombre de croisements — page [`/clans/[clanId]/telemetry/opponents`](../../src/app/clans/[clanId]/telemetry/opponents/page.tsx), API [`GET /api/clans/[clanId]/encountered-players`](../../src/app/api/clans/[clanId]/encountered-players/route.ts), accès Owner/Admin (`requireRole(['Owner', 'Admin'])`), nav ajoutée en DB (`NavItem.navKey = 'owner.encountered-opponents'`, section owner-menu, `defaultRole: 'owner'` — même visibilité nav que les pages télémétrie voisines ; l'API reste ouverte aux Admin en accès direct)
+- [x] **Cas d'usage identifié le 2026-08-03, traité le 2026-08-03** : `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` résout maintenant aussi les noms adverses via un nouveau `opponentIdentityMap` (issu d'`EncounteredPlayer`) exposé par [route.ts](../../src/app/api/clans/[clanId]/matches/[matchId]/telemetry/route.ts), avec un badge dédié "Adversaire · [tag]" (tone `opponent`, bleu ciel) distinct du badge "Membre du clan"
+- [x] Sur cette même page, label "Bot" (tone `bot`, gris) affiché à la place du nom PUBG généré pour tout `accountId` préfixé `ai.` — détection par préfixe dans `resolveTelemetryMemberLabel()`
 
-**Effort estimé :** faible à moyenne (nouvelle table + tâche basse priorité).
+**Validé le 2026-08-03** sur un match réel déjà importé (clan 1) : roster de 99 participants, 92 bots détectés et exclus, 6 adversaires réels capturés correctement. Résolution de clan testée end-to-end sur un compte réel (résultat "sans clan", mis en cache — pas de re-appel).
 
-### 2. Compteur de croisements
+**Non couvert dans ce lot** (à faire plus tard si besoin) : test visuel navigateur clair/sombre + mobile de la page `/telemetry/opponents` — pas de navigateur headless disponible dans cet environnement, à vérifier manuellement.
+
+### ~~2. Compteur de croisements~~ — ✅ Déployé le 2026-08-03
 
 **Pourquoi c'est utile :** savoir "on retombe souvent sur ce joueur/ce clan" est une info déjà disponible sans appel API — pur sous-produit du sync de match existant.
 
-- [ ] Incrémenter `EncounteredPlayer.encounterCount` (ou table de log dédiée si un historique par match est souhaité) à chaque match partagé avec un membre suivi
-- [ ] Exposer un top des adversaires/clans les plus croisés (par clan suivi), période Semaine/Mois/Tous comme les autres stats
+- [x] Incrémenter `EncounteredPlayer.encounterCount` à chaque match partagé avec un membre suivi (upsert dans `captureEncounteredPlayers`)
+- [x] Exposer un top des adversaires/clans les plus croisés (par clan suivi) — bloc "Clans adverses les plus croisés" sur la page `/telemetry/opponents`, agrégé depuis `pubgClanTag`
 - [ ] Distinguer croisement "même match, roster adverse" (déjà disponible) de "même match, dans le top de placement proche" si utile plus tard (hors scope initial)
+- [ ] Filtrage par période (Semaine/Mois/Tous) — non fait dans ce lot, la vue actuelle est "tout l'historique" uniquement
 
-**Effort estimé :** faible — agrégation sur données déjà en base.
-
-### 3. Némésis — qui nous a tués, qui on a tué
+### ~~3. Némésis — qui nous a tués, qui on a tué~~ — ✅ Déployé le 2026-08-03 (+ backfill partiel via fichiers capturés)
 
 **Pourquoi c'est utile :** angle jamais couvert actuellement, alors que la télémétrie contient déjà l'info brute (tueur/victime par événement `LogPlayerKill`).
 
 **Données disponibles :** pipeline `pubg-telemetry` existant, mais les événements `LogPlayerKill`/`LogPlayerMakeGroggy` ne sont aujourd'hui pas persistés individuellement (seuls les totaux agrégés par `SquadMember` le sont).
 
-- [ ] Étendre le parser télémétrie pour extraire les événements `LogPlayerKill` où la victime **ou** le tueur est un membre suivi
-- [ ] Stocker (nouvelle table `KillEvent` ou équivalent) : `squadMatchId`, `victimAccountId`, `killerAccountId`, arme, distance, horodatage
-- [ ] Relier `killerAccountId`/`victimAccountId` à `EncounteredPlayer` quand ce n'est pas un membre suivi
-- [ ] Page/widget "Némésis" par membre : qui nous a tués le plus souvent (nom + clan si résolu) — symétrique du classement d'alliés déjà existant
-- [ ] Vérifier l'impact volumétrie/temps de parsing sur les matchs déjà backfillés avant d'envisager un backfill complet
+- [x] Étendre le parser télémétrie pour extraire les événements `LogPlayerKill` — capture **non filtrée** à l'extraction (`killFeedSamples` dans [parser.ts](../../src/lib/pubg-telemetry/parser.ts), type `TelemetryKillFeedSample`) : `clanMemberKeys` est vide sur le chemin de sync principal (`index.ts` ne le passe jamais), donc le filtrage "victime ou tueur = membre suivi" est fait à la persistance, pas au parsing
+- [x] Stocker dans une nouvelle table relationnelle `KillEvent` (migration `20260803180000_add_kill_event`) : `squadMatchId`, `clanId`, `killerAccountId`/`killerRawKey`/`killerMemberId`, `victimAccountId`/`victimRawKey`/`victimMemberId`, `weaponName`, `distance`, `headshot`, `timestampSeconds`, `matchDate` — table relationnelle plutôt que blob JSON (comme `PositionMetricCell`/`DropPressureStat`), pour permettre l'agrégation Némésis sans reparser du JSON
+- [x] [kill-event-persistence.ts](../../src/lib/kill-event-persistence.ts) : résout `killerMemberId`/`victimMemberId` contre **tout le roster du clan** (pas seulement les membres de la squad détectée, car un kill peut impliquer n'importe quel participant du match), ne garde que les lignes où au moins un côté est un membre suivi ; remplacement idempotent (delete+recreate) par `squadMatchId`
+- [x] Branché sur les trois chemins de sync existants : [pubg-telemetry/index.ts](../../src/lib/pubg-telemetry/index.ts) (chemin principal automatique) et les deux points de [manual-sync.ts](../../src/lib/pubg-telemetry/manual-sync.ts) (sync manuel / import fichier), juste après `persistDropPressureStatsForMatch`
+- [x] Relié `killerAccountId`/`victimAccountId` à `EncounteredPlayer` — fait **à la lecture** dans l'API Némésis plutôt qu'à l'écriture, pour rester à jour si le nom/clan de l'adversaire est résolu plus tard
+- [x] Page/widget "Némésis" par membre — [`/members/[id]/nemesis`](../../src/app/members/[id]/nemesis/page.tsx), API [`GET /api/members/[id]/nemesis`](../../src/app/api/members/[id]/nemesis/route.ts), accès `requireSameClanAsMember` (comme les autres pages membre), nav ajoutée en DB (`NavItem.navKey = 'member.nemesis'`, section member-section) ; exclut les bots des classements Némésis mais expose leur compte à part ("Bots neutralisés" / "Tué par un bot")
+- [ ] Vérifier l'impact volumétrie/temps de parsing sur les matchs déjà backfillés avant d'envisager un backfill complet — **sans objet**, voir contrainte de rétention ci-dessous
 
-**Effort estimé :** moyenne — dépend du volume d'événements par match et du besoin ou non de backfill complet.
+**Correction du 2026-08-03 (même jour) : backfill partiel finalement possible, sans API.** L'analyse initiale ci-dessus était incomplète — elle ne considérait que le resync via l'API PUBG, bloqué par la rétention ~14-15 jours. Mais le dossier `.telemetry-captured/` contient déjà les fichiers JSON bruts téléchargés lors de précédents parsings (utilisés pour le backfill v1→v2, jamais nettoyés depuis). Vérifié : sur 672 fichiers capturés, **658 correspondent à des matchs hors fenêtre de rétention** — leur `squadMatchId` est encodé dans le nom de fichier. Ces fichiers permettent de reparser localement (aucun appel API PUBG) et d'en extraire le kill-feed.
+
+- [x] Script [`scripts/backfill-kill-events-from-captured.ts`](../../scripts/backfill-kill-events-from-captured.ts) : parcourt `.telemetry-captured/`, extrait le `squadMatchId` du nom de fichier, reparse le JSON brut localement (`parseTelemetrySnapshot`), persiste via `persistKillEventsForMatch` — flags `--limit` et `--dry-run`
+- [x] Validé sur un lot de 5 fichiers avant le lot complet : 28 lignes `KillEvent` réellement pertinentes écrites (sur 514 kills bruts parsés, la plupart impliquant des joueurs hors clan des deux côtés)
+- [x] Lancé sur les 672 fichiers le 2026-08-03 — **terminé** : 672 fichiers traités, 672 matchés à un `SquadMatch` existant, 2 erreurs de parsing (JSON tronqué/corrompu sur les fichiers capturés — matchs ignorés, sans impact ailleurs), **3709 `KillEvent` écrits sur 659 matchs distincts** (clan 1)
+
+Sur les 1319 télémétries déjà parsées : **658 récupérées via backfill local** (fichiers capturés, hors fenêtre de rétention, zéro appel API) + 300 potentiellement resynchronisables via l'API dans la fenêtre de rétention (non fait, resync individuel si besoin) = l'essentiel de l'historique du clan 1 dispose maintenant d'un kill-feed. Reste un résidu incompressible (~361 matchs, autres clans ou hors fenêtre sans fichier capturé) qui n'auront jamais de kill-feed.
+
+**Validé le 2026-08-03** par un vrai resync d'un match récent (clan 1, dans la fenêtre de rétention) : 3 `KillEvent` capturés correctement, dont un membre tué par un adversaire résolu, un membre ayant tué un adversaire, un membre tué à la grenade — `killerMember`/`victimMember` correctement peuplés via jointure.
+
+**Effort réel :** moyen, comme estimé — la difficulté principale était la découverte tardive que `clanMemberKeys` n'est jamais peuplé sur le chemin de sync automatique, nécessitant de déplacer le filtrage du parsing vers la persistance.
 
 ### 4. Bots par match — fréquentation lobby et bots neutralisés
 
 Suggéré le 2026-08-03, en réaction directe à la confirmation du préfixe `ai.` ci-dessus. **Pourquoi c'est utile :** contexte de qualité pour les autres stats (un match avec beaucoup de bots doit être lu différemment d'un lobby 100 % humain) et un chiffre engageant en soi ("X bots neutralisés cette semaine").
 
-**Données disponibles :** sous-produit direct de la détection de bots (préfixe `ai.`) et de l'extraction `LogPlayerKill` déjà prévue pour l'item 3 — aucune nouvelle source de données, uniquement de l'agrégation supplémentaire sur ce qui est déjà itéré.
+**Données disponibles :** sous-produit direct de la détection de bots (préfixe `ai.`) et de l'extraction `LogPlayerKill` de l'item 3 — aucune nouvelle source de données, uniquement de l'agrégation supplémentaire sur ce qui est déjà itéré.
 
-- [ ] Compter les `accountId` uniques préfixés `ai.` par match au moment du parsing télémétrie (déjà itéré pour l'item 3, pas de passage supplémentaire sur le fichier)
-- [ ] Stocker `botCount` par match observé (nouveau champ sur `SquadMatch` ou sur la table de télémétrie existante)
-- [ ] Compter, dans l'extraction `LogPlayerKill` de l'item 3, les kills où le tueur est un membre suivi et la victime un `ai.*` (sous-ensemble filtré, pas une extraction séparée)
-- [ ] Exclure explicitement les kills/morts impliquant un bot des stats compétitives (Némésis, meilleurs ennemis, futurs classements de rivalité) pour ne pas les polluer
-- [ ] Afficher le nombre moyen de bots par match et le total de bots neutralisés sur le dashboard clan/membre, période Semaine/Mois/Tous
+- [ ] Compter les `accountId` uniques préfixés `ai.` par match au moment du parsing télémétrie
+- [ ] Stocker `botCount` par match observé (nouveau champ sur `SquadMatch` ou sur la table de télémétrie existante) — reste à faire
+- [x] Compter, dans `KillEvent` (item 3), les kills où le tueur est un membre suivi et la victime un `ai.*` — **fait en bonus le 2026-08-03** : `botKillCount`/`botDeathCount` exposés par `GET /api/members/[id]/nemesis` et affichés sur `/members/[id]/nemesis`
+- [x] Exclure explicitement les kills/morts impliquant un bot des classements Némésis — fait (`topKillers`/`topVictims` filtrent `isBot`)
+- [ ] Afficher le nombre moyen de bots par match (nécessite le `botCount` par match ci-dessus, pas encore fait) — seul le total cumulé "bots neutralisés"/"tué par un bot" est affiché pour l'instant, pas de moyenne par période
 
-**Effort estimé :** faible — entièrement dérivé de l'extraction déjà prévue pour l'item 3, pas de nouvel appel API ni de nouvelle source de données.
+**Effort estimé :** faible — le volet kill-feed (bonus) est fait ; il reste seulement le comptage `botCount` par match (fréquentation lobby), indépendant du kill-feed.
 
 ### Note pour plus tard — données de match du membre suivi lui-même
 
@@ -783,12 +798,13 @@ Mentionné le 2026-08-03 : la télémétrie contient aussi des données détaill
 
 ### Priorisation suggérée
 
-| Priorité | Idée | Effort | Dépendances |
-|---|---|---|---|
-| 1 | Identification légère des adversaires + compteur de croisements (items 1 + 2) | Faible à moyenne | Aucune — rosters déjà disponibles |
-| 2 | Némésis / kill-feed (item 3) | Moyenne | Extension du parser télémétrie |
-| 3 | Bots par match + bots neutralisés (item 4) | Faible (sous-produit de l'item 3) | Item 3 |
-| 4 | Arme qui nous tue le plus | Faible (une fois l'item 3 en place) | Item 3 |
-| 5 | Clans rivaux récurrents, zone de mort récurrente, revanche | Moyenne | Items 1–3 |
+| Priorité | Idée | Statut | Effort | Dépendances |
+|---|---|---|---|---|
+| 1 | Identification légère des adversaires + compteur de croisements (items 1 + 2) | ✅ Déployé 2026-08-03 | Faible à moyenne | Aucune |
+| 2 | Némésis / kill-feed (item 3) | ✅ Déployé 2026-08-03 (sans backfill) | Moyenne | Extension du parser télémétrie |
+| 3 | Bots neutralisés / tué par un bot | ✅ Déployé en bonus de l'item 3 | Faible | Item 3 |
+| 4 | Bots par match (fréquentation lobby, `botCount`) | Reste à faire | Faible | Aucune (indépendant du kill-feed) |
+| 5 | Arme qui nous tue le plus | Reste à faire | Faible (donnée déjà en base) | Item 3 |
+| 6 | Clans rivaux récurrents, zone de mort récurrente, revanche | Reste à faire | Moyenne | Items 1–3 |
 
-Les items 1 et 2 peuvent être livrés ensemble sans toucher à la télémétrie — uniquement le sync de match déjà en place et une nouvelle table `EncounteredPlayer`. L'item 4 (bots) est presque gratuit une fois l'item 3 en place : même extraction `LogPlayerKill`, filtre différent.
+Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du kill-feed — nécessite juste de compter les `ai.*` uniques par match au moment du parsing, sans lien avec `KillEvent`.

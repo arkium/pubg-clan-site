@@ -74,6 +74,20 @@ export type TelemetryKillSample = {
   y: number
 }
 
+// Raw killer/victim pair for every LogPlayerKill event in the match — unfiltered
+// (unlike killSamples/deathSamples, which only track clan members' own
+// positions). Relevance to a tracked clan is resolved later, at persistence
+// time, by matching killerKey/victimKey against the full clan roster — not
+// here, since clanMemberKeys is usually empty on the main sync path.
+export type TelemetryKillFeedSample = {
+  killerKey: string | null
+  victimKey: string | null
+  weaponName: string | null
+  distance: number | null
+  headshot: boolean
+  timestampSeconds: number | null
+}
+
 export type TelemetryShotCluster = {
   memberKey: string
   weaponName: string | null
@@ -199,6 +213,7 @@ type TelemetryAccumulator = {
   shotClusterRadiusUnits: number
   damageClusterRadiusUnits: number
   killSamples: TelemetryKillSample[]
+  killFeedSamples: TelemetryKillFeedSample[]
   shotClusters: Map<string, ShotClusterAccum>
   damageClusters: Map<string, DamageClusterAccum>
   knockoutSamples: TelemetryKnockoutSample[]
@@ -248,6 +263,7 @@ export type ParsedTelemetrySnapshot = {
   landingSamples: TelemetryPositionSample[]
   phaseSnapshots: TelemetryPhaseSnapshot[]
   killSamples: TelemetryKillSample[]
+  killFeedSamples: TelemetryKillFeedSample[]
   shotSamples: TelemetryShotCluster[]
   damageSamples: TelemetryDamageCluster[]
   knockoutSamples: TelemetryKnockoutSample[]
@@ -872,6 +888,7 @@ function createTelemetryAccumulator(options?: {
     shotClusterRadiusUnits: (options?.shotClusterRadiusMeters ?? 50) * 100,
     damageClusterRadiusUnits: (options?.damageClusterRadiusMeters ?? 30) * 100,
     killSamples: [],
+    killFeedSamples: [],
     shotClusters: new Map<string, ShotClusterAccum>(),
     damageClusters: new Map<string, DamageClusterAccum>(),
     knockoutSamples: [],
@@ -1017,6 +1034,21 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         }
       }
     }
+
+    if (killerKey || victimKey) {
+      accumulator.killFeedSamples.push({
+        killerKey: killerKey ?? null,
+        victimKey: victimKey ?? null,
+        weaponName,
+        distance:
+          typeof killDistance === 'number' && Number.isFinite(killDistance) && killDistance >= 0
+            ? killDistance
+            : null,
+        headshot: wasHeadshot,
+        timestampSeconds,
+      })
+    }
+
     return
   }
 
@@ -1667,6 +1699,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     landingSamples: accumulator.landingSamples,
     phaseSnapshots: accumulator.phaseSnapshots,
     killSamples: accumulator.killSamples,
+    killFeedSamples: accumulator.killFeedSamples,
     shotSamples,
     damageSamples,
     knockoutSamples: accumulator.knockoutSamples,

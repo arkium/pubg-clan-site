@@ -35,6 +35,8 @@ model Clan {
   cronExecutions            CronExecution[]
   clanConfigs               ClanConfig[]
   positionMetricCells       PositionMetricCell[]
+  encounteredPlayers        EncounteredPlayer[]
+  killEvents                KillEvent[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -64,6 +66,8 @@ model ClanMember {
   memberTelemetryStats      MemberTelemetryStats[]
   dropPressureStats         DropPressureStat[]
   positionMetricCells       PositionMetricCell[]
+  killEventsAsKiller        KillEvent[]                  @relation("KillEventKiller")
+  killEventsAsVictim        KillEvent[]                  @relation("KillEventVictim")
   telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
   telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
   notifications             Notification[]
@@ -78,6 +82,42 @@ model ClanMember {
 
   @@unique([pubgPlayerName, platformShard])
   @@map("ClanMember")
+}
+
+// Adversaires (hors clan suivi) croisés en match par un clan tracké. Table
+// volontairement séparée de ClanMember/Clan — sert d'observation légère
+// (fréquence de croisement, clan PUBG résolu à la demande), pas de tracking actif.
+// Voir docs/TODO/todo.md, section "Idées — Suivi des adversaires rencontrés en match".
+model EncounteredPlayer {
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  pubgAccountId  String
+  pubgPlayerName String
+  platformShard  String
+
+  // Résolution du clan PUBG de ce joueur — nullable tant que non résolu.
+  // clanResolvedAt marque qu'une tentative a eu lieu (succès ou "pas de clan"),
+  // pour ne jamais rappeler l'API PUBG deux fois pour le même joueur.
+  pubgClanId       String?
+  pubgClanTag      String?
+  pubgClanName     String?
+  clanResolvedAt   DateTime?
+  resolveAttempts  Int       @default(0)
+
+  encounterCount Int      @default(1)
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clanId, pubgAccountId])
+  @@index([clanId, encounterCount])
+  @@index([clanId, pubgClanTag])
+  @@index([clanResolvedAt, encounterCount])
+  @@map("EncounteredPlayer")
 }
 
 model UserAccount {
@@ -319,6 +359,7 @@ model SquadMatch {
   telemetry           SquadMatchTelemetry?
   dropPressureStats   DropPressureStat[]
   positionMetricCells PositionMetricCell[]
+  killEvents          KillEvent[]
 
   totalKills   Int
   totalDamage  Float
@@ -446,6 +487,41 @@ model PositionMetricCell {
   @@index([memberId, matchDate, metric])
   @@index([clanId, mapName, phase, metric])
   @@map("PositionMetricCell")
+}
+
+// Kill-feed : qui a tué qui, pour les matchs impliquant au moins un membre suivi.
+// killer/victim peuvent être un membre du clan, un adversaire (EncounteredPlayer),
+// ou un bot (accountId préfixé ai.) — resolution faite à la lecture, pas ici.
+// Voir docs/TODO/todo.md, section "3. Némésis".
+model KillEvent {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  clanId       Int
+  clan         Clan       @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  killerAccountId String?
+  killerRawKey    String?
+  killerMemberId  Int?
+  killerMember    ClanMember? @relation("KillEventKiller", fields: [killerMemberId], references: [id], onDelete: SetNull)
+
+  victimAccountId String?
+  victimRawKey    String?
+  victimMemberId  Int?
+  victimMember    ClanMember? @relation("KillEventVictim", fields: [victimMemberId], references: [id], onDelete: SetNull)
+
+  weaponName       String?
+  distance         Float?
+  headshot         Boolean  @default(false)
+  timestampSeconds Float?
+  matchDate        DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([squadMatchId])
+  @@index([clanId, victimMemberId, matchDate])
+  @@index([clanId, killerMemberId, matchDate])
+  @@map("KillEvent")
 }
 
 model PlayerStats {

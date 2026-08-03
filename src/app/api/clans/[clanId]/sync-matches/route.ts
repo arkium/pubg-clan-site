@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { captureEncounteredPlayers } from '@/lib/encountered-players'
 import { isInternalCronRequest } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
@@ -84,6 +85,12 @@ export async function POST(
       })
     }
 
+    const clanAccountIds = new Set(
+      clan.members
+        .map((member) => member.pubgAccountId)
+        .filter((accountId): accountId is string => Boolean(accountId))
+    )
+
     for (const member of clan.members) {
       try {
         let playerId = member.pubgAccountId
@@ -97,6 +104,7 @@ export async function POST(
               continue
             }
             playerId = player.accountId
+            clanAccountIds.add(playerId)
             await prisma.clanMember.update({
               where: { id: member.id },
               data: { pubgAccountId: playerId },
@@ -179,6 +187,15 @@ export async function POST(
             if (detectedSquad) {
               logs.push(
                 `Squad detected for match ${matchDetails.id}: ${detectedSquad.members.length} clan member(s)`
+              )
+            }
+
+            try {
+              await captureEncounteredPlayers(clan.id, matchDetails, member.platformShard, clanAccountIds)
+            } catch (encounterError) {
+              console.warn(
+                `[Clan Sync] Failed to capture encountered players for match ${matchDetails.id}`,
+                encounterError
               )
             }
 

@@ -48,6 +48,7 @@ type ClanNavigationProps = {
 }
 
 const APP_THEME_STORAGE_KEY = 'pubg_app_theme'
+const VIEWED_MEMBER_STORAGE_KEY = 'pubg_viewed_member_id'
 const APP_THEME_OPTIONS: Array<{ value: AppTheme; label: string }> = [
   { value: 'light', label: 'Clair' },
   { value: 'dark', label: 'Sombre' },
@@ -281,6 +282,14 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('first_run')
   const [clanImageUrl, setClanImageUrl] = useState('/pubg.png')
   const [playerAvatarUrl, setPlayerAvatarUrl] = useState<string | null>(null)
+  const [viewedMemberId, setViewedMemberId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    const stored = Number(window.sessionStorage.getItem(VIEWED_MEMBER_STORAGE_KEY))
+    return Number.isInteger(stored) && stored > 0 ? stored : null
+  })
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
@@ -386,10 +395,17 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return navPerms.items.find((i) => i.navKey === navKey)?.defaultRole === 'hidden'
   }
 
+  // Member id currently in view (admin/owner/superuser may be browsing another
+  // member's page); falls back to the logged-in member otherwise.
+  const urlMemberId = (() => {
+    const match = pathname.match(/^\/members\/(\d+)/)
+    return match ? Number(match[1]) : null
+  })()
+
   function resolveHref(template: string): string {
     return template
       .replace(':clanId', clanId ? String(clanId) : '')
-      .replace(':memberId', activeMemberId ? String(activeMemberId) : '')
+      .replace(':memberId', memberIdForCtx ? String(memberIdForCtx) : '')
       .replace(/\/:[^/]+/g, '')
       || '/'
   }
@@ -405,6 +421,21 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
   const isOwner = hasWildcard
   const isAdmin = canManageMembers || canManageRoles || canManageSettings
+
+  // Member id to use for nav links: admin/owner/superuser browsing another
+  // member's page keep pointing at that member (persisted across navigation,
+  // e.g. clicking into "Mon clan" and back) instead of snapping back to self.
+  const canBrowseOtherMembers = isSuperUser || isOwner || isAdmin
+  const memberIdForCtx = canBrowseOtherMembers && viewedMemberId ? viewedMemberId : activeMemberId
+
+  useEffect(() => {
+    if (!canBrowseOtherMembers || urlMemberId === null || urlMemberId === viewedMemberId) {
+      return
+    }
+
+    setViewedMemberId(urlMemberId)
+    window.sessionStorage.setItem(VIEWED_MEMBER_STORAGE_KEY, String(urlMemberId))
+  }, [canBrowseOtherMembers, urlMemberId, viewedMemberId])
 
   // Items promoted to another section are no longer visible in their native section
   const ROLE_TO_TARGET: Partial<Record<string, NavSection>> = {
@@ -440,7 +471,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return first ? resolveHref(first.hrefTemplate) : fallback
   }
 
-  const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
+  const dashboardHref = memberIdForCtx ? `/members/${memberIdForCtx}/dashboard` : '/members'
 
   const primaryLinks: NavItem[] = ([
     {
@@ -476,14 +507,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const showSuperUserMenu = isSuperUser
 
   // ── Contextual sidebar section ──────────────────────────────────────────
-
-  // Member id to use for nav links (admin/owner/superuser may view another member's page)
-  const urlMemberId = (() => {
-    const match = pathname.match(/^\/members\/(\d+)/)
-    return match ? Number(match[1]) : null
-  })()
-  const memberIdForCtx =
-    (isSuperUser || isOwner || isAdmin) && urlMemberId ? urlMemberId : activeMemberId
 
   function resolveCtxHref(template: string, memberId: number | null): string {
     return (
@@ -804,6 +827,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
 
   async function handleLogout() {
+    window.sessionStorage.removeItem(VIEWED_MEMBER_STORAGE_KEY)
+
     try {
       const response = await fetch('/api/auth/logout', {
         method: 'POST',

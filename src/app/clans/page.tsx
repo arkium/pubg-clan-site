@@ -9,11 +9,13 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function ClansPage() {
   const router = useRouter()
-  const { setClanId, syncCanSwitchClan } = useSelectedClan()
+  const { clanId: activeClanId, setClanId, syncCanSwitchClan } = useSelectedClan()
   const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [retryToken, setRetryToken] = useState(0)
+  const [pendingClanId, setPendingClanId] = useState<number | null>(null)
 
   const canSwitchClan = isSuperUser
 
@@ -74,9 +76,18 @@ export default function ClansPage() {
     return () => {
       cancelled = true
     }
-  }, [authLoading, authenticated, canSwitchClan])
+  }, [authLoading, authenticated, canSwitchClan, retryToken])
 
   function handleSelect(clanId: number) {
+    if (activeClanId !== null && activeClanId !== clanId) {
+      setPendingClanId(clanId)
+      return
+    }
+
+    switchToClan(clanId)
+  }
+
+  function switchToClan(clanId: number) {
     const changed = setClanId(clanId)
     if (!changed) {
       setError('Seul le Owner peut changer de clan.')
@@ -84,6 +95,19 @@ export default function ClansPage() {
     }
 
     router.push(`/clans/${clanId}/members`)
+  }
+
+  function handleConfirmSwitch() {
+    if (pendingClanId === null) {
+      return
+    }
+
+    switchToClan(pendingClanId)
+    setPendingClanId(null)
+  }
+
+  function handleCancelSwitch() {
+    setPendingClanId(null)
   }
 
   if (authLoading) {
@@ -105,13 +129,23 @@ export default function ClansPage() {
   return (
     <main className="app-container app-main">
       <div className="app-panel mb-5 p-4">
-        <h1 className="text-xl font-bold text-slate-900">SÃ©lectionnez votre clan</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Choisissez le clan Ã  consulter pour afficher les membres et les donnÃ©es associÃ©es.
+        <h1 className="text-xl font-bold text-gray-900">Sélectionnez votre clan</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Choisissez le clan à consulter pour afficher les membres et les données associées.
         </p>
       </div>
 
-      <ClanSelector clans={clans} loading={loading} error={error} onSelect={handleSelect} />
+      <ClanSelector
+        clans={clans}
+        loading={loading}
+        error={error}
+        activeClanId={activeClanId}
+        onSelect={handleSelect}
+        onRetry={() => setRetryToken((token) => token + 1)}
+        pendingClan={clans.find((clan) => clan.id === pendingClanId) ?? null}
+        onConfirmSwitch={handleConfirmSwitch}
+        onCancelSwitch={handleCancelSwitch}
+      />
     </main>
   )
 }

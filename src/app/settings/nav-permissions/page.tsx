@@ -92,35 +92,29 @@ function RoleSelector({ navKey, currentRole, defaultRole, disabled, onChange }: 
   disabled: boolean
   onChange: (navKey: string, role: NavRole) => void
 }) {
+  const m = ROLE_META[currentRole]
   return (
-    <div className="flex flex-wrap gap-1">
-      {ROLES.map((role) => {
-        const m = ROLE_META[role]
-        const active = currentRole === role
-        const isDefault = defaultRole === role
-        return (
-          <button
-            key={role}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(navKey, role)}
-            title={isDefault ? `Défaut : ${m.label}` : m.label}
-            className={[
-              'relative inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-all duration-150',
-              active
-                ? `${m.bg} ${m.border} ${m.color} shadow-sm`
-                : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600',
-              disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-            ].join(' ')}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${active ? m.dot : 'bg-slate-300'}`} />
-            {m.label}
-            {isDefault && (
-              <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-slate-400 text-[7px] text-white">✦</span>
-            )}
-          </button>
-        )
-      })}
+    <div className="inline-flex items-center gap-1.5">
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.dot}`} />
+      <select
+        value={currentRole}
+        disabled={disabled}
+        onChange={(e) => onChange(navKey, e.target.value as NavRole)}
+        className={[
+          'rounded-md border px-1.5 py-0.5 text-[11px] font-semibold outline-none transition-colors',
+          m.bg,
+          m.border,
+          m.color,
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+        ].join(' ')}
+      >
+        {ROLES.map((role) => (
+          <option key={role} value={role}>
+            {ROLE_META[role].label}
+            {defaultRole === role ? ' •' : ''}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }

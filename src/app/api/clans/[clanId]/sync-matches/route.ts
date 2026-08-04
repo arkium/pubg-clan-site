@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-import { captureEncounteredPlayers } from '@/lib/encountered-players'
+import { captureEncounteredPlayers, countBotsInMatch } from '@/lib/encountered-players'
 import { isInternalCronRequest } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
@@ -156,6 +156,7 @@ export async function POST(
               playersAlive: 0,
               duration: matchDetails.durationSeconds,
               pubgCreatedAt: new Date(matchDetails.createdAt),
+              botCount: countBotsInMatch(matchDetails),
             }
 
             await prisma.match.upsert({
@@ -178,6 +179,7 @@ export async function POST(
                 playersAlive: matchData.playersAlive,
                 duration: matchData.duration,
                 pubgCreatedAt: matchData.pubgCreatedAt,
+                botCount: matchData.botCount,
               },
               create: matchData,
             })

@@ -421,12 +421,43 @@ Le parser `parseTelemetrySnapshotFromStream` dans `parser.ts` est un vrai stream
 
 ### Events télémétrie non parsés
 
-| Événement | Intérêt | Travail estimé |
-|---|---|---|
-| `LogPlayerUseThrowable` | Diversité tactique (grenades, molotovs) | 2–4h |
-| `LogVehicleLeave.rideDistance` | Distance véhicule précise par session | 1–2h |
-| `LogVehicleLeave.maxSpeed` | Vitesse max par session (JACKY TUNING complet) | 1h |
-| `CharacterWrapper.primaryWeaponFirst` | Arme en main au moment des kills | 4–8h |
+Développé et déployé le 2026-08-04 à partir de fichiers réels dans `.telemetry-captured/` (structure des événements vérifiée directement, pas juste le nom du champ). **Résultat sur les 3 items : 1 déployé (lancers), 1 abandonné après investigation car déjà résolu autrement (distance véhicule), 1 abandonné car la prémisse était fausse (arme au moment du kill).**
+
+**Correction d'abord :** `LogVehicleLeave.maxSpeed` est **déjà parsé** ([parser.ts:1379](../../src/lib/pubg-telemetry/parser.ts#L1379), champ `TelemetryMemberStats.maxVehicleSpeedKph`) — la ligne du tableau précédent était obsolète, ce n'est plus à faire.
+
+#### ~~1. `LogPlayerUseThrowable` — diversité tactique (grenades, fumigènes, flashbangs...)~~ — ✅ Déployé le 2026-08-04
+
+- [x] Nouvelle table `MemberThrowableStat` (`squadMatchId`, `memberId`, `itemId`, `count`, `matchDate`, unique sur `[squadMatchId, memberId, itemId]`) — migration `20260804150000_add_member_throwable_stat`, remplacement idempotent par match comme `KillEvent`/`DropPressureStat`
+- [x] Capture non filtrée dans le parser (`throwableSamples` dans [parser.ts](../../src/lib/pubg-telemetry/parser.ts), type `TelemetryThrowableSample`), même raison que le kill-feed : `clanMemberKeys` vide sur le chemin de sync principal, filtrage fait à la persistance dans [throwable-persistence.ts](../../src/lib/throwable-persistence.ts) (résolution contre tout le roster clan, pas seulement la squad détectée)
+- [x] Branché sur les 3 chemins de sync ([pubg-telemetry/index.ts](../../src/lib/pubg-telemetry/index.ts) + 2 points de [manual-sync.ts](../../src/lib/pubg-telemetry/manual-sync.ts)), juste après `persistKillEventsForMatch`
+- [x] Décidé : affichage par type précis (pas de regroupement offensif/tactique) — 9 types distincts observés, assez lisibles individuellement pour ne pas justifier une catégorisation supplémentaire
+- [x] Section "Lancers" ajoutée sur `/members/[id]/weapons` (pas de page dédiée), API [`GET /api/members/[id]/throwables`](../../src/app/api/members/[id]/throwables/route.ts) (cumul lifetime tous matchs, `groupBy` Prisma)
+- [x] **Découverte en cours d'implémentation :** ni les icônes (`public/icons/pubg/weapons/`) ni `resolveWeaponName()`/`damageCauserName.json` ne couvrent ces `itemId` (le dictionnaire indexe les grenades sous leur nom de *projectile en vol* — `ProjGrenade_C` — pas sous l'ID d'objet lancé `Item_Weapon_Grenade_C` de `LogPlayerUseThrowable`) — ajouté un petit mapping local `THROWABLE_LABELS` dans la page avec repli sur l'ID nettoyé pour tout type non couvert ; les icônes manquantes se dégradent silencieusement (comportement déjà prévu dans `WeaponIcon`, pas de correctif nécessaire)
+
+**Validé le 2026-08-04** par un vrai resync (clan 1, match récent) : lancers capturés correctement pour 2 membres réels (`Pagiotte` : 3 grenades + 3 fumigènes ; `SAMUELAXEII` : 1 grenade + 1 flashbang), attribution par membre correcte.
+
+**Effort réel :** conforme à l'estimation (2–4h) pour l'extraction ; le mapping de labels/icônes manquants était un imprévu mineur, pas un blocage.
+
+#### 2. ~~`LogVehicleLeave.rideDistance` — distance véhicule précise par session~~ — ❌ Investigation faite, non implémenté
+
+**Découverte du 2026-08-04 qui change la donne :** `SquadMember.rideDistance` — la distance véhicule **déjà en base**, sourcée depuis l'API de résumé PUBG (`participant.rideDistance` dans [pubg.ts:291](../../src/lib/pubg.ts#L291), via [squad-detector.ts:275](../../src/lib/squad-detector.ts#L275)), donc fiable et déjà officielle PUBG — **n'est utilisée nulle part sauf en interne pour l'award "JACKY TUNING"**, jamais affichée comme stat visible. Vérifié en base : `4390` lignes, moyenne `1289 m`, max `12836 m` — donnée réelle et cohérente, aucun signe de champ gelé. Le "besoin" de précision que ce point cherchait à combler est donc déjà résolu par une donnée existante et fiable, sans aucun parsing télémétrie.
+
+**Tentative de vérification du champ télémétrie `LogVehicleLeave.rideDistance` — résultat non concluant, abandonné.** Comparé sur 3 matchs réels la somme de `rideDistance` par joueur contre une estimation par delta de position (même logique que le parser) : le ratio entre les deux variait de **~180 à plus de 400 000** selon le joueur, sans schéma cohérent expliquant l'écart (pas un facteur d'unité constant comme `/10` ou `/100`). Cause probable : un joueur monte/descend plusieurs véhicules différents dans un match et `rideDistance` semble se réinitialiser par instance de véhicule d'une façon que je n'ai pas isolée avec certitude dans le temps imparti.
+
+- [ ] **Ne pas implémenter tel quel** — le besoin déclaré ("distance véhicule précise") est déjà satisfait par `SquadMember.rideDistance`, non exploité ailleurs qu'en interne pour un award
+- [ ] Si la granularité par session (pas juste le total du match) devient un jour un besoin réel, reprendre l'investigation `LogVehicleLeave.rideDistance` avec plus de temps — comparer instance de véhicule par instance de véhicule (`vehicle.vehicleId`), pas juste une somme par joueur sur tout le match
+- [x] Mesuré `SquadMember.rideDistance` en base pour objectiver : `4390` lignes, moyenne `1289 m`, max `12836 m`, jamais affiché dans l'UI (seulement `awards-service.ts`)
+
+**Ce qui pourrait être fait à la place, à effort quasi nul :** exposer `SquadMember.rideDistance` (déjà fiable, déjà en base) quelque part en UI si le besoin est simplement "voir sa distance en véhicule" — pas fait ici, hors scope de cette investigation, mais noté comme piste bien moins chère que le parsing télémétrie.
+
+#### 3. ~~`CharacterWrapper.primaryWeaponFirst` — arme en main au moment des kills~~ — ❌ Prémisse invalidée, ne pas faire tel quel
+
+**Vérifié le 2026-08-04** sur un match réel capturé : `primaryWeaponFirst` **n'existe que sur `LogMatchStart`** (`characters[].primaryWeaponFirst`), comme snapshot du kit de spawn au tout début du match (généralement vide en mode standard) — **ce n'est pas un champ par kill**. Aucun événement `LogPlayerKillV2` ne contient d'info d'inventaire complet du tueur ; le seul champ arme rattaché au kill est déjà capturé (`killerDamageInfo.damageCauserName`, utilisé pour `weaponStats`/`memberWeaponStats`/le kill-feed Némésis).
+
+- [ ] **Ne pas implémenter tel que décrit initialement** — le besoin ("quelle arme tient le joueur au moment où il tue") est déjà satisfait par l'arme qui a causé le kill, déjà trackée partout
+- [ ] Si un besoin distinct existe vraiment ("composition d'arsenal transportée", indépendamment des kills), ce serait une reconstruction complète de l'état d'équipement dans le temps via `LogItemEquip`/`LogItemUnequip`/`LogItemPickup`/`LogItemDrop` croisés par timestamp — un chantier bien plus lourd que l'estimation initiale (4–8h → plutôt 2–3 jours), avec une justification produit à clarifier avant de s'y engager
+
+**Ce qui n'est PAS à faire (confirmé) :** chercher `primaryWeaponFirst` par kill, c'est structurellement absent de la télémétrie.
 
 ---
 
@@ -480,12 +511,21 @@ Les routes `generateWeeklyReport` et `generateMonthlyReport` existent mais leur 
 
 ---
 
-### Performances — Cache des awards
+### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04
 
-Le calcul des awards (`computeClanAwards`) est entièrement à la volée à chaque GET. Sur la période `all` avec un historique long, la requête charge plusieurs milliers de lignes sans cache.
+Développé le 2026-08-04 après lecture de [awards-service.ts](../../src/lib/awards-service.ts) et [awards/route.ts](../../src/app/api/clans/[clanId]/awards/route.ts).
 
-- [ ] Ajouter un TTL cache côté route (ex. 10 min avec `Cache-Control` ou table `PlayerAwardsCache`)
-- [ ] Alternative : pré-calculer et stocker les awards lors du recalcul quotidien des stats
+**Confirmé :** `GET /api/clans/[clanId]/awards` appelait `computeClanAwards()` sans aucun cache — pas de `Cache-Control`, pas de mémoïsation. `computeClanAwards()` charge **tous** les `SquadMember` du clan sur la période via `findMany` (pas de `groupBy` SQL), puis agrège en mémoire en JS. Sur la période `all`, ça veut dire une ligne par membre par match — potentiellement des dizaines de milliers de lignes rechargées et ré-agrégées à chaque affichage de la page Awards, par tous les membres qui la consultent.
+
+**Option retenue : précalcul plutôt que TTL en mémoire.** Le projet a déjà exactement ce pattern ailleurs : `Clan.clanStats` (colonne `Json?`) est précalculé chaque nuit par `syncTrackedClanStats()` ([clan-service.ts:208](../../src/lib/clan-service.ts#L208)) — lu tel quel par les routes de lecture, jamais recalculé à la demande. Un TTL en mémoire (`Map` module-level) aurait été plus rapide à écrire mais ne survit pas à un redémarrage/déploiement et se désynchronise de la logique cron déjà en place pour des besoins similaires ; le précalcul est plus cohérent avec l'architecture existante.
+
+- [x] Nouvelle table `ClanAwardsCache` (`clanId`, `period`, `periodKey`, `payload Json`, `computedAt`, unique sur `[clanId, period]`) — migration `20260804120000_add_clan_awards_cache`, même esprit que `Clan.clanStats` mais une ligne par période (week/month/all)
+- [x] `precomputeClanAwards(clanId)` dans [awards-service.ts](../../src/lib/awards-service.ts) : calcule les 3 périodes et upsert dans `ClanAwardsCache`, appelée depuis `recalculateStatsDaily()` juste après `recalculateStatsForClan()` dans [cron-jobs.ts](../../src/lib/cron-jobs.ts) — même cron `daily_stats_recalc` déjà existant, pas de nouveau cron créé ; échec du précalcul non bloquant pour le reste de la boucle cron (try/catch dédié, comme le refresh challenges dans `runDailyClanSync`)
+- [x] `GET /api/clans/[clanId]/awards` utilise désormais `getCachedOrComputeClanAwards()` : lit `ClanAwardsCache` en priorité, fallback sur `computeClanAwards()` à la volée si aucune ligne (clan tout juste créé) — **et écrit le résultat en cache à ce moment-là** (auto-guérison), pas seulement au prochain passage cron, puisque le calcul a de toute façon déjà eu lieu pour répondre à la requête
+- [x] Décidé pour "week" : pas de rafraîchissement séparé plus fréquent — le cache se régénère au même rythme que les 2 autres périodes via le cron quotidien déjà existant ; suffisant vu que les awards ne sont pas une donnée temps réel
+- [x] Mesuré le volume réel : `4379` lignes `SquadMember` pour le plus gros clan (D32, clan 1), `0` pour les 6 autres (pas encore de détection d'escouade)
+
+**Validé le 2026-08-04** en conditions réelles : précalcul des 3 périodes pour le clan 1 en 335ms (3 lignes créées), lecture depuis le cache en 13ms, et auto-guérison confirmée sur un clan sans ligne de cache (clan 3 : calcul à la volée + écriture immédiate en cache, ligne créée et vérifiée en base).
 
 ---
 
@@ -707,7 +747,7 @@ Le rôle Moderator existe en DB mais n'a pas de fonctions définies. Quatre axes
 
 Discuté le 2026-08-03. Objectif différent de la section "Comparaison de performances entre clans" ci-dessus : il ne s'agit pas de comparer deux clans déjà suivis, mais d'exploiter les rosters adverses (non trackés) déjà présents dans chaque match pour (1) repérer les clans potentiellement intéressants à ajouter plus tard, (2) mesurer la fréquence de croisement avec certains joueurs/clans, (3) savoir qui nous tue et qui on tue.
 
-**Items 1, 2 et 3 déployés le 2026-08-03** (voir détail par item ci-dessous). Item 4 partiellement couvert en bonus de l'item 3 (compteurs bots kill/death), le comptage `botCount` par match reste à faire.
+**Items 1 à 4 déployés (2026-08-03/04)**, ainsi que le filtrage par période et le classement "arme qui tue le plus" des suggestions complémentaires (voir détail par item ci-dessous). Restent : clans rivaux récurrents (qui finit devant), zone de mort récurrente, revanche.
 
 ### Règle d'appel API — à respecter strictement
 
@@ -743,7 +783,7 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
 - [x] Incrémenter `EncounteredPlayer.encounterCount` à chaque match partagé avec un membre suivi (upsert dans `captureEncounteredPlayers`)
 - [x] Exposer un top des adversaires/clans les plus croisés (par clan suivi) — bloc "Clans adverses les plus croisés" sur la page `/telemetry/opponents`, agrégé depuis `pubgClanTag`
 - [ ] Distinguer croisement "même match, roster adverse" (déjà disponible) de "même match, dans le top de placement proche" si utile plus tard (hors scope initial)
-- [ ] Filtrage par période (Semaine/Mois/Tous) — non fait dans ce lot, la vue actuelle est "tout l'historique" uniquement
+- [x] Filtrage par période (Semaine/Mois/Tous) — **fait le 2026-08-04**, `SegmentedControl` sur `/telemetry/opponents`, filtre sur `lastSeenAt` (dernière rencontre) via `?period=`, pas un recalcul du compteur — `encounterCount` reste le cumul total historique, précisé dans l'UI
 
 ### ~~3. Némésis — qui nous a tués, qui on a tué~~ — ✅ Déployé le 2026-08-03 (+ backfill partiel via fichiers capturés)
 
@@ -771,19 +811,30 @@ Sur les 1319 télémétries déjà parsées : **658 récupérées via backfill l
 
 **Effort réel :** moyen, comme estimé — la difficulté principale était la découverte tardive que `clanMemberKeys` n'est jamais peuplé sur le chemin de sync automatique, nécessitant de déplacer le filtrage du parsing vers la persistance.
 
-### 4. Bots par match — fréquentation lobby et bots neutralisés
+### ~~4. Bots par match — fréquentation lobby et bots neutralisés~~ — ✅ Déployé le 2026-08-04
 
 Suggéré le 2026-08-03, en réaction directe à la confirmation du préfixe `ai.` ci-dessus. **Pourquoi c'est utile :** contexte de qualité pour les autres stats (un match avec beaucoup de bots doit être lu différemment d'un lobby 100 % humain) et un chiffre engageant en soi ("X bots neutralisés cette semaine").
 
 **Données disponibles :** sous-produit direct de la détection de bots (préfixe `ai.`) et de l'extraction `LogPlayerKill` de l'item 3 — aucune nouvelle source de données, uniquement de l'agrégation supplémentaire sur ce qui est déjà itéré.
 
-- [ ] Compter les `accountId` uniques préfixés `ai.` par match au moment du parsing télémétrie
-- [ ] Stocker `botCount` par match observé (nouveau champ sur `SquadMatch` ou sur la table de télémétrie existante) — reste à faire
-- [x] Compter, dans `KillEvent` (item 3), les kills où le tueur est un membre suivi et la victime un `ai.*` — **fait en bonus le 2026-08-03** : `botKillCount`/`botDeathCount` exposés par `GET /api/members/[id]/nemesis` et affichés sur `/members/[id]/nemesis`
+- [x] Compter les `accountId` uniques préfixés `ai.` par match au moment du parsing télémétrie — `countBotsInMatch()` dans [encountered-players.ts](../../src/lib/encountered-players.ts), calculé depuis le roster complet déjà chargé par `fetchMatchDetails`, aucun appel API supplémentaire
+- [x] Stocker `botCount` par match observé — champ `Match.botCount` nullable (migration `20260803190000_add_match_bot_count`), rempli à chaque sync dans [sync-matches/route.ts](../../src/app/api/clans/[clanId]/sync-matches/route.ts) ; nullable et non backfillé (nouvelles synchronisations uniquement, cohérent avec la politique déjà adoptée pour `EncounteredPlayer`/`KillEvent`)
+- [x] Compter, dans `KillEvent` (item 3), les kills où le tueur est un membre suivi et la victime un `ai.*` — fait en bonus de l'item 3 : `botKillCount`/`botDeathCount` exposés par `GET /api/members/[id]/nemesis` et affichés sur `/members/[id]/nemesis`
 - [x] Exclure explicitement les kills/morts impliquant un bot des classements Némésis — fait (`topKillers`/`topVictims` filtrent `isBot`)
-- [ ] Afficher le nombre moyen de bots par match (nécessite le `botCount` par match ci-dessus, pas encore fait) — seul le total cumulé "bots neutralisés"/"tué par un bot" est affiché pour l'instant, pas de moyenne par période
+- [x] Afficher le nombre moyen de bots par match, par période — carte KPI "Bots moy. / match" sur `/telemetry/opponents`, `prisma.match.aggregate` scopé au clan et à la période sélectionnée (Semaine/Mois/Tous, même `SegmentedControl` que le filtre de l'item 2)
 
-**Effort estimé :** faible — le volet kill-feed (bonus) est fait ; il reste seulement le comptage `botCount` par match (fréquentation lobby), indépendant du kill-feed.
+**Validé le 2026-08-04** : `countBotsInMatch` testé sur un vrai match récent (roster 98, 90 bots détectés, cohérent avec l'échantillon précédent). **`botCount` est encore vide en base à ce stade** — champ nouveau sans backfill, se remplit au fil des prochaines synchronisations (cron horaire déjà actif) ; la carte KPI affichera `-` tant qu'aucun match n'a de `botCount` non nul dans la période sélectionnée.
+
+**Point d'attention documenté dans le code :** la moyenne agrège sur `Match` (une ligne par membre tracké, pas par match unique) — un match croisé par plusieurs membres du clan compte plusieurs fois. Approximation acceptable pour un indicateur de fréquentation, pas une statistique exacte.
+
+#### Visibilité élargie — dashboards membre et clan (2026-08-04)
+
+Discuté le 2026-08-04 : les stats bots n'étaient visibles que sur des pages secondaires (`/telemetry/opponents`, réservée Owner/Admin ; `/members/[id]/nemesis`, accessible mais pas la page d'atterrissage). Décision : remonter un teaser sur les deux dashboards principaux, en gardant les pages détaillées comme destination "en savoir plus".
+
+- [x] **Dashboard membre** ([`/members/[id]/dashboard`](../../src/app/members/[id]/dashboard/page.tsx)) : tuile cliquable "🤖 Bots neutralisés" (lien vers `/members/[id]/nemesis`), fetch léger et non bloquant sur `GET /api/members/[id]/nemesis` déjà existant — aucune nouvelle route
+- [x] **Page stats clan** ([`/clans/[clanId]/stats`](../../src/app/clans/[clanId]/stats/page.tsx), section "Ambiance de lobby") : moyenne de bots par match, réutilise le `SegmentedControl` de période déjà présent pour la section playstyle (`telemetryPeriod`) — pas de nouveau sélecteur
+- [x] Nouvelle route [`GET /api/clans/[clanId]/bot-stats`](../../src/app/api/clans/[clanId]/bot-stats/route.ts) créée plutôt que de réutiliser `/api/clans/[clanId]/encountered-players` : cette dernière est réservée Owner/Admin (expose des noms d'adversaires), alors qu'une moyenne de bots ne révèle rien de sensible — permission alignée sur `requireNavPermission('clan.stats')`, donc visible à tout membre du clan comme le reste de la page stats
+- [ ] `/clans/[clanId]/overview` envisagée initialement pour la tuile clan, écartée : cette page est réservée Admin (`defaultRole: 'admin'`), pas visible à tout le clan — `/clans/[clanId]/stats` choisie à la place (`defaultRole: 'none'`)
 
 ### Note pour plus tard — données de match du membre suivi lui-même
 
@@ -791,8 +842,10 @@ Mentionné le 2026-08-03 : la télémétrie contient aussi des données détaill
 
 ### Suggestions complémentaires (brainstorm, non détaillées techniquement)
 
-- [ ] **Clans rivaux récurrents** — une fois `pubgClanTag` résolu sur les adversaires, agréger par clan adverse : nombre de croisements, qui finit devant (recoupe l'item "Détection de rivalité" de la section comparaison inter-clans ci-dessus, mais sans exiger que l'autre clan soit lui-même suivi sur le site)
-- [ ] **Arme qui nous tue le plus** — symétrique du weapon mastery existant (qui suit nos kills) ; l'arme du tueur est disponible dans le même événement `LogPlayerKill` que le point précédent, pas d'extraction supplémentaire nécessaire
+**⏸ Pause décidée le 2026-08-04.** Items 1 à 4 déployés, backfill partiel fait, filtrage par période et classement d'armes ajoutés. Les 3 idées restantes ci-dessous sont notées mais volontairement non développées pour l'instant — à reprendre plus tard si besoin, aucune n'a de dépendance bloquante ni de contrainte d'urgence (les données nécessaires, `KillEvent` et `PositionMetricCell`, sont déjà en base).
+
+- [ ] **Clans rivaux récurrents** — une fois `pubgClanTag` résolu sur les adversaires, agréger par clan adverse : nombre de croisements, qui finit devant (recoupe l'item "Détection de rivalité" de la section comparaison inter-clans ci-dessus, mais sans exiger que l'autre clan soit lui-même suivi sur le site) — le compteur de croisements par clan existe déjà (bloc "Clans adverses les plus croisés"), reste le "qui finit devant"
+- [x] **Arme qui nous tue le plus** — **fait le 2026-08-04** : section "Armes qui vous tuent le plus" sur `/members/[id]/nemesis`, classement global (toutes armes, tous adversaires confondus, indépendant du filtre par arme) avec mini barres de comparaison, `aggregateWeapons()` dans [route.ts](../../src/app/api/members/[id]/nemesis/route.ts) — s'ajoute au filtre par arme déjà en place (qui lui recalcule les classements par adversaire) et au dropdown [`WeaponSelect`](../../src/components/ui/WeaponSelect.tsx) avec icônes, nouveau composant réutilisable créé faute d'équivalent existant (le `<select>` HTML natif ne peut pas afficher d'images dans ses options)
 - [ ] **Zone de mort récurrente face à un adversaire donné** — croiser les positions de mort (déjà couvertes par `PositionMetricCell`, métrique `death`) avec `killerAccountId` une fois disponible
 - [ ] **Revanche** — détecter si on retue plus tard dans la saison un joueur qui nous avait tués auparavant (nécessite l'historique `KillEvent` de l'item 3)
 
@@ -800,11 +853,11 @@ Mentionné le 2026-08-03 : la télémétrie contient aussi des données détaill
 
 | Priorité | Idée | Statut | Effort | Dépendances |
 |---|---|---|---|---|
-| 1 | Identification légère des adversaires + compteur de croisements (items 1 + 2) | ✅ Déployé 2026-08-03 | Faible à moyenne | Aucune |
-| 2 | Némésis / kill-feed (item 3) | ✅ Déployé 2026-08-03 (sans backfill) | Moyenne | Extension du parser télémétrie |
+| 1 | Identification légère des adversaires + compteur de croisements (items 1 + 2) | ✅ Déployé 2026-08-03/04 | Faible à moyenne | Aucune |
+| 2 | Némésis / kill-feed (item 3) | ✅ Déployé 2026-08-03 (+ backfill partiel) | Moyenne | Extension du parser télémétrie |
 | 3 | Bots neutralisés / tué par un bot | ✅ Déployé en bonus de l'item 3 | Faible | Item 3 |
-| 4 | Bots par match (fréquentation lobby, `botCount`) | Reste à faire | Faible | Aucune (indépendant du kill-feed) |
-| 5 | Arme qui nous tue le plus | Reste à faire | Faible (donnée déjà en base) | Item 3 |
-| 6 | Clans rivaux récurrents, zone de mort récurrente, revanche | Reste à faire | Moyenne | Items 1–3 |
+| 4 | Bots par match (fréquentation lobby, `botCount`) | ✅ Déployé 2026-08-04 | Faible | Aucune (indépendant du kill-feed) |
+| 5 | Arme qui nous tue le plus | ✅ Déployé 2026-08-04 | Faible | Item 3 |
+| 6 | Clans rivaux récurrents (qui finit devant), zone de mort récurrente, revanche | Reste à faire | Moyenne | Items 1–3 |
 
 Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du kill-feed — nécessite juste de compter les `ai.*` uniques par match au moment du parsing, sans lien avec `KillEvent`.

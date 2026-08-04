@@ -1,6 +1,7 @@
 import 'server-only'
 import cron, { type ScheduledTask } from 'node-cron'
 
+import { precomputeClanAwards } from '@/lib/awards-service'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
@@ -305,6 +306,15 @@ async function recalculateStatsDaily() {
       try {
         await recalculateStatsForClan(clan.id)
         console.info(`[Cron] Stats recalculated for clan "${clan.name}" (${clan.id})`)
+
+        try {
+          await precomputeClanAwards(clan.id)
+        } catch (awardsError) {
+          console.warn(
+            `[Cron] Failed to precompute awards cache for clan "${clan.name}" (${clan.id})`,
+            awardsError
+          )
+        }
 
         await finishCronExecution({
           id: execution.id,

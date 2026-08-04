@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireRole } from '@/middleware/auth-permission'
-import { computeClanAwards, type AwardPeriod } from '@/lib/awards-service'
+import { getCachedOrComputeClanAwards, type AwardPeriod } from '@/lib/awards-service'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -33,7 +33,7 @@ export async function GET(
     const url = new URL(request.url)
     const period = parsePeriod(url.searchParams.get('period'))
 
-    const awards = await computeClanAwards(parsedClanId, period)
+    const awards = await getCachedOrComputeClanAwards(parsedClanId, period)
 
     return NextResponse.json(awards)
   } catch (error) {

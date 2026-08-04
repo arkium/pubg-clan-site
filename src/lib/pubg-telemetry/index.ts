@@ -12,6 +12,7 @@ import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-erro
 import { prisma } from '@/lib/prisma'
 import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistence'
 import { persistKillEventsForMatch } from '@/lib/kill-event-persistence'
+import { persistThrowableStatsForMatch } from '@/lib/throwable-persistence'
 
 export type SyncTelemetryForSquadMatchInput = {
   squadMatchId: string
@@ -274,6 +275,7 @@ export async function syncTelemetryForSquadMatch(
 
     await persistDropPressureStatsForMatch(input.squadMatchId, parsed.landingSamples)
     await persistKillEventsForMatch(input.squadMatchId, parsed.killFeedSamples)
+    await persistThrowableStatsForMatch(input.squadMatchId, parsed.throwableSamples)
 
     logTelemetryStep({
       step: 'complete',

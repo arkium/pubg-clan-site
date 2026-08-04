@@ -37,6 +37,7 @@ model Clan {
   positionMetricCells       PositionMetricCell[]
   encounteredPlayers        EncounteredPlayer[]
   killEvents                KillEvent[]
+  awardsCache               ClanAwardsCache[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -68,6 +69,7 @@ model ClanMember {
   positionMetricCells       PositionMetricCell[]
   killEventsAsKiller        KillEvent[]                  @relation("KillEventKiller")
   killEventsAsVictim        KillEvent[]                  @relation("KillEventVictim")
+  throwableStats            MemberThrowableStat[]
   telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
   telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
   notifications             Notification[]
@@ -118,6 +120,23 @@ model EncounteredPlayer {
   @@index([clanId, pubgClanTag])
   @@index([clanResolvedAt, encounterCount])
   @@map("EncounteredPlayer")
+}
+
+// Précalcul des awards clan par période, même principe que Clan.clanStats :
+// recalculé par le cron nocturne, lu tel quel en lecture — computeClanAwards()
+// reste le fallback à la volée si aucune ligne n'existe encore pour ce clan.
+model ClanAwardsCache {
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  period     String // 'week' | 'month' | 'all'
+  periodKey  String
+  payload    Json
+  computedAt DateTime @default(now())
+
+  @@unique([clanId, period])
+  @@map("ClanAwardsCache")
 }
 
 model UserAccount {
@@ -341,6 +360,11 @@ model Match {
   duration      Int
   pubgCreatedAt DateTime
 
+  // Nombre de bots distincts (accountId préfixé ai.) dans le lobby complet du
+  // match — nullable, calculé uniquement pour les matchs synchronisés depuis
+  // l'ajout de ce champ, pas de backfill.
+  botCount Int?
+
   createdAt DateTime @default(now())
 
   @@unique([memberId, pubgMatchId])
@@ -360,6 +384,7 @@ model SquadMatch {
   dropPressureStats   DropPressureStat[]
   positionMetricCells PositionMetricCell[]
   killEvents          KillEvent[]
+  throwableStats      MemberThrowableStat[]
 
   totalKills   Int
   totalDamage  Float
@@ -487,6 +512,27 @@ model PositionMetricCell {
   @@index([memberId, matchDate, metric])
   @@index([clanId, mapName, phase, metric])
   @@map("PositionMetricCell")
+}
+
+// Compteur de lancers (grenades, molotov, fumigènes, flashbangs...) par match
+// et par membre suivi, depuis LogPlayerUseThrowable. Remplacement idempotent
+// (delete+recreate) par squadMatchId, comme DropPressureStat/KillEvent.
+model MemberThrowableStat {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  memberId     Int
+  member       ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  itemId    String
+  count     Int
+  matchDate DateTime
+
+  createdAt DateTime @default(now())
+
+  @@unique([squadMatchId, memberId, itemId])
+  @@index([memberId, matchDate])
+  @@map("MemberThrowableStat")
 }
 
 // Kill-feed : qui a tué qui, pour les matchs impliquant au moins un membre suivi.

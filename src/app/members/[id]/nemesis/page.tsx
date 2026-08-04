@@ -20,6 +20,11 @@ type OpponentRow = {
   topWeapon: string | null
 }
 
+type WeaponCount = {
+  weaponName: string
+  count: number
+}
+
 type NemesisPayload = {
   totalDeathsTracked: number
   totalKillsTracked: number
@@ -28,6 +33,7 @@ type NemesisPayload = {
   environmentalDeathCount: number
   availableWeapons: string[]
   selectedWeapon: string | null
+  topDeathWeapons: WeaponCount[]
   topKillers: OpponentRow[]
   topVictims: OpponentRow[]
 }
@@ -267,6 +273,41 @@ export default function MemberNemesisPage() {
               <p className="mt-2 text-2xl font-bold text-slate-500">{payload.botDeathCount}</p>
             </article>
           </section>
+
+          {payload.topDeathWeapons.length > 0 ? (
+            <section className="app-panel p-4">
+              <h2 className="text-lg font-semibold text-slate-900">Armes qui vous tuent le plus</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Toutes armes confondues, tous adversaires confondus — reste global même si un filtre est actif ci-dessus.
+              </p>
+              <div className="mt-3 space-y-1.5">
+                {payload.topDeathWeapons.map((entry) => {
+                  const max = payload.topDeathWeapons[0]?.count || 1
+                  const widthPercent = Math.max(8, Math.round((entry.count / max) * 100))
+
+                  return (
+                    <div key={entry.weaponName} className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-white">
+                        <WeaponIcon id={entry.weaponName} size="sm" />
+                      </span>
+                      <span className="w-32 shrink-0 truncate text-sm text-slate-700">
+                        {resolveWeaponName(entry.weaponName)}
+                      </span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                        <span
+                          className="block h-full rounded-full bg-rose-400"
+                          style={{ width: `${widthPercent}%` }}
+                        />
+                      </span>
+                      <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
+                        {entry.count}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          ) : null}
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="app-panel p-4">

@@ -4,7 +4,10 @@ import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+
+type Period = 'week' | 'month' | 'all'
 
 type EncounteredPlayerRow = {
   id: string
@@ -23,14 +26,21 @@ type RivalClan = {
   encounterCount: number
 }
 
+type BotStats = {
+  avgBotsPerMatch: number | null
+  matchesWithData: number
+}
+
 type EncounteredPlayersPayload = {
   data?: {
+    period: Period
     summary: {
       totalPlayers: number
       resolvedCount: number
       pendingCount: number
       distinctClansIdentified: number
     }
+    botStats: BotStats
     topRivalClans: RivalClan[]
     players: EncounteredPlayerRow[]
   }
@@ -70,6 +80,7 @@ export default function EncounteredOpponentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [clanFilter, setClanFilter] = useState<'all' | 'resolved' | 'pending'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('encounterCount')
+  const [period, setPeriod] = useState<Period>('all')
 
   useEffect(() => {
     if (!clanId) {
@@ -81,12 +92,13 @@ export default function EncounteredOpponentsPage() {
   }, [clanId, router, setClanId])
 
   const loadPlayers = useCallback(
-    async (currentClanId: number) => {
+    async (currentClanId: number, currentPeriod: Period) => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/clans/${currentClanId}/encountered-players`, {
-          cache: 'no-store',
-        })
+        const response = await fetch(
+          `/api/clans/${currentClanId}/encountered-players?period=${currentPeriod}`,
+          { cache: 'no-store' }
+        )
 
         const data = (await response.json().catch(() => null)) as EncounteredPlayersPayload | null
 
@@ -118,8 +130,8 @@ export default function EncounteredOpponentsPage() {
       return
     }
 
-    void loadPlayers(clanId)
-  }, [clanId, loadPlayers])
+    void loadPlayers(clanId, period)
+  }, [clanId, period, loadPlayers])
 
   const filteredPlayers = useMemo(() => {
     if (!payload) {
@@ -178,13 +190,27 @@ export default function EncounteredOpponentsPage() {
           title="Adversaires rencontrés"
           subtitle="Joueurs adverses croisés en match par le clan — nom et clan PUBG identifiés, sans les ajouter au tracking actif."
         />
+        <div className="mt-3">
+          <SegmentedControl
+            value={period}
+            onChange={setPeriod}
+            options={[
+              { value: 'week', label: 'Semaine' },
+              { value: 'month', label: 'Mois' },
+              { value: 'all', label: 'Tout' },
+            ]}
+          />
+          <p className="mt-1.5 text-xs text-slate-500">
+            Filtre sur la dernière rencontre — le compteur de croisements affiché reste le cumul total, pas recalculé pour la période.
+          </p>
+        </div>
       </section>
 
       {error ? <section className="app-panel p-4 text-sm text-rose-800">{error}</section> : null}
 
       {payload ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Adversaires suivis</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{payload.summary.totalPlayers}</p>
@@ -200,6 +226,13 @@ export default function EncounteredOpponentsPage() {
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">En attente de résolution</p>
               <p className="mt-2 text-2xl font-bold text-amber-700">{payload.summary.pendingCount}</p>
+            </article>
+            <article className="app-panel p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Bots moy. / match</p>
+              <p className="mt-2 text-2xl font-bold text-slate-500">
+                {payload.botStats.avgBotsPerMatch !== null ? payload.botStats.avgBotsPerMatch.toFixed(1) : '-'}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">{payload.botStats.matchesWithData} match(s) mesuré(s)</p>
             </article>
           </section>
 

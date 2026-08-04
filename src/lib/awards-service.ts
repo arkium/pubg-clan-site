@@ -242,3 +242,67 @@ export async function computeClanAwards(
 
   return { clanId, period, periodKey, matchCount, awards }
 }
+
+const ALL_AWARD_PERIODS: AwardPeriod[] = ['week', 'month', 'all']
+
+/**
+ * Recalcule et met en cache les awards des 3 périodes pour un clan — appelée
+ * par le cron nocturne, même principe que Clan.clanStats (syncTrackedClanStats).
+ */
+export async function precomputeClanAwards(clanId: number): Promise<void> {
+  for (const period of ALL_AWARD_PERIODS) {
+    const result = await computeClanAwards(clanId, period)
+
+    await prisma.clanAwardsCache.upsert({
+      where: { clanId_period: { clanId, period } },
+      update: {
+        periodKey: result.periodKey,
+        payload: result as unknown as object,
+        computedAt: new Date(),
+      },
+      create: {
+        clanId,
+        period,
+        periodKey: result.periodKey,
+        payload: result as unknown as object,
+      },
+    })
+  }
+}
+
+/**
+ * Lit le cache précalculé si présent, sinon recalcule à la volée (clan tout
+ * juste créé, avant le premier passage du cron nocturne) et écrit le résultat
+ * en cache pour que la prochaine lecture soit immédiate — auto-guérison sans
+ * attendre le prochain passage cron, sans coût significatif puisque le calcul
+ * a de toute façon déjà eu lieu pour répondre à cette requête.
+ */
+export async function getCachedOrComputeClanAwards(
+  clanId: number,
+  period: AwardPeriod
+): Promise<ClanAwards & { cached: boolean; computedAt: string | null }> {
+  const cached = await prisma.clanAwardsCache.findUnique({
+    where: { clanId_period: { clanId, period } },
+  })
+
+  if (cached) {
+    return {
+      ...(cached.payload as unknown as ClanAwards),
+      cached: true,
+      computedAt: cached.computedAt.toISOString(),
+    }
+  }
+
+  const result = await computeClanAwards(clanId, period)
+  const computedAt = new Date()
+
+  await prisma.clanAwardsCache
+    .upsert({
+      where: { clanId_period: { clanId, period } },
+      update: { periodKey: result.periodKey, payload: result as unknown as object, computedAt },
+      create: { clanId, period, periodKey: result.periodKey, payload: result as unknown as object, computedAt },
+    })
+    .catch(() => undefined)
+
+  return { ...result, cached: false, computedAt: computedAt.toISOString() }
+}

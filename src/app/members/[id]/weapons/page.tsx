@@ -119,6 +119,32 @@ const WEAPON_CATEGORY_OPTIONS: Array<{ value: WeaponCategoryFilter; label: strin
   { value: 'OTHER', label: 'OTHER - Autre' },
 ]
 
+// resolveWeaponName() ne couvre pas ces IDs — damageCauserName.json les indexe
+// sous un autre nom (ex. "ProjGrenade_C", l'ID du projectile en vol, distinct
+// de "Item_Weapon_Grenade_C", l'ID de l'objet lancé côté LogPlayerUseThrowable).
+const THROWABLE_LABELS: Record<string, string> = {
+  Item_Weapon_Grenade_C: 'Grenade',
+  Item_Weapon_Molotov_C: 'Molotov',
+  Item_Weapon_SmokeBomb_C: 'Fumigène',
+  Item_Weapon_FlashBang_C: 'Flashbang',
+  Item_Weapon_BluezoneGrenade_C: 'Grenade de zone',
+  Item_Weapon_M79_C: 'Lance-grenades M79',
+  Item_Weapon_CoverStructDropHandFlare_C: 'Fusée de détresse (couverture)',
+  Item_Weapon_PackageFlare_nonDest_C: 'Fusée de détresse (caisse)',
+  Item_Weapon_Snowball_C: 'Boule de neige',
+}
+
+function resolveThrowableLabel(itemId: string) {
+  if (THROWABLE_LABELS[itemId]) {
+    return THROWABLE_LABELS[itemId]
+  }
+
+  return itemId
+    .replace(/^Item_Weapon_/, '')
+    .replace(/_C$/, '')
+    .replace(/_/g, ' ')
+}
+
 const MEMBER_WEAPONS_SECTION_LINKS: StickySectionNavItem[] = [
   { id: 'sec-member-weapons-mastery', label: 'Maîtrise armes', icon: 'combat' },
   { id: 'sec-member-weapons-telemetry', label: 'Stats télémétrie', icon: 'other' },
@@ -232,6 +258,43 @@ export default function MemberWeaponsPage() {
   const [masterySortKey, setMasterySortKey] = useState<MasterySortKey>('kills')
   const [masterySortDirection, setMasterySortDirection] = useState<SortDirection>('desc')
   const [masteryCurrentPage, setMasteryCurrentPage] = useState(1)
+  const [throwableItems, setThrowableItems] = useState<Array<{ itemId: string; count: number }>>([])
+  const [throwableTotal, setThrowableTotal] = useState(0)
+  const [throwablesLoaded, setThrowablesLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!memberId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadThrowables() {
+      try {
+        const response = await fetch(`/api/members/${memberId}/throwables`, { cache: 'no-store' })
+        const data = (await response.json().catch(() => null)) as
+          | { data?: { totalThrows: number; items: Array<{ itemId: string; count: number }> } }
+          | null
+
+        if (response.ok && data?.data && !cancelled) {
+          setThrowableItems(data.data.items)
+          setThrowableTotal(data.data.totalThrows)
+        }
+      } catch {
+        // Section secondaire, non bloquante.
+      } finally {
+        if (!cancelled) {
+          setThrowablesLoaded(true)
+        }
+      }
+    }
+
+    void loadThrowables()
+
+    return () => {
+      cancelled = true
+    }
+  }, [memberId])
 
   const periodLabel = useMemo(() => {
     return PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Semaine'
@@ -1034,6 +1097,29 @@ export default function MemberWeaponsPage() {
             ) : null}
           </section>
         ) : null
+      ) : null}
+
+      {throwablesLoaded && throwableItems.length > 0 ? (
+        <section id="sec-member-throwables" className="mb-6 app-panel scroll-mt-40 p-4">
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">Lancers</h2>
+            <p className="text-sm text-gray-600">
+              Grenades, fumigènes, flashbangs... {throwableTotal} lancer{throwableTotal > 1 ? 's' : ''} au total.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {throwableItems.map((item) => (
+              <span
+                key={item.itemId}
+                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
+              >
+                <WeaponIcon id={item.itemId} size="sm" />
+                <span className="font-medium text-gray-800">{resolveThrowableLabel(item.itemId)}</span>
+                <span className="font-bold text-gray-900">×{item.count}</span>
+              </span>
+            ))}
+          </div>
+        </section>
       ) : null}
     </main>
   )

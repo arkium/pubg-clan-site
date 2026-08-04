@@ -88,6 +88,13 @@ export type TelemetryKillFeedSample = {
   timestampSeconds: number | null
 }
 
+// Raw per-throw sample from LogPlayerUseThrowable — unfiltered, same rationale
+// as killFeedSamples (relevance to the clan resolved at persistence, not here).
+export type TelemetryThrowableSample = {
+  throwerKey: string | null
+  itemId: string | null
+}
+
 export type TelemetryShotCluster = {
   memberKey: string
   weaponName: string | null
@@ -214,6 +221,7 @@ type TelemetryAccumulator = {
   damageClusterRadiusUnits: number
   killSamples: TelemetryKillSample[]
   killFeedSamples: TelemetryKillFeedSample[]
+  throwableSamples: TelemetryThrowableSample[]
   shotClusters: Map<string, ShotClusterAccum>
   damageClusters: Map<string, DamageClusterAccum>
   knockoutSamples: TelemetryKnockoutSample[]
@@ -264,6 +272,7 @@ export type ParsedTelemetrySnapshot = {
   phaseSnapshots: TelemetryPhaseSnapshot[]
   killSamples: TelemetryKillSample[]
   killFeedSamples: TelemetryKillFeedSample[]
+  throwableSamples: TelemetryThrowableSample[]
   shotSamples: TelemetryShotCluster[]
   damageSamples: TelemetryDamageCluster[]
   knockoutSamples: TelemetryKnockoutSample[]
@@ -889,6 +898,7 @@ function createTelemetryAccumulator(options?: {
     damageClusterRadiusUnits: (options?.damageClusterRadiusMeters ?? 30) * 100,
     killSamples: [],
     killFeedSamples: [],
+    throwableSamples: [],
     shotClusters: new Map<string, ShotClusterAccum>(),
     damageClusters: new Map<string, DamageClusterAccum>(),
     knockoutSamples: [],
@@ -1344,6 +1354,20 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
     return
   }
 
+  if (eventType === 'LogPlayerUseThrowable') {
+    const throwerKey = getKillerKey(event)
+    const itemId = getFirstStringFromPaths(event, ['weapon.itemId', 'weapon.weaponId'])
+
+    if (throwerKey || itemId) {
+      accumulator.throwableSamples.push({
+        throwerKey: throwerKey ?? null,
+        itemId: itemId ?? null,
+      })
+    }
+
+    return
+  }
+
   if (eventType === 'LogHeal') {
     accumulator.summary.itemUseEvents += 1
     if (actorKey) {
@@ -1700,6 +1724,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     phaseSnapshots: accumulator.phaseSnapshots,
     killSamples: accumulator.killSamples,
     killFeedSamples: accumulator.killFeedSamples,
+    throwableSamples: accumulator.throwableSamples,
     shotSamples,
     damageSamples,
     knockoutSamples: accumulator.knockoutSamples,

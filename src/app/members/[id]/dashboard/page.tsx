@@ -203,6 +203,7 @@ export default function DashboardPage() {
   const [telemetryComparisonError, setTelemetryComparisonError] = useState('')
   const [selectedComparisonPeriod, setSelectedComparisonPeriod] =
     useState<TelemetryComparisonPeriod>('week')
+  const [botKillCount, setBotKillCount] = useState<number | null>(null)
   const MATCH_LIMIT = 10
 
   const { data, loading, error } = usePlayerDashboard(memberId, period)
@@ -350,6 +351,35 @@ export default function DashboardPage() {
     }
 
     void loadTelemetryComparison()
+
+    return () => {
+      cancelled = true
+    }
+  }, [memberId])
+
+  useEffect(() => {
+    if (!memberId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadNemesisSummary() {
+      try {
+        const response = await fetch(`/api/members/${memberId}/nemesis`, { cache: 'no-store' })
+        const payload = (await response.json().catch(() => null)) as
+          | { data?: { botKillCount: number } }
+          | null
+
+        if (response.ok && payload?.data && !cancelled) {
+          setBotKillCount(payload.data.botKillCount)
+        }
+      } catch {
+        // Stat secondaire, non bloquante.
+      }
+    }
+
+    void loadNemesisSummary()
 
     return () => {
       cancelled = true
@@ -1029,6 +1059,19 @@ export default function DashboardPage() {
         </section>
 
         <ComparisonRadar stats={stats} clanAverage={clanAverage} />
+
+        {botKillCount !== null ? (
+          <Link
+            href={`/members/${memberId}/nemesis`}
+            className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:bg-gray-50"
+          >
+            <div>
+              <p className="text-sm font-semibold text-gray-900">🤖 Bots neutralisés</p>
+              <p className="text-xs text-gray-500">Voir le détail Némésis (qui vous tue, qui vous tuez) →</p>
+            </div>
+            <span className="text-2xl font-bold text-emerald-700">{botKillCount}</span>
+          </Link>
+        ) : null}
 
         {/* Squad frequency + Top performances */}
         <div className="grid gap-6 md:grid-cols-2">

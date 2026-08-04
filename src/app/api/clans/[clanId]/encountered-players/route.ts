@@ -6,6 +6,24 @@ function parseClanId(clanId: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+type Period = 'week' | 'month' | 'all'
+
+function parsePeriod(value: string | null): Period {
+  return value === 'week' || value === 'month' ? value : 'all'
+}
+
+function getPeriodStart(period: Period): Date | null {
+  if (period === 'week') {
+    return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  }
+
+  if (period === 'month') {
+    return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  }
+
+  return null
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -26,11 +44,43 @@ export async function GET(
   }
 
   try {
+    const url = new URL(request.url)
+    const period = parsePeriod(url.searchParams.get('period'))
+    const periodStart = getPeriodStart(period)
+
     const rows = await prisma.encounteredPlayer.findMany({
-      where: { clanId: parsedClanId },
+      where: {
+        clanId: parsedClanId,
+        // Filtre sur la dernière rencontre, pas un compteur recalculé sur la
+        // période : encounterCount reste le cumul total historique.
+        ...(periodStart ? { lastSeenAt: { gte: periodStart } } : {}),
+      },
       orderBy: [{ encounterCount: 'desc' }, { lastSeenAt: 'desc' }],
       take: 300,
     })
+
+    const clanMembers = await prisma.clanMember.findMany({
+      where: { clanId: parsedClanId },
+      select: { id: true },
+    })
+    const memberIds = clanMembers.map((member) => member.id)
+
+    // Une vraie partie synchronisée génère une ligne Match par membre tracké
+    // qui y a joué — un match croisé par plusieurs membres du clan compte donc
+    // plusieurs fois dans cette moyenne, approximation acceptable pour un
+    // indicateur de fréquentation, pas une statistique exacte par match unique.
+    const botStats =
+      memberIds.length > 0
+        ? await prisma.match.aggregate({
+            where: {
+              memberId: { in: memberIds },
+              botCount: { not: null },
+              ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
+            },
+            _avg: { botCount: true },
+            _count: { botCount: true },
+          })
+        : null
 
     const resolvedClanTags = new Map<string, number>()
     let resolvedCount = 0
@@ -52,11 +102,16 @@ export async function GET(
 
     return Response.json({
       data: {
+        period,
         summary: {
           totalPlayers: rows.length,
           resolvedCount,
           pendingCount: rows.length - resolvedCount,
           distinctClansIdentified: resolvedClanTags.size,
+        },
+        botStats: {
+          avgBotsPerMatch: botStats?._avg.botCount ?? null,
+          matchesWithData: botStats?._count.botCount ?? 0,
         },
         topRivalClans,
         players: rows.map((row) => ({

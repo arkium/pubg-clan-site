@@ -86,6 +86,22 @@ function aggregateOpponents(
     .sort((left, right) => right.count - left.count)
 }
 
+function aggregateWeapons(events: KillEventRow[]) {
+  const counts = new Map<string, number>()
+
+  for (const event of events) {
+    if (!isRealWeaponName(event.weaponName)) {
+      continue
+    }
+
+    counts.set(event.weaponName!, (counts.get(event.weaponName!) ?? 0) + 1)
+  }
+
+  return Array.from(counts.entries())
+    .map(([weaponName, count]) => ({ weaponName, count }))
+    .sort((left, right) => right.count - left.count)
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -191,6 +207,10 @@ export async function GET(
     const environmentalDeathCount = filteredDeaths.filter(
       (event) => !event.killerAccountId && !event.killerRawKey
     ).length
+    // Always computed on the unfiltered deaths — a "which weapon kills me
+    // most" ranking would be trivial (100% one entry) once the weapon filter
+    // above is applied, so this stays global regardless of the selection.
+    const topDeathWeapons = aggregateWeapons(deaths).slice(0, 5)
 
     return Response.json({
       data: {
@@ -201,6 +221,7 @@ export async function GET(
         environmentalDeathCount,
         availableWeapons,
         selectedWeapon: weaponFilter,
+        topDeathWeapons,
         topKillers: topKillers.slice(0, 10),
         topVictims: topVictims.slice(0, 10),
       },

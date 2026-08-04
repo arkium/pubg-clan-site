@@ -564,6 +564,7 @@ export default function ClanStatsPage() {
   const [playstyleRows, setPlaystyleRows] = useState<ClanPlaystyleRow[]>([])
   const [loadingPlaystyle, setLoadingPlaystyle] = useState(false)
   const [playstyleError, setPlaystyleError] = useState('')
+  const [botStats, setBotStats] = useState<{ avgBotsPerMatch: number | null; matchesWithData: number } | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -658,6 +659,37 @@ export default function ClanStatsPage() {
     }
 
     void loadPlaystyleTelemetry()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clanId, telemetryPeriod])
+
+  useEffect(() => {
+    if (!clanId) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadBotStats() {
+      try {
+        const response = await fetch(`/api/clans/${clanId}/bot-stats?period=${telemetryPeriod}`, {
+          cache: 'no-store',
+        })
+        const payload = (await response.json().catch(() => null)) as
+          | { data?: { avgBotsPerMatch: number | null; matchesWithData: number } }
+          | null
+
+        if (response.ok && payload?.data && !cancelled) {
+          setBotStats(payload.data)
+        }
+      } catch {
+        // Stat secondaire, non bloquante — on laisse simplement la tuile vide.
+      }
+    }
+
+    void loadBotStats()
 
     return () => {
       cancelled = true
@@ -1074,6 +1106,25 @@ export default function ClanStatsPage() {
                 )
               ) : null}
             </section>
+
+            {botStats && botStats.matchesWithData > 0 ? (
+              <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Ambiance de lobby</h2>
+                    <p className="text-sm text-gray-600">
+                      Nombre moyen de bots par match, sur la période sélectionnée ci-dessus.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">
+                      {botStats.avgBotsPerMatch !== null ? botStats.avgBotsPerMatch.toFixed(1) : '-'}
+                    </p>
+                    <p className="text-xs text-gray-500">{botStats.matchesWithData} match(s) mesuré(s)</p>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             {groupedMetrics.map((group, index) => (
               <section

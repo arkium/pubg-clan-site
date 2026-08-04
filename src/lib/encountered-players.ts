@@ -7,6 +7,21 @@ export function isBotAccountId(accountId: string): boolean {
   return accountId.startsWith(BOT_ACCOUNT_PREFIX)
 }
 
+/** Nombre de bots distincts (tout le lobby, toutes équipes confondues) dans un match. */
+export function countBotsInMatch(matchDetails: ResolvedPubgMatch): number {
+  const botIds = new Set<string>()
+
+  for (const roster of matchDetails.rosters) {
+    for (const participant of roster.participants) {
+      if (participant.playerId && isBotAccountId(participant.playerId)) {
+        botIds.add(participant.playerId)
+      }
+    }
+  }
+
+  return botIds.size
+}
+
 /**
  * Capture les participants adverses (hors clan suivi, hors bots) d'un match déjà
  * synchronisé, pour identifier plus tard des clans PUBG non trackés et mesurer la

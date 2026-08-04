@@ -91,6 +91,14 @@ export async function POST(
         .filter((accountId): accountId is string => Boolean(accountId))
     )
 
+    // newMatchIds est calculé par membre (memberId + pubgMatchId) — un même
+    // match joué par plusieurs membres du clan apparaît donc comme "nouveau"
+    // pour chacun d'eux séparément. captureEncounteredPlayers ne doit tourner
+    // qu'une fois par vrai match (pubgMatchId), pas une fois par membre présent,
+    // sinon les compteurs de croisement sont gonflés d'un facteur = nb de
+    // membres du clan dans ce match.
+    const capturedEncounterMatchIds = new Set<string>()
+
     for (const member of clan.members) {
       try {
         let playerId = member.pubgAccountId
@@ -192,13 +200,17 @@ export async function POST(
               )
             }
 
-            try {
-              await captureEncounteredPlayers(clan.id, matchDetails, member.platformShard, clanAccountIds)
-            } catch (encounterError) {
-              console.warn(
-                `[Clan Sync] Failed to capture encountered players for match ${matchDetails.id}`,
-                encounterError
-              )
+            if (!capturedEncounterMatchIds.has(matchDetails.id)) {
+              capturedEncounterMatchIds.add(matchDetails.id)
+
+              try {
+                await captureEncounteredPlayers(clan.id, matchDetails, member.platformShard, clanAccountIds)
+              } catch (encounterError) {
+                console.warn(
+                  `[Clan Sync] Failed to capture encountered players for match ${matchDetails.id}`,
+                  encounterError
+                )
+              }
             }
 
             importedCount += 1

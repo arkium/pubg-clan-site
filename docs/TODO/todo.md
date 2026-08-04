@@ -785,6 +785,17 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
 - [ ] Distinguer croisement "même match, roster adverse" (déjà disponible) de "même match, dans le top de placement proche" si utile plus tard (hors scope initial)
 - [x] Filtrage par période (Semaine/Mois/Tous) — **fait le 2026-08-04**, `SegmentedControl` sur `/telemetry/opponents`, filtre sur `lastSeenAt` (dernière rencontre) via `?period=`, pas un recalcul du compteur — `encounterCount` reste le cumul total historique, précisé dans l'UI
 
+#### Bug trouvé et corrigé le 2026-08-04 : coéquipiers comptés comme adversaires
+
+Signalé par l'utilisateur, confirmé sur données réelles : `captureEncounteredPlayers` parcourait tous les rosters du match sans distinguer le roster (squad) d'un membre suivi des autres — un ami/random groupé avec un membre en solo/duo queue se retrouvait donc dans "Adversaires rencontrés" au même titre qu'un vrai inconnu d'une autre équipe. Vérifié sur un match réel du clan 1 : `Praetes` et `BL0odice` étaient dans le même roster que `pagiotte`/`SAMUELAXEII` — de vrais coéquipiers, pas des adversaires.
+
+- [x] Nouveau champ `EncounteredPlayer.teammateEncounterCount` (migration `20260804200000_add_teammate_encounter_count`) — sous-ensemble de `encounterCount`, incrémenté seulement quand le roster du joueur croisé contenait un membre suivi ; `opponentEncounterCount` (= `encounterCount - teammateEncounterCount`) calculé à la lecture, pas stocké
+- [x] `captureEncounteredPlayers()` dans [encountered-players.ts](../../src/lib/encountered-players.ts) détermine `isOurRoster` par roster (au moins un participant dans `knownAccountIds`) avant de classer chaque adversaire potentiel
+- [x] `topRivalClans` dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) agrège désormais sur `opponentEncounterCount` uniquement — le clan d'un coéquipier occasionnel ne pollue plus le classement des clans rivaux
+- [x] UI `/telemetry/opponents` : colonnes "Adversaire"/"Coéquipier" séparées (au lieu d'une colonne "Croisements" unique), badge "Coéquipier" ou "Mixte" (a été les deux selon le match) à côté du nom, filtre "Adversaires uniquement / Coéquipiers uniquement", nouvelle carte KPI "Dont coéquipiers", en-tête renommé "Joueurs croisés" (plus honnête que "Adversaires suivis")
+
+**Validé le 2026-08-04** en rejouant la capture sur le même match réel : `Praetes` (1 fois coéquipier sur 11 croisements au total) et `BL0odice` (1 fois coéquipier sur 4) correctement identifiés comme "mixte" — coéquipiers occasionnels mais aussi croisés comme adversaires dans d'autres matchs.
+
 ### ~~3. Némésis — qui nous a tués, qui on a tué~~ — ✅ Déployé le 2026-08-03 (+ backfill partiel via fichiers capturés)
 
 **Pourquoi c'est utile :** angle jamais couvert actuellement, alors que la télémétrie contient déjà l'info brute (tueur/victime par événement `LogPlayerKill`).

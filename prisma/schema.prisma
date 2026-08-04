@@ -108,7 +108,12 @@ model EncounteredPlayer {
   clanResolvedAt   DateTime?
   resolveAttempts  Int       @default(0)
 
-  encounterCount Int      @default(1)
+  encounterCount         Int @default(1)
+  // Sous-ensemble de encounterCount : nombre de fois où ce joueur partageait le
+  // roster (la squad) d'un membre suivi — un coéquipier occasionnel, pas un
+  // adversaire. opponentEncounterCount (encounterCount - teammateEncounterCount)
+  // se calcule à la lecture, pas stocké séparément.
+  teammateEncounterCount Int @default(0)
   firstSeenAt    DateTime @default(now())
   lastSeenAt     DateTime @default(now())
 

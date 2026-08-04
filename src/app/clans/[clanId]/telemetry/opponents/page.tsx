@@ -17,6 +17,8 @@ type EncounteredPlayerRow = {
   pubgClanName: string | null
   clanResolvedAt: string | null
   encounterCount: number
+  teammateEncounterCount: number
+  opponentEncounterCount: number
   firstSeenAt: string
   lastSeenAt: string
 }
@@ -39,6 +41,7 @@ type EncounteredPlayersPayload = {
       resolvedCount: number
       pendingCount: number
       distinctClansIdentified: number
+      teammateCount: number
     }
     botStats: BotStats
     topRivalClans: RivalClan[]
@@ -48,6 +51,8 @@ type EncounteredPlayersPayload = {
 }
 
 type SortKey = 'encounterCount' | 'lastSeenAt' | 'pubgPlayerName'
+
+const PAGE_SIZE = 20
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
@@ -79,8 +84,10 @@ export default function EncounteredOpponentsPage() {
   const [payload, setPayload] = useState<EncounteredPlayersPayload['data'] | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [clanFilter, setClanFilter] = useState<'all' | 'resolved' | 'pending'>('all')
+  const [relationFilter, setRelationFilter] = useState<'all' | 'opponents' | 'teammates'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('encounterCount')
   const [period, setPeriod] = useState<Period>('all')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     if (!clanId) {
@@ -149,6 +156,14 @@ export default function EncounteredOpponentsPage() {
         return false
       }
 
+      if (relationFilter === 'opponents' && player.opponentEncounterCount === 0) {
+        return false
+      }
+
+      if (relationFilter === 'teammates' && player.teammateEncounterCount === 0) {
+        return false
+      }
+
       if (!search) {
         return true
       }
@@ -159,7 +174,7 @@ export default function EncounteredOpponentsPage() {
 
       return haystack.includes(search)
     })
-  }, [payload, searchTerm, clanFilter])
+  }, [payload, searchTerm, clanFilter, relationFilter])
 
   const sortedPlayers = useMemo(() => {
     return [...filteredPlayers].sort((left, right) => {
@@ -174,6 +189,36 @@ export default function EncounteredOpponentsPage() {
       return right.encounterCount - left.encounterCount
     })
   }, [filteredPlayers, sortKey])
+
+  const totalPages = Math.max(1, Math.ceil(sortedPlayers.length / PAGE_SIZE))
+
+  // Recherche/filtre/tri changent l'ensemble affiché — sans ce reset, une
+  // recherche pourrait laisser la page sur un numéro qui n'existe plus dans
+  // les nouveaux résultats (page blanche silencieuse, pas une erreur visible).
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, clanFilter, relationFilter, sortKey, period])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const paginatedPlayers = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return sortedPlayers.slice(start, start + PAGE_SIZE)
+  }, [sortedPlayers, currentPage])
+
+  const paginationRange = useMemo(() => {
+    if (sortedPlayers.length === 0) {
+      return { start: 0, end: 0 }
+    }
+
+    const start = (currentPage - 1) * PAGE_SIZE + 1
+    const end = Math.min(sortedPlayers.length, currentPage * PAGE_SIZE)
+    return { start, end }
+  }, [sortedPlayers.length, currentPage])
 
   if (loading) {
     return (
@@ -210,10 +255,15 @@ export default function EncounteredOpponentsPage() {
 
       {payload ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Adversaires suivis</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Joueurs croisés</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{payload.summary.totalPlayers}</p>
+            </article>
+            <article className="app-panel p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Dont coéquipiers</p>
+              <p className="mt-2 text-2xl font-bold text-sky-700">{payload.summary.teammateCount}</p>
+              <p className="mt-1 text-[11px] text-slate-400">Même squad qu&apos;un membre, pas des adversaires</p>
             </article>
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Clans identifiés</p>
@@ -258,7 +308,7 @@ export default function EncounteredOpponentsPage() {
               Résolution du clan PUBG limitée aux joueurs croisés au moins deux fois, un seul appel par joueur.
             </p>
 
-            <div className="mt-4 grid gap-2 md:grid-cols-3">
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
               <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Recherche
                 <input
@@ -267,6 +317,19 @@ export default function EncounteredOpponentsPage() {
                   placeholder="joueur, tag de clan..."
                   className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 placeholder:text-slate-400"
                 />
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Relation
+                <select
+                  value={relationFilter}
+                  onChange={(event) => setRelationFilter(event.target.value as 'all' | 'opponents' | 'teammates')}
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
+                >
+                  <option value="all">Tous</option>
+                  <option value="opponents">Adversaires uniquement</option>
+                  <option value="teammates">Coéquipiers uniquement</option>
+                </select>
               </label>
 
               <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -298,7 +361,9 @@ export default function EncounteredOpponentsPage() {
 
             <div className="mt-3">
               <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                Résultats: {sortedPlayers.length} / {payload.players.length}
+                {sortedPlayers.length === 0
+                  ? `Résultats : 0 / ${payload.players.length}`
+                  : `Lignes ${paginationRange.start}-${paginationRange.end} sur ${sortedPlayers.length} (total ${payload.players.length})`}
               </span>
             </div>
 
@@ -308,15 +373,27 @@ export default function EncounteredOpponentsPage() {
                   <tr>
                     <th className="px-2 py-2">Joueur</th>
                     <th className="px-2 py-2">Clan PUBG</th>
-                    <th className="px-2 py-2 text-right">Croisements</th>
+                    <th className="px-2 py-2 text-right">Adversaire</th>
+                    <th className="px-2 py-2 text-right">Coéquipier</th>
                     <th className="px-2 py-2">Première rencontre</th>
                     <th className="px-2 py-2">Dernière rencontre</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedPlayers.map((player) => (
+                  {paginatedPlayers.map((player) => (
                     <tr key={player.id} className="app-table-row align-top">
-                      <td className="px-2 py-2 font-medium text-slate-800">{player.pubgPlayerName}</td>
+                      <td className="px-2 py-2 font-medium text-slate-900">
+                        {player.pubgPlayerName}
+                        {player.teammateEncounterCount > 0 && player.opponentEncounterCount > 0 ? (
+                          <span className="ml-1.5 rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                            Mixte
+                          </span>
+                        ) : player.teammateEncounterCount > 0 ? (
+                          <span className="ml-1.5 rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                            Coéquipier
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-2 py-2 text-slate-700">
                         {player.pubgClanTag ? (
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700">
@@ -328,21 +405,71 @@ export default function EncounteredOpponentsPage() {
                           <span className="text-xs text-amber-700">En attente de résolution</span>
                         )}
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums text-slate-700">{player.encounterCount}</td>
+                      <td className="px-2 py-2 text-right tabular-nums text-slate-700">
+                        {player.opponentEncounterCount > 0 ? player.opponentEncounterCount : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-sky-700">
+                        {player.teammateEncounterCount > 0 ? player.teammateEncounterCount : '-'}
+                      </td>
                       <td className="px-2 py-2 text-slate-700">{formatDateTime(player.firstSeenAt)}</td>
                       <td className="px-2 py-2 text-slate-700">{formatDateTime(player.lastSeenAt)}</td>
                     </tr>
                   ))}
                   {sortedPlayers.length === 0 ? (
                     <tr className="app-table-row">
-                      <td colSpan={5} className="px-2 py-6 text-center text-sm text-slate-500">
-                        Aucun adversaire rencontré pour l&apos;instant.
+                      <td colSpan={6} className="px-2 py-6 text-center text-sm text-slate-500">
+                        Aucun joueur croisé pour l&apos;instant.
                       </td>
                     </tr>
                   ) : null}
                 </tbody>
               </table>
             </div>
+
+            {sortedPlayers.length > PAGE_SIZE ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm text-slate-600">
+                <p>
+                  Page {currentPage} / {totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    Première
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Précédent
+                  </button>
+                  <span className="tabular-nums text-xs font-semibold text-slate-500">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Suivant
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Dernière
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
         </>
       ) : null}

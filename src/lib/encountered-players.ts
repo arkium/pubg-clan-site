@@ -34,9 +34,16 @@ export async function captureEncounteredPlayers(
   platformShard: string,
   knownAccountIds: Set<string>
 ): Promise<void> {
-  const opponents = new Map<string, string>()
+  const opponents = new Map<string, { pubgPlayerName: string; wasTeammate: boolean }>()
 
   for (const roster of matchDetails.rosters) {
+    // A roster containing at least one tracked clan member is our squad this
+    // match — everyone else on that same roster is a random teammate, not an
+    // adversary, even though they show up in the same match rosters we scan.
+    const isOurRoster = roster.participants.some(
+      (participant) => participant.playerId && knownAccountIds.has(participant.playerId)
+    )
+
     for (const participant of roster.participants) {
       const accountId = participant.playerId
 
@@ -44,7 +51,12 @@ export async function captureEncounteredPlayers(
         continue
       }
 
-      opponents.set(accountId, participant.playerName)
+      const existing = opponents.get(accountId)
+      if (existing) {
+        existing.wasTeammate = existing.wasTeammate || isOurRoster
+      } else {
+        opponents.set(accountId, { pubgPlayerName: participant.playerName, wasTeammate: isOurRoster })
+      }
     }
   }
 
@@ -55,13 +67,14 @@ export async function captureEncounteredPlayers(
   const now = new Date()
 
   await Promise.all(
-    Array.from(opponents.entries()).map(([pubgAccountId, pubgPlayerName]) =>
+    Array.from(opponents.entries()).map(([pubgAccountId, { pubgPlayerName, wasTeammate }]) =>
       prisma.encounteredPlayer.upsert({
         where: { clanId_pubgAccountId: { clanId, pubgAccountId } },
         update: {
           pubgPlayerName,
           lastSeenAt: now,
           encounterCount: { increment: 1 },
+          ...(wasTeammate ? { teammateEncounterCount: { increment: 1 } } : {}),
         },
         create: {
           clanId,
@@ -70,6 +83,7 @@ export async function captureEncounteredPlayers(
           platformShard,
           firstSeenAt: now,
           lastSeenAt: now,
+          teammateEncounterCount: wasTeammate ? 1 : 0,
         },
       })
     )

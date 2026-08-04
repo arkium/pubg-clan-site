@@ -82,16 +82,28 @@ export async function GET(
           })
         : null
 
+    // Un coéquipier occasionnel (même roster qu'un membre suivi) n'est pas un
+    // rival — seuls les croisements en tant qu'adversaire réel comptent ici,
+    // sinon le clan d'un ami qui joue parfois avec nous polluerait ce classement.
     const resolvedClanTags = new Map<string, number>()
     let resolvedCount = 0
+    let teammateCount = 0
 
     for (const row of rows) {
       if (row.clanResolvedAt) {
         resolvedCount += 1
       }
 
-      if (row.pubgClanTag) {
-        resolvedClanTags.set(row.pubgClanTag, (resolvedClanTags.get(row.pubgClanTag) ?? 0) + row.encounterCount)
+      if (row.teammateEncounterCount > 0) {
+        teammateCount += 1
+      }
+
+      const opponentEncounterCount = row.encounterCount - row.teammateEncounterCount
+      if (row.pubgClanTag && opponentEncounterCount > 0) {
+        resolvedClanTags.set(
+          row.pubgClanTag,
+          (resolvedClanTags.get(row.pubgClanTag) ?? 0) + opponentEncounterCount
+        )
       }
     }
 
@@ -108,6 +120,7 @@ export async function GET(
           resolvedCount,
           pendingCount: rows.length - resolvedCount,
           distinctClansIdentified: resolvedClanTags.size,
+          teammateCount,
         },
         botStats: {
           avgBotsPerMatch: botStats?._avg.botCount ?? null,
@@ -122,6 +135,8 @@ export async function GET(
           pubgClanName: row.pubgClanName,
           clanResolvedAt: row.clanResolvedAt ? row.clanResolvedAt.toISOString() : null,
           encounterCount: row.encounterCount,
+          teammateEncounterCount: row.teammateEncounterCount,
+          opponentEncounterCount: row.encounterCount - row.teammateEncounterCount,
           firstSeenAt: row.firstSeenAt.toISOString(),
           lastSeenAt: row.lastSeenAt.toISOString(),
         })),

@@ -65,6 +65,29 @@ export async function GET(
     })
     const memberIds = clanMembers.map((member) => member.id)
 
+    // Croisé avec le kill-feed (KillEvent) : qui a déjà été tué par le clan,
+    // et qui a déjà tué un membre du clan — ne couvre que les matchs
+    // synchronisés depuis le déploiement du kill-feed, pas d'historique complet.
+    const [killedByClanGroups, killedClanMemberGroups] = await Promise.all([
+      prisma.killEvent.groupBy({
+        by: ['victimAccountId'],
+        where: { clanId: parsedClanId, killerMemberId: { not: null }, victimAccountId: { not: null } },
+        _count: { _all: true },
+      }),
+      prisma.killEvent.groupBy({
+        by: ['killerAccountId'],
+        where: { clanId: parsedClanId, victimMemberId: { not: null }, killerAccountId: { not: null } },
+        _count: { _all: true },
+      }),
+    ])
+
+    const killedByClanCounts = new Map(
+      killedByClanGroups.map((group) => [group.victimAccountId as string, group._count._all])
+    )
+    const killedClanMemberCounts = new Map(
+      killedClanMemberGroups.map((group) => [group.killerAccountId as string, group._count._all])
+    )
+
     // Une vraie partie synchronisée génère une ligne Match par membre tracké
     // qui y a joué — un match croisé par plusieurs membres du clan compte donc
     // plusieurs fois dans cette moyenne, approximation acceptable pour un
@@ -85,7 +108,17 @@ export async function GET(
     // Un coéquipier occasionnel (même roster qu'un membre suivi) n'est pas un
     // rival — seuls les croisements en tant qu'adversaire réel comptent ici,
     // sinon le clan d'un ami qui joue parfois avec nous polluerait ce classement.
-    const resolvedClanTags = new Map<string, number>()
+    type RivalClanAccumulator = {
+      tag: string
+      name: string | null
+      playerCount: number
+      opponentEncounterCount: number
+      killedByClanCount: number
+      killedClanMemberCount: number
+      lastSeenAt: Date
+    }
+
+    const rivalClanMap = new Map<string, RivalClanAccumulator>()
     let resolvedCount = 0
     let teammateCount = 0
 
@@ -99,18 +132,51 @@ export async function GET(
       }
 
       const opponentEncounterCount = row.encounterCount - row.teammateEncounterCount
-      if (row.pubgClanTag && opponentEncounterCount > 0) {
-        resolvedClanTags.set(
-          row.pubgClanTag,
-          (resolvedClanTags.get(row.pubgClanTag) ?? 0) + opponentEncounterCount
-        )
+      if (!row.pubgClanTag || opponentEncounterCount === 0) {
+        continue
+      }
+
+      const existing = rivalClanMap.get(row.pubgClanTag)
+      const killedByClan = killedByClanCounts.get(row.pubgAccountId) ?? 0
+      const killedMember = killedClanMemberCounts.get(row.pubgAccountId) ?? 0
+
+      if (existing) {
+        existing.playerCount += 1
+        existing.opponentEncounterCount += opponentEncounterCount
+        existing.killedByClanCount += killedByClan
+        existing.killedClanMemberCount += killedMember
+        existing.name = existing.name ?? row.pubgClanName
+        if (row.lastSeenAt > existing.lastSeenAt) {
+          existing.lastSeenAt = row.lastSeenAt
+        }
+      } else {
+        rivalClanMap.set(row.pubgClanTag, {
+          tag: row.pubgClanTag,
+          name: row.pubgClanName,
+          playerCount: 1,
+          opponentEncounterCount,
+          killedByClanCount: killedByClan,
+          killedClanMemberCount: killedMember,
+          lastSeenAt: row.lastSeenAt,
+        })
       }
     }
 
-    const topRivalClans = Array.from(resolvedClanTags.entries())
-      .map(([tag, encounterCount]) => ({ tag, encounterCount }))
-      .sort((left, right) => right.encounterCount - left.encounterCount)
+    const rivalClans = Array.from(rivalClanMap.values())
+      .map((clan) => ({
+        tag: clan.tag,
+        name: clan.name,
+        playerCount: clan.playerCount,
+        opponentEncounterCount: clan.opponentEncounterCount,
+        killedByClanCount: clan.killedByClanCount,
+        killedClanMemberCount: clan.killedClanMemberCount,
+        lastSeenAt: clan.lastSeenAt.toISOString(),
+      }))
+      .sort((left, right) => right.opponentEncounterCount - left.opponentEncounterCount)
+
+    const topRivalClans = rivalClans
       .slice(0, 5)
+      .map((clan) => ({ tag: clan.tag, encounterCount: clan.opponentEncounterCount }))
 
     return Response.json({
       data: {
@@ -119,14 +185,17 @@ export async function GET(
           totalPlayers: rows.length,
           resolvedCount,
           pendingCount: rows.length - resolvedCount,
-          distinctClansIdentified: resolvedClanTags.size,
+          distinctClansIdentified: rivalClanMap.size,
           teammateCount,
+          killedByClanPlayerCount: killedByClanCounts.size,
+          killedClanMemberPlayerCount: killedClanMemberCounts.size,
         },
         botStats: {
           avgBotsPerMatch: botStats?._avg.botCount ?? null,
           matchesWithData: botStats?._count.botCount ?? 0,
         },
         topRivalClans,
+        rivalClans,
         players: rows.map((row) => ({
           id: row.id,
           pubgAccountId: row.pubgAccountId,
@@ -137,6 +206,8 @@ export async function GET(
           encounterCount: row.encounterCount,
           teammateEncounterCount: row.teammateEncounterCount,
           opponentEncounterCount: row.encounterCount - row.teammateEncounterCount,
+          killedByClanCount: killedByClanCounts.get(row.pubgAccountId) ?? 0,
+          killedClanMemberCount: killedClanMemberCounts.get(row.pubgAccountId) ?? 0,
           firstSeenAt: row.firstSeenAt.toISOString(),
           lastSeenAt: row.lastSeenAt.toISOString(),
         })),

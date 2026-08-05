@@ -19,6 +19,8 @@ type EncounteredPlayerRow = {
   encounterCount: number
   teammateEncounterCount: number
   opponentEncounterCount: number
+  killedByClanCount: number
+  killedClanMemberCount: number
   firstSeenAt: string
   lastSeenAt: string
 }
@@ -26,6 +28,16 @@ type EncounteredPlayerRow = {
 type RivalClan = {
   tag: string
   encounterCount: number
+}
+
+type RivalClanFull = {
+  tag: string
+  name: string | null
+  playerCount: number
+  opponentEncounterCount: number
+  killedByClanCount: number
+  killedClanMemberCount: number
+  lastSeenAt: string
 }
 
 type BotStats = {
@@ -42,17 +54,34 @@ type EncounteredPlayersPayload = {
       pendingCount: number
       distinctClansIdentified: number
       teammateCount: number
+      killedByClanPlayerCount: number
+      killedClanMemberPlayerCount: number
     }
     botStats: BotStats
     topRivalClans: RivalClan[]
+    rivalClans: RivalClanFull[]
     players: EncounteredPlayerRow[]
   }
   error?: string
 }
 
-type SortKey = 'encounterCount' | 'lastSeenAt' | 'pubgPlayerName'
+type SortKey =
+  | 'encounterCount'
+  | 'lastSeenAt'
+  | 'pubgPlayerName'
+  | 'killedByClanCount'
+  | 'killedClanMemberCount'
+
+type ClanSortKey =
+  | 'opponentEncounterCount'
+  | 'playerCount'
+  | 'killedByClanCount'
+  | 'killedClanMemberCount'
+  | 'lastSeenAt'
+  | 'tag'
 
 const PAGE_SIZE = 20
+const CLAN_PAGE_SIZE = 10
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
@@ -88,6 +117,9 @@ export default function EncounteredOpponentsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('encounterCount')
   const [period, setPeriod] = useState<Period>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [clanSearchTerm, setClanSearchTerm] = useState('')
+  const [clanSortKey, setClanSortKey] = useState<ClanSortKey>('opponentEncounterCount')
+  const [clanCurrentPage, setClanCurrentPage] = useState(1)
 
   useEffect(() => {
     if (!clanId) {
@@ -186,6 +218,14 @@ export default function EncounteredOpponentsPage() {
         return new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime()
       }
 
+      if (sortKey === 'killedByClanCount') {
+        return right.killedByClanCount - left.killedByClanCount
+      }
+
+      if (sortKey === 'killedClanMemberCount') {
+        return right.killedClanMemberCount - left.killedClanMemberCount
+      }
+
       return right.encounterCount - left.encounterCount
     })
   }, [filteredPlayers, sortKey])
@@ -219,6 +259,62 @@ export default function EncounteredOpponentsPage() {
     const end = Math.min(sortedPlayers.length, currentPage * PAGE_SIZE)
     return { start, end }
   }, [sortedPlayers.length, currentPage])
+
+  const filteredRivalClans = useMemo(() => {
+    if (!payload) {
+      return []
+    }
+
+    const search = clanSearchTerm.trim().toLowerCase()
+    if (!search) {
+      return payload.rivalClans
+    }
+
+    return payload.rivalClans.filter((clan) =>
+      [clan.tag, clan.name ?? ''].join(' ').toLowerCase().includes(search)
+    )
+  }, [payload, clanSearchTerm])
+
+  const sortedRivalClans = useMemo(() => {
+    return [...filteredRivalClans].sort((left, right) => {
+      if (clanSortKey === 'tag') {
+        return left.tag.localeCompare(right.tag)
+      }
+
+      if (clanSortKey === 'lastSeenAt') {
+        return new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime()
+      }
+
+      return right[clanSortKey] - left[clanSortKey]
+    })
+  }, [filteredRivalClans, clanSortKey])
+
+  const clanTotalPages = Math.max(1, Math.ceil(sortedRivalClans.length / CLAN_PAGE_SIZE))
+
+  useEffect(() => {
+    setClanCurrentPage(1)
+  }, [clanSearchTerm, clanSortKey, period])
+
+  useEffect(() => {
+    if (clanCurrentPage > clanTotalPages) {
+      setClanCurrentPage(clanTotalPages)
+    }
+  }, [clanCurrentPage, clanTotalPages])
+
+  const paginatedRivalClans = useMemo(() => {
+    const start = (clanCurrentPage - 1) * CLAN_PAGE_SIZE
+    return sortedRivalClans.slice(start, start + CLAN_PAGE_SIZE)
+  }, [sortedRivalClans, clanCurrentPage])
+
+  const clanPaginationRange = useMemo(() => {
+    if (sortedRivalClans.length === 0) {
+      return { start: 0, end: 0 }
+    }
+
+    const start = (clanCurrentPage - 1) * CLAN_PAGE_SIZE + 1
+    const end = Math.min(sortedRivalClans.length, clanCurrentPage * CLAN_PAGE_SIZE)
+    return { start, end }
+  }, [sortedRivalClans.length, clanCurrentPage])
 
   if (loading) {
     return (
@@ -255,7 +351,7 @@ export default function EncounteredOpponentsPage() {
 
       {payload ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Joueurs croisés</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{payload.summary.totalPlayers}</p>
@@ -283,6 +379,16 @@ export default function EncounteredOpponentsPage() {
                 {payload.botStats.avgBotsPerMatch !== null ? payload.botStats.avgBotsPerMatch.toFixed(1) : '-'}
               </p>
               <p className="mt-1 text-[11px] text-slate-400">{payload.botStats.matchesWithData} match(s) mesuré(s)</p>
+            </article>
+            <article className="app-panel p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Déjà tués par le clan</p>
+              <p className="mt-2 text-2xl font-bold text-emerald-700">{payload.summary.killedByClanPlayerCount}</p>
+              <p className="mt-1 text-[11px] text-slate-400">D&apos;après le kill-feed, historique partiel</p>
+            </article>
+            <article className="app-panel p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Ont déjà tué un membre</p>
+              <p className="mt-2 text-2xl font-bold text-rose-700">{payload.summary.killedClanMemberPlayerCount}</p>
+              <p className="mt-1 text-[11px] text-slate-400">D&apos;après le kill-feed, historique partiel</p>
             </article>
           </section>
 
@@ -355,6 +461,8 @@ export default function EncounteredOpponentsPage() {
                   <option value="encounterCount">Croisements</option>
                   <option value="lastSeenAt">Dernière rencontre</option>
                   <option value="pubgPlayerName">Nom</option>
+                  <option value="killedByClanCount">Tué par le clan</option>
+                  <option value="killedClanMemberCount">A tué un membre</option>
                 </select>
               </label>
             </div>
@@ -375,6 +483,8 @@ export default function EncounteredOpponentsPage() {
                     <th className="px-2 py-2">Clan PUBG</th>
                     <th className="px-2 py-2 text-right">Adversaire</th>
                     <th className="px-2 py-2 text-right">Coéquipier</th>
+                    <th className="px-2 py-2 text-right">Tué par le clan</th>
+                    <th className="px-2 py-2 text-right">A tué un membre</th>
                     <th className="px-2 py-2">Première rencontre</th>
                     <th className="px-2 py-2">Dernière rencontre</th>
                   </tr>
@@ -411,13 +521,19 @@ export default function EncounteredOpponentsPage() {
                       <td className="px-2 py-2 text-right tabular-nums text-sky-700">
                         {player.teammateEncounterCount > 0 ? player.teammateEncounterCount : '-'}
                       </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-emerald-700">
+                        {player.killedByClanCount > 0 ? player.killedByClanCount : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-rose-700">
+                        {player.killedClanMemberCount > 0 ? player.killedClanMemberCount : '-'}
+                      </td>
                       <td className="px-2 py-2 text-slate-700">{formatDateTime(player.firstSeenAt)}</td>
                       <td className="px-2 py-2 text-slate-700">{formatDateTime(player.lastSeenAt)}</td>
                     </tr>
                   ))}
                   {sortedPlayers.length === 0 ? (
                     <tr className="app-table-row">
-                      <td colSpan={6} className="px-2 py-6 text-center text-sm text-slate-500">
+                      <td colSpan={8} className="px-2 py-6 text-center text-sm text-slate-500">
                         Aucun joueur croisé pour l&apos;instant.
                       </td>
                     </tr>
@@ -464,6 +580,138 @@ export default function EncounteredOpponentsPage() {
                     className="app-btn app-btn--sm app-btn--secondary"
                     onClick={() => setCurrentPage(totalPages)}
                     disabled={currentPage === totalPages}
+                  >
+                    Dernière
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="app-panel p-4">
+            <h2 className="text-lg font-semibold text-slate-900">Clans rencontrés</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Clans PUBG identifiés, agrégés par tag — coéquipiers occasionnels exclus, seuls les croisements en tant qu&apos;adversaires comptent.
+            </p>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Recherche
+                <input
+                  value={clanSearchTerm}
+                  onChange={(event) => setClanSearchTerm(event.target.value)}
+                  placeholder="tag ou nom de clan..."
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 placeholder:text-slate-400"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Tri
+                <select
+                  value={clanSortKey}
+                  onChange={(event) => setClanSortKey(event.target.value as ClanSortKey)}
+                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
+                >
+                  <option value="opponentEncounterCount">Croisements</option>
+                  <option value="playerCount">Joueurs identifiés</option>
+                  <option value="killedByClanCount">Tué par le clan</option>
+                  <option value="killedClanMemberCount">A tué un membre</option>
+                  <option value="lastSeenAt">Dernière rencontre</option>
+                  <option value="tag">Tag</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-3">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                {sortedRivalClans.length === 0
+                  ? `Résultats : 0 / ${payload.rivalClans.length}`
+                  : `Lignes ${clanPaginationRange.start}-${clanPaginationRange.end} sur ${sortedRivalClans.length} (total ${payload.rivalClans.length})`}
+              </span>
+            </div>
+
+            <div className="app-table-shell mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-2 py-2">Clan</th>
+                    <th className="px-2 py-2 text-right">Joueurs identifiés</th>
+                    <th className="px-2 py-2 text-right">Croisements</th>
+                    <th className="px-2 py-2 text-right">Tué par le clan</th>
+                    <th className="px-2 py-2 text-right">A tué un membre</th>
+                    <th className="px-2 py-2">Dernière rencontre</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedRivalClans.map((clan) => (
+                    <tr key={clan.tag} className="app-table-row align-top">
+                      <td className="px-2 py-2 font-medium text-slate-900">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          [{clan.tag}] {clan.name ?? ''}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-slate-700">{clan.playerCount}</td>
+                      <td className="px-2 py-2 text-right tabular-nums text-slate-700">
+                        {clan.opponentEncounterCount}
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-emerald-700">
+                        {clan.killedByClanCount > 0 ? clan.killedByClanCount : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-rose-700">
+                        {clan.killedClanMemberCount > 0 ? clan.killedClanMemberCount : '-'}
+                      </td>
+                      <td className="px-2 py-2 text-slate-700">{formatDateTime(clan.lastSeenAt)}</td>
+                    </tr>
+                  ))}
+                  {sortedRivalClans.length === 0 ? (
+                    <tr className="app-table-row">
+                      <td colSpan={6} className="px-2 py-6 text-center text-sm text-slate-500">
+                        Aucun clan identifié pour l&apos;instant.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            {sortedRivalClans.length > CLAN_PAGE_SIZE ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm text-slate-600">
+                <p>
+                  Page {clanCurrentPage} / {clanTotalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setClanCurrentPage(1)}
+                    disabled={clanCurrentPage === 1}
+                  >
+                    Première
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setClanCurrentPage((page) => Math.max(1, page - 1))}
+                    disabled={clanCurrentPage === 1}
+                  >
+                    Précédent
+                  </button>
+                  <span className="tabular-nums text-xs font-semibold text-slate-500">
+                    {clanCurrentPage} / {clanTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setClanCurrentPage((page) => Math.min(clanTotalPages, page + 1))}
+                    disabled={clanCurrentPage === clanTotalPages}
+                  >
+                    Suivant
+                  </button>
+                  <button
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary"
+                    onClick={() => setClanCurrentPage(clanTotalPages)}
+                    disabled={clanCurrentPage === clanTotalPages}
                   >
                     Dernière
                   </button>

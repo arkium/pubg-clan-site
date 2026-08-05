@@ -806,6 +806,29 @@ Signalé par l'utilisateur ("il me semble que Praetes a été coéquipier plus d
 
 **Leçon retenue :** toute future feature qui capture une donnée "par match" depuis une boucle de sync structurée par membre doit dédupliquer explicitement par `pubgMatchId`, pas se fier à la déduplication `memberId + pubgMatchId` déjà en place pour l'import des `Match` — celle-ci est correcte pour son propre usage (une ligne `Match` par membre est voulu) mais incorrecte comme garde-fou pour une capture qui doit être unique par match réel.
 
+#### Croisement avec le kill-feed — ✅ Déployé le 2026-08-04
+
+Demandé par l'utilisateur : identifier sur `/telemetry/opponents` qui a déjà été tué par le clan, et qui a déjà tué un membre du clan. Peu coûteux car `KillEvent` (item 3, Némésis) contient déjà toute l'info nécessaire — simple croisement, aucune nouvelle capture de donnée.
+
+- [x] Dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) : deux `groupBy` sur `KillEvent` scopés au clan — `victimAccountId` où `killerMemberId` est renseigné (tué par le clan), `killerAccountId` où `victimMemberId` est renseigné (a tué un membre) — croisés avec `EncounteredPlayer.pubgAccountId`
+- [x] UI `/telemetry/opponents` : colonnes "Tué par le clan" / "A tué un membre" dans le tableau, 2 cartes KPI ("Déjà tués par le clan", "Ont déjà tué un membre") avec le nombre de joueurs distincts concernés
+
+**Limite héritée du kill-feed (déjà documentée pour l'item 3) :** ne couvre que les matchs synchronisés depuis le déploiement du kill-feed, pas d'historique rétroactif complet — même contrainte de rétention PUBG que pour Némésis.
+
+**Validé le 2026-08-04** sur données réelles du clan 1 : 1743 adversaires distincts déjà tués par le clan, 1422 adversaires distincts ayant déjà tué un membre — requête `groupBy` fonctionnelle sur un volume réel de plusieurs milliers de lignes `KillEvent`.
+
+#### Tableau des clans rencontrés (agrégat par clan) — ✅ Déployé le 2026-08-05
+
+Demandé par l'utilisateur : sous le tableau des joueurs, une carte avec un tableau paginé des clans rencontrés (agrégés, pas joueur par joueur), avec les mêmes données utiles (nombre de kills, etc.) que le tableau joueurs. Réutilise entièrement les données déjà calculées côté API (pas de nouvelle capture, pas de migration schéma) — simple ré-agrégation de `EncounteredPlayer` + `KillEvent` par `pubgClanTag` au lieu de par joueur.
+
+- [x] Dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) : la `Map` `resolvedClanTags` (qui ne sommait que `opponentEncounterCount` pour les 5 pills existantes) remplacée par `rivalClanMap`, une `Map<string, RivalClanAccumulator>` accumulant par tag `playerCount`, `opponentEncounterCount`, `killedByClanCount`, `killedClanMemberCount` et `lastSeenAt` (max) — toujours filtrée sur `opponentEncounterCount > 0` par joueur, donc un clan uniquement croisé comme coéquipiers n'apparaît jamais (même règle que pour `topRivalClans`)
+- [x] `topRivalClans` (top 5, pour les pills) désormais dérivé de ce même `rivalClanMap` plutôt que recalculé séparément ; nouveau champ `rivalClans` (liste complète, triée par `opponentEncounterCount` décroissant, non limitée) ajouté à la réponse JSON
+- [x] `summary.distinctClansIdentified` recalculé depuis `rivalClanMap.size` (comportement identique à avant, juste la source de la donnée qui a changé)
+- [x] UI `/telemetry/opponents` : nouvelle carte "Clans rencontrés" sous le tableau des joueurs, avec recherche (tag/nom), tri (Croisements / Joueurs identifiés / Tué par le clan / A tué un membre / Dernière rencontre / Tag) et pagination (10 lignes/page — `CLAN_PAGE_SIZE`), même pattern de pagination que le tableau joueurs (reset de page au changement de recherche/tri/période, clamp si la page dépasse le total)
+- [x] Colonnes : Clan (tag + nom), Joueurs identifiés, Croisements, Tué par le clan, A tué un membre, Dernière rencontre
+
+**Validé le 2026-08-05** sur données réelles du clan 1 : 59 clans adverses distincts agrégés (hors coéquipiers), classement cohérent avec les colonnes attendues (ex. `[SVN] THE_SEVEN` : 2 joueurs identifiés, 8 croisements, 2 kills de membre du clan — vérifié par script temporaire contre la DB de prod, supprimé après validation).
+
 ### ~~3. Némésis — qui nous a tués, qui on a tué~~ — ✅ Déployé le 2026-08-03 (+ backfill partiel via fichiers capturés)
 
 **Pourquoi c'est utile :** angle jamais couvert actuellement, alors que la télémétrie contient déjà l'info brute (tueur/victime par événement `LogPlayerKill`).

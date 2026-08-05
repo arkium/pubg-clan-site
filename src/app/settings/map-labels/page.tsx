@@ -34,10 +34,12 @@ const MAP_KEYS_WITH_ASSETS = new Set<string>([
   'Savage_Main',
   'Desert_Main',
   'DihorOtok_Main',
+  'Range_Main',
   'Summerland_Main',
   'Tiger_Main',
   'Kiki_Main',
   'Chimera_Main',
+  'Heaven_Main',
   'Neon_Main',
 ])
 

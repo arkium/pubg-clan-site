@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_MAP_LOCATIONS } from '@/lib/map-location-defaults'
 
 describe('default map locations', () => {
-  it('contains valid and unique locations for the nine map assets', () => {
-    expect(Object.keys(DEFAULT_MAP_LOCATIONS)).toHaveLength(9)
+  it('contains valid and unique locations for the eleven map assets', () => {
+    expect(Object.keys(DEFAULT_MAP_LOCATIONS)).toHaveLength(11)
 
     const locations = Object.values(DEFAULT_MAP_LOCATIONS).flat()
-    expect(locations).toHaveLength(162)
+    expect(locations).toHaveLength(179)
     expect(new Set(locations.map((location) => location.id)).size).toBe(locations.length)
 
     for (const location of locations) {

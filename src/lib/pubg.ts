@@ -522,20 +522,12 @@ export async function searchPlayerByName(playerName: string, shard: string = 'st
 export async function fetchPubgClanById(clanId: string, shard: string = 'steam') {
   ensurePubgApiKey()
 
-  try {
-    const response = await queuedPubgGet<PubgClanLookupResponse>(`/shards/${shard}/clans`, {
-      params: {
-        'filter[clanIds]': clanId,
-      },
-    })
-
-    const clan = extractClanResource(response.data)
-    return clan ? normalizePubgClanResource(clan) : null
-  } catch {
-    const response = await queuedPubgGet<PubgClanLookupResponse>(`/shards/${shard}/clans/${clanId}`)
-    const clan = extractClanResource(response.data)
-    return clan ? normalizePubgClanResource(clan) : null
-  }
+  // La recherche par `filter[clanIds]` sur `/clans` echoue systematiquement en 404 sur ce compte API
+  // (verifie sur 120 appels reels) ; on appelle directement `/clans/{clanId}` puisque l'ID est deja connu,
+  // ce qui evite de doubler la consommation de quota RPM pour chaque lookup de clan.
+  const response = await queuedPubgGet<PubgClanLookupResponse>(`/shards/${shard}/clans/${clanId}`)
+  const clan = extractClanResource(response.data)
+  return clan ? normalizePubgClanResource(clan) : null
 }
 
 export async function fetchClanMembers(clanId: string, shard: string = 'steam'): Promise<PubgClanMember[]> {

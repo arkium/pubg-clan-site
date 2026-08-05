@@ -270,8 +270,8 @@ Toutes ces routes pilotent des pages `/settings/*` réservées Owner/Admin/Super
 | PUT | `/api/settings/nav-permissions` | SuperUser ou `requireRole(['Owner'])` | ⚠️ Admin web uniquement | Modifie rôle/position/label/CRUD d'une entrée de nav — voir [Permissions navigation](../ops/nav-permissions.md) |
 | GET | `/api/settings/phase-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels des phases de jeu — voir [Paramètres admin](../ops/settings.md) |
 | PUT | `/api/settings/phase-labels` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les labels de phases — voir [Paramètres admin](../ops/settings.md) |
-| GET | `/api/settings/pubg-api-calls` | Permission `*` | ⚠️ Admin web uniquement | Historique + totaux des appels API PUBG — voir [Paramètres admin](../ops/settings.md) (note : le doc mentionne `/api/settings/pubg-api/calls`, le chemin réel du fichier est `pubg-api-calls`) |
-| DELETE | `/api/settings/pubg-api-calls` | Permission `*` | ⚠️ Admin web uniquement | Purge l'historique des appels API PUBG loggés — non mentionné dans [Paramètres admin](../ops/settings.md) |
+| GET | `/api/settings/pubg-api-calls` | Permission `*` | ✅ Pertinent | Historique + totaux + agrégats (catégories, top erreurs, tendance 14j) des appels API PUBG — voir [Paramètres admin](../ops/settings.md) |
+| DELETE | `/api/settings/pubg-api-calls` | Permission `*` | ✅ Pertinent | Purge l'historique des appels API PUBG loggés — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/pubg-api-rate-limit` | Permission `*` | ⚠️ Admin web uniquement | Lit le RPM configuré + bornes — non documenté ailleurs, détail ci-dessous |
 | POST | `/api/settings/pubg-api-rate-limit` | Permission `*` | ⚠️ Admin web uniquement | Modifie le RPM (override DB) — détail ci-dessous |
 | GET | `/api/settings/weapon-categories` | `manage_settings` ou `*` | ✅ Pertinent | Catégories d'armes + labels — voir [Paramètres admin](../ops/settings.md) |

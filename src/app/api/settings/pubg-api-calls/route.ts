@@ -24,11 +24,15 @@ export async function GET(request: Request) {
   const historyPageRaw = Number(url.searchParams.get('page'))
   const historyPageSizeRaw = Number(url.searchParams.get('pageSize'))
   const errorsOnlyRaw = (url.searchParams.get('errorsOnly') ?? '').toLowerCase()
+  const historyQueryRaw = url.searchParams.get('q')
+  const historyClanIdRaw = Number(url.searchParams.get('clanId'))
 
   const overview = await getPubgApiCallsOverview({
     historyPage: Number.isFinite(historyPageRaw) ? historyPageRaw : undefined,
     historyPageSize: Number.isFinite(historyPageSizeRaw) ? historyPageSizeRaw : undefined,
     errorsOnly: errorsOnlyRaw === '1' || errorsOnlyRaw === 'true',
+    historyQuery: historyQueryRaw ?? undefined,
+    historyClanId: Number.isFinite(historyClanIdRaw) && historyClanIdRaw > 0 ? historyClanIdRaw : undefined,
   })
 
   const [rpm, bounds] = await Promise.all([

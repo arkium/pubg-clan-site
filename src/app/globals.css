@@ -471,6 +471,18 @@ html[data-app-theme='dark'] :where(.bg-violet-50, .bg-violet-100) {
   background-color: rgb(76 29 149 / 0.42);
 }
 
+html[data-app-theme='dark'] :where(.bg-fuchsia-50, .bg-fuchsia-100) {
+  background-color: rgb(112 26 117 / 0.4);
+}
+
+html[data-app-theme='dark'] :where(.bg-teal-50, .bg-teal-100) {
+  background-color: rgb(19 78 74 / 0.4);
+}
+
+html[data-app-theme='dark'] :where(.bg-lime-50, .bg-lime-100) {
+  background-color: rgb(54 83 20 / 0.4);
+}
+
 html[data-app-theme='dark'] :where(.bg-green-100) {
   background-color: rgb(6 78 59 / 0.4);
 }
@@ -483,7 +495,7 @@ html[data-app-theme='dark'] :where(.bg-yellow-100) {
   background-color: rgb(113 63 18 / 0.35);
 }
 
-html[data-app-theme='dark'] :where(.bg-orange-100) {
+html[data-app-theme='dark'] :where(.bg-orange-50, .bg-orange-100) {
   background-color: rgb(124 45 18 / 0.38);
 }
 
@@ -523,6 +535,18 @@ html[data-app-theme='dark'] :where(.text-violet-700, .text-violet-800, .text-vio
   color: rgb(196 181 253 / 1);
 }
 
+html[data-app-theme='dark'] :where(.text-fuchsia-700, .text-fuchsia-800, .text-fuchsia-900) {
+  color: rgb(240 171 252 / 1);
+}
+
+html[data-app-theme='dark'] :where(.text-teal-700, .text-teal-800, .text-teal-900) {
+  color: rgb(94 234 212 / 1);
+}
+
+html[data-app-theme='dark'] :where(.text-lime-700, .text-lime-800, .text-lime-900) {
+  color: rgb(190 242 100 / 1);
+}
+
 html[data-app-theme='dark'] :where(.text-green-700, .text-green-800, .text-green-900) {
   color: rgb(110 231 183 / 1);
 }
@@ -553,6 +577,22 @@ html[data-app-theme='dark'] :where(.border-rose-200, .border-rose-300) {
 
 html[data-app-theme='dark'] :where(.border-blue-200, .border-blue-300) {
   border-color: rgb(59 130 246 / 0.5);
+}
+
+html[data-app-theme='dark'] :where(.border-fuchsia-200, .border-fuchsia-300) {
+  border-color: rgb(217 70 239 / 0.5);
+}
+
+html[data-app-theme='dark'] :where(.border-teal-200, .border-teal-300) {
+  border-color: rgb(20 184 166 / 0.5);
+}
+
+html[data-app-theme='dark'] :where(.border-lime-200, .border-lime-300) {
+  border-color: rgb(132 204 22 / 0.5);
+}
+
+html[data-app-theme='dark'] :where(.border-orange-200, .border-orange-300) {
+  border-color: rgb(249 115 22 / 0.5);
 }
 
 .member-section-nav-mobile-label {

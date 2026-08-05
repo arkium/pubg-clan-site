@@ -511,6 +511,49 @@ Les routes `generateWeeklyReport` et `generateMonthlyReport` existent mais leur 
 
 ---
 
+### ~~Monitoring PUBG API (`/settings/pubg-api`) — Lisibilité des données~~ — ✅ Déployé le 2026-08-05
+
+Réflexion du 2026-08-05 après lecture de [page.tsx](../../src/app/settings/pubg-api/page.tsx) et du type `ApiCallRow` : la page était centrée sur des appels individuels (heatmap 24h, historique paginé ligne à ligne) plutôt que sur des tendances agrégées. Toutes les pistes identifiées ont été déployées le même jour.
+
+**Base commune** : nouveau module partagé [pubg-api-call-category.ts](../../src/lib/pubg-api-call-category.ts) (`categorizePubgApiCall`, `PUBG_API_CALL_CATEGORY_LABELS`) — remplace la fonction `getCronBadgeMeta` dupliquée qui vivait uniquement côté page, désormais réutilisée à la fois par l'agrégation serveur ([pubg-api-call-log-service.ts](../../src/lib/pubg-api-call-log-service.ts)) et par les badges côté client.
+
+**Correction du 2026-08-05 (a posteriori) — la catégorisation initiale était quasi inopérante :** toutes les requêtes PUBG passent par `queuedPubgGet` ([pubg.ts:21-28](../../src/lib/pubg.ts#L21-L28)) avec `source` toujours égal à `'pubg-lib'` et `endpoint` toujours égal au chemin REST brut (ex. `/shards/steam/players/{id}/weapon_mastery`). Les mots-clés de l'ancienne catégorisation (`sync-matches`, `daily_sync`, `weekly`, `report`, `challenge`...) visaient des noms de jobs cron internes qui n'apparaissent quasiment jamais dans ces URLs réelles — résultat : presque tous les appels tombaient dans "Autre", y compris dans la répartition agrégée ci-dessous. Remplacé par une catégorisation basée sur la forme réelle du chemin REST PUBG (11 catégories couvrant les 11 points d'appel existants de `pubg.ts` : recherche joueur, détail joueur, maîtrise armes, stats lifetime/ranked/saison, liste des saisons, membres du clan, clan, détail match) — "Autre" ne devrait plus apparaître en pratique. Colonne "Cron" renommée en "Type" dans le tableau d'historique (l'ancien nom n'avait plus de sens).
+
+**Complément du 2026-08-05 :** dans le tableau desktop, l'endpoint complet (`method` + chemin REST avec IDs) n'était visible qu'au survol (tooltip) sous le badge de catégorie — ajouté en clair sous le badge (police monospace, `break-all`), aligné sur la vue mobile qui l'affichait déjà en clair.
+
+**Bug trouvé et corrigé le 2026-08-05 — appels clan doublés inutilement :** l'analyse de la colonne "Dispo API" (`rateLimitRemaining`) a révélé que la ligne "Clan" affichait systématiquement "-" pour une partie des appels. Diagnostic confirmé en base sur `PubgApiCallLog` (24 h glissantes) : `fetchPubgClanById()` ([pubg.ts](../../src/lib/pubg.ts)) tentait d'abord `/clans?filter[clanIds]=...`, qui **échoue en 404 à 100 % (120/120 appels observés)**, puis retombait en silence sur `/clans/{clanId}` qui réussit toujours (120/120). Les réponses d'erreur PUBG ne portent pas les en-têtes `X-RateLimit-*`, d'où le "-" sur la tentative ratée. Comme `clanId` est déjà connu à l'appel, la première tentative était purement redondante — corrigé en appelant directement `/clans/{clanId}`, ce qui divise par deux la consommation de quota RPM pour chaque lookup de clan (1 appel au lieu de 2). Sans régression : comportement final identique pour les appelants (`clan-service.ts`), simple suppression d'un aller-retour mort.
+
+**Non lié à un bug (comportement PUBG confirmé) :** `/matches/{id}` ("Détail match") ne renvoie jamais les en-têtes `X-RateLimit-*` même en succès (61/61 dans l'échantillon) — particularité de cet endpoint côté PUBG, rien à corriger côté code.
+
+- [ ] Surveiller sur quelques jours que "Clan" n'apparaît plus qu'une fois par lookup dans l'historique et que "Dispo API" y est systématiquement renseigné
+
+**Priorité haute**
+
+- [x] Répartition agrégée par source/cron : panneau "Répartition par cron / source" (appels, succès, erreurs, 429, latence moyenne par catégorie, fenêtre 24h)
+- [x] Regroupement des messages d'erreur : panneau "Top erreurs" (top 5 messages par occurrence, fenêtre 24h)
+- [x] Vue au-delà de 24h : panneau "Tendance 14 jours", mini graphique en barres (`dailySeries`), teinte rouge/ambre/verte selon présence d'erreurs/429 ce jour-là
+
+**Priorité moyenne**
+
+- [x] Jauge de consommation du quota : barre de progression sous les tuiles `X-RateLimit-*`, teinte verte/ambre/rouge selon le % consommé (70 % / 90 %)
+- [x] Filtre par endpoint/source/`clanId` dans l'historique : formulaire "Filtrer" + "Effacer les filtres" au-dessus du tableau, paramètres `q` et `clanId` sur `GET /api/settings/pubg-api-calls`
+- [x] Badge de cohérence RPM configuré vs `X-RateLimit-Limit` observé : bandeau d'alerte ambre si le RPM configuré dépasse la limite réelle observée côté PUBG
+
+**Priorité basse**
+
+- [x] Métrique "retries totaux" en carte de synthèse (`totals.retriesTotal`)
+
+**Réalisé également le 2026-08-05**
+
+- [x] Légende des codes statut au-dessus du tableau d'historique (2xx succès / 429 limite de débit / 4xx-5xx-n-a erreur)
+- [x] Pagination adaptée : option `15` lignes remplace `10` dans `HISTORY_PAGE_SIZE_OPTIONS`, devient la valeur par défaut côté page et côté service (`getPubgApiCallsOverview`)
+
+**Validation :** ESLint et `tsc --noEmit` propres sur les 4 fichiers modifiés/créés (page, service, route API, module de catégorisation). Non vérifié en session : rendu navigateur réel (pas d'identifiants SuperUser/Owner disponibles dans cet environnement).
+
+- [ ] Vérifier dans le navigateur (Owner) le rendu des nouveaux panneaux, la jauge de quota, le filtre d'historique et le badge de cohérence RPM, en thème clair et sombre
+
+---
+
 ### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04
 
 Développé le 2026-08-04 après lecture de [awards-service.ts](../../src/lib/awards-service.ts) et [awards/route.ts](../../src/app/api/clans/[clanId]/awards/route.ts).

@@ -3,10 +3,27 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  Gauge,
+  type LucideIcon,
+  RefreshCw,
+  RotateCcw,
+  Timer,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 
-import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import {
+  categorizePubgApiCall,
+  PUBG_API_CALL_CATEGORY_LABELS,
+  type PubgApiCallCategory,
+} from '@/lib/pubg-api-call-category'
 
 type ApiCallRow = {
   id: string
@@ -37,6 +54,29 @@ type MinutePoint = {
   errors: number
 }
 
+type DayPoint = {
+  date: string
+  total: number
+  success: number
+  rateLimited: number
+  errors: number
+}
+
+type CategoryStat = {
+  category: PubgApiCallCategory
+  label: string
+  count: number
+  success: number
+  errors: number
+  rateLimited: number
+  avgDurationMs: number | null
+}
+
+type TopError = {
+  message: string
+  count: number
+}
+
 type CallsPayload = {
   rpm: number
   bounds: {
@@ -50,6 +90,7 @@ type CallsPayload = {
     success: number
     rateLimited: number
     errors: number
+    retriesTotal: number
     avgDurationMs: number | null
   }
   latestRateLimit: {
@@ -64,12 +105,17 @@ type CallsPayload = {
     total: number
     totalPages: number
     errorsOnly: boolean
+    query: string | null
+    clanId: number | null
   }
   series: MinutePoint[]
+  dailySeries: DayPoint[]
+  byCategory: CategoryStat[]
+  topErrors: TopError[]
   history: ApiCallRow[]
 }
 
-const HISTORY_PAGE_SIZE_OPTIONS = [10, 25, 50] as const
+const HISTORY_PAGE_SIZE_OPTIONS = [15, 25, 50] as const
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('fr-FR')
@@ -92,7 +138,11 @@ export default function PubgApiSettingsPage() {
   const [historyActionMessage, setHistoryActionMessage] = useState('')
   const [errorsOnly, setErrorsOnly] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
-  const [historyPageSize, setHistoryPageSize] = useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(25)
+  const [historyPageSize, setHistoryPageSize] = useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(15)
+  const [historyQueryInput, setHistoryQueryInput] = useState('')
+  const [historyClanIdInput, setHistoryClanIdInput] = useState('')
+  const [appliedHistoryQuery, setAppliedHistoryQuery] = useState('')
+  const [appliedHistoryClanId, setAppliedHistoryClanId] = useState('')
 
   const isOwner = permissions.includes('*')
   const canWriteSettings = isOwner
@@ -115,12 +165,17 @@ export default function PubgApiSettingsPage() {
         setLoadingData(true)
         setError('')
 
-        const response = await fetch(
-          `/api/settings/pubg-api-calls?page=${historyPage}&pageSize=${historyPageSize}&errorsOnly=${errorsOnly ? 1 : 0}`,
-          {
-            cache: 'no-store',
-          }
-        )
+        const searchParams = new URLSearchParams({
+          page: String(historyPage),
+          pageSize: String(historyPageSize),
+          errorsOnly: errorsOnly ? '1' : '0',
+        })
+        if (appliedHistoryQuery) searchParams.set('q', appliedHistoryQuery)
+        if (appliedHistoryClanId) searchParams.set('clanId', appliedHistoryClanId)
+
+        const response = await fetch(`/api/settings/pubg-api-calls?${searchParams.toString()}`, {
+          cache: 'no-store',
+        })
 
         const nextPayload = (await response.json().catch(() => null)) as CallsPayload | { error?: string } | null
 
@@ -148,7 +203,32 @@ export default function PubgApiSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [authenticated, errorsOnly, historyPage, historyPageSize, isOwner, loading, reloadToken])
+  }, [
+    authenticated,
+    errorsOnly,
+    historyPage,
+    historyPageSize,
+    isOwner,
+    loading,
+    reloadToken,
+    appliedHistoryQuery,
+    appliedHistoryClanId,
+  ])
+
+  function handleApplyHistoryFilters(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setHistoryPage(1)
+    setAppliedHistoryQuery(historyQueryInput.trim())
+    setAppliedHistoryClanId(historyClanIdInput.trim())
+  }
+
+  function handleClearHistoryFilters() {
+    setHistoryQueryInput('')
+    setHistoryClanIdInput('')
+    setAppliedHistoryQuery('')
+    setAppliedHistoryClanId('')
+    setHistoryPage(1)
+  }
 
   const chartMax = useMemo(() => {
     const values = payload?.series.map((item) => item.total) ?? []
@@ -269,27 +349,43 @@ export default function PubgApiSettingsPage() {
       </section>
       <section className="app-panel p-6 sm:p-8">
 
-        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4 xl:grid-cols-5">
-          <MetricCard label="Appels fenetre" value={String(payload?.totals.total ?? 0)} />
-          <MetricCard label="Succes" value={String(payload?.totals.success ?? 0)} tone="emerald" />
-          <MetricCard label="429" value={String(payload?.totals.rateLimited ?? 0)} tone="amber" />
-          <MetricCard label="Erreurs" value={String(payload?.totals.errors ?? 0)} tone="rose" />
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <MetricCard icon={Activity} label="Appels fenetre" value={String(payload?.totals.total ?? 0)} />
           <MetricCard
+            icon={CheckCircle2}
+            label="Succes"
+            value={String(payload?.totals.success ?? 0)}
+            tone="emerald"
+          />
+          <MetricCard
+            icon={AlertTriangle}
+            label="429"
+            value={String(payload?.totals.rateLimited ?? 0)}
+            tone="amber"
+          />
+          <MetricCard icon={XCircle} label="Erreurs" value={String(payload?.totals.errors ?? 0)} tone="rose" />
+          <MetricCard icon={RotateCcw} label="Retries" value={String(payload?.totals.retriesTotal ?? 0)} />
+          <MetricCard
+            icon={Timer}
             label="Latence moyenne"
             value={payload?.totals.avgDurationMs != null ? `${payload.totals.avgDurationMs} ms` : '-'}
           />
         </div>
 
         <div className="app-panel-muted mt-8 p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-              Aujourd&apos;hui (24 h)
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Activite du jour</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Aujourd&apos;hui (24 h)
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setReloadToken((current) => current + 1)}
-              className="app-btn app-btn--sm app-btn--secondary"
+              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
             >
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
               Actualiser
             </button>
           </div>
@@ -438,8 +534,128 @@ export default function PubgApiSettingsPage() {
           </div>
         </div>
 
+        <div className="app-panel-muted mt-8 p-5">
+          <h2 className="text-sm font-bold text-slate-900">Tendance 14 jours</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Volume d&apos;appels par jour, hauteur proportionnelle au maximum de la periode.
+          </p>
+          <div className="mt-4 flex items-end gap-1" style={{ height: 96 }}>
+            {(payload?.dailySeries ?? []).map((point) => {
+              const max = Math.max(1, ...(payload?.dailySeries ?? []).map((item) => item.total))
+              const heightPct = point.total > 0 ? Math.max(6, Math.round((point.total / max) * 100)) : 2
+              const hasError = point.errors > 0
+              const hasRateLimit = point.rateLimited > 0
+              const barTone = hasError
+                ? 'bg-rose-500'
+                : hasRateLimit
+                  ? 'bg-amber-400'
+                  : 'bg-emerald-400'
+
+              return (
+                <div key={point.date} className="flex flex-1 flex-col items-center justify-end gap-1">
+                  <div
+                    title={`${new Date(point.date).toLocaleDateString('fr-FR')} • ${point.total} appels • ${point.errors} erreurs • ${point.rateLimited} x 429`}
+                    className={`w-full rounded-t ${barTone}`}
+                    style={{ height: `${heightPct}%` }}
+                  />
+                  <span className="text-[9px] text-slate-500">
+                    {new Date(point.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-2">
+          <div className="app-panel p-5">
+            <h2 className="text-sm font-bold text-slate-900">Repartition par type d&apos;appel</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Aujourd&apos;hui (24 h), par ressource PUBG appelee (joueur, clan, saison, arme, match).
+            </p>
+            <div className="mt-3 space-y-2">
+              {(payload?.byCategory.length ?? 0) === 0 ? (
+                <p className="app-panel-muted p-3 text-xs text-slate-600">Aucun appel aujourd&apos;hui.</p>
+              ) : (
+                (payload?.byCategory ?? []).map((entry) => {
+                  // `errors` (success === false) inclut deja les 429 : on isole les erreurs
+                  // non-429 pour que les trois segments totalisent bien 100 %.
+                  const otherErrors = Math.max(0, entry.errors - entry.rateLimited)
+                  const successPct = entry.count > 0 ? (entry.success / entry.count) * 100 : 0
+                  const rateLimitedPct = entry.count > 0 ? (entry.rateLimited / entry.count) * 100 : 0
+                  const errorPct = entry.count > 0 ? (otherErrors / entry.count) * 100 : 0
+
+                  return (
+                    <div key={entry.category} className="app-panel-muted p-3 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-slate-900">{entry.label}</p>
+                        <div className="flex items-center gap-1.5">
+                          {entry.errors > 0 ? (
+                            <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">
+                              {entry.errors} err.
+                            </span>
+                          ) : null}
+                          {entry.rateLimited > 0 ? (
+                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
+                              {entry.rateLimited} x 429
+                            </span>
+                          ) : null}
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
+                            {entry.success} ok
+                          </span>
+                        </div>
+                      </div>
+                      <p className="mt-0.5 text-slate-500">
+                        {entry.count} appel(s) • {entry.avgDurationMs ?? '-'} ms moy.
+                      </p>
+                      <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div className="h-full bg-emerald-400" style={{ width: `${successPct}%` }} />
+                        <div className="h-full bg-amber-400" style={{ width: `${rateLimitedPct}%` }} />
+                        <div className="h-full bg-rose-500" style={{ width: `${errorPct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="app-panel p-5">
+            <h2 className="text-sm font-bold text-slate-900">Top erreurs</h2>
+            <p className="mt-1 text-xs text-slate-500">Aujourd&apos;hui (24 h), messages regroupes par occurrence.</p>
+            <div className="mt-3 space-y-2">
+              {(payload?.topErrors.length ?? 0) === 0 ? (
+                <p className="app-panel-muted p-3 text-xs text-slate-600">Aucune erreur aujourd&apos;hui.</p>
+              ) : (
+                (() => {
+                  const maxCount = Math.max(1, ...(payload?.topErrors ?? []).map((entry) => entry.count))
+                  return (payload?.topErrors ?? []).map((entry) => (
+                    <div key={entry.message} className="app-panel-muted p-3 text-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="break-all text-slate-700">{entry.message}</p>
+                        <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">
+                          x{entry.count}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full bg-rose-500"
+                          style={{ width: `${Math.round((entry.count / maxCount) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="app-panel mt-8 p-5">
-          <h2 className="text-sm font-bold text-slate-900">Configuration du rate limit</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
+            <Gauge className="h-4 w-4 text-slate-500" aria-hidden />
+            Configuration du rate limit
+          </h2>
           <p className="mt-1 text-xs text-slate-600">
             Valeur actuelle: {payload?.rpm ?? '-'} RPM (min {payload?.bounds.min ?? '-'} / max{' '}
             {payload?.bounds.max ?? '-'})
@@ -476,6 +692,34 @@ export default function PubgApiSettingsPage() {
             </article>
           </div>
 
+          {payload?.latestRateLimit?.limit ? (
+            <div className="mt-3 app-panel-muted p-3">
+              <div className="flex items-center justify-between text-[11px] text-slate-500">
+                <span>Quota consomme</span>
+                <span>
+                  {Math.max(0, payload.latestRateLimit.limit - (payload.latestRateLimit.remaining ?? payload.latestRateLimit.limit))}{' '}
+                  / {payload.latestRateLimit.limit}
+                </span>
+              </div>
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className={`h-full rounded-full ${getQuotaGaugeTone(payload.latestRateLimit.remaining, payload.latestRateLimit.limit)}`}
+                  style={{
+                    width: `${getQuotaConsumedPct(payload.latestRateLimit.remaining, payload.latestRateLimit.limit)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {payload?.latestRateLimit?.limit != null && payload.rpm > payload.latestRateLimit.limit ? (
+            <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              Le RPM configure ({payload.rpm}) depasse la limite observee cote PUBG ({payload.latestRateLimit.limit}
+              ) — risque accru de 429.
+            </p>
+          ) : null}
+
           <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={handleSaveRpm}>
             <label className="text-sm font-medium text-slate-700">
               RPM
@@ -503,59 +747,96 @@ export default function PubgApiSettingsPage() {
         </div>
 
         <div className="app-panel mt-8 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-bold text-slate-900">Historique recent</h2>
-            <div className="flex flex-wrap items-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
+            <div className="flex flex-wrap items-center gap-3">
+              <SegmentedControl
+                size="sm"
+                value={errorsOnly ? 'errors' : 'all'}
+                onChange={(value) => {
                   setHistoryPage(1)
-                  setErrorsOnly((current) => !current)
+                  setErrorsOnly(value === 'errors')
                 }}
-                className={`app-btn app-btn--sm ${
-                  errorsOnly
-                    ? 'app-btn--danger'
-                    : 'app-btn--secondary'
-                }`}
-              >
-                {errorsOnly ? 'Afficher tout l historique' : 'Voir uniquement les erreurs'}
-              </button>
+                options={[
+                  { value: 'all', label: 'Tout' },
+                  { value: 'errors', label: 'Erreurs' },
+                ]}
+              />
+              <SegmentedControl
+                size="sm"
+                value={String(historyPageSize)}
+                onChange={(value) => {
+                  setHistoryPage(1)
+                  setHistoryPageSize(Number(value) as (typeof HISTORY_PAGE_SIZE_OPTIONS)[number])
+                }}
+                options={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
+                  value: String(value),
+                  label: String(value),
+                }))}
+              />
               <button
                 type="button"
                 onClick={() => {
                   setPurgeDialogOpen(true)
                 }}
                 disabled={purgingHistory}
-                className="app-btn app-btn--sm app-btn--danger"
+                className="app-btn app-btn--sm app-btn--danger gap-1.5"
               >
-                {purgingHistory ? 'Purge...' : 'Purger l historique'}
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                {purgingHistory ? 'Purge...' : 'Purger'}
               </button>
-              <MobileDropdownNav
-                id="pubg-api-history-page-size"
-                label="Lignes"
-                currentLabel={`Lignes: ${historyPageSize}`}
-                variant="compact"
-                visibilityClass="block"
-                className="[&_.member-section-nav-mobile-label]:hidden [&_.member-section-nav-mobile-dropdown]:mt-0 [&_.member-section-nav-mobile-trigger]:min-h-9 [&_.member-section-nav-mobile-trigger]:h-9 [&_.member-section-nav-mobile-trigger]:rounded-lg [&_.member-section-nav-mobile-trigger]:px-3 [&_.member-section-nav-mobile-trigger]:py-1.5 [&_.member-section-nav-mobile-trigger]:text-xs [&_.member-section-nav-mobile-trigger]:font-semibold"
-                items={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
-                  key: String(value),
-                  label: String(value),
-                  active: historyPageSize === value,
-                  onSelect: () => {
-                    setHistoryPage(1)
-                    setHistoryPageSize(value)
-                  },
-                }))}
-              />
             </div>
           </div>
-          <p className="mt-1 text-xs text-slate-500">
+          <form
+            className="mt-3 flex flex-wrap items-end gap-2"
+            onSubmit={handleApplyHistoryFilters}
+          >
+            <label className="text-xs font-medium text-slate-700">
+              Endpoint / source
+              <input
+                type="text"
+                value={historyQueryInput}
+                onChange={(event) => setHistoryQueryInput(event.target.value)}
+                placeholder="ex: sync-matches"
+                className="mt-1 block w-48 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+              />
+            </label>
+            <label className="text-xs font-medium text-slate-700">
+              Clan ID
+              <input
+                type="number"
+                min={1}
+                value={historyClanIdInput}
+                onChange={(event) => setHistoryClanIdInput(event.target.value)}
+                placeholder="ex: 1"
+                className="mt-1 block w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+              />
+            </label>
+            <button type="submit" className="app-btn app-btn--sm app-btn--secondary">
+              Filtrer
+            </button>
+            {appliedHistoryQuery || appliedHistoryClanId ? (
+              <button
+                type="button"
+                onClick={handleClearHistoryFilters}
+                className="app-btn app-btn--sm app-btn--secondary"
+              >
+                Effacer les filtres
+              </button>
+            ) : null}
+          </form>
+          <p className="mt-2 text-xs text-slate-500">
             Page {payload?.historyPagination.page ?? 1} / {payload?.historyPagination.totalPages ?? 1} •{' '}
             {payload?.historyPagination.total ?? 0} ligne(s) au total
           </p>
           <p className="mt-1 text-xs text-slate-500">
             Astuce: survole ACTEUR pour voir l endpoint et survole STATUT pour le detail erreur.
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+            <LegendPill label="2xx: succes" className="border-emerald-200 bg-emerald-100" />
+            <LegendPill label="429: limite de debit atteinte" className="border-amber-200 bg-amber-100" />
+            <LegendPill label="4xx/5xx/n-a: erreur" className="border-rose-200 bg-rose-100" />
+          </div>
           {historyActionMessage ? <p className="mt-1 text-xs text-emerald-700">{historyActionMessage}</p> : null}
           {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
 
@@ -582,11 +863,11 @@ export default function PubgApiSettingsPage() {
                     <p>Retries: {row.retryCount}</p>
                     <p>Requetes dispo: {row.rateLimitRemaining ?? '-'}</p>
                     <p>
-                      Cron:{' '}
+                      Type:{' '}
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${getCronBadgeMeta(row).className}`}
+                        className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${getCategoryBadgeMeta(row).className}`}
                       >
-                        {getCronBadgeMeta(row).label}
+                        {getCategoryBadgeMeta(row).label}
                       </span>
                     </p>
                   </div>
@@ -605,7 +886,7 @@ export default function PubgApiSettingsPage() {
                   <th className="w-[85px] px-2 py-2">Duree</th>
                   <th className="w-[75px] px-2 py-2">Retries</th>
                   <th className="w-[110px] px-2 py-2">Dispo API</th>
-                  <th className="px-2 py-2">Cron</th>
+                  <th className="px-2 py-2">Type</th>
                 </tr>
               </thead>
               <tbody>
@@ -629,12 +910,15 @@ export default function PubgApiSettingsPage() {
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getCronBadgeMeta(row).className}`}
+                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getCategoryBadgeMeta(row).className}`}
                         >
-                          {getCronBadgeMeta(row).label}
+                          {getCategoryBadgeMeta(row).label}
                         </span>
                         <span className="text-[11px] text-slate-500">{row.actorLabel}</span>
                       </div>
+                      <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
+                        {row.method} {row.endpoint}
+                      </p>
                     </td>
                   </tr>
                 ))}
@@ -720,47 +1004,25 @@ export default function PubgApiSettingsPage() {
   )
 }
 
-function getCronBadgeMeta(row: ApiCallRow) {
-  const signature = `${row.source} ${row.endpoint}`.toLowerCase()
+const CATEGORY_BADGE_CLASSES: Record<PubgApiCallCategory, string> = {
+  player_search: 'border-cyan-200 bg-cyan-50 text-cyan-800',
+  player_detail: 'border-sky-200 bg-sky-50 text-sky-800',
+  weapon_mastery: 'border-orange-200 bg-orange-50 text-orange-800',
+  season_lifetime: 'border-violet-200 bg-violet-50 text-violet-800',
+  season_ranked: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800',
+  season_normal: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+  seasons_list: 'border-teal-200 bg-teal-50 text-teal-800',
+  clan_members: 'border-lime-200 bg-lime-50 text-lime-800',
+  clan_lookup: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  match_detail: 'border-amber-200 bg-amber-50 text-amber-800',
+  other: 'border-slate-200 bg-slate-50 text-slate-700',
+}
 
-  if (signature.includes('sync-matches') || signature.includes('daily_sync')) {
-    return {
-      label: 'Sync Matchs',
-      className: 'border-cyan-200 bg-cyan-50 text-cyan-800',
-    }
-  }
-
-  if (signature.includes('sync_stats') || signature.includes('stats')) {
-    return {
-      label: 'Sync Stats',
-      className: 'border-indigo-200 bg-indigo-50 text-indigo-800',
-    }
-  }
-
-  if (signature.includes('lifetime')) {
-    return {
-      label: 'Lifetime',
-      className: 'border-violet-200 bg-violet-50 text-violet-800',
-    }
-  }
-
-  if (signature.includes('weekly') || signature.includes('monthly') || signature.includes('report')) {
-    return {
-      label: 'Reports',
-      className: 'border-amber-200 bg-amber-50 text-amber-800',
-    }
-  }
-
-  if (signature.includes('challenge')) {
-    return {
-      label: 'Challenge',
-      className: 'border-pink-200 bg-pink-50 text-pink-800',
-    }
-  }
-
+function getCategoryBadgeMeta(row: ApiCallRow) {
+  const category = categorizePubgApiCall(row.source, row.endpoint)
   return {
-    label: 'Autre',
-    className: 'border-slate-200 bg-slate-50 text-slate-700',
+    label: PUBG_API_CALL_CATEGORY_LABELS[category],
+    className: CATEGORY_BADGE_CLASSES[category],
   }
 }
 
@@ -774,6 +1036,19 @@ function getApiStatusBadgeClass(row: ApiCallRow) {
   }
 
   return 'border-rose-200 bg-rose-50 text-rose-800'
+}
+
+function getQuotaConsumedPct(remaining: number | null, limit: number) {
+  if (limit <= 0) return 0
+  const consumed = Math.max(0, limit - (remaining ?? limit))
+  return Math.min(100, Math.round((consumed / limit) * 100))
+}
+
+function getQuotaGaugeTone(remaining: number | null, limit: number) {
+  const pct = getQuotaConsumedPct(remaining, limit)
+  if (pct >= 90) return 'bg-rose-500'
+  if (pct >= 70) return 'bg-amber-400'
+  return 'bg-emerald-400'
 }
 
 function getIntensityLevel(value: number, max: number) {
@@ -822,10 +1097,12 @@ function LegendPill({ label, className }: { label: string; className: string }) 
 }
 
 function MetricCard({
+  icon: Icon,
   label,
   value,
   tone = 'slate',
 }: {
+  icon: LucideIcon
   label: string
   value: string
   tone?: 'slate' | 'emerald' | 'amber' | 'rose'
@@ -841,7 +1118,10 @@ function MetricCard({
 
   return (
     <article className={`app-panel-muted p-4 ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-wide opacity-70">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] uppercase tracking-wide opacity-70">{label}</p>
+        <Icon className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+      </div>
       <p className="mt-1 text-2xl font-black">{value}</p>
     </article>
   )

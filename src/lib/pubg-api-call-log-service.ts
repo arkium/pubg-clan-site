@@ -1,4 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import {
+  categorizePubgApiCall,
+  PUBG_API_CALL_CATEGORIES,
+  PUBG_API_CALL_CATEGORY_LABELS,
+  type PubgApiCallCategory,
+} from '@/lib/pubg-api-call-category'
 
 export type PubgApiCallLogInput = {
   source?: string
@@ -82,29 +88,50 @@ export async function getPubgApiCallsOverview(params?: {
   historyPage?: number
   historyPageSize?: number
   errorsOnly?: boolean
+  historyQuery?: string
+  historyClanId?: number
 }) {
   const windowMinutes = 24 * 60
   const bucketMinutes = 30
   const bucketMs = bucketMinutes * 60_000
+  const trendDays = 14
   const historyPage = Math.max(1, params?.historyPage ?? 1)
-  const historyPageSize = Math.max(10, Math.min(100, params?.historyPageSize ?? 25))
+  const historyPageSize = Math.max(10, Math.min(100, params?.historyPageSize ?? 15))
   const errorsOnly = params?.errorsOnly === true
+  const historyQuery = params?.historyQuery?.trim() || undefined
+  const historyClanId = params?.historyClanId
 
   const dayStart = new Date()
   dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(dayStart.getTime() + windowMinutes * 60_000)
+  const trendStart = new Date(dayStart.getTime() - (trendDays - 1) * 24 * 60 * 60_000)
 
-  const historyWhere = errorsOnly
-    ? {
-        OR: [
-          { success: false },
-          { statusCode: 429 },
-          { errorMessage: { not: null } },
-        ],
-      }
-    : undefined
+  const historyConditions = [
+    errorsOnly
+      ? {
+          OR: [
+            { success: false },
+            { statusCode: 429 },
+            { errorMessage: { not: null } },
+          ],
+        }
+      : undefined,
+    historyQuery
+      ? {
+          OR: [
+            { endpoint: { contains: historyQuery } },
+            { source: { contains: historyQuery } },
+          ],
+        }
+      : undefined,
+    typeof historyClanId === 'number' && Number.isFinite(historyClanId)
+      ? { clanId: historyClanId }
+      : undefined,
+  ].filter((condition): condition is NonNullable<typeof condition> => condition !== undefined)
 
-  const [dayRows, historyRows, historyTotal, latestRateLimitRow] = await Promise.all([
+  const historyWhere = historyConditions.length > 0 ? { AND: historyConditions } : undefined
+
+  const [dayRows, trendRows, historyRows, historyTotal, latestRateLimitRow] = await Promise.all([
     prisma.pubgApiCallLog.findMany({
       where: {
         startedAt: {
@@ -118,6 +145,24 @@ export async function getPubgApiCallsOverview(params?: {
         success: true,
         statusCode: true,
         durationMs: true,
+        source: true,
+        endpoint: true,
+        retryCount: true,
+        errorMessage: true,
+      },
+    }),
+    prisma.pubgApiCallLog.findMany({
+      where: {
+        startedAt: {
+          gte: trendStart,
+          lt: dayEnd,
+        },
+      },
+      orderBy: { startedAt: 'asc' },
+      select: {
+        startedAt: true,
+        success: true,
+        statusCode: true,
       },
     }),
     prisma.pubgApiCallLog.findMany({
@@ -223,10 +268,19 @@ export async function getPubgApiCallsOverview(params?: {
   let rateLimited = 0
   let errors = 0
   let durationTotal = 0
+  let retriesTotal = 0
+
+  const categoryStats = new Map<
+    PubgApiCallCategory,
+    { count: number; success: number; errors: number; rateLimited: number; durationTotal: number }
+  >(PUBG_API_CALL_CATEGORIES.map((category) => [category, { count: 0, success: 0, errors: 0, rateLimited: 0, durationTotal: 0 }]))
+
+  const errorCounts = new Map<string, number>()
 
   for (const row of dayRows) {
     total += 1
     durationTotal += row.durationMs ?? 0
+    retriesTotal += row.retryCount ?? 0
 
     if (row.success) {
       success += 1
@@ -238,6 +292,20 @@ export async function getPubgApiCallsOverview(params?: {
 
     if (!row.success) {
       errors += 1
+    }
+
+    const category = categorizePubgApiCall(row.source, row.endpoint)
+    const categoryStat = categoryStats.get(category)
+    if (categoryStat) {
+      categoryStat.count += 1
+      categoryStat.durationTotal += row.durationMs ?? 0
+      if (row.success) categoryStat.success += 1
+      if (!row.success) categoryStat.errors += 1
+      if (row.statusCode === 429) categoryStat.rateLimited += 1
+    }
+
+    if (row.errorMessage) {
+      errorCounts.set(row.errorMessage, (errorCounts.get(row.errorMessage) ?? 0) + 1)
     }
 
     const elapsedMs = new Date(row.startedAt).getTime() - dayStart.getTime()
@@ -266,6 +334,42 @@ export async function getPubgApiCallsOverview(params?: {
     }
   }
 
+  const byCategory = PUBG_API_CALL_CATEGORIES.map((category) => {
+    const stat = categoryStats.get(category)!
+    return {
+      category,
+      label: PUBG_API_CALL_CATEGORY_LABELS[category],
+      count: stat.count,
+      success: stat.success,
+      errors: stat.errors,
+      rateLimited: stat.rateLimited,
+      avgDurationMs: stat.count > 0 ? Math.round(stat.durationTotal / stat.count) : null,
+    }
+  }).filter((entry) => entry.count > 0)
+
+  const topErrors = Array.from(errorCounts.entries())
+    .map(([message, count]) => ({ message, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  const dailyBuckets = new Map<string, { date: string; total: number; success: number; rateLimited: number; errors: number }>()
+  for (let offsetDays = 0; offsetDays < trendDays; offsetDays += 1) {
+    const bucketDate = new Date(trendStart.getTime() + offsetDays * 24 * 60 * 60_000)
+    const dateKey = bucketDate.toISOString().slice(0, 10)
+    dailyBuckets.set(dateKey, { date: dateKey, total: 0, success: 0, rateLimited: 0, errors: 0 })
+  }
+
+  for (const row of trendRows) {
+    const dateKey = new Date(row.startedAt).toISOString().slice(0, 10)
+    const bucket = dailyBuckets.get(dateKey)
+    if (!bucket) continue
+
+    bucket.total += 1
+    if (row.success) bucket.success += 1
+    if (row.statusCode === 429) bucket.rateLimited += 1
+    if (!row.success) bucket.errors += 1
+  }
+
   return {
     windowMinutes,
     totals: {
@@ -273,9 +377,13 @@ export async function getPubgApiCallsOverview(params?: {
       success,
       rateLimited,
       errors,
+      retriesTotal,
       avgDurationMs: total > 0 ? Math.round(durationTotal / total) : null,
     },
     series: Array.from(minuteBuckets.values()),
+    dailySeries: Array.from(dailyBuckets.values()),
+    byCategory,
+    topErrors,
     history: historyWithActor,
     historyPagination: {
       page: historyPage,
@@ -283,6 +391,8 @@ export async function getPubgApiCallsOverview(params?: {
       total: historyTotal,
       totalPages: Math.max(1, Math.ceil(historyTotal / historyPageSize)),
       errorsOnly,
+      query: historyQuery ?? null,
+      clanId: historyClanId ?? null,
     },
     latestRateLimit: latestRateLimitRow
       ? {

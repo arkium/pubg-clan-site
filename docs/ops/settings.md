@@ -17,33 +17,65 @@ Chaque page utilise la structure standard :
 
 ## `/settings/pubg-api` — Monitoring PUBG API
 
-Accès : Owner (`owner.pubg-api`).
+Accès : Owner (`owner.pubg-api`, permission `*`).
+
+### Catégorisation des appels
+
+Toutes les requêtes PUBG passent par `queuedPubgGet` ([pubg.ts](../../src/lib/pubg.ts)) avec `source` toujours égal à `'pubg-lib'` et `endpoint` toujours égal au chemin REST brut (ex. `/shards/steam/players/{id}/weapon_mastery`). Le module partagé [pubg-api-call-category.ts](../../src/lib/pubg-api-call-category.ts) (`categorizePubgApiCall`) classe chaque appel par **forme du chemin REST**, pas par nom de job cron — une version antérieure basée sur des mots-clés type `sync-matches`/`weekly`/`challenge` ne matchait quasiment jamais et faisait tomber presque tous les appels dans "Autre". Catégories actuelles, une par point d'appel existant de `pubg.ts` :
+
+| Catégorie | Endpoint réel |
+|---|---|
+| Recherche joueur | `/players?filter[playerNames]=...` |
+| Détail joueur | `/players/{id}` |
+| Maîtrise armes | `/players/{id}/weapon_mastery` |
+| Stats lifetime | `/players/{id}/seasons/lifetime` |
+| Stats ranked | `/players/{id}/seasons/{id}/ranked` |
+| Stats saison | `/players/{id}/seasons/{id}` |
+| Liste des saisons | `/seasons` |
+| Membres du clan | `/clans/{id}/members` |
+| Clan | `/clans` ou `/clans/{id}` |
+| Détail match | `/matches/{id}` |
+| Autre | tout chemin non reconnu (ne devrait plus apparaître en pratique) |
+
+Ce module est importé à la fois par le service serveur (agrégation) et par la page (badges), une seule source de vérité pour la catégorisation.
 
 ### Données affichées
 
 - **RPM actuel** : requêtes par minute mesurées sur une fenêtre glissante configurable.
 - **Bornes RPM** : valeurs min, max et défaut de la limite PUBG API.
 - **Snapshot rate-limit** : `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `observedAt` — issu du dernier appel PUBG enregistré.
-- **Totaux fenêtre** : total d'appels, succès, rate-limiteds (429), erreurs, durée moyenne.
-- **Graphe par minute** : sparkline des appels avec ventilation succès/erreur/rate-limited.
-- **Tableau historique** : appels récents avec pagination et filtre `errorsOnly`.
+- **Jauge de quota** : barre de progression du quota consommé (`limit - remaining`), teinte verte/ambre/rouge selon le pourcentage (seuils `70 %` / `90 %`).
+- **Badge de cohérence RPM** : bandeau d'alerte ambre si le RPM configuré (`AppConfig.pubg_api_rate_limit_rpm`) dépasse la limite `X-RateLimit-Limit` réellement observée côté PUBG.
+- **Totaux fenêtre (24 h)** : total d'appels, succès, rate-limiteds (429), erreurs, retries totaux, durée moyenne.
+- **Heatmap 24 h** : grille par tranche de 30 min (repart à zéro chaque minuit), ventilation succès/erreur/rate-limited, légende dédiée.
+- **Tendance 14 jours** : mini graphique en barres (volume par jour), teinte rouge/ambre/verte selon présence d'erreurs/429 ce jour-là.
+- **Répartition par type d'appel** : panneau agrégé (appels, succès, erreurs, 429, latence moyenne) par catégorie, fenêtre 24 h.
+- **Top erreurs** : messages d'erreur regroupés par occurrence (top 5), fenêtre 24 h.
+- **Tableau historique** : appels récents avec pagination, filtre `errorsOnly`, filtre texte (endpoint/source) et filtre `clanId`.
+- **Légende des codes statut** : `2xx` succès (vert), `429` limite de débit (ambre), `4xx/5xx/n-a` erreur (rouge).
 
 ### Colonnes du tableau historique
 
-`source`, `method`, `endpoint`, `shard`, `statusCode`, `retryCount`, `durationMs`, `startedAt`, `actorLabel` (clan ou membre concerné), `errorMessage`, rate-limit headers.
+`startedAt`, `statusCode` (badge coloré, tooltip = `errorMessage`), `durationMs`, `retryCount`, `rateLimitRemaining`, **Type** (badge de catégorie + `actorLabel` — clan ou membre concerné — + endpoint complet affiché en clair sous le badge, plus au survol uniquement).
 
-### Filtre
+### Filtres
 
-- `errorsOnly` : réduit l'historique aux appels en erreur (non-2xx ou exceptions).
-- Taille de page : configurable par l'utilisateur.
+- `errorsOnly` : réduit l'historique aux appels en erreur (non-2xx, 429 ou `errorMessage` non nul).
+- Recherche texte (`q`) : `contains` sur `endpoint` OU `source`.
+- `clanId` : filtre exact.
+- Taille de page : `15` (défaut), `25` ou `50`.
 
 ### Route API
 
-`GET /api/settings/pubg-api/calls` — retourne `{ rpm, bounds, windowMinutes, totals, latestRateLimit, minutePoints, calls }`.
+`GET /api/settings/pubg-api-calls?page&pageSize&errorsOnly&q&clanId` — retourne `{ rpm, bounds, windowMinutes, totals: { total, success, rateLimited, errors, retriesTotal, avgDurationMs }, series, dailySeries, byCategory, topErrors, latestRateLimit, historyPagination, history }`.
+
+`DELETE /api/settings/pubg-api-calls` — purge intégrale de l'historique (irréversible, confirmation UI requise).
+
+`POST /api/settings/pubg-api-rate-limit` — met à jour le RPM configuré, corps `{ rpm: number }`.
 
 ### Impact sur l'app
 
-Permet de surveiller la consommation de l'API PUBG, détecter les 429, vérifier que les garde-fous de la queue API sont actifs, et diagnostiquer les erreurs d'import de matchs.
+Permet de surveiller la consommation de l'API PUBG, détecter les 429, identifier quelle ressource PUBG (joueur/clan/saison/arme/match) consomme le plus de quota, repérer les erreurs récurrentes, vérifier que les garde-fous de la queue API sont actifs, et diagnostiquer les erreurs d'import de matchs.
 
 ---
 

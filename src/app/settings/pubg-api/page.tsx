@@ -134,7 +134,7 @@ function formatDateTime(value: string) {
 
 export default function PubgApiSettingsPage() {
   const router = useRouter()
-  const { loading, authenticated, permissions } = useAuthSession()
+  const { loading, authenticated, isSuperUser } = useAuthSession()
 
   const [reloadToken, setReloadToken] = useState(0)
   const [payload, setPayload] = useState<CallsPayload | null>(null)
@@ -155,8 +155,7 @@ export default function PubgApiSettingsPage() {
   const [appliedHistoryQuery, setAppliedHistoryQuery] = useState('')
   const [appliedHistoryClanId, setAppliedHistoryClanId] = useState('')
 
-  const isOwner = permissions.includes('*')
-  const canWriteSettings = isOwner
+  const canWriteSettings = isSuperUser
 
   useEffect(() => {
     if (!loading && !authenticated) {
@@ -165,7 +164,7 @@ export default function PubgApiSettingsPage() {
   }, [authenticated, loading, router])
 
   useEffect(() => {
-    if (loading || !authenticated || !isOwner) {
+    if (loading || !authenticated || !isSuperUser) {
       return
     }
 
@@ -219,7 +218,7 @@ export default function PubgApiSettingsPage() {
     errorsOnly,
     historyPage,
     historyPageSize,
-    isOwner,
+    isSuperUser,
     loading,
     reloadToken,
     appliedHistoryQuery,
@@ -250,7 +249,7 @@ export default function PubgApiSettingsPage() {
   async function handleSaveRpm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!isOwner) {
+    if (!isSuperUser) {
       return
     }
 
@@ -286,7 +285,7 @@ export default function PubgApiSettingsPage() {
   }
 
   async function handlePurgeHistory() {
-    if (!isOwner || purgingHistory) {
+    if (!isSuperUser || purgingHistory) {
       return
     }
 
@@ -331,13 +330,13 @@ export default function PubgApiSettingsPage() {
     return null
   }
 
-  if (!isOwner) {
+  if (!isSuperUser) {
     return (
       <main className="app-container app-main flex-1">
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
           <p className="mt-2 text-sm text-amber-800">
-            Cette page est reservee au Owner.
+            Cette page est reservee au SuperUser.
           </p>
           <Link
             href="/"

@@ -1,4 +1,4 @@
-type TelemetryScope = 'clan' | 'member'
+type TelemetryScope = 'clan' | 'member' | 'global'
 
 type TelemetryMeta = {
   scope: TelemetryScope

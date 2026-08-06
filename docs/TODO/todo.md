@@ -623,6 +623,105 @@ Réutilise les mécanismes déjà en place (filtre `clanId` déjà câblé sur l
 
 ---
 
+### ~~Récupérations télémétrie (`/clans/[clanId]/telemetry/recoveries`) — Pagination du tableau historique~~ — ✅ Déployé le 2026-08-06 (+ option validée)
+
+Réflexion demandée le 2026-08-06 après capture d'écran du pattern `SegmentedControl` (Tout/Erreurs, 15/25/50) déployé sur `/settings/pubg-api`, en référence pour cette page.
+
+**Distinction par clan — déjà en place, différemment que `/settings/pubg-api` :** la route [route.ts](../../src/app/api/clans/[clanId]/telemetry/recoveries/route.ts#L94-L100) filtre en SQL via `WHERE EXISTS (... cm.clanId = ${parsedClanId})` — chaque visite de `/clans/[clanId]/telemetry/recoveries` ne retourne que les récupérations du clan concerné. Ce n'est pas une vue globale multi-clans à ventiler comme l'était `/settings/pubg-api` avant le panneau "Répartition par clan" — c'est scopé par construction (un clan = une URL). Pas de chantier de plomberie `clanId`/`memberId` à refaire ici, contrairement au chantier PUBG API.
+
+- [x] Pagination **côté client** dans [page.tsx](../../src/app/clans/[clanId]/telemetry/recoveries/page.tsx) : `paginatedRows` dérivé de `sortedRows.slice(...)`, page courante bornée via `historyPageClamped = Math.min(historyPage, historyTotalPages)` (protège contre une page hors bornes après un rechargement de données, en plus du reset explicite ci-dessous)
+- [x] Sélecteur de taille de page en `SegmentedControl` avec `10`, `15`, `25` (défaut `15`) — même pattern que `/settings/pubg-api`
+- [x] Contrôles précédent/suivant + "X–Y sur N" sous le tableau, réutilisant `.app-pagination`/`.app-pagination-button`/`.app-pagination-label` de `globals.css` (markup copié du seul autre usage existant, `MatchHistory.tsx`)
+- [x] Retour à la page 1 sur changement de filtre/recherche/tri/taille de page — `setHistoryPage(1)` ajouté directement dans chaque `onChange` (`statusFilter`, `parserFilter`, `searchTerm`, `primarySortKey/Direction`, `secondarySortKey/Direction`, `historyPageSize`), même convention que `/settings/pubg-api`
+- [x] Compteur "Résultats: X / Y" conservé (inchangé, toujours basé sur `sortedRows` complet), complété par la pagination sous le tableau
+- [x] Export CSV et badge "Résultats" laissés sur `sortedRows` (l'intégralité du filtré/trié), volontairement **pas** limités à `paginatedRows` — exporter doit rester indépendant de la page affichée
+- [ ] Vérifier rendu clair/sombre et mobile — non vérifié en session, pas d'accès disponible
+
+**Option validée avec l'utilisateur — migration des 6 `<select>` bruts vers les composants partagés :**
+
+- [x] Statut et Parser JSON → `FilterDropdown` (label + select thémé, composant déjà utilisé ailleurs dans le site)
+- [x] Tri principal/secondaire et Ordre principal/secondaire → `SegmentedControl` avec label au-dessus (`<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">`), même agencement que `/clans/[clanId]/leaderboard`
+- [x] Option "Décroissant"/"Croissant" de l'ordre secondaire désactivée via la prop `disabled` de `SegmentedControl` quand `secondarySortKey === 'none'` (remplace l'attribut `disabled` du `<select>` d'origine)
+
+**Validation :** ESLint — 5 erreurs préexistantes inchangées (vérifié par `git stash`/`git stash pop` : mêmes règles, mêmes causes, non liées à ce chantier — `set-state-in-effect` sur deux effets non touchés, `Date.now()` impur dans un `useMemo` non touché, 2 apostrophes non échappées). `tsc --noEmit` : 137 erreurs, baseline inchangée. `npm run test:telemetry` : 55/59, mêmes échecs préexistants.
+
+**Modernisation visuelle du 2026-08-06 — icônes et couleurs, alignée sur `/settings/pubg-api` :**
+
+Couleurs déjà vérifiées comme bien thémées (mêmes familles remappées slate/emerald/rose/amber que `/settings/pubg-api`) — cette passe est purement visuelle, aucun bug de thème à corriger ici.
+
+- [x] Nouveau composant local `MetricCard` (icône + label + valeur, tons slate/emerald/amber/rose, variante `compact`) — même esprit que celui de `/settings/pubg-api`, appliqué aux 6 cartes de synthèse, aux 4 cartes KPI et aux 5+4 cartes du dashboard observability (15 cartes au total converties)
+- [x] Icônes `lucide-react` sur les 3 boutons d'action (`RefreshCw` Rafraichir, `Wrench` Backfill, `ArrowLeft` Retour aux matchs) et sur les 4 titres de section (`Gauge` KPIs, `Server` Observability, `History` Historique)
+- [x] Sélecteurs "Fenetre" (KPIs de santé + Dashboard observability) migrés de `<select>` vers `SegmentedControl` (`WINDOW_OPTIONS` partagé, 24h/7j/30j/Tout) — effet de bord positif : élimine au passage 2 des 5 erreurs ESLint préexistantes (apostrophe non échappée dans "Tout l'historique", remplacé par "Tout")
+- [x] Mini-barre de répartition (succès/échecs/expirés/en attente) sous les 6 cartes de synthèse principales, même pattern que les barres de "Répartition par type d'appel" sur `/settings/pubg-api`
+- [x] Icône ajoutée dans chaque badge de statut (`CheckCircle2`/`XCircle`/`Clock`/`History`) sur le tableau d'historique principal et le tableau observability, alerts de santé avec `CheckCircle2`/`AlertTriangle` selon le statut
+- [x] Validation : ESLint passé de 5 à **3** erreurs préexistantes (2 corrigées en effet de bord, aucune nouvelle), `tsc --noEmit` 137 (baseline inchangée), `npm run test:telemetry` 55/59 (mêmes échecs préexistants)
+- [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès disponible
+
+**Correctif du 2026-08-06 (retour utilisateur sur capture d'écran) :** `SegmentedControl` avec `wrap` sur "Tri principal" (3 options) et "Tri secondaire" (4 options) ne tenait pas sur une ligne dans une colonne à 4 — le retour à la ligne cassait la forme arrondie du conteneur (effet "marche d'escalier"). "Ordre principal"/"Ordre secondaire" (2 options courtes) restaient propres. Revenu à `FilterDropdown` pour les deux contrôles à options multiples (Tri principal, Tri secondaire), conservé `SegmentedControl` uniquement pour les deux qui tiennent naturellement sur une ligne (Ordre principal, Ordre secondaire). Revalidé : ESLint toujours 3 erreurs préexistantes (inchangé), `tsc --noEmit` 137, `test:telemetry` 55/59.
+
+---
+
+### ~~Détail télémétrie d'un match (`/clans/[clanId]/telemetry/matches/[matchId]/telemetry`) — Modernisation visuelle + pagination~~ — ✅ Déployé le 2026-08-06
+
+Page d'audit/debug dense (1800 lignes, 8 sections) pour un développeur inspectant le pipeline parser sur un match précis. Même traitement que `/settings/pubg-api` et `/clans/[clanId]/telemetry/recoveries` : icônes `lucide-react`, aucun bug de couleur à corriger (mêmes familles déjà remappées).
+
+- [x] Icône sur le titre `<h1>` (`Radar`) et sur les 8 titres de section (`Users` Contexte match, `Server` Etat pipeline, `ListChecks` Resume parser, `Crosshair` Top armes, `Users` Stats membres, `Waves` Phases du match, `MapPin` Positions brutes, `FileJson` Payload JSON brut)
+- [x] Icônes sur les 3 boutons d'action (`ArrowLeft` Retour, `RefreshCw` Resync ce match, `Upload` Importer fichier telemetry)
+- [x] Badge de statut pipeline (`telemetryTone`/`telemetryLabel`) avec icône selon le statut (`CheckCircle2`/`XCircle`/`AlertTriangle`), même traitement sur le bloc "Erreur telemetry"
+- [x] Badges de statut membre dans les cartes "Stats membres parser" (`resolved`/`opponent`/`bot`/`unresolved`) avec icône dédiée (`CheckCircle2`/`Swords`/`Bot`/`HelpCircle`)
+- [x] Pagination à 15 lignes sur le tableau "Top armes (weaponStats)" — seul tableau de la page dont la taille dépend directement du nombre d'armes distinctes utilisées dans le match et peut dépasser 15 lignes sur un match chargé ; les autres tableaux (contexte match, phases, stats armes par membre) sont naturellement bornés par la taille d'une squad ou le nombre de phases d'un match (≤ ~20), pas de pagination nécessaire. Réutilise `.app-pagination` (même markup que les deux autres pages), page bornée via `Math.min(page, totalPages)`
+- [x] Validation : ESLint — **20 erreurs préexistantes, comptage identique avant/après** (vérifié par `git stash`/`git stash pop`) — toutes liées à un bug préexistant et non lié à cette session (hooks `useMemo`/`useEffect` appelés après un retour anticipé conditionnel `if (!clanId || !matchId) return`, dans la zone `rawPhaseOptions`/`filteredPositionSamples` etc., lignes ~937-1198, jamais touchée par cette passe) + 1 paire de guillemets non échappés préexistante. `tsc --noEmit` : 137 (baseline inchangée). `npm run test:telemetry` : 55/59 (mêmes échecs préexistants)
+- [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès disponible
+
+**Note pour un futur chantier (hors scope ici) :** le bug préexistant de hooks conditionnels (20 erreurs ESLint) mériterait sa propre correction séparée — déplacer `rawPhaseOptions`, `filteredPositionSamples`, `filteredTrajectorySegments`, `filteredDeathSamples`, `filteredInBoundsPositionSamples`, `filteredInBoundsDeathSamples`, `filteredInBoundsTrajectorySegments`, `outOfBoundsSummary`, `clanAccountIds`, `clanTeamId`, `groupedMemberStats` et l'effet de reset `rawPhaseFilter` avant le early-return `if (!clanId || !matchId)`, ou restructurer ce dernier. Risqué à faire en même temps qu'une passe visuelle — volontairement laissé de côté.
+
+**Correctifs du 2026-08-06 (retour utilisateur sur capture d'écran) :**
+
+- [x] **Bug de thème réel, corrigé dans `globals.css` (pas seulement sur cette page)** : `border-slate-100` (utilisé sur `<tr className="border-t border-slate-100">` dans quasiment tous les tableaux du site) n'était **pas** dans la liste des classes remappées par le thème — seuls `border-slate-200`/`border-slate-300` l'étaient, alors que `divide-slate-100` l'était déjà (incohérence dans la CSS d'origine). Résultat : lignes de séparation gris très clair figées, quasi blanches et visibles en thème sombre. Ajouté `.border-slate-100` aux deux règles de remap existantes (claire `body[data-app-theme]` et sombre `html[data-app-theme='dark']`), même valeur que `border-gray-100`/`border-slate-200`. Bénéficie automatiquement aux 4 fichiers du projet qui utilisaient cette classe : cette page, [matches/[matchId]/telemetry/page.tsx](../../src/app/clans/[clanId]/matches/[matchId]/telemetry/page.tsx), [nav-permissions/page.tsx](../../src/app/settings/nav-permissions/page.tsx), [phase-labels/page.tsx](../../src/app/settings/phase-labels/page.tsx)
+- [x] Tri par colonne sur le tableau "Top armes (weaponStats)" (Arme/Kills/Headshots/Damage) — en-têtes cliquables avec indicateur `↑`/`↓`, même pattern que `MatchHistory.tsx` (clic sur la même colonne inverse le sens, clic sur une autre colonne repart en `desc`). Tri appliqué avant la pagination ; reset à la page 1 sur changement de tri
+- [x] Validation : ESLint toujours 20 erreurs préexistantes (inchangé, aucune nouvelle), `tsc --noEmit` 137, `npm run test:telemetry` 55/59
+
+---
+
+### ~~Vue cross-clans SuperUser — Télémétrie + API PUBG~~ — ✅ Déployé le 2026-08-06
+
+Demande du 2026-08-06 : permettre à un SuperUser de comparer la santé télémétrie et la consommation API de plusieurs clans sans naviguer clan par clan. Analyse du modèle de permissions avant de proposer une architecture.
+
+#### Constat sur le contrôle d'accès — bug trouvé au passage
+
+Deux mécanismes distincts coexistent dans le code :
+
+- **`isSuperUser`** : flag global sur `UserAccount` (`src/middleware/auth-permission.ts`), indépendant de tout clan. C'est le vrai SuperUser — `requireSuperUser()`/`isSuperUserSession()` l'utilisent côté API, et il bypass les checks clan-scopés (ex. la route recoveries via `requireRole(['Owner'])(request, { clanId })` laisse passer un SuperUser sur n'importe quel clan).
+- **`permissions.includes('*')`** : dérivé du rôle du **membre actif dans son clan courant** (`getMemberPermissionKeys()` dans `role-service.ts`) — le rôle "Owner" donne `['*']` à l'échelle de ce clan. Ce n'est **pas** l'équivalent d'être SuperUser.
+
+[`/settings/pubg-api/page.tsx:158`](../../src/app/settings/pubg-api/page.tsx#L158) gate toute la page sur `permissions.includes('*')`, jamais sur `isSuperUser` (pourtant déjà exposé par `useAuthSession()` — voir `src/hooks/useAuthSession.ts`). Conséquence : un simple Owner de clan (pas SuperUser) peut accéder à la page, et un vrai SuperUser dont le membre actif n'a pas le rôle Owner sur son clan lié se ferait bloquer à tort.
+
+- [x] Corrigé `/settings/pubg-api/page.tsx` : `isOwner = permissions.includes('*')` remplacé par `isSuperUser` (retourné par `useAuthSession()`, déjà exposé côté hook) sur les 5 points de gate (accès page, effet de chargement, `handleSaveRpm`, `handlePurgeHistory`, `canWriteSettings`) ; import `permissions` retiré du destructuring devenu inutile ; message d'accès refusé mis à jour ("reservee au SuperUser")
+- [x] Corrigé côté serveur : `GET/DELETE /api/settings/pubg-api-calls` et `GET/POST /api/settings/pubg-api-rate-limit` utilisaient `getMemberPermissionKeys(session.activeMemberId)` + `permissions.includes('*')` — remplacé par `session.isSuperUser` directement (déjà présent sur `AuthSessionContext` retourné par `getSessionFromRequest()`, pas besoin de requête supplémentaire). Bénéfice additionnel : un SuperUser sans `activeMemberId` (aucune adhésion clan) n'est plus bloqué à tort — l'ancien code exigeait `session?.activeMemberId` avant même de vérifier `isSuperUser`
+- [x] Validation : ESLint et `tsc --noEmit` propres (137 erreurs, identique à la baseline), `npm run test:telemetry` toujours 55/59 (mêmes 3 échecs préexistants)
+
+#### Décision d'architecture — API PUBG : rien de nouveau à créer
+
+`/settings/pubg-api` est déjà une page globale (hors `/clans/[clanId]/...`), et le panneau "Répartition par clan" livré le 2026-08-06 **est déjà** la vue cross-clans demandée pour le volet API. Le fix d'accès ci-dessus est fait — ce volet est maintenant complet.
+
+#### Décision d'architecture — Télémétrie : nouvelle page — ✅ Déployée le 2026-08-06
+
+`/clans/[clanId]/telemetry/recoveries` est scopée à un clan par construction (route dynamique + filtre SQL `cm.clanId = X` dans `route.ts`). Forcer cette page à représenter "tous les clans" (id spécial type `clanId=all`, toggle de mode) aurait été bancal et aurait fragilisé une page qui fonctionne bien pour son usage actuel (deep-dive un clan). Le pattern déjà établi dans ce projet pour une vue globale réservée SuperUser est `/settings/pubg-api` — répliqué à l'identique.
+
+**Décisions validées avant implémentation (questions posées à l'utilisateur) :** nom de page `/settings/telemetry-recoveries` (cohérent avec le nom de la page clan-scopée) ; page en lecture seule + liens vers le détail par clan, sans dupliquer les actions Backfill/Export CSV de la page clan-scopée.
+
+- [x] Nouveau service [telemetry-recoveries-overview.ts](../../src/lib/telemetry-recoveries-overview.ts) : `getTelemetryRecoveriesOverview(window)`. Requête SQL en deux temps plutôt qu'un simple `GROUP BY` — un `SELECT DISTINCT (clanId, squadMatchId)` dérivé d'abord (dédupliquer les cas où plusieurs membres du même clan sont dans la même squad, pour ne jamais compter une ligne `SquadMatchTelemetry` deux fois pour un même clan), puis jointure vers `SquadMatchTelemetry` avec filtre de fenêtre temporelle optionnel (`Prisma.empty` si `window=all`, même pattern que `drop-pressure-persistence.ts`/`position-metric-aggregation.ts`). Classification succès/échec/expiré/en attente et résolution des noms de clan répliquent exactement la logique déjà existante dans [route.ts](../../src/app/api/clans/[clanId]/telemetry/recoveries/route.ts) (réutilise `isTelemetryDataExpiredError`, ne la duplique pas)
+- [x] Nouvelle route [GET /api/settings/telemetry-recoveries](../../src/app/api/settings/telemetry-recoveries/route.ts), gate `session.isSuperUser` (le bon mécanisme, pas `'*'`), paramètre `window` (`24h`/`7d`/`30d`/`all`, défaut `7d`)
+- [x] Type `TelemetryScope` étendu avec `'global'` dans [api-contract.ts](../../src/lib/pubg-telemetry/api-contract.ts) (changement additif, n'affecte aucun des 12 autres appelants existants)
+- [x] Nouvelle page [/settings/telemetry-recoveries](../../src/app/settings/telemetry-recoveries/page.tsx) : panneau "Répartition par clan" avec mini-barre succès/échecs/expirés/en attente par ligne, bordure + icône d'alerte si le taux d'échec dépasse `10 %`, sélecteur de fenêtre en `SegmentedControl`, lien "Détail" vers `/clans/[clanId]/telemetry/recoveries` par ligne
+- [x] Nouvelle entrée nav `superuser.telemetry-recoveries` dans [nav-permissions-registry.ts](../../src/lib/nav-permissions-registry.ts) (section `superuser-menu`) — coexiste sans collision avec `owner.telemetry-recoveries` (la page clan-scopée existante, navKey différent)
+- [x] **Découverte en cours d'implémentation :** le menu de navigation lit la table `NavItem` en base, pas directement `nav-permissions-registry.ts` (fallback statique non atteint une fois la DB seedée — commentaire `@deprecated` sur `getItemRole`). Lancé `npx tsx prisma/seed-nav-items.ts` (upsert idempotent) pour que la nouvelle entrée apparaisse réellement dans le menu SuperUser — 49 lignes `NavItem` en base après coup
+- [x] Validation : requête SQL testée directement contre la base réelle (20 lignes échantillon), puis pipeline complet (agrégation + résolution nom de clan) simulé en Node contre la vraie base — résultat cohérent : clan D32 [SMK], 1674 récupérations, 1342 succès, 332 expirées, 0 échec, 0 en attente
+- [x] ESLint et `tsc --noEmit` propres (137 erreurs, baseline inchangée), `npm run test:telemetry` toujours 55/59 (mêmes 3 échecs préexistants)
+- [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès SuperUser disponible
+
+---
+
 ### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04
 
 Développé le 2026-08-04 après lecture de [awards-service.ts](../../src/lib/awards-service.ts) et [awards/route.ts](../../src/app/api/clans/[clanId]/awards/route.ts).

@@ -249,7 +249,7 @@ body[data-app-theme] :where(.bg-gray-100, .bg-slate-100) {
   background-color: var(--theme-ui-surface-strong);
 }
 
-body[data-app-theme] :where(.border-gray-100, .border-gray-200, .border-gray-300, .border-gray-400, .border-slate-200, .border-slate-300, .border-slate-200\/80, .border-white, .border-white\/80, .border-white\/70, .border-white\/60, .border-white\/50, .border-white\/30) {
+body[data-app-theme] :where(.border-gray-100, .border-gray-200, .border-gray-300, .border-gray-400, .border-slate-100, .border-slate-200, .border-slate-300, .border-slate-200\/80, .border-white, .border-white\/80, .border-white\/70, .border-white\/60, .border-white\/50, .border-white\/30) {
   border-color: var(--theme-ui-border);
 }
 
@@ -407,7 +407,7 @@ html[data-app-theme='dark'] :where(.border-slate-300, .border-slate-200, .border
   border-color: rgb(51 65 85 / 1);
 }
 
-html[data-app-theme='dark'] :where(.border-gray-100, .border-gray-200, .border-gray-300, .border-gray-400, .border-white, .border-white\/80, .border-white\/70, .border-white\/60, .border-white\/50, .border-white\/30) {
+html[data-app-theme='dark'] :where(.border-gray-100, .border-gray-200, .border-gray-300, .border-gray-400, .border-slate-100, .border-white, .border-white\/80, .border-white\/70, .border-white\/60, .border-white\/50, .border-white\/30) {
   border-color: rgb(51 65 85 / 1);
 }
 

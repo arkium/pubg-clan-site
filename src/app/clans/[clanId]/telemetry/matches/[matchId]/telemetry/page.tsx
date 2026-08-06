@@ -4,6 +4,25 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Bot,
+  CheckCircle2,
+  Crosshair,
+  FileJson,
+  HelpCircle,
+  ListChecks,
+  MapPin,
+  Radar,
+  RefreshCw,
+  Server,
+  Swords,
+  Upload,
+  Users,
+  Waves,
+  XCircle,
+} from 'lucide-react'
 
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
@@ -735,6 +754,19 @@ export default function TelemetryMatchDetailPage() {
   const [fileImportLoading, setFileImportLoading] = useState(false)
   const [fileImportMessage, setFileImportMessage] = useState('')
   const [rawPhaseFilter, setRawPhaseFilter] = useState<'all' | number>('all')
+  const [weaponStatsPage, setWeaponStatsPage] = useState(1)
+  const [weaponSortKey, setWeaponSortKey] = useState<'weaponName' | 'kills' | 'headshots' | 'damageDealt'>('kills')
+  const [weaponSortDir, setWeaponSortDir] = useState<'asc' | 'desc'>('desc')
+
+  function handleWeaponSort(key: typeof weaponSortKey) {
+    if (key === weaponSortKey) {
+      setWeaponSortDir((current) => (current === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setWeaponSortKey(key)
+      setWeaponSortDir('desc')
+    }
+    setWeaponStatsPage(1)
+  }
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -901,6 +933,26 @@ export default function TelemetryMatchDetailPage() {
 
   const summary = toTelemetrySummary(telemetry?.summary)
   const weaponStats = toTelemetryWeaponStats(telemetry?.weaponStats)
+  const sortedWeaponStats = [...weaponStats].sort((left, right) => {
+    const factor = weaponSortDir === 'asc' ? 1 : -1
+
+    if (weaponSortKey === 'weaponName') {
+      return (
+        displayWeaponName(left.weaponName, weaponLabels).localeCompare(
+          displayWeaponName(right.weaponName, weaponLabels)
+        ) * factor
+      )
+    }
+
+    return (left[weaponSortKey] - right[weaponSortKey]) * factor
+  })
+  const weaponStatsPageSize = 15
+  const weaponStatsTotalPages = Math.max(1, Math.ceil(sortedWeaponStats.length / weaponStatsPageSize))
+  const weaponStatsPageClamped = Math.min(weaponStatsPage, weaponStatsTotalPages)
+  const paginatedWeaponStats = sortedWeaponStats.slice(
+    (weaponStatsPageClamped - 1) * weaponStatsPageSize,
+    weaponStatsPageClamped * weaponStatsPageSize
+  )
   const memberStats = toTelemetryMemberStats(telemetry?.memberStats)
   const positionSamples = toTelemetryPositionSamples(telemetry?.positionSamples)
   const trajectorySegments = toTelemetryTrajectorySegments(telemetry?.trajectorySegments)
@@ -1080,12 +1132,16 @@ export default function TelemetryMatchDetailPage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500">Telemetry match detail</p>
-            <h1 className="text-2xl font-bold text-slate-900">Detail telemetrie du match</h1>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+              <Radar className="h-6 w-6 text-slate-500" aria-hidden />
+              Detail telemetrie du match
+            </h1>
             <p className="mt-1 text-sm text-slate-600">
               Donnees lues depuis SquadMatchTelemetry pour audit parser/aggregats.
             </p>
           </div>
-          <Link href={backHref} className="app-btn app-btn--sm app-btn--secondary">
+          <Link href={backHref} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+            <ArrowLeft className="h-4 w-4" aria-hidden />
             Retour
           </Link>
         </div>
@@ -1103,28 +1159,42 @@ export default function TelemetryMatchDetailPage() {
           <section className="app-panel p-4 md:p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Contexte match</h2>
+                <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+                  <Users className="h-5 w-5 text-slate-500" aria-hidden />
+                  Contexte match
+                </h2>
                 <p className="text-sm text-slate-600">Match {match.pubgMatchId}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <TeamModeBadge mode={teamModeFromMemberCount(match.members.length)} />
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${telemetryTone(telemetry.status)}`}>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${telemetryTone(telemetry.status)}`}
+                >
+                  {telemetry.status === 'success' ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                  ) : telemetry.status === 'failed' ? (
+                    <XCircle className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                  )}
                   {telemetryLabel(telemetry.status)}
                 </span>
                 <button
                   type="button"
                   onClick={runResyncMatch}
-                  className="app-btn app-btn--sm app-btn--secondary"
+                  className="app-btn app-btn--sm app-btn--secondary gap-1.5"
                   disabled={resyncLoading || fileImportLoading}
                 >
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                   {resyncLoading ? 'Resync en cours...' : 'Resync ce match'}
                 </button>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="app-btn app-btn--sm app-btn--secondary"
+                  className="app-btn app-btn--sm app-btn--secondary gap-1.5"
                   disabled={resyncLoading || fileImportLoading}
                 >
+                  <Upload className="h-3.5 w-3.5" aria-hidden />
                   {fileImportLoading ? 'Import en cours...' : 'Importer fichier telemetry'}
                 </button>
                 <input
@@ -1219,7 +1289,10 @@ export default function TelemetryMatchDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Etat pipeline telemetry</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <Server className="h-5 w-5 text-slate-500" aria-hidden />
+              Etat pipeline telemetry
+            </h2>
             <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                 <dt className="text-xs uppercase tracking-wide text-slate-500">Parser version</dt>
@@ -1260,7 +1333,10 @@ export default function TelemetryMatchDetailPage() {
 
             {telemetry.status === 'failed' ? (
               <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-                <p className="font-semibold">Erreur telemetry</p>
+                <p className="flex items-center gap-1.5 font-semibold">
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                  Erreur telemetry
+                </p>
                 <p className="mt-1">Code: {telemetry.errorCode ?? 'n/a'}</p>
                 <p className="mt-1">Message: {telemetry.errorMessage ?? 'n/a'}</p>
               </div>
@@ -1268,7 +1344,10 @@ export default function TelemetryMatchDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Resume parser</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <ListChecks className="h-5 w-5 text-slate-500" aria-hidden />
+              Resume parser
+            </h2>
             {summary ? (
               <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center">
@@ -1294,37 +1373,108 @@ export default function TelemetryMatchDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Top armes (weaponStats)</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <Crosshair className="h-5 w-5 text-slate-500" aria-hidden />
+              Top armes (weaponStats)
+            </h2>
             {weaponStats.length > 0 ? (
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-2 py-2">Arme</th>
-                      <th className="px-2 py-2 text-right">Kills</th>
-                      <th className="px-2 py-2 text-right">Headshots</th>
-                      <th className="px-2 py-2 text-right">Damage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weaponStats.map((weapon) => (
-                      <tr key={weapon.weaponName} className="border-t border-slate-100">
-                        <td className="px-2 py-2">{displayWeaponName(weapon.weaponName, weaponLabels)}</td>
-                        <td className="px-2 py-2 text-right tabular-nums">{weapon.kills}</td>
-                        <td className="px-2 py-2 text-right tabular-nums">{weapon.headshots}</td>
-                        <td className="px-2 py-2 text-right tabular-nums">{Math.round(weapon.damageDealt)}</td>
+              <>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="cursor-pointer px-2 py-2 select-none" onClick={() => handleWeaponSort('weaponName')}>
+                          Arme
+                          {weaponSortKey === 'weaponName' ? (
+                            <span className="ml-1">{weaponSortDir === 'asc' ? '↑' : '↓'}</span>
+                          ) : null}
+                        </th>
+                        <th
+                          className="cursor-pointer px-2 py-2 text-right select-none"
+                          onClick={() => handleWeaponSort('kills')}
+                        >
+                          Kills
+                          {weaponSortKey === 'kills' ? (
+                            <span className="ml-1">{weaponSortDir === 'asc' ? '↑' : '↓'}</span>
+                          ) : null}
+                        </th>
+                        <th
+                          className="cursor-pointer px-2 py-2 text-right select-none"
+                          onClick={() => handleWeaponSort('headshots')}
+                        >
+                          Headshots
+                          {weaponSortKey === 'headshots' ? (
+                            <span className="ml-1">{weaponSortDir === 'asc' ? '↑' : '↓'}</span>
+                          ) : null}
+                        </th>
+                        <th
+                          className="cursor-pointer px-2 py-2 text-right select-none"
+                          onClick={() => handleWeaponSort('damageDealt')}
+                        >
+                          Damage
+                          {weaponSortKey === 'damageDealt' ? (
+                            <span className="ml-1">{weaponSortDir === 'asc' ? '↑' : '↓'}</span>
+                          ) : null}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {paginatedWeaponStats.map((weapon) => (
+                        <tr key={weapon.weaponName} className="border-t border-slate-100">
+                          <td className="px-2 py-2">{displayWeaponName(weapon.weaponName, weaponLabels)}</td>
+                          <td className="px-2 py-2 text-right tabular-nums">{weapon.kills}</td>
+                          <td className="px-2 py-2 text-right tabular-nums">{weapon.headshots}</td>
+                          <td className="px-2 py-2 text-right tabular-nums">{Math.round(weapon.damageDealt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {weaponStats.length > weaponStatsPageSize ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-slate-500">
+                      {(weaponStatsPageClamped - 1) * weaponStatsPageSize + 1}–
+                      {Math.min(weaponStatsPageClamped * weaponStatsPageSize, weaponStats.length)} sur{' '}
+                      {weaponStats.length}
+                    </p>
+                    <div className="app-pagination">
+                      <button
+                        type="button"
+                        disabled={weaponStatsPageClamped <= 1}
+                        onClick={() => setWeaponStatsPage(Math.max(1, weaponStatsPageClamped - 1))}
+                        aria-label="Page precedente"
+                        title="Page precedente"
+                        className="app-pagination-button"
+                      >
+                        ←
+                      </button>
+                      <span className="app-pagination-label">
+                        {weaponStatsPageClamped} sur {weaponStatsTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={weaponStatsPageClamped >= weaponStatsTotalPages}
+                        onClick={() => setWeaponStatsPage(Math.min(weaponStatsTotalPages, weaponStatsPageClamped + 1))}
+                        aria-label="Page suivante"
+                        title="Page suivante"
+                        className="app-pagination-button"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
             ) : (
               <p className="mt-2 text-sm text-slate-600">Aucune arme exploitable dans weaponStats.</p>
             )}
           </section>
 
           <section className="app-panel mb-4 p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Stats membres parser (memberStats)</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <Users className="h-5 w-5 text-slate-500" aria-hidden />
+              Stats membres parser (memberStats)
+            </h2>
             {memberStats.length > 0 ? (
               <div className="mt-3 space-y-3">
                 <p className="text-xs text-slate-500">
@@ -1389,22 +1539,26 @@ export default function TelemetryMatchDetailPage() {
                                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                                     <p className="min-w-0 break-all font-semibold text-slate-900">{resolved.label}</p>
                                     {resolved.tone === 'resolved' ? (
-                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                        <CheckCircle2 className="h-3 w-3" aria-hidden />
                                         Membre du clan
                                       </span>
                                     ) : null}
                                     {resolved.tone === 'opponent' ? (
-                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                        <Swords className="h-3 w-3" aria-hidden />
                                         {resolved.clanTag ? `Adversaire · [${resolved.clanTag}]` : 'Adversaire identifié'}
                                       </span>
                                     ) : null}
                                     {resolved.tone === 'bot' ? (
-                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                        <Bot className="h-3 w-3" aria-hidden />
                                         Bot
                                       </span>
                                     ) : null}
                                     {resolved.tone === 'unresolved' ? (
-                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                        <HelpCircle className="h-3 w-3" aria-hidden />
                                         Account non mappe
                                       </span>
                                     ) : null}
@@ -1494,7 +1648,10 @@ export default function TelemetryMatchDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Phases du match (cercles)</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <Waves className="h-5 w-5 text-slate-500" aria-hidden />
+              Phases du match (cercles)
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
               Évolution des zones, joueurs en vie et équipes par phase. Points orange = transition (rétrécissement actif), bleus = phase stable.
             </p>
@@ -1617,7 +1774,10 @@ export default function TelemetryMatchDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Positions brutes parser (intermediaire)</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <MapPin className="h-5 w-5 text-slate-500" aria-hidden />
+              Positions brutes parser (intermediaire)
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
               Verification directe des champs positionSamples / trajectorySegments / deathSamples pour ce match.
             </p>
@@ -1748,7 +1908,10 @@ export default function TelemetryMatchDetailPage() {
           </section>
 
           <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Payload JSON brut (DB)</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <FileJson className="h-5 w-5 text-slate-500" aria-hidden />
+              Payload JSON brut (DB)
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
               Affichage integral des colonnes JSON pour debug et verification des donnees persistees.
             </p>

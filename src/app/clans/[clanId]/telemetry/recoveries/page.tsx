@@ -3,11 +3,35 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  Database,
+  FileJson,
+  Gauge,
+  HardDrive,
+  HardDriveDownload,
+  History,
+  type LucideIcon,
+  RefreshCw,
+  Server,
+  Timer,
+  TrendingUp,
+  Wrench,
+  XCircle,
+} from 'lucide-react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import FilterDropdown from '@/components/ui/FilterDropdown'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { resolveGameMode } from '@/lib/pubg-assets'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
+
+const HISTORY_PAGE_SIZE_OPTIONS = [10, 15, 25] as const
 
 type TelemetryRecoveryRow = {
   id: string
@@ -48,6 +72,13 @@ type TelemetryRecoveriesPayload = {
 type SortKey = 'updatedAt' | 'status' | 'bytesDownloaded'
 type SortDirection = 'asc' | 'desc'
 type KpiWindow = '24h' | '7d' | '30d' | 'all'
+
+const WINDOW_OPTIONS: Array<{ value: KpiWindow; label: string }> = [
+  { value: '24h', label: '24 heures' },
+  { value: '7d', label: '7 jours' },
+  { value: '30d', label: '30 jours' },
+  { value: 'all', label: 'Tout' },
+]
 
 // One row per telemetry_live_sync job (one match), not per daily_sync batch —
 // see docs/TODO/TODO-settings-cron-refonte.md ("Dashboard observability").
@@ -408,6 +439,9 @@ export default function TelemetryRecoveriesPage() {
   const [primarySortDirection, setPrimarySortDirection] = useState<SortDirection>('desc')
   const [secondarySortKey, setSecondarySortKey] = useState<SortKey | 'none'>('status')
   const [secondarySortDirection, setSecondarySortDirection] = useState<SortDirection>('asc')
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize, setHistoryPageSize] =
+    useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(15)
   const [kpiWindow, setKpiWindow] = useState<KpiWindow>('7d')
   const [observabilityWindow, setObservabilityWindow] = useState<KpiWindow>('7d')
   const [loadingObservability, setLoadingObservability] = useState(false)
@@ -617,6 +651,13 @@ export default function TelemetryRecoveriesPage() {
     )
   }, [filteredRows, primarySortDirection, primarySortKey, secondarySortDirection, secondarySortKey])
 
+  const historyTotalPages = Math.max(1, Math.ceil(sortedRows.length / historyPageSize))
+  const historyPageClamped = Math.min(historyPage, historyTotalPages)
+  const paginatedRows = useMemo(() => {
+    const start = (historyPageClamped - 1) * historyPageSize
+    return sortedRows.slice(start, start + historyPageSize)
+  }, [historyPageClamped, historyPageSize, sortedRows])
+
   const telemetryKpis = useMemo(() => {
     if (!payload) {
       return {
@@ -718,8 +759,9 @@ export default function TelemetryRecoveriesPage() {
               void loadObservability(clanId, observabilityWindow)
             }}
             disabled={refreshing}
-            className="app-btn app-btn--md app-btn--secondary"
+            className="app-btn app-btn--md app-btn--secondary gap-1.5"
           >
+            <RefreshCw className="h-4 w-4" aria-hidden />
             {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
           </button>
 
@@ -729,16 +771,18 @@ export default function TelemetryRecoveriesPage() {
               void runNullJsonBackfill()
             }}
             disabled={backfillLoading}
-            className="app-btn app-btn--md app-btn--secondary"
+            className="app-btn app-btn--md app-btn--secondary gap-1.5"
           >
+            <Wrench className="h-4 w-4" aria-hidden />
             {backfillLoading ? 'Backfill en cours...' : 'Backfill JSON manquants'}
           </button>
 
           {clanId ? (
             <Link
               href={`/clans/${clanId}/matches?period=week`}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
               Retour aux matchs
             </Link>
           ) : null}
@@ -752,90 +796,79 @@ export default function TelemetryRecoveriesPage() {
       {payload ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Lignes chargees</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{payload.summary.total}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Succes</p>
-              <p className="mt-2 text-2xl font-bold text-emerald-700">{payload.summary.success}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Echecs</p>
-              <p className="mt-2 text-2xl font-bold text-rose-700">{payload.summary.failed}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Expirees (PUBG)</p>
-              <p className="mt-2 text-2xl font-bold text-slate-500">{payload.summary.expired}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">En attente</p>
-              <p className="mt-2 text-2xl font-bold text-amber-700">{payload.summary.pending}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Avec parser JSON</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{payload.summary.withParsedPayload}</p>
-            </article>
+            <MetricCard icon={Activity} label="Lignes chargees" value={String(payload.summary.total)} />
+            <MetricCard
+              icon={CheckCircle2}
+              label="Succes"
+              value={String(payload.summary.success)}
+              tone="emerald"
+            />
+            <MetricCard icon={XCircle} label="Echecs" value={String(payload.summary.failed)} tone="rose" />
+            <MetricCard icon={History} label="Expirees (PUBG)" value={String(payload.summary.expired)} />
+            <MetricCard icon={Clock} label="En attente" value={String(payload.summary.pending)} tone="amber" />
+            <MetricCard
+              icon={FileJson}
+              label="Avec parser JSON"
+              value={String(payload.summary.withParsedPayload)}
+            />
           </section>
 
+          {payload.summary.total > 0 ? (
+            <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full bg-emerald-400"
+                style={{ width: `${(payload.summary.success / payload.summary.total) * 100}%` }}
+              />
+              <div
+                className="h-full bg-rose-500"
+                style={{ width: `${(payload.summary.failed / payload.summary.total) * 100}%` }}
+              />
+              <div
+                className="h-full bg-gray-400"
+                style={{ width: `${(payload.summary.expired / payload.summary.total) * 100}%` }}
+              />
+              <div
+                className="h-full bg-amber-400"
+                style={{ width: `${(payload.summary.pending / payload.summary.total) * 100}%` }}
+              />
+            </div>
+          ) : null}
+
           <section className="app-panel p-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">KPIs de sante telemetry</h2>
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fenetre
-                <select
-                  value={kpiWindow}
-                  onChange={(event) => setKpiWindow(event.target.value as KpiWindow)}
-                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="24h">24 heures</option>
-                  <option value="7d">7 jours</option>
-                  <option value="30d">30 jours</option>
-                  <option value="all">Tout l'historique</option>
-                </select>
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+                <Gauge className="h-5 w-5 text-slate-500" aria-hidden />
+                KPIs de sante telemetry
+              </h2>
+              <SegmentedControl size="sm" value={kpiWindow} onChange={setKpiWindow} options={WINDOW_OPTIONS} />
             </div>
 
             <p className="mt-2 text-xs text-slate-500">Echantillon de calcul: {telemetryKpis.scopedCount} ligne(s)</p>
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Taux succes</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{formatPercent(telemetryKpis.successRate)}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Lignes observees</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{telemetryKpis.scopedCount}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Mediane bytes</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{formatBytes(telemetryKpis.medianBytes)}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Mediane delai source-&gt;parse</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">
-                {formatDurationMinutes(telemetryKpis.medianSourceToParseMinutes)}
-              </p>
-            </article>
+              <MetricCard icon={TrendingUp} label="Taux succes" value={formatPercent(telemetryKpis.successRate)} />
+              <MetricCard icon={Database} label="Lignes observees" value={String(telemetryKpis.scopedCount)} />
+              <MetricCard icon={HardDrive} label="Mediane bytes" value={formatBytes(telemetryKpis.medianBytes)} />
+              <MetricCard
+                icon={Timer}
+                label="Mediane delai source->parse"
+                value={formatDurationMinutes(telemetryKpis.medianSourceToParseMinutes)}
+              />
             </div>
           </section>
 
           <section className="app-panel p-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">Dashboard observability</h2>
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fenetre
-                <select
-                  value={observabilityWindow}
-                  onChange={(event) => setObservabilityWindow(event.target.value as KpiWindow)}
-                  className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="24h">24 heures</option>
-                  <option value="7d">7 jours</option>
-                  <option value="30d">30 jours</option>
-                  <option value="all">Tout l'historique</option>
-                </select>
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+                <Server className="h-5 w-5 text-slate-500" aria-hidden />
+                Dashboard observability
+              </h2>
+              <SegmentedControl
+                size="sm"
+                value={observabilityWindow}
+                onChange={setObservabilityWindow}
+                options={WINDOW_OPTIONS}
+              />
             </div>
 
             {loadingObservability ? (
@@ -855,55 +888,58 @@ export default function TelemetryRecoveriesPage() {
                 </p>
 
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Jobs</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{observabilityPayload.summary.runs}</p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Succes</p>
-                    <p className="mt-2 text-2xl font-bold text-emerald-700">{observabilityPayload.summary.success}</p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Echecs</p>
-                    <p className="mt-2 text-2xl font-bold text-rose-700">{observabilityPayload.summary.failed}</p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Expirees (PUBG)</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-500">{observabilityPayload.summary.expired}</p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Bytes telecharges</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
-                      {formatBytes(observabilityPayload.summary.bytesDownloaded)}
-                    </p>
-                  </article>
+                  <MetricCard icon={Activity} label="Jobs" value={String(observabilityPayload.summary.runs)} />
+                  <MetricCard
+                    icon={CheckCircle2}
+                    label="Succes"
+                    value={String(observabilityPayload.summary.success)}
+                    tone="emerald"
+                  />
+                  <MetricCard
+                    icon={XCircle}
+                    label="Echecs"
+                    value={String(observabilityPayload.summary.failed)}
+                    tone="rose"
+                  />
+                  <MetricCard
+                    icon={History}
+                    label="Expirees (PUBG)"
+                    value={String(observabilityPayload.summary.expired)}
+                  />
+                  <MetricCard
+                    icon={HardDriveDownload}
+                    label="Bytes telecharges"
+                    value={formatBytes(observabilityPayload.summary.bytesDownloaded)}
+                  />
                 </div>
 
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Jobs notes (hors expires)</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {observabilityPayload.health.ratedRuns}
-                    </p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Taux succes</p>
-                    <p className="mt-2 text-xl font-semibold text-emerald-700">
-                      {formatPercent(observabilityPayload.health.successRate)}
-                    </p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Taux echec</p>
-                    <p className="mt-2 text-xl font-semibold text-rose-700">
-                      {formatPercent(observabilityPayload.health.failedRate)}
-                    </p>
-                  </article>
-                  <article className="app-panel p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Duree job p95</p>
-                    <p className="mt-2 text-xl font-semibold text-slate-900">
-                      {formatMilliseconds(observabilityPayload.latency.p95DurationMs)}
-                    </p>
-                  </article>
+                  <MetricCard
+                    icon={Database}
+                    label="Jobs notes (hors expires)"
+                    value={String(observabilityPayload.health.ratedRuns)}
+                    compact
+                  />
+                  <MetricCard
+                    icon={TrendingUp}
+                    label="Taux succes"
+                    value={formatPercent(observabilityPayload.health.successRate)}
+                    tone="emerald"
+                    compact
+                  />
+                  <MetricCard
+                    icon={AlertTriangle}
+                    label="Taux echec"
+                    value={formatPercent(observabilityPayload.health.failedRate)}
+                    tone="rose"
+                    compact
+                  />
+                  <MetricCard
+                    icon={Timer}
+                    label="Duree job p95"
+                    value={formatMilliseconds(observabilityPayload.latency.p95DurationMs)}
+                    compact
+                  />
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -912,7 +948,14 @@ export default function TelemetryRecoveriesPage() {
                       key={alert.key}
                       className={`rounded-lg border px-3 py-2 text-sm ${healthAlertClass(alert.status)}`}
                     >
-                      <p className="font-semibold">{alert.label}</p>
+                      <p className="flex items-center gap-1.5 font-semibold">
+                        {alert.status === 'ok' ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                        )}
+                        {alert.label}
+                      </p>
                       <p className="text-xs">
                         Valeur: {alert.key === 'duration_p95_ms' ? formatMilliseconds(alert.value) : formatPercent(alert.value)}
                         {' · '}Seuil:{' '}
@@ -942,7 +985,7 @@ export default function TelemetryRecoveriesPage() {
                           <td className="px-2 py-2 text-slate-700">{row.pubgMatchId ?? '-'}</td>
                           <td className="px-2 py-2">
                             <span
-                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
                                 row.status === 'success'
                                   ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                                   : row.expired
@@ -950,6 +993,13 @@ export default function TelemetryRecoveriesPage() {
                                     : 'border-rose-200 bg-rose-50 text-rose-800'
                               }`}
                             >
+                              {row.status === 'success' ? (
+                                <CheckCircle2 className="h-3 w-3" aria-hidden />
+                              ) : row.expired ? (
+                                <History className="h-3 w-3" aria-hidden />
+                              ) : (
+                                <XCircle className="h-3 w-3" aria-hidden />
+                              )}
                               {row.status === 'success' ? 'success' : row.expired ? 'expire (PUBG)' : 'failed'}
                             </span>
                           </td>
@@ -969,102 +1019,123 @@ export default function TelemetryRecoveriesPage() {
           </section>
 
           <section className="app-panel p-4">
-            <h2 className="text-lg font-semibold text-slate-900">Historique des recuperations</h2>
+            <h2 className="flex items-center gap-1.5 text-lg font-semibold text-slate-900">
+              <History className="h-5 w-5 text-slate-500" aria-hidden />
+              Historique des recuperations
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
               Extrait des {payload.limit} dernieres lignes telemetry pour le clan.
             </p>
 
             <div className="mt-4 grid gap-2 md:grid-cols-3">
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Statut
-                <select
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as 'all' | 'success' | 'failed' | 'pending')}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="all">Tous</option>
-                  <option value="success">success</option>
-                  <option value="failed">failed</option>
-                  <option value="pending">pending</option>
-                </select>
-              </label>
+              <FilterDropdown
+                id="recoveries-status-filter"
+                label="Statut"
+                value={statusFilter}
+                onChange={(value) => {
+                  setStatusFilter(value as 'all' | 'success' | 'failed' | 'pending')
+                  setHistoryPage(1)
+                }}
+                options={[
+                  { value: 'all', label: 'Tous' },
+                  { value: 'success', label: 'success' },
+                  { value: 'failed', label: 'failed' },
+                  { value: 'pending', label: 'pending' },
+                ]}
+              />
 
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Parser JSON
-                <select
-                  value={parserFilter}
-                  onChange={(event) => setParserFilter(event.target.value as 'all' | 'with-json' | 'without-json')}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="all">Tous</option>
-                  <option value="with-json">Avec JSON</option>
-                  <option value="without-json">Sans JSON</option>
-                </select>
-              </label>
+              <FilterDropdown
+                id="recoveries-parser-filter"
+                label="Parser JSON"
+                value={parserFilter}
+                onChange={(value) => {
+                  setParserFilter(value as 'all' | 'with-json' | 'without-json')
+                  setHistoryPage(1)
+                }}
+                options={[
+                  { value: 'all', label: 'Tous' },
+                  { value: 'with-json', label: 'Avec JSON' },
+                  { value: 'without-json', label: 'Sans JSON' },
+                ]}
+              />
 
               <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Recherche
                 <input
                   value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value)
+                    setHistoryPage(1)
+                  }}
                   placeholder="match id, carte, mode, erreur..."
                   className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 placeholder:text-slate-400"
                 />
               </label>
             </div>
 
-            <div className="mt-3 grid gap-2 md:grid-cols-4">
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Tri principal
-                <select
-                  value={primarySortKey}
-                  onChange={(event) => setPrimarySortKey(event.target.value as SortKey)}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="updatedAt">Date MAJ</option>
-                  <option value="status">Statut</option>
-                  <option value="bytesDownloaded">Taille (bytes)</option>
-                </select>
-              </label>
+            <div className="mt-3 grid gap-3 md:grid-cols-4">
+              <FilterDropdown
+                id="recoveries-primary-sort-key"
+                label="Tri principal"
+                value={primarySortKey}
+                onChange={(value) => {
+                  setPrimarySortKey(value as SortKey)
+                  setHistoryPage(1)
+                }}
+                options={[
+                  { value: 'updatedAt', label: 'Date MAJ' },
+                  { value: 'status', label: 'Statut' },
+                  { value: 'bytesDownloaded', label: 'Taille (bytes)' },
+                ]}
+              />
 
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Ordre principal
-                <select
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Ordre principal</p>
+                <SegmentedControl
+                  size="sm"
                   value={primarySortDirection}
-                  onChange={(event) => setPrimarySortDirection(event.target.value as SortDirection)}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="desc">Decroissant</option>
-                  <option value="asc">Croissant</option>
-                </select>
-              </label>
+                  onChange={(value) => {
+                    setPrimarySortDirection(value)
+                    setHistoryPage(1)
+                  }}
+                  options={[
+                    { value: 'desc', label: 'Decroissant' },
+                    { value: 'asc', label: 'Croissant' },
+                  ]}
+                />
+              </div>
 
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Tri secondaire
-                <select
-                  value={secondarySortKey}
-                  onChange={(event) => setSecondarySortKey(event.target.value as SortKey | 'none')}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700"
-                >
-                  <option value="none">Aucun</option>
-                  <option value="updatedAt">Date MAJ</option>
-                  <option value="status">Statut</option>
-                  <option value="bytesDownloaded">Taille (bytes)</option>
-                </select>
-              </label>
+              <FilterDropdown
+                id="recoveries-secondary-sort-key"
+                label="Tri secondaire"
+                value={secondarySortKey}
+                onChange={(value) => {
+                  setSecondarySortKey(value as SortKey | 'none')
+                  setHistoryPage(1)
+                }}
+                options={[
+                  { value: 'none', label: 'Aucun' },
+                  { value: 'updatedAt', label: 'Date MAJ' },
+                  { value: 'status', label: 'Statut' },
+                  { value: 'bytesDownloaded', label: 'Taille (bytes)' },
+                ]}
+              />
 
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Ordre secondaire
-                <select
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Ordre secondaire</p>
+                <SegmentedControl
+                  size="sm"
                   value={secondarySortDirection}
-                  onChange={(event) => setSecondarySortDirection(event.target.value as SortDirection)}
-                  disabled={secondarySortKey === 'none'}
-                  className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="desc">Decroissant</option>
-                  <option value="asc">Croissant</option>
-                </select>
-              </label>
+                  onChange={(value) => {
+                    setSecondarySortDirection(value)
+                    setHistoryPage(1)
+                  }}
+                  options={[
+                    { value: 'desc', label: 'Decroissant', disabled: secondarySortKey === 'none' },
+                    { value: 'asc', label: 'Croissant', disabled: secondarySortKey === 'none' },
+                  ]}
+                />
+              </div>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -1094,6 +1165,18 @@ export default function TelemetryRecoveriesPage() {
                   Effacer la recherche
                 </button>
               ) : null}
+              <SegmentedControl
+                size="sm"
+                value={String(historyPageSize)}
+                onChange={(value) => {
+                  setHistoryPageSize(Number(value) as (typeof HISTORY_PAGE_SIZE_OPTIONS)[number])
+                  setHistoryPage(1)
+                }}
+                options={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
+                  value: String(value),
+                  label: String(value),
+                }))}
+              />
             </div>
 
             <div className="app-table-shell mt-4 overflow-x-auto">
@@ -1110,7 +1193,7 @@ export default function TelemetryRecoveriesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedRows.map((row) => {
+                  {paginatedRows.map((row) => {
                     const telemetryDataExpired =
                       row.status === 'failed' && isTelemetryDataExpiredError(row.errorCode, row.errorMessage)
 
@@ -1118,10 +1201,19 @@ export default function TelemetryRecoveriesPage() {
                     <tr key={row.id} className="app-table-row align-top">
                       <td className="px-2 py-2">
                         <span
-                          className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${
                             telemetryDataExpired ? 'border-gray-300 bg-gray-100 text-gray-700' : statusClass(row.status)
                           }`}
                         >
+                          {telemetryDataExpired ? (
+                            <History className="h-3 w-3" aria-hidden />
+                          ) : row.status === 'success' ? (
+                            <CheckCircle2 className="h-3 w-3" aria-hidden />
+                          ) : row.status === 'failed' ? (
+                            <XCircle className="h-3 w-3" aria-hidden />
+                          ) : (
+                            <Clock className="h-3 w-3" aria-hidden />
+                          )}
                           {telemetryDataExpired ? 'expiré (PUBG)' : row.status}
                         </span>
                       </td>
@@ -1205,9 +1297,76 @@ export default function TelemetryRecoveriesPage() {
                 </tbody>
               </table>
             </div>
+
+            {sortedRows.length > 0 ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">
+                  {(historyPageClamped - 1) * historyPageSize + 1}–
+                  {Math.min(historyPageClamped * historyPageSize, sortedRows.length)} sur {sortedRows.length}
+                </p>
+                <div className="app-pagination">
+                  <button
+                    type="button"
+                    disabled={historyPageClamped <= 1}
+                    onClick={() => setHistoryPage(Math.max(1, historyPageClamped - 1))}
+                    aria-label="Page precedente"
+                    title="Page precedente"
+                    className="app-pagination-button"
+                  >
+                    ←
+                  </button>
+                  <span className="app-pagination-label">
+                    {historyPageClamped} sur {historyTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={historyPageClamped >= historyTotalPages}
+                    onClick={() => setHistoryPage(Math.min(historyTotalPages, historyPageClamped + 1))}
+                    aria-label="Page suivante"
+                    title="Page suivante"
+                    className="app-pagination-button"
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
         </>
       ) : null}
     </main>
+  )
+}
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  tone = 'slate',
+  compact = false,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  tone?: 'slate' | 'emerald' | 'amber' | 'rose'
+  compact?: boolean
+}) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'text-emerald-700'
+      : tone === 'amber'
+        ? 'text-amber-700'
+        : tone === 'rose'
+          ? 'text-rose-700'
+          : 'text-slate-900'
+
+  return (
+    <article className="app-panel p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+        <Icon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+      </div>
+      <p className={`mt-2 font-bold ${compact ? 'text-xl' : 'text-2xl'} ${toneClass}`}>{value}</p>
+    </article>
   )
 }

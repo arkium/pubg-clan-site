@@ -432,6 +432,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'superuser',
     description: 'Permissions et ordre de navigation (accès SuperUser et Owner).',
   },
+  {
+    navKey: 'superuser.telemetry-recoveries',
+    section: 'superuser-menu',
+    label: 'Telemetrie cross-clans',
+    hrefTemplate: '/settings/telemetry-recoveries',
+    defaultRole: 'superuser',
+    description: 'Comparaison de la sante du pipeline télémétrie entre tous les clans suivis.',
+  },
 ]
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */

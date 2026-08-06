@@ -3,20 +3,14 @@ import { NextResponse } from 'next/server'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { getPubgApiCallsOverview, purgePubgApiCallLogHistory } from '@/lib/pubg-api-call-log-service'
 import { getPubgApiRateLimitBounds, getPubgApiRateLimitRpm } from '@/lib/pubg-rate-limit-config-service'
-import { getMemberPermissionKeys } from '@/lib/role-service'
-
-function canReadSettings(permissions: string[]) {
-  return permissions.includes('*')
-}
 
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  if (!canReadSettings(permissions)) {
+  if (!session.isSuperUser) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -49,12 +43,11 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  if (!canReadSettings(permissions)) {
+  if (!session.isSuperUser) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

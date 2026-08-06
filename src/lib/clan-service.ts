@@ -179,7 +179,7 @@ async function resolvePubgClanForLocalClan(clanId: number) {
   }
 
   if (clan.pubgClanId) {
-    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard)
+    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard, { clanId: clan.id })
     return pubgClan ? { clan, pubgClan } : { clan, pubgClan: null }
   }
 
@@ -187,7 +187,10 @@ async function resolvePubgClanForLocalClan(clanId: number) {
     let playerId = member.pubgAccountId
 
     if (!playerId) {
-      const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard)
+      const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
+        clanId: clan.id,
+        memberId: member.id,
+      })
       playerId = player?.accountId ?? null
     }
 
@@ -195,7 +198,10 @@ async function resolvePubgClanForLocalClan(clanId: number) {
       continue
     }
 
-    const pubgClan = await fetchPlayerClan(playerId, member.platformShard)
+    const pubgClan = await fetchPlayerClan(playerId, member.platformShard, {
+      clanId: clan.id,
+      memberId: member.id,
+    })
 
     if (pubgClan) {
       return { clan, pubgClan }
@@ -378,11 +384,11 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
   let pubgMemberCountFromApi: number | null = null
 
   try {
-    pubgMembers = await fetchClanMembers(clan.pubgClanId, clan.platformShard)
+    pubgMembers = await fetchClanMembers(clan.pubgClanId, clan.platformShard, { clanId })
     pubgMemberCountFromApi = pubgMembers.length
   } catch {
     usedFallback = true
-    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard)
+    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard, { clanId })
     pubgMemberCountFromApi = pubgClan?.memberCount ?? null
     pubgMembers = (pubgClan?.memberIds ?? []).map((id) => ({ accountId: id, name: null }))
   }
@@ -478,7 +484,10 @@ export async function syncClanLifetimeStats(clanId: number) {
       let accountId = member.pubgAccountId
 
       if (!accountId) {
-        const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard)
+        const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
+          clanId,
+          memberId: member.id,
+        })
 
         if (!player?.accountId) {
           skippedCount += 1
@@ -494,7 +503,7 @@ export async function syncClanLifetimeStats(clanId: number) {
         })
       }
 
-      const stats = await fetchLifetimeStats(accountId, member.platformShard)
+      const stats = await fetchLifetimeStats(accountId, member.platformShard, { clanId, memberId: member.id })
       const now = new Date()
 
       await prisma.memberLifetimeStats.upsert({

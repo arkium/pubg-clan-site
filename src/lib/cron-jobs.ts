@@ -453,7 +453,10 @@ async function syncClanSeasonStats(clanId: number) {
       try {
         let playerId = member.pubgAccountId
         if (!playerId) {
-          const player = await searchPlayerByName(member.pubgPlayerName, shard)
+          const player = await searchPlayerByName(member.pubgPlayerName, shard, {
+            clanId,
+            memberId: member.id,
+          })
           if (!player?.accountId) {
             errors.push(`Member ${member.id} (${member.pubgPlayerName}): PUBG account not found`)
             continue
@@ -463,8 +466,8 @@ async function syncClanSeasonStats(clanId: number) {
         }
 
         const [ranked, normal] = await Promise.all([
-          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId),
-          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId),
+          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id }),
+          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id }),
         ])
 
         const now = new Date()
@@ -523,7 +526,10 @@ async function syncClanWeaponMastery(clanId: number) {
     try {
       let playerId = member.pubgAccountId
       if (!playerId) {
-        const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard)
+        const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
+          clanId,
+          memberId: member.id,
+        })
         if (!player?.accountId) {
           errors.push(`Member ${member.id} (${member.pubgPlayerName}): PUBG account not found`)
           continue
@@ -532,7 +538,7 @@ async function syncClanWeaponMastery(clanId: number) {
         await prisma.clanMember.update({ where: { id: member.id }, data: { pubgAccountId: playerId } })
       }
 
-      const entries = await fetchWeaponMastery(playerId, member.platformShard)
+      const entries = await fetchWeaponMastery(playerId, member.platformShard, { clanId, memberId: member.id })
       if (entries.length === 0) {
         refreshedCount += 1
         continue

@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
     // Chercher le joueur sur PUBG
     const pubgPlayer = await searchPlayerByName(
       validated.pubgPlayerName,
-      validated.platformShard
+      validated.platformShard,
+      validated.clanId ? { clanId: validated.clanId } : undefined
     )
 
     if (!pubgPlayer) {

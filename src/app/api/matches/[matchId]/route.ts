@@ -100,7 +100,7 @@ export async function POST(
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    const match = await fetchMatchDetails(matchId, playerId, shard)
+    const match = await fetchMatchDetails(matchId, playerId, shard, { memberId })
     const importedMatchData = toImportedMatchData(memberId, match)
 
     const savedMatch = await prisma.match.upsert({

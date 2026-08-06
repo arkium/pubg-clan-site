@@ -95,7 +95,7 @@ async function resolvePlayerId(memberId: number) {
   let playerId = member.pubgAccountId
 
   if (!playerId) {
-    const player = await searchPlayerByName(member.pubgPlayerName, shard)
+    const player = await searchPlayerByName(member.pubgPlayerName, shard, { memberId })
 
     if (!player) {
       return null
@@ -260,7 +260,7 @@ export async function GET(
     }
 
     const { shard, playerId } = resolved
-    const stats = await fetchLifetimeStats(playerId, shard)
+    const stats = await fetchLifetimeStats(playerId, shard, { memberId })
     const now = new Date()
 
     await upsertStats(memberId, stats, now)
@@ -313,7 +313,7 @@ export async function POST(
     }
 
     const { shard, playerId } = resolved
-    const stats = await fetchLifetimeStats(playerId, shard)
+    const stats = await fetchLifetimeStats(playerId, shard, { memberId })
     const now = new Date()
 
     await upsertStats(memberId, stats, now)

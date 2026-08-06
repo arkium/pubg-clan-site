@@ -105,7 +105,10 @@ export async function POST(
 
         if (!playerId) {
           try {
-            const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard)
+            const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
+              clanId: clan.id,
+              memberId: member.id,
+            })
             if (!player) {
               const msg = `Member ${member.displayName}: player not found in PUBG API`
               errors.push(msg)
@@ -126,7 +129,10 @@ export async function POST(
 
         let allMatchIds: string[]
         try {
-          allMatchIds = await fetchRecentMatchIds(playerId, member.platformShard)
+          allMatchIds = await fetchRecentMatchIds(playerId, member.platformShard, {
+            clanId: clan.id,
+            memberId: member.id,
+          })
         } catch (err) {
           const msg = `Member ${member.displayName}: failed to fetch match IDs — ${err instanceof Error ? err.message : String(err)}`
           errors.push(msg)
@@ -146,7 +152,10 @@ export async function POST(
 
         for (const matchId of newMatchIds) {
           try {
-            const matchDetails = await fetchMatchDetails(matchId, playerId, member.platformShard)
+            const matchDetails = await fetchMatchDetails(matchId, playerId, member.platformShard, {
+              clanId: clan.id,
+              memberId: member.id,
+            })
 
             const matchData = {
               id: createMatchRecordId(member.id, matchDetails.id),

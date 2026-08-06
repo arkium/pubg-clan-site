@@ -5,6 +5,7 @@ import {
   fetchPubgClanById,
   fetchRecentMatchIds,
   searchPlayerByName,
+  type PubgApiCallContext,
   type PubgClan,
   type PubgLifetimeStats,
   type ResolvedPubgMatch,
@@ -78,28 +79,41 @@ export class PubgDomainClient {
     return this.defaultShard
   }
 
-  async searchPlayerByName(playerName: string, shard?: string): Promise<PubgPlayerLookup> {
-    return searchPlayerByName(playerName, resolveShard(shard, this.defaultShard))
+  async searchPlayerByName(
+    playerName: string,
+    shard?: string,
+    context?: PubgApiCallContext
+  ): Promise<PubgPlayerLookup> {
+    return searchPlayerByName(playerName, resolveShard(shard, this.defaultShard), context)
   }
 
-  async fetchPubgClanById(clanId: string, shard?: string): Promise<PubgClan | null> {
-    return fetchPubgClanById(clanId, resolveShard(shard, this.defaultShard))
+  async fetchPubgClanById(clanId: string, shard?: string, context?: PubgApiCallContext): Promise<PubgClan | null> {
+    return fetchPubgClanById(clanId, resolveShard(shard, this.defaultShard), context)
   }
 
-  async fetchPlayerClan(playerId: string, shard?: string): Promise<PubgClan | null> {
-    return fetchPlayerClan(playerId, resolveShard(shard, this.defaultShard))
+  async fetchPlayerClan(playerId: string, shard?: string, context?: PubgApiCallContext): Promise<PubgClan | null> {
+    return fetchPlayerClan(playerId, resolveShard(shard, this.defaultShard), context)
   }
 
-  async fetchRecentMatchIds(playerId: string, shard?: string): Promise<string[]> {
-    return fetchRecentMatchIds(playerId, resolveShard(shard, this.defaultShard))
+  async fetchRecentMatchIds(playerId: string, shard?: string, context?: PubgApiCallContext): Promise<string[]> {
+    return fetchRecentMatchIds(playerId, resolveShard(shard, this.defaultShard), context)
   }
 
-  async fetchLifetimeStats(playerId: string, shard?: string): Promise<PubgLifetimeStats> {
-    return fetchLifetimeStats(playerId, resolveShard(shard, this.defaultShard))
+  async fetchLifetimeStats(
+    playerId: string,
+    shard?: string,
+    context?: PubgApiCallContext
+  ): Promise<PubgLifetimeStats> {
+    return fetchLifetimeStats(playerId, resolveShard(shard, this.defaultShard), context)
   }
 
-  async fetchMatchDetails(matchId: string, playerId: string, shard?: string): Promise<ResolvedPubgMatch> {
-    return fetchMatchDetails(matchId, playerId, resolveShard(shard, this.defaultShard))
+  async fetchMatchDetails(
+    matchId: string,
+    playerId: string,
+    shard?: string,
+    context?: PubgApiCallContext
+  ): Promise<ResolvedPubgMatch> {
+    return fetchMatchDetails(matchId, playerId, resolveShard(shard, this.defaultShard), context)
   }
 }
 

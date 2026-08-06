@@ -175,7 +175,7 @@ export async function GET(
     let playerId = member.pubgAccountId
 
     if (!playerId) {
-      const player = await searchPlayerByName(member.pubgPlayerName, shard)
+      const player = await searchPlayerByName(member.pubgPlayerName, shard, { memberId })
 
       if (!player) {
         return NextResponse.json(
@@ -192,7 +192,7 @@ export async function GET(
       })
     }
 
-    const allRecentMatchIds = await fetchRecentMatchIds(playerId, shard)
+    const allRecentMatchIds = await fetchRecentMatchIds(playerId, shard, { memberId })
     const importedMatchIds = new Set(importedMatches.map((match) => match.pubgMatchId))
     const recentWindow = allRecentMatchIds.slice(0, 10)
     const recentApiMatchIds = recentWindow.filter((matchId) => !importedMatchIds.has(matchId))

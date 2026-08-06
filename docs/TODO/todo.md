@@ -552,6 +552,74 @@ Réflexion du 2026-08-05 après lecture de [page.tsx](../../src/app/settings/pub
 
 - [ ] Vérifier dans le navigateur (Owner) le rendu des nouveaux panneaux, la jauge de quota, le filtre d'historique et le badge de cohérence RPM, en thème clair et sombre
 
+**Refonte visuelle du 2026-08-05 — corrections de thème + alignement UI/UX :**
+
+- [x] `bg-slate-900` (badge "Aujourd'hui") et `bg-slate-200` (piste de la jauge de quota) n'étaient pas remappés par le thème (couleurs non couvertes par `globals.css`) — remplacés par une mise en page sans couleur codée en dur et par `bg-gray-100` (remappé)
+- [x] Ajout des variantes sombres manquantes dans `globals.css` pour `fuchsia`, `teal`, `lime` (bg-50/100, text-700/800/900, border-200/300) et `orange` (bg-50, border-200/300) — suivent exactement le pattern déjà existant pour emerald/amber/rose/cyan/etc., nécessaire pour que les nouveaux badges de catégorie restent lisibles en thème sombre
+- [x] Remplacement du bouton "Voir uniquement les erreurs" et du `MobileDropdownNav` de pagination par deux `SegmentedControl` — standard documenté dans `docs/ui/tables.md` §"Standard des boutons segmentés" (CLAUDE.md règle #6), pas d'ad-hoc
+- [x] Icônes `lucide-react` sur les 6 cartes de métriques, le bouton Actualiser, le titre "Configuration du rate limit", l'alerte de cohérence RPM et le bouton Purger
+- [x] Grille de métriques passée à `gap-4` (2 colonnes mobile / 6 desktop) au lieu d'un simple empilement `grid-cols-1`
+- [x] Mini-barres de répartition (succès/429/erreurs) sous chaque catégorie dans "Répartition par type d'appel", et barre de poids relatif sous chaque message dans "Top erreurs"
+- [ ] Vérifier dans le navigateur (Owner) le rendu clair/sombre et mobile de la refonte visuelle — non vérifié en session, pas d'accès Owner disponible
+
+---
+
+### Monitoring PUBG API — Répartition par clan — ⏳ Backend déployé le 2026-08-06, UI restante
+
+**Constat :** la colonne `PubgApiCallLog.clanId` existe déjà en base et un filtre par `clanId` a été ajouté sur `/settings/pubg-api` (voir ci-dessus), mais **elle est toujours `null` en pratique** — le filtre ne retournera jamais rien tant que ce chantier n'est pas fait. `queuedPubgGet()` ([pubg.ts:21-28](../../src/lib/pubg.ts#L21-L28)), point d'entrée unique de tous les appels PUBG, ne transmet que `{ source, method, endpoint, shard }` à la queue ([api-throttle.ts](../../src/lib/api-throttle.ts)) — jamais `clanId`/`memberId`, même quand la fonction appelante connaît parfaitement le clan ou le membre concerné. Le type `PubgApiRequestMetadata` supporte déjà ces deux champs, ils ne sont simplement jamais peuplés.
+
+**Objectif produit :** permettre d'identifier quel clan consomme le plus de quota RPM partagé (utile en environnement multi-clan pour repérer une sync mal réglée qui pénalise les autres clans).
+
+**Contrainte du 2026-08-05 (demande explicite) :** ce chantier touche des fonctions au cœur du pipeline de sync/télémétrie (`pubg.ts`, `pubg-domain/client.ts`, `clan-service.ts`, `pubg-telemetry/index.ts`, `pubg-telemetry/manual-sync.ts`, `cron-jobs.ts`) — la télémétrie ne doit pas être cassée par ce changement. Documentation du plan **avant** toute implémentation, avec tests, comme demandé.
+
+#### Principe retenu — additif uniquement, zéro rupture de signature — ✅ Fait le 2026-08-06
+
+- [x] `queuedPubgGet(url, config, context?: PubgApiCallContext)` dans `pubg.ts` transmet `context?.clanId`/`context?.memberId` à `enqueuePubgApiRequestWithMetadata`
+- [x] Paramètre optionnel `context?: PubgApiCallContext` (`{ clanId?: number; memberId?: number }`, exporté depuis `pubg.ts`) ajouté en dernière position sur les 11 fonctions concernées : `searchPlayerByName`, `fetchPubgClanById`, `fetchClanMembers`, `fetchPlayerClan`, `fetchRecentMatchIds`, `fetchLifetimeStats`, `fetchPlayerRankedStats`, `fetchPlayerSeasonStats`, `fetchWeaponMastery`, `fetchMatchDetails`, `fetchMatchDetailsWithTelemetryAsset` (+ le helper interne partagé `fetchMatchResponse`)
+- [x] `fetchCurrentSeason` non modifiée (appel système, aucun contexte pertinent)
+- [x] Méthodes de `PubgDomainClient` ([pubg-domain/client.ts](../../src/lib/pubg-domain/client.ts)) étendues en miroir avec le même paramètre optionnel
+
+#### Sites d'appel mis à jour (clanId/memberId déjà connus localement)
+
+- [x] `src/lib/clan-service.ts` — `resolvePubgClanForLocalClan`, `syncClanMembership`, `syncClanLifetimeStats` (3 sites)
+- [x] `src/lib/cron-jobs.ts` — `syncClanSeasonStats`, `syncClanWeaponMastery` (4 sites) ; `resolveEncounteredPlayerClans` volontairement laissé sans contexte (résolution de joueurs adverses, pas de clan/membre du site concerné)
+- [x] `src/app/api/members/[id]/weapon-mastery/route.ts`, `.../stats/route.ts`, `.../season-stats/route.ts`, `.../matches/route.ts` — `memberId` du paramètre de route
+- [x] `src/app/api/clans/[clanId]/sync-matches/route.ts` — `clan.id`/`member.id` (3 sites : résolution joueur, liste des matchs, détail de match)
+- [x] `src/app/api/members/route.ts` — `clanId` optionnel du body validé, passé quand présent
+- [x] `src/app/api/matches/[matchId]/route.ts` — `memberId` du body sur `POST` (le `GET` n'a pas de `memberId` disponible, laissé tel quel)
+- [ ] **Volontairement différé** — `src/lib/pubg-telemetry/index.ts` et `manual-sync.ts` (`fetchMatchDetailsWithTelemetryAsset`, appelé depuis `scripts/telemetry-resync-worker.ts` et `job.ts`) : zone la plus sensible du pipeline (worker dédié, mémoire limitée à 512 Mo) — c'est précisément la zone que la contrainte anti-régression visait à protéger. À reprendre dans un chantier séparé, testé isolément, si le besoin de granularité par match du worker se confirme
+- [ ] **Volontairement non câblé** — `src/app/api/join/route.ts`, `src/lib/setup-service.ts` (recherche joueur avant création du membre/setup initial, aucun `clanId`/`memberId` n'existe encore à ce stade) ; `src/app/api/matches/[matchId]/route.ts` GET (pas de `memberId` dans la requête) ; `resolveEncounteredPlayerClans` dans `cron-jobs.ts` (joueurs adverses, hors périmètre)
+
+#### Garde-fous anti-régression télémétrie — ✅ Validés le 2026-08-06
+
+- [x] Aucune modification de la logique métier, du typage de retour ou de la gestion d'erreur des fonctions `pubg.ts` — uniquement un paramètre optionnel traversant jusqu'à la queue
+- [x] Rollout fichier par fichier (pubg.ts → pubg-domain/client.ts → clan-service.ts → cron-jobs.ts → routes API), chaque étape vérifiée par `tsc --noEmit` avant la suivante
+- [x] Confirmé par grep : seuls `pubg-telemetry/index.ts` et `manual-sync.ts` importent `pubg.ts` dans tout `src/lib/pubg-telemetry/` (le parser lui-même n'appelle jamais ces fonctions) — et ces deux fichiers sont précisément ceux volontairement non touchés
+- [x] `tsc --noEmit` : **137 erreurs avant et après**, sur l'ensemble du projet — 0 régression de compilation introduite (comparé via `git stash`/`git stash pop` contre le commit `f1beb69`)
+
+#### Tests — ✅ Faits le 2026-08-06
+
+- [x] `vitest.config.ts` : `include` élargi de `['src/lib/pubg-telemetry/**/*.test.ts']` à `['src/lib/**/*.test.ts']`
+- [x] [api-throttle.test.ts](../../src/lib/api-throttle.test.ts) : 3 tests — `clanId`/`memberId` transmis dans `metadata` sont bien répercutés dans la ligne loggée (branche succès, branche erreur, et défaut à `null` quand absents)
+- [x] [pubg-context-forwarding.test.ts](../../src/lib/pubg-context-forwarding.test.ts) : 3 tests sur `fetchPubgClanById`, `fetchWeaponMastery`, `fetchLifetimeStats` avec `enqueuePubgApiRequestWithMetadata` mocké — vérifie que `context` atteint bien la queue sans toucher au parsing de la réponse
+- [x] `npm run test:telemetry` : mêmes 3 fichiers en échec (4 tests) qu'avant tout changement de cette session (confirmé par `git stash`) — pré-existant, sans lien avec ce chantier ; 55 tests passent désormais (49 + 6 nouveaux), 0 nouvelle régression
+- [ ] Validation manuelle post-déploiement : lancer une sync clan réelle (`npm run telemetry:batch -- --clan <id>` ou bouton "Sync" sur `/clans/[clanId]/settings`) et vérifier sur `/settings/pubg-api` que les nouvelles lignes affichent un `clanId` peuplé et que le filtre `clanId` retourne des résultats — nécessite un environnement avec accès PUBG API réel, non disponible en session
+
+#### Côté UI — panneau "Répartition par clan" sur `/settings/pubg-api`
+
+Réutilise les mécanismes déjà en place (filtre `clanId` déjà câblé sur l'historique, pattern d'agrégation déjà utilisé pour "Répartition par type d'appel") plutôt que d'introduire un nouveau système.
+
+- [ ] Étendre `getPubgApiCallsOverview()` : grouper les `dayRows` (déjà chargées pour `byCategory`/`topErrors`, fenêtre 24h) par `clanId`, calcul `count/success/errors/rateLimited/avgDurationMs` par clan, même principe que `byCategory`
+- [ ] Batch `prisma.clan.findMany({ where: { id: { in: clanIds } } })` sur les `clanId` rencontrés pour résoudre `name`/`tag` — même pattern que le `memberMap` déjà utilisé pour construire `actorLabel`
+- [ ] Bucket explicite "Sans clan" pour les lignes `clanId === null` — reste légitime pour les appels vraiment système (`fetchCurrentSeason`) et attendu transitoirement pendant le rollout du plan backend ci-dessus
+- [ ] Nouveau panneau `app-panel` "Répartition par clan" sur la page, même format visuel que "Répartition par type d'appel" (mini-barre succès/429/erreurs par ligne, cf. refonte visuelle du 2026-08-05)
+- [ ] Mise en évidence visuelle (bordure/icône `AlertTriangle` rose) des clans dont le taux combiné `(errors + rateLimited) / count` dépasse un seuil (proposition : `10 %`) sur la fenêtre 24h — objectif : repérer un clan à problème sans avoir à comparer les chiffres soi-même
+- [ ] Clic sur une ligne clan → applique le filtre `clanId` déjà existant sur le tableau "Historique récent" (réutilise `appliedHistoryClanId`, ne duplique pas de nouvel état de filtre)
+- [ ] Tri par défaut : nombre d'appels décroissant
+- [ ] Vérifier rendu clair/sombre et mobile du nouveau panneau, cohérent avec le reste de la page
+
+**Statut au 2026-08-06 : backend déployé et testé (voir sections ci-dessus), panneau UI "Répartition par clan" non démarré.** Le filtre `clanId` déjà présent sur l'historique commencera à retourner des résultats dès la prochaine sync clan réelle (manuelle ou cron).
+
 ---
 
 ### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04

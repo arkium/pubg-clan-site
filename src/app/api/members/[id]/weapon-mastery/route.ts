@@ -22,7 +22,7 @@ async function resolvePlayerId(memberId: number) {
   let playerId = member.pubgAccountId
 
   if (!playerId) {
-    const player = await searchPlayerByName(member.pubgPlayerName, shard)
+    const player = await searchPlayerByName(member.pubgPlayerName, shard, { memberId })
     if (!player?.accountId) {
       return null
     }
@@ -80,7 +80,7 @@ export async function POST(
       return NextResponse.json({ error: 'Member not found or no PUBG account linked' }, { status: 404 })
     }
 
-    const entries = await fetchWeaponMastery(resolved.playerId, resolved.shard)
+    const entries = await fetchWeaponMastery(resolved.playerId, resolved.shard, { memberId })
 
     if (entries.length === 0) {
       return NextResponse.json({ memberId, count: 0, weapons: [] })

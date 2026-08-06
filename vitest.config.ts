@@ -10,6 +10,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['src/lib/pubg-telemetry/**/*.test.ts'],
+    include: ['src/lib/**/*.test.ts'],
   },
 })

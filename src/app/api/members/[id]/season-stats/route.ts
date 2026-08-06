@@ -27,7 +27,7 @@ async function resolvePlayerId(memberId: number) {
   let playerId = member.pubgAccountId
 
   if (!playerId) {
-    const player = await searchPlayerByName(member.pubgPlayerName, shard)
+    const player = await searchPlayerByName(member.pubgPlayerName, shard, { memberId })
     if (!player?.accountId) {
       return null
     }
@@ -45,8 +45,8 @@ async function fetchAndUpsertSeasonStats(memberId: number, shard: string, player
   }
 
   const [ranked, normal] = await Promise.all([
-    fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId),
-    fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId),
+    fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId, { memberId }),
+    fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId, { memberId }),
   ])
 
   const now = new Date()

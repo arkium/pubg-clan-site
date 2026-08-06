@@ -564,7 +564,7 @@ Réflexion du 2026-08-05 après lecture de [page.tsx](../../src/app/settings/pub
 
 ---
 
-### Monitoring PUBG API — Répartition par clan — ⏳ Backend déployé le 2026-08-06, UI restante
+### ~~Monitoring PUBG API — Répartition par clan~~ — ✅ Déployé le 2026-08-06 (backend + UI)
 
 **Constat :** la colonne `PubgApiCallLog.clanId` existe déjà en base et un filtre par `clanId` a été ajouté sur `/settings/pubg-api` (voir ci-dessus), mais **elle est toujours `null` en pratique** — le filtre ne retournera jamais rien tant que ce chantier n'est pas fait. `queuedPubgGet()` ([pubg.ts:21-28](../../src/lib/pubg.ts#L21-L28)), point d'entrée unique de tous les appels PUBG, ne transmet que `{ source, method, endpoint, shard }` à la queue ([api-throttle.ts](../../src/lib/api-throttle.ts)) — jamais `clanId`/`memberId`, même quand la fonction appelante connaît parfaitement le clan ou le membre concerné. Le type `PubgApiRequestMetadata` supporte déjà ces deux champs, ils ne sont simplement jamais peuplés.
 
@@ -605,20 +605,21 @@ Réflexion du 2026-08-05 après lecture de [page.tsx](../../src/app/settings/pub
 - [x] `npm run test:telemetry` : mêmes 3 fichiers en échec (4 tests) qu'avant tout changement de cette session (confirmé par `git stash`) — pré-existant, sans lien avec ce chantier ; 55 tests passent désormais (49 + 6 nouveaux), 0 nouvelle régression
 - [ ] Validation manuelle post-déploiement : lancer une sync clan réelle (`npm run telemetry:batch -- --clan <id>` ou bouton "Sync" sur `/clans/[clanId]/settings`) et vérifier sur `/settings/pubg-api` que les nouvelles lignes affichent un `clanId` peuplé et que le filtre `clanId` retourne des résultats — nécessite un environnement avec accès PUBG API réel, non disponible en session
 
-#### Côté UI — panneau "Répartition par clan" sur `/settings/pubg-api`
+#### Côté UI — panneau "Répartition par clan" sur `/settings/pubg-api` — ✅ Déployé le 2026-08-06
 
 Réutilise les mécanismes déjà en place (filtre `clanId` déjà câblé sur l'historique, pattern d'agrégation déjà utilisé pour "Répartition par type d'appel") plutôt que d'introduire un nouveau système.
 
-- [ ] Étendre `getPubgApiCallsOverview()` : grouper les `dayRows` (déjà chargées pour `byCategory`/`topErrors`, fenêtre 24h) par `clanId`, calcul `count/success/errors/rateLimited/avgDurationMs` par clan, même principe que `byCategory`
-- [ ] Batch `prisma.clan.findMany({ where: { id: { in: clanIds } } })` sur les `clanId` rencontrés pour résoudre `name`/`tag` — même pattern que le `memberMap` déjà utilisé pour construire `actorLabel`
-- [ ] Bucket explicite "Sans clan" pour les lignes `clanId === null` — reste légitime pour les appels vraiment système (`fetchCurrentSeason`) et attendu transitoirement pendant le rollout du plan backend ci-dessus
-- [ ] Nouveau panneau `app-panel` "Répartition par clan" sur la page, même format visuel que "Répartition par type d'appel" (mini-barre succès/429/erreurs par ligne, cf. refonte visuelle du 2026-08-05)
-- [ ] Mise en évidence visuelle (bordure/icône `AlertTriangle` rose) des clans dont le taux combiné `(errors + rateLimited) / count` dépasse un seuil (proposition : `10 %`) sur la fenêtre 24h — objectif : repérer un clan à problème sans avoir à comparer les chiffres soi-même
-- [ ] Clic sur une ligne clan → applique le filtre `clanId` déjà existant sur le tableau "Historique récent" (réutilise `appliedHistoryClanId`, ne duplique pas de nouvel état de filtre)
-- [ ] Tri par défaut : nombre d'appels décroissant
-- [ ] Vérifier rendu clair/sombre et mobile du nouveau panneau, cohérent avec le reste de la page
+- [x] `getPubgApiCallsOverview()` étendu : groupe les `dayRows` (déjà chargées pour `byCategory`/`topErrors`, fenêtre 24h) par `clanId`, calcul `count/success/errors/rateLimited/avgDurationMs` par clan
+- [x] **Amélioration par rapport au plan initial** : quand la ligne n'a pas de `clanId` direct mais a un `memberId` (cas des routes membre — weapon-mastery, stats, season-stats, matches), le `clanId` est résolu via un batch `prisma.clanMember.findMany({ id: { in } })` plutôt que d'exiger que chaque site d'appel connaisse et transmette son propre `clanId` — centralise la résolution dans l'agrégation au lieu de la disperser dans ~13 sites d'appel
+- [x] Batch `prisma.clan.findMany({ where: { id: { in: clanIds } } })` sur les `clanId` résolus pour construire le label `Nom [TAG]` — même pattern que le `memberMap` déjà utilisé pour `actorLabel`
+- [x] Bucket explicite "Sans clan" pour les lignes sans `clanId` ni `memberId` résolvable (ex. `fetchCurrentSeason`, appels système)
+- [x] Nouveau panneau `app-panel` "Répartition par clan", même format visuel que "Répartition par type d'appel" (mini-barre succès/429/erreurs par ligne)
+- [x] Mise en évidence visuelle (bordure rose + icône `AlertTriangle`) des clans dont le taux combiné `(errors + rateLimited) / count` dépasse `10 %` sur la fenêtre 24h — le bucket "Sans clan" n'est jamais marqué comme problématique (pas un vrai clan à corriger)
+- [x] Clic sur une ligne clan → applique le filtre `clanId` déjà existant sur "Historique récent" (réutilise `appliedHistoryClanId`/`historyClanIdInput`, aucun nouvel état de filtre) ; désactivé sur la ligne "Sans clan" (rien à filtrer)
+- [x] Tri par défaut : nombre d'appels décroissant (fait côté service, pas besoin de tri côté client)
+- [ ] Vérifier rendu clair/sombre et mobile du nouveau panneau — non vérifié en session, pas d'accès Owner disponible
 
-**Statut au 2026-08-06 : backend déployé et testé (voir sections ci-dessus), panneau UI "Répartition par clan" non démarré.** Le filtre `clanId` déjà présent sur l'historique commencera à retourner des résultats dès la prochaine sync clan réelle (manuelle ou cron).
+**Validation :** ESLint et `tsc --noEmit` propres (137 erreurs avant/après, identique à la baseline). `npm run test:telemetry` : mêmes 3 fichiers en échec préexistants, 55 tests passent toujours. Le panneau restera vide ("Aucun appel aujourd'hui") tant qu'aucune sync clan réelle n'a eu lieu depuis le déploiement du plumbing backend — comportement attendu, pas un bug.
 
 ---
 

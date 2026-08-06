@@ -77,6 +77,16 @@ type TopError = {
   count: number
 }
 
+type ClanStat = {
+  clanId: number | null
+  label: string
+  count: number
+  success: number
+  errors: number
+  rateLimited: number
+  avgDurationMs: number | null
+}
+
 type CallsPayload = {
   rpm: number
   bounds: {
@@ -111,6 +121,7 @@ type CallsPayload = {
   series: MinutePoint[]
   dailySeries: DayPoint[]
   byCategory: CategoryStat[]
+  byClan: ClanStat[]
   topErrors: TopError[]
   history: ApiCallRow[]
 }
@@ -648,6 +659,76 @@ export default function PubgApiSettingsPage() {
                 })()
               )}
             </div>
+          </div>
+        </div>
+
+        <div className="app-panel mt-8 p-5">
+          <h2 className="text-sm font-bold text-slate-900">Repartition par clan</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Aujourd&apos;hui (24 h) — clique sur un clan pour filtrer l&apos;historique ci-dessous.
+          </p>
+          <div className="mt-3 space-y-2">
+            {(payload?.byClan.length ?? 0) === 0 ? (
+              <p className="app-panel-muted p-3 text-xs text-slate-600">Aucun appel aujourd&apos;hui.</p>
+            ) : (
+              (payload?.byClan ?? []).map((entry) => {
+                const otherErrors = Math.max(0, entry.errors - entry.rateLimited)
+                const successPct = entry.count > 0 ? (entry.success / entry.count) * 100 : 0
+                const rateLimitedPct = entry.count > 0 ? (entry.rateLimited / entry.count) * 100 : 0
+                const errorPct = entry.count > 0 ? (otherErrors / entry.count) * 100 : 0
+                const problemRatio = entry.count > 0 ? (entry.errors + entry.rateLimited) / entry.count : 0
+                const isProblematic = entry.clanId !== null && problemRatio > 0.1
+
+                return (
+                  <button
+                    key={entry.clanId ?? 'unassigned'}
+                    type="button"
+                    disabled={entry.clanId === null}
+                    onClick={() => {
+                      if (entry.clanId === null) return
+                      setHistoryPage(1)
+                      setHistoryClanIdInput(String(entry.clanId))
+                      setAppliedHistoryClanId(String(entry.clanId))
+                    }}
+                    className={`app-panel-muted block w-full p-3 text-left text-xs transition-colors ${
+                      entry.clanId === null ? 'cursor-default' : 'cursor-pointer hover:bg-gray-100'
+                    } ${isProblematic ? 'border border-rose-300' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="flex items-center gap-1.5 font-semibold text-slate-900">
+                        {isProblematic ? (
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" aria-hidden />
+                        ) : null}
+                        {entry.label}
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {entry.errors > 0 ? (
+                          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">
+                            {entry.errors} err.
+                          </span>
+                        ) : null}
+                        {entry.rateLimited > 0 ? (
+                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
+                            {entry.rateLimited} x 429
+                          </span>
+                        ) : null}
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
+                          {entry.success} ok
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-0.5 text-slate-500">
+                      {entry.count} appel(s) • {entry.avgDurationMs ?? '-'} ms moy.
+                    </p>
+                    <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div className="h-full bg-emerald-400" style={{ width: `${successPct}%` }} />
+                      <div className="h-full bg-amber-400" style={{ width: `${rateLimitedPct}%` }} />
+                      <div className="h-full bg-rose-500" style={{ width: `${errorPct}%` }} />
+                    </div>
+                  </button>
+                )
+              })
+            )}
           </div>
         </div>
 

@@ -149,6 +149,8 @@ export async function getPubgApiCallsOverview(params?: {
         endpoint: true,
         retryCount: true,
         errorMessage: true,
+        clanId: true,
+        memberId: true,
       },
     }),
     prisma.pubgApiCallLog.findMany({
@@ -243,6 +245,32 @@ export async function getPubgApiCallsOverview(params?: {
     }
   })
 
+  // Certains appels ne portent que `memberId` (routes membre) sans `clanId` direct sur la ligne :
+  // on resout le clan via ClanMember plutot que d'exiger que chaque site d'appel connaisse son clanId.
+  const dayRowMemberIds = Array.from(
+    new Set(
+      dayRows
+        .filter((row) => row.clanId === null && typeof row.memberId === 'number')
+        .map((row) => row.memberId as number)
+    )
+  )
+
+  const memberClanRows =
+    dayRowMemberIds.length > 0
+      ? await prisma.clanMember.findMany({
+          where: { id: { in: dayRowMemberIds } },
+          select: { id: true, clanId: true },
+        })
+      : []
+
+  const memberIdToClanId = new Map(memberClanRows.map((member) => [member.id, member.clanId]))
+
+  function resolveClanIdForRow(row: { clanId: number | null; memberId: number | null }) {
+    if (row.clanId !== null) return row.clanId
+    if (typeof row.memberId === 'number') return memberIdToClanId.get(row.memberId) ?? null
+    return null
+  }
+
   const minuteBuckets = new Map<string, {
     minute: string
     total: number
@@ -277,6 +305,11 @@ export async function getPubgApiCallsOverview(params?: {
 
   const errorCounts = new Map<string, number>()
 
+  const clanStats = new Map<
+    number | null,
+    { count: number; success: number; errors: number; rateLimited: number; durationTotal: number }
+  >()
+
   for (const row of dayRows) {
     total += 1
     durationTotal += row.durationMs ?? 0
@@ -303,6 +336,21 @@ export async function getPubgApiCallsOverview(params?: {
       if (!row.success) categoryStat.errors += 1
       if (row.statusCode === 429) categoryStat.rateLimited += 1
     }
+
+    const resolvedClanId = resolveClanIdForRow(row)
+    const clanStat = clanStats.get(resolvedClanId) ?? {
+      count: 0,
+      success: 0,
+      errors: 0,
+      rateLimited: 0,
+      durationTotal: 0,
+    }
+    clanStat.count += 1
+    clanStat.durationTotal += row.durationMs ?? 0
+    if (row.success) clanStat.success += 1
+    if (!row.success) clanStat.errors += 1
+    if (row.statusCode === 429) clanStat.rateLimited += 1
+    clanStats.set(resolvedClanId, clanStat)
 
     if (row.errorMessage) {
       errorCounts.set(row.errorMessage, (errorCounts.get(row.errorMessage) ?? 0) + 1)
@@ -352,6 +400,30 @@ export async function getPubgApiCallsOverview(params?: {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 
+  const involvedClanIds = Array.from(clanStats.keys()).filter(
+    (id): id is number => id !== null
+  )
+  const involvedClans =
+    involvedClanIds.length > 0
+      ? await prisma.clan.findMany({
+          where: { id: { in: involvedClanIds } },
+          select: { id: true, name: true, tag: true },
+        })
+      : []
+  const clanLabelMap = new Map(involvedClans.map((clan) => [clan.id, `${clan.name} [${clan.tag}]`]))
+
+  const byClan = Array.from(clanStats.entries())
+    .map(([clanId, stat]) => ({
+      clanId,
+      label: clanId === null ? 'Sans clan' : (clanLabelMap.get(clanId) ?? `Clan #${clanId}`),
+      count: stat.count,
+      success: stat.success,
+      errors: stat.errors,
+      rateLimited: stat.rateLimited,
+      avgDurationMs: stat.count > 0 ? Math.round(stat.durationTotal / stat.count) : null,
+    }))
+    .sort((a, b) => b.count - a.count)
+
   const dailyBuckets = new Map<string, { date: string; total: number; success: number; rateLimited: number; errors: number }>()
   for (let offsetDays = 0; offsetDays < trendDays; offsetDays += 1) {
     const bucketDate = new Date(trendStart.getTime() + offsetDays * 24 * 60 * 60_000)
@@ -383,6 +455,7 @@ export async function getPubgApiCallsOverview(params?: {
     series: Array.from(minuteBuckets.values()),
     dailySeries: Array.from(dailyBuckets.values()),
     byCategory,
+    byClan,
     topErrors,
     history: historyWithActor,
     historyPagination: {

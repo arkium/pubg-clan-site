@@ -1,6 +1,13 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 
 import { enqueuePubgApiRequestWithMetadata } from '@/lib/api-throttle'
+import { prisma } from '@/lib/prisma'
+
+// Fenêtre de fraîcheur du cache Player pour searchPlayerByName — plus courte
+// que la résolution de clan (PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS dans
+// cron-jobs.ts) car un renommage de joueur est possible, quoique rare.
+// Valeur de départ à ajuster après observation réelle.
+const PLAYER_NAME_SEARCH_FRESHNESS_DAYS = 3
 
 type PubgApiError = Error & {
   status?: number
@@ -497,6 +504,24 @@ export async function searchPlayerByName(
   context?: PubgApiCallContext
 ) {
   try {
+    const freshnessCutoff = new Date(
+      Date.now() - PLAYER_NAME_SEARCH_FRESHNESS_DAYS * 24 * 60 * 60 * 1000
+    )
+    const cached = await prisma.player.findFirst({
+      where: {
+        pubgPlayerName: { equals: playerName },
+        platformShard: shard,
+        updatedAt: { gte: freshnessCutoff },
+      },
+    })
+
+    if (cached) {
+      return {
+        playerName: cached.pubgPlayerName,
+        accountId: cached.pubgAccountId,
+      }
+    }
+
     ensurePubgApiKey()
     const response = await queuedPubgGet<PubgPlayerSearchResponse>(
       `/shards/${shard}/players`,
@@ -519,6 +544,16 @@ export async function searchPlayerByName(
     if (!player.id || !resolvedPlayerName) {
       return null
     }
+
+    await prisma.player.upsert({
+      where: { pubgAccountId_platformShard: { pubgAccountId: player.id, platformShard: shard } },
+      update: { pubgPlayerName: resolvedPlayerName, lastSeenAt: new Date() },
+      create: {
+        pubgAccountId: player.id,
+        platformShard: shard,
+        pubgPlayerName: resolvedPlayerName,
+      },
+    })
 
     return {
       playerName: resolvedPlayerName,

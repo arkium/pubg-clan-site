@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -9,7 +9,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import ClanSyncPanel from '@/components/settings/ClanSyncPanel'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { useClanOverview } from '@/hooks/useClanOverview'
 
 type ClanRole = {
   id: number
@@ -109,6 +111,7 @@ export default function ClanMembersSettingsPage() {
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
+  const { data: overviewData } = useClanOverview(clanId)
 
   const [members, setMembers] = useState<ClanMemberWithRole[]>([])
   const [roles, setRoles] = useState<ClanRole[]>([])
@@ -674,6 +677,10 @@ export default function ClanMembersSettingsPage() {
           actions={<Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>}
         />
       </section>
+      
+      <div className="mb-6">
+        <ClanSyncPanel clanId={clanId} pubgClanId={overviewData?.clan?.pubgClanId} />
+      </div>
       {copyToast ? (
         <div
           className={`fixed bottom-4 right-4 z-50 rounded-lg border px-4 py-3 text-sm font-semibold shadow-lg ${

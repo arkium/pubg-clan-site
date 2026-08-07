@@ -1,4 +1,4 @@
-export type SquadPeriod = 'week' | 'month' | 'month-1' | 'month-2'
+export type SquadPeriod = 'week' | 'month' | 'month-1' | 'month-2' | 'all'
 
 export interface SquadMatchMember {
   memberId: number

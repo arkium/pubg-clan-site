@@ -440,6 +440,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'superuser',
     description: 'Comparaison de la sante du pipeline télémétrie entre tous les clans suivis.',
   },
+  {
+    navKey: 'superuser.opponents',
+    section: 'superuser-menu',
+    label: 'Adversaires',
+    hrefTemplate: '/settings/opponents',
+    defaultRole: 'superuser',
+    description: 'Vue transverse des clans suivis et des clans adverses croisés, tous clans confondus.',
+  },
 ]
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */

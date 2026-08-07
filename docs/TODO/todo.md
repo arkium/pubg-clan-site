@@ -6,6 +6,38 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-01.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### Refonte Dashboard Overview & Roster (En cours)
+
+Cette tâche vise à transformer la page `Overview` en un véritable dashboard analytique (100% statistiques) alimenté par un cache persistant précalculé, et à alléger la page `Matches`.
+
+**1. Persistance & Cache (Cron)**
+- [ ] Ajouter le modèle `ClanMatchesCache` dans `prisma/schema.prisma` (colonnes `clanId`, `period`, `periodKey`, `payload`, `computedAt`).
+- [ ] Créer et appliquer la migration SQL.
+- [ ] Créer `src/lib/matches-cache-service.ts` avec la fonction `precomputeClanMatchesStats(clanId)`.
+- [ ] Le payload JSON doit inclure les stats globales, les synergies, le top 5 et les stats individuelles (`rosterStats`), structurés par mode de jeu (`tous`, `duo`, `trio`, `squad`).
+- [ ] Intégrer l'appel à `precomputeClanMatchesStats` dans `src/lib/cron-jobs.ts`.
+- [ ] Créer la route d'API `GET /api/clans/[clanId]/overview/matches-stats/route.ts`.
+
+**2. Allègement de la page Matches**
+- [ ] Retirer les composants `modePerformance`, `<SquadSynergies />` et `<TopPerformers />` de `src/app/clans/[clanId]/matches/page.tsx`.
+
+**3. Refonte UI : Dashboard Overview**
+- [ ] Déplacer la carte "Comparaison PUBG vs site" (`ClanSyncPanel`) vers `src/app/clans/[clanId]/settings/members/page.tsx`.
+- [ ] Intégrer les filtres *Période* (Semaine/Mois/Tous) et *Mode de jeu* (Tous/Duo/Trio/Squad) en en-tête du Dashboard.
+- [ ] Ligne 1 : Connecter les 6 KPIs actuels au nouveau cache.
+- [ ] Ligne 2 : Refondre la section "Top Performers" pour intégrer côte à côte les "Awards" (le #1) et le Podium détaillé (Top 5).
+- [ ] Ligne 3 : Ajouter les cartes "Performances duo/trio/squad" et "Synergies" connectées au filtre Mode.
+- [ ] Ajouter une mention discrète "Données mises à jour le [date]" (basée sur `computedAt`).
+
+**4. Refonte UI : Roster Membres Actifs (Performance)**
+- [ ] Remplacer le tableau administratif (Bloc 4) par un "Roster des Performances" basé sur les `rosterStats` du cache.
+- [ ] Colonnes : Membre (avec badge de rôle), Matchs (avec barre de progression relative), K+A / Match, Dégâts / Match, Win Rate %, Statut (icône de santé de synchro).
+- [ ] Rendre le tableau 100% responsive : format Table sur PC/Tablette, format liste de Cartes compactes sur Mobile.
+
+**5. Fix Responsive : Pression au drop**
+- [ ] Supprimer la largeur contrainte `min-w-[760px]` du tableau "Top 5 joueurs" dans `DropPressureStatsPanel.tsx`.
+- [ ] Appliquer un pattern responsive (Cartes ou colonnes masquées) pour éliminer le débordement horizontal sur mobile.
+
 ### ~~Télémétrie — Backfill v1 → v2~~ — ✅ Complété le 2026-06-21
 
 346 snapshots `SquadMatchTelemetry` — tous `status=success`, `parserVersion=v2`. Aucun snapshot v1 résiduel.
@@ -409,52 +441,84 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 - Pattern déjà en place pour une page globale hors `/clans/[clanId]/` : `src/app/settings/*` + `requireSuperUser` (ex. `settings/pubg-api`, `settings/cron`).
 - Écriture d'`EncounteredPlayer` : seulement 2 sites (`src/lib/encountered-players.ts` upsert, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`). La route API `encountered-players` est en lecture seule.
 
-**Décision d'architecture retenue** (à valider avant implémentation) : normaliser l'identité plutôt que de garder les tables actuelles telles quelles.
+**Décision d'architecture retenue** — implémentée le 2026-08-07 (Phase 1, voir résumé plus bas) : normaliser l'identité plutôt que de garder les tables actuelles telles quelles.
 
-- [ ] Créer `Player` (identité globale) — clé unique `[pubgAccountId, platformShard]`, porte nom + clan PUBG résolu
-- [ ] Créer `OpponentClan` (clan adverse global) — clé unique `[pubgClanId, platformShard]`, tag/nom résolus, remplace le texte dupliqué `pubgClanTag`/`pubgClanName` par ligne
-- [ ] Faire pointer `ClanMember` vers `playerId` (FK `Player`) au lieu de stocker `pubgAccountId` en dur
-- [ ] Transformer `EncounteredPlayer` en table de faits `ClanEncounter` (`clanId` + `playerId` + `opponentClanId` + compteurs + dates), unique sur `[clanId, playerId]`
-- [ ] Laisser `KillEvent.killerAccountId`/`victimAccountId` en string libre pour l'instant (faible valeur immédiate, gros volume) — ajouter `killerPlayerId`/`victimPlayerId` seulement si un besoin de stats apparaît plus tard
-- [ ] Script de backfill : dédoublonner les `pubgAccountId` déjà présents des deux côtés ; en cas de collision membre/adversaire, priorité au statut membre
-- [ ] Mettre à jour les 2 sites d'écriture (`encountered-players.ts`, `cron-jobs.ts`) + le(s) site(s) de création de `ClanMember`
+- [x] Créer `Player` (identité globale) — clé unique `[pubgAccountId, platformShard]`, porte nom + clan PUBG résolu
+- [x] Créer `OpponentClan` (clan adverse global) — clé unique `[pubgClanId, platformShard]`, tag/nom résolus, remplace le texte dupliqué `pubgClanTag`/`pubgClanName` par ligne
+- [ ] Faire pointer `ClanMember` vers `playerId` (FK `Player`) au lieu de stocker `pubgAccountId` en dur — hors scope Phase 1, lié au flux "Suivre"/"Compléter" reporté
+- [x] Créer `ClanEncounter` (`clanId` + `playerId` + compteurs + dates), unique sur `[clanId, playerId]` — **en écriture double** avec `EncounteredPlayer`, pas un remplacement complet : les 4 sites de lecture existants (`encountered-players` route, `nemesis`, `matches/[matchId]/telemetry`, le cron) lisent toujours `EncounteredPlayer` sans changement. Le cut-over des lectures + suppression d'`EncounteredPlayer` reste à faire dans une session ultérieure, une fois les nouvelles tables validées en production.
+- [x] Laisser `KillEvent.killerAccountId`/`victimAccountId` en string libre pour l'instant
+- [x] Script de backfill (`scripts/backfill-opponent-normalization.ts`, `npm run telemetry:opponents:backfill`) : peuple `Player`/`OpponentClan`/`ClanEncounter` depuis `EncounteredPlayer` existant, idempotent, tri par `lastSeenAt` croissant (le plus récent l'emporte en cas de doublon cross-clan)
+- [x] Mettre à jour les 2 sites d'écriture (`src/lib/encountered-players.ts::captureEncounteredPlayers`, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`) — dual-write vers les nouvelles tables + dédup des appels API de résolution de clan via `Player.clanResolvedAt` (fenêtre de fraîcheur `PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS = 7`)
+- [x] Cache DB-first pour `searchPlayerByName` (`src/lib/pubg.ts`) via `Player`, fenêtre de fraîcheur `PLAYER_NAME_SEARCH_FRESHNESS_DAYS = 3`
+- [ ] Le(s) site(s) de création de `ClanMember` ne sont pas modifiés — hors scope Phase 1
 
 **Fonctionnalités déclenchées par cette normalisation :**
 
-- [ ] Page superadmin globale des adversaires (`src/app/settings/opponents/page.tsx` + API `requireSuperUser`) — agrège `ClanEncounter` sur tous les clans suivis, groupé par `OpponentClan` puis par `Player`, sans dédup à la volée grâce au modèle normalisé
-- [ ] **Suivre un adversaire externe** = créer un `ClanMember` référençant le `playerId` existant, rattaché à un clan suivi choisi manuellement, avec un statut dédié (ex. `Tracked`, en réutilisant le champ `joinStatus` déjà présent comme state machine) + déclencher un job de resync télémétrie pour backfiller son historique
-- [ ] **Compléter un clan déjà suivi** — cas distinct : quand le `pubgClanTag` résolu d'un `Player` (croisé comme adversaire *ou* comme coéquipier via `teammateEncounterCount`) correspond exactement à un `Clan` déjà suivi en base, proposer de l'ajouter directement comme `ClanMember` de **ce** clan (pas un nouveau clan choisi à la main) — couvre le cas du joueur qui a rejoint le clan en jeu mais n'a jamais été ajouté manuellement dans l'app
-- [ ] Détecter automatiquement ces correspondances côté API (jointure `Player.pubgClanId` ↔ `Clan.pubgClanId`) et les faire remonter en priorité dans la page superadmin, plutôt que de compter sur une recherche manuelle
-- [ ] Favori clan (`FavoriteClan` ou flag sur `OpponentClan`) — simple, pas de calcul de stats, sert juste à épingler en haut de la vue globale
-- [ ] Favori joueur — pas de mécanisme séparé : c'est la même opération que "suivre un adversaire" ci-dessus, pour éviter de construire une architecture de stats parallèle indexée par `pubgAccountId`
+- [x] Page superadmin globale des adversaires (`src/app/settings/opponents/page.tsx` + API `GET /api/settings/opponents`, `requireSuperUser`) — agrège `ClanEncounter` sur tous les clans suivis, groupé par `OpponentClan`
+- [ ] **Suivre un adversaire externe** (création de `ClanMember`) — **hors scope Phase 1**, reporté après audit des requêtes leaderboard/stats/badges pour exclure un futur statut `joinStatus='tracked'`
+- [ ] **Compléter un clan déjà suivi** (bouton d'ajout direct) — **action hors scope Phase 1**. La **détection** est en revanche implémentée en lecture seule : colonne "Membres manquants" sur le tableau 1, calculée par jointure `Player.opponentClanId → OpponentClan.pubgClanId = Clan.pubgClanId` moins les `ClanMember.pubgAccountId` déjà présents
+- [x] Détection automatique des correspondances côté API (voir ci-dessus) — affichée dans le tableau 1, pas encore dans un bandeau prioritaire dédié (simplification, voir gaps UI ci-dessous)
+- [x] Favori clan — `OpponentClan.isFavorite`, `PATCH /api/settings/opponent-clans/[id]`, toggle optimiste
+- [ ] Favori joueur — pas implémenté, dépend du flux "Suivre" reporté
 
-**UI/UX de la page superadmin globale (`/settings/opponents`) :**
+**UI/UX de la page superadmin globale (`/settings/opponents`) — implémentée le 2026-08-07, avec quelques simplifications par rapport à la spec initiale (notées ci-dessous) :**
 
-- [ ] Suivre le pattern des pages `settings/*` existantes : `.app-container` + `.app-main`, pas de `ClanSectionNav` (page hors contexte clan)
-- [ ] Bandeau de compteurs globaux en tête de page : nombre de clans suivis actifs, nombre de clans adverses distincts, nombre total de rencontres sur la période, nombre de "membres manquants" détectés
-- [ ] Filtre de période partagé par les deux tableaux (`Semaine` / `Mois` / `Tous`), cohérent avec les autres pages télémétrie — sans lui les compteurs mélangent des rencontres anciennes et récentes
+- [x] Pattern des pages `settings/*` : `.app-container` + `.app-main`, pas de `ClanSectionNav`
+- [x] Bandeau de compteurs globaux : clans suivis, clans adverses distincts, rencontres totales sur la période, joueurs "sans clan"
+- [x] Filtre de période partagé (`Semaine` / `Mois` / `Tous`)
+- [x] Entrée de navigation superuser ajoutée (`NavItem.navKey = 'superuser.opponents'`, section `superuser-menu`) — insérée directement en base plutôt que via `prisma/seed-nav-items.ts`, qui recalcule `sortOrder` pour toutes les entrées et aurait écrasé un éventuel réordonnancement manuel existant
 
-**Tableau 1 — Clans suivis** (10 lignes, paginé) :
-- [ ] Colonnes : nom/tag du clan, effectif (`ClanMember` actifs), nombre de rencontres générées (somme `ClanEncounter` sur la période), dernier match synchronisé, nombre de "membres manquants" détectés pour ce clan
-- [ ] Colonne "membres manquants" cliquable → filtre direct le bandeau prioritaire (voir tableau 2) sur ce clan, sans quitter la page
-- [ ] Tri par défaut sur le nombre de rencontres décroissant, tri cliquable par colonne
-- [ ] Ligne cliquable → navigation vers `/clans/[clanId]/telemetry/opponents` de ce clan
-- [ ] Recherche texte par nom/tag, indépendante du tableau 2
+**Tableau 1 — Clans suivis** (10 lignes, paginé, tri serveur, recherche) :
+- [x] Colonnes : nom/tag, effectif, rencontres (période), dernier match synchronisé, membres manquants
+- [ ] Colonne "membres manquants" cliquable → filtre le bandeau prioritaire — **non fait** : pas de bandeau prioritaire séparé, juste le nombre affiché en badge (voir tableau 2)
+- [x] Tri par défaut décroissant sur rencontres, tri cliquable par colonne
+- [x] Ligne cliquable → `/clans/[clanId]/telemetry/opponents` — **à remplacer**, voir "Évolution — Détail au clic" ci-dessous
+- [x] Recherche texte nom/tag
 
-**Tableau 2 — Clans adversaires** (10 lignes, paginé) :
-- [ ] Colonnes : clan adverse (`OpponentClan`, tag + nom), nombre de fois adversaire (agrégé tous clans suivis confondus), nombre de fois coéquipier (agrégé tous clans suivis confondus), dernière rencontre
-- [ ] Ligne séparée "Sans clan" regroupant les `Player` dont le clan PUBG n'est pas résolu (`pubgClanId` null / `Ungrouped`) — à ne pas mélanger avec les vrais clans adverses dans le tri/classement
-- [ ] Icône d'info si "coéquipier" très supérieur à "adversaire" sur une ligne — signal qu'il s'agit probablement d'un clan allié/partenaire plutôt qu'un rival, sans traitement automatique
-- [ ] Tri par défaut sur le nombre de fois adversaire décroissant, tri cliquable par colonne (y compris coéquipier)
-- [ ] Recherche texte par tag/nom, indépendante du tableau 1
-- [ ] Colonne "Clans nous ayant croisés" avec badges cliquables vers le clan suivi concerné (navigation vers `/clans/[clanId]/telemetry/opponents` filtré sur ce clan adverse)
-- [ ] Étoile de favori sur chaque ligne (optimiste, sans rechargement de page), clans favoris épinglés en tête de tableau avec séparateur visuel
-- [ ] Ligne dépliable/clic → détail des joueurs de ce clan adverse (`Player` rattachés à cet `OpponentClan`)
-- [ ] Bandeau prioritaire "Membres manquants détectés" en tête de page : joueurs dont le `pubgClanTag` correspond à un clan déjà suivi, avec bouton direct "Ajouter à <clan>" (pas de sélecteur, le clan cible est déjà déterminé) — traité séparément et avant la liste générale des adversaires
-- [ ] Sur la fiche d'un joueur sans correspondance : bouton "Suivre ce joueur" avec sélecteur manuel du clan suivi cible (rattachement à un clan différent de celui affiché par PUBG, cas volontaire) + confirmation avant déclenchement du backfill télémétrie (opération non instantanée)
-- [ ] État visuel distinct pour un joueur déjà suivi ailleurs (badge "Membre de <clan>" au lieu du bouton "Suivre")
-- [ ] Squelette de chargement et gestion d'erreur avec retry, cohérents avec `/clans`
-- [ ] Vérifier le rendu en thème clair et sombre, et sur mobile (tableau → cartes empilées comme les autres pages `app-table-*`)
+**Tableau 2 — Clans adversaires** (10 lignes, paginé, tri serveur, recherche) :
+- [x] Colonnes : clan adverse, fois adversaire, fois coéquipier, dernière rencontre
+- [ ] Ligne séparée "Sans clan" dans le tableau — **non fait** : le total est visible dans le bandeau de compteurs (`noClanPlayerCount`) mais pas comme ligne dédiée cliquable/détaillée
+- [x] Icône d'info si coéquipier ≫ adversaire (seuil : `asTeammateCount > asOpponentCount × 2` et `> 2`)
+- [x] Tri par défaut décroissant sur fois adversaire, tri cliquable (y compris coéquipier)
+- [x] Recherche texte tag/nom
+- [x] Colonne "Clans nous ayant croisés" avec badges — **non cliquables vers le clan filtré** (simplification, juste informatif pour l'instant)
+- [x] Étoile de favori optimiste, favoris remontés en tête via `ORDER BY isFavorite DESC` — **sans séparateur visuel dédié** entre favoris et reste (simplification)
+- [ ] Ligne dépliable → détail des joueurs de ce clan adverse — **remplacé par la spec détaillée ci-dessous**
+- [ ] Bandeau prioritaire "Membres manquants détectés" avec bouton "Ajouter à <clan>" — **non fait**, seule la détection en lecture (tableau 1) est en place
+- [ ] Bouton "Suivre ce joueur" avec sélecteur de clan — **non fait**, dépend du flux `ClanMember` reporté
+- [ ] Badge "Membre de <clan>" pour joueur déjà suivi ailleurs — **non fait**, dépend du flux reporté
+- [~] Squelette de chargement + retry — chargement basique en place (texte, pas de squelette de cartes), **pas de bouton "Réessayer"** explicite comme sur `/clans` — à ajouter
+- [x] Vérification thème clair/sombre et mobile — **validée à l'écran par l'utilisateur le 2026-08-07**, aucun problème signalé
+
+#### Évolution — Détail au clic — ✅ Implémenté et vérifié le 2026-08-07
+
+Objectif : rendre le clic sur une ligne utile en place au lieu de naviguer hors de la page — afficher qui est déjà suivi et qui pourrait l'être, pour préparer le flux "Suivre"/"Compléter" (toujours reporté côté actions d'écriture, seule la lecture est en scope ici).
+
+**API** :
+- [x] `GET /api/settings/opponents/clans/[clanId]/members` — membres actifs (`ClanMember`) + candidats manquants (`Player` résolus au même `pubgClanId`, limite 50, triés par `lastSeenAt` décroissant)
+- [x] `GET /api/settings/opponent-clans/[id]/players` — joueurs rattachés à l'`OpponentClan` (compteurs adversaire/coéquipier agrégés, limite 50), avec détection s'ils sont déjà `ClanMember` actif ailleurs (`trackedMember`)
+
+**Tableau 1 — Clans suivis :**
+- [x] Navigation directe remplacée par un accordéon en place (clic sur le nom = expand, contexte de recherche/tri/pagination conservé)
+- [x] Badge/icône lien (`ExternalLink`) à côté du nom vers `/clans/[clanId]/telemetry/opponents`
+- [x] Détail déplié : liste des `ClanMember` actifs (nom, `joinStatus`) + liste des candidats détectés
+- [x] Bouton "Ajouter" par candidat — désactivé (`cursor-not-allowed`), infobulle expliquant que la création automatique n'est pas encore implémentée
+- [x] Limite de 50 candidats par clan côté API, indicateur "+" si la limite est atteinte
+
+**Tableau 2 — Clans adversaires :**
+- [x] Clic sur le nom = accordéon en place, liste des `Player` rattachés à cet `OpponentClan` (nom, fois adversaire, fois coéquipier)
+- [x] Deux actions distinctes, non fusionnées :
+  - "Suivre" par joueur → ajout à un clan déjà suivi (désactivé, infobulle)
+  - "Suivre ce clan" au niveau du groupe → onboarding complet comme nouveau clan suivi (désactivé, infobulle mentionnant explicitement que c'est un chantier distinct de l'ajout de membre, à documenter séparément avant implémentation — réutiliser `src/lib/clan-service.ts`/`src/app/api/join/route.ts` plutôt qu'un nouveau mécanisme)
+- [x] Badge "Membre de `<clan>`" quand le joueur est déjà un `ClanMember` actif ailleurs, au lieu du bouton désactivé
+- [x] Limite de 50 joueurs par clan adverse côté API, indicateur "+" si atteinte
+
+**Vérification navigateur** (session partagée, superuser connecté) :
+- [x] Accordéon tableau 1 : membre existant + 4 candidats détectés affichés correctement pour `FR-Alliance-BE`
+- [x] Accordéon tableau 2 : 2 joueurs affichés pour `[SVN] THE_SEVEN`, boutons "Suivre"/"Suivre ce clan" bien désactivés
+- [x] Toggle favori optimiste vérifié en direct (étoile pleine ↔ vide) sur `[DNA] DnA-eSports`, sans erreur console
+- [x] Aucune erreur console JS pendant les interactions
 
 **Évolutions Stats & Tactique (pour le tableau 2) :**
 

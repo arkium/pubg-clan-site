@@ -38,6 +38,8 @@ model Clan {
   encounteredPlayers        EncounteredPlayer[]
   killEvents                KillEvent[]
   awardsCache               ClanAwardsCache[]
+  matchesCache              ClanMatchesCache[]
+  clanEncounters            ClanEncounter[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -67,8 +69,8 @@ model ClanMember {
   memberTelemetryStats      MemberTelemetryStats[]
   dropPressureStats         DropPressureStat[]
   positionMetricCells       PositionMetricCell[]
-  killEventsAsKiller        KillEvent[]                  @relation("KillEventKiller")
-  killEventsAsVictim        KillEvent[]                  @relation("KillEventVictim")
+  killEventsAsKiller        KillEvent[]                 @relation("KillEventKiller")
+  killEventsAsVictim        KillEvent[]                 @relation("KillEventVictim")
   throwableStats            MemberThrowableStat[]
   telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
   telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
@@ -102,20 +104,20 @@ model EncounteredPlayer {
   // Résolution du clan PUBG de ce joueur — nullable tant que non résolu.
   // clanResolvedAt marque qu'une tentative a eu lieu (succès ou "pas de clan"),
   // pour ne jamais rappeler l'API PUBG deux fois pour le même joueur.
-  pubgClanId       String?
-  pubgClanTag      String?
-  pubgClanName     String?
-  clanResolvedAt   DateTime?
-  resolveAttempts  Int       @default(0)
+  pubgClanId      String?
+  pubgClanTag     String?
+  pubgClanName    String?
+  clanResolvedAt  DateTime?
+  resolveAttempts Int       @default(0)
 
-  encounterCount         Int @default(1)
+  encounterCount         Int      @default(1)
   // Sous-ensemble de encounterCount : nombre de fois où ce joueur partageait le
   // roster (la squad) d'un membre suivi — un coéquipier occasionnel, pas un
   // adversaire. opponentEncounterCount (encounterCount - teammateEncounterCount)
   // se calcule à la lecture, pas stocké séparément.
-  teammateEncounterCount Int @default(0)
-  firstSeenAt    DateTime @default(now())
-  lastSeenAt     DateTime @default(now())
+  teammateEncounterCount Int      @default(0)
+  firstSeenAt            DateTime @default(now())
+  lastSeenAt             DateTime @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -125,6 +127,87 @@ model EncounteredPlayer {
   @@index([clanId, pubgClanTag])
   @@index([clanResolvedAt, encounterCount])
   @@map("EncounteredPlayer")
+}
+
+// Identité globale d'un joueur PUBG croisé (adversaire ou coéquipier de match)
+// par un clan suivi, normalisée pour éviter de dupliquer nom/résolution de clan
+// une fois par clan qui l'observe (voir EncounteredPlayer ci-dessus, encore en
+// écriture double pendant la transition — docs/TODO/todo.md).
+model Player {
+  id             String @id @default(cuid())
+  pubgAccountId  String
+  platformShard  String @default("steam")
+  pubgPlayerName String
+
+  opponentClanId String?
+  opponentClan   OpponentClan? @relation(fields: [opponentClanId], references: [id], onDelete: SetNull)
+
+  // Même sémantique que EncounteredPlayer.clanResolvedAt/resolveAttempts, mais
+  // portée globalement : un joueur n'est résolu qu'une seule fois, pas une fois
+  // par clan suivi qui l'a croisé.
+  clanResolvedAt  DateTime?
+  resolveAttempts Int       @default(0)
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  encounters ClanEncounter[]
+
+  @@unique([pubgAccountId, platformShard])
+  @@index([opponentClanId])
+  @@index([pubgPlayerName])
+  @@map("Player")
+}
+
+// Identité globale d'un clan PUBG adverse, partagée entre tous les clans
+// suivis qui l'ont croisé (remplace la duplication de pubgClanTag/pubgClanName
+// en texte libre sur chaque ligne EncounteredPlayer).
+model OpponentClan {
+  id            String   @id @default(cuid())
+  pubgClanId    String
+  platformShard String   @default("steam")
+  tag           String?
+  name          String?
+  isFavorite    Boolean  @default(false)
+  resolvedAt    DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  players Player[]
+
+  @@unique([pubgClanId, platformShard])
+  @@index([isFavorite])
+  @@map("OpponentClan")
+}
+
+// Fait "clan suivi X a croisé le joueur Y" — remplace progressivement
+// EncounteredPlayer avec une identité de joueur partagée au lieu d'une copie
+// par clan. Le clan adverse d'une rencontre se lit via player.opponentClan,
+// pas dénormalisé ici.
+model ClanEncounter {
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  encounterCount         Int @default(1)
+  teammateEncounterCount Int @default(0)
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clanId, playerId])
+  @@index([clanId, encounterCount])
+  @@map("ClanEncounter")
 }
 
 // Précalcul des awards clan par période, même principe que Clan.clanStats :
@@ -142,6 +225,20 @@ model ClanAwardsCache {
 
   @@unique([clanId, period])
   @@map("ClanAwardsCache")
+}
+
+model ClanMatchesCache {
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  period     String // 'week' | 'month' | 'all'
+  periodKey  String
+  payload    Json
+  computedAt DateTime @default(now())
+
+  @@unique([clanId, period])
+  @@map("ClanMatchesCache")
 }
 
 model UserAccount {

@@ -23,6 +23,8 @@ Les tableaux les plus interactifs sont le classement clan, l'historique des matc
 | Monitoring PUBG API | `/settings/pubg-api` | Tableau inline | Oui | Non | Oui — erreurs uniquement + taille de page |
 | Checks cron | `/clans/[clanId]/settings/cron` | Tableau checks | Non | Non | Non |
 | Historique cron | `/clans/[clanId]/settings/cron` | Tableau historique | Non | Non | Non |
+| Adversaires — clans suivis | `/settings/opponents` | Tableau inline | Oui (10/page) | Oui (serveur) | Oui — recherche nom/tag |
+| Adversaires — clans adverses | `/settings/opponents` | Tableau inline | Oui (10/page) | Oui (serveur) | Oui — recherche tag/nom |
 
 ### Notes par tableau
 

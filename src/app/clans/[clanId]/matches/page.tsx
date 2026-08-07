@@ -1,12 +1,10 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SessionRecap from '@/components/SessionRecap'
-import SquadSynergies from '@/components/SquadSynergies'
-import TopPerformers from '@/components/TopPerformers'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -58,19 +56,10 @@ export default function ClanMatchesPage() {
     mapLabels,
     squads,
     stats,
-    modePerformance,
     sessions,
-    synergies,
-    topPerformers,
     loading,
     error,
   } = useSquadMatches(clanId, period, gameMode)
-
-  const modeMeta = {
-    duo: { label: 'Duo', tone: 'border-sky-200 bg-sky-50 text-sky-800' },
-    trio: { label: 'Trio', tone: 'border-violet-200 bg-violet-50 text-violet-800' },
-    squad: { label: 'Squad', tone: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-  } as const
 
   const gameModeOptions = useMemo(
     () => [
@@ -172,51 +161,8 @@ export default function ClanMatchesPage() {
             </article>
           </section>
 
-          <section className="mb-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Performances duo/trio/squad</h2>
-            <div className="grid gap-3 md:grid-cols-3">
-              {modePerformance.map((mode) => (
-                <article key={mode.mode} className={`rounded border p-3 ${modeMeta[mode.mode].tone}`}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <TeamModeBadge mode={mode.mode} label={modeMeta[mode.mode].label} size="sm" className="shadow-none" />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span>Matchs</span>
-                      <span className="text-right font-semibold tabular-nums">{mode.matches}</span>
-                    </p>
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span>Éliminations</span>
-                      <span className="text-right font-semibold tabular-nums">{mode.kills}</span>
-                    </p>
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span>W/L</span>
-                      <span className="text-right font-semibold tabular-nums">
-                        {mode.wins}/{mode.losses}
-                      </span>
-                    </p>
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span>Dégâts</span>
-                      <span className="text-right font-semibold tabular-nums">{Math.round(mode.damage)}</span>
-                    </p>
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span>Aides</span>
-                      <span className="text-right font-semibold tabular-nums">{mode.assists}</span>
-                    </p>
-                    <p className="flex items-baseline justify-between gap-2">
-                      <span>Durée</span>
-                      <span className="text-right font-semibold tabular-nums">{formatDuration(mode.durationSeconds)}</span>
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
 
           <div className="space-y-6">
-            <SquadSynergies clanId={clanId} period={period} synergies={synergies} />
-            <TopPerformers performers={topPerformers} />
             <SessionRecap clanId={clanId} period={period} gameMode={gameMode || undefined} sessions={sessions} />
           </div>
         </>

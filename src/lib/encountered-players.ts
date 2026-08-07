@@ -67,8 +67,8 @@ export async function captureEncounteredPlayers(
   const now = new Date()
 
   await Promise.all(
-    Array.from(opponents.entries()).map(([pubgAccountId, { pubgPlayerName, wasTeammate }]) =>
-      prisma.encounteredPlayer.upsert({
+    Array.from(opponents.entries()).map(async ([pubgAccountId, { pubgPlayerName, wasTeammate }]) => {
+      await prisma.encounteredPlayer.upsert({
         where: { clanId_pubgAccountId: { clanId, pubgAccountId } },
         update: {
           pubgPlayerName,
@@ -86,6 +86,31 @@ export async function captureEncounteredPlayers(
           teammateEncounterCount: wasTeammate ? 1 : 0,
         },
       })
-    )
+
+      // Écriture en double vers le modèle normalisé (Player/ClanEncounter) pendant
+      // la transition — voir docs/TODO/todo.md, section "Adversaires — Vue
+      // superadmin globale". Les lectures existantes restent sur EncounteredPlayer.
+      const player = await prisma.player.upsert({
+        where: { pubgAccountId_platformShard: { pubgAccountId, platformShard } },
+        update: { pubgPlayerName, lastSeenAt: now },
+        create: { pubgAccountId, pubgPlayerName, platformShard, firstSeenAt: now, lastSeenAt: now },
+      })
+
+      await prisma.clanEncounter.upsert({
+        where: { clanId_playerId: { clanId, playerId: player.id } },
+        update: {
+          lastSeenAt: now,
+          encounterCount: { increment: 1 },
+          ...(wasTeammate ? { teammateEncounterCount: { increment: 1 } } : {}),
+        },
+        create: {
+          clanId,
+          playerId: player.id,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          teammateEncounterCount: wasTeammate ? 1 : 0,
+        },
+      })
+    })
   )
 }

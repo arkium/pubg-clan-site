@@ -311,8 +311,8 @@ export default function DropPressureStatsPanel({
                 <h3 className="text-sm font-semibold text-gray-900">Top 5 des joueurs</h3>
                 <p className="text-xs text-gray-500">Cliquez sur une colonne pour modifier le classement.</p>
               </div>
-              <div className="app-table-shell overflow-x-auto">
-                <table className="min-w-[760px] w-full text-sm">
+              <div className="hidden md:block app-table-shell overflow-x-auto">
+                <table className="w-full text-sm">
                   <thead className="app-table-head text-xs uppercase tracking-wide">
                     <tr>
                       <th className="px-3 py-3 text-center">Rang</th>
@@ -349,6 +349,55 @@ export default function DropPressureStatsPanel({
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Version Mobile */}
+              <div className="grid gap-3 md:hidden">
+                {[...topEntries.map(e => ({...e, pinned: false})), ...(pinnedEntry ? [{...pinnedEntry, pinned: true}] : [])].map(({ entry, rank, pinned }) => (
+                  <article key={`${pinned ? 'pinned-' : ''}${entry.memberId}`} className={`rounded-lg border p-4 shadow-sm ${entry.memberId === currentMemberId ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-8 w-8 items-center justify-center text-sm font-bold text-gray-700">
+                          {rank <= 3 ? (
+                            <Image
+                              src={MEDAL_BY_RANK[rank as 1 | 2 | 3].iconPath}
+                              alt={MEDAL_BY_RANK[rank as 1 | 2 | 3].alt}
+                              width={24}
+                              height={24}
+                              className="h-7 w-7"
+                            />
+                          ) : <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100">{rank}</span>}
+                        </span>
+                        <span className="font-bold text-gray-900">
+                          {entry.displayName}
+                          {entry.memberId === currentMemberId && <span className="ml-2 text-[10px] uppercase font-bold text-orange-500 tracking-wider">Vous</span>}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-lg font-black leading-none text-gray-900">{entry.dropCount}</span>
+                        <span className="text-[10px] uppercase text-gray-500">Drops</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[13px]">
+                      <div className="flex justify-between rounded bg-white/50 px-2 py-1">
+                        <span className="text-gray-500">Adv. moy.</span>
+                        <span className="font-bold text-gray-900">{formatAverage(entry.averageNearbyOpponents250m)}</span>
+                      </div>
+                      <div className="flex justify-between rounded bg-white/50 px-2 py-1">
+                        <span className="text-gray-500">Proches moy.</span>
+                        <span className="font-semibold text-gray-700">{formatAverage(entry.averageNearbyPlayers250m)}</span>
+                      </div>
+                      <div className="flex justify-between rounded bg-white/50 px-2 py-1">
+                        <span className="text-gray-500">Max proches</span>
+                        <span className="font-semibold text-gray-700">{entry.maximumNearbyPlayers250m}</span>
+                      </div>
+                      <div className="flex justify-between rounded bg-white/50 px-2 py-1">
+                        <span className="text-gray-500">Hot drops</span>
+                        <span className="font-semibold text-gray-700">{entry.hotDropShare.toFixed(1).replace('.', ',')} %</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
               </div>
             </div>
           )}

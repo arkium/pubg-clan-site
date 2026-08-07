@@ -397,6 +397,102 @@ Cartes modernisées et sous-informations compactées : avatar `.app-avatar` avec
 
 ---
 
+### Adversaires — Vue superadmin globale, suivi de joueurs et favoris
+
+Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/telemetry/opponents`. Constat initial : ce tableau est scopé au clan suivi, sans vue transverse ; il n'existe aucun moyen de "commencer à suivre" un adversaire rencontré, ni de favoriser un clan ou un joueur.
+
+**Investigation du modèle de données existant** (session du 2026-08-07) :
+- `EncounteredPlayer` (`clanId`, `pubgAccountId`, unique sur `[clanId, pubgAccountId]`) duplique l'identité d'un même joueur adverse une fois par clan qui l'observe — pas d'entité "joueur" partagée entre clans.
+- Aucun concept `isTracked`/`favorite`/`watchlist` nulle part dans le schéma.
+- Les stats détaillées (`PlayerStats`, `MemberWeaponStats`, etc.) sont toutes ancrées sur `ClanMember.id` — un `EncounteredPlayer` n'a que des compteurs de rencontre, aucun historique de matchs/dégâts.
+- **Problème d'identité à 3 branches, pas 2** : `ClanMember.pubgAccountId`, `EncounteredPlayer.pubgAccountId` (par clan) et `KillEvent.killerAccountId`/`victimAccountId` (string libre) ne sont reliés par aucune FK. Rien n'empêche qu'un même `pubgAccountId` existe simultanément comme `ClanMember` dans un clan et comme `EncounteredPlayer` dans un autre.
+- Pattern déjà en place pour une page globale hors `/clans/[clanId]/` : `src/app/settings/*` + `requireSuperUser` (ex. `settings/pubg-api`, `settings/cron`).
+- Écriture d'`EncounteredPlayer` : seulement 2 sites (`src/lib/encountered-players.ts` upsert, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`). La route API `encountered-players` est en lecture seule.
+
+**Décision d'architecture retenue** (à valider avant implémentation) : normaliser l'identité plutôt que de garder les tables actuelles telles quelles.
+
+- [ ] Créer `Player` (identité globale) — clé unique `[pubgAccountId, platformShard]`, porte nom + clan PUBG résolu
+- [ ] Créer `OpponentClan` (clan adverse global) — clé unique `[pubgClanId, platformShard]`, tag/nom résolus, remplace le texte dupliqué `pubgClanTag`/`pubgClanName` par ligne
+- [ ] Faire pointer `ClanMember` vers `playerId` (FK `Player`) au lieu de stocker `pubgAccountId` en dur
+- [ ] Transformer `EncounteredPlayer` en table de faits `ClanEncounter` (`clanId` + `playerId` + `opponentClanId` + compteurs + dates), unique sur `[clanId, playerId]`
+- [ ] Laisser `KillEvent.killerAccountId`/`victimAccountId` en string libre pour l'instant (faible valeur immédiate, gros volume) — ajouter `killerPlayerId`/`victimPlayerId` seulement si un besoin de stats apparaît plus tard
+- [ ] Script de backfill : dédoublonner les `pubgAccountId` déjà présents des deux côtés ; en cas de collision membre/adversaire, priorité au statut membre
+- [ ] Mettre à jour les 2 sites d'écriture (`encountered-players.ts`, `cron-jobs.ts`) + le(s) site(s) de création de `ClanMember`
+
+**Fonctionnalités déclenchées par cette normalisation :**
+
+- [ ] Page superadmin globale des adversaires (`src/app/settings/opponents/page.tsx` + API `requireSuperUser`) — agrège `ClanEncounter` sur tous les clans suivis, groupé par `OpponentClan` puis par `Player`, sans dédup à la volée grâce au modèle normalisé
+- [ ] **Suivre un adversaire externe** = créer un `ClanMember` référençant le `playerId` existant, rattaché à un clan suivi choisi manuellement, avec un statut dédié (ex. `Tracked`, en réutilisant le champ `joinStatus` déjà présent comme state machine) + déclencher un job de resync télémétrie pour backfiller son historique
+- [ ] **Compléter un clan déjà suivi** — cas distinct : quand le `pubgClanTag` résolu d'un `Player` (croisé comme adversaire *ou* comme coéquipier via `teammateEncounterCount`) correspond exactement à un `Clan` déjà suivi en base, proposer de l'ajouter directement comme `ClanMember` de **ce** clan (pas un nouveau clan choisi à la main) — couvre le cas du joueur qui a rejoint le clan en jeu mais n'a jamais été ajouté manuellement dans l'app
+- [ ] Détecter automatiquement ces correspondances côté API (jointure `Player.pubgClanId` ↔ `Clan.pubgClanId`) et les faire remonter en priorité dans la page superadmin, plutôt que de compter sur une recherche manuelle
+- [ ] Favori clan (`FavoriteClan` ou flag sur `OpponentClan`) — simple, pas de calcul de stats, sert juste à épingler en haut de la vue globale
+- [ ] Favori joueur — pas de mécanisme séparé : c'est la même opération que "suivre un adversaire" ci-dessus, pour éviter de construire une architecture de stats parallèle indexée par `pubgAccountId`
+
+**UI/UX de la page superadmin globale (`/settings/opponents`) :**
+
+- [ ] Suivre le pattern des pages `settings/*` existantes : `.app-container` + `.app-main`, pas de `ClanSectionNav` (page hors contexte clan)
+- [ ] Bandeau de compteurs globaux en tête de page : nombre de clans suivis actifs, nombre de clans adverses distincts, nombre total de rencontres sur la période, nombre de "membres manquants" détectés
+- [ ] Filtre de période partagé par les deux tableaux (`Semaine` / `Mois` / `Tous`), cohérent avec les autres pages télémétrie — sans lui les compteurs mélangent des rencontres anciennes et récentes
+
+**Tableau 1 — Clans suivis** (10 lignes, paginé) :
+- [ ] Colonnes : nom/tag du clan, effectif (`ClanMember` actifs), nombre de rencontres générées (somme `ClanEncounter` sur la période), dernier match synchronisé, nombre de "membres manquants" détectés pour ce clan
+- [ ] Colonne "membres manquants" cliquable → filtre direct le bandeau prioritaire (voir tableau 2) sur ce clan, sans quitter la page
+- [ ] Tri par défaut sur le nombre de rencontres décroissant, tri cliquable par colonne
+- [ ] Ligne cliquable → navigation vers `/clans/[clanId]/telemetry/opponents` de ce clan
+- [ ] Recherche texte par nom/tag, indépendante du tableau 2
+
+**Tableau 2 — Clans adversaires** (10 lignes, paginé) :
+- [ ] Colonnes : clan adverse (`OpponentClan`, tag + nom), nombre de fois adversaire (agrégé tous clans suivis confondus), nombre de fois coéquipier (agrégé tous clans suivis confondus), dernière rencontre
+- [ ] Ligne séparée "Sans clan" regroupant les `Player` dont le clan PUBG n'est pas résolu (`pubgClanId` null / `Ungrouped`) — à ne pas mélanger avec les vrais clans adverses dans le tri/classement
+- [ ] Icône d'info si "coéquipier" très supérieur à "adversaire" sur une ligne — signal qu'il s'agit probablement d'un clan allié/partenaire plutôt qu'un rival, sans traitement automatique
+- [ ] Tri par défaut sur le nombre de fois adversaire décroissant, tri cliquable par colonne (y compris coéquipier)
+- [ ] Recherche texte par tag/nom, indépendante du tableau 1
+- [ ] Colonne "Clans nous ayant croisés" avec badges cliquables vers le clan suivi concerné (navigation vers `/clans/[clanId]/telemetry/opponents` filtré sur ce clan adverse)
+- [ ] Étoile de favori sur chaque ligne (optimiste, sans rechargement de page), clans favoris épinglés en tête de tableau avec séparateur visuel
+- [ ] Ligne dépliable/clic → détail des joueurs de ce clan adverse (`Player` rattachés à cet `OpponentClan`)
+- [ ] Bandeau prioritaire "Membres manquants détectés" en tête de page : joueurs dont le `pubgClanTag` correspond à un clan déjà suivi, avec bouton direct "Ajouter à <clan>" (pas de sélecteur, le clan cible est déjà déterminé) — traité séparément et avant la liste générale des adversaires
+- [ ] Sur la fiche d'un joueur sans correspondance : bouton "Suivre ce joueur" avec sélecteur manuel du clan suivi cible (rattachement à un clan différent de celui affiché par PUBG, cas volontaire) + confirmation avant déclenchement du backfill télémétrie (opération non instantanée)
+- [ ] État visuel distinct pour un joueur déjà suivi ailleurs (badge "Membre de <clan>" au lieu du bouton "Suivre")
+- [ ] Squelette de chargement et gestion d'erreur avec retry, cohérents avec `/clans`
+- [ ] Vérifier le rendu en thème clair et sombre, et sur mobile (tableau → cartes empilées comme les autres pages `app-table-*`)
+
+**Évolutions Stats & Tactique (pour le tableau 2) :**
+
+- [ ] **K/D Ratio direct :** Ajouter `killsAgainst`, `deathsBy`, `damageDealtTo`, `damageReceivedFrom` dans `ClanEncounter` lors du parsing télémétrique.
+- [ ] **Badges de Rivalité automatiques :** "Némésis" (on perd souvent contre eux), "Proie" (on gagne souvent) basés sur le K/D direct.
+- [ ] **Phasage des rencontres :** Identifier si un clan adverse est un "Contestataire de Drop" (rencontres phase 1-2) ou un "Rival de Late Game" (phases finales).
+- [ ] **Watchlist (Liste de surveillance) :** Créer une vue isolée dans le Dashboard Clan pour comparer les joueurs adverses `Tracked` aux moyennes de notre clan, avec une garantie d'isolation stricte (exclure `joinStatus='Tracked'` de tous les calculs internes du clan).
+
+**Tests & Validation (Critiques pour l'intégrité) :**
+
+- [ ] **Migration & Backfill :** Vérifier que la déduplication des `pubgAccountId` existants gère correctement les collisions (priorité au statut membre, sans écraser d'historique).
+- [ ] **Intégrité DB :** Valider par des tests les contraintes d'unicité sur `Player` et `OpponentClan` lors du parsing simultané de plusieurs matchs.
+- [ ] **Agrégation Télémétrie :** Créer un test unitaire garantissant que `killsAgainst`, `deathsBy`, etc. sont incrémentés sur le bon `ClanEncounter` lors du parsing d'un faux match JSON.
+- [ ] **Isolation stricte de la Watchlist :** Test automatisé s'assurant qu'un `ClanMember` avec `joinStatus='Tracked'` est formellement ignoré par toutes les requêtes de moyennes, leaderboards et calculs de densité du clan.
+- [ ] **Invalidation du Cache Local :** Vérifier que la table `Player` agit comme cache pour `searchPlayerByName`, mais force un rafraîchissement API (invalidation) si les données sont trop vieilles.
+
+**Recherche de joueur — Vérifier la DB avant l'appel API PUBG :**
+
+`searchPlayerByName` (`src/lib/pubg.ts:494`) tape l'API PUBG à chaque appel, sans aucun cache — problématique avec un rate limit par défaut de `10 RPM` (`AppConfig.pubg_api_rate_limit_rpm`) partagé avec la sync de matchs et la télémétrie. La table `Player` normalisée (voir ci-dessus) devient une opportunité de cache local pour cette fonction, pas seulement pour la nouvelle page.
+
+- [ ] Avant d'appeler l'API PUBG dans `searchPlayerByName`, chercher d'abord une correspondance dans `Player` (nom insensible à la casse)
+- [ ] Traiter un hit DB comme une piste, pas une vérité absolue : un joueur PUBG peut renommer son compte, `Player.pubgPlayerName` peut être périmé — définir une fenêtre de fraîcheur (ex. `updatedAt` de plus de N jours) au-delà de laquelle on retombe sur l'API malgré le hit local, en réutilisant le même principe que `clanResolvedAt`/`resolveAttempts` déjà en place pour la résolution de clan
+- [ ] En cas de miss DB, appeler l'API comme aujourd'hui puis upserter le résultat dans `Player` — la table s'auto-alimente et les recherches suivantes du même nom deviennent gratuites
+- [ ] Centraliser ce comportement dans `searchPlayerByName` lui-même plutôt que dans la route de la nouvelle page, pour que tous les appelants existants (ajout manuel de membre, etc.) en bénéficient sans dupliquer la logique
+
+**Résolution de clan — Même principe, et un vrai doublon d'appels API déjà présent aujourd'hui :**
+
+`resolveEncounteredPlayerClans` (`src/lib/cron-jobs.ts:1118`) appelle `fetchPlayerClan(pubgAccountId, platformShard)` une fois par ligne `EncounteredPlayer`, donc une fois par couple `(clanId, pubgAccountId)` — si le même joueur adverse est croisé par plusieurs clans suivis, sa résolution de clan est refaite à l'identique pour chacun.
+
+- [ ] Déplacer `clanResolvedAt`/`resolveAttempts` de `EncounteredPlayer` vers `Player` (cohérent avec la normalisation ci-dessus) — un joueur donné n'est résolu qu'une seule fois, pas une fois par clan suivi qui l'a croisé
+- [ ] Avant d'insérer le résultat de `fetchPlayerClan` comme nouveau `OpponentClan`, vérifier s'il existe déjà une ligne pour ce `pubgClanId` et upserter dessus plutôt que d'en recréer une par joueur résolu
+- [ ] Appliquer la même fenêtre de fraîcheur sur `OpponentClan` (tag/nom peuvent changer si le clan est renommé) que celle prévue pour `Player` — éviter de considérer une résolution ancienne comme définitive
+- [ ] Vérifier que le batch `ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE` reste pertinent une fois la déduplication par `Player` en place (le volume réel à résoudre devrait baisser mécaniquement)
+
+**Référence :** discussion du 2026-08-07, pas encore de branche ni de migration créée.
+
+---
+
 ### Auto-cleanup cron — Non branché
 
 Le nettoyage des fichiers `.telemetry-captured/` et des jobs `failed` anciens est disponible via `queue-cleanup` mais n'est pas déclenché automatiquement.

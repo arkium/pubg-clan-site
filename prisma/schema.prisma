@@ -246,7 +246,7 @@ model UserAccount {
   email           String    @unique
   passwordHash    String
   displayName     String?
-  avatarUrl       String?
+  avatarUrl       String?   @db.VarChar(500)
   status          String    @default("active")
   emailVerifiedAt DateTime?
   isSuperUser     Boolean   @default(false)

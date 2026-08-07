@@ -866,8 +866,11 @@ export default function ClanOverviewPage() {
 
           {/* Bloc 4 — Roster des performances */}
           <section className="app-panel p-6">
-            <h2 className="mb-4 text-base font-semibold text-gray-900">
-              Roster des performances ({performanceRoster.length})
+            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-gray-900">
+              Roster des performances
+              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+                {performanceRoster.length} membres
+              </span>
             </h2>
             <p className="mb-6 text-sm text-gray-600">
               Activité des membres basée sur la période sélectionnée ({selectedPeriod === 'all' ? 'Historique complet' : periodTitle(selectedPeriod)}).
@@ -926,19 +929,19 @@ export default function ClanOverviewPage() {
                         {member.stats.matchesPlayed}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <span className="inline-flex rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                        <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-500">
                           {member.stats.wins}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-right font-medium text-red-600">
+                      <td className="px-3 py-3 text-right font-bold text-red-500">
                         {member.stats.totalKills}
                       </td>
-                      <td className="px-3 py-3 text-right text-gray-600">
+                      <td className="px-3 py-3 text-right font-medium text-gray-700">
                         {member.stats.matchesPlayed > 0
                           ? Math.round(member.stats.totalDamage / member.stats.matchesPlayed)
                           : 0}
                       </td>
-                      <td className="px-3 py-3 text-right text-blue-600 font-medium">
+                      <td className="px-3 py-3 text-right font-bold text-blue-500">
                         {member.stats.matchesPlayed > 0
                           ? ((member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed).toFixed(1)
                           : '0.0'}
@@ -974,11 +977,11 @@ export default function ClanOverviewPage() {
                   
                   <div className="grid grid-cols-4 gap-2 rounded bg-gray-50 p-2 text-center">
                     <div>
-                      <span className="block text-sm font-bold text-green-600">{member.stats.wins}</span>
+                      <span className="block text-sm font-bold text-emerald-500">{member.stats.wins}</span>
                       <span className="text-[10px] uppercase text-gray-500">Wins</span>
                     </div>
                     <div>
-                      <span className="block text-sm font-bold text-red-600">{member.stats.totalKills}</span>
+                      <span className="block text-sm font-bold text-red-500">{member.stats.totalKills}</span>
                       <span className="text-[10px] uppercase text-gray-500">Kills</span>
                     </div>
                     <div>
@@ -990,12 +993,12 @@ export default function ClanOverviewPage() {
                       <span className="text-[10px] uppercase text-gray-500">Dégâts</span>
                     </div>
                     <div>
-                      <span className="block text-sm font-bold text-blue-600">
+                      <span className="block text-sm font-bold text-blue-500">
                         {member.stats.matchesPlayed > 0
                           ? ((member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed).toFixed(1)
                           : '0.0'}
                       </span>
-                      <span className="text-[10px] uppercase text-gray-500">K+A Moy</span>
+                      <span className="text-[10px] uppercase text-gray-500">K+A</span>
                     </div>
                   </div>
                 </article>

@@ -25,14 +25,16 @@ type WorkerLockInfo = {
 function resolveLockFilePath(envVar: string, defaultFilename: string): string {
   const configured = process.env[envVar]?.trim()
   if (configured) {
-    return isAbsolute(configured) ? configured : join(process.cwd(), configured)
+    return isAbsolute(configured)
+      ? configured
+      : join(/* turbopackIgnore: true */ process.cwd(), configured)
   }
-  return join(process.cwd(), defaultFilename)
+  return join(/* turbopackIgnore: true */ process.cwd(), defaultFilename)
 }
 
 async function readWorkerLock(path: string): Promise<WorkerLockInfo> {
   try {
-    const raw = await readFile(path, 'utf-8')
+    const raw = await readFile(/* turbopackIgnore: true */ path, 'utf-8')
     const data = JSON.parse(raw) as LockFileData
 
     if (typeof data.pid !== 'number' || !data.acquiredAt) {

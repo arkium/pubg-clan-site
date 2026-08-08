@@ -263,16 +263,20 @@ export async function GET(request: NextRequest) {
     })
 
     const medalCountsByMemberId = calculateLifetimeMedalCounts(
-      statsRows.map((row) => ({
-        memberId: row.memberId,
-        clanId: row.member.clanId,
-        combat: row.combat as Record<string, number>,
-        victory: row.victory as Record<string, number>,
-        support: row.support as Record<string, number>,
-        vehicle: row.vehicle as Record<string, number>,
-        movement: row.movement as Record<string, number>,
-        other: row.other as Record<string, number>,
-      }))
+      statsRows.flatMap((row) =>
+        row.member.clanId === null
+          ? []
+          : [{
+              memberId: row.memberId,
+              clanId: row.member.clanId,
+              combat: row.combat as Record<string, number>,
+              victory: row.victory as Record<string, number>,
+              support: row.support as Record<string, number>,
+              vehicle: row.vehicle as Record<string, number>,
+              movement: row.movement as Record<string, number>,
+              other: row.other as Record<string, number>,
+            }]
+      )
     )
 
     const membersWithMedals = membersWithAvatar.map((member) => ({

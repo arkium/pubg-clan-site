@@ -65,27 +65,41 @@ function SynergyList({
       {entries.length === 0 ? (
         <p className="text-xs italic text-gray-500">Pas encore assez de données.</p>
       ) : (
-        <ul className="grid gap-2">
+        <ul className="grid gap-2 xl:grid-cols-2">
           {entries.map((entry) => {
             const teamMode = teamModeFromMemberCount(entry.memberNames.length)
 
             return (
-              <li key={entry.memberIds.join(':')} className="rounded border border-gray-200 bg-gray-50 p-2.5">
-                <div className="mb-1.5 flex items-center justify-between">
-                  <div className="flex flex-wrap items-center gap-1.5">
+              <li
+                key={entry.memberIds.join(':')}
+                className="flex h-full flex-col rounded border border-gray-200 bg-gray-50 p-2.5"
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <TeamModeBadge mode={teamMode} className="shrink-0 shadow-none" />
+                </div>
+                <div className="grid min-h-12 grid-cols-2 content-start gap-1.5">
                     {entry.memberNames.map((memberName) => (
-                      <PlayerNameBadge key={`${entry.memberIds.join(':')}:${memberName}`} name={memberName} />
+                      <PlayerNameBadge
+                        key={`${entry.memberIds.join(':')}:${memberName}`}
+                        name={memberName}
+                        className="min-w-0 max-w-full truncate"
+                      />
                     ))}
+                </div>
+                <dl className="mt-2 grid grid-cols-3 border-t border-gray-200 pt-2 text-center">
+                  <div>
+                    <dd className="text-sm font-bold tabular-nums text-gray-900">{entry.matchesPlayed}</dd>
+                    <dt className="text-[9px] font-semibold uppercase text-gray-500">Matchs</dt>
                   </div>
-                  <TeamModeBadge mode={teamMode} className="scale-90 shadow-none origin-right" />
-                </div>
-                <div className="flex items-center gap-4 text-xs font-medium text-gray-500">
-                  <span><strong className="text-gray-900">{entry.matchesPlayed}</strong> matchs</span>
-                  <span><strong className="text-gray-900">{entry.totalKills}</strong> kills</span>
-                  <span className="ml-auto inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-500">
-                    {formatWinRate(entry.winRate)} WR
-                  </span>
-                </div>
+                  <div className="border-x border-gray-200">
+                    <dd className="text-sm font-bold tabular-nums text-gray-900">{entry.totalKills}</dd>
+                    <dt className="text-[9px] font-semibold uppercase text-gray-500">Kills</dt>
+                  </div>
+                  <div>
+                    <dd className="text-sm font-bold tabular-nums text-emerald-500">{formatWinRate(entry.winRate)}</dd>
+                    <dt className="text-[9px] font-semibold uppercase text-gray-500">WR</dt>
+                  </div>
+                </dl>
               </li>
             )
           })}

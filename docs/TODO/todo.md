@@ -1276,3 +1276,32 @@ Mentionné le 2026-08-03 : la télémétrie contient aussi des données détaill
 | 6 | Clans rivaux récurrents (qui finit devant), zone de mort récurrente, revanche | Reste à faire | Moyenne | Items 1–3 |
 
 Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du kill-feed — nécessite juste de compter les `ai.*` uniques par match au moment du parsing, sans lien avec `KillEvent`.
+
+---
+
+## Idées — Nouvelles métriques d'engagement (Temps de jeu et Jours Actifs)
+
+**Pourquoi c'est utile :** Le nombre de matchs joués est un indicateur imparfait. Un match peut durer 2 minutes (mort au drop) ou 30 minutes (top 1). Utiliser le **temps de jeu réel** (playtime) et le **nombre de jours de jeu distincts** (active days) donne une image beaucoup plus juste de l'engagement réel des membres et du clan.
+
+**Données disponibles :**
+- `SquadMember.timeSurvived` (en secondes) : donne le temps de survie exact du joueur dans un match suivi.
+- Date du match (`matchDate` ou `pubgCreatedAt`) : permet de déduire les jours uniques de connexion.
+
+**Proposition d'implémentation :**
+
+### 1. Statistiques par Membre (`PlayerStats`)
+- [ ] Ajouter `timePlayedSeconds` (Int) et `activeDays` (Int) dans le modèle `PlayerStats` (qui agrège par semaine/mois/all-time).
+- [ ] Lors de la génération des statistiques (cron), sommer les `SquadMember.timeSurvived` de la période pour calculer le temps de jeu.
+- [ ] Compter les dates uniques des matchs (ex: format `YYYY-MM-DD`) de la période pour déterminer les `activeDays`.
+- [ ] Afficher ces deux métriques (Temps de jeu formaté en heures/minutes et Jours actifs) sur le profil du joueur (`/members/[id]/dashboard`).
+- [ ] Ajouter ces métriques dans les classements (Leaderboard) pour permettre le tri (ex: les joueurs les plus assidus).
+
+### 2. Statistiques par Clan (`ClanStats` ou Dashboard)
+- [ ] **Temps de jeu total du clan** : Somme du `timePlayedSeconds` de tous les membres actifs sur la période (mesure l'investissement "heures-hommes").
+- [ ] **Jours d'activité globaux** : Nombre de jours uniques où au moins un membre a joué.
+- [ ] Afficher ces agrégats sur la page "Overview" et "Stats" du clan pour évaluer sa vitalité réelle indépendamment de sa taille brute.
+
+### 3. Statistiques de performance dérivées (KPI avancés)
+- [ ] Remplacer ou compléter le traditionnel "Dégâts / Match" par **Dégâts / Minute (DPM)**, plus juste pour l'e-sport.
+- [ ] Calculer les **Kills / Heure**, ce qui lisse le biais des parties très courtes.
+- [ ] Afficher une "Heatmap" d'activité ou un "Ratio de survie" calculé sur le temps passé.

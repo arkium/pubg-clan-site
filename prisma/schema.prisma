@@ -692,6 +692,9 @@ model PlayerStats {
   avgKillsPerGame  Float @default(0)
   avgDamagePerGame Float @default(0)
 
+  timePlayedSeconds Int  @default(0)
+  activeDays        Int  @default(0)
+
   badgeType String?
 
   createdAt DateTime @default(now())

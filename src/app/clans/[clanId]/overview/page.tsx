@@ -1,8 +1,12 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
+import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { ChevronRight, UsersRound } from 'lucide-react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -31,6 +35,77 @@ function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function getRoleBadgeClass(roleName: string) {
+  const normalizedRole = roleName.trim().toLowerCase()
+
+  if (normalizedRole === 'owner') return 'member-role-badge member-role-badge--owner'
+  if (normalizedRole === 'admin') return 'member-role-badge member-role-badge--admin'
+  if (normalizedRole === 'moderator') return 'member-role-badge member-role-badge--moderator'
+  if (normalizedRole === 'member') return 'member-role-badge member-role-badge--member'
+  return 'member-role-badge member-role-badge--default'
+}
+
+function getAvatarInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '??'
+}
+
+function MemberAvatar({
+  name,
+  avatarUrl,
+  className,
+}: {
+  name: string
+  avatarUrl: string | null
+  className: string
+}) {
+  return (
+    <div
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-blue-500/20 bg-blue-500/10 text-xs font-bold text-blue-500 ${className}`}
+    >
+      <span aria-hidden="true">{getAvatarInitials(name)}</span>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={`Avatar de ${name}`}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none'
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function MedalCounts({ gold, silver, bronze }: { gold: number; silver: number; bronze: number }) {
+  const medals = [
+    { label: 'Or', count: gold, src: '/icons/medal-gold.svg' },
+    { label: 'Argent', count: silver, src: '/icons/medal-silver.svg' },
+    { label: 'Bronze', count: bronze, src: '/icons/medal-bronze.svg' },
+  ]
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      {medals.map((medal) => (
+        <span
+          key={medal.label}
+          className="inline-flex items-center gap-1 text-xs font-bold tabular-nums text-gray-700"
+          title={`${medal.count} médaille${medal.count > 1 ? 's' : ''} ${medal.label.toLowerCase()}`}
+        >
+          <Image src={medal.src} alt={`Médaille ${medal.label.toLowerCase()}`} width={16} height={16} />
+          {medal.count}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function fmtNum(value: number) {
@@ -486,6 +561,8 @@ export default function ClanOverviewPage() {
       })
   }, [data?.roster, cacheData?.payload.rosterStats])
 
+  const maxRosterMatches = performanceRoster[0]?.stats.matchesPlayed ?? 0
+
   const memberCountGap =
     typeof pubg?.memberCount === 'number' && typeof tracked?.membersCount === 'number'
       ? tracked.membersCount - pubg.memberCount
@@ -866,20 +943,27 @@ export default function ClanOverviewPage() {
 
           {/* Bloc 4 — Roster des performances */}
           <section className="app-panel p-6">
-            <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-gray-900">
-              Roster des performances
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
-                {performanceRoster.length} membres
+            <div className="mb-5 flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-500">
+                  <UsersRound className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Roster des performances</h2>
+                  <p className="text-sm text-gray-600">
+                    {selectedPeriod === 'all' ? 'Historique complet' : periodTitle(selectedPeriod)}
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-600">
+                {performanceRoster.length} membres actifs
               </span>
-            </h2>
-            <p className="mb-6 text-sm text-gray-600">
-              Activité des membres basée sur la période sélectionnée ({selectedPeriod === 'all' ? 'Historique complet' : periodTitle(selectedPeriod)}).
-            </p>
+            </div>
 
             {/* Version Desktop / Tablette */}
-            <div className="hidden md:block app-table-shell overflow-x-auto">
+            <div className="hidden max-h-[48.65rem] overflow-auto md:block app-table-shell">
               <table className="w-full text-sm">
-                <thead className="app-table-head">
+                <thead className="app-table-head sticky top-0 z-10 whitespace-nowrap">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Joueur
@@ -899,34 +983,50 @@ export default function ClanOverviewPage() {
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       K+A Moy.
                     </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Médailles
+                    </th>
+                    <th className="w-8 pr-3">
+                      <span className="sr-only">Profil</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {performanceRoster.map((member) => (
-                    <tr key={member.id} className="app-table-row">
+                    <tr key={member.id} className="app-table-row transition-colors hover:bg-gray-50">
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 shrink-0 rounded bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
-                            {member.displayName.substring(0, 2).toUpperCase()}
-                          </div>
-                          <div>
+                          <MemberAvatar
+                            name={member.displayName}
+                            avatarUrl={member.avatarUrl}
+                            className="h-9 w-9"
+                          />
+                          <div className="min-w-0">
                             <Link
-                              href={`/members/${member.id}`}
-                              className="font-medium text-gray-900 hover:underline"
+                              href={`/members/${member.id}/dashboard`}
+                              className="font-semibold text-gray-900 hover:underline"
                             >
                               {member.displayName}
                             </Link>
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                              <span className="font-semibold text-gray-700">{member.role}</span>
+                            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
+                              <span className={getRoleBadgeClass(member.role)}>{member.role}</span>
                               {member.pubgPlayerName !== member.displayName && (
-                                <span>· {member.pubgPlayerName}</span>
+                                <span className="truncate">{member.pubgPlayerName}</span>
                               )}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-right font-medium text-gray-900">
-                        {member.stats.matchesPlayed}
+                      <td className="min-w-28 px-3 py-3 text-right">
+                        <span className="font-semibold tabular-nums text-gray-900">{member.stats.matchesPlayed}</span>
+                        <div className="mt-1.5 ml-auto h-1 w-20 overflow-hidden rounded-full bg-gray-100">
+                          <div
+                            className="h-full rounded-full bg-blue-500"
+                            style={{
+                              width: `${maxRosterMatches > 0 ? Math.max(3, (member.stats.matchesPlayed / maxRosterMatches) * 100) : 0}%`,
+                            }}
+                          />
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-right">
                         <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-500">
@@ -946,6 +1046,18 @@ export default function ClanOverviewPage() {
                           ? ((member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed).toFixed(1)
                           : '0.0'}
                       </td>
+                      <td className="min-w-28 px-3 py-3">
+                        <MedalCounts {...member.medalCounts} />
+                      </td>
+                      <td className="w-8 pr-3 text-right">
+                        <Link
+                          href={`/members/${member.id}/dashboard`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                          aria-label={`Voir le profil de ${member.displayName}`}
+                        >
+                          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -955,51 +1067,79 @@ export default function ClanOverviewPage() {
             {/* Version Mobile */}
             <div className="grid gap-3 md:hidden">
               {performanceRoster.map((member) => (
-                <article key={member.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                  <div className="mb-3 flex items-start justify-between">
-                    <div>
-                      <Link
-                        href={`/members/${member.id}`}
-                        className="text-base font-bold text-gray-900 hover:underline"
-                      >
+                <article key={member.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <MemberAvatar
+                      name={member.displayName}
+                      avatarUrl={member.avatarUrl}
+                      className="h-10 w-10"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/members/${member.id}/dashboard`} className="font-bold text-gray-900 hover:underline">
                         {member.displayName}
                       </Link>
-                      <div className="text-xs text-gray-500">
-                        <span className="font-medium text-gray-700">{member.role}</span>
-                        {member.pubgPlayerName !== member.displayName && ` · ${member.pubgPlayerName}`}
+                      <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                        <span className={getRoleBadgeClass(member.role)}>{member.role}</span>
+                        {member.pubgPlayerName !== member.displayName && (
+                          <span className="truncate text-xs text-gray-500">{member.pubgPlayerName}</span>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="block text-sm font-bold text-gray-900">{member.stats.matchesPlayed}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-gray-500">Matchs</span>
+                    <Link
+                      href={`/members/${member.id}/dashboard`}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                      aria-label={`Voir le profil de ${member.displayName}`}
+                    >
+                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="mb-1.5 flex items-center justify-between text-xs">
+                      <span className="font-medium text-gray-500">Activité</span>
+                      <span className="font-bold tabular-nums text-gray-900">
+                        {member.stats.matchesPlayed} matchs
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full bg-blue-500"
+                        style={{
+                          width: `${maxRosterMatches > 0 ? Math.max(3, (member.stats.matchesPlayed / maxRosterMatches) * 100) : 0}%`,
+                        }}
+                      />
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-4 gap-2 rounded bg-gray-50 p-2 text-center">
+
+                  <dl className="mt-4 grid grid-cols-4 rounded-md border border-gray-200 bg-white py-2.5 text-center">
                     <div>
-                      <span className="block text-sm font-bold text-emerald-500">{member.stats.wins}</span>
-                      <span className="text-[10px] uppercase text-gray-500">Wins</span>
+                      <dd className="text-sm font-bold tabular-nums text-emerald-500">{member.stats.wins}</dd>
+                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Victoires</dt>
                     </div>
-                    <div>
-                      <span className="block text-sm font-bold text-red-500">{member.stats.totalKills}</span>
-                      <span className="text-[10px] uppercase text-gray-500">Kills</span>
+                    <div className="border-l border-gray-200">
+                      <dd className="text-sm font-bold tabular-nums text-red-500">{member.stats.totalKills}</dd>
+                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Kills</dt>
                     </div>
-                    <div>
-                      <span className="block text-sm font-bold text-gray-900">
+                    <div className="border-l border-gray-200">
+                      <dd className="text-sm font-bold tabular-nums text-gray-900">
                         {member.stats.matchesPlayed > 0
                           ? Math.round(member.stats.totalDamage / member.stats.matchesPlayed)
                           : 0}
-                      </span>
-                      <span className="text-[10px] uppercase text-gray-500">Dégâts</span>
+                      </dd>
+                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Dégâts</dt>
                     </div>
-                    <div>
-                      <span className="block text-sm font-bold text-blue-500">
+                    <div className="border-l border-gray-200">
+                      <dd className="text-sm font-bold tabular-nums text-blue-500">
                         {member.stats.matchesPlayed > 0
                           ? ((member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed).toFixed(1)
                           : '0.0'}
-                      </span>
-                      <span className="text-[10px] uppercase text-gray-500">K+A</span>
+                      </dd>
+                      <dt className="text-[9px] font-semibold uppercase text-gray-500">K+A</dt>
                     </div>
+                  </dl>
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3">
+                    <span className="text-[10px] font-semibold uppercase text-gray-500">Médailles</span>
+                    <MedalCounts {...member.medalCounts} />
                   </div>
                 </article>
               ))}

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
 import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
 const ROLE_PRIORITY: Record<string, number> = {
@@ -63,8 +64,24 @@ export async function GET(
               include: { role: { select: { name: true } } },
               orderBy: { assignedAt: 'desc' },
             },
-            identities: { select: { id: true } },
-            lifetimeStats: { select: { lastRefreshedAt: true } },
+            identities: {
+              select: {
+                id: true,
+                user: { select: { avatarUrl: true } },
+              },
+              take: 1,
+            },
+            lifetimeStats: {
+              select: {
+                lastRefreshedAt: true,
+                combat: true,
+                victory: true,
+                support: true,
+                vehicle: true,
+                movement: true,
+                other: true,
+              },
+            },
           },
         },
       },
@@ -74,6 +91,23 @@ export async function GET(
       return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
+    const medalCountsByMemberId = calculateLifetimeMedalCounts(
+      clan.members.flatMap((member) =>
+        member.lifetimeStats
+          ? [{
+              memberId: member.id,
+              clanId: clan.id,
+              combat: member.lifetimeStats.combat as Record<string, number>,
+              victory: member.lifetimeStats.victory as Record<string, number>,
+              support: member.lifetimeStats.support as Record<string, number>,
+              vehicle: member.lifetimeStats.vehicle as Record<string, number>,
+              movement: member.lifetimeStats.movement as Record<string, number>,
+              other: member.lifetimeStats.other as Record<string, number>,
+            }]
+          : []
+      )
+    )
+
     const roster = clan.members.map((member) => ({
       id: member.id,
       displayName: member.displayName,
@@ -82,7 +116,9 @@ export async function GET(
       role: resolvePrimaryRole(member.roles.map((r) => r.role.name)),
       joinedAt: member.createdAt,
       hasAccount: member.identities.length > 0,
+      avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
       lastRefreshedAt: member.lifetimeStats?.lastRefreshedAt ?? null,
+      medalCounts: medalCountsByMemberId.get(member.id) ?? { gold: 0, silver: 0, bronze: 0 },
     }))
 
     return Response.json({

@@ -48,7 +48,13 @@ export type RosterMember = {
   role: string
   joinedAt: string
   hasAccount: boolean
+  avatarUrl: string | null
   lastRefreshedAt: string | null
+  medalCounts: {
+    gold: number
+    silver: number
+    bronze: number
+  }
 }
 
 export type ClanOverview = {

@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, Swords, Users } from 'lucide-react'
+import { Clock, Swords, Timer, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -13,6 +13,8 @@ export interface Clan {
   membersCount: number
   matchesCount: number
   lastMatchAt?: string | null
+  timePlayedSeconds?: number
+  activeDays?: number
 }
 
 interface ClanSelectorProps {
@@ -27,12 +29,13 @@ interface ClanSelectorProps {
   onCancelSwitch?: () => void
 }
 
-type SortKey = 'name' | 'members' | 'matches'
+type SortKey = 'name' | 'members' | 'matches' | 'playtime'
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'name', label: 'Nom' },
   { value: 'members', label: 'Effectif' },
   { value: 'matches', label: 'Matchs' },
+  { value: 'playtime', label: 'Temps' },
 ]
 
 function formatLastMatchCompact(lastMatchAt: string | null | undefined) {
@@ -41,6 +44,12 @@ function formatLastMatchCompact(lastMatchAt: string | null | undefined) {
   }
 
   return new Date(lastMatchAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+}
+
+function formatPlaytimeCompact(seconds: number | null | undefined) {
+  if (!seconds) return '0h'
+  const hours = Math.floor(seconds / 3600)
+  return `${hours}h`
 }
 
 function formatLastMatchTitle(lastMatchAt: string | null | undefined) {
@@ -125,6 +134,9 @@ export default function ClanSelector({
         break
       case 'matches':
         sorted.sort((a, b) => b.matchesCount - a.matchesCount)
+        break
+      case 'playtime':
+        sorted.sort((a, b) => (b.timePlayedSeconds ?? 0) - (a.timePlayedSeconds ?? 0))
         break
       default:
         sorted.sort((a, b) => a.name.localeCompare(b.name))
@@ -221,9 +233,10 @@ export default function ClanSelector({
                   </p>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="mt-4 grid grid-cols-4 gap-2">
                   <StatTile icon={Users} value={String(clan.membersCount)} label="Membres" tone="text-blue-500" />
                   <StatTile icon={Swords} value={String(clan.matchesCount)} label="Matchs" tone="text-cyan-500" />
+                  <StatTile icon={Timer} value={formatPlaytimeCompact(clan.timePlayedSeconds)} label="Temps" tone="text-indigo-500" title={`${clan.activeDays ?? 0} jours actifs`} />
                   <StatTile
                     icon={Clock}
                     value={formatLastMatchCompact(clan.lastMatchAt)}

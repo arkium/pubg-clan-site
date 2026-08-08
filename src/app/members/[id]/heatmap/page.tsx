@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
@@ -39,6 +39,8 @@ type HeatmapPayload = {
   matchCount: number
   heatmap: HeatmapCell[]
   maxCellCount: number
+  playtimeSeconds: number
+  activeDays: number
   error?: string
 }
 
@@ -64,6 +66,18 @@ function cellTone(count: number, max: number) {
   if (ratio < 0.6) return 'bg-cyan-300'
   if (ratio < 0.8) return 'bg-cyan-400'
   return 'bg-cyan-500'
+}
+
+function formatPlaytime(seconds: number) {
+  const totalSeconds = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+
+  return `${minutes}m`
 }
 
 function hourLabel(hour: number) {
@@ -429,6 +443,29 @@ export default function MemberHeatmapPage() {
           <p className="text-sm text-gray-500">Aucune activite disponible pour ce filtre.</p>
         ) : (
           <div className="space-y-4">
+            {/* KPI Cards */}
+            <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
+                <p className="text-sm font-medium text-gray-500">Temps de jeu total</p>
+                <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
+                  {formatPlaytime(payload.playtimeSeconds)}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Cumulé sur la période
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
+                <p className="text-sm font-medium text-gray-500">Jours actifs</p>
+                <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
+                  {payload.activeDays} <span className="text-sm font-medium text-gray-500">jours</span>
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Avec au moins un match
+                </p>
+              </div>
+            </div>
+
             <div className="md:hidden">
               <div className="mb-2 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
                 <div />

@@ -169,6 +169,8 @@ export async function GET(
           matchCount: 0,
           heatmap: [],
           maxCellCount: 0,
+          playtimeSeconds: 0,
+          activeDays: 0,
         })
       }
 
@@ -187,6 +189,12 @@ export async function GET(
         select: {
           createdAt: true,
           mapName: true,
+          members: {
+            select: {
+              timeSurvived: true,
+              member: { select: { clanId: true } }
+            }
+          }
         },
       })
 
@@ -199,6 +207,11 @@ export async function GET(
 
       const createdAtList = filteredMatches.map((match) => match.createdAt)
       const { heatmap, maxCellCount } = buildHeatmap(createdAtList)
+      const activeDays = new Set(createdAtList.map(d => d.toISOString().split('T')[0])).size
+      const playtimeSeconds = filteredMatches.reduce((sum, match) => {
+        const clanMems = match.members.filter(m => m.member?.clanId === member.clanId)
+        return sum + clanMems.reduce((s, m) => s + m.timeSurvived, 0)
+      }, 0)
 
       return NextResponse.json({
         scope,
@@ -219,6 +232,8 @@ export async function GET(
         matchCount: createdAtList.length,
         heatmap,
         maxCellCount,
+        playtimeSeconds,
+        activeDays,
       })
     }
 
@@ -239,6 +254,7 @@ export async function GET(
           members: {
             select: {
               memberId: true,
+              timeSurvived: true,
               member: {
                 select: {
                   displayName: true,
@@ -256,7 +272,7 @@ export async function GET(
         matches: number
         wins: number
         placements: number
-        createdAtEntries: Array<{ createdAt: Date; mapName: string }>
+        createdAtEntries: Array<{ createdAt: Date; mapName: string; playtime: number }>
       }
 
       const aggregates = new Map<string, TeamAggregate>()
@@ -292,7 +308,9 @@ export async function GET(
         existing.matches += 1
         existing.wins += match.placement === 1 ? 1 : 0
         existing.placements += match.placement
-        existing.createdAtEntries.push({ createdAt: match.createdAt, mapName: match.mapName })
+        
+        const playtime = members.reduce((s, m) => s + m.timeSurvived, 0)
+        existing.createdAtEntries.push({ createdAt: match.createdAt, mapName: match.mapName, playtime })
         aggregates.set(key, existing)
       }
 
@@ -319,6 +337,8 @@ export async function GET(
 
       const createdAtList = filteredEntries.map((entry) => entry.createdAt)
       const { heatmap, maxCellCount } = buildHeatmap(createdAtList)
+      const activeDays = new Set(createdAtList.map(d => d.toISOString().split('T')[0])).size
+      const playtimeSeconds = filteredEntries.reduce((sum, entry) => sum + entry.playtime, 0)
 
       return NextResponse.json({
         scope,
@@ -341,6 +361,8 @@ export async function GET(
         matchCount: createdAtList.length,
         heatmap,
         maxCellCount,
+        playtimeSeconds,
+        activeDays,
       })
     }
 
@@ -359,6 +381,7 @@ export async function GET(
       select: {
         pubgCreatedAt: true,
         mapName: true,
+        duration: true,
       },
     })
 
@@ -371,6 +394,8 @@ export async function GET(
 
     const createdAtList = filteredMatches.map((match) => match.pubgCreatedAt)
     const { heatmap, maxCellCount } = buildHeatmap(createdAtList)
+    const activeDays = new Set(createdAtList.map(d => d.toISOString().split('T')[0])).size
+    const playtimeSeconds = filteredMatches.reduce((sum, match) => sum + match.duration, 0)
 
     return NextResponse.json({
       scope,
@@ -394,6 +419,8 @@ export async function GET(
       matchCount: createdAtList.length,
       heatmap,
       maxCellCount,
+      playtimeSeconds,
+      activeDays,
     })
   } catch (error) {
     console.error('Error fetching activity heatmap:', error)

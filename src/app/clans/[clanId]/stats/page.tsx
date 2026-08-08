@@ -1,9 +1,10 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { Bot, CalendarRange, ChartNoAxesColumnIncreasing, RefreshCw } from 'lucide-react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
@@ -89,6 +90,10 @@ type ClanMemberLifetime = {
   displayName: string
   lastRefreshedAt: string
   stats: LifetimeStats
+  engagement: {
+    timePlayedSeconds: number
+    activeDays: number
+  }
 }
 
 type ClanStatsResponse = {
@@ -98,6 +103,12 @@ type ClanStatsResponse = {
     tag: string
   }
   members: ClanMemberLifetime[]
+  period: TelemetryPeriod
+  statsRecalculation: {
+    expression: string
+    timezone: string
+    runsPerDay: number | null
+  }
 }
 
 type MetricDefinition = {
@@ -105,7 +116,7 @@ type MetricDefinition = {
   label: string
   aggregate: 'sum' | 'avg' | 'max'
   rankOrder?: 'asc' | 'desc'
-  getValue: (stats: LifetimeStats) => number
+  getValue: (member: ClanMemberLifetime) => number
   format: (value: number) => string
 }
 
@@ -129,57 +140,64 @@ const MEDALS = [
 
 const METRIC_GROUPS: Array<{ title: string; metrics: MetricDefinition[] }> = [
   {
+    title: 'Engagement',
+    metrics: [
+      { key: 'engagement.timePlayed', label: 'Temps de jeu', aggregate: 'sum', getValue: (m) => m.engagement.timePlayedSeconds, format: formatDurationLong },
+      { key: 'engagement.activeDays', label: 'Jours actifs', aggregate: 'sum', getValue: (m) => m.engagement.activeDays, format: (v) => `${Math.round(v)} j` },
+    ],
+  },
+  {
     title: 'Combat',
     metrics: [
-      { key: 'combat.kills', label: 'Kills', aggregate: 'sum', getValue: (s) => s.combat.kills, format: formatInteger },
-      { key: 'combat.deaths', label: 'Morts', aggregate: 'sum', rankOrder: 'asc', getValue: (s) => s.combat.deaths, format: formatInteger },
-      { key: 'combat.kdRatio', label: 'Ratio K/D', aggregate: 'avg', getValue: (s) => s.combat.kdRatio, format: formatRatio },
-      { key: 'combat.headshots', label: 'Headshots', aggregate: 'sum', getValue: (s) => s.combat.headshots, format: formatInteger },
-      { key: 'combat.assists', label: 'Assists', aggregate: 'sum', getValue: (s) => s.combat.assists, format: formatInteger },
-      { key: 'combat.knockouts', label: 'KO', aggregate: 'sum', getValue: (s) => s.combat.knockouts, format: formatInteger },
-      { key: 'combat.highestKillstreak', label: 'Serie max', aggregate: 'max', getValue: (s) => s.combat.highestKillstreak, format: formatInteger },
-      { key: 'combat.longestKill', label: 'Distance max', aggregate: 'max', getValue: (s) => s.combat.longestKill, format: formatMeters },
-      { key: 'combat.teamkills', label: 'Teamkills', aggregate: 'sum', rankOrder: 'desc', getValue: (s) => s.combat.teamkills, format: formatInteger },
-      { key: 'combat.suicides', label: 'Suicides', aggregate: 'sum', rankOrder: 'asc', getValue: (s) => s.combat.suicides, format: formatInteger },
+      { key: 'combat.kills', label: 'Kills', aggregate: 'sum', getValue: (m) => m.stats.combat.kills, format: formatInteger },
+      { key: 'combat.deaths', label: 'Morts', aggregate: 'sum', rankOrder: 'asc', getValue: (m) => m.stats.combat.deaths, format: formatInteger },
+      { key: 'combat.kdRatio', label: 'Ratio K/D', aggregate: 'avg', getValue: (m) => m.stats.combat.kdRatio, format: formatRatio },
+      { key: 'combat.headshots', label: 'Headshots', aggregate: 'sum', getValue: (m) => m.stats.combat.headshots, format: formatInteger },
+      { key: 'combat.assists', label: 'Assists', aggregate: 'sum', getValue: (m) => m.stats.combat.assists, format: formatInteger },
+      { key: 'combat.knockouts', label: 'KO', aggregate: 'sum', getValue: (m) => m.stats.combat.knockouts, format: formatInteger },
+      { key: 'combat.highestKillstreak', label: 'Serie max', aggregate: 'max', getValue: (m) => m.stats.combat.highestKillstreak, format: formatInteger },
+      { key: 'combat.longestKill', label: 'Distance max', aggregate: 'max', getValue: (m) => m.stats.combat.longestKill, format: formatMeters },
+      { key: 'combat.teamkills', label: 'Teamkills', aggregate: 'sum', rankOrder: 'desc', getValue: (m) => m.stats.combat.teamkills, format: formatInteger },
+      { key: 'combat.suicides', label: 'Suicides', aggregate: 'sum', rankOrder: 'asc', getValue: (m) => m.stats.combat.suicides, format: formatInteger },
     ],
   },
   {
     title: 'Victoires',
     metrics: [
-      { key: 'victory.wins', label: 'Victoires', aggregate: 'sum', getValue: (s) => s.victory.wins, format: formatInteger },
-      { key: 'victory.losses', label: 'Defaites', aggregate: 'sum', rankOrder: 'asc', getValue: (s) => s.victory.losses, format: formatInteger },
-      { key: 'victory.winLossRatio', label: 'Ratio V/D', aggregate: 'avg', getValue: (s) => s.victory.winLossRatio, format: formatRatio },
-      { key: 'victory.longestTimeAlive', label: 'Temps max en vie', aggregate: 'max', getValue: (s) => s.victory.longestTimeAlive, format: formatDurationLong },
+      { key: 'victory.wins', label: 'Victoires', aggregate: 'sum', getValue: (m) => m.stats.victory.wins, format: formatInteger },
+      { key: 'victory.losses', label: 'Defaites', aggregate: 'sum', rankOrder: 'asc', getValue: (m) => m.stats.victory.losses, format: formatInteger },
+      { key: 'victory.winLossRatio', label: 'Ratio V/D', aggregate: 'avg', getValue: (m) => m.stats.victory.winLossRatio, format: formatRatio },
+      { key: 'victory.longestTimeAlive', label: 'Temps max en vie', aggregate: 'max', getValue: (m) => m.stats.victory.longestTimeAlive, format: formatDurationLong },
     ],
   },
   {
     title: 'Support',
     metrics: [
-      { key: 'support.teammatesRevived', label: 'Coequipiers releves', aggregate: 'sum', getValue: (s) => s.support.teammatesRevived, format: formatInteger },
-      { key: 'support.boostsUsed', label: 'Boosts utilises', aggregate: 'sum', getValue: (s) => s.support.boostsUsed, format: formatInteger },
-      { key: 'support.healed', label: 'Soin', aggregate: 'sum', getValue: (s) => s.support.healed, format: formatInteger },
+      { key: 'support.teammatesRevived', label: 'Coequipiers releves', aggregate: 'sum', getValue: (m) => m.stats.support.teammatesRevived, format: formatInteger },
+      { key: 'support.boostsUsed', label: 'Boosts utilises', aggregate: 'sum', getValue: (m) => m.stats.support.boostsUsed, format: formatInteger },
+      { key: 'support.healed', label: 'Soin', aggregate: 'sum', getValue: (m) => m.stats.support.healed, format: formatInteger },
     ],
   },
   {
     title: 'Vehicules',
     metrics: [
-      { key: 'vehicle.vehiclesDestroyed', label: 'Vehicules detruits', aggregate: 'sum', getValue: (s) => s.vehicle.vehiclesDestroyed, format: formatInteger },
-      { key: 'vehicle.roadkills', label: 'Roadkills', aggregate: 'sum', getValue: (s) => s.vehicle.roadkills, format: formatInteger },
+      { key: 'vehicle.vehiclesDestroyed', label: 'Vehicules detruits', aggregate: 'sum', getValue: (m) => m.stats.vehicle.vehiclesDestroyed, format: formatInteger },
+      { key: 'vehicle.roadkills', label: 'Roadkills', aggregate: 'sum', getValue: (m) => m.stats.vehicle.roadkills, format: formatInteger },
     ],
   },
   {
     title: 'Deplacements',
     metrics: [
-      { key: 'movement.drivenDistance', label: 'Distance en vehicule', aggregate: 'sum', getValue: (s) => s.movement.drivenDistance, format: formatKm },
-      { key: 'movement.walkedDistance', label: 'Distance a pied', aggregate: 'sum', getValue: (s) => s.movement.walkedDistance, format: formatKm },
-      { key: 'movement.swamDistance', label: 'Distance a la nage', aggregate: 'sum', getValue: (s) => s.movement.swamDistance, format: formatKm },
+      { key: 'movement.drivenDistance', label: 'Distance en vehicule', aggregate: 'sum', getValue: (m) => m.stats.movement.drivenDistance, format: formatKm },
+      { key: 'movement.walkedDistance', label: 'Distance a pied', aggregate: 'sum', getValue: (m) => m.stats.movement.walkedDistance, format: formatKm },
+      { key: 'movement.swamDistance', label: 'Distance a la nage', aggregate: 'sum', getValue: (m) => m.stats.movement.swamDistance, format: formatKm },
     ],
   },
   {
     title: 'Autres',
     metrics: [
-      { key: 'other.weaponsPicked', label: 'Armes ramassees', aggregate: 'sum', getValue: (s) => s.other.weaponsPicked, format: formatInteger },
-      { key: 'other.damageGiven', label: 'Degats infliges', aggregate: 'sum', getValue: (s) => s.other.damageGiven, format: formatFloat },
+      { key: 'other.weaponsPicked', label: 'Armes ramassees', aggregate: 'sum', getValue: (m) => m.stats.other.weaponsPicked, format: formatInteger },
+      { key: 'other.damageGiven', label: 'Degats infliges', aggregate: 'sum', getValue: (m) => m.stats.other.damageGiven, format: formatFloat },
     ],
   },
 ]
@@ -193,6 +211,7 @@ const PLAYSTYLE_PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }>
 type StatsSectionIcon = NonNullable<StickySectionNavItem['icon']>
 
 function getSectionIcon(label: string): StatsSectionIcon {
+  if (label === 'Engagement') return 'other' // we reuse the other icon or create a new one, but let's reuse
   if (label === 'Combat') return 'combat'
   if (label === 'Victoires') return 'victory'
   if (label === 'Support') return 'support'
@@ -492,7 +511,7 @@ function computeMetric(metric: MetricDefinition, members: ClanMemberLifetime[]):
   const values = members.map((member) => ({
     memberId: member.memberId,
     displayName: member.displayName,
-    value: metric.getValue(member.stats),
+    value: metric.getValue(member),
   }))
 
   const topThree = [...values]
@@ -587,7 +606,9 @@ export default function ClanStatsPage() {
         setLoading(true)
         setError('')
 
-        const response = await fetch(`/api/clans/${clanId}/lifetime-stats`)
+        const response = await fetch(`/api/clans/${clanId}/lifetime-stats?period=${telemetryPeriod}`, {
+          cache: 'no-store',
+        })
         const payload = (await response.json()) as ClanStatsResponse | { error?: string }
 
         if (!response.ok) {
@@ -614,7 +635,7 @@ export default function ClanStatsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId])
+  }, [clanId, telemetryPeriod])
 
   useEffect(() => {
     if (!clanId) {
@@ -1108,19 +1129,32 @@ export default function ClanStatsPage() {
             </section>
 
             {botStats && botStats.matchesWithData > 0 ? (
-              <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Ambiance de lobby</h2>
-                    <p className="text-sm text-gray-600">
-                      Nombre moyen de bots par match, sur la période sélectionnée ci-dessus.
-                    </p>
+              <section className="app-panel relative overflow-hidden p-4">
+                <span className="absolute inset-y-0 left-0 w-1 bg-cyan-500" aria-hidden="true" />
+                <div className="flex flex-wrap items-center justify-between gap-4 pl-1">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-500">
+                      <Bot className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-lg font-bold text-gray-900">Ambiance de lobby</h2>
+                      <p className="text-sm text-gray-600">
+                        Présence moyenne de bots sur la période sélectionnée.
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">
-                      {botStats.avgBotsPerMatch !== null ? botStats.avgBotsPerMatch.toFixed(1) : '-'}
+                  <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                    <div className="sm:text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Bots moyens</p>
+                      <p className="mt-0.5 text-[2rem] font-black leading-none tabular-nums text-cyan-500">
+                        {botStats.avgBotsPerMatch !== null ? botStats.avgBotsPerMatch.toFixed(1) : '-'}
+                        <span className="ml-1 text-xs font-semibold text-gray-500">/ match</span>
+                      </p>
+                    </div>
+                    <p className="app-performer-pill app-performer-pill--value gap-1.5">
+                      <ChartNoAxesColumnIncreasing className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                      {botStats.matchesWithData} matchs mesurés
                     </p>
-                    <p className="text-xs text-gray-500">{botStats.matchesWithData} match(s) mesuré(s)</p>
                   </div>
                 </div>
               </section>
@@ -1132,10 +1166,29 @@ export default function ClanStatsPage() {
                 id={`sec-metric-${index + 1}`}
                 className="scroll-mt-40 rounded border border-gray-200 bg-white p-4 shadow-sm"
               >
-                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
-                  <SectionBadgeIcon icon={getSectionIcon(group.title)} />
-                  {group.title}
-                </h2>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                    <SectionBadgeIcon icon={getSectionIcon(group.title)} />
+                    {group.title}
+                  </h2>
+                  {group.title === 'Engagement' ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <p className="app-meta-pill gap-1.5">
+                        <CalendarRange className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                        {PLAYSTYLE_PERIOD_OPTIONS.find((option) => option.value === data.period)?.label}
+                      </p>
+                      {data.statsRecalculation.runsPerDay !== null ? (
+                        <p
+                          className="app-meta-pill gap-1.5"
+                          title={`Cron ${data.statsRecalculation.expression} (${data.statsRecalculation.timezone})`}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 text-cyan-500" aria-hidden="true" />
+                          Agrégats recalculés {data.statsRecalculation.runsPerDay} fois/jour via cron
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {group.rows.map((row) => (
                     <article key={row.metric.key} className="rounded border border-gray-200 p-3">

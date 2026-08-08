@@ -557,6 +557,18 @@ Objectif : rendre le clic sur une ligne utile en place au lieu de naviguer hors 
 
 ---
 
+### ~~Engagement & Assiduité (Temps de jeu et Jours actifs)~~ — ✅ Implémenté le 2026-08-08
+
+Objectif : Afficher des indicateurs de temps de jeu et de rétention (jours actifs) aux niveaux membre, clan et super-admin, pour suivre l'implication réelle des joueurs au-delà du simple nombre de matchs.
+
+- [x] **Base de données** : Ajouter `timePlayedSeconds` et `activeDays` à `PlayerStats` (par `week`, `month`, `all-time`) et effectuer la migration Prisma.
+- [x] **Cron & Calculs** : Mettre à jour `stats-calculator.ts` pour agréger `timePlayedSeconds` à partir des temps de survie, et `activeDays` en comptant les jours uniques d'activité sur la période.
+- [x] **Page Membre (Heatmap)** : Exposer et afficher les KPI "Temps de jeu total" et "Jours actifs" au-dessus du calendrier (`/api/members/[id]/activity-heatmap/route.ts`).
+- [x] **Page Clan (Statistiques)** : Créer un groupe "Engagement & Assiduité" avec un résumé clan et un Top 3 Membres.
+- [x] **Page SuperUser (Cross-Clan)** : Ajouter un tri par "Temps de jeu" et afficher les tuiles "Temps" sur les cartes de chaque clan (`/api/clans/route.ts`).
+
+---
+
 ### Auto-cleanup cron — Non branché
 
 Le nettoyage des fichiers `.telemetry-captured/` et des jobs `failed` anciens est disponible via `queue-cleanup` mais n'est pas déclenché automatiquement.

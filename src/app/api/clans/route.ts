@@ -34,14 +34,26 @@ export async function GET() {
       _max: { pubgCreatedAt: true },
     })
 
-    const statsByClanId = new Map<number, { matchesCount: number; lastMatchAt: Date | null }>()
+    const playerStats = await prisma.playerStats.findMany({
+      where: {
+        period: 'all-time',
+        member: { isActive: true, clanId: { not: null } },
+      },
+      select: {
+        member: { select: { clanId: true } },
+        timePlayedSeconds: true,
+        activeDays: true,
+      },
+    })
+
+    const statsByClanId = new Map<number, { matchesCount: number; lastMatchAt: Date | null; timePlayedSeconds: number; activeDays: number }>()
     for (const aggregate of matchAggregates) {
       const clanId = memberClanById.get(aggregate.memberId)
       if (clanId === null || clanId === undefined) {
         continue
       }
 
-      const current = statsByClanId.get(clanId) ?? { matchesCount: 0, lastMatchAt: null }
+      const current = statsByClanId.get(clanId) ?? { matchesCount: 0, lastMatchAt: null, timePlayedSeconds: 0, activeDays: 0 }
       current.matchesCount += aggregate._count._all
       const aggregateLastMatch = aggregate._max.pubgCreatedAt
       if (aggregateLastMatch && (!current.lastMatchAt || aggregateLastMatch > current.lastMatchAt)) {
@@ -49,9 +61,18 @@ export async function GET() {
       }
       statsByClanId.set(clanId, current)
     }
+    
+    for (const ps of playerStats) {
+      if (!ps.member?.clanId) continue
+      const clanId = ps.member.clanId
+      const current = statsByClanId.get(clanId) ?? { matchesCount: 0, lastMatchAt: null, timePlayedSeconds: 0, activeDays: 0 }
+      current.timePlayedSeconds += ps.timePlayedSeconds
+      current.activeDays = Math.max(current.activeDays, ps.activeDays) // Approximation for clan active days based on max member active days
+      statsByClanId.set(clanId, current)
+    }
 
     const clansWithStats = clans.map((clan) => {
-      const stats = statsByClanId.get(clan.id) ?? { matchesCount: 0, lastMatchAt: null }
+      const stats = statsByClanId.get(clan.id) ?? { matchesCount: 0, lastMatchAt: null, timePlayedSeconds: 0, activeDays: 0 }
 
       return {
         id: clan.id,
@@ -61,6 +82,8 @@ export async function GET() {
         membersCount: clan._count.members,
         matchesCount: stats.matchesCount,
         lastMatchAt: stats.lastMatchAt ? stats.lastMatchAt.toISOString() : null,
+        timePlayedSeconds: stats.timePlayedSeconds,
+        activeDays: stats.activeDays,
       }
     })
 

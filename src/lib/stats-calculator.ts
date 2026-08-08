@@ -81,7 +81,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
     },
     include: {
       squadMatch: {
-        select: { placement: true },
+        select: { placement: true, createdAt: true },
       },
     },
   })
@@ -92,6 +92,15 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
   const totalAssists = squadMembers.reduce((sum, m) => sum + m.assists, 0)
   const totalRevives = squadMembers.reduce((sum, m) => sum + m.revives, 0)
   const matchesWon = squadMembers.filter((m) => m.squadMatch.placement === 1).length
+  const timePlayedSeconds = squadMembers.reduce((sum, m) => sum + m.timeSurvived, 0)
+
+  const activeDaysSet = new Set<string>()
+  for (const m of squadMembers) {
+    if (m.squadMatch.createdAt) {
+      activeDaysSet.add(m.squadMatch.createdAt.toISOString().split('T')[0])
+    }
+  }
+  const activeDays = activeDaysSet.size
 
   const winRate = matchesPlayed > 0 ? matchesWon / matchesPlayed : 0
   const avgKillsPerGame = matchesPlayed > 0 ? totalKills / matchesPlayed : 0
@@ -109,6 +118,8 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
       winRate,
       avgKillsPerGame,
       avgDamagePerGame,
+      timePlayedSeconds,
+      activeDays,
       endDate,
     },
     create: {
@@ -126,6 +137,8 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
       winRate,
       avgKillsPerGame,
       avgDamagePerGame,
+      timePlayedSeconds,
+      activeDays,
     },
   })
 }

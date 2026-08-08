@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { Clock3, Crosshair, Gauge, ShieldCheck, Swords, type LucideIcon } from 'lucide-react'
 
 import SessionRecap from '@/components/SessionRecap'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -39,6 +40,43 @@ function formatDuration(totalSeconds: number) {
   return `${minutes}m`
 }
 
+function MatchStatCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: {
+  label: string
+  value: string
+  detail: string
+  icon: LucideIcon
+  tone: 'red' | 'amber' | 'emerald' | 'blue' | 'cyan'
+}) {
+  const toneClasses = {
+    red: 'border-red-500/20 bg-red-500/10 text-red-500',
+    amber: 'border-amber-500/20 bg-amber-500/10 text-amber-500',
+    emerald: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
+    blue: 'border-blue-500/20 bg-blue-500/10 text-blue-500',
+    cyan: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-500',
+  }
+
+  return (
+    <article className="app-panel-muted flex min-h-40 flex-col p-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-h-8 text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </div>
+      <p className="mt-3 text-right text-[1.75rem] font-black leading-none tabular-nums text-gray-900">
+        {value}
+      </p>
+      <p className="mt-auto pt-2 text-right text-[11px] font-medium text-gray-500">{detail}</p>
+    </article>
+  )
+}
+
 export default function ClanMatchesPage() {
   const params = useParams()
   const router = useRouter()
@@ -70,6 +108,7 @@ export default function ClanMatchesPage() {
     ],
     [availableModes]
   )
+  const totalDuration = sessions.reduce((total, session) => total + session.totalDuration, 0)
 
   useEffect(() => {
     if (!clanId) {
@@ -142,23 +181,42 @@ export default function ClanMatchesPage() {
 
       {!loading && !error ? (
         <>
-          <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Éliminations totales ({periodLabel(period)})</p>
-              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{stats.totalKills}</p>
-            </article>
-            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Dégâts totaux</p>
-              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{Math.round(stats.totalDamage)}</p>
-            </article>
-            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Taux de victoire équipe</p>
-              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{(stats.winRate * 100).toFixed(1)}%</p>
-            </article>
-            <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Matchs joués ensemble</p>
-              <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{stats.matchCount}</p>
-            </article>
+          <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <MatchStatCard
+              label="Éliminations totales"
+              value={stats.totalKills.toLocaleString('fr-FR')}
+              detail={`${stats.matchCount > 0 ? (stats.totalKills / stats.matchCount).toFixed(1) : '0.0'} par match`}
+              icon={Crosshair}
+              tone="red"
+            />
+            <MatchStatCard
+              label="Dégâts totaux"
+              value={Math.round(stats.totalDamage).toLocaleString('fr-FR')}
+              detail={`${stats.matchCount > 0 ? Math.round(stats.totalDamage / stats.matchCount).toLocaleString('fr-FR') : '0'} par match`}
+              icon={Gauge}
+              tone="amber"
+            />
+            <MatchStatCard
+              label="Taux de victoire équipe"
+              value={`${(stats.winRate * 100).toFixed(1)}%`}
+              detail={`${Math.round(stats.winRate * stats.matchCount).toLocaleString('fr-FR')} victoires`}
+              icon={ShieldCheck}
+              tone="emerald"
+            />
+            <MatchStatCard
+              label="Matchs joués ensemble"
+              value={stats.matchCount.toLocaleString('fr-FR')}
+              detail={periodLabel(period)}
+              icon={Swords}
+              tone="blue"
+            />
+            <MatchStatCard
+              label="Temps de jeu du clan"
+              value={formatDuration(totalDuration)}
+              detail={gameMode ? `Mode ${gameMode}` : 'Tous les modes'}
+              icon={Clock3}
+              tone="cyan"
+            />
           </section>
 
 

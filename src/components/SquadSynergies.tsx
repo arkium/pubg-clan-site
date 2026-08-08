@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { Users, Shield, Zap, HeartPulse, Target, Flame } from 'lucide-react'
 
@@ -11,6 +12,18 @@ interface SquadSynergiesProps {
   clanId: number
   period: SquadPeriod
   synergies: SquadSynergiesData
+}
+
+const MEDAL_ICONS = [
+  '/icons/medal-gold.svg',
+  '/icons/medal-silver.svg',
+  '/icons/medal-bronze.svg',
+]
+
+function medalAlt(index: number) {
+  if (index === 0) return 'Or'
+  if (index === 1) return 'Argent'
+  return 'Bronze'
 }
 
 type TelemetrySynergyRow = {
@@ -211,77 +224,122 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
             telemetryRows.length > 0 ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-5">
-                  <article className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-3">
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-3.5 w-3.5 text-indigo-500" />
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Indice synergie</p>
+                  <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
+                    <div className="relative">
+                      <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-500">
+                        <Zap className="h-4 w-4" />
+                      </div>
+                      <p className="text-2xl font-black leading-none tabular-nums text-gray-900">
+                        {telemetrySummary.qualityIndex.toFixed(1)} <span className="text-sm font-medium text-gray-400">/ 100</span>
+                      </p>
+                      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-gray-500">Indice synergie</p>
                     </div>
-                    <p className="mt-1.5 text-2xl font-black text-indigo-500">
-                      {telemetrySummary.qualityIndex.toFixed(1)} <span className="text-xs font-medium text-indigo-400">/ 100</span>
-                    </p>
                   </article>
 
-                  <article className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Binômes actifs</p>
-                    <p className="mt-1.5 text-xl font-black text-gray-900">{formatInteger(telemetrySummary.pairCount)}</p>
+                  <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
+                    <div className="relative">
+                      <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gray-500/15 text-gray-500">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <p className="text-2xl font-black leading-none tabular-nums text-gray-900">{formatInteger(telemetrySummary.pairCount)}</p>
+                      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-gray-500">Binômes actifs</p>
+                    </div>
                   </article>
 
-                  <article className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
-                    <div className="flex items-center gap-2">
-                      <HeartPulse className="h-3.5 w-3.5 text-emerald-500" />
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Total Revives</p>
+                  <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
+                    <div className="relative">
+                      <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
+                        <HeartPulse className="h-4 w-4" />
+                      </div>
+                      <p className="text-2xl font-black leading-none tabular-nums text-emerald-500">{formatInteger(telemetrySummary.totalRevives)}</p>
+                      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-gray-500">Total Revives</p>
                     </div>
-                    <p className="mt-1.5 text-xl font-black text-emerald-500">{formatInteger(telemetrySummary.totalRevives)}</p>
                   </article>
 
-                  <article className="rounded-lg border border-orange-500/20 bg-orange-500/10 p-3">
-                    <div className="flex items-center gap-2">
-                      <Target className="h-3.5 w-3.5 text-orange-500" />
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-orange-500">Total Co-kills</p>
+                  <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
+                    <div className="relative">
+                      <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/15 text-orange-500">
+                        <Target className="h-4 w-4" />
+                      </div>
+                      <p className="text-2xl font-black leading-none tabular-nums text-orange-500">{formatInteger(telemetrySummary.totalCoKills)}</p>
+                      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-gray-500">Total Co-kills</p>
                     </div>
-                    <p className="mt-1.5 text-xl font-black text-orange-500">{formatInteger(telemetrySummary.totalCoKills)}</p>
                   </article>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-900">
-                      <HeartPulse className="h-4 w-4 text-emerald-500" />
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
+                        <HeartPulse className="h-3.5 w-3.5" />
+                      </div>
                       Top Sauvetages
                     </h3>
-                    <ul className="grid gap-1.5">
-                      {topReviveRows.map((row) => (
-                        <li key={`revive:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-2.5 py-1.5">
-                          <div className="flex flex-wrap gap-1">
-                            <PlayerNameBadge name={row.memberAName} />
-                            <PlayerNameBadge name={row.memberBName} />
-                          </div>
-                          <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-500">
-                            {row.reviveCount}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    {topReviveRows.filter(r => r.reviveCount > 0).length > 0 ? (
+                      <ul className="grid gap-2">
+                        {topReviveRows.filter(r => r.reviveCount > 0).map((row, index) => (
+                          <li key={`revive:${row.memberAId}:${row.memberBId}`} className="app-panel-muted flex items-center justify-between rounded-xl px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                                {index < MEDAL_ICONS.length ? (
+                                  <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={16} height={16} className="drop-shadow-sm" />
+                                ) : (
+                                  <span className="text-xs font-bold text-gray-500">{index + 1}</span>
+                                )}
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                <PlayerNameBadge name={row.memberAName} />
+                                <PlayerNameBadge name={row.memberBName} />
+                              </div>
+                            </div>
+                            <span className="rounded bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-500">
+                              {row.reviveCount}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs italic text-gray-500">Aucun sauvetage pour cette période.</p>
+                    )}
                   </div>
 
                   <div>
-                    <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-900">
-                      <Target className="h-4 w-4 text-orange-500" />
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-500/15 text-orange-500">
+                        <Target className="h-3.5 w-3.5" />
+                      </div>
                       Top Co-kills
                     </h3>
-                    <ul className="grid gap-1.5">
-                      {topCoKillRows.map((row) => (
-                        <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-2.5 py-1.5">
-                          <div className="flex flex-wrap gap-1">
-                            <PlayerNameBadge name={row.memberAName} />
-                            <PlayerNameBadge name={row.memberBName} />
-                          </div>
-                          <span className="rounded bg-orange-500/20 px-2 py-0.5 text-xs font-bold text-orange-500">
-                            {row.coKillCount}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    {topCoKillRows.filter(r => r.coKillCount > 0).length > 0 ? (
+                      <ul className="grid gap-2">
+                        {topCoKillRows.filter(r => r.coKillCount > 0).map((row, index) => (
+                          <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="app-panel-muted flex items-center justify-between rounded-xl px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+                                {index < MEDAL_ICONS.length ? (
+                                  <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={16} height={16} className="drop-shadow-sm" />
+                                ) : (
+                                  <span className="text-xs font-bold text-gray-500">{index + 1}</span>
+                                )}
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                <PlayerNameBadge name={row.memberAName} />
+                                <PlayerNameBadge name={row.memberBName} />
+                              </div>
+                            </div>
+                            <span className="rounded bg-orange-500/20 px-2.5 py-0.5 text-xs font-bold text-orange-500">
+                              {row.coKillCount}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs italic text-gray-500">Aucun co-kill pour cette période.</p>
+                    )}
                   </div>
                 </div>
 

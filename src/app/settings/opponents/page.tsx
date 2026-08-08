@@ -58,6 +58,7 @@ type ClanDetail = {
 type OpponentPlayer = {
   playerId: string
   pubgPlayerName: string
+  isFavorite: boolean
   asOpponentCount: number
   asTeammateCount: number
   lastSeenAt: string
@@ -126,6 +127,7 @@ export default function OpponentsSettingsPage() {
   const [payload, setPayload] = useState<OpponentsPayload | null>(null)
   const [loadingData, setLoadingData] = useState(false)
   const [error, setError] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const [period, setPeriod] = useState<Period>('all')
 
@@ -146,8 +148,84 @@ export default function OpponentsSettingsPage() {
   const [expandedClanId, setExpandedClanId] = useState<number | null>(null)
   const [clanDetails, setClanDetails] = useState<Record<number, DetailState<ClanDetail>>>({})
 
+
+  const [notifications, setNotifications] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([])
+
+  function addNotification(message: string, type: 'success' | 'error' = 'success') {
+    const id = Date.now()
+    setNotifications((prev) => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.id !== id))
+    }, 4000)
+  }
+
+  function removeNotification(id: number) {
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+  }
+
   const [expandedOpponentId, setExpandedOpponentId] = useState<string | null>(null)
+
   const [opponentDetails, setOpponentDetails] = useState<Record<string, DetailState<OpponentClanDetail>>>({})
+
+  const [trackPending, setTrackPending] = useState<Set<string>>(new Set())
+
+  async function handleTrackMember(playerId: string, targetClanId: number) {
+    try {
+      setTrackPending((prev) => new Set(prev).add(playerId))
+      const res = await fetch('/api/settings/opponents/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, targetClanId })
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Erreur lors du suivi')
+      addNotification('Joueur suivi avec succès !', 'success')
+      
+      // Auto-refresh the UI
+      setExpandedClanId(null)
+      setExpandedOpponentId(null)
+      setClanDetails({})
+      setOpponentDetails({})
+      setRefreshKey((k) => k + 1)
+    } catch (err: any) {
+      console.error(err)
+      addNotification(err.message || 'Erreur inconnue', 'error')
+    } finally {
+      setTrackPending((prev) => {
+        const next = new Set(prev)
+        next.delete(playerId)
+        return next
+      })
+    }
+  }
+
+  async function handleFavoritePlayer(playerId: string, current: boolean, opponentClanId: string) {
+    try {
+      setOpponentDetails((prev) => {
+        const next = { ...prev }
+        if (next[opponentClanId]?.status === 'ready') {
+          next[opponentClanId] = {
+            ...next[opponentClanId],
+            data: {
+              ...next[opponentClanId].data,
+              players: next[opponentClanId].data.players.map((p) =>
+                p.playerId === playerId ? { ...p, isFavorite: !current } : p
+              )
+            }
+          }
+        }
+        return next
+      })
+      const res = await fetch(`/api/settings/players/${playerId}/favorite`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFavorite: !current })
+      })
+      if (!res.ok) throw new Error('Failed to update favorite')
+    } catch(err) {
+      console.error(err)
+    }
+  }
 
   useEffect(() => {
     if (!loading && !authenticated) {
@@ -224,6 +302,7 @@ export default function OpponentsSettingsPage() {
     opponentsSortBy,
     opponentsSortDir,
     opponentsQuery,
+    refreshKey,
   ])
 
   function handleClanSort(key: ClanSortKey) {
@@ -484,7 +563,7 @@ export default function OpponentsSettingsPage() {
                   </div>
                   {expandedClanId === row.id ? (
                     <div className="mt-2 border-t border-slate-200 pt-2">
-                      <ClanDetailPanel detail={clanDetails[row.id]} />
+                      <ClanDetailPanel detail={clanDetails[row.id]} clanId={row.id} onTrack={handleTrackMember} trackPending={trackPending} />
                     </div>
                   ) : null}
                 </article>
@@ -553,7 +632,7 @@ export default function OpponentsSettingsPage() {
                       {expandedClanId === row.id ? (
                         <tr>
                           <td colSpan={5} className="bg-gray-50 px-2 py-3">
-                            <ClanDetailPanel detail={clanDetails[row.id]} />
+                            <ClanDetailPanel detail={clanDetails[row.id]} clanId={row.id} onTrack={handleTrackMember} trackPending={trackPending} />
                           </td>
                         </tr>
                       ) : null}
@@ -606,6 +685,10 @@ export default function OpponentsSettingsPage() {
                   expanded={expandedOpponentId === row.id}
                   onToggleExpand={() => toggleOpponentExpand(row.id)}
                   detail={opponentDetails[row.id]}
+                  trackedClans={trackedClans?.rows || []}
+                  onTrack={handleTrackMember}
+                  trackPending={trackPending}
+                  onTogglePlayerFavorite={handleFavoritePlayer}
                 />
               ))
             )}
@@ -688,7 +771,7 @@ export default function OpponentsSettingsPage() {
                       {expandedOpponentId === row.id ? (
                         <tr>
                           <td colSpan={6} className="bg-gray-50 px-2 py-3">
-                            <OpponentDetailPanel detail={opponentDetails[row.id]} />
+                            <OpponentDetailPanel detail={opponentDetails[row.id]} opponentClanId={row.id} trackedClans={trackedClans?.rows || []} onTrack={handleTrackMember} trackPending={trackPending} onToggleFavorite={handleFavoritePlayer} />
                           </td>
                         </tr>
                       ) : null}
@@ -705,6 +788,30 @@ export default function OpponentsSettingsPage() {
           />
         </div>
       </section>
+
+      {/* Notifications Toast */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
+        {notifications.map((n) => (
+          <div
+            key={n.id}
+            className={`flex min-w-[280px] items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-semibold shadow-xl transition-all ${
+              n.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}
+          >
+            <span>{n.message}</span>
+            <button
+              onClick={() => removeNotification(n.id)}
+              className="ml-2 rounded-full p-1 opacity-70 hover:bg-white/20 hover:opacity-100 transition-colors"
+              aria-label="Fermer"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
     </main>
   )
 }
@@ -716,6 +823,10 @@ function OpponentMobileCard({
   expanded,
   onToggleExpand,
   detail,
+  trackedClans,
+  onTrack,
+  trackPending,
+  onTogglePlayerFavorite,
 }: {
   row: OpponentClanRow
   pending: boolean
@@ -723,6 +834,10 @@ function OpponentMobileCard({
   expanded: boolean
   onToggleExpand: () => void
   detail: DetailState<OpponentClanDetail> | undefined
+  trackedClans: TrackedClanRow[]
+  onTrack: (playerId: string, targetClanId: number) => void
+  trackPending: Set<string>
+  onTogglePlayerFavorite: (playerId: string, current: boolean, opponentClanId: string) => void
 }) {
   return (
     <article className="app-panel p-3 text-xs text-slate-700">
@@ -769,14 +884,21 @@ function OpponentMobileCard({
       ) : null}
       {expanded ? (
         <div className="mt-2 border-t border-slate-200 pt-2">
-          <OpponentDetailPanel detail={detail} />
+          <OpponentDetailPanel detail={detail} opponentClanId={row.id} trackedClans={trackedClans} onTrack={onTrack} trackPending={trackPending} onToggleFavorite={onTogglePlayerFavorite} />
         </div>
       ) : null}
     </article>
   )
 }
 
-function ClanDetailPanel({ detail }: { detail: DetailState<ClanDetail> | undefined }) {
+function ClanDetailPanel({ 
+  detail, clanId, onTrack, trackPending 
+}: { 
+  detail: DetailState<ClanDetail> | undefined
+  clanId: number
+  onTrack: (playerId: string, clanId: number) => void
+  trackPending: Set<string>
+}) {
   if (!detail || detail.status === 'loading') {
     return <p className="text-xs text-slate-500">Chargement...</p>
   }
@@ -817,13 +939,15 @@ function ClanDetailPanel({ detail }: { detail: DetailState<ClanDetail> | undefin
             {missingCandidates.map((candidate) => (
               <li key={candidate.playerId} className="flex items-center justify-between gap-2 text-xs">
                 <span className="text-slate-700">{candidate.pubgPlayerName}</span>
-                <span
-                  title="La création automatique de membre n'est pas encore implémentée"
-                  className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400"
+                <button
+                  type="button"
+                  onClick={() => onTrack(candidate.playerId, clanId)}
+                  disabled={trackPending.has(candidate.playerId)}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <UserPlus className="h-3 w-3" aria-hidden />
-                  Ajouter
-                </span>
+                  {trackPending.has(candidate.playerId) ? 'Ajout...' : 'Ajouter'}
+                </button>
               </li>
             ))}
           </ul>
@@ -833,7 +957,17 @@ function ClanDetailPanel({ detail }: { detail: DetailState<ClanDetail> | undefin
   )
 }
 
-function OpponentDetailPanel({ detail }: { detail: DetailState<OpponentClanDetail> | undefined }) {
+function OpponentDetailPanel({ 
+  detail, opponentClanId, trackedClans, onTrack, trackPending, onToggleFavorite 
+}: { 
+  detail: DetailState<OpponentClanDetail> | undefined
+  opponentClanId: string
+  trackedClans: TrackedClanRow[]
+  onTrack: (playerId: string, targetClanId: number) => void
+  trackPending: Set<string>
+  onToggleFavorite: (playerId: string, current: boolean, opponentClanId: string) => void
+}) {
+  const [selectedClanId, setSelectedClanId] = useState<number>(trackedClans[0]?.id || 0)
   if (!detail || detail.status === 'loading') {
     return <p className="text-xs text-slate-500">Chargement...</p>
   }
@@ -865,19 +999,37 @@ function OpponentDetailPanel({ detail }: { detail: DetailState<OpponentClanDetai
       <ul className="mt-1 space-y-1">
         {players.map((player) => (
           <li key={player.playerId} className="flex items-center justify-between gap-2 text-xs">
-            <span className="text-slate-700">{player.pubgPlayerName}</span>
+            <span className="flex items-center gap-1 text-slate-700">
+              <button onClick={() => onToggleFavorite(player.playerId, player.isFavorite, opponentClanId)} className="text-slate-400 hover:text-amber-500">
+                <Star className={`h-3.5 w-3.5 ${player.isFavorite ? 'fill-amber-400 text-amber-500' : ''}`} />
+              </button>
+              {player.pubgPlayerName}
+            </span>
             <span className="flex items-center gap-2">
               {player.trackedMember ? (
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
                   Membre de {player.trackedMember.clanTag ?? '?'}
                 </span>
               ) : (
-                <span
-                  title="Ajouter ce joueur à un clan déjà suivi n'est pas encore implémenté"
-                  className="inline-flex cursor-not-allowed items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400"
-                >
-                  <UserPlus className="h-3 w-3" aria-hidden />
-                  Suivre
+                <span className="flex items-center gap-1">
+                  <select
+                    className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] text-slate-700"
+                    value={selectedClanId}
+                    onChange={(e) => setSelectedClanId(Number(e.target.value))}
+                  >
+                    {trackedClans.map(c => <option key={c.id} value={c.id}>{c.tag}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedClanId) onTrack(player.playerId, selectedClanId)
+                    }}
+                    disabled={trackPending.has(player.playerId)}
+                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <UserPlus className="h-3 w-3" aria-hidden />
+                    {trackPending.has(player.playerId) ? '...' : 'Suivre'}
+                  </button>
                 </span>
               )}
             </span>

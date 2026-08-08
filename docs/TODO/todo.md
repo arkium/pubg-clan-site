@@ -445,7 +445,7 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 
 - [x] Créer `Player` (identité globale) — clé unique `[pubgAccountId, platformShard]`, porte nom + clan PUBG résolu
 - [x] Créer `OpponentClan` (clan adverse global) — clé unique `[pubgClanId, platformShard]`, tag/nom résolus, remplace le texte dupliqué `pubgClanTag`/`pubgClanName` par ligne
-- [ ] Faire pointer `ClanMember` vers `playerId` (FK `Player`) au lieu de stocker `pubgAccountId` en dur — hors scope Phase 1, lié au flux "Suivre"/"Compléter" reporté
+- [x] Faire pointer `ClanMember` vers `playerId` (FK `Player`) au lieu de stocker `pubgAccountId` en dur — implémenté en phase 2, avec fallback sur pubgAccountId
 - [x] Créer `ClanEncounter` (`clanId` + `playerId` + compteurs + dates), unique sur `[clanId, playerId]` — **en écriture double** avec `EncounteredPlayer`, pas un remplacement complet : les 4 sites de lecture existants (`encountered-players` route, `nemesis`, `matches/[matchId]/telemetry`, le cron) lisent toujours `EncounteredPlayer` sans changement. Le cut-over des lectures + suppression d'`EncounteredPlayer` reste à faire dans une session ultérieure, une fois les nouvelles tables validées en production.
 - [x] Laisser `KillEvent.killerAccountId`/`victimAccountId` en string libre pour l'instant
 - [x] Script de backfill (`scripts/backfill-opponent-normalization.ts`, `npm run telemetry:opponents:backfill`) : peuple `Player`/`OpponentClan`/`ClanEncounter` depuis `EncounteredPlayer` existant, idempotent, tri par `lastSeenAt` croissant (le plus récent l'emporte en cas de doublon cross-clan)
@@ -456,11 +456,11 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 **Fonctionnalités déclenchées par cette normalisation :**
 
 - [x] Page superadmin globale des adversaires (`src/app/settings/opponents/page.tsx` + API `GET /api/settings/opponents`, `requireSuperUser`) — agrège `ClanEncounter` sur tous les clans suivis, groupé par `OpponentClan`
-- [ ] **Suivre un adversaire externe** (création de `ClanMember`) — **hors scope Phase 1**, reporté après audit des requêtes leaderboard/stats/badges pour exclure un futur statut `joinStatus='tracked'`
-- [ ] **Compléter un clan déjà suivi** (bouton d'ajout direct) — **action hors scope Phase 1**. La **détection** est en revanche implémentée en lecture seule : colonne "Membres manquants" sur le tableau 1, calculée par jointure `Player.opponentClanId → OpponentClan.pubgClanId = Clan.pubgClanId` moins les `ClanMember.pubgAccountId` déjà présents
+- [x] **Suivre un adversaire externe** (création de `ClanMember` avec statut `tracked`) — Isolation des requêtes statistiques mise en place (`joinStatus: 'active'` exigé)
+- [x] **Compléter un clan déjà suivi** (bouton d'ajout direct) — Bouton "Ajouter" fonctionnel dans les lignes du tableau 1
 - [x] Détection automatique des correspondances côté API (voir ci-dessus) — affichée dans le tableau 1, pas encore dans un bandeau prioritaire dédié (simplification, voir gaps UI ci-dessous)
 - [x] Favori clan — `OpponentClan.isFavorite`, `PATCH /api/settings/opponent-clans/[id]`, toggle optimiste
-- [ ] Favori joueur — pas implémenté, dépend du flux "Suivre" reporté
+- [x] Favori joueur — implémenté via étoile ⭐️ cliquable
 
 **UI/UX de la page superadmin globale (`/settings/opponents`) — implémentée le 2026-08-07, avec quelques simplifications par rapport à la spec initiale (notées ci-dessous) :**
 
@@ -484,10 +484,10 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 - [x] Recherche texte tag/nom
 - [x] Colonne "Clans nous ayant croisés" avec badges — **non cliquables vers le clan filtré** (simplification, juste informatif pour l'instant)
 - [x] Étoile de favori optimiste, favoris remontés en tête via `ORDER BY isFavorite DESC` — **sans séparateur visuel dédié** entre favoris et reste (simplification)
-- [ ] Ligne dépliable → détail des joueurs de ce clan adverse — **remplacé par la spec détaillée ci-dessous**
+- [x] Ligne dépliable → détail des joueurs de ce clan adverse — **remplacé par la spec détaillée ci-dessous**
 - [ ] Bandeau prioritaire "Membres manquants détectés" avec bouton "Ajouter à <clan>" — **non fait**, seule la détection en lecture (tableau 1) est en place
-- [ ] Bouton "Suivre ce joueur" avec sélecteur de clan — **non fait**, dépend du flux `ClanMember` reporté
-- [ ] Badge "Membre de <clan>" pour joueur déjà suivi ailleurs — **non fait**, dépend du flux reporté
+- [x] Bouton "Suivre ce joueur" avec sélecteur de clan — Implémenté avec un `<select>` déroulant et auto-refresh UI
+- [x] Badge "Membre de <clan>" pour joueur déjà suivi ailleurs — badge vert émeraude
 - [~] Squelette de chargement + retry — chargement basique en place (texte, pas de squelette de cartes), **pas de bouton "Réessayer"** explicite comme sur `/clans` — à ajouter
 - [x] Vérification thème clair/sombre et mobile — **validée à l'écran par l'utilisateur le 2026-08-07**, aucun problème signalé
 
@@ -1301,12 +1301,17 @@ Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du k
 
 **Proposition d'implémentation :**
 
-### 1. Statistiques par Membre (`PlayerStats`)
-- [ ] Ajouter `timePlayedSeconds` (Int) et `activeDays` (Int) dans le modèle `PlayerStats` (qui agrège par semaine/mois/all-time).
-- [ ] Lors de la génération des statistiques (cron), sommer les `SquadMember.timeSurvived` de la période pour calculer le temps de jeu.
-- [ ] Compter les dates uniques des matchs (ex: format `YYYY-MM-DD`) de la période pour déterminer les `activeDays`.
-- [ ] Afficher ces deux métriques (Temps de jeu formaté en heures/minutes et Jours actifs) sur le profil du joueur (`/members/[id]/dashboard`).
-- [ ] Ajouter ces métriques dans les classements (Leaderboard) pour permettre le tri (ex: les joueurs les plus assidus).
+### 1. Statistiques par Membre (`PlayerStats`) — ⚠️ Partiellement fait (vérifié 2026-08-08)
+- [x] Ajouter `timePlayedSeconds` (Int) et `activeDays` (Int) dans le modèle `PlayerStats` (qui agrège par semaine/mois/all-time). — `prisma/schema.prisma:695-696`
+- [x] Lors de la génération des statistiques (cron), sommer les `SquadMember.timeSurvived` de la période pour calculer le temps de jeu. — `src/lib/stats-calculator.ts:95-141`
+- [x] Compter les dates uniques des matchs (ex: format `YYYY-MM-DD`) de la période pour déterminer les `activeDays`. — `src/lib/stats-calculator.ts:97-103`
+- [ ] Afficher ces deux métriques (Temps de jeu formaté en heures/minutes et Jours actifs) sur le profil du joueur (`/members/[id]/dashboard`). **Pas fait** : absent de `src/app/members/[id]/dashboard/page.tsx`. Actuellement affiché ailleurs seulement — agrégé par membre sur `src/app/clans/[clanId]/stats/page.tsx:145-146` ("Temps de jeu" / "Jours actifs"), et `activeDays` seul sur `src/app/members/[id]/heatmap/page.tsx:461`.
+- [ ] Ajouter ces métriques dans les classements (Leaderboard) pour permettre le tri (ex: les joueurs les plus assidus). **Pas fait** : `src/app/api/clans/[clanId]/leaderboard/route.ts:26-32` (`parseSortBy`) ne propose que `kills`, `damage`, `winRate`, `matches`, `kpm` — aucune option `timePlayed`/`activeDays`.
+
+**Prochaines étapes proposées :**
+1. Ajouter une carte "Temps de jeu" / "Jours actifs" sur `/members/[id]/dashboard/page.tsx`, en réutilisant le pattern de fetch déjà utilisé côté clan-stats (`lifetime-stats` route lit déjà `PlayerStats.timePlayedSeconds`/`activeDays` — voir `src/app/api/clans/[clanId]/lifetime-stats/route.ts:174-197`). Prévoir un formatteur heures/minutes (probablement déjà présent via `formatDurationLong` utilisé dans `clans/[clanId]/stats/page.tsx:145`, à factoriser/réutiliser plutôt que dupliquer).
+2. Étendre `LeaderboardSortBy` (`src/types/leaderboard.ts`) avec `timePlayed` et `activeDays`, câbler `parseSortBy` + `sortLeaderboard` dans `leaderboard/route.ts`, et ajouter les options correspondantes dans le composant de tri UI du leaderboard (probablement `SegmentedControl` selon les conventions du projet — voir CLAUDE.md section UI).
+3. Vérifier si le dashboard membre doit consommer directement `PlayerStats` (comme lifetime-stats) ou une nouvelle route API dédiée — à trancher avant l'implémentation pour éviter une divergence de source de données avec la page clan-stats.
 
 ### 2. Statistiques par Clan (`ClanStats` ou Dashboard)
 - [ ] **Temps de jeu total du clan** : Somme du `timePlayedSeconds` de tous les membres actifs sur la période (mesure l'investissement "heures-hommes").
@@ -1317,3 +1322,23 @@ Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du k
 - [ ] Remplacer ou compléter le traditionnel "Dégâts / Match" par **Dégâts / Minute (DPM)**, plus juste pour l'e-sport.
 - [ ] Calculer les **Kills / Heure**, ce qui lisse le biais des parties très courtes.
 - [ ] Afficher une "Heatmap" d'activité ou un "Ratio de survie" calculé sur le temps passé.
+
+
+#### Phase 2 — Suivi, Favoris & UI — ✅ Implémenté le 2026-08-08
+
+Objectif : Finaliser la fonctionnalité de "Watchlist" en permettant d'ajouter des joueurs suivis sans corrompre les calculs statistiques des clans.
+
+**Modèle et API :**
+- [x] Ajout de `isFavorite` sur `Player` et lien `playerId` sur `ClanMember`.
+- [x] Route `PATCH /api/settings/players/[id]/favorite` pour le système d'étoiles.
+- [x] Route `POST /api/settings/opponents/track` pour insérer un `ClanMember` de statut `joinStatus: 'tracked'`.
+
+**UI :**
+- [x] Boutons "Ajouter" activés pour les membres manquants détectés (Tableau 1).
+- [x] Boutons "Suivre" avec menu déroulant pour affecter un adversaire à un clan suivi (Tableau 2).
+- [x] Étoiles de favori interactives pour chaque joueur (Tableau 2).
+- [x] Toast de notifications modernes et rafraîchissement automatique des tableaux après interaction.
+
+**Isolation Stricte (Watchlist) :**
+- [x] Patch global sur `src/lib/stats-calculator.ts`, `cron-jobs.ts`, `report-generator.ts`, et `matches-cache-service.ts` pour filtrer `isActive: true, joinStatus: 'active'`.
+- [x] Création du test unitaire `tracked-isolation.test.ts` pour garantir l'étanchéité des calculs.

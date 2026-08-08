@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { Clock3 } from 'lucide-react'
 
 import type { SquadFrequencyEntry } from '@/types/dashboard'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -10,27 +11,19 @@ interface SquadFrequencyProps {
   squads: SquadFrequencyEntry[]
 }
 
-type SquadSortKey = 'matches' | 'kills' | 'winRate'
+type SquadSortKey = 'matches' | 'kills' | 'playTime'
 
-function getWinRateTone(winRate: number) {
-  if (winRate >= 0.4) {
-    return 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-  }
+function formatPlayTime(seconds: number) {
+  const totalMinutes = Math.floor(Math.max(0, seconds) / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
 
-  if (winRate >= 0.25) {
-    return 'border-teal-400/40 bg-teal-500/15 text-teal-200'
-  }
-
-  if (winRate >= 0.1) {
-    return 'border-amber-400/40 bg-amber-500/15 text-amber-200'
-  }
-
-  return 'border-slate-400/35 bg-slate-500/10 text-slate-300'
+  if (hours === 0) return `${minutes} min ensemble`
+  return `${hours} h ${String(minutes).padStart(2, '0')} ensemble`
 }
 
 export default function SquadFrequency({ squads }: SquadFrequencyProps) {
   const [sortBy, setSortBy] = useState<SquadSortKey>('matches')
-  const bestWinRate = squads.reduce((best, entry) => Math.max(best, entry.winRate), 0)
 
   const sortedSquads = useMemo(() => {
     const items = [...squads]
@@ -39,8 +32,10 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
       if (sortBy === 'kills') {
         if (b.totalKills !== a.totalKills) return b.totalKills - a.totalKills
         if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount
-      } else if (sortBy === 'winRate') {
-        if (b.winRate !== a.winRate) return b.winRate - a.winRate
+      } else if (sortBy === 'playTime') {
+        if (b.sharedPlayTimeSeconds !== a.sharedPlayTimeSeconds) {
+          return b.sharedPlayTimeSeconds - a.sharedPlayTimeSeconds
+        }
         if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount
       } else {
         if (b.matchCount !== a.matchCount) return b.matchCount - a.matchCount
@@ -77,7 +72,7 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
             options={[
               { value: 'matches', label: 'Matchs' },
               { value: 'kills', label: 'Kills' },
-              { value: 'winRate', label: 'Win Rate' },
+              { value: 'playTime', label: 'Temps' },
             ]}
             value={sortBy}
             onChange={setSortBy}
@@ -86,11 +81,7 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
         </div>
       </div>
       <ul>
-        {sortedSquads.map((entry, index) => {
-          const winRatePercent = (entry.winRate * 100).toFixed(0)
-          const isBestWinRate =
-            bestWinRate > 0 && Math.abs(entry.winRate - bestWinRate) < Number.EPSILON * 10
-
+        {sortedSquads.slice(0, 10).map((entry, index) => {
           return (
             <li
               key={entry.memberId}
@@ -126,10 +117,10 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
               <div className="text-right">
                 <p className="text-sm font-semibold text-gray-900">{entry.totalKills} kills ensemble</p>
                 <p
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${getWinRateTone(entry.winRate)}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-2 py-0.5 text-xs font-medium text-cyan-700"
                 >
-                  {isBestWinRate ? <span aria-hidden="true">🏆</span> : null}
-                  <span>{winRatePercent}% win rate ensemble</span>
+                  <Clock3 className="h-3 w-3" aria-hidden="true" />
+                  <span>{formatPlayTime(entry.sharedPlayTimeSeconds)}</span>
                 </p>
               </div>
             </li>

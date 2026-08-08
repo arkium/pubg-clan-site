@@ -442,7 +442,7 @@ async function syncLifetimeStatsDaily() {
 
 async function syncClanSeasonStats(clanId: number) {
   const members = await prisma.clanMember.findMany({
-    where: { clanId, isActive: true },
+    where: { clanId, isActive: true, joinStatus: 'active' },
     select: { id: true, pubgPlayerName: true, pubgAccountId: true, platformShard: true },
   })
 
@@ -529,7 +529,7 @@ async function syncClanSeasonStats(clanId: number) {
 
 async function syncClanWeaponMastery(clanId: number) {
   const members = await prisma.clanMember.findMany({
-    where: { clanId, isActive: true },
+    where: { clanId, isActive: true, joinStatus: 'active' },
     select: { id: true, pubgPlayerName: true, pubgAccountId: true, platformShard: true },
   })
 
@@ -971,7 +971,7 @@ export async function sendNotificationsReminders(
   const { notifyInviteReminder, notifyReportReady } = await loadNotificationService()
 
   const activeMembers = await prisma.clanMember.findMany({
-    where: { isActive: true },
+    where: { isActive: true, joinStatus: 'active' },
     select: { id: true },
     orderBy: { id: 'asc' },
   })

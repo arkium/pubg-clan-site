@@ -107,6 +107,7 @@ async function fetchMatchesForPeriod(clanId: number, periodStart: Date, periodEn
           member: {
             clanId,
             isActive: true,
+            joinStatus: 'active',
           },
         },
       },
@@ -592,7 +593,7 @@ async function buildReportRecord(clanId: number, type: ReportType, referenceStar
         id: true,
         name: true,
         members: {
-          where: { isActive: true },
+          where: { isActive: true, joinStatus: 'active' },
           select: { id: true },
         },
       },

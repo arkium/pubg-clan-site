@@ -112,7 +112,7 @@ export async function precomputeClanMatchesStats(clanId: number) {
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
           createdAt: { gte: bounds.gte, lte: bounds.lte },
-          members: { some: { member: { clanId, isActive: true } } },
+          members: { some: { member: { clanId, isActive: true, joinStatus: 'active' } } },
         },
         include: {
           members: {

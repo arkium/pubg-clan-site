@@ -149,7 +149,7 @@ export async function assignBadges(clanId: number, period: StatsPeriod): Promise
   const allStats = await prisma.playerStats.findMany({
     where: {
       period: periodKey,
-      member: { clanId, isActive: true },
+      member: { clanId, isActive: true, joinStatus: 'active' },
     },
     orderBy: { totalKills: 'desc' },
   })
@@ -162,7 +162,7 @@ export async function assignBadges(clanId: number, period: StatsPeriod): Promise
   await prisma.playerStats.updateMany({
     where: {
       period: periodKey,
-      member: { clanId, isActive: true },
+      member: { clanId, isActive: true, joinStatus: 'active' },
     },
     data: { badgeType: null },
   })
@@ -235,7 +235,7 @@ export async function assignBadges(clanId: number, period: StatsPeriod): Promise
 
 export async function recalculateStatsForClan(clanId: number): Promise<void> {
   const members = await prisma.clanMember.findMany({
-    where: { clanId, isActive: true },
+    where: { clanId, isActive: true, joinStatus: 'active' },
     select: { id: true },
   })
 

@@ -68,6 +68,7 @@ export interface SquadFrequencyEntry {
   totalKills: number
   totalDamage: number
   winRate: number
+  sharedPlayTimeSeconds: number
 }
 
 export interface DashboardResponse {

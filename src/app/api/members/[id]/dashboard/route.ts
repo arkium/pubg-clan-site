@@ -270,12 +270,15 @@ export async function GET(
             }
           : {}),
       },
-      select: { squadMatchId: true, kills: true },
+      select: { squadMatchId: true, kills: true, timeSurvived: true },
     })
 
     const squadMatchIds = memberSquadMatches.map((s) => s.squadMatchId)
     const memberKillsBySquadMatchId = new Map(
       memberSquadMatches.map((entry) => [entry.squadMatchId, entry.kills])
+    )
+    const memberPlayTimeBySquadMatchId = new Map(
+      memberSquadMatches.map((entry) => [entry.squadMatchId, entry.timeSurvived])
     )
 
     let squads: Array<{
@@ -286,6 +289,7 @@ export async function GET(
       totalKills: number
       totalDamage: number
       winRate: number
+      sharedPlayTimeSeconds: number
     }> = []
 
     if (squadMatchIds.length > 0) {
@@ -324,6 +328,7 @@ export async function GET(
           kills: number
           damage: number
           wins: number
+          sharedPlayTimeSeconds: number
         }
       >()
 
@@ -335,10 +340,13 @@ export async function GET(
           kills: 0,
           damage: 0,
           wins: 0,
+          sharedPlayTimeSeconds: 0,
         }
         existing.matchCount += 1
         existing.kills += cp.kills + (memberKillsBySquadMatchId.get(cp.squadMatchId) ?? 0)
         existing.damage += cp.damage
+        const memberPlayTime = memberPlayTimeBySquadMatchId.get(cp.squadMatchId) ?? 0
+        existing.sharedPlayTimeSeconds += Math.min(memberPlayTime, cp.timeSurvived)
         if (cp.squadMatch.placement === 1) existing.wins += 1
         playerMap.set(cp.memberId, existing)
       }
@@ -352,9 +360,9 @@ export async function GET(
           totalKills: data.kills,
           totalDamage: data.damage,
           winRate: data.matchCount > 0 ? data.wins / data.matchCount : 0,
+          sharedPlayTimeSeconds: data.sharedPlayTimeSeconds,
         }))
         .sort((a, b) => b.matchCount - a.matchCount)
-        .slice(0, 10)
     }
 
     return Response.json({

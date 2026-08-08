@@ -25,6 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       asOpponentCount: bigint
       asTeammateCount: bigint
       lastSeenAt: Date
+      isFavorite: boolean
       trackedMemberId: number | null
       trackedMemberName: string | null
       trackedClanTag: string | null
@@ -34,6 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       SELECT
         p.id as playerId,
         p.pubgPlayerName as pubgPlayerName,
+        p.isFavorite as isFavorite,
         COALESCE(SUM(ce.encounterCount - ce.teammateEncounterCount), 0) as asOpponentCount,
         COALESCE(SUM(ce.teammateEncounterCount), 0) as asTeammateCount,
         COALESCE(MAX(ce.lastSeenAt), p.lastSeenAt) as lastSeenAt,
@@ -54,6 +56,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const players = rows.map((row) => ({
     playerId: row.playerId,
     pubgPlayerName: row.pubgPlayerName,
+    isFavorite: Boolean(row.isFavorite),
     asOpponentCount: Number(row.asOpponentCount),
     asTeammateCount: Number(row.asTeammateCount),
     lastSeenAt: row.lastSeenAt.toISOString(),

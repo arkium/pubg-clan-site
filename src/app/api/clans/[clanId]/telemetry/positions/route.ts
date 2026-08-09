@@ -13,7 +13,8 @@ import {
 } from '@/lib/tactical-phase'
 import {
   loadAggregatedPositionMetricCells,
-  loadPositionMetricCatalog,
+  loadPositionMetricMapSummary,
+  loadPositionMetricMemberPhaseBreakdown,
 } from '@/lib/position-metric-aggregation'
 import {
   buildTelemetryErrorResponse,
@@ -119,6 +120,42 @@ type ColumnPresenceRow = {
 const GRID_SIZE = 40
 const CACHE_TTL_MS = 5 * 60 * 1000
 const positionsResponseCache = new Map<string, { expiresAt: number; body: unknown }>()
+
+let columnPresenceCache: { hasPositionColumns: boolean; hasNewColumns: boolean } | null = null
+
+async function getColumnPresence() {
+  if (columnPresenceCache) {
+    return columnPresenceCache
+  }
+
+  const [columnPresenceRows, newColumnPresenceRows] = await Promise.all([
+    prisma.$queryRaw<ColumnPresenceRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS total
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'SquadMatchTelemetry'
+        AND COLUMN_NAME IN ('positionSamples', 'deathSamples')
+    `),
+    prisma.$queryRaw<ColumnPresenceRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS total
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'SquadMatchTelemetry'
+        AND COLUMN_NAME IN ('killSamples', 'shotSamples', 'damageSamples', 'knockoutSamples', 'reviveSamples', 'vehicleSamples')
+    `),
+  ])
+
+  const presentColumnsRaw = columnPresenceRows[0]?.total ?? 0
+  const presentColumns =
+    typeof presentColumnsRaw === 'bigint' ? Number(presentColumnsRaw) : Number(presentColumnsRaw)
+
+  columnPresenceCache = {
+    hasPositionColumns: Number.isFinite(presentColumns) && presentColumns >= 2,
+    hasNewColumns: Number(newColumnPresenceRows[0]?.total ?? 0) >= 6,
+  }
+
+  return columnPresenceCache
+}
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -312,35 +349,13 @@ export async function GET(
     const dateFilter = bounds
       ? Prisma.sql`AND sm.createdAt >= ${bounds.startDate} AND sm.createdAt <= ${bounds.endDate}`
       : Prisma.empty
-    const initialPersistedCatalog = await loadPositionMetricCatalog({
+    const persistedMapSummary = await loadPositionMetricMapSummary({
       clanId: parsedClanId,
       bounds,
     })
-    const hasPersistedData = initialPersistedCatalog.maps.length > 0
+    const hasPersistedData = persistedMapSummary.maps.length > 0
 
-    const columnPresenceRows = await prisma.$queryRaw<ColumnPresenceRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS total
-      FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'SquadMatchTelemetry'
-        AND COLUMN_NAME IN ('positionSamples', 'deathSamples')
-    `)
-
-    const presentColumnsRaw = columnPresenceRows[0]?.total ?? 0
-    const presentColumns =
-      typeof presentColumnsRaw === 'bigint'
-        ? Number(presentColumnsRaw)
-        : Number(presentColumnsRaw)
-    const hasPositionColumns = Number.isFinite(presentColumns) && presentColumns >= 2
-
-    const newColumnPresenceRows = await prisma.$queryRaw<ColumnPresenceRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS total
-      FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'SquadMatchTelemetry'
-        AND COLUMN_NAME IN ('killSamples', 'shotSamples', 'damageSamples', 'knockoutSamples', 'reviveSamples', 'vehicleSamples')
-    `)
-    const hasNewColumns = Number(newColumnPresenceRows[0]?.total ?? 0) >= 6
+    const { hasPositionColumns, hasNewColumns } = await getColumnPresence()
 
     const selectPositionSamples = hasPositionColumns && !hasPersistedData
       ? Prisma.sql`t.positionSamples`
@@ -378,7 +393,7 @@ export async function GET(
     `)
 
     const maps = hasPersistedData
-      ? initialPersistedCatalog.maps
+      ? persistedMapSummary.maps
       : mapSummaryRows.map((row) => ({
           mapName: row.mapName,
           matches: Number(row.matches),
@@ -390,7 +405,8 @@ export async function GET(
       ? mapName
       : maps[0]?.mapName ?? null
 
-    const rows = selectedMap ? await prisma.$queryRaw<TelemetryRow[]>(Prisma.sql`
+    const needsRawRows = !hasPersistedData || phaseFilter !== 'all'
+    const rows = selectedMap && needsRawRows ? await prisma.$queryRaw<TelemetryRow[]>(Prisma.sql`
       SELECT
         sm.mapName,
         ${selectPositionSamples} AS positionSamples,
@@ -496,7 +512,7 @@ export async function GET(
     )
     const selectedRows = rows
     const persistedCatalog = hasPersistedData && selectedMap
-      ? await loadPositionMetricCatalog({
+      ? await loadPositionMetricMemberPhaseBreakdown({
           clanId: parsedClanId,
           bounds,
           selectedMap,

@@ -29,10 +29,9 @@ function periodWhere(bounds: PositionMetricPeriodBounds): Prisma.PositionMetricC
     : {}
 }
 
-export async function loadPositionMetricCatalog(input: {
+export async function loadPositionMetricMapSummary(input: {
   clanId: number
   bounds: PositionMetricPeriodBounds
-  selectedMap?: string | null
   client?: PrismaClient
 }) {
   const client = input.client ?? prisma
@@ -66,10 +65,16 @@ export async function loadPositionMetricCatalog(input: {
     deathPoints: Number(row.deathPoints ?? 0),
   }))
 
-  if (!input.selectedMap || maps.length === 0) {
-    return { maps, members: [], phases: [] }
-  }
+  return { maps }
+}
 
+export async function loadPositionMetricMemberPhaseBreakdown(input: {
+  clanId: number
+  bounds: PositionMetricPeriodBounds
+  selectedMap: string
+  client?: PrismaClient
+}) {
+  const client = input.client ?? prisma
   const baseWhere: Prisma.PositionMetricCellWhereInput = {
     clanId: input.clanId,
     mapName: input.selectedMap,
@@ -90,7 +95,6 @@ export async function loadPositionMetricCatalog(input: {
   ])
 
   return {
-    maps,
     members: memberRows.map((row) => ({
       memberId: row.memberId,
       points: row._sum.eventCount ?? 0,

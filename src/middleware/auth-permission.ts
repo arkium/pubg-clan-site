@@ -179,7 +179,10 @@ export function requireNavPermission(navKey: string) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (options?.clanId) {
+    // SuperUsers bypass clan membership checks (they may browse any clan)
+    const isSU = await isSuperUserSession(request)
+
+    if (!isSU && options?.clanId) {
       const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
       if (!inClan) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -197,6 +200,9 @@ export function requireNavPermission(navKey: string) {
     }
 
     if (role === 'admin') {
+      if (isSU) {
+        return null
+      }
       const isAdmin = await hasPermission(actorMemberId, '*')
         || await hasPermission(actorMemberId, 'manage_members')
         || await hasPermission(actorMemberId, 'manage_roles')
@@ -208,7 +214,6 @@ export function requireNavPermission(navKey: string) {
     }
 
     if (role === 'superuser') {
-      const isSU = await isSuperUserSession(request)
       if (!isSU) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
@@ -216,6 +221,9 @@ export function requireNavPermission(navKey: string) {
     }
 
     // role === 'owner'
+    if (isSU) {
+      return null
+    }
     const isOwner = await hasPermission(actorMemberId, '*')
     if (!isOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

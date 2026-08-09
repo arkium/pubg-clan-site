@@ -6,6 +6,15 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-01.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### ~~SuperUser — Forbidden sur les clans hors clan d'appartenance~~ — ✅ Corrigé le 2026-08-09
+
+`requireNavPermission` (`src/middleware/auth-permission.ts`) vérifiait l'appartenance au clan ciblé (`ensureMemberInClan`) **avant** de vérifier le statut SuperUser, contrairement à `requirePermission`/`requireRole` qui font le bypass SuperUser en premier. Un SuperUser dont le membre actif appartient au clan 1 recevait `403 Forbidden` sur les ~16 routes protégées par `requireNavPermission` (positions, matches, lifetime-stats, drop-zones, weapons, heatmap, challenges, reports, squad-analysis, leaderboard, bot-stats…) dès qu'il consultait un autre clan (ex. clan 7), alors que les données existaient bien.
+
+- [x] Ajouter le bypass SuperUser avant le contrôle `ensureMemberInClan` dans `requireNavPermission`
+- [x] Étendre le bypass SuperUser aux branches `role === 'admin'` et `role === 'owner'` (qui dépendaient des rôles du membre actif dans son propre clan, jamais valides pour un clan étranger)
+- [x] Valider TypeScript et ESLint sur `auth-permission.ts`
+- [ ] Vérifier dans le navigateur `/clans/7/telemetry/matches` avec la session SuperUser actuelle (`activeMemberId=1`, clan 1)
+
 ### Refonte Dashboard Overview & Roster (En cours)
 
 Cette tâche vise à transformer la page `Overview` en un véritable dashboard analytique (100% statistiques) alimenté par un cache persistant précalculé, et à alléger la page `Matches`.
@@ -241,6 +250,16 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 - [ ] Vérifier que les filtres et le Top 5 restent identiques avant/après migration
 - [x] Mesurer un premier chargement à froid inférieur à une seconde sur la période hebdomadaire (`692 ms`, cache vide)
 - [ ] Ajouter des tests de route ou de service couvrant les semaines vides et les filtres combinés
+
+##### Optimisations complémentaires — lenteur résiduelle (2026-08-08)
+
+Malgré la migration vers `PositionMetricCell`, `GET /api/clans/[clanId]/telemetry/positions` reste lent car plusieurs opérations coûteuses s'exécutent encore à chaque requête, y compris quand les données sont déjà persistées.
+
+- [x] Mettre en cache en mémoire (process) le résultat des deux vérifications `information_schema.COLUMNS` au lieu de les requêter à chaque appel — le schéma ne change pas entre deux requêtes (`getColumnPresence()` dans `route.ts`)
+- [x] Dédupliquer le double appel à `loadPositionMetricCatalog` — remplacé par `loadPositionMetricMapSummary` (résumé des cartes, appelé une fois) et `loadPositionMetricMemberPhaseBreakdown` (membres/phases, appelé une seule fois avec la carte réellement sélectionnée), la requête d'agrégat par carte n'est plus dupliquée
+- [x] Éviter le scan complet de `SquadMatchTelemetry JOIN SquadMatch` sur toute la carte sélectionnée quand `hasPersistedData` est vrai et qu'aucun filtre de phase n'est actif (`needsRawRows`) — cette requête ne sert qu'à `phaseSnapshots` pour l'overlay de zone de sécurité
+- [ ] Limiter la requête `phaseSnapshots` (quand nécessaire) aux colonnes utiles au lieu de sélectionner potentiellement tout l'historique du match
+- [ ] Mesurer le temps de réponse avant/après sur `/clans/1/stats/positions` (période semaine et tous) pour valider le gain
 
 ##### Dashboards clan et membre
 

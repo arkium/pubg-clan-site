@@ -79,6 +79,100 @@ type OpponentsPayload = {
   opponentClans: { rows: OpponentClanRow[]; pagination: Pagination }
 }
 
+type EncounteredPlayerResolutionStatus =
+  | 'below_threshold'
+  | 'never_attempted'
+  | 'retry_pending'
+  | 'failed'
+  | 'resolved_with_clan'
+  | 'resolved_without_clan'
+
+type ResolutionRun = {
+  id: string
+  source: string
+  status: string
+  startedAt: string
+  finishedAt: string | null
+  durationMs: number | null
+  candidatesSelected: number
+  uniqueCandidatesSelected: number
+  crossClanCandidatesSelected: number
+  resolvedFromCache: number
+  pubgApiCalls: number
+  resolvedWithClan: number
+  resolvedWithoutClan: number
+  failed: number
+  encounterRowsUpdated: number
+  rowsResolvedPerApiCall: number | null
+  backlogRemaining: number | null
+}
+
+type ResolutionPayload = {
+  config: { batchSize: number; bounds: { min: number; max: number; defaultValue: number }; enabled: boolean }
+  cron: { expression: string; source: 'db' | 'env'; description: string } | null
+  thresholds: { minEncounters: number; maxAttempts: number }
+  backlog: {
+    neverAttempted: number
+    retryPending: number
+    failed: number
+    resolvedWithClan: number
+    resolvedWithoutClan: number
+  }
+  resolutionsLast24h: { withClan: number; withoutClan: number; failed: number }
+  crossClan: {
+    uniqueIdentitiesRemaining: number
+    pendingRowCount: number
+    crossClanPlayerCount: number
+    avgRowsResolvedPerApiCall: number | null
+  }
+  estimatedCatchUpDays: number | null
+  latestRun: ResolutionRun | null
+  recentRuns: ResolutionRun[]
+  worker: {
+    webWorker: { cronJobsEnabled: boolean }
+    cronWorker: { probeEnabled: boolean; available: boolean; cronJobsEnabled?: boolean; reason?: string }
+  }
+}
+
+type TriagePlayerRow = {
+  id: string
+  clanId: number
+  clanTag: string
+  clanName: string
+  pubgAccountId: string
+  pubgPlayerName: string
+  pubgClanTag: string | null
+  pubgClanName: string | null
+  encounterCount: number
+  resolveAttempts: number
+  status: EncounteredPlayerResolutionStatus
+  distinctClanCount: number
+  lastSeenAt: string
+}
+
+type TriagePayload = {
+  thresholds: { minEncounters: number; maxAttempts: number }
+  page: number
+  pageSize: number
+  total: number
+  players: TriagePlayerRow[]
+}
+
+const STATUS_LABELS: Record<EncounteredPlayerResolutionStatus, string> = {
+  below_threshold: 'Pas encore éligible',
+  never_attempted: 'Jamais tenté',
+  retry_pending: 'Nouvel essai prévu',
+  failed: 'Échec définitif',
+  resolved_with_clan: 'Résolu (clan)',
+  resolved_without_clan: 'Résolu (sans clan)',
+}
+
+const TRIAGE_STATUS_FILTERS: EncounteredPlayerResolutionStatus[] = [
+  'never_attempted',
+  'retry_pending',
+  'failed',
+]
+
 function formatDateTime(value: string | null) {
   if (!value) return '-'
   return new Date(value).toLocaleDateString('fr-FR')
@@ -168,6 +262,244 @@ export default function OpponentsSettingsPage() {
   const [opponentDetails, setOpponentDetails] = useState<Record<string, DetailState<OpponentClanDetail>>>({})
 
   const [trackPending, setTrackPending] = useState<Set<string>>(new Set())
+
+  const [resolutionPayload, setResolutionPayload] = useState<ResolutionPayload | null>(null)
+  const [resolutionLoading, setResolutionLoading] = useState(false)
+  const [resolutionError, setResolutionError] = useState('')
+  const [batchSizeInput, setBatchSizeInput] = useState('')
+  const [savingConfig, setSavingConfig] = useState(false)
+
+  const [triageStatuses, setTriageStatuses] = useState<Set<EncounteredPlayerResolutionStatus>>(
+    new Set(TRIAGE_STATUS_FILTERS)
+  )
+  const [triagePage, setTriagePage] = useState(1)
+  const [triagePayload, setTriagePayload] = useState<TriagePayload | null>(null)
+  const [triageLoading, setTriageLoading] = useState(false)
+  const [triageError, setTriageError] = useState('')
+  const [resolvePending, setResolvePending] = useState<Set<string>>(new Set())
+  const [resolveResults, setResolveResults] = useState<Record<string, string>>({})
+
+  async function fetchResolutionPayload(): Promise<ResolutionPayload> {
+    const response = await fetch('/api/settings/encountered-player-resolution', { cache: 'no-store' })
+    const body = (await response.json().catch(() => null)) as { data?: ResolutionPayload; error?: string } | null
+    if (!response.ok || !body?.data) {
+      throw new Error(body?.error ?? 'Chargement impossible')
+    }
+    return body.data
+  }
+
+  async function loadResolutionPanel() {
+    try {
+      setResolutionLoading(true)
+      const data = await fetchResolutionPayload()
+      setResolutionPayload(data)
+      setResolutionError('')
+      setBatchSizeInput(String(data.config.batchSize))
+    } catch (loadError) {
+      setResolutionError(loadError instanceof Error ? loadError.message : 'Chargement impossible')
+    } finally {
+      setResolutionLoading(false)
+    }
+  }
+
+  async function fetchTriagePayload(page: number, statuses: Set<EncounteredPlayerResolutionStatus>): Promise<TriagePayload> {
+    const searchParams = new URLSearchParams({ page: String(page) })
+    statuses.forEach((status) => searchParams.append('status', status))
+
+    const response = await fetch(`/api/settings/encountered-players?${searchParams.toString()}`, {
+      cache: 'no-store',
+    })
+    const body = (await response.json().catch(() => null)) as { data?: TriagePayload; error?: string } | null
+    if (!response.ok || !body?.data) {
+      throw new Error(body?.error ?? 'Chargement impossible')
+    }
+    return body.data
+  }
+
+  async function loadTriage() {
+    try {
+      setTriageLoading(true)
+      const data = await fetchTriagePayload(triagePage, triageStatuses)
+      setTriagePayload(data)
+      setTriageError('')
+    } catch (loadError) {
+      setTriageError(loadError instanceof Error ? loadError.message : 'Chargement impossible')
+    } finally {
+      setTriageLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (loading || !authenticated || !isSuperUser) {
+      return
+    }
+
+    let cancelled = false
+
+    async function run() {
+      try {
+        setResolutionLoading(true)
+        const data = await fetchResolutionPayload()
+        if (cancelled) return
+        setResolutionPayload(data)
+        setResolutionError('')
+        setBatchSizeInput(String(data.config.batchSize))
+      } catch (loadError) {
+        if (cancelled) return
+        setResolutionError(loadError instanceof Error ? loadError.message : 'Chargement impossible')
+      } finally {
+        if (!cancelled) setResolutionLoading(false)
+      }
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [loading, authenticated, isSuperUser, refreshKey])
+
+  useEffect(() => {
+    if (loading || !authenticated || !isSuperUser) {
+      return
+    }
+
+    let cancelled = false
+
+    async function run() {
+      try {
+        setTriageLoading(true)
+        const data = await fetchTriagePayload(triagePage, triageStatuses)
+        if (cancelled) return
+        setTriagePayload(data)
+        setTriageError('')
+      } catch (loadError) {
+        if (cancelled) return
+        setTriageError(loadError instanceof Error ? loadError.message : 'Chargement impossible')
+      } finally {
+        if (!cancelled) setTriageLoading(false)
+      }
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [loading, authenticated, isSuperUser, triagePage, triageStatuses, refreshKey])
+
+  function toggleTriageStatus(status: EncounteredPlayerResolutionStatus) {
+    setTriagePage(1)
+    setTriageStatuses((current) => {
+      const next = new Set(current)
+      if (next.has(status)) {
+        next.delete(status)
+      } else {
+        next.add(status)
+      }
+      return next
+    })
+  }
+
+  async function handleSaveBatchSize() {
+    const nextValue = Number(batchSizeInput)
+    if (!Number.isInteger(nextValue) || nextValue <= 0) {
+      addNotification('Batch invalide', 'error')
+      return
+    }
+
+    try {
+      setSavingConfig(true)
+      const response = await fetch('/api/settings/encountered-player-resolution', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ batchSize: nextValue }),
+      })
+      const body = (await response.json().catch(() => null)) as { data?: ResolutionPayload; error?: string } | null
+      if (!response.ok || !body?.data) {
+        throw new Error(body?.error ?? 'Echec de la mise a jour')
+      }
+      setResolutionPayload(body.data)
+      addNotification('Batch mis à jour', 'success')
+    } catch (saveError) {
+      addNotification(saveError instanceof Error ? saveError.message : 'Echec de la mise a jour', 'error')
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
+  async function handleToggleEnabled() {
+    if (!resolutionPayload) {
+      return
+    }
+
+    const nextEnabled = !resolutionPayload.config.enabled
+    try {
+      const response = await fetch('/api/settings/encountered-player-resolution', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: nextEnabled }),
+      })
+      const body = (await response.json().catch(() => null)) as { data?: ResolutionPayload; error?: string } | null
+      if (!response.ok || !body?.data) {
+        throw new Error(body?.error ?? 'Echec de la mise a jour')
+      }
+      setResolutionPayload(body.data)
+      addNotification(nextEnabled ? 'Résolution automatique activée' : 'Résolution automatique désactivée', 'success')
+    } catch (toggleError) {
+      addNotification(toggleError instanceof Error ? toggleError.message : 'Echec de la mise a jour', 'error')
+    }
+  }
+
+  async function handleResolvePlayer(row: TriagePlayerRow, forceRetry: boolean) {
+    if (resolvePending.has(row.id)) {
+      return
+    }
+
+    if (!window.confirm('Un appel à l\'API PUBG sera consommé pour résoudre ce joueur. Continuer ?')) {
+      return
+    }
+
+    setResolvePending((current) => new Set(current).add(row.id))
+    setResolveResults((current) => {
+      const next = { ...current }
+      delete next[row.id]
+      return next
+    })
+
+    try {
+      const url = `/api/settings/encountered-players/${row.id}/resolve${forceRetry ? '?force=retry' : ''}`
+      const response = await fetch(url, { method: 'POST' })
+      const body = (await response.json().catch(() => null)) as
+        | { data?: { outcome: string; viaCache?: boolean; clanTag?: string | null }; error?: string }
+        | null
+
+      if (!response.ok || !body?.data) {
+        throw new Error(body?.error ?? 'Echec de la résolution')
+      }
+
+      const outcome = body.data.outcome
+      const label =
+        outcome === 'resolved_with_clan'
+          ? `Clan trouvé${body.data.clanTag ? ` [${body.data.clanTag}]` : ''}${body.data.viaCache ? ' (cache)' : ''}`
+          : outcome === 'resolved_without_clan'
+            ? `Aucun clan${body.data.viaCache ? ' (cache)' : ''}`
+            : 'Échec — réessai possible'
+
+      setResolveResults((current) => ({ ...current, [row.id]: label }))
+      await loadTriage()
+      await loadResolutionPanel()
+    } catch (resolveError) {
+      const message = resolveError instanceof Error ? resolveError.message : 'Echec de la résolution'
+      setResolveResults((current) => ({ ...current, [row.id]: message }))
+    } finally {
+      setResolvePending((current) => {
+        const next = new Set(current)
+        next.delete(row.id)
+        return next
+      })
+    }
+  }
 
   async function handleTrackMember(playerId: string, targetClanId: number) {
     try {
@@ -470,6 +802,269 @@ export default function OpponentsSettingsPage() {
           title="Adversaires"
           subtitle="Vue transverse des clans suivis et des clans adverses croises en match, tous clans suivis confondus."
         />
+      </section>
+
+      <section className="app-panel mb-4 p-6 sm:p-8">
+        <h2 className="text-sm font-bold text-slate-900">Résolution des clans adverses</h2>
+        <p className="mt-1 text-xs text-slate-600">
+          Débit du cron de résolution, backlog par statut et action manuelle ciblée. Le débit PUBG est partagé
+          avec les autres traitements — voir{' '}
+          <Link href="/settings/pubg-api" className="underline">
+            /settings/pubg-api
+          </Link>
+          .
+        </p>
+
+        {resolutionError ? <p className="mt-3 text-sm text-rose-700">{resolutionError}</p> : null}
+
+        {resolutionPayload ? (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+              <MetricCard label="Jamais tenté" value={String(resolutionPayload.backlog.neverAttempted)} />
+              <MetricCard label="Nouvel essai prévu" value={String(resolutionPayload.backlog.retryPending)} />
+              <MetricCard label="Échec définitif" value={String(resolutionPayload.backlog.failed)} />
+              <MetricCard
+                label="Résolus 24h (clan / sans clan)"
+                value={`${resolutionPayload.resolutionsLast24h.withClan} / ${resolutionPayload.resolutionsLast24h.withoutClan}`}
+              />
+              <MetricCard
+                label="Rattrapage estimé"
+                value={
+                  resolutionPayload.estimatedCatchUpDays === null
+                    ? '-'
+                    : `${resolutionPayload.estimatedCatchUpDays.toFixed(1)} j`
+                }
+              />
+              <MetricCard
+                label="Fréquence cron"
+                value={resolutionPayload.cron?.description ?? resolutionPayload.cron?.expression ?? '-'}
+              />
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <MetricCard
+                label="Identités restantes (appels potentiels)"
+                value={String(resolutionPayload.crossClan.uniqueIdentitiesRemaining)}
+              />
+              <MetricCard
+                label="Lignes clan-joueur en attente"
+                value={String(resolutionPayload.crossClan.pendingRowCount)}
+              />
+              <MetricCard
+                label="Joueurs communs à plusieurs clans"
+                value={String(resolutionPayload.crossClan.crossClanPlayerCount)}
+              />
+              <MetricCard
+                label="Lignes résolues / appel PUBG (moy.)"
+                value={
+                  resolutionPayload.crossClan.avgRowsResolvedPerApiCall === null
+                    ? '-'
+                    : resolutionPayload.crossClan.avgRowsResolvedPerApiCall.toFixed(2)
+                }
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 p-3">
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Batch effectif ({resolutionPayload.config.bounds.min}-{resolutionPayload.config.bounds.max})
+                <input
+                  type="number"
+                  min={resolutionPayload.config.bounds.min}
+                  max={resolutionPayload.config.bounds.max}
+                  value={batchSizeInput}
+                  onChange={(event) => setBatchSizeInput(event.target.value)}
+                  className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm font-medium text-slate-700"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleSaveBatchSize}
+                disabled={savingConfig}
+                className="app-btn app-btn--sm app-btn--secondary"
+              >
+                Enregistrer
+              </button>
+              <button type="button" onClick={handleToggleEnabled} className="app-btn app-btn--sm app-btn--secondary">
+                {resolutionPayload.config.enabled ? 'Désactiver la résolution auto' : 'Activer la résolution auto'}
+              </button>
+              <p className="text-[11px] text-slate-500">
+                Seuil minimal : {resolutionPayload.thresholds.minEncounters} croisement(s) — {resolutionPayload.thresholds.maxAttempts} tentatives max.
+              </p>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-600">
+              {resolutionPayload.worker.cronWorker.probeEnabled
+                ? resolutionPayload.worker.cronWorker.available
+                  ? resolutionPayload.worker.cronWorker.cronJobsEnabled
+                    ? `Worker cron actif${resolutionPayload.latestRun ? ` — dernière exécution : ${new Date(resolutionPayload.latestRun.startedAt).toLocaleString('fr-FR')}` : ''}.`
+                    : 'Aucun worker cron actif.'
+                  : `Worker cron injoignable (${resolutionPayload.worker.cronWorker.reason ?? 'raison inconnue'}).`
+                : `Sonde non configurée (${resolutionPayload.worker.cronWorker.reason ?? 'CRON_BOOTSTRAP_SECRET manquant'}) — web worker cron ${resolutionPayload.worker.webWorker.cronJobsEnabled ? 'activé' : 'désactivé normalement'}.`}
+            </p>
+
+            {resolutionPayload.recentRuns.length > 0 ? (
+              <div className="app-table-shell mt-4 overflow-x-auto">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="app-table-head uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-2 py-1.5">Début</th>
+                      <th className="px-2 py-1.5">Source</th>
+                      <th className="px-2 py-1.5 text-right" title="Identités globales distinctes sélectionnées">
+                        Identités
+                      </th>
+                      <th className="px-2 py-1.5 text-right" title="Identités croisées par plusieurs clans">
+                        Dont cross-clan
+                      </th>
+                      <th className="px-2 py-1.5 text-right">Lignes sélectionnées</th>
+                      <th className="px-2 py-1.5 text-right">Cache</th>
+                      <th className="px-2 py-1.5 text-right">Résolus (clan)</th>
+                      <th className="px-2 py-1.5 text-right">Résolus (sans clan)</th>
+                      <th className="px-2 py-1.5 text-right">Échecs</th>
+                      <th className="px-2 py-1.5 text-right">Lignes mises à jour</th>
+                      <th className="px-2 py-1.5 text-right" title="Lignes clan-joueur mises à jour par appel PUBG réel">
+                        Lignes/appel
+                      </th>
+                      <th className="px-2 py-1.5 text-right">Backlog restant</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resolutionPayload.recentRuns.map((run) => (
+                      <tr key={run.id} className="app-table-row">
+                        <td className="px-2 py-1.5">{new Date(run.startedAt).toLocaleString('fr-FR')}</td>
+                        <td className="px-2 py-1.5">{run.source}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.uniqueCandidatesSelected}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.crossClanCandidatesSelected}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.candidatesSelected}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.resolvedFromCache}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.resolvedWithClan}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.resolvedWithoutClan}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-rose-700">{run.failed}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.encounterRowsUpdated}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {run.rowsResolvedPerApiCall === null ? '-' : run.rowsResolvedPerApiCall.toFixed(2)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{run.backlogRemaining ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </>
+        ) : resolutionLoading ? (
+          <p className="mt-3 text-sm text-slate-600">Chargement...</p>
+        ) : null}
+
+        {/* Triage — joueurs non résolus, filtrable par statut, actions manuelles */}
+        <div className="app-panel-muted mt-6 p-5">
+          <h3 className="text-sm font-bold text-slate-900">Triage des joueurs non résolus</h3>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {TRIAGE_STATUS_FILTERS.map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => toggleTriageStatus(status)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  triageStatuses.has(status)
+                    ? 'border-slate-700 bg-slate-700 text-white'
+                    : 'border-slate-300 bg-white text-slate-600'
+                }`}
+              >
+                {STATUS_LABELS[status]}
+              </button>
+            ))}
+          </div>
+
+          {triageError ? <p className="mt-3 text-sm text-rose-700">{triageError}</p> : null}
+
+          <div className="app-table-shell mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-xs">
+              <thead className="app-table-head uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-2 py-1.5">Joueur</th>
+                  <th className="px-2 py-1.5">Clan suivi</th>
+                  <th className="px-2 py-1.5">Statut</th>
+                  <th className="px-2 py-1.5 text-right" title="Nombre de clans suivis ayant croisé ce compte — priorisé en premier par le cron">
+                    Clans
+                  </th>
+                  <th className="px-2 py-1.5 text-right">Tentatives</th>
+                  <th className="px-2 py-1.5">Résultat</th>
+                  <th className="px-2 py-1.5">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(triagePayload?.players.length ?? 0) === 0 ? (
+                  <tr className="app-table-row">
+                    <td colSpan={7} className="px-2 py-6 text-center text-slate-500">
+                      {triageLoading ? 'Chargement...' : 'Aucun joueur pour ces filtres.'}
+                    </td>
+                  </tr>
+                ) : (
+                  triagePayload?.players.map((row) => (
+                    <tr key={row.id} className="app-table-row align-top">
+                      <td className="px-2 py-1.5 font-medium text-slate-900">{row.pubgPlayerName}</td>
+                      <td className="px-2 py-1.5 text-slate-700">[{row.clanTag}]</td>
+                      <td className="px-2 py-1.5 text-slate-700">{STATUS_LABELS[row.status]}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {row.distinctClanCount > 1 ? (
+                          <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] font-semibold text-sky-700">
+                            {row.distinctClanCount}
+                          </span>
+                        ) : (
+                          row.distinctClanCount
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {row.resolveAttempts}/{triagePayload?.thresholds.maxAttempts}
+                      </td>
+                      <td className="px-2 py-1.5 text-slate-600">{resolveResults[row.id] ?? '-'}</td>
+                      <td className="px-2 py-1.5">
+                        <button
+                          type="button"
+                          disabled={resolvePending.has(row.id)}
+                          onClick={() => handleResolvePlayer(row, row.status === 'failed')}
+                          className="app-btn app-btn--sm app-btn--secondary"
+                        >
+                          {resolvePending.has(row.id)
+                            ? '...'
+                            : row.status === 'failed'
+                              ? 'Réessayer'
+                              : 'Résoudre maintenant'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {triagePayload && triagePayload.total > triagePayload.pageSize ? (
+            <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-600">
+              <p>
+                Page {triagePayload.page} / {Math.max(1, Math.ceil(triagePayload.total / triagePayload.pageSize))}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="app-btn app-btn--sm app-btn--secondary"
+                  disabled={triagePage === 1}
+                  onClick={() => setTriagePage((page) => Math.max(1, page - 1))}
+                >
+                  Précédent
+                </button>
+                <button
+                  type="button"
+                  className="app-btn app-btn--sm app-btn--secondary"
+                  disabled={triagePage * triagePayload.pageSize >= triagePayload.total}
+                  onClick={() => setTriagePage((page) => page + 1)}
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className="app-panel p-6 sm:p-8">

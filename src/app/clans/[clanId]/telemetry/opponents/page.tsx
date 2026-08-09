@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import type { EncounteredPlayerResolutionStatus } from '@/lib/encountered-player-status'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 type Period = 'week' | 'month' | 'all'
@@ -19,10 +20,39 @@ type EncounteredPlayerRow = {
   encounterCount: number
   teammateEncounterCount: number
   opponentEncounterCount: number
+  resolveAttempts: number
+  status: EncounteredPlayerResolutionStatus
   killedByClanCount: number
   killedClanMemberCount: number
   firstSeenAt: string
   lastSeenAt: string
+}
+
+const STATUS_LABELS: Record<EncounteredPlayerResolutionStatus, string> = {
+  below_threshold: 'Pas encore éligible',
+  never_attempted: 'En attente',
+  retry_pending: 'Nouvel essai prévu',
+  failed: 'Échec définitif',
+  resolved_with_clan: 'Résolu',
+  resolved_without_clan: 'Aucun clan',
+}
+
+const STATUS_TOOLTIPS: Record<EncounteredPlayerResolutionStatus, string> = {
+  below_threshold: 'Seuil minimal de croisements non atteint.',
+  never_attempted: 'Pas encore tenté.',
+  retry_pending: 'Une tentative précédente a échoué, une autre aura lieu automatiquement.',
+  failed: 'Nombre maximal de tentatives atteint.',
+  resolved_with_clan: 'Clan PUBG résolu.',
+  resolved_without_clan: 'Confirmé sans clan PUBG.',
+}
+
+const STATUS_BADGE_CLASSES: Record<EncounteredPlayerResolutionStatus, string> = {
+  below_threshold: 'border-slate-200 bg-slate-50 text-slate-500',
+  never_attempted: 'border-amber-200 bg-amber-50 text-amber-700',
+  retry_pending: 'border-amber-200 bg-amber-50 text-amber-700',
+  failed: 'border-rose-200 bg-rose-50 text-rose-700',
+  resolved_with_clan: 'border-slate-200 bg-slate-50 text-slate-700',
+  resolved_without_clan: 'border-slate-200 bg-slate-50 text-slate-500',
 }
 
 type RivalClan = {
@@ -61,6 +91,9 @@ type EncounteredPlayersPayload = {
     topRivalClans: RivalClan[]
     rivalClans: RivalClanFull[]
     players: EncounteredPlayerRow[]
+    playersListLimit: number
+    playersListTruncated: boolean
+    thresholds: { minEncounters: number; maxAttempts: number }
   }
   error?: string
 }
@@ -179,12 +212,15 @@ export default function EncounteredOpponentsPage() {
 
     const search = searchTerm.trim().toLowerCase()
 
+    const isResolvedStatus = (status: EncounteredPlayerResolutionStatus) =>
+      status === 'resolved_with_clan' || status === 'resolved_without_clan'
+
     return payload.players.filter((player) => {
-      if (clanFilter === 'resolved' && !player.clanResolvedAt) {
+      if (clanFilter === 'resolved' && !isResolvedStatus(player.status)) {
         return false
       }
 
-      if (clanFilter === 'pending' && player.clanResolvedAt) {
+      if (clanFilter === 'pending' && isResolvedStatus(player.status)) {
         return false
       }
 
@@ -413,6 +449,12 @@ export default function EncounteredOpponentsPage() {
             <p className="mt-1 text-sm text-slate-600">
               Résolution du clan PUBG limitée aux joueurs croisés au moins deux fois, un seul appel par joueur.
             </p>
+            {payload.playersListTruncated ? (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                Affichage limité aux {payload.playersListLimit} joueurs les plus croisés sur la période sélectionnée
+                — les totaux ci-dessus ({payload.summary.totalPlayers} joueurs) portent eux sur l&apos;ensemble réel.
+              </p>
+            ) : null}
 
             <div className="mt-4 grid gap-2 md:grid-cols-4">
               <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -505,15 +547,28 @@ export default function EncounteredOpponentsPage() {
                         ) : null}
                       </td>
                       <td className="px-2 py-2 text-slate-700">
-                        {player.pubgClanTag ? (
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                            [{player.pubgClanTag}] {player.pubgClanName ?? ''}
-                          </span>
-                        ) : player.clanResolvedAt ? (
-                          <span className="text-xs text-slate-500">Sans clan</span>
-                        ) : (
-                          <span className="text-xs text-amber-700">En attente de résolution</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {player.pubgClanTag ? (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                              [{player.pubgClanTag}] {player.pubgClanName ?? ''}
+                            </span>
+                          ) : null}
+                          {player.status !== 'resolved_with_clan' ? (
+                            <span
+                              title={
+                                player.status === 'retry_pending'
+                                  ? `${STATUS_TOOLTIPS[player.status]} (tentative ${player.resolveAttempts}/${payload?.thresholds.maxAttempts ?? '-'})`
+                                  : STATUS_TOOLTIPS[player.status]
+                              }
+                              className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE_CLASSES[player.status]}`}
+                            >
+                              {STATUS_LABELS[player.status]}
+                              {player.status === 'retry_pending'
+                                ? ` (${player.resolveAttempts}/${payload?.thresholds.maxAttempts ?? '-'})`
+                                : ''}
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-2 py-2 text-right tabular-nums text-slate-700">
                         {player.opponentEncounterCount > 0 ? player.opponentEncounterCount : '-'}

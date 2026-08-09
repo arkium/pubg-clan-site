@@ -103,6 +103,13 @@ model EncounteredPlayer {
   pubgPlayerName String
   platformShard  String
 
+  // Identité globale correspondante (Player.pubgAccountId+platformShard).
+  // Nullable : backfillée pour les comptes déjà résolus, sinon peuplée à la
+  // prochaine résolution — permet de joindre vers Player sans requête
+  // supplémentaire par pubgAccountId+platformShard.
+  playerId String?
+  player   Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
   // Résolution du clan PUBG de ce joueur — nullable tant que non résolu.
   // clanResolvedAt marque qu'une tentative a eu lieu (succès ou "pas de clan"),
   // pour ne jamais rappeler l'API PUBG deux fois pour le même joueur.
@@ -128,6 +135,11 @@ model EncounteredPlayer {
   @@index([clanId, encounterCount])
   @@index([clanId, pubgClanTag])
   @@index([clanResolvedAt, encounterCount])
+  @@index([playerId])
+  // Sert le regroupement par identité globale (priorisation cross-clan du
+  // résolveur) : combien de clans distincts ont croisé ce compte, encore non
+  // résolu.
+  @@index([pubgAccountId, platformShard, clanResolvedAt])
   @@map("EncounteredPlayer")
 }
 
@@ -159,6 +171,7 @@ model Player {
 
   encounters ClanEncounter[]
   clanMembers ClanMember[]
+  encounteredPlayerRows EncounteredPlayer[]
 
   @@unique([pubgAccountId, platformShard])
   @@index([opponentClanId])
@@ -212,6 +225,53 @@ model ClanEncounter {
   @@unique([clanId, playerId])
   @@index([clanId, encounterCount])
   @@map("ClanEncounter")
+}
+
+// Journal des passages du résolveur de clan adverse (cron transverse à tous
+// les clans, ou déclenchement manuel SuperUser) — pas de clanId ici
+// contrairement à CronExecution, ce job n'est pas scopé à un seul clan.
+model EncounteredPlayerResolutionRun {
+  id String @id @default(cuid())
+
+  source String @default("cron") // 'cron' | 'manual'
+  status String @default("running") // 'running' | 'success' | 'failed'
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  // candidatesSelected = nombre de relations clan-joueur (lignes EncounteredPlayer)
+  // représentées par le batch, uniqueCandidatesSelected = nombre d'identités
+  // globales distinctes réellement sélectionnées (ce qui borne le batch et le
+  // nombre d'appels PUBG potentiels) — un candidat croisé par 3 clans compte
+  // pour 3 dans candidatesSelected mais 1 dans uniqueCandidatesSelected.
+  candidatesSelected  Int @default(0)
+  resolvedFromCache   Int @default(0)
+  pubgApiCalls        Int @default(0)
+  resolvedWithClan    Int @default(0)
+  resolvedWithoutClan Int @default(0)
+  failed              Int @default(0)
+
+  uniqueCandidatesSelected     Int    @default(0)
+  crossClanCandidatesSelected  Int    @default(0)
+  encounterRowsUpdated         Int    @default(0)
+  rowsResolvedPerApiCall       Float?
+
+  backlogRemaining         Int?
+  rateLimitRemainingBefore Int?
+  rateLimitRemainingAfter  Int?
+
+  // Non nul uniquement pour source='manual' — sert aussi de journal d'audit
+  // pour l'action "Résoudre maintenant" (pas de table d'audit séparée).
+  triggeredByUserId Int?
+  errorMessage      String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startedAt])
+  @@index([status, startedAt])
+  @@map("EncounteredPlayerResolutionRun")
 }
 
 // Précalcul des awards clan par période, même principe que Clan.clanStats :

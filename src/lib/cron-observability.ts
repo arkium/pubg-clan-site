@@ -61,7 +61,7 @@ function isValidCron(expression: string) {
   return parts.every((segment) => /^[\d*/,\-]+$/.test(segment))
 }
 
-function describeCronExpression(expression: string) {
+export function describeCronExpression(expression: string) {
   const parts = expression.trim().split(/\s+/)
   if (parts.length !== 5) {
     return `Format cron invalide.`
@@ -551,6 +551,63 @@ export async function getCronConfigurationChecks() {
   const telemetryEnvChecks = getTelemetryEnvChecks()
   const telemetryLockPathChecks = getTelemetryWorkerLockPathChecks()
   return [...envChecks, ...telemetryEnvChecks, ...telemetryLockPathChecks, ...getScheduleChecks()]
+}
+
+// Sonde le worker cron séparé (processus distinct du web worker) via son
+// endpoint interne protégé par CRON_BOOTSTRAP_SECRET — distingue "web worker
+// désactivé normalement" (ENABLE_CRON_JOBS=false, config normale en mode deux
+// workers) de "aucun worker cron actif" (sonde injoignable ou désactivée).
+export async function getCronWorkerRuntimeStatus() {
+  const secret = process.env.CRON_BOOTSTRAP_SECRET?.trim()
+  if (!secret) {
+    return {
+      probeEnabled: false,
+      available: false,
+      reason: 'Verification distante non configuree (CRON_BOOTSTRAP_SECRET manquant sur le web worker)',
+    }
+  }
+
+  const cronStatusUrl =
+    process.env.INTERNAL_CRON_STATUS_URL?.trim() || 'http://127.0.0.1:3001/api/internal/cron/status'
+
+  try {
+    const response = await fetch(cronStatusUrl, {
+      cache: 'no-store',
+      headers: {
+        'x-cron-bootstrap-secret': secret,
+      },
+    })
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          ok?: boolean
+          initialized?: boolean
+          cronJobsEnabled?: boolean
+          error?: string
+        }
+      | null
+
+    if (!response.ok || !payload?.ok) {
+      return {
+        probeEnabled: true,
+        available: false,
+        reason: payload?.error ?? `HTTP ${response.status}`,
+      }
+    }
+
+    return {
+      probeEnabled: true,
+      available: true,
+      initialized: payload.initialized === true,
+      cronJobsEnabled: payload.cronJobsEnabled === true,
+    }
+  } catch {
+    return {
+      probeEnabled: true,
+      available: false,
+      reason: 'Cron worker injoignable',
+    }
+  }
 }
 
 export async function startCronExecution(params: {

@@ -17,6 +17,9 @@ type PubgApiError = Error & {
 export type PubgApiCallContext = {
   clanId?: number
   memberId?: number
+  // Distingue l'origine d'un appel dans PubgApiCallLog (ex. 'encountered-player-resolution-cron'
+  // vs 'encountered-player-resolution-manual') — remplace le 'pubg-lib' par défaut si fourni.
+  source?: string
 }
 
 const PUBG_API_KEY = process.env.PUBG_API_KEY
@@ -32,7 +35,7 @@ export const pubgApi = axios.create({
 
 async function queuedPubgGet<T>(url: string, config?: AxiosRequestConfig, context?: PubgApiCallContext) {
   return enqueuePubgApiRequestWithMetadata(() => pubgApi.get<T>(url, config), {
-    source: 'pubg-lib',
+    source: context?.source ?? 'pubg-lib',
     method: 'GET',
     endpoint: url,
     shard: extractShardFromEndpoint(url),

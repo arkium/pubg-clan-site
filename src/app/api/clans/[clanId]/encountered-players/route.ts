@@ -1,3 +1,8 @@
+import {
+  ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
+  ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
+} from '@/lib/encountered-player-resolution-constants'
+import { deriveEncounteredPlayerStatus } from '@/lib/encountered-player-status'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
 
@@ -7,6 +12,11 @@ function parseClanId(clanId: string) {
 }
 
 type Period = 'week' | 'month' | 'all'
+
+// Nombre de joueurs renvoyés dans la liste détaillée. Les agrégats
+// (summary, rivalClans) sont eux calculés sur l'ensemble filtré complet,
+// indépendamment de cette limite — voir diagnostic du 2026-08-09.
+const PLAYERS_LIST_LIMIT = 300
 
 function parsePeriod(value: string | null): Period {
   return value === 'week' || value === 'month' ? value : 'all'
@@ -48,7 +58,11 @@ export async function GET(
     const period = parsePeriod(url.searchParams.get('period'))
     const periodStart = getPeriodStart(period)
 
-    const rows = await prisma.encounteredPlayer.findMany({
+    // Toutes les lignes filtrées sont chargées ici : les agrégats (summary,
+    // rivalClans) doivent porter sur l'ensemble réel, pas sur l'échantillon
+    // affiché. Seule la liste "players" retournée en fin de route est tronquée
+    // à PLAYERS_LIST_LIMIT.
+    const allRows = await prisma.encounteredPlayer.findMany({
       where: {
         clanId: parsedClanId,
         // Filtre sur la dernière rencontre, pas un compteur recalculé sur la
@@ -56,8 +70,8 @@ export async function GET(
         ...(periodStart ? { lastSeenAt: { gte: periodStart } } : {}),
       },
       orderBy: [{ encounterCount: 'desc' }, { lastSeenAt: 'desc' }],
-      take: 300,
     })
+    const rows = allRows.slice(0, PLAYERS_LIST_LIMIT)
 
     const clanMembers = await prisma.clanMember.findMany({
       where: { clanId: parsedClanId },
@@ -118,11 +132,16 @@ export async function GET(
       lastSeenAt: Date
     }
 
+    const thresholds = {
+      minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
+      maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
+    }
+
     const rivalClanMap = new Map<string, RivalClanAccumulator>()
     let resolvedCount = 0
     let teammateCount = 0
 
-    for (const row of rows) {
+    for (const row of allRows) {
       if (row.clanResolvedAt) {
         resolvedCount += 1
       }
@@ -182,14 +201,17 @@ export async function GET(
       data: {
         period,
         summary: {
-          totalPlayers: rows.length,
+          totalPlayers: allRows.length,
           resolvedCount,
-          pendingCount: rows.length - resolvedCount,
+          pendingCount: allRows.length - resolvedCount,
           distinctClansIdentified: rivalClanMap.size,
           teammateCount,
           killedByClanPlayerCount: killedByClanCounts.size,
           killedClanMemberPlayerCount: killedClanMemberCounts.size,
         },
+        playersListLimit: PLAYERS_LIST_LIMIT,
+        playersListTruncated: allRows.length > PLAYERS_LIST_LIMIT,
+        thresholds,
         botStats: {
           avgBotsPerMatch: botStats?._avg.botCount ?? null,
           matchesWithData: botStats?._count.botCount ?? 0,
@@ -206,6 +228,8 @@ export async function GET(
           encounterCount: row.encounterCount,
           teammateEncounterCount: row.teammateEncounterCount,
           opponentEncounterCount: row.encounterCount - row.teammateEncounterCount,
+          resolveAttempts: row.resolveAttempts,
+          status: deriveEncounteredPlayerStatus(row, thresholds),
           killedByClanCount: killedByClanCounts.get(row.pubgAccountId) ?? 0,
           killedClanMemberCount: killedClanMemberCounts.get(row.pubgAccountId) ?? 0,
           firstSeenAt: row.firstSeenAt.toISOString(),

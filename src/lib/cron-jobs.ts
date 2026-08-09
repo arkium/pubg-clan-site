@@ -5,11 +5,23 @@ import { precomputeClanAwards } from '@/lib/awards-service'
 import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
+import {
+  ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
+  ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
+} from '@/lib/encountered-player-resolution-constants'
+import {
+  resolveOneEncounteredPlayerCandidate,
+  selectPrioritizedEncounteredPlayerIdentities,
+} from '@/lib/encountered-player-resolution'
+import {
+  getEncounteredPlayerResolutionBatchSize,
+  isEncounteredPlayerResolutionEnabled,
+} from '@/lib/encountered-player-resolution-config-service'
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
+import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import {
   fetchCurrentSeason,
-  fetchPlayerClan,
   fetchPlayerRankedStats,
   fetchPlayerSeasonStats,
   fetchWeaponMastery,
@@ -64,14 +76,6 @@ const globalForCron = globalThis as typeof globalThis & {
   encounteredPlayerResolutionCronTask?: ScheduledTask
   encounteredPlayerResolutionInProgress?: boolean
 }
-
-const ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE = 5
-const ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION = 2
-const ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS = 3
-// Un joueur déjà résolu récemment via Player (par un autre clan suivi qui l'a
-// croisé) n'est pas re-résolu par l'API — valeur de départ à ajuster après
-// observation, les tags de clan changent rarement.
-const PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS = 7
 
 function isCronWorkerEnabled() {
   if (process.env.ENABLE_CRON_JOBS === 'true') {
@@ -1135,131 +1139,118 @@ async function resolveEncounteredPlayerClans() {
     return
   }
 
+  if (!(await isEncounteredPlayerResolutionEnabled())) {
+    console.info('[Cron] Encountered player clan resolution disabled via config — skipping')
+    return
+  }
+
   globalForCron.encounteredPlayerResolutionInProgress = true
   const startedAt = new Date()
   console.info(`[Cron] Encountered player clan resolution started at ${startedAt.toISOString()}`)
 
+  const batchSize = await getEncounteredPlayerResolutionBatchSize()
+  const rateLimitBefore = await getLatestPubgRateLimitSnapshot().catch(() => null)
+
+  const run = await prisma.encounteredPlayerResolutionRun.create({
+    data: {
+      source: 'cron',
+      status: 'running',
+      startedAt,
+      rateLimitRemainingBefore: rateLimitBefore?.remaining ?? null,
+    },
+  })
+
+  let candidatesSelected = 0
+  let uniqueCandidatesSelected = 0
+  let crossClanCandidatesSelected = 0
+  let resolvedFromCache = 0
+  let resolvedWithClan = 0
+  let resolvedWithoutClan = 0
+  let failed = 0
+  let encounterRowsUpdated = 0
+  let runStatus: 'success' | 'failed' = 'success'
+  let runErrorMessage: string | null = null
+
+  const thresholds = {
+    minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
+    maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
+  }
+
   try {
-    const candidates = await prisma.encounteredPlayer.findMany({
-      where: {
-        clanResolvedAt: null,
-        encounterCount: { gte: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION },
-        resolveAttempts: { lt: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS },
-      },
-      orderBy: [{ encounterCount: 'desc' }, { lastSeenAt: 'desc' }],
-      take: ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE,
-    })
+    // Priorisation cross-clan : une identité (pubgAccountId+platformShard)
+    // croisée par plusieurs clans suivis est traitée en priorité — un seul
+    // appel PUBG résout alors plusieurs lignes EncounteredPlayer d'un coup.
+    // Voir docs/TODO/todo.md, section "Priorisation cross-clan".
+    const candidates = await selectPrioritizedEncounteredPlayerIdentities(batchSize, thresholds)
 
-    if (candidates.length === 0) {
-      return
-    }
-
-    let resolvedCount = 0
-    let resolvedFromCacheCount = 0
-    let failedCount = 0
-    const freshnessCutoff = new Date(
-      Date.now() - PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS * 24 * 60 * 60 * 1000
-    )
+    uniqueCandidatesSelected = candidates.length
+    candidatesSelected = candidates.reduce((sum, candidate) => sum + candidate.distinctClanCount, 0)
+    crossClanCandidatesSelected = candidates.filter((candidate) => candidate.distinctClanCount > 1).length
 
     for (const candidate of candidates) {
-      try {
-        // Un joueur croisé par plusieurs clans suivis n'est résolu qu'une seule
-        // fois côté API : si un autre clan l'a déjà résolu récemment via Player,
-        // on recopie directement sans rappeler fetchPlayerClan.
-        const cachedPlayer = await prisma.player.findUnique({
-          where: {
-            pubgAccountId_platformShard: {
-              pubgAccountId: candidate.pubgAccountId,
-              platformShard: candidate.platformShard,
-            },
-          },
-          include: { opponentClan: true },
-        })
+      const result = await resolveOneEncounteredPlayerCandidate(candidate, { source: 'cron' })
+      encounterRowsUpdated += result.updatedRowCount
 
-        if (cachedPlayer?.clanResolvedAt && cachedPlayer.clanResolvedAt >= freshnessCutoff) {
-          await prisma.encounteredPlayer.update({
-            where: { id: candidate.id },
-            data: {
-              clanResolvedAt: new Date(),
-              pubgClanId: cachedPlayer.opponentClan?.pubgClanId ?? null,
-              pubgClanTag: cachedPlayer.opponentClan?.tag ?? null,
-              pubgClanName: cachedPlayer.opponentClan?.name ?? null,
-            },
-          })
-
-          resolvedFromCacheCount += 1
-          continue
-        }
-
-        const clan = await fetchPlayerClan(candidate.pubgAccountId, candidate.platformShard)
-        const resolvedAt = new Date()
-
-        await prisma.encounteredPlayer.update({
-          where: { id: candidate.id },
-          data: {
-            clanResolvedAt: resolvedAt,
-            pubgClanId: clan?.id ?? null,
-            pubgClanTag: clan?.tag ?? null,
-            pubgClanName: clan?.name ?? null,
-          },
-        })
-
-        let opponentClanId: string | null = null
-        if (clan?.id) {
-          const opponentClan = await prisma.opponentClan.upsert({
-            where: { pubgClanId_platformShard: { pubgClanId: clan.id, platformShard: candidate.platformShard } },
-            update: { tag: clan.tag ?? null, name: clan.name ?? null, resolvedAt },
-            create: {
-              pubgClanId: clan.id,
-              platformShard: candidate.platformShard,
-              tag: clan.tag ?? null,
-              name: clan.name ?? null,
-              resolvedAt,
-            },
-          })
-          opponentClanId = opponentClan.id
-        }
-
-        await prisma.player.upsert({
-          where: {
-            pubgAccountId_platformShard: {
-              pubgAccountId: candidate.pubgAccountId,
-              platformShard: candidate.platformShard,
-            },
-          },
-          update: { opponentClanId, clanResolvedAt: resolvedAt },
-          create: {
-            pubgAccountId: candidate.pubgAccountId,
-            platformShard: candidate.platformShard,
-            pubgPlayerName: candidate.pubgPlayerName,
-            opponentClanId,
-            clanResolvedAt: resolvedAt,
-          },
-        })
-
-        resolvedCount += 1
-      } catch (error) {
-        failedCount += 1
+      if (result.outcome === 'cache_hit') {
+        resolvedFromCache += 1
+      } else if (result.outcome === 'resolved_with_clan') {
+        resolvedWithClan += 1
+      } else if (result.outcome === 'resolved_without_clan') {
+        resolvedWithoutClan += 1
+      } else {
+        failed += 1
         console.error(
           `[Cron] Failed to resolve clan for encountered player ${candidate.pubgAccountId}`,
-          error
+          result.error
         )
-
-        await prisma.encounteredPlayer
-          .update({
-            where: { id: candidate.id },
-            data: { resolveAttempts: { increment: 1 } },
-          })
-          .catch(() => undefined)
       }
     }
 
     console.info(
-      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — resolved=${resolvedCount}, resolvedFromCache=${resolvedFromCacheCount}, failed=${failedCount}, batch=${candidates.length}`
+      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — run=${run.id}, uniqueCandidates=${uniqueCandidatesSelected}, crossClanCandidates=${crossClanCandidatesSelected}, resolvedWithClan=${resolvedWithClan}, resolvedWithoutClan=${resolvedWithoutClan}, resolvedFromCache=${resolvedFromCache}, failed=${failed}, rowsUpdated=${encounterRowsUpdated}`
     )
   } catch (error) {
+    runStatus = 'failed'
+    runErrorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Cron] Encountered player clan resolution failed before processing batch', error)
   } finally {
+    const backlogRemaining = await prisma.encounteredPlayer
+      .count({
+        where: {
+          clanResolvedAt: null,
+          encounterCount: { gte: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION },
+          resolveAttempts: { lt: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS },
+        },
+      })
+      .catch(() => null)
+    const rateLimitAfter = await getLatestPubgRateLimitSnapshot().catch(() => null)
+    const finishedAt = new Date()
+    const pubgApiCalls = resolvedWithClan + resolvedWithoutClan + failed
+
+    await prisma.encounteredPlayerResolutionRun
+      .update({
+        where: { id: run.id },
+        data: {
+          status: runStatus,
+          finishedAt,
+          durationMs: finishedAt.getTime() - startedAt.getTime(),
+          candidatesSelected,
+          uniqueCandidatesSelected,
+          crossClanCandidatesSelected,
+          resolvedFromCache,
+          pubgApiCalls,
+          resolvedWithClan,
+          resolvedWithoutClan,
+          failed,
+          encounterRowsUpdated,
+          rowsResolvedPerApiCall: pubgApiCalls > 0 ? encounterRowsUpdated / pubgApiCalls : null,
+          backlogRemaining,
+          rateLimitRemainingAfter: rateLimitAfter?.remaining ?? null,
+          errorMessage: runErrorMessage,
+        },
+      })
+      .catch(() => undefined)
+
     globalForCron.encounteredPlayerResolutionInProgress = false
   }
 }

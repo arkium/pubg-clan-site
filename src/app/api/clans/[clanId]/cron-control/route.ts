@@ -5,6 +5,7 @@ import {
   finishCronExecution,
   getCronConfigurationChecks,
   getCronOverview,
+  getCronWorkerRuntimeStatus,
   startCronExecution,
   type CronActionKey,
 } from '@/lib/cron-observability'
@@ -58,60 +59,6 @@ function parseAction(value: unknown): CronAction | null {
   }
 
   return null
-}
-
-async function getCronWorkerRuntimeStatus() {
-  const secret = process.env.CRON_BOOTSTRAP_SECRET?.trim()
-  if (!secret) {
-    return {
-      probeEnabled: false,
-      available: false,
-      reason: 'Verification distante non configuree (CRON_BOOTSTRAP_SECRET manquant sur le web worker)',
-    }
-  }
-
-  const cronStatusUrl =
-    process.env.INTERNAL_CRON_STATUS_URL?.trim() ||
-    'http://127.0.0.1:3001/api/internal/cron/status'
-
-  try {
-    const response = await fetch(cronStatusUrl, {
-      cache: 'no-store',
-      headers: {
-        'x-cron-bootstrap-secret': secret,
-      },
-    })
-
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          ok?: boolean
-          initialized?: boolean
-          cronJobsEnabled?: boolean
-          error?: string
-        }
-      | null
-
-    if (!response.ok || !payload?.ok) {
-      return {
-        probeEnabled: true,
-        available: false,
-        reason: payload?.error ?? `HTTP ${response.status}`,
-      }
-    }
-
-    return {
-      probeEnabled: true,
-      available: true,
-      initialized: payload.initialized === true,
-      cronJobsEnabled: payload.cronJobsEnabled === true,
-    }
-  } catch {
-    return {
-      probeEnabled: true,
-      available: false,
-      reason: 'Cron worker injoignable',
-    }
-  }
 }
 
 async function requireCronClanAccess(request: Request, clanId: number) {

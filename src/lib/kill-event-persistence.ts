@@ -19,6 +19,7 @@ type KillEventMatch = {
 
 type KillEventClanMember = {
   id: number
+  clanId: number
   pubgAccountId: string | null
   pubgPlayerName: string
 }
@@ -89,22 +90,31 @@ export function parseKillFeedSamples(raw: unknown): KillFeedSample[] {
 
 /**
  * Kills are captured unfiltered per match by the parser (clanMemberKeys is
- * usually empty on the main sync path). Relevance to this clan is decided
- * here instead, by resolving killer/victim keys against the full clan roster
- * — a row is only kept if at least one side is one of our tracked members.
+ * usually empty on the main sync path). Relevance is decided here instead, by
+ * resolving killer/victim keys against the rosters of every clan attached to
+ * this match — a row is only kept if at least one side is a tracked member of
+ * one of them. `clanMembers` may span several clans when the match is shared
+ * (see analyzeMatchForSquads in squad-detector.ts) : a cross-clan kill (killer
+ * and victim tracked in different clans) resolves both sides correctly. The
+ * row's own `clanId` is set to whichever side resolved (killer's clan takes
+ * priority) — it exists for legacy single-clan queries (see
+ * encountered-players/route.ts) and doesn't gate the Head-to-Head query in
+ * head-to-head-service.ts, which reads killerMember/victimMember directly.
  */
 export function buildKillEventRows(
   match: KillEventMatch,
   clanMembers: KillEventClanMember[],
   rawKillFeedSamples: unknown
 ): KillEventRow[] {
-  const clanId = match.members.find((entry) => entry.member.clanId !== null)?.member.clanId
-  if (!clanId) {
+  const fallbackClanId = match.members.find((entry) => entry.member.clanId !== null)?.member.clanId
+  if (!fallbackClanId) {
     return []
   }
 
   const memberByKey = new Map<string, number>()
+  const clanByMemberId = new Map<number, number>()
   for (const member of clanMembers) {
+    clanByMemberId.set(member.id, member.clanId)
     if (member.pubgAccountId) {
       memberByKey.set(normalizeKey(member.pubgAccountId)!, member.id)
     }
@@ -131,9 +141,14 @@ export function buildKillEventRows(
       continue
     }
 
+    const rowClanId =
+      (killerMemberId !== null ? clanByMemberId.get(killerMemberId) : undefined) ??
+      (victimMemberId !== null ? clanByMemberId.get(victimMemberId) : undefined) ??
+      fallbackClanId
+
     rows.push({
       squadMatchId: match.id,
-      clanId,
+      clanId: rowClanId,
       killerAccountId: sample.killerKey && isAccountLikeKey(sample.killerKey) ? sample.killerKey : null,
       killerRawKey: sample.killerKey,
       killerMemberId,
@@ -168,15 +183,27 @@ export async function persistKillEventsForMatch(
     return 0
   }
 
-  const clanId = match.members.find((entry) => entry.member.clanId !== null)?.member.clanId
-  if (!clanId) {
+  // Un SquadMatch peut être partagé entre plusieurs clans (voir
+  // analyzeMatchForSquads dans squad-detector.ts) : on résout les rosters de
+  // tous les clans présents sur ce match, pas seulement le premier, sinon un
+  // kill entre deux clans suivis ne résoudrait jamais qu'un seul côté.
+  const clanIds = Array.from(
+    new Set(
+      match.members
+        .map((entry) => entry.member.clanId)
+        .filter((id): id is number => id !== null)
+    )
+  )
+  if (clanIds.length === 0) {
     return 0
   }
 
-  const clanMembers = await client.clanMember.findMany({
-    where: { clanId },
-    select: { id: true, pubgAccountId: true, pubgPlayerName: true },
+  const clanMembersRaw = await client.clanMember.findMany({
+    where: { clanId: { in: clanIds } },
+    select: { id: true, clanId: true, pubgAccountId: true, pubgPlayerName: true },
   })
+  // clanId ne peut pas être null ici : la clause where ci-dessus le garantit.
+  const clanMembers = clanMembersRaw.map((member) => ({ ...member, clanId: member.clanId as number }))
 
   const rows = buildKillEventRows(match, clanMembers, rawKillFeedSamples)
 

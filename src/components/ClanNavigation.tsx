@@ -486,6 +486,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       href: getFirstSectionHref('clan-section', clanId ? `/clans/${clanId}/members` : '/members'),
       tone: 'sky',
     },
+    { navKey: 'primary.comparator', label: 'Comparateur', href: '/clans/comparator', tone: 'emerald' },
     { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' },
   ] as NavItem[]).filter((item) => !isNavHidden(item.navKey))
 

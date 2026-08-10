@@ -104,6 +104,25 @@ function resolveClanMember(
   )
 }
 
+// Somme scopée au clan à partir des SquadMember filtrés (getClanSquadMatches
+// filtre déjà `members` par clanId) — à utiliser à la place des colonnes
+// dénormalisées SquadMatch.totalKills/totalDamage/totalAssists/totalRevives,
+// qui ne reflètent que le clan ayant créé la ligne en premier sur un match
+// désormais potentiellement partagé entre plusieurs clans (voir
+// analyzeMatchForSquads).
+function sumClanMemberTotals(members: Array<{ kills: number; damage: number; assists: number; revives: number }>) {
+  return members.reduce(
+    (acc, member) => {
+      acc.totalKills += member.kills
+      acc.totalDamage += member.damage
+      acc.totalAssists += member.assists
+      acc.totalRevives += member.revives
+      return acc
+    },
+    { totalKills: 0, totalDamage: 0, totalAssists: 0, totalRevives: 0 }
+  )
+}
+
 function buildPairKey(memberIds: number[]) {
   return memberIds.join(':')
 }
@@ -152,7 +171,12 @@ async function getClanSquadMatches(clanId: number, period?: SquadPeriod) {
       },
     },
     include: {
+      // Un SquadMatch peut désormais être partagé entre plusieurs clans (voir
+      // analyzeMatchForSquads) : sans ce filtre, un match croisé renverrait
+      // aussi les SquadMember de l'autre clan, faussant les paires/squads de
+      // synergie et les totaux ci-dessous.
       members: {
+        where: { member: { clanId } },
         include: {
           member: {
             select: {
@@ -210,48 +234,38 @@ export async function calculateSquadStats(squadMatchId: string) {
   }
 }
 
-export async function analyzeMatchForSquads(clanId: number, matchDetails: ResolvedPubgMatch) {
-  const existing = await prisma.squadMatch.findUnique({
-    where: { pubgMatchId: matchDetails.id },
-    select: { id: true },
-  })
+type DetectedSquad = {
+  placement: number
+  members: Array<{
+    memberId: number
+    kills: number
+    damage: number
+    assists: number
+    revives: number
+    placement: number
+    knockouts: number
+    headshotKills: number
+    timeSurvived: number
+    rideDistance: number
+    walkDistance: number
+    swimDistance: number
+    boosts: number
+    heals: number
+    vehicleDestroys: number
+    roadKills: number
+    longestKill: number
+    teamKills: number
+    weaponsAcquired: number
+  }>
+}
 
-  if (existing) {
-    return prisma.squadMatch.findUnique({
-      where: { id: existing.id },
-      include: {
-        members: true,
-      },
-    })
-  }
-
-  const clanMembers = await getClanMembers(clanId)
+function detectSquadFromMatchDetails(
+  clanMembers: ClanMemberLookup[],
+  matchDetails: ResolvedPubgMatch
+): DetectedSquad | null {
   const { membersByPlayerId, membersByName } = buildClanMemberLookups(clanMembers)
 
-  let detectedSquad: {
-    placement: number
-    members: Array<{
-      memberId: number
-      kills: number
-      damage: number
-      assists: number
-      revives: number
-      placement: number
-      knockouts: number
-      headshotKills: number
-      timeSurvived: number
-      rideDistance: number
-      walkDistance: number
-      swimDistance: number
-      boosts: number
-      heals: number
-      vehicleDestroys: number
-      roadKills: number
-      longestKill: number
-      teamKills: number
-      weaponsAcquired: number
-    }>
-  } | null = null
+  let detectedSquad: DetectedSquad | null = null
 
   for (const roster of matchDetails.rosters) {
     const resolvedMembers = roster.participants
@@ -310,6 +324,53 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
         members: uniqueMembers,
       }
     }
+  }
+
+  return detectedSquad
+}
+
+export async function analyzeMatchForSquads(clanId: number, matchDetails: ResolvedPubgMatch) {
+  const clanMembers = await getClanMembers(clanId)
+  const detectedSquad = detectSquadFromMatchDetails(clanMembers, matchDetails)
+
+  const existing = await prisma.squadMatch.findUnique({
+    where: { pubgMatchId: matchDetails.id },
+    select: { id: true, members: { select: { memberId: true } } },
+  })
+
+  if (existing) {
+    if (!detectedSquad) {
+      return prisma.squadMatch.findUnique({
+        where: { id: existing.id },
+        include: { members: true },
+      })
+    }
+
+    // Un même SquadMatch (pubgMatchId globalement unique) peut être partagé par
+    // plusieurs clans suivis présents dans le même lobby PUBG. Le clan qui
+    // synchronise en premier crée la ligne ; les clans suivants n'attachaient
+    // jusqu'ici jamais leurs propres membres, rendant le Head-to-Head
+    // structurellement impossible (aucun match n'avait jamais de membres de
+    // deux clans différents). On complète donc les SquadMember manquants pour
+    // ce clan, SANS recalculer les colonnes dénormalisées totalKills/
+    // totalDamage/totalAssists/totalRevives du SquadMatch : elles restent
+    // scopées au premier clan qui a créé la ligne. Tout consommateur doit
+    // recalculer ses propres totaux depuis les SquadMember filtrés par clan
+    // (voir matches-cache-service.ts, matches/route.ts, report-generator.ts,
+    // et findBestSquads/getSquadWinRates/getClanSquadAnalysis ci-dessous).
+    const existingMemberIds = new Set(existing.members.map((member) => member.memberId))
+    const newMembers = detectedSquad.members.filter((member) => !existingMemberIds.has(member.memberId))
+
+    if (newMembers.length > 0) {
+      await prisma.squadMember.createMany({
+        data: newMembers.map((member) => ({ squadMatchId: existing.id, ...member })),
+      })
+    }
+
+    return prisma.squadMatch.findUnique({
+      where: { id: existing.id },
+      include: { members: true },
+    })
   }
 
   if (!detectedSquad) {
@@ -466,12 +527,14 @@ export async function findBestSquads(clanId: number, period: SquadPeriod) {
       placementTotal: 0,
     }
 
+    const matchTotals = sumClanMemberTotals(squadMatch.members)
+
     aggregate.matchesPlayed += 1
     aggregate.wins += squadMatch.placement === 1 ? 1 : 0
-    aggregate.totalKills += squadMatch.totalKills
-    aggregate.totalDamage += squadMatch.totalDamage
-    aggregate.totalAssists += squadMatch.totalAssists
-    aggregate.totalRevives += squadMatch.totalRevives
+    aggregate.totalKills += matchTotals.totalKills
+    aggregate.totalDamage += matchTotals.totalDamage
+    aggregate.totalAssists += matchTotals.totalAssists
+    aggregate.totalRevives += matchTotals.totalRevives
     aggregate.placementTotal += squadMatch.placement
 
     aggregates.set(key, aggregate)
@@ -523,12 +586,14 @@ export async function getSquadWinRates(clanId: number, period: SquadPeriod) {
       placementTotal: 0,
     }
 
+    const matchTotals = sumClanMemberTotals(squadMatch.members)
+
     aggregate.matchesPlayed += 1
     aggregate.wins += squadMatch.placement === 1 ? 1 : 0
-    aggregate.totalKills += squadMatch.totalKills
-    aggregate.totalDamage += squadMatch.totalDamage
-    aggregate.totalAssists += squadMatch.totalAssists
-    aggregate.totalRevives += squadMatch.totalRevives
+    aggregate.totalKills += matchTotals.totalKills
+    aggregate.totalDamage += matchTotals.totalDamage
+    aggregate.totalAssists += matchTotals.totalAssists
+    aggregate.totalRevives += matchTotals.totalRevives
     aggregate.placementTotal += squadMatch.placement
 
     aggregates.set(key, aggregate)
@@ -560,10 +625,7 @@ export async function getClanSquadAnalysis(clanId: number) {
       mapName: squadMatch.mapName,
       placement: squadMatch.placement,
       createdAt: squadMatch.createdAt,
-      totalKills: squadMatch.totalKills,
-      totalDamage: squadMatch.totalDamage,
-      totalAssists: squadMatch.totalAssists,
-      totalRevives: squadMatch.totalRevives,
+      ...sumClanMemberTotals(squadMatch.members),
       members: squadMatch.members.map((member) => ({
         memberId: member.member.id,
         displayName: member.member.displayName,

@@ -295,7 +295,11 @@ export async function GET(
             errorMessage: true,
           },
         },
+        // Un SquadMatch peut être partagé entre plusieurs clans (voir
+        // analyzeMatchForSquads dans squad-detector.ts) : sans ce filtre, un
+        // match croisé renverrait aussi les SquadMember de l'autre clan.
         members: {
+          where: { member: { clanId: parsedClanId, isActive: true } },
           include: {
             member: {
               select: {
@@ -357,10 +361,15 @@ export async function GET(
       placement: match.placement,
       createdAt: match.createdAt.toISOString(),
       durationSeconds: durationByMatchId.get(match.pubgMatchId) ?? 0,
-      totalKills: match.totalKills,
-      totalDamage: match.totalDamage,
-      totalAssists: match.totalAssists,
-      totalRevives: match.totalRevives,
+      // Recalculé depuis les SquadMember (déjà filtrés par clan ci-dessus)
+      // plutôt que depuis SquadMatch.totalKills/totalDamage/totalAssists/
+      // totalRevives — ces colonnes ne reflètent que le clan ayant créé la
+      // ligne en premier sur un match potentiellement partagé entre plusieurs
+      // clans (voir analyzeMatchForSquads dans squad-detector.ts).
+      totalKills: match.members.reduce((sum, member) => sum + member.kills, 0),
+      totalDamage: match.members.reduce((sum, member) => sum + member.damage, 0),
+      totalAssists: match.members.reduce((sum, member) => sum + member.assists, 0),
+      totalRevives: match.members.reduce((sum, member) => sum + member.revives, 0),
       members: match.members.map((member) => ({
         memberId: member.member.id,
         displayName: member.member.displayName,

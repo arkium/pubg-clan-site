@@ -115,7 +115,11 @@ export async function precomputeClanMatchesStats(clanId: number) {
           members: { some: { member: { clanId, isActive: true, joinStatus: 'active' } } },
         },
         include: {
+          // Un SquadMatch peut être partagé entre plusieurs clans (voir
+          // analyzeMatchForSquads dans squad-detector.ts) : sans ce filtre, un
+          // match croisé renverrait aussi les SquadMember de l'autre clan.
           members: {
+            where: { member: { clanId, isActive: true, joinStatus: 'active' } },
             include: { member: { select: { id: true, displayName: true } } },
             orderBy: { memberId: 'asc' },
           },
@@ -171,18 +175,34 @@ function processMatchesForCache(matches: any[]): CachedClanMatchesPayload {
   for (const match of matches) {
     const isWin = match.placement === 1
     const mode = teamModeFromMemberCount(match.members.length) as 'duo' | 'trio' | 'squad'
+    // Recalculé depuis les SquadMember (déjà filtrés par clan) plutôt que
+    // depuis SquadMatch.totalKills/totalDamage/totalAssists — ces colonnes ne
+    // reflètent que le clan ayant créé la ligne en premier sur un match
+    // potentiellement partagé entre plusieurs clans.
+    const matchTotalKills = match.members.reduce(
+      (sum: number, m: { kills: number }) => sum + m.kills,
+      0
+    )
+    const matchTotalDamage = match.members.reduce(
+      (sum: number, m: { damage: number }) => sum + m.damage,
+      0
+    )
+    const matchTotalAssists = match.members.reduce(
+      (sum: number, m: { assists: number }) => sum + m.assists,
+      0
+    )
 
     globalStats.matchCount++
-    globalStats.totalKills += match.totalKills
-    globalStats.totalDamage += match.totalDamage
-    globalStats.totalAssists += match.totalAssists
+    globalStats.totalKills += matchTotalKills
+    globalStats.totalDamage += matchTotalDamage
+    globalStats.totalAssists += matchTotalAssists
     if (isWin) globalStats.wins++
 
     const mp = modePerformance[mode]
     mp.matches++
-    mp.kills += match.totalKills
-    mp.damage += match.totalDamage
-    mp.assists += match.totalAssists
+    mp.kills += matchTotalKills
+    mp.damage += matchTotalDamage
+    mp.assists += matchTotalAssists
     if (isWin) mp.wins++
     else mp.losses++
 
@@ -286,8 +306,8 @@ function processMatchesForCache(matches: any[]): CachedClanMatchesPayload {
         const s = squadMap.get(key)
         s.matchesPlayed++
         if (isWin) s.wins++
-        s.totalKills += match.totalKills
-        s.totalDamage += match.totalDamage
+        s.totalKills += matchTotalKills
+        s.totalDamage += matchTotalDamage
       }
     }
   }

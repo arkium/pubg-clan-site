@@ -62,6 +62,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'none',
     description: 'Paramètres du compte joueur.',
   },
+  {
+    navKey: 'primary.comparator',
+    section: 'nav-primary',
+    label: 'Comparateur',
+    hrefTemplate: '/clans/comparator',
+    defaultRole: 'none',
+    description: 'Comparateur de clans (méta-dashboard) : pouls, style de jeu et performances transverses.',
+  },
 
   // --- Clan section nav ---
   {

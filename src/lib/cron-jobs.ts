@@ -3,6 +3,7 @@ import cron, { type ScheduledTask } from 'node-cron'
 
 import { precomputeClanAwards } from '@/lib/awards-service'
 import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
+import { computeClanComparatorStats } from '@/lib/clan-comparator-service'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import {
@@ -331,6 +332,15 @@ async function recalculateStatsDaily() {
           console.warn(
             `[Cron] Failed to precompute matches cache for clan "${clan.name}" (${clan.id})`,
             matchesCacheError
+          )
+        }
+
+        try {
+          await computeClanComparatorStats(clan.id)
+        } catch (comparatorCacheError) {
+          console.warn(
+            `[Cron] Failed to precompute comparator cache for clan "${clan.name}" (${clan.id})`,
+            comparatorCacheError
           )
         }
 

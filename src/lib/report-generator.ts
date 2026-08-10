@@ -113,7 +113,11 @@ async function fetchMatchesForPeriod(clanId: number, periodStart: Date, periodEn
       },
     },
     include: {
+      // Un SquadMatch peut être partagé entre plusieurs clans (voir
+      // analyzeMatchForSquads dans squad-detector.ts) : sans ce filtre, un
+      // match croisé renverrait aussi les SquadMember de l'autre clan.
       members: {
+        where: { member: { clanId, isActive: true, joinStatus: 'active' } },
         include: {
           member: {
             select: {
@@ -131,6 +135,22 @@ async function fetchMatchesForPeriod(clanId: number, periodStart: Date, periodEn
       createdAt: 'asc',
     },
   })
+}
+
+// Somme scopée au clan à partir des SquadMember filtrés (fetchMatchesForPeriod
+// filtre déjà `members` par clanId) — à utiliser à la place des colonnes
+// dénormalisées SquadMatch.totalKills/totalDamage, qui ne reflètent que le
+// clan ayant créé la ligne en premier sur un match potentiellement partagé
+// entre plusieurs clans (voir analyzeMatchForSquads dans squad-detector.ts).
+function matchClanTotals(match: SquadMatchWithMembers) {
+  return match.members.reduce(
+    (acc, member) => {
+      acc.kills += member.kills
+      acc.damage += member.damage
+      return acc
+    },
+    { kills: 0, damage: 0 }
+  )
 }
 
 function calculateMvpScores(players: ReportPlayerStats[]) {
@@ -327,8 +347,9 @@ function buildCharts(matches: SquadMatchWithMembers[], players: ReportPlayerStat
   for (const match of matches) {
     const label = match.createdAt.toISOString().slice(0, 10)
     const currentTimeline = timeline.get(label) ?? { kills: 0, damage: 0 }
-    currentTimeline.kills += match.totalKills
-    currentTimeline.damage += match.totalDamage
+    const matchTotals = matchClanTotals(match)
+    currentTimeline.kills += matchTotals.kills
+    currentTimeline.damage += matchTotals.damage
     timeline.set(label, currentTimeline)
 
     modeBreakdown.set(match.gameMode, (modeBreakdown.get(match.gameMode) ?? 0) + 1)
@@ -609,8 +630,8 @@ async function buildReportRecord(clanId: number, type: ReportType, referenceStar
   const previousPlayers = buildPlayerStatsMap(previousMatches, [])
   const currentPlayers = buildPlayerStatsMap(matches, previousPlayers)
   const highlights = buildHighlights(currentPlayers)
-  const totalKills = matches.reduce((sum, match) => sum + match.totalKills, 0)
-  const totalDamage = matches.reduce((sum, match) => sum + match.totalDamage, 0)
+  const totalKills = matches.reduce((sum, match) => sum + matchClanTotals(match).kills, 0)
+  const totalDamage = matches.reduce((sum, match) => sum + matchClanTotals(match).damage, 0)
   const avgTeamSize = roundNumber(
     safeDivide(
       matches.reduce((sum, match) => sum + match.members.length, 0),

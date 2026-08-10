@@ -1440,3 +1440,97 @@ Objectif : Finaliser la fonctionnalité de "Watchlist" en permettant d'ajouter d
 **Isolation Stricte (Watchlist) :**
 - [x] Patch global sur `src/lib/stats-calculator.ts`, `cron-jobs.ts`, `report-generator.ts`, et `matches-cache-service.ts` pour filtrer `isActive: true, joinStatus: 'active'`.
 - [x] Création du test unitaire `tracked-isolation.test.ts` pour garantir l'étanchéité des calculs.
+
+---
+
+## Idées — Comparateur de Clans (Méta-Dashboard)
+
+**Pourquoi c'est utile :** Apporter une dimension méta et compétitive (Le "Derby") entre les différents clans suivis sur le site. Il s'agit de comparer l'activité, le style de jeu et les performances pures des rosters, plutôt que de se limiter à des classements de joueurs individuels.
+
+**Données disponibles :**
+- `Match`, `SquadMember`, `SquadMatch`, `PositionMetricCell`, `DropPressureStat`, `KillEvent`, `PlayerStats`, `ClanSynergyTelemetryStats`
+- La télémétrie existante suffit largement, il s'agit surtout de nouvelles agrégations transverses (cross-clan) au-dessus de tables déjà peuplées — pas de nouveau parsing.
+
+**Vérification du modèle de données (2026-08-10) :**
+- `SquadMatch.pubgMatchId` est **globalement unique** (`prisma/schema.prisma:542`) : quand deux clans suivis jouent le même match PUBG, une seule ligne `SquadMatch` existe pour les deux, et `SquadMember` y rattache les membres des deux clans. `KillEvent.killerMemberId` / `victimMemberId` (`prisma/schema.prisma:717-723`) peuvent donc pointer vers des `ClanMember` de clans différents sur le même `squadMatchId` — le Head-to-Head (section 4) est réellement calculable, à condition que les deux clans concernés soient suivis par le site et que leur télémétrie ait été parsée. **Limite à documenter dans l'UI** : les affrontements avec des clans non suivis (rencontrés seulement via `EncounteredPlayer`/`OpponentClan`, cf. section "Idées — Suivi des adversaires rencontrés en match") ne peuvent pas être exploités ici — ces comptes ne sont jamais résolus en `ClanMember`, donc invisibles pour `KillEvent`.
+- `PositionMetricCell` et `DropPressureStat` sont scopés par `clanId`/`memberId`, agrégeables directement par clan sans jointure supplémentaire.
+- `ClanMatchesCache` (`prisma/schema.prisma:294`) est le pattern de cache déjà en place pour les agrégats coûteux par clan (`payload Json`, recalculé en cron) — à réutiliser comme modèle plutôt qu'à réinventer un cache ad hoc pour le comparateur.
+
+**Proposition d'implémentation (Page Comparateur) :**
+
+### 0. Fondations — Service d'agrégation et cache — ✅ Complété le 2026-08-10
+- [x] Créer `src/lib/clan-comparator-service.ts` avec `computeClanComparatorStats(clanId)` (calcule `week`/`month`/`all`) qui calcule un payload unique regroupant les sections 1 à 3 (pouls, ADN, performances) — même esprit que `precomputeClanMatchesStats` dans `matches-cache-service.ts`. Réutilise `getDropPressureDashboardStats` (`src/lib/drop-pressure-stats.ts`) pour l'indice Hot Drop plutôt que de recalculer, et `PositionMetricCell` (`metric: 'knockout_taken'`) pour les KO subis (non présents dans `KillEvent`, qui ne journalise que les kills).
+- [x] Ajouter le modèle `ClanComparatorCache` (`clanId`, `period`, `periodKey`, `payload Json`, `computedAt`), calqué sur `ClanMatchesCache` — migration additive `prisma/migrations/20260810120000_add_clan_comparator_cache` (appliquée manuellement sur `smk.arkium.group`, cf. gotcha connu du projet sur les migrations de production).
+- [x] Intégrer le calcul dans `src/lib/cron-jobs.ts`, juste après `precomputeClanMatchesStats` dans `runDailyStatsRecalculation`, pour que la page comparateur ne fasse jamais de calcul à froid.
+- [x] Créer `GET /api/clans/comparator?clanIds=1,2,3&period=month` — route transverse (`src/app/api/clans/comparator/route.ts`, hors du préfixe `/api/clans/[clanId]/`), qui lit `ClanComparatorCache` pour chaque `clanId` demandé (max 3) et retourne un tableau de payloads. Retourne `Response.json` standard (pas `NextResponse`), conforme au reste des nouvelles routes.
+- [x] Permissions : lecture cross-clan ouverte à tout utilisateur authentifié (simple vérification de session via `getSessionFromRequest`, pas de `requireNavPermission` scopé à un clan) — cohérent avec la décision "comparaison publique côté site".
+- [ ] Vérifier en base que le prochain passage du cron `daily_stats_recalc` peuple bien `ClanComparatorCache` pour les clans actifs (aucun backfill manuel déclenché à l'implémentation).
+
+### 1. L'Activité et le Rythme de jeu (Le "Pouls") — ✅ Complété le 2026-08-10 (hors heatmap horaire)
+- [x] **Indice de Synergie :** Répartition des tailles de squad par clan (solo/duo/trio/squad) dans `ClanComparatorPayload.pulse.squadSizeDistribution`, dérivé du nombre de `SquadMember` par `squadMatchId` appartenant au clan.
+- [x] **Taux de participation (Roster Health) :** `pulse.rosterHealth` — membres actifs ayant joué / effectif total, filtré `isActive: true, joinStatus: 'active'` (isolation stricte, cf. `tracked-isolation.test.ts`).
+- [x] **Régularité :** `pulse.dailyMatchCounts` (matchs par jour sur la période) et `pulse.activityByDayHour` (grille 7×24 jour/heure), affichés sous forme de compteurs sur la page — pas encore de heatmap visuelle superposée entre clans.
+- [ ] **Heatmap d'activité comparée :** `activityByDayHour` est déjà calculé et mis en cache, mais la page ne l'affiche pas encore visuellement (juxtaposition Night Owls vs Weekend warriors) — reste à construire le composant de visualisation.
+
+### 2. Le Style de jeu (L'ADN) — ✅ Complété le 2026-08-10
+- [x] **Indice de "Hot Drop" :** `dna.hotDropSharePercent`/`hotDropCount`/`dropCount`, calculé directement sur `DropPressureStat.pressureLevel` (`hot`/`very_hot`) avec filtre d'isolation `member.isActive/joinStatus` — **ne pas réutiliser `getDropPressureDashboardStats` telle quelle**, elle ne filtre pas par `joinStatus` et fait fuiter les membres en simple watchlist dans les stats d'un clan (bug trouvé et corrigé pendant l'implémentation, cf. `src/lib/clan-comparator-service.ts`).
+- [x] **Agressivité vs Survie :** `dna.avgDamagePerMatch`/`avgKillsPerMatch` vs `dna.avgTimeSurvivedSeconds`, affichés en cartes par clan (pas encore en nuage de points).
+- [x] **Altruisme (Teamplay) :** `dna.teamplayRatio` = `revivesGiven` / `knockoutsTaken`, où `knockoutsTaken` vient de `PositionMetricCell` (`metric: 'knockout_taken'`) et non de `KillEvent`, qui ne journalise que les kills (pas les KO) — même piège d'isolation que le Hot Drop, filtré via la relation `member`.
+
+### 3. Les Performances Globales — ✅ Complété le 2026-08-10
+- [x] **Winrate et Top 10 Rate :** `performance.winRate`/`top10Rate`, calculés depuis `SquadMatch.placement` (placement = 1 pour winrate, ≤ 10 pour Top 10) sur les matchs du clan dans la période.
+- [x] **Dégâts moyens / Kills moyens :** `performance.avgDamagePerMatch`/`avgKillsPerMatch`, calculés directement depuis `SquadMember` sur la période (pas depuis `PlayerStats`, pour rester cohérent avec le filtrage d'isolation watchlist déjà appliqué au reste du payload).
+- [x] **Performances par mode (ajout demandé le 2026-08-10) :** `pulse.modePerformance` (duo/trio/squad : matchs, victoires, winrate, kills), affiché sur la page comparateur avec `TeamModeBadge` — permet de voir si un clan joue surtout ensemble (squad complète) ou en petits groupes ad hoc.
+  - **Bug corrigé (même jour) :** la taille d'équipe était calculée en filtrant les `SquadMember` sur `joinStatus: 'active'`, comme le reste du payload par souci d'isolation — mais un vrai squad de 4 avec 3 coéquipiers seulement `tracked` (auto-détectés, pas administrativement actifs) se retrouvait compté comme "solo" et disparaissait du tableau duo/trio/squad. Repéré sur FR-Alliance-BE : 42 matchs joués au total, 0 comptés en duo/trio/squad avant correctif. Fix : la taille d'équipe utilise désormais la composition réelle du squad (tous les membres du clan présents, `isActive: true`, peu importe `joinStatus`), tandis que l'agrégation des stats individuelles (kills/dégâts/revives) reste filtrée sur `joinStatus: 'active'` pour préserver l'isolation watchlist sur les chiffres attribués au clan.
+
+### 4. Le Head-to-Head (Le "Derby") — ✅ Complété le 2026-08-10
+- [x] **Détection des matchs communs :** `src/lib/head-to-head-service.ts`, `getHeadToHeadStats(clanIdA, clanIdB)` — `SquadMatch` où au moins un `SquadMember` actif appartient à chacun des deux clans.
+- [x] **Tableau de Rivalité :** `KillEvent` filtré sur `killerMember`/`victimMember` résolus vers les deux clans (isolation `isActive`/`joinStatus` appliquée aussi ici) — compte `killsAOnB`/`killsBOnA`.
+- [x] **Bilan de confrontation :** Le vainqueur d'un match commun se lit sur le **meilleur `SquadMember.placement` par clan**, pas sur `SquadMatch.placement` — un même `SquadMatch` (clé `pubgMatchId` globalement unique) peut représenter deux équipes réelles différentes si les deux clans étaient dans le même lobby sans être dans la même squad PUBG.
+- [x] Le cas "aucun match commun" est géré explicitement dans l'UI (message dédié plutôt qu'un tableau vide).
+- [x] Intégré à `GET /api/clans/comparator` (calculé à la demande pour chaque paire de clans sélectionnés, pas mis en cache comme les sections 1-3 — volume de paires trop faible pour justifier un cache dédié) et à la page comparateur.
+- [ ] Le Head-to-Head est calculé toutes périodes confondues, indépendamment du filtre Semaine/Mois/Tous de la page — à réévaluer si le volume de confrontations augmente.
+
+#### Bug structurel découvert et corrigé (même jour) — pipeline de sync ne partageait jamais un match entre deux clans
+
+En vérifiant pourquoi aucune des 7 clans suivis n'avait le moindre match commun (constaté par l'utilisateur), investigation plus profonde que prévu : `analyzeMatchForSquads` (`src/lib/squad-detector.ts`) ne résolvait que les membres du clan dont c'était le job de sync, et — plus grave — quand un `SquadMatch` existait déjà pour un `pubgMatchId` (créé par un premier clan), la fonction **retournait l'existant sans jamais y attacher les membres d'un second clan**. Sur les 3031 `SquadMatch` en base au moment de l'investigation, aucun n'avait de membres de plus d'un `clanId` — le Head-to-Head était donc structurellement mort avant même d'être écrit.
+
+- [x] `analyzeMatchForSquads` détecte désormais le squad du clan appelant même si le `SquadMatch` existe déjà, et attache les `SquadMember` manquants pour ce clan (fonction de détection extraite en `detectSquadFromMatchDetails`, réutilisée dans les deux branches).
+- [x] **Risque identifié avant d'implémenter** : les colonnes dénormalisées `SquadMatch.totalKills/totalDamage/totalAssists/totalRevives` (calculées par `calculateSquadStats`, qui somme tous les `SquadMember` attachés) sont lues directement par plusieurs consommateurs comme "les stats de MON clan sur ce match" — attacher un second clan sans corriger ces consommateurs aurait fait fuiter les stats d'un clan vers l'autre sur les matchs partagés.
+- [x] Décision : ne plus jamais recalculer ces colonnes lors de l'attache d'un second clan (elles restent celles du premier clan créateur, désormais considérées obsolètes/non fiables) — **4 fichiers consommateurs audités et corrigés pour recalculer depuis les `SquadMember` filtrés par clan plutôt que de faire confiance aux colonnes du `SquadMatch`** :
+  - `src/lib/squad-detector.ts` — `getClanSquadMatches` filtre désormais `members` par `clanId` ; `findBestSquads`/`getSquadWinRates`/`getClanSquadAnalysis` recalculent via le nouvel helper `sumClanMemberTotals`.
+  - `src/lib/matches-cache-service.ts` — cache Overview, même traitement.
+  - `src/app/api/clans/[clanId]/matches/route.ts` — page Matchs en direct (mode de jeu, sessions, synergies duo/squad, top performers) — le plus gros fichier touché.
+  - `src/lib/report-generator.ts` — rapports hebdo/mensuels (timeline, totaux).
+- [x] Validé par une simulation contrôlée : insertion temporaire d'un `SquadMember` d'un second clan sur un `SquadMatch` réel existant → Head-to-Head détecte bien le match commun avec le bon vainqueur (meilleur placement), les stats des deux clans restent isolées (aucune fuite croisée vérifiée par requête), les caches se recalculent sans erreur — puis suppression de la ligne de test et re-vérification du retour à l'état initial.
+- [ ] Pas de test automatisé couvrant ce scénario (match partagé entre deux clans) — à ajouter, notamment un test d'intégration sur `analyzeMatchForSquads` avec un `pubgMatchId` déjà existant.
+- [ ] Le prochain vrai match partagé entre deux clans suivis (détecté par le cron/worker en conditions réelles, pas simulé) n'a pas encore été observé — à vérifier dès qu'il se présente que la détection fonctionne aussi via le pipeline de sync complet, pas seulement via l'insertion directe testée ici.
+
+**Tentative de vérification en conditions réelles (2026-08-10) :** repéré via `EncounteredPlayer` (page "Adversaires") que Serejaah (clan BEE, memberId 19) et des membres de D32 se sont croisés 23 fois — **toujours comme coéquipiers, jamais comme adversaires** (`teammateEncounterCount: 23` = `encounterCount`). Les 2 lignes "Tué par le clan" affichées sur cette page sont donc probablement des team kills accidentels, pas des kills d'opposant. Tentative de rejouer ces 2 matchs (30 mai et 13 juin) via `fetchMatchDetails` pour vérifier l'attache réelle : **échec 404, l'API PUBG ne conserve les détails d'un match qu'environ 14 jours** — ces matchs sont définitivement inaccessibles côté PUBG, aucun moyen de les backfiller rétroactivement. Limite structurelle à retenir : le Head-to-Head et l'attache cross-clan ne peuvent couvrir que les matchs encore disponibles côté PUBG au moment où le second clan les synchronise pour la première fois (~14 jours), jamais l'historique complet.
+
+#### Bug structurel n°2 découvert en creusant le premier — `KillEvent` avait exactement le même défaut
+
+Question de l'utilisateur : "y a-t-il des matchs partagés parmi les 3031, je suppose que oui si un clan a tué un membre ?" — vérification : **0 des 91 `KillEvent` ayant killer et victim résolus ne sont cross-clan**, confirmant qu'aucun kill entre deux clans suivis n'a jamais été enregistré. Cause : `persistKillEventsForMatch`/`buildKillEventRows` (`src/lib/kill-event-persistence.ts`) dérivaient un unique `clanId` depuis le premier clan trouvé sur le `SquadMatch`, puis ne résolvaient `killerMemberId`/`victimMemberId` que contre le roster de CE seul clan — un kill entre deux clans suivis n'aurait donc jamais résolu les deux côtés, même après le fix d'`analyzeMatchForSquads` ci-dessus (qui attache désormais les `SquadMember`, mais `KillEvent` est peuplé par un pipeline séparé).
+
+- [x] `persistKillEventsForMatch` résout désormais les rosters de **tous** les clans présents sur le match (`clanId: { in: clanIds } }`), plus seulement le premier.
+- [x] `buildKillEventRows` résout `killerMemberId`/`victimMemberId` contre l'ensemble de ces rosters — un kill cross-clan résout maintenant les deux côtés.
+- [x] `KillEvent.clanId` (colonne unique par ligne, utilisée par `encountered-players/route.ts` pour un usage mono-clan légitime — kills contre des adversaires non résolus) prend désormais le clan du killer si résolu, sinon celui de la victime, sinon le clan "principal" du match (comportement identique à avant sur les 99% de matchs mono-clan). Ce choix ne casse aucun consommateur existant : `head-to-head-service.ts` ne filtre jamais par `KillEvent.clanId`, et `nemesis/route.ts` filtre par `killerMemberId`/`victimMemberId` directement, pas par `clanId`.
+- [x] Validé par deux tests unitaires directs sur `buildKillEventRows` (fonction pure) : un kill cross-clan résout bien les deux `memberId` avec `clanId` = clan du killer ; le cas nominal mono-clan (kill contre un adversaire non résolu) reste inchangé.
+- [ ] Comme pour le bug n°1, pas encore observé en conditions réelles via le pipeline de sync complet (worker/cron) — seulement validé par simulation directe des fonctions pures et de la base.
+
+### 5. UI/UX et Tests — 🚧 Base fonctionnelle livrée le 2026-08-10
+- [x] Créer la page `src/app/clans/comparator/page.tsx` (`'use client'`, contenu dans un `<Suspense>` car elle lit `useSearchParams`), hors du préfixe `/clans/[clanId]/` puisqu'elle porte sur plusieurs clans — structure `.app-container`/`.app-main` standard, sans `ClanSectionNav`.
+- [x] **Interface de sélection :** Sélecteur multi-clans en pills (jusqu'à 3), période via `SegmentedControl` (Semaine/Mois/Tous), sélection persistée en query string (`?clanIds=1,3&period=month`) pour permettre le partage d'un lien de comparaison.
+- [x] **Visualisation "Radar Chart" :** `src/components/comparator/ClanComparatorRadar.tsx`, 5 axes normalisés (Agressivité, Survie, Teamplay, Activité, Winrate) sur jusqu'à 3 clans. Utilise directement les slots 1-3 du thème catégoriel du projet (`references/palette.md` du skill `dataviz` : bleu/orange/aqua, déjà validés all-pairs CVD en clair et sombre pour 3 séries) — pas de nouvelle validation de palette nécessaire tant que le plafond reste à 3 clans.
+- [x] Entrée de navigation ajoutée (`primary.comparator`, `/clans/comparator`) dans la sidebar principale, seedée en DB (`NavItem`) et dans le fallback `nav-permissions-registry.ts`.
+- [x] **Performances par mode :** cartes `TeamModeBadge` par clan (duo/trio/squad), même style que le panneau existant sur `/clans/[clanId]/overview`.
+- [x] **Head-to-Head :** section dédiée avec confrontations par paire de clans sélectionnés, message explicite si aucun match commun.
+- [x] Cache `ClanComparatorCache` peuplé manuellement pour les 7 clans actifs le 2026-08-10 (le cron nocturne `daily_stats_recalc` le repeuplera automatiquement ensuite) — les données radar/tableaux n'étaient pas visibles avant ce peuplement initial car la page ne calcule jamais à la volée.
+- [ ] **Heatmap d'activité comparée** (section 1) : `pulse.activityByDayHour` est disponible mais pas encore visualisé.
+- [ ] **Tests Unitaires (Services d'agrégation) :** Aucun test automatisé sur `clan-comparator-service.ts`/`head-to-head-service.ts` pour l'instant — validé manuellement par exécution directe sur les données réelles des 7 clans (a révélé et permis de corriger le bug d'isolation watchlist ci-dessus). À couvrir : Synergie, Roster Health, Hot Drop, Teamplay, isolation `joinStatus`, détection de matchs communs, calcul du vainqueur par meilleur placement.
+- [ ] **Tests de Composants (UI) :** Pas de test automatisé sur la page/le radar — à couvrir : données vides, un seul clan sélectionné, clan sans télémétrie parsée, aucun match commun.
+- [ ] Vérifier dans le navigateur (session authentifiée) les rendus desktop/mobile et les thèmes clair/sombre — non fait dans cette session (pas d'accès à une session de test ; seule la résolution de route a été vérifiée via `curl`, qui redirige correctement vers `/login` sans authentification).
+
+**Décisions (2026-08-10) :**
+- Périmètre clans : uniquement les clans actifs gérés sur le site (`joinStatus: 'active'`) — les clans en simple watchlist (`joinStatus: 'tracked'`) sont exclus du sélecteur, cohérent avec l'isolation déjà appliquée ailleurs (`tracked-isolation.test.ts`).
+- Visibilité : le comparateur est exposé dans la navigation principale dès la V1, pas de phase de rodage en accès direct uniquement — prévoir l'entrée correspondante dans le composant de nav (`NavItem` / menu principal) dès l'implémentation de la page.

@@ -39,6 +39,7 @@ model Clan {
   killEvents                KillEvent[]
   awardsCache               ClanAwardsCache[]
   matchesCache              ClanMatchesCache[]
+  comparatorCache           ClanComparatorCache[]
   clanEncounters            ClanEncounter[]
 
   @@unique([name, platformShard])
@@ -303,6 +304,24 @@ model ClanMatchesCache {
 
   @@unique([clanId, period])
   @@map("ClanMatchesCache")
+}
+
+// Agrégats transverses pour le Comparateur de Clans (Méta-Dashboard) : pouls
+// d'activité, style de jeu et performances globales par clan et par période.
+// Calqué sur ClanMatchesCache/ClanAwardsCache — voir docs/TODO/todo.md,
+// section "Idées — Comparateur de Clans (Méta-Dashboard)".
+model ClanComparatorCache {
+  id     String @id @default(cuid())
+  clanId Int
+  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  period     String // 'week' | 'month' | 'all'
+  periodKey  String
+  payload    Json
+  computedAt DateTime @default(now())
+
+  @@unique([clanId, period])
+  @@map("ClanComparatorCache")
 }
 
 model UserAccount {

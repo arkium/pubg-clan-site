@@ -132,10 +132,13 @@ model EncounteredPlayer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  combatInteractionsCount Int @default(0)
+
   @@unique([clanId, pubgAccountId])
   @@index([clanId, encounterCount])
   @@index([clanId, pubgClanTag])
   @@index([clanResolvedAt, encounterCount])
+  @@index([clanResolvedAt, combatInteractionsCount])
   @@index([playerId])
   // Sert le regroupement par identité globale (priorisation cross-clan du
   // résolveur) : combien de clans distincts ont croisé ce compte, encore non

@@ -1,10 +1,30 @@
 # Points à faire — PUBG Clan Site
 
-Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-01.
+Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-11.
 
 ---
 
 ## P1 — Bloquants / manques fonctionnels immédiats
+
+### ~~Clans "trackés" (RATZ, BEE, MTFR, BDXX, FR-Alliance-BE) — stats à zéro malgré la télémétrie~~ — ✅ Corrigé le 2026-08-11
+
+`/clans/6/overview` (RATZ) affichait 0 partout (kills, wins, dégâts, matchs) alors que 511 lignes `SquadMember` existaient bien en base. Cause : `joinStatus: 'tracked'` isole volontairement les membres (voir `tracked-isolation.test.ts`) des agrégats (`recalculateStatsForClan` dans `stats-calculator.ts`, `precomputeClanMatchesStats` dans `matches-cache-service.ts`) — mais ce statut était le **seul** posé par le bouton "tracker" de `/settings/opponents` (`POST /api/settings/opponents/track`), utilisé pour construire la quasi-totalité du roster de 5 clans sur 6 du site (86 `ClanMember` sur ~95 dans ces clans, tous avec `playerId` renseigné → tous créés via cette route, jamais via `/join`).
+
+- [x] Modifier `src/app/api/settings/opponents/track/route.ts` : poser `joinStatus: 'active'` au lieu de `'tracked'` (create + update) — une confirmation manuelle par un SuperUser vaut approbation, il n'existe pas de flux `/join` pour un joueur scouté sans compte sur le site.
+- [x] Migrer les 86 `ClanMember` existants (`tracked` → `active`) sur les clans 3 (LesZzabeilles), 4 (LA_MEUTE), 5 (BDXX), 6 (Les-Ratz), 7 (FR-Alliance-BE).
+- [x] Relancer `recalculateStatsForClan`, `precomputeClanMatchesStats`, `recalculateTelemetryPeriodAggregatesForClan` pour ces 5 clans.
+- [x] Vérifié : clan 6 → 240 matchs / 1504 kills / 52 wins (période "Tous"), 56 lignes `PlayerStats`.
+- [x] Complété après coup : `precomputeClanAwards` (`ClanAwardsCache`, cartes "Awards du mode") et `computeClanComparatorStats` (`ClanComparatorCache`, page `/clans/comparator` — cartes "Performances par mode" à 0 pour RATZ) n'avaient pas été relancés lors de la première passe ; le recalcul complet suit désormais la même séquence que `recalculateStatsDaily` dans `cron-jobs.ts` (`recalculateStatsForClan` → `precomputeClanAwards` → `precomputeClanMatchesStats` → `computeClanComparatorStats`).
+- [x] Réécrit `tracked-isolation.test.ts` (obsolète : `periodType` manquant, modèle `ClanStats` inexistant) pour couvrir le pipeline actuel (`recalculateStatsForClan` + `precomputeClanMatchesStats`) et nettoyer ses données après exécution (un run précédent avait laissé un clan orphelin `Test Isolation Clan` en base réelle, supprimé).
+
+**Note :** le statut `joinStatus: 'tracked'` reste dans le schéma pour un éventuel futur usage (isolation d'un coéquipier auto-détecté non confirmé), mais n'est plus produit par aucun flux applicatif actuel.
+
+### ~~Dépendance `server-only` manquante — cassait `stats-calculator.ts` (via `notification-service.ts` → `email-service.ts`) hors build Next~~ — ✅ Corrigé le 2026-08-11
+
+`server-only` était importé dans `email-service.ts` mais absent de `package.json`/`node_modules` : tout script ou test import ant `stats-calculator.ts` (donc `tracked-isolation.test.ts`) plantait avec `Cannot find module 'server-only'`. Une fois le paquet installé, le vrai module `server-only` lève une erreur volontaire dès qu'il est chargé hors du bundling spécial Next.js (serveur/client) — donc aussi en environnement Vitest.
+
+- [x] `npm install server-only` (ajouté aux `dependencies`).
+- [x] Alias `server-only` → stub no-op (`src/lib/test-stubs/server-only.ts`) dans `vitest.config.ts`, car Vitest n'a pas le découpage serveur/client de Next qui rend ce module inoffensif en prod.
 
 ### ~~SuperUser — Forbidden sur les clans hors clan d'appartenance~~ — ✅ Corrigé le 2026-08-09
 
@@ -471,6 +491,12 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 - [x] Mettre à jour les 2 sites d'écriture (`src/lib/encountered-players.ts::captureEncounteredPlayers`, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`) — dual-write vers les nouvelles tables + dédup des appels API de résolution de clan via `Player.clanResolvedAt` (fenêtre de fraîcheur `PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS = 7`)
 - [x] Cache DB-first pour `searchPlayerByName` (`src/lib/pubg.ts`) via `Player`, fenêtre de fraîcheur `PLAYER_NAME_SEARCH_FRESHNESS_DAYS = 3`
 - [ ] Le(s) site(s) de création de `ClanMember` ne sont pas modifiés — hors scope Phase 1
+
+**Priorisation par interactions de combat (La "Bounty List") — Phase 2 (Dénormalisation) :**
+- [ ] Ajouter `combatInteractionsCount` à `EncounteredPlayer` (Schéma + Migration de backfill `UPDATE ... JOIN KillEvent`).
+- [ ] Mettre à jour `persistKillEventsForMatch` pour incrémenter/décrémenter transactionnellement ce compteur.
+- [ ] Remplacer la logique SQL `$queryRaw` du cron par un simple tri `_sum: { combatInteractionsCount: 'desc' }`.
+- [ ] Nettoyer les tests unitaires et supprimer le fallback de remplissage (désormais géré nativement par le `groupBy`).
 
 **Fonctionnalités déclenchées par cette normalisation :**
 

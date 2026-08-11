@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { Prisma } from '@prisma/client'
 import { PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS } from '@/lib/encountered-player-resolution-constants'
 import { prisma } from '@/lib/prisma'
 import { fetchPlayerClan, type PubgApiCallContext } from '@/lib/pubg'
@@ -48,9 +49,10 @@ export async function selectPrioritizedEncounteredPlayerIdentities(
       resolveAttempts: { lt: thresholds.maxAttempts },
     },
     _count: { clanId: true },
-    _sum: { encounterCount: true },
+    _sum: { encounterCount: true, combatInteractionsCount: true },
     _max: { lastSeenAt: true },
     orderBy: [
+      { _sum: { combatInteractionsCount: 'desc' } },
       { _count: { clanId: 'desc' } },
       { _sum: { encounterCount: 'desc' } },
       { _max: { lastSeenAt: 'desc' } },
@@ -79,14 +81,21 @@ export async function selectPrioritizedEncounteredPlayerIdentities(
     representativeRows.map((row) => [`${row.platformShard}:${row.pubgAccountId}`, row.pubgPlayerName])
   )
 
-  return groups.map((group) => ({
-    pubgAccountId: group.pubgAccountId,
-    platformShard: group.platformShard,
-    pubgPlayerName: nameByIdentity.get(`${group.platformShard}:${group.pubgAccountId}`) ?? '',
-    distinctClanCount: group._count.clanId,
-    totalEncounterCount: group._sum.encounterCount ?? 0,
-    lastSeenAt: group._max.lastSeenAt ?? new Date(0),
-  }))
+  return groups.map((group) => {
+    // Assert typings because Prisma's groupBy types can be loose with selections
+    const count = group._count as { clanId: number }
+    const sum = group._sum as { encounterCount: number | null }
+    const max = group._max as { lastSeenAt: Date | null }
+
+    return {
+      pubgAccountId: group.pubgAccountId,
+      platformShard: group.platformShard,
+      pubgPlayerName: nameByIdentity.get(`${group.platformShard}:${group.pubgAccountId}`) ?? '',
+      distinctClanCount: count.clanId,
+      totalEncounterCount: sum.encounterCount ?? 0,
+      lastSeenAt: max.lastSeenAt ?? new Date(0),
+    }
+  })
 }
 
 // Résout le clan PUBG d'un compte croisé, partagée entre le cron

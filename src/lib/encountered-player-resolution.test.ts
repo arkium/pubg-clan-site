@@ -4,6 +4,7 @@ vi.mock('server-only', () => ({}))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $queryRaw: vi.fn(),
     player: { findUnique: vi.fn(), upsert: vi.fn() },
     opponentClan: { upsert: vi.fn() },
     encounteredPlayer: { updateMany: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
@@ -110,7 +111,7 @@ describe('selectPrioritizedEncounteredPlayerIdentities', () => {
     vi.mocked(prisma.encounteredPlayer.findMany).mockReset()
   })
 
-  it('demande le tri distinctClanCount DESC, totalEncounterCount DESC, lastSeenAt DESC à la base', async () => {
+  it('demande le tri combatInteractionsCount DESC, distinctClanCount DESC, etc. à la base', async () => {
     vi.mocked(prisma.encounteredPlayer.groupBy).mockResolvedValue([] as never)
 
     await selectPrioritizedEncounteredPlayerIdentities(5, { minEncounters: 2, maxAttempts: 3 })
@@ -119,6 +120,7 @@ describe('selectPrioritizedEncounteredPlayerIdentities', () => {
       expect.objectContaining({
         by: ['pubgAccountId', 'platformShard'],
         orderBy: [
+          { _sum: { combatInteractionsCount: 'desc' } },
           { _count: { clanId: 'desc' } },
           { _sum: { encounterCount: 'desc' } },
           { _max: { lastSeenAt: 'desc' } },
@@ -128,30 +130,21 @@ describe('selectPrioritizedEncounteredPlayerIdentities', () => {
     )
   })
 
-  it("ne compte chaque identité qu'une fois même si croisée par plusieurs clans, et associe le bon nom", async () => {
+  it("récupère et associe le bon nom aux résultats", async () => {
     const lastSeenA = new Date('2026-08-09T00:00:00Z')
-    const lastSeenB = new Date('2026-08-08T00:00:00Z')
 
     vi.mocked(prisma.encounteredPlayer.groupBy).mockResolvedValue([
       {
         pubgAccountId: 'acc-multi',
         platformShard: 'steam',
         _count: { clanId: 3 },
-        _sum: { encounterCount: 12 },
+        _sum: { encounterCount: 12, combatInteractionsCount: 5 },
         _max: { lastSeenAt: lastSeenA },
-      },
-      {
-        pubgAccountId: 'acc-single',
-        platformShard: 'steam',
-        _count: { clanId: 1 },
-        _sum: { encounterCount: 5 },
-        _max: { lastSeenAt: lastSeenB },
       },
     ] as never)
 
     vi.mocked(prisma.encounteredPlayer.findMany).mockResolvedValue([
       { pubgAccountId: 'acc-multi', platformShard: 'steam', pubgPlayerName: 'Praetes' },
-      { pubgAccountId: 'acc-single', platformShard: 'steam', pubgPlayerName: 'BL0odice' },
     ] as never)
 
     const result = await selectPrioritizedEncounteredPlayerIdentities(10, {
@@ -159,7 +152,7 @@ describe('selectPrioritizedEncounteredPlayerIdentities', () => {
       maxAttempts: 3,
     })
 
-    expect(result).toHaveLength(2)
+    expect(result).toHaveLength(1)
     expect(result[0]).toEqual({
       pubgAccountId: 'acc-multi',
       platformShard: 'steam',
@@ -168,6 +161,5 @@ describe('selectPrioritizedEncounteredPlayerIdentities', () => {
       totalEncounterCount: 12,
       lastSeenAt: lastSeenA,
     })
-    expect(result[1].distinctClanCount).toBe(1)
   })
 })

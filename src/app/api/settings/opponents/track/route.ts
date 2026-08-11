@@ -35,19 +35,21 @@ export async function POST(req: NextRequest) {
         return Response.json({ error: 'Ce joueur est déjà un membre actif de ce clan.' }, { status: 400 })
       }
       
-      // Update existing to tracked
+      // A SuperUser explicitly confirming this player's clan membership is
+      // equivalent to an approved join — no separate approval step exists
+      // for scouted players (they have no site account to click "join").
       const updated = await prisma.clanMember.update({
         where: { id: existingMember.id },
         data: {
           isActive: true,
-          joinStatus: 'tracked',
+          joinStatus: 'active',
           playerId: player.id
         }
       })
       return Response.json(updated)
     }
 
-    // Create new tracked member
+    // Create new member — see note above on joinStatus: 'active'
     const newMember = await prisma.clanMember.create({
       data: {
         displayName: player.pubgPlayerName,
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
         pubgAccountId: player.pubgAccountId,
         platformShard: player.platformShard,
         isActive: true,
-        joinStatus: 'tracked',
+        joinStatus: 'active',
         clanId: targetClanId,
         playerId: player.id
       }

@@ -85,12 +85,20 @@ export async function GET(
     const [killedByClanGroups, killedClanMemberGroups] = await Promise.all([
       prisma.killEvent.groupBy({
         by: ['victimAccountId'],
-        where: { clanId: parsedClanId, killerMemberId: { not: null }, victimAccountId: { not: null } },
+        where: {
+          clanId: parsedClanId,
+          killerMemberId: { not: null },
+          victimAccountId: { not: null, not: { startsWith: 'ai.' } },
+        },
         _count: { _all: true },
       }),
       prisma.killEvent.groupBy({
         by: ['killerAccountId'],
-        where: { clanId: parsedClanId, victimMemberId: { not: null }, killerAccountId: { not: null } },
+        where: {
+          clanId: parsedClanId,
+          victimMemberId: { not: null },
+          killerAccountId: { not: null, not: { startsWith: 'ai.' } },
+        },
         _count: { _all: true },
       }),
     ])
@@ -207,7 +215,9 @@ export async function GET(
           distinctClansIdentified: rivalClanMap.size,
           teammateCount,
           killedByClanPlayerCount: killedByClanCounts.size,
+          killedByClanTotalKills: Array.from(killedByClanCounts.values()).reduce((sum, count) => sum + count, 0),
           killedClanMemberPlayerCount: killedClanMemberCounts.size,
+          killedClanMemberTotalKills: Array.from(killedClanMemberCounts.values()).reduce((sum, count) => sum + count, 0),
         },
         playersListLimit: PLAYERS_LIST_LIMIT,
         playersListTruncated: allRows.length > PLAYERS_LIST_LIMIT,

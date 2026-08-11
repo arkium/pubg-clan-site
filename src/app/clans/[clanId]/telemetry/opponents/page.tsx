@@ -85,7 +85,9 @@ type EncounteredPlayersPayload = {
       distinctClansIdentified: number
       teammateCount: number
       killedByClanPlayerCount: number
+      killedByClanTotalKills: number
       killedClanMemberPlayerCount: number
+      killedClanMemberTotalKills: number
     }
     botStats: BotStats
     topRivalClans: RivalClan[]
@@ -419,12 +421,16 @@ export default function EncounteredOpponentsPage() {
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Déjà tués par le clan</p>
               <p className="mt-2 text-2xl font-bold text-emerald-700">{payload.summary.killedByClanPlayerCount}</p>
-              <p className="mt-1 text-[11px] text-slate-400">D&apos;après le kill-feed, historique partiel</p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {payload.summary.killedByClanTotalKills} kill(s) au total (hors bots) d&apos;après le kill-feed
+              </p>
             </article>
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Ont déjà tué un membre</p>
               <p className="mt-2 text-2xl font-bold text-rose-700">{payload.summary.killedClanMemberPlayerCount}</p>
-              <p className="mt-1 text-[11px] text-slate-400">D&apos;après le kill-feed, historique partiel</p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {payload.summary.killedClanMemberTotalKills} kill(s) au total (hors bots) d&apos;après le kill-feed
+              </p>
             </article>
           </section>
 

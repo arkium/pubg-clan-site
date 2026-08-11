@@ -208,9 +208,48 @@ export async function persistKillEventsForMatch(
   const rows = buildKillEventRows(match, clanMembers, rawKillFeedSamples)
 
   await client.$transaction(async (transaction) => {
+    // 1. Récupérer les anciens kills pour calculer les décréments
+    const oldKills = await transaction.killEvent.findMany({ 
+      where: { squadMatchId },
+      select: { clanId: true, killerMemberId: true, victimMemberId: true, killerAccountId: true, victimAccountId: true }
+    })
+
+    const deltas = new Map<number, Map<string, number>>()
+
+    const applyDeltas = (kills: typeof oldKills | typeof rows, multiplier: number) => {
+      for (const kill of kills) {
+        if (kill.killerMemberId !== null && kill.victimAccountId && !kill.victimAccountId.startsWith('ai.')) {
+          const clanMap = deltas.get(kill.clanId) ?? new Map()
+          clanMap.set(kill.victimAccountId, (clanMap.get(kill.victimAccountId) ?? 0) + multiplier)
+          deltas.set(kill.clanId, clanMap)
+        }
+        if (kill.victimMemberId !== null && kill.killerAccountId && !kill.killerAccountId.startsWith('ai.')) {
+          const clanMap = deltas.get(kill.clanId) ?? new Map()
+          clanMap.set(kill.killerAccountId, (clanMap.get(kill.killerAccountId) ?? 0) + multiplier)
+          deltas.set(kill.clanId, clanMap)
+        }
+      }
+    }
+
+    // -1 pour les anciens kills, +1 pour les nouveaux
+    applyDeltas(oldKills, -1)
+    applyDeltas(rows, 1)
+
     await transaction.killEvent.deleteMany({ where: { squadMatchId } })
     if (rows.length > 0) {
       await transaction.killEvent.createMany({ data: rows })
+    }
+
+    // Appliquer les deltas à EncounteredPlayer
+    for (const [clanId, clanDeltas] of deltas.entries()) {
+      for (const [pubgAccountId, delta] of clanDeltas.entries()) {
+        if (delta !== 0) {
+          await transaction.encounteredPlayer.updateMany({
+            where: { clanId, pubgAccountId },
+            data: { combatInteractionsCount: { increment: delta } }
+          })
+        }
+      }
     }
   })
 

@@ -88,7 +88,7 @@ export async function GET(
         where: {
           clanId: parsedClanId,
           killerMemberId: { not: null },
-          victimAccountId: { not: null, not: { startsWith: 'ai.' } },
+          victimAccountId: { not: { startsWith: 'ai.' } },
         },
         _count: { _all: true },
       }),
@@ -97,7 +97,7 @@ export async function GET(
         where: {
           clanId: parsedClanId,
           victimMemberId: { not: null },
-          killerAccountId: { not: null, not: { startsWith: 'ai.' } },
+          killerAccountId: { not: { startsWith: 'ai.' } },
         },
         _count: { _all: true },
       }),

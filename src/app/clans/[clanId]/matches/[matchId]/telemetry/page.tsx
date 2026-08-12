@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -7,9 +7,11 @@ import { useParams, useSearchParams } from 'next/navigation'
 
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import { WeaponStatsTable } from './WeaponStatsTable'
 import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 import { resolveGameMode } from '@/lib/pubg-assets'
+import InteractiveMap from '@/components/ui/InteractiveMap'
 
 type TelemetryStatus = 'success' | 'failed' | 'pending'
 
@@ -115,7 +117,7 @@ type MatchTelemetryResponse = {
     }
     weaponLabels?: Record<string, string>
     phaseLabels?: Record<string, string>
-    memberIdentityMap?: Record<string, string>
+    memberIdentityMap?: Record<string, { name: string, clanTag?: string, clanId?: number }>
   }
   error?: {
     message?: string
@@ -176,7 +178,8 @@ function normalizeAccountId(value: string) {
 
 function resolveTelemetryMemberLabel(
   memberKey: string,
-  memberIdentityMap?: Record<string, string>
+  memberIdentityMap?: Record<string, { name: string, clanTag?: string, clanId?: number }>,
+  currentClanId?: number | null
 ) {
   const trimmedKey = memberKey.trim()
   const accountLike = /^account\./i.test(trimmedKey)
@@ -191,10 +194,18 @@ function resolveTelemetryMemberLabel(
 
   const resolved = memberIdentityMap?.[normalizeAccountId(trimmedKey)]
   if (resolved) {
+    let tone: 'resolved-current-clan' | 'resolved-other-clan' | 'resolved' = 'resolved'
+    if (resolved.clanId) {
+      if (currentClanId && resolved.clanId === currentClanId) tone = 'resolved-current-clan'
+      else tone = 'resolved-other-clan'
+    }
+
     return {
-      label: resolved,
-      tone: 'resolved' as const,
+      label: resolved.clanTag ? `[${resolved.clanTag}] ${resolved.name}` : resolved.name,
+      tone,
       accountId: trimmedKey,
+      clanId: resolved.clanId,
+      clanTag: resolved.clanTag,
     }
   }
 
@@ -981,10 +992,13 @@ export default function MatchTelemetryDetailPage() {
   ])
 
   const clanAccountIds = useMemo(() => {
+    if (!payload?.memberIdentityMap || !clanId) return new Set<string>()
     return new Set(
-      Object.keys(memberIdentityMap ?? {}).map((accountId) => normalizeAccountId(accountId))
+      Object.entries(payload.memberIdentityMap)
+        .filter(([_, info]) => info.clanId === clanId)
+        .map(([accountId]) => normalizeAccountId(accountId))
     )
-  }, [memberIdentityMap])
+  }, [payload?.memberIdentityMap, clanId])
 
   const clanTeamId = useMemo(() => {
     for (const member of memberStats) {
@@ -1024,24 +1038,69 @@ export default function MatchTelemetryDetailPage() {
 
     const knownGroups = Array.from(byTeam.entries())
       .sort((left, right) => left[0] - right[0])
-      .map(([teamId, members], index) => ({
-        id: `team-${teamId}`,
-        title: `Team #${index}`,
-        teamId: teamId as number | null,
-        members,
-      }))
+      .map(([teamId, members]) => {
+        let teamClanId: number | undefined
+        let teamClanTag: string | undefined
+        
+        for (const m of members) {
+          const resolved = payload?.memberIdentityMap?.[normalizeAccountId(m.memberKey.trim())]
+          if (resolved?.clanId) {
+            teamClanId = resolved.clanId
+            teamClanTag = resolved.clanTag
+            if (teamClanId === clanId) break
+          }
+        }
+
+        return {
+          id: `team-${teamId}`,
+          title: `Team #${teamId}`,
+          teamId: teamId as number | null,
+          teamClanId,
+          teamClanTag,
+          members,
+        }
+      })
 
     if (unknownTeamMembers.length > 0) {
       knownGroups.push({
         id: 'team-unknown',
         title: 'Team inconnue',
         teamId: null,
+        teamClanId: undefined,
+        teamClanTag: undefined,
         members: unknownTeamMembers,
       })
     }
 
     return knownGroups
-  }, [memberStats])
+  }, [memberStats, payload?.memberIdentityMap, clanId])
+
+  const memberColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const TEAM_COLORS = [
+      'bg-amber-400', 'bg-lime-400', 'bg-fuchsia-400', 'bg-rose-400',
+      'bg-yellow-400', 'bg-cyan-400', 'bg-purple-400', 'bg-pink-400',
+      'bg-orange-400', 'bg-indigo-400',
+    ]
+    let otherTeamIndex = 0
+
+    groupedMemberStats.forEach((group) => {
+      let teamColor = ''
+      if (group.teamClanId === clanId) {
+        teamColor = 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] z-10'
+      } else if (group.teamClanId) {
+        teamColor = 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] z-10'
+      } else {
+        teamColor = TEAM_COLORS[otherTeamIndex % TEAM_COLORS.length]
+        otherTeamIndex++
+      }
+
+      group.members.forEach((m) => {
+        map.set(m.memberKey, teamColor)
+      })
+    })
+    return map
+  }, [groupedMemberStats, clanId])
   const hasMissingPersistedJson =
     telemetry?.status === 'success' &&
     telemetry?.summary === null &&
@@ -1270,27 +1329,8 @@ export default function MatchTelemetryDetailPage() {
           <section className="app-panel p-4 md:p-5">
             <h2 className="text-lg font-semibold text-slate-900">Top armes (weaponStats)</h2>
             {weaponStats.length > 0 ? (
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-2 py-2">Arme</th>
-                      <th className="px-2 py-2 text-right">Kills</th>
-                      <th className="px-2 py-2 text-right">Headshots</th>
-                      <th className="px-2 py-2 text-right">Damage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weaponStats.map((weapon) => (
-                      <tr key={weapon.weaponName} className="border-t border-slate-100">
-                        <td className="px-2 py-2">{displayWeaponName(weapon.weaponName, weaponLabels)}</td>
-                        <td className="px-2 py-2 text-right tabular-nums">{weapon.kills}</td>
-                        <td className="px-2 py-2 text-right tabular-nums">{weapon.headshots}</td>
-                        <td className="px-2 py-2 text-right tabular-nums">{Math.round(weapon.damageDealt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mt-3">
+                <WeaponStatsTable weaponStats={weaponStats} weaponLabels={weaponLabels} />
               </div>
             ) : (
               <p className="mt-2 text-sm text-slate-600">Aucune arme exploitable dans weaponStats.</p>
@@ -1305,22 +1345,10 @@ export default function MatchTelemetryDetailPage() {
                   Legende: First contact=cercle du premier kill, Degats recus=pression subie, Pied/Vehicule=distance parcourue, Zone bleue=degats zone, Retard cercle=secondes hors safe zone, % hors zone=part du match hors safe zone.
                 </p>
                 {groupedMemberStats.map((group) => {
-                  const parsedTeamPlacement =
-                    group.members.find((member) => typeof member.teamPlacement === 'number')?.teamPlacement
-                  const placement =
-                    typeof parsedTeamPlacement === 'number'
-                      ? parsedTeamPlacement
-                      : typeof group.teamId === 'number' &&
-                          typeof clanTeamId === 'number' &&
-                          group.teamId === clanTeamId
-                        ? match.placement
-                        : null
-                  const isClanTeam =
-                    typeof group.teamId === 'number' &&
-                    typeof clanTeamId === 'number' &&
-                    group.teamId === clanTeamId
-                  const teamPlacementLabel = typeof placement === 'number' ? ` · Classement #${placement}` : ''
-                  const groupLabel = `${group.title}${group.teamId !== null ? ` · teamId ${group.teamId}` : ''}${teamPlacementLabel} · ${group.members.length} joueur(s)`
+                  const isClanTeam = group.teamClanId === clanId
+                  const isOtherTrackedClanTeam = group.teamClanId && group.teamClanId !== clanId
+
+                  const groupLabel = `${group.title}${group.teamId !== null ? ` · teamId ${group.teamId}` : ''} · ${group.members.length} joueur(s)`
                   const teamKills = group.members.reduce((acc, member) => acc + member.kills, 0)
                   const teamHeadshots = group.members.reduce((acc, member) => acc + member.headshots, 0)
                   const teamDamage = Math.round(
@@ -1329,86 +1357,98 @@ export default function MatchTelemetryDetailPage() {
                   const membersGrid = (
                     <div className="overflow-x-auto pb-1">
                       <div className="grid min-w-[760px] grid-cols-2 gap-2 xl:grid-cols-4">
-                        {group.members.map((member) => (
-                          (() => {
-                            const resolved = resolveTelemetryMemberLabel(member.memberKey, memberIdentityMap)
-                            const cardTone =
-                              resolved.tone === 'resolved'
-                                ? 'border-emerald-200 bg-emerald-50'
-                                : resolved.tone === 'unresolved'
+                        {group.members.map((member) => {
+                          const labelInfo = resolveTelemetryMemberLabel(member.memberKey, payload?.memberIdentityMap, clanId)
+                          const cardTone =
+                            labelInfo.tone === 'resolved-current-clan'
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : labelInfo.tone === 'resolved-other-clan'
+                                ? 'border-blue-200 bg-blue-50'
+                                : labelInfo.tone === 'unresolved'
                                   ? 'border-amber-200 bg-amber-50'
                                   : 'border-slate-200 bg-slate-50'
-                            const badgeTone =
-                              resolved.tone === 'resolved'
-                                ? 'border-emerald-300 bg-white text-emerald-700'
-                                : resolved.tone === 'unresolved'
-                                  ? 'border-amber-300 bg-white text-amber-700'
-                                  : 'border-slate-300 bg-white text-slate-600'
+                          const badgeTone =
+                            labelInfo.tone === 'resolved-current-clan'
+                              ? 'border-emerald-300 bg-white text-emerald-700'
+                              : labelInfo.tone === 'resolved-other-clan'
+                                ? 'border-blue-300 bg-white text-blue-700'
+                                : labelInfo.tone === 'resolved'
+                                  ? 'border-slate-300 bg-white text-slate-600'
+                                  : labelInfo.tone === 'unresolved'
+                                    ? 'border-amber-300 bg-white text-amber-700'
+                                    : 'border-slate-300 bg-white text-slate-600'
 
-                            return (
-                              <article key={member.memberKey} className={`min-w-0 overflow-hidden rounded-lg border px-3 py-2 ${cardTone}`}>
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                    <p className="min-w-0 break-all font-semibold text-slate-900">{resolved.label}</p>
-                                    {resolved.tone === 'resolved' ? (
-                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
-                                        Membre du clan
-                                      </span>
-                                    ) : null}
-                                    {resolved.tone === 'unresolved' ? (
-                                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
-                                        Account non mappe
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <p className="text-xs text-slate-600">
-                                    {member.kills} K · {Math.round(member.damageDealt)} Dmg · {member.revives} Rev · {member.deaths} Deaths
-                                  </p>
+                          return (
+                            <article key={member.memberKey} className={`min-w-0 overflow-hidden rounded-lg border px-3 py-2 ${cardTone}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <p className="min-w-0 break-all font-semibold text-slate-900">{labelInfo.label}</p>
+                                  {labelInfo.tone === 'resolved-current-clan' ? (
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      Membre du clan
+                                    </span>
+                                  ) : labelInfo.tone === 'resolved-other-clan' ? (
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      {labelInfo.clanTag || 'Clan suivi'}
+                                    </span>
+                                  ) : labelInfo.tone === 'resolved' && labelInfo.clanTag ? (
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      {labelInfo.clanTag}
+                                    </span>
+                                  ) : null}
+                                  {labelInfo.tone === 'unresolved' ? (
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeTone}`}>
+                                      Account non mappe
+                                    </span>
+                                  ) : null}
                                 </div>
-                                {resolved.accountId ? (
-                                  <p className="mt-1 break-all text-[10px] text-slate-500">Source parser: {resolved.accountId}</p>
-                                ) : null}
-                                <div className="mt-2 flex flex-wrap gap-1 text-xs text-slate-700">
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">First contact P{member.firstKillPhase > 0 ? member.firstKillPhase : '-'}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Degats recus {Math.round(member.damageTaken)}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Pied {formatMeters(member.onFootDistanceMeters)}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Vehicule {formatMeters(member.vehicleDistanceMeters)}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Retard cercle {formatSeconds(member.circleDelaySeconds)}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Hors zone {formatPercent(member.circleDelayPercent)}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Tetes {member.headshots}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Knocks {member.knockouts}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Zone bleue {member.blueZoneHits}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Vehicule {member.vehicleRideEvents}</span>
-                                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Positions {member.positionEvents}</span>
-                                </div>
-                                {member.weapons && member.weapons.length > 0 ? (
-                                  <div className="mt-2 min-w-0 overflow-x-auto">
-                                    <table className="w-full table-fixed text-[11px] leading-tight">
-                                      <thead className="text-left uppercase tracking-wide text-slate-500">
-                                        <tr>
-                                          <th className="w-[58%] px-1 py-1">Arme</th>
-                                          <th className="w-[12%] px-1 py-1 text-right">K</th>
-                                          <th className="w-[10%] px-1 py-1 text-right">HS</th>
-                                          <th className="w-[20%] px-1 py-1 text-right">Dmg</th>
+                                <p className="text-xs text-slate-600">
+                                  {member.kills} K · {Math.round(member.damageDealt)} Dmg · {member.revives} Rev · {member.deaths} Deaths
+                                </p>
+                              </div>
+                              {labelInfo.accountId ? (
+                                <p className="mt-1 break-all text-[10px] text-slate-500">Source parser: {labelInfo.accountId}</p>
+                              ) : null}
+                              <div className="mt-2 flex flex-wrap gap-1 text-xs text-slate-700">
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">First contact P{member.firstKillPhase > 0 ? member.firstKillPhase : '-'}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Degats recus {Math.round(member.damageTaken)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Pied {formatMeters(member.onFootDistanceMeters)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Vehicule {formatMeters(member.vehicleDistanceMeters)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Retard cercle {formatSeconds(member.circleDelaySeconds)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Hors zone {formatPercent(member.circleDelayPercent)}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Tetes {member.headshots}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Knocks {member.knockouts}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Zone bleue {member.blueZoneHits}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Vehicule {member.vehicleRideEvents}</span>
+                                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">Positions {member.positionEvents}</span>
+                              </div>
+                              {member.weapons && member.weapons.length > 0 ? (
+                                <div className="mt-2 min-w-0 overflow-x-auto">
+                                  <table className="w-full table-fixed text-[11px] leading-tight">
+                                    <thead className="text-left uppercase tracking-wide text-slate-500">
+                                      <tr>
+                                        <th className="w-[58%] px-1 py-1">Arme</th>
+                                        <th className="w-[12%] px-1 py-1 text-right">K</th>
+                                        <th className="w-[10%] px-1 py-1 text-right">HS</th>
+                                        <th className="w-[20%] px-1 py-1 text-right">Dmg</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {member.weapons.map((weapon) => (
+                                        <tr key={`${member.memberKey}-${weapon.weaponName}`} className="border-t border-slate-200">
+                                          <td className="break-all px-1 py-1">{displayWeaponName(weapon.weaponName, weaponLabels)}</td>
+                                          <td className="whitespace-nowrap px-1 py-1 text-right tabular-nums">{weapon.kills}</td>
+                                          <td className="whitespace-nowrap px-1 py-1 text-right tabular-nums">{weapon.headshots}</td>
+                                          <td className="whitespace-nowrap px-1 py-1 text-right tabular-nums">{Math.round(weapon.damageDealt)}</td>
                                         </tr>
-                                      </thead>
-                                      <tbody>
-                                        {member.weapons.map((weapon) => (
-                                          <tr key={`${member.memberKey}-${weapon.weaponName}`} className="border-t border-slate-200">
-                                            <td className="break-all px-1 py-1">{displayWeaponName(weapon.weaponName, weaponLabels)}</td>
-                                            <td className="whitespace-nowrap px-1 py-1 text-right tabular-nums">{weapon.kills}</td>
-                                            <td className="whitespace-nowrap px-1 py-1 text-right tabular-nums">{weapon.headshots}</td>
-                                            <td className="whitespace-nowrap px-1 py-1 text-right tabular-nums">{Math.round(weapon.damageDealt)}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : null}
-                              </article>
-                            )
-                          })()
-                        ))}
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : null}
+                            </article>
+                          )
+                        })}
                       </div>
                     </div>
                   )
@@ -1428,6 +1468,10 @@ export default function MatchTelemetryDetailPage() {
                           {isClanTeam ? (
                             <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
                               Team clan
+                            </span>
+                          ) : isOtherTrackedClanTeam ? (
+                            <span className="rounded-full border border-blue-300 bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+                              {group.teamClanTag ? `ADVERSAIRE SUIVI [${group.teamClanTag}]` : 'ADVERSAIRE SUIVI'}
                             </span>
                           ) : null}
                         </span>
@@ -1627,8 +1671,8 @@ export default function MatchTelemetryDetailPage() {
             </dl>
 
             {match.mapName ? (
-              <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
-                <div className="relative aspect-square">
+              <div className="mt-3">
+                <InteractiveMap>
                   <Image
                     src={mapAssetPath(match.mapName)}
                     alt={`Carte ${match.mapName}`}
@@ -1661,10 +1705,11 @@ export default function MatchTelemetryDetailPage() {
                   <div className="absolute inset-0">
                     {filteredInBoundsPositionSamples.slice(0, 2000).map((point, index) => {
                       const pos = toMapPercentUnclamped(match.mapName, point.x, point.y)
+                      const colorClass = memberColorMap.get(point.memberKey) || 'bg-slate-400'
                       return (
                         <span
                           key={`pos-${index}`}
-                          className="absolute h-1.5 w-1.5 rounded-full bg-cyan-300/80"
+                          className={`absolute h-1.5 w-1.5 rounded-full ${colorClass}`}
                           style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
                           title={`${point.memberKey} p${point.phase}`}
                         />
@@ -1675,13 +1720,19 @@ export default function MatchTelemetryDetailPage() {
                       return (
                         <span
                           key={`death-${index}`}
-                          className="absolute h-2 w-2 rounded-full border border-rose-200 bg-rose-500/85"
+                          className="absolute h-2.5 w-2.5 rounded-full border border-rose-200 bg-rose-600 shadow-[0_0_8px_rgba(225,29,72,0.8)] z-10"
                           style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
-                          title={`death ${point.memberKey} p${point.phase}`}
+                          title={`Mort: ${point.memberKey} p${point.phase}`}
                         />
                       )
                     })}
                   </div>
+                </InteractiveMap>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-emerald-400"></span> Ton clan</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-blue-500"></span> Clan suivi</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-amber-400"></span> Autres</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full border border-rose-200 bg-rose-600 shadow-[0_0_8px_rgba(225,29,72,0.8)]"></span> Morts</span>
                 </div>
               </div>
             ) : null}

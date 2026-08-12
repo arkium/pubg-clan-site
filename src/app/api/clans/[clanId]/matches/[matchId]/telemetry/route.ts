@@ -155,22 +155,51 @@ export async function GET(
 
     const weaponLabels = await getWeaponLabels()
     const phaseLabels = await getPhaseLabels()
-    const memberIdentityMap = Object.fromEntries(
-      members
-        .filter((entry) => !!entry.member.pubgAccountId)
-        .map((entry) => [entry.member.pubgAccountId as string, entry.member.displayName])
-    )
+    const allTrackedSquadMembers = await prisma.squadMember.findMany({
+      where: { squadMatchId: row.squadMatchId },
+      select: {
+        member: {
+          select: {
+            displayName: true,
+            pubgAccountId: true,
+            clanId: true,
+            clan: {
+              select: {
+                tag: true
+              }
+            }
+          }
+        }
+      }
+    })
 
+    const memberIdentityMap: Record<string, { name: string, clanTag?: string, clanId?: number }> = {}
+
+    // First populate from EncounteredPlayer
     const encounteredPlayers = await prisma.encounteredPlayer.findMany({
       where: { clanId: parsedClanId },
       select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
     })
-    const opponentIdentityMap = Object.fromEntries(
-      encounteredPlayers.map((entry) => [
-        entry.pubgAccountId,
-        { name: entry.pubgPlayerName, clanTag: entry.pubgClanTag },
-      ])
-    )
+
+    for (const p of encounteredPlayers) {
+      if (p.pubgAccountId) {
+        memberIdentityMap[p.pubgAccountId] = {
+          name: p.pubgPlayerName,
+          clanTag: p.pubgClanTag ?? undefined
+        }
+      }
+    }
+
+    // Then overwrite with actual tracked ClanMember (which has clanId)
+    for (const sm of allTrackedSquadMembers) {
+      if (sm.member.pubgAccountId) {
+        memberIdentityMap[sm.member.pubgAccountId] = {
+          name: sm.member.displayName,
+          clanTag: sm.member.clan?.tag ?? undefined,
+          clanId: sm.member.clanId ?? undefined
+        }
+      }
+    }
 
     const payload = {
       match: {
@@ -219,7 +248,6 @@ export async function GET(
       weaponLabels,
       phaseLabels,
       memberIdentityMap,
-      opponentIdentityMap,
     }
 
     return NextResponse.json(

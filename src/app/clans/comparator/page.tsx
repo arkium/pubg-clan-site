@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import ClanComparatorRadar from '@/components/comparator/ClanComparatorRadar'
+import HeadToHeadCard from '@/components/comparator/HeadToHeadCard'
+import ModePerformancesCard from '@/components/comparator/ModePerformancesCard'
 import { useClanComparator, type ClanComparatorEntry } from '@/hooks/useClanComparator'
 import type { SquadPeriod } from '@/types/squad-matches'
 
@@ -260,36 +262,12 @@ function ComparatorContent() {
                   const clanB = clanByIndex(h2h.clanIdB)
                   if (!clanA || !clanB) return null
                   return (
-                    <article key={`${h2h.clanIdA}-${h2h.clanIdB}`} className="app-panel-muted rounded-xl p-3">
-                      <p className="mb-2 text-sm font-semibold text-[var(--theme-ui-text)]">
-                        {clanA.clanTag} vs {clanB.clanTag}
-                      </p>
-                      {h2h.commonMatchCount === 0 ? (
-                        <p className="text-xs text-[var(--theme-ui-text-muted)]">
-                          Aucun match commun trouvé entre ces deux clans pour l&apos;instant.
-                        </p>
-                      ) : (
-                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--theme-ui-text-secondary)] sm:grid-cols-4">
-                          <dt>Matchs communs</dt>
-                          <dd className="text-right font-medium text-[var(--theme-ui-text)] sm:text-left">
-                            {h2h.commonMatchCount}
-                          </dd>
-                          <dt>Meilleur placement</dt>
-                          <dd className="text-right font-medium text-[var(--theme-ui-text)] sm:text-left">
-                            {clanA.clanTag} {h2h.matchesWonByA} — {h2h.matchesWonByB} {clanB.clanTag}
-                            {h2h.ties > 0 ? ` (${h2h.ties} égalité${h2h.ties > 1 ? 's' : ''})` : ''}
-                          </dd>
-                          <dt>Kills {clanA.clanTag} → {clanB.clanTag}</dt>
-                          <dd className="text-right font-medium text-[var(--theme-ui-text)] sm:text-left">
-                            {h2h.killsAOnB}
-                          </dd>
-                          <dt>Kills {clanB.clanTag} → {clanA.clanTag}</dt>
-                          <dd className="text-right font-medium text-[var(--theme-ui-text)] sm:text-left">
-                            {h2h.killsBOnA}
-                          </dd>
-                        </dl>
-                      )}
-                    </article>
+                    <HeadToHeadCard
+                      key={`${h2h.clanIdA}-${h2h.clanIdB}`}
+                      h2h={h2h}
+                      clanA={clanA}
+                      clanB={clanB}
+                    />
                   )
                 })}
               </div>
@@ -299,45 +277,9 @@ function ComparatorContent() {
           <section className="app-panel p-4 sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-[var(--theme-ui-text)]">Performances par mode</h2>
             <p className="mb-4 text-xs text-[var(--theme-ui-text-muted)]">
-              Répartition duo/trio/squad et winrate par mode — une part élevée de squad complète et un winrate homogène
-              entre modes indique un clan qui joue surtout ensemble plutôt qu&apos;en solo/petits groupes ad hoc.
+              Comparez les performances des clans selon la taille de l&apos;escouade. Repérez d&apos;un coup d&apos;œil les spécialistes de chaque mode, comparez leur efficacité (Winrate, Kills) et identifiez les clans qui privilégient le jeu en équipe complète (Squad) grâce à l&apos;indicateur de spécialisation.
             </p>
-            <div className="space-y-4">
-              {selectedClanIds.map((id) => {
-                const clan = clanByIndex(id)
-                const modePerformance = clan?.pulse?.modePerformance
-                if (!clan || !modePerformance) return null
-                return (
-                  <div key={id}>
-                    <p className="mb-2 text-sm font-semibold text-[var(--theme-ui-text)]">
-                      {clan.clanName} [{clan.clanTag}]
-                    </p>
-                    <div className="grid gap-3 md:grid-cols-3">
-                      {modePerformance.map((mp) => (
-                        <article
-                          key={mp.mode}
-                          className="app-panel-muted flex items-center justify-between rounded-xl p-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            <TeamModeBadge mode={mp.mode} />
-                            <div>
-                              <p className="text-sm font-bold text-[var(--theme-ui-text)]">
-                                {formatPercent(mp.winRate)} WR
-                              </p>
-                              <p className="text-xs text-[var(--theme-ui-text-muted)]">{mp.matches} matchs</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-[var(--theme-ui-text)]">{formatNumber(mp.totalKills)}</p>
-                            <p className="text-xs text-[var(--theme-ui-text-muted)]">kills</p>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+              <ModePerformancesCard clans={selectedClanIds.map((id) => clanByIndex(id)!).filter(Boolean)} />
           </section>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

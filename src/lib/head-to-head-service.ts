@@ -6,6 +6,8 @@ export type HeadToHeadMatchSummary = {
   mapName: string
   bestPlacementA: number | null
   bestPlacementB: number | null
+  totalKillsA: number
+  totalKillsB: number
   winner: 'A' | 'B' | 'tie' | null
 }
 
@@ -16,6 +18,9 @@ export type HeadToHeadStats = {
   matchesWonByA: number
   matchesWonByB: number
   ties: number
+  mostKillsInMatchA: number
+  mostKillsInMatchB: number
+  mostKillsTies: number
   killsAOnB: number
   killsBOnA: number
   matches: HeadToHeadMatchSummary[]
@@ -45,7 +50,7 @@ export async function getHeadToHeadStats(clanIdA: number, clanIdB: number): Prom
       mapName: true,
       members: {
         where: { OR: [{ member: filterA }, { member: filterB }] },
-        select: { placement: true, member: { select: { clanId: true } } },
+        select: { placement: true, kills: true, member: { select: { clanId: true } } },
       },
     },
     orderBy: { createdAt: 'desc' },
@@ -54,6 +59,8 @@ export async function getHeadToHeadStats(clanIdA: number, clanIdB: number): Prom
   const matches: HeadToHeadMatchSummary[] = commonMatches.map((match) => {
     const placementsA = match.members.filter((m) => m.member.clanId === clanIdA).map((m) => m.placement)
     const placementsB = match.members.filter((m) => m.member.clanId === clanIdB).map((m) => m.placement)
+    const killsA = match.members.filter((m) => m.member.clanId === clanIdA).reduce((sum, m) => sum + m.kills, 0)
+    const killsB = match.members.filter((m) => m.member.clanId === clanIdB).reduce((sum, m) => sum + m.kills, 0)
     const bestA = placementsA.length > 0 ? Math.min(...placementsA) : null
     const bestB = placementsB.length > 0 ? Math.min(...placementsB) : null
     const winner: HeadToHeadMatchSummary['winner'] =
@@ -65,6 +72,8 @@ export async function getHeadToHeadStats(clanIdA: number, clanIdB: number): Prom
       mapName: match.mapName,
       bestPlacementA: bestA,
       bestPlacementB: bestB,
+      totalKillsA: killsA,
+      totalKillsB: killsB,
       winner,
     }
   })
@@ -99,6 +108,9 @@ export async function getHeadToHeadStats(clanIdA: number, clanIdB: number): Prom
     matchesWonByA: matches.filter((m) => m.winner === 'A').length,
     matchesWonByB: matches.filter((m) => m.winner === 'B').length,
     ties: matches.filter((m) => m.winner === 'tie').length,
+    mostKillsInMatchA: matches.filter((m) => m.totalKillsA > m.totalKillsB).length,
+    mostKillsInMatchB: matches.filter((m) => m.totalKillsB > m.totalKillsA).length,
+    mostKillsTies: matches.filter((m) => m.totalKillsA === m.totalKillsB).length,
     killsAOnB,
     killsBOnA,
     matches: matches.slice(0, 20),

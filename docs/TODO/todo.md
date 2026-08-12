@@ -1292,6 +1292,14 @@ Ainsi, un joueur présent dans cinq clans est traité avant un joueur propre à 
 
 **Vérifié le 2026-08-09** : `tsc --noEmit`, `eslint` (aucune nouvelle erreur) et `npm run build` passent ; la requête `groupBy` de priorisation exécutée directement contre la base réelle (clan 1) retourne bien les comptes croisés par 5-6 clans en tête, `crossClanPlayerCount` cohérent. Test manuel authentifié en navigateur non fait (pas d'accès session SuperUser dans cet environnement) — à valider côté utilisateur sur `/settings/opponents`.
 
+#### Dénormalisation de la Bounty List — Optimisation du cron (Phase 2 Terminée)
+
+- [x] Ajout de la colonne `combatInteractionsCount` à la table `EncounteredPlayer`.
+- [x] Ajout de l'index `@@index([clanResolvedAt, combatInteractionsCount])` pour garantir un temps d'exécution constant.
+- [x] Script de backfill (`src/scripts/backfill-combat-interactions.ts`) exécuté pour initialiser les compteurs à partir de l'historique existant.
+- [x] Mise à jour en temps réel des compteurs lors de l'ingestion d'un match (`persistKillEventsForMatch`).
+- [x] Suppression de la requête SQL `$queryRaw` dans le cron au profit d'un tri natif Prisma sur `combatInteractionsCount`.
+
 #### Bug trouvé et corrigé le 2026-08-04 : coéquipiers comptés comme adversaires
 
 Signalé par l'utilisateur, confirmé sur données réelles : `captureEncounteredPlayers` parcourait tous les rosters du match sans distinguer le roster (squad) d'un membre suivi des autres — un ami/random groupé avec un membre en solo/duo queue se retrouvait donc dans "Adversaires rencontrés" au même titre qu'un vrai inconnu d'une autre équipe. Vérifié sur un match réel du clan 1 : `Praetes` et `BL0odice` étaient dans le même roster que `pagiotte`/`SAMUELAXEII` — de vrais coéquipiers, pas des adversaires.

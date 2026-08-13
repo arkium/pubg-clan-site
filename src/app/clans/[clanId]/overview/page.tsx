@@ -792,17 +792,24 @@ export default function ClanOverviewPage() {
                   <h3 className="mb-3 text-sm font-semibold text-gray-700">Performances par mode</h3>
                   <div className="grid gap-3 md:grid-cols-3">
                     {cacheData.payload.modePerformance.map((mp) => (
-                      <article key={mp.mode} className="app-panel flex items-center justify-between p-4">
-                        <div className="flex items-center gap-3">
-                          <TeamModeBadge mode={mp.mode as any} label={mp.mode === 'duo' ? 'Duo' : mp.mode === 'trio' ? 'Trio' : 'Squad'} />
+                      <article key={mp.mode} className="app-panel overflow-hidden">
+                        <header 
+                          className="relative border-b border-[var(--theme-ui-border)] h-28 bg-cover bg-center bg-no-repeat"
+                          style={{ backgroundImage: `url('/${mp.mode}.jpg')` }}
+                        >
+                          <div className="absolute bottom-3 left-3">
+                            <TeamModeBadge mode={mp.mode as any} size="sm" />
+                          </div>
+                        </header>
+                        <div className="flex items-center justify-between p-4">
                           <div>
                             <p className="text-sm font-bold text-gray-900">{fmtPct(mp.matches > 0 ? mp.wins / mp.matches : 0)} WR</p>
                             <p className="text-xs text-gray-500">{mp.matches} matchs</p>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-gray-900">{fmtCompactK(mp.kills)}</p>
-                          <p className="text-xs text-gray-500">kills</p>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-gray-900">{fmtCompactK(mp.kills)}</p>
+                            <p className="text-xs text-gray-500">kills</p>
+                          </div>
                         </div>
                       </article>
                     ))}

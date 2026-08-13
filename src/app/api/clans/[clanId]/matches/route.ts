@@ -180,6 +180,7 @@ function toSortedSynergies(
       wins: number
       totalKills: number
       totalDamage: number
+      totalDurationSeconds: number
     }
   >
 ) {
@@ -190,6 +191,7 @@ function toSortedSynergies(
       matchesPlayed: entry.matchesPlayed,
       totalKills: entry.totalKills,
       totalDamage: entry.totalDamage,
+      totalDurationSeconds: entry.totalDurationSeconds,
       winRate: buildWinRate(entry.wins, entry.matchesPlayed),
     }))
     .sort((left, right) => {
@@ -450,6 +452,7 @@ export async function GET(
         wins: number
         totalKills: number
         totalDamage: number
+        totalDurationSeconds: number
       }
     >()
 
@@ -462,6 +465,7 @@ export async function GET(
         wins: number
         totalKills: number
         totalDamage: number
+        totalDurationSeconds: number
       }
     >()
 
@@ -578,12 +582,14 @@ export async function GET(
               wins: 0,
               totalKills: 0,
               totalDamage: 0,
+              totalDurationSeconds: 0,
             }
 
             pair.matchesPlayed += 1
             pair.wins += match.isWin ? 1 : 0
             pair.totalKills += pairMembers[0].kills + pairMembers[1].kills
             pair.totalDamage += pairMembers[0].damage + pairMembers[1].damage
+            pair.totalDurationSeconds += match.durationSeconds
 
             pairAggregates.set(key, pair)
           }
@@ -601,12 +607,14 @@ export async function GET(
           wins: 0,
           totalKills: 0,
           totalDamage: 0,
+          totalDurationSeconds: 0,
         }
 
         squad.matchesPlayed += 1
         squad.wins += match.isWin ? 1 : 0
         squad.totalKills += match.totalKills
         squad.totalDamage += match.totalDamage
+        squad.totalDurationSeconds += match.durationSeconds
 
         squadAggregates.set(key, squad)
       }

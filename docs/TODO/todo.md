@@ -1568,3 +1568,14 @@ Question de l'utilisateur : "y a-t-il des matchs partagés parmi les 3031, je su
 **Décisions (2026-08-10) :**
 - Périmètre clans : uniquement les clans actifs gérés sur le site (`joinStatus: 'active'`) — les clans en simple watchlist (`joinStatus: 'tracked'`) sont exclus du sélecteur, cohérent avec l'isolation déjà appliquée ailleurs (`tracked-isolation.test.ts`).
 - Visibilité : le comparateur est exposé dans la navigation principale dès la V1, pas de phase de rodage en accès direct uniquement — prévoir l'entrée correspondante dans le composant de nav (`NavItem` / menu principal) dès l'implémentation de la page.
+
+### 6. Nouvelles Statistiques Avancées (Télémétrie)
+- [ ] **Traquer le "Recall" (Respawn) :** Ajouter la comptabilisation des utilisations du système de rappel de PUBG.
+  - [ ] **Base de données :** Ajouter la colonne `recallCount` (Int, default 0) aux modèles `MemberMatchTelemetry`, `MemberTelemetryStats` et `ClanSynergyTelemetryStats`. Générer et appliquer la migration.
+  - [ ] **Parser (Backend) :** Analyser les événements correspondants (ex: `LogPlayerUseRespawn` ou items Blue Chip) dans `src/lib/pubg-telemetry/parser.ts` et incrémenter les `recallCount`. Mettre à jour l'agrégation dans `period-aggregates.ts`.
+  - [ ] **API :** Exposer `recallCount` dans la route `/api/clans/[clanId]/telemetry/synergies`.
+  - [ ] **UI (Frontend) :** Ajouter une colonne/carte "Top Recalls" dans le composant `SquadSynergies.tsx` avec une image dédiée et un badge (comme pour "Top Sauvetages").
+  - [ ] **Tests :** 
+    - Ajouter des données de test mockées dans `parser.test.ts` contenant un événement Recall.
+    - Exécuter la suite complète de tests Vitest.
+    - Vérifier sur la page d'overview que la carte s'affiche et affiche des données après l'analyse d'un match (manuel ou cron).

@@ -1,8 +1,8 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
-import { Users, Shield, Zap, HeartPulse, Target, Flame } from 'lucide-react'
+import { Users, Zap, HeartPulse, Target, Flame } from 'lucide-react'
 
-import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 
 import type { SquadSynergiesData } from '@/types/squad-matches'
@@ -36,9 +36,6 @@ type TelemetrySynergyRow = {
   sharedDamageEvents: number
 }
 
-type SynergyTab = 'classic' | 'telemetry'
-const SYNERGY_SCORE_FORMULA = 'Formule: score binome = revive x3 + co-kill x2 + sharedDamage; indice = (score moyen / meilleur score) x100.'
-
 function formatInteger(value: number) {
   return Math.round(value).toLocaleString('fr-FR')
 }
@@ -47,57 +44,77 @@ function formatWinRate(value: number) {
   return `${(value * 100).toFixed(1)}%`
 }
 
+function formatDuration(seconds: number) {
+  if (!seconds) return '0m'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h${m.toString().padStart(2, '0')}`
+  return `${m}m`
+}
+
 function SynergyList({
-  title,
   entries,
-  icon: Icon,
+  mode,
 }: {
-  title: string
   entries: SquadSynergiesData['topPairs']
-  icon: any
+  mode: 'duo' | 'trio' | 'squad'
 }) {
   return (
-    <div className="app-panel p-3">
-      <div className="mb-3 flex items-center gap-2 text-blue-500">
-        <Icon className="h-4 w-4" />
-        <h3 className="text-sm font-bold text-gray-900">{title}</h3>
-      </div>
+    <div className="app-panel overflow-hidden">
+      <header 
+        className="relative border-b border-[var(--theme-ui-border)] h-28 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url('/${mode}.jpg')` }}
+      >
+        <div className="absolute bottom-3 left-3">
+          <TeamModeBadge mode={mode} size="sm" />
+        </div>
+      </header>
+      <div className="p-4 bg-[var(--theme-bg-base)]">
       {entries.length === 0 ? (
         <p className="text-xs italic text-gray-500">Pas encore assez de données.</p>
       ) : (
-        <ul className="grid gap-2 xl:grid-cols-2">
-          {entries.map((entry) => {
-            const teamMode = teamModeFromMemberCount(entry.memberNames.length)
-
+        <ul className="flex flex-col">
+          {entries.map((entry, index) => {
             return (
               <li
                 key={entry.memberIds.join(':')}
-                className="flex h-full flex-col rounded border border-gray-200 bg-gray-50 p-2.5"
+                className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0"
               >
-                <div className="mb-2 flex items-center gap-2">
-                  <TeamModeBadge mode={teamMode} className="shrink-0 shadow-none" />
-                </div>
-                <div className="grid min-h-12 grid-cols-2 content-start gap-1.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                    {index < MEDAL_ICONS.length ? (
+                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                    ) : (
+                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col items-start gap-1">
                     {entry.memberNames.map((memberName) => (
                       <PlayerNameBadge
                         key={`${entry.memberIds.join(':')}:${memberName}`}
                         name={memberName}
-                        className="min-w-0 max-w-full truncate"
                       />
                     ))}
+                  </div>
                 </div>
-                <dl className="mt-2 grid grid-cols-3 border-t border-gray-200 pt-2 text-center">
+                
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-right shrink-0">
                   <div>
                     <dd className="text-sm font-bold tabular-nums text-gray-900">{entry.matchesPlayed}</dd>
-                    <dt className="text-[9px] font-semibold uppercase text-gray-500">Matchs</dt>
+                    <dt className="text-[10px] font-semibold uppercase text-gray-500">Matchs</dt>
                   </div>
-                  <div className="border-x border-gray-200">
+                  <div>
                     <dd className="text-sm font-bold tabular-nums text-gray-900">{entry.totalKills}</dd>
-                    <dt className="text-[9px] font-semibold uppercase text-gray-500">Kills</dt>
+                    <dt className="text-[10px] font-semibold uppercase text-gray-500">Kills</dt>
+                  </div>
+                  <div>
+                    <dd className="text-sm font-bold tabular-nums text-gray-900">{formatDuration(entry.totalDurationSeconds ?? 0)}</dd>
+                    <dt className="text-[10px] font-semibold uppercase text-gray-500">Durée</dt>
                   </div>
                   <div>
                     <dd className="text-sm font-bold tabular-nums text-emerald-500">{formatWinRate(entry.winRate)}</dd>
-                    <dt className="text-[9px] font-semibold uppercase text-gray-500">WR</dt>
+                    <dt className="text-[10px] font-semibold uppercase text-gray-500">WR</dt>
                   </div>
                 </dl>
               </li>
@@ -105,20 +122,17 @@ function SynergyList({
           })}
         </ul>
       )}
+      </div>
     </div>
   )
 }
 
 export default function SquadSynergies({ clanId, period, synergies }: SquadSynergiesProps) {
-  const [tab, setTab] = useState<SynergyTab>('classic')
   const [telemetryRows, setTelemetryRows] = useState<TelemetrySynergyRow[]>([])
   const [telemetryLoading, setTelemetryLoading] = useState(false)
   const [telemetryError, setTelemetryError] = useState('')
 
   useEffect(() => {
-    if (tab !== 'telemetry') {
-      return
-    }
 
     let cancelled = false
 
@@ -158,7 +172,7 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
     return () => {
       cancelled = true
     }
-  }, [clanId, period, tab])
+  }, [clanId, period])
 
   const topReviveRows = useMemo(
     () => [...telemetryRows].sort((a, b) => b.reviveCount - a.reviveCount).slice(0, 10),
@@ -199,38 +213,29 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
 
   return (
     <section>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-gray-700">Synergies d'équipe</h3>
-
-        <div className="inline-flex rounded-lg bg-gray-100 p-0.5 shadow-inner">
-          <button
-            type="button"
-            onClick={() => setTab('classic')}
-            className={`rounded-md px-3 py-1 text-xs font-bold transition-all ${
-              tab === 'classic' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Résultats
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('telemetry')}
-            className={`rounded-md px-3 py-1 text-xs font-bold transition-all ${
-              tab === 'telemetry' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            Télémétrie
-          </button>
-        </div>
+      <div className="mb-4">
+        <h3 className="text-sm font-semibold text-gray-700">Synergies d&apos;équipe</h3>
       </div>
 
-      {tab === 'classic' ? (
-        <div className="grid gap-3 md:grid-cols-2">
-          <SynergyList title="Meilleurs binômes" icon={Users} entries={synergies.topPairs} />
-          <SynergyList title="Meilleures escouades (3-4 joueurs)" icon={Shield} entries={synergies.topSquads} />
-        </div>
-      ) : (
-        <div className="app-panel p-3">
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <SynergyList 
+          mode="duo"
+          entries={synergies.topPairs} 
+        />
+        <SynergyList 
+          mode="trio"
+          entries={synergies.topSquads.filter(s => s.memberIds.length === 3)} 
+        />
+        <SynergyList 
+          mode="squad"
+          entries={synergies.topSquads.filter(s => s.memberIds.length >= 4)} 
+        />
+      </div>
+
+      <div className="mb-4 mt-8">
+        <h3 className="text-sm font-semibold text-gray-700">Statistiques de Coopération</h3>
+      </div>
+      <div className="app-panel p-4">
           {telemetryLoading ? <p className="text-sm text-gray-500">Chargement des synergies telemetry...</p> : null}
           {telemetryError ? <p className="text-sm text-amber-500">{telemetryError}</p> : null}
 
@@ -286,74 +291,84 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
-                        <HeartPulse className="h-3.5 w-3.5" />
+                  <div className="app-panel overflow-hidden">
+                    <header 
+                      className="relative h-28 border-b border-[var(--theme-ui-border)] bg-cover bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url('/sauvetage.jpg')` }}
+                    >
+                      <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 text-sm font-bold text-white shadow-sm backdrop-blur-md">
+                        <HeartPulse className="h-4 w-4 text-emerald-400" />
+                        Top Sauvetages
                       </div>
-                      Top Sauvetages
-                    </h3>
-                    {topReviveRows.filter(r => r.reviveCount > 0).length > 0 ? (
-                      <ul className="grid gap-2">
-                        {topReviveRows.filter(r => r.reviveCount > 0).map((row, index) => (
-                          <li key={`revive:${row.memberAId}:${row.memberBId}`} className="app-panel-muted flex items-center justify-between rounded-xl px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-                                {index < MEDAL_ICONS.length ? (
-                                  <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={16} height={16} className="drop-shadow-sm" />
-                                ) : (
-                                  <span className="text-xs font-bold text-gray-500">{index + 1}</span>
-                                )}
-                              </span>
-                              <div className="flex flex-wrap gap-1">
-                                <PlayerNameBadge name={row.memberAName} />
-                                <PlayerNameBadge name={row.memberBName} />
+                    </header>
+                    <div className="bg-[var(--theme-bg-base)] p-4">
+                      {topReviveRows.filter(r => r.reviveCount > 0).length > 0 ? (
+                        <ul className="flex flex-col">
+                          {topReviveRows.filter(r => r.reviveCount > 0).map((row, index) => (
+                            <li key={`revive:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                  {index < MEDAL_ICONS.length ? (
+                                    <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                                  ) : (
+                                    <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <PlayerNameBadge name={row.memberAName} />
+                                  <PlayerNameBadge name={row.memberBName} />
+                                </div>
                               </div>
-                            </div>
-                            <span className="rounded bg-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-500">
-                              {row.reviveCount}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs italic text-gray-500">Aucun sauvetage pour cette période.</p>
-                    )}
+                              <span className="rounded bg-emerald-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-emerald-500">
+                                {row.reviveCount}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs italic text-gray-500">Aucun sauvetage pour cette période.</p>
+                      )}
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-900">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-orange-500/15 text-orange-500">
-                        <Target className="h-3.5 w-3.5" />
+                  <div className="app-panel overflow-hidden">
+                    <header 
+                      className="relative h-28 border-b border-[var(--theme-ui-border)] bg-cover bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url('/cokills.jpg')` }}
+                    >
+                      <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 text-sm font-bold text-white shadow-sm backdrop-blur-md">
+                        <Target className="h-4 w-4 text-orange-400" />
+                        Top Co-kills
                       </div>
-                      Top Co-kills
-                    </h3>
-                    {topCoKillRows.filter(r => r.coKillCount > 0).length > 0 ? (
-                      <ul className="grid gap-2">
-                        {topCoKillRows.filter(r => r.coKillCount > 0).map((row, index) => (
-                          <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="app-panel-muted flex items-center justify-between rounded-xl px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-                                {index < MEDAL_ICONS.length ? (
-                                  <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={16} height={16} className="drop-shadow-sm" />
-                                ) : (
-                                  <span className="text-xs font-bold text-gray-500">{index + 1}</span>
-                                )}
-                              </span>
-                              <div className="flex flex-wrap gap-1">
-                                <PlayerNameBadge name={row.memberAName} />
-                                <PlayerNameBadge name={row.memberBName} />
+                    </header>
+                    <div className="bg-[var(--theme-bg-base)] p-4">
+                      {topCoKillRows.filter(r => r.coKillCount > 0).length > 0 ? (
+                        <ul className="flex flex-col">
+                          {topCoKillRows.filter(r => r.coKillCount > 0).map((row, index) => (
+                            <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                  {index < MEDAL_ICONS.length ? (
+                                    <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                                  ) : (
+                                    <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <PlayerNameBadge name={row.memberAName} />
+                                  <PlayerNameBadge name={row.memberBName} />
+                                </div>
                               </div>
-                            </div>
-                            <span className="rounded bg-orange-500/20 px-2.5 py-0.5 text-xs font-bold text-orange-500">
-                              {row.coKillCount}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs italic text-gray-500">Aucun co-kill pour cette période.</p>
-                    )}
+                              <span className="rounded bg-orange-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-orange-500">
+                                {row.coKillCount}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs italic text-gray-500">Aucun co-kill pour cette période.</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -369,7 +384,6 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
             )
           ) : null}
         </div>
-      )}
     </section>
   )
 }

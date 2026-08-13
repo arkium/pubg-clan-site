@@ -91,6 +91,7 @@ export interface SquadSynergyEntry {
   matchesPlayed: number
   totalKills: number
   totalDamage: number
+  totalDurationSeconds: number
   winRate: number
 }
 

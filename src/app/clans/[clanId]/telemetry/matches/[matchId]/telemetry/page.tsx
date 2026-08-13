@@ -134,7 +134,7 @@ type MatchTelemetryResponse = {
     }
     weaponLabels?: Record<string, string>
     phaseLabels?: Record<string, string>
-    memberIdentityMap?: Record<string, string>
+    memberIdentityMap?: Record<string, { name: string; clanTag?: string; clanId?: number }>
     opponentIdentityMap?: Record<string, { name: string; clanTag: string | null }>
   }
   error?: {
@@ -200,7 +200,7 @@ function isBotMemberKey(value: string) {
 
 function resolveTelemetryMemberLabel(
   memberKey: string,
-  memberIdentityMap?: Record<string, string>,
+  memberIdentityMap?: Record<string, { name: string; clanTag?: string; clanId?: number }>,
   opponentIdentityMap?: Record<string, { name: string; clanTag: string | null }>
 ) {
   const trimmedKey = memberKey.trim()
@@ -230,10 +230,10 @@ function resolveTelemetryMemberLabel(
   const resolved = memberIdentityMap?.[normalized]
   if (resolved) {
     return {
-      label: resolved,
+      label: resolved.name,
       tone: 'resolved' as const,
       accountId: trimmedKey,
-      clanTag: null as string | null,
+      clanTag: resolved.clanTag ?? null,
     }
   }
 

@@ -103,11 +103,13 @@ export default function ModePerformancesCard({ clans }: Props) {
       <div className="grid gap-6 md:grid-cols-3">
         {activeModes.map(({ mode, performances }) => (
           <article key={mode} className="app-panel overflow-hidden rounded-xl border border-[var(--theme-ui-border)] shadow-sm">
-            <header className="border-b border-[var(--theme-ui-border)] bg-[var(--theme-bg-base)] p-4 text-center flex flex-col items-center gap-2">
-              <TeamModeBadge mode={mode} size="sm" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--theme-ui-text)]">
-                {mode === 'duo' ? 'Duo' : mode === 'trio' ? 'Trio' : 'Squad'}
-              </h3>
+            <header 
+              className="relative border-b border-[var(--theme-ui-border)] h-28 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: `url('/${mode}.jpg')` }}
+            >
+              <div className="absolute bottom-3 left-3">
+                <TeamModeBadge mode={mode} size="sm" />
+              </div>
             </header>
             
             <div className="divide-y divide-[var(--theme-ui-border)]">

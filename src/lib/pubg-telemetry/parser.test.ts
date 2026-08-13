@@ -513,6 +513,34 @@ describe('parseTelemetrySnapshot', () => {
       inVehicle: false,
     })
   })
+
+  it('tracks recalls via LogPlayerUseRespawn and Bluechip transmitter usage', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogPlayerUseRespawn',
+        character: {
+          accountId: 'player_recaller_1',
+          name: 'Recaller1',
+        },
+      },
+      {
+        _T: 'LogItemUse',
+        character: {
+          accountId: 'player_recaller_2',
+          name: 'Recaller2',
+        },
+        item: {
+          itemId: 'Item_Use_BlueChipTransmitter_C',
+        },
+      },
+    ])
+
+    const recaller1 = result.memberStats.find((m) => m.memberKey === 'player_recaller_1')
+    const recaller2 = result.memberStats.find((m) => m.memberKey === 'player_recaller_2')
+
+    expect(recaller1?.recalls).toBe(1)
+    expect(recaller2?.recalls).toBe(1)
+  })
 })
 
 describe('parseTelemetrySnapshot golden integration set', () => {

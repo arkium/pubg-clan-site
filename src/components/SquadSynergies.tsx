@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
-import { Users, Zap, HeartPulse, Target, Flame } from 'lucide-react'
+import { Users, Zap, HeartPulse, Target, Flame, RefreshCcw } from 'lucide-react'
 
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
@@ -32,6 +32,7 @@ type TelemetrySynergyRow = {
   memberBId: number
   memberBName: string
   reviveCount: number
+  recallCount: number
   coKillCount: number
   sharedDamageEvents: number
 }
@@ -184,9 +185,15 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
     [telemetryRows]
   )
 
+  const topRecallRows = useMemo(
+    () => [...telemetryRows].sort((a, b) => (b.recallCount ?? 0) - (a.recallCount ?? 0)).slice(0, 10),
+    [telemetryRows]
+  )
+
   const telemetrySummary = useMemo(() => {
     const pairCount = telemetryRows.length
     const totalRevives = telemetryRows.reduce((sum, row) => sum + row.reviveCount, 0)
+    const totalRecalls = telemetryRows.reduce((sum, row) => sum + (row.recallCount ?? 0), 0)
     const totalCoKills = telemetryRows.reduce((sum, row) => sum + row.coKillCount, 0)
     const totalSharedDamage = telemetryRows.reduce((sum, row) => sum + row.sharedDamageEvents, 0)
 
@@ -204,6 +211,7 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
     return {
       pairCount,
       totalRevives,
+      totalRecalls,
       totalCoKills,
       totalSharedDamage,
       avgScore,
@@ -242,7 +250,7 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
           {!telemetryLoading && !telemetryError ? (
             telemetryRows.length > 0 ? (
               <>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-5">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 mb-5">
                   <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
                     <div className="relative">
@@ -288,9 +296,20 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
                       <p className="mt-1.5 text-[10px] uppercase tracking-wide text-gray-500">Total Co-kills</p>
                     </div>
                   </article>
+
+                  <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
+                    <div className="relative">
+                      <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/15 text-blue-500">
+                        <RefreshCcw className="h-4 w-4" />
+                      </div>
+                      <p className="text-2xl font-black leading-none tabular-nums text-blue-500">{formatInteger(telemetrySummary.totalRecalls)}</p>
+                      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-gray-500">Total Recalls</p>
+                    </div>
+                  </article>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div className="app-panel overflow-hidden">
                     <header 
                       className="relative h-28 border-b border-[var(--theme-ui-border)] bg-cover bg-center bg-no-repeat"
@@ -367,6 +386,46 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
                         </ul>
                       ) : (
                         <p className="text-xs italic text-gray-500">Aucun co-kill pour cette période.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="app-panel overflow-hidden">
+                    <header 
+                      className="relative h-28 border-b border-[var(--theme-ui-border)] bg-cover bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url('/recall.jpg')` }}
+                    >
+                      <div className="absolute bottom-3 left-3 flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5 text-sm font-bold text-white shadow-sm backdrop-blur-md">
+                        <RefreshCcw className="h-4 w-4 text-blue-400" />
+                        Top Recalls
+                      </div>
+                    </header>
+                    <div className="bg-[var(--theme-bg-base)] p-4">
+                      {topRecallRows.filter(r => (r.recallCount ?? 0) > 0).length > 0 ? (
+                        <ul className="flex flex-col">
+                          {topRecallRows.filter(r => (r.recallCount ?? 0) > 0).map((row, index) => (
+                            <li key={`recall:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                  {index < MEDAL_ICONS.length ? (
+                                    <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                                  ) : (
+                                    <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <PlayerNameBadge name={row.memberAName} />
+                                  <PlayerNameBadge name={row.memberBName} />
+                                </div>
+                              </div>
+                              <span className="rounded bg-blue-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-blue-500">
+                                {row.recallCount}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs italic text-gray-500">Aucun recall pour cette période.</p>
                       )}
                     </div>
                   </div>

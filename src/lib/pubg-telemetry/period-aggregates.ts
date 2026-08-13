@@ -22,6 +22,7 @@ type SnapshotMemberStatsRow = {
   firstKillPhase: number
   kills: number
   revives: number
+  recalls: number
   knockouts: number
   damageTaken: number
   onFootDistanceMeters: number
@@ -74,6 +75,7 @@ type MemberTelemetryAggregate = {
   firstKillPhaseSampleCount: number
   totalKills: number
   totalRevives: number
+  totalRecalls: number
   totalKnockouts: number
   totalDamageTaken: number
   totalOnFootDistanceMeters: number
@@ -93,6 +95,7 @@ type MemberTelemetryAggregate = {
 
 type PairSynergyAggregate = {
   reviveCount: number
+  recallCount: number
   coKillCount: number
   sharedDamageEvents: number
 }
@@ -245,6 +248,7 @@ function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberStatsRow[] {
       firstKillPhase: asFiniteNumber(row.firstKillPhase),
       kills: asFiniteNumber(row.kills),
       revives: asFiniteNumber(row.revives),
+      recalls: asFiniteNumber(row.recalls),
       knockouts: asFiniteNumber(row.knockouts),
       damageTaken: asFiniteNumber(row.damageTaken),
       onFootDistanceMeters: asFiniteNumber(row.onFootDistanceMeters),
@@ -348,6 +352,7 @@ function getOrCreateMemberAggregate(
     firstKillPhaseSampleCount: 0,
     totalKills: 0,
     totalRevives: 0,
+    totalRecalls: 0,
     totalKnockouts: 0,
     totalDamageTaken: 0,
     totalOnFootDistanceMeters: 0,
@@ -380,6 +385,7 @@ function getOrCreatePairAggregate(
 
   const created: PairSynergyAggregate = {
     reviveCount: 0,
+    recallCount: 0,
     coKillCount: 0,
     sharedDamageEvents: 0,
   }
@@ -565,6 +571,7 @@ async function recalculateTelemetryPeriodForClan(
       }
       aggregate.totalKills += row.kills
       aggregate.totalRevives += row.revives
+      aggregate.totalRecalls += row.recalls
       aggregate.totalKnockouts += row.knockouts
       aggregate.totalDamageTaken += row.damageTaken
       aggregate.totalOnFootDistanceMeters += row.onFootDistanceMeters
@@ -770,6 +777,7 @@ async function recalculateTelemetryPeriodForClan(
       period: periodKey,
       periodType: period,
       reviveCount: aggregate.reviveCount,
+      recallCount: aggregate.recallCount,
       coKillCount: aggregate.coKillCount,
       sharedDamageEvents: aggregate.sharedDamageEvents,
     }

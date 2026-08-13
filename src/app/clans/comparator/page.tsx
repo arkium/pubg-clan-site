@@ -134,11 +134,17 @@ function ComparatorContent() {
 
   return (
     <main className="app-container app-main">
-      <header className="app-panel mb-6 px-6 py-4">
-        <h1 className="text-xl font-bold text-[var(--theme-ui-text)]">Comparateur de clans</h1>
-        <p className="mt-1 text-sm text-[var(--theme-ui-text-secondary)]">
-          Compare l&apos;activité, le style de jeu et les performances de jusqu&apos;à {MAX_CLANS} clans suivis sur le site.
-        </p>
+      <header 
+        className="app-panel relative mb-6 overflow-hidden bg-cover bg-center bg-no-repeat px-6 py-6 sm:py-8"
+        style={{ backgroundImage: `url('/comparateurclans.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-transparent" />
+        <div className="relative z-10">
+          <h1 className="text-2xl font-black text-white drop-shadow-md">Comparateur de clans</h1>
+          <p className="mt-1.5 text-sm font-medium text-gray-200 drop-shadow-md">
+            Compare l&apos;activité, le style de jeu et les performances de jusqu&apos;à {MAX_CLANS} clans suivis sur le site.
+          </p>
+        </div>
       </header>
 
       <section className="app-panel mb-6 p-4 sm:p-6">

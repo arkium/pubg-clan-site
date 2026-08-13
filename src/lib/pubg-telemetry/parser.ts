@@ -12,6 +12,7 @@ type TelemetryMemberStats = {
   onFootDistanceMeters: number
   vehicleDistanceMeters: number
   revives: number
+  recalls: number
   knockouts: number
   deaths: number
   blueZoneHits: number
@@ -705,6 +706,7 @@ function getOrCreateMemberStats(stats: Map<string, TelemetryMemberStats>, member
     onFootDistanceMeters: 0,
     vehicleDistanceMeters: 0,
     revives: 0,
+    recalls: 0,
     knockouts: 0,
     deaths: 0,
     blueZoneHits: 0,
@@ -1110,6 +1112,18 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
     return
   }
 
+  if (eventType === 'LogPlayerUseRespawn') {
+    if (actorKey) {
+      getOrCreateMemberStatsWithTeam(
+        accumulator.memberStats,
+        actorKey,
+        actorTeamId,
+        accumulator.teamPlacements
+      ).recalls += 1
+    }
+    return
+  }
+
   if (eventType === 'LogPlayerMakeGroggy') {
     accumulator.summary.knockoutEvents += 1
     if (killerKey) {
@@ -1348,6 +1362,16 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
             actorTeamId,
             accumulator.teamPlacements
           ).boostsUsed += 1
+        }
+        
+        const isRecall = lower.includes('bluechip') && lower.includes('transmitter')
+        if (isRecall) {
+          getOrCreateMemberStatsWithTeam(
+            accumulator.memberStats,
+            actorKey,
+            actorTeamId,
+            accumulator.teamPlacements
+          ).recalls += 1
         }
       }
     }

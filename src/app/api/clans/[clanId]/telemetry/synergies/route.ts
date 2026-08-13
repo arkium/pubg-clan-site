@@ -80,6 +80,7 @@ export async function GET(
         memberBId: number
         memberBName: string
         reviveCount: number
+        recallCount: number
         coKillCount: number
         sharedDamageEvents: number
       }>
@@ -90,6 +91,7 @@ export async function GET(
         sts.memberBId,
         b.displayName AS memberBName,
         sts.reviveCount,
+        sts.recallCount,
         sts.coKillCount,
         sts.sharedDamageEvents
       FROM ClanSynergyTelemetryStats sts

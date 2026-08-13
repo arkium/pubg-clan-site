@@ -866,6 +866,7 @@ model ClanSynergyTelemetryStats {
   periodType String
 
   reviveCount        Int @default(0)
+  recallCount        Int @default(0)
   coKillCount        Int @default(0)
   sharedDamageEvents Int @default(0)
 

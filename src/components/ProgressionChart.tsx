@@ -85,6 +85,8 @@ const METRIC_LABELS: Record<LeaderboardSortBy, string> = {
   damage: 'Damage',
   winRate: 'Win Rate (%)',
   matches: 'Matchs',
+  activeDays: 'Jours actifs',
+  timePlayed: 'Temps joué',
 }
 
 export default function ProgressionChart({

@@ -94,7 +94,7 @@ export default function ClanComparatorRadar({ clans }: ClanComparatorRadarProps)
   const gridLevels = [0.25, 0.5, 0.75, 1]
 
   return (
-    <section className="app-panel p-4 sm:p-6">
+    <section className="app-panel overflow-hidden p-4 sm:p-6">
       <h2 className="mb-4 text-lg font-semibold text-[var(--theme-ui-text)]">Profil comparé</h2>
 
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start">

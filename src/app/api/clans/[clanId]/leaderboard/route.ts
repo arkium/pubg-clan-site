@@ -28,6 +28,8 @@ function parseSortBy(value: string | null): LeaderboardSortBy {
   if (value === 'winRate') return 'winRate'
   if (value === 'matches') return 'matches'
   if (value === 'kpm') return 'kpm'
+  if (value === 'timePlayed') return 'timePlayed'
+  if (value === 'activeDays') return 'activeDays'
   return 'kills'
 }
 
@@ -71,6 +73,10 @@ function sortLeaderboard(entries: PlayerStatsEntry[], sortBy: LeaderboardSortBy)
         return b.winRate - a.winRate
       case 'matches':
         return b.matchesPlayed - a.matchesPlayed
+      case 'timePlayed':
+        return b.timePlayedSeconds - a.timePlayedSeconds
+      case 'activeDays':
+        return b.activeDays - a.activeDays
       default:
         return b.totalKills - a.totalKills
     }
@@ -200,6 +206,8 @@ function createEmptyStats(member: MemberProfile, period: LeaderboardPeriod, peri
     duoClanKills: 0,
     trioClanKills: 0,
     squadClanKills: 0,
+    timePlayedSeconds: 0,
+    activeDays: 0,
     badgeType: null,
   }
 }
@@ -251,6 +259,8 @@ function aggregateLeaderboardEntries({
       duoClanKills: 0,
       trioClanKills: 0,
       squadClanKills: 0,
+      timePlayedSeconds: 0,
+      activeDays: 0,
       badgeType: null,
     }
 
@@ -435,6 +445,9 @@ function applyLiveBadges(entries: PlayerStatsEntry[]): PlayerStatsEntry[] {
     return scoreB - scoreA
   })[0] ?? null
 
+  const marathon = [...withMatches].sort((a, b) => b.timePlayedSeconds - a.timePlayedSeconds)[0] ?? null
+  const regular = [...withMatches].sort((a, b) => b.activeDays - a.activeDays)[0] ?? null
+
   const assigned = new Set<number>()
 
   if (topKiller) {
@@ -450,6 +463,16 @@ function applyLiveBadges(entries: PlayerStatsEntry[]): PlayerStatsEntry[] {
   if (bestWr && !assigned.has(bestWr.memberId)) {
     bestWr.badgeType = 'best_wr'
     assigned.add(bestWr.memberId)
+  }
+
+  if (marathon && !assigned.has(marathon.memberId) && marathon.timePlayedSeconds > 0) {
+    marathon.badgeType = 'marathon'
+    assigned.add(marathon.memberId)
+  }
+
+  if (regular && !assigned.has(regular.memberId) && regular.activeDays > 0) {
+    regular.badgeType = 'regular'
+    assigned.add(regular.memberId)
   }
 
   if (mvp && !assigned.has(mvp.memberId)) {
@@ -579,7 +602,10 @@ export async function GET(
         member: { clanId: parsedClanId, isActive: true },
       },
       select: {
+        memberId: true,
         updatedAt: true,
+        timePlayedSeconds: true,
+        activeDays: true,
       },
     })
 
@@ -592,6 +618,16 @@ export async function GET(
       periodKey,
       killsView,
     })
+
+    const statsByMember = new Map(statsRows.map((row) => [row.memberId, row]))
+    for (const entry of aggregatedLeaderboard) {
+      const stats = statsByMember.get(entry.memberId)
+      if (stats) {
+        entry.timePlayedSeconds = stats.timePlayedSeconds
+        entry.activeDays = stats.activeDays
+      }
+    }
+
     const leaderboard = applyLiveBadges(aggregatedLeaderboard)
 
     const lastUpdated = statsRows.reduce<Date | null>((latest, row) => {

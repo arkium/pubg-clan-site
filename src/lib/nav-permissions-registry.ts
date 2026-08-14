@@ -63,6 +63,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Paramètres du compte joueur.',
   },
   {
+    navKey: 'primary.ligue',
+    section: 'nav-primary',
+    label: 'Ligue',
+    hrefTemplate: '/clans-leaderboard',
+    defaultRole: 'none',
+    description: 'Classement public de tous les clans actifs.',
+  },
+  {
     navKey: 'primary.comparator',
     section: 'nav-primary',
     label: 'Comparateur',

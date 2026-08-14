@@ -1,5 +1,5 @@
 export type LeaderboardPeriod = 'week' | 'month' | 'all'
-export type LeaderboardSortBy = 'kills' | 'damage' | 'winRate' | 'matches' | 'kpm'
+export type LeaderboardSortBy = 'kills' | 'damage' | 'winRate' | 'matches' | 'kpm' | 'timePlayed' | 'activeDays'
 export type LeaderboardKillsView = 'clan' | 'withSolo'
 
 export interface PlayerStatsEntry {
@@ -24,6 +24,9 @@ export interface PlayerStatsEntry {
   duoClanKills: number
   trioClanKills: number
   squadClanKills: number
+
+  timePlayedSeconds: number
+  activeDays: number
 
   badgeType: string | null
 }

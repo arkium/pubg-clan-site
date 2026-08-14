@@ -24,6 +24,8 @@ const SORT_OPTIONS: Array<{ value: LeaderboardSortBy; label: string }> = [
   { value: 'damage', label: 'Damage' },
   { value: 'winRate', label: 'Win Rate' },
   { value: 'matches', label: 'Matchs' },
+  { value: 'timePlayed', label: 'Temps de jeu' },
+  { value: 'activeDays', label: 'Jours Actifs' },
 ]
 
 interface LeaderboardProps {
@@ -132,6 +134,7 @@ export default function Leaderboard({
       acc.duo += entry.duoClanKills
       acc.trio += entry.trioClanKills
       acc.squad += entry.squadClanKills
+      acc.timePlayed += entry.timePlayedSeconds
       return acc
     },
     {
@@ -143,6 +146,7 @@ export default function Leaderboard({
       duo: 0,
       trio: 0,
       squad: 0,
+      timePlayed: 0,
     }
   )
 
@@ -380,6 +384,14 @@ export default function Leaderboard({
                       </p>
                       <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.squadClanKills}</p>
                     </div>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">TEMPS JEU</p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{Math.floor(entry.timePlayedSeconds / 3600)}h{Math.floor((entry.timePlayedSeconds % 3600) / 60).toString().padStart(2, '0')}</p>
+                    </div>
+                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
+                      <p className="text-gray-500">JOURS ACTIFS</p>
+                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.activeDays}</p>
+                    </div>
                   </div>
                 </article>
               )
@@ -454,18 +466,20 @@ export default function Leaderboard({
           <div className="app-table-shell hidden overflow-x-auto md:block">
             <table className="w-full table-fixed text-sm">
               <colgroup>
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '22%' }} />
+                <col style={{ width: '4%' }} />
+                <col style={{ width: '18%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
                 <col style={{ width: '8%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
                 <col style={{ width: '8%' }} />
-                <col style={{ width: '10%' }} />
                 <col style={{ width: '7%' }} />
                 <col style={{ width: '7%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '5.5%' }} />
-                <col style={{ width: '5.5%' }} />
-                <col style={{ width: '5.5%' }} />
-                <col style={{ width: '5.5%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
               </colgroup>
               <thead className="app-table-head text-xs uppercase tracking-wide">
                 <tr>
@@ -508,6 +522,12 @@ export default function Leaderboard({
                     <div className="flex w-full justify-end">
                       <TeamModeBadge mode="squad" label="Squad" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
                     </div>
+                  </th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Temps</div>
+                  </th>
+                  <th className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex w-full justify-end">Actifs</div>
                   </th>
                 </tr>
               </thead>
@@ -607,6 +627,12 @@ export default function Leaderboard({
                       <td className="px-4 py-3 align-top text-right text-gray-700">{entry.duoClanKills}</td>
                       <td className="px-4 py-3 align-top text-right text-gray-700">{entry.trioClanKills}</td>
                       <td className="px-4 py-3 align-top text-right text-gray-700">{entry.squadClanKills}</td>
+                      <td className="px-4 py-3 align-top text-right text-gray-500 whitespace-nowrap">
+                        {Math.floor(entry.timePlayedSeconds / 3600)}h{Math.floor((entry.timePlayedSeconds % 3600) / 60).toString().padStart(2, '0')}
+                      </td>
+                      <td className="px-4 py-3 align-top text-right text-gray-500">
+                        {entry.activeDays}
+                      </td>
                     </tr>
                   )
                 })}
@@ -630,6 +656,10 @@ export default function Leaderboard({
                   <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.duo}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.trio}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.squad}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-500 tabular-nums whitespace-nowrap">
+                    {Math.floor(totals.timePlayed / 3600)}h{Math.floor((totals.timePlayed % 3600) / 60).toString().padStart(2, '0')}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-500 tabular-nums">-</td>
                 </tr>
               </tfoot>
             </table>

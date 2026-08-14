@@ -2467,6 +2467,85 @@ border-gray-200  ← hardcodé</code>
           </div>
         </div>
 
+        <!-- Carte Tête-à-tête (Head-to-Head, Comparateur) -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Carte tête-à-tête — comparaison directe entre 2 clans</div>
+          <div style="max-width:640px;">
+            <article class="app-panel-muted" style="border-radius:0.75rem;overflow:hidden;box-shadow:var(--app-panel-shadow);">
+              <!-- Header VS -->
+              <div style="position:relative;display:flex;align-items:stretch;border-bottom:1px solid var(--theme-ui-border);">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(59,130,246,0.1);padding:1.25rem;text-align:center;">
+                  <span style="margin-bottom:0.25rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:rgba(59,130,246,0.8);">Nova Esports</span>
+                  <span style="font-size:2.25rem;font-weight:900;color:var(--theme-ui-text);">NVA</span>
+                </div>
+                <div style="position:absolute;inset-block:0;left:50%;width:3rem;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;">
+                  <div style="display:flex;align-items:center;justify-content:center;width:2.5rem;height:2.5rem;border-radius:9999px;background:var(--app-surface);font-size:0.8rem;font-weight:900;color:var(--theme-ui-text-muted);box-shadow:0 1px 3px rgba(0,0,0,0.15);border:1px solid var(--theme-ui-border);">VS</div>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(249,115,22,0.1);padding:1.25rem;text-align:center;">
+                  <span style="margin-bottom:0.25rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:rgba(249,115,22,0.8);">Silent Wolves</span>
+                  <span style="font-size:2.25rem;font-weight:900;color:var(--theme-ui-text);">SLW</span>
+                </div>
+              </div>
+
+              <!-- Stats comparées -->
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);background:var(--app-surface);border-bottom:1px solid var(--theme-ui-border);">
+                <div style="padding:1rem;text-align:center;border-right:1px solid var(--theme-ui-border);">
+                  <div style="margin-bottom:0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--theme-ui-text-muted);">Meilleur placement</div>
+                  <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+                    <span style="font-size:1.75rem;font-weight:900;color:rgb(59,130,246);">11</span>
+                    <span style="font-size:0.8rem;color:var(--theme-ui-text-muted);">—</span>
+                    <span style="font-size:1.75rem;font-weight:700;color:var(--theme-ui-text);">8</span>
+                  </div>
+                  <div style="margin-top:0.5rem;font-size:0.7rem;font-weight:600;color:var(--theme-ui-text-muted);">2 matchs à égalité</div>
+                </div>
+                <div style="padding:1rem;text-align:center;border-right:1px solid var(--theme-ui-border);">
+                  <div style="margin-bottom:0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--theme-ui-text-muted);">Plus de kills</div>
+                  <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+                    <span style="font-size:1.75rem;font-weight:700;color:var(--theme-ui-text);">14</span>
+                    <span style="font-size:0.8rem;color:var(--theme-ui-text-muted);">—</span>
+                    <span style="font-size:1.75rem;font-weight:900;color:rgb(249,115,22);">19</span>
+                  </div>
+                  <div style="margin-top:0.5rem;font-size:0.7rem;font-weight:600;color:var(--theme-ui-text-muted);">Sur le même match</div>
+                </div>
+                <div style="padding:1rem;text-align:center;">
+                  <div style="margin-bottom:0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--theme-ui-text-muted);">Kills directs</div>
+                  <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+                    <span style="font-size:1.75rem;font-weight:900;color:rgb(59,130,246);">7</span>
+                    <span style="font-size:0.8rem;color:var(--theme-ui-text-muted);">—</span>
+                    <span style="font-size:1.75rem;font-weight:700;color:var(--theme-ui-text);">3</span>
+                  </div>
+                  <div style="margin-top:0.5rem;font-size:0.7rem;font-weight:600;color:var(--theme-ui-text-secondary);">Avantage NVA</div>
+                </div>
+              </div>
+
+              <!-- Historique des matchs communs -->
+              <div style="padding:1.25rem;">
+                <div style="margin-bottom:0.75rem;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--theme-ui-text-muted);">Derniers croisements (Total : 5)</div>
+                <div style="display:flex;flex-direction:column;gap:0.625rem;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;border-radius:0.5rem;background:var(--app-surface);padding:0.625rem 0.75rem;border:1px solid var(--theme-ui-border);">
+                    <div>
+                      <div style="font-size:0.8rem;font-weight:700;color:var(--theme-ui-text);">Erangel</div>
+                      <div style="font-size:0.7rem;font-weight:500;color:var(--theme-ui-text-secondary);">14 août, 21:04</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:1rem;font-size:1rem;font-weight:900;">
+                      <div style="display:flex;flex-direction:column;align-items:center;">
+                        <span style="color:rgb(59,130,246);">#1</span>
+                        <span style="margin-top:0.15rem;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--theme-ui-text-muted);">14 Kills</span>
+                      </div>
+                      <span style="font-size:0.8rem;color:var(--theme-ui-text-muted);opacity:0.5;">-</span>
+                      <div style="display:flex;flex-direction:column;align-items:center;">
+                        <span style="color:var(--theme-ui-text-muted);opacity:0.7;">#4</span>
+                        <span style="margin-top:0.15rem;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--theme-ui-text-muted);">19 Kills</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div style="margin-top:0.5rem;"><code class="docs-code">.app-panel-muted</code> — header VS (2 blocs colorés par équipe + pastille centrale), grille 3 colonnes divisée par bordures, liste de matchs communs. Utilisé sur <code class="docs-code">/clans/comparator</code> (<code class="docs-code">src/components/comparator/HeadToHeadCard.tsx</code>).</div>
+        </div>
+
       </section>
       <!-- ══════════════════════════════════════════════════════════
            SECTION 11 — AVATARS

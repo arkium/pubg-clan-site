@@ -19,6 +19,13 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-11.
 
 **Note :** le statut `joinStatus: 'tracked'` reste dans le schéma pour un éventuel futur usage (isolation d'un coéquipier auto-détecté non confirmé), mais n'est plus produit par aucun flux applicatif actuel.
 
+### ~~Corrections UI & UX — Comparateur et Leaderboard~~ — ✅ Corrigé le 2026-08-14
+
+- [x] **Comparateur (`/clans/comparator`) :** Corriger le débordement de l'arrière-plan sur les `app-panel` ("contour des cartes non respecté") via l'ajout de `overflow-hidden` généralisé sur les sections.
+- [x] **Leaderboard (`/clans-leaderboard`) :** Rendre les en-têtes de table interactives pour permettre le tri selon 5 critères (Effectif Actif, Power Score, Win Rate, Dégâts moy., Kills moy.).
+- [x] **Leaderboard :** Adapter le podium dynamique pour refléter le filtre actif (changement du classement et de l'étiquette affichée).
+- [x] **Leaderboard :** Corriger le rayon de bordure des podiums flottants (`rounded-t-xl` remplacé par `rounded-xl`).
+
 ### ~~Dépendance `server-only` manquante — cassait `stats-calculator.ts` (via `notification-service.ts` → `email-service.ts`) hors build Next~~ — ✅ Corrigé le 2026-08-11
 
 `server-only` était importé dans `email-service.ts` mais absent de `package.json`/`node_modules` : tout script ou test import ant `stats-calculator.ts` (donc `tracked-isolation.test.ts`) plantait avec `Cannot find module 'server-only'`. Une fois le paquet installé, le vrai module `server-only` lève une erreur volontaire dès qu'il est chargé hors du bundling spécial Next.js (serveur/client) — donc aussi en environnement Vitest.
@@ -1019,6 +1026,7 @@ Toute fonctionnalité de comparaison inter-clans est donc un **choix de politiqu
 **Données disponibles :** `Clan.clanStats.tracked.aggregated` existe déjà pour chaque clan actif (kills, damage, matches, winRate, assists, revives). Aucun nouveau pipeline de calcul n'est nécessaire, juste une agrégation de lecture sur tous les clans.
 
 - [ ] Page `/clans-leaderboard` (ou `/ligue`) listant tous les clans actifs, triable par winRate, kills totaux, damage moyen par match, matches joués
+- [ ] **Design Visuel attractif :** Ajouter un podium interactif (Top 3) avec effets de brillance (Gradients Tailwind) et afficher des "sparklines" (mini-graphiques) pour montrer la tendance de victoire sur les 4 dernières semaines.
 - [ ] Colonnes : rang, nom + tag, effectif tracké, winRate, kills totaux, damage moyen
 - [ ] Filtrage par période (week/month/all) en réutilisant la même logique de fenêtre que le leaderboard interne
 - [ ] Route API `GET /api/clans-leaderboard` (lecture `clanStats` pour tous les clans `isActive`, tri en mémoire), réutiliser `Leaderboard.tsx`
@@ -1439,6 +1447,7 @@ Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du k
 - [x] Compter les dates uniques des matchs (ex: format `YYYY-MM-DD`) de la période pour déterminer les `activeDays`. — `src/lib/stats-calculator.ts:97-103`
 - [ ] Afficher ces deux métriques (Temps de jeu formaté en heures/minutes et Jours actifs) sur le profil du joueur (`/members/[id]/dashboard`). **Pas fait** : absent de `src/app/members/[id]/dashboard/page.tsx`. Actuellement affiché ailleurs seulement — agrégé par membre sur `src/app/clans/[clanId]/stats/page.tsx:145-146` ("Temps de jeu" / "Jours actifs"), et `activeDays` seul sur `src/app/members/[id]/heatmap/page.tsx:461`.
 - [ ] Ajouter ces métriques dans les classements (Leaderboard) pour permettre le tri (ex: les joueurs les plus assidus). **Pas fait** : `src/app/api/clans/[clanId]/leaderboard/route.ts:26-32` (`parseSortBy`) ne propose que `kills`, `damage`, `winRate`, `matches`, `kpm` — aucune option `timePlayed`/`activeDays`.
+- [ ] **Design Visuel attractif :** Ajouter des badges conditionnels exclusifs dans le leaderboard (ex: Badge "Marathonien" pour le plus de temps joué, Badge "Régulier" pour l'assiduité) et formater le temps de façon très lisible et moderne (ex: "12h 45m" avec une icône d'horloge dynamique).
 
 **Prochaines étapes proposées :**
 1. Ajouter une carte "Temps de jeu" / "Jours actifs" sur `/members/[id]/dashboard/page.tsx`, en réutilisant le pattern de fetch déjà utilisé côté clan-stats (`lifetime-stats` route lit déjà `PlayerStats.timePlayedSeconds`/`activeDays` — voir `src/app/api/clans/[clanId]/lifetime-stats/route.ts:174-197`). Prévoir un formatteur heures/minutes (probablement déjà présent via `formatDurationLong` utilisé dans `clans/[clanId]/stats/page.tsx:145`, à factoriser/réutiliser plutôt que dupliquer).
@@ -1505,6 +1514,7 @@ Objectif : Finaliser la fonctionnalité de "Watchlist" en permettant d'ajouter d
 - [x] **Taux de participation (Roster Health) :** `pulse.rosterHealth` — membres actifs ayant joué / effectif total, filtré `isActive: true, joinStatus: 'active'` (isolation stricte, cf. `tracked-isolation.test.ts`).
 - [x] **Régularité :** `pulse.dailyMatchCounts` (matchs par jour sur la période) et `pulse.activityByDayHour` (grille 7×24 jour/heure), affichés sous forme de compteurs sur la page — pas encore de heatmap visuelle superposée entre clans.
 - [ ] **Heatmap d'activité comparée :** `activityByDayHour` est déjà calculé et mis en cache, mais la page ne l'affiche pas encore visuellement (juxtaposition Night Owls vs Weekend warriors) — reste à construire le composant de visualisation.
+  - [ ] **Design Visuel attractif :** Concevoir une matrice style "Punchcard" (Github contribution graph). Si on compare 2 clans, utiliser des couleurs distinctes avec un mode de fusion (`mix-blend-mode: screen` ou `multiply`) pour mettre en évidence les heures de forte collision d'activité, ou une vue côte-à-côte avec des tooltips riches montrant le pourcentage d'activité.
 
 ### 2. Le Style de jeu (L'ADN) — ✅ Complété le 2026-08-10
 - [x] **Indice de "Hot Drop" :** `dna.hotDropSharePercent`/`hotDropCount`/`dropCount`, calculé directement sur `DropPressureStat.pressureLevel` (`hot`/`very_hot`) avec filtre d'isolation `member.isActive/joinStatus` — **ne pas réutiliser `getDropPressureDashboardStats` telle quelle**, elle ne filtre pas par `joinStatus` et fait fuiter les membres en simple watchlist dans les stats d'un clan (bug trouvé et corrigé pendant l'implémentation, cf. `src/lib/clan-comparator-service.ts`).
@@ -1569,13 +1579,13 @@ Question de l'utilisateur : "y a-t-il des matchs partagés parmi les 3031, je su
 - Périmètre clans : uniquement les clans actifs gérés sur le site (`joinStatus: 'active'`) — les clans en simple watchlist (`joinStatus: 'tracked'`) sont exclus du sélecteur, cohérent avec l'isolation déjà appliquée ailleurs (`tracked-isolation.test.ts`).
 - Visibilité : le comparateur est exposé dans la navigation principale dès la V1, pas de phase de rodage en accès direct uniquement — prévoir l'entrée correspondante dans le composant de nav (`NavItem` / menu principal) dès l'implémentation de la page.
 
-### 6. Nouvelles Statistiques Avancées (Télémétrie)
-- [ ] **Traquer le "Recall" (Respawn) :** Ajouter la comptabilisation des utilisations du système de rappel de PUBG.
-  - [ ] **Base de données :** Ajouter la colonne `recallCount` (Int, default 0) aux modèles `MemberMatchTelemetry`, `MemberTelemetryStats` et `ClanSynergyTelemetryStats`. Générer et appliquer la migration.
-  - [ ] **Parser (Backend) :** Analyser les événements correspondants (ex: `LogPlayerUseRespawn` ou items Blue Chip) dans `src/lib/pubg-telemetry/parser.ts` et incrémenter les `recallCount`. Mettre à jour l'agrégation dans `period-aggregates.ts`.
-  - [ ] **API :** Exposer `recallCount` dans la route `/api/clans/[clanId]/telemetry/synergies`.
-  - [ ] **UI (Frontend) :** Ajouter une colonne/carte "Top Recalls" dans le composant `SquadSynergies.tsx` avec une image dédiée et un badge (comme pour "Top Sauvetages").
-  - [ ] **Tests :** 
-    - Ajouter des données de test mockées dans `parser.test.ts` contenant un événement Recall.
-    - Exécuter la suite complète de tests Vitest.
-    - Vérifier sur la page d'overview que la carte s'affiche et affiche des données après l'analyse d'un match (manuel ou cron).
+### 6. Nouvelles Statistiques Avancées (Télémétrie) — ✅ Implémenté le 2026-08-14
+- [x] **Traquer le "Recall" (Respawn) :** Ajouter la comptabilisation des utilisations du système de rappel de PUBG.
+  - [x] **Base de données :** Ajouter la colonne `recallCount` (Int, default 0) aux modèles `MemberMatchTelemetry`, `MemberTelemetryStats` et `ClanSynergyTelemetryStats`. Générer et appliquer la migration.
+  - [x] **Parser (Backend) :** Analyser les événements correspondants (ex: `LogPlayerUseRespawn` ou items Blue Chip) dans `src/lib/pubg-telemetry/parser.ts` et incrémenter les `recallCount`. Mettre à jour l'agrégation dans `period-aggregates.ts`.
+  - [x] **API :** Exposer `recallCount` dans la route `/api/clans/[clanId]/telemetry/synergies`.
+  - [x] **UI (Frontend) :** Ajouter une colonne/carte "Top Recalls" dans le composant `SquadSynergies.tsx` avec une image dédiée et un badge (comme pour "Top Sauvetages").
+  - [x] **Tests :** 
+    - [x] Ajouter des données de test mockées dans `parser.test.ts` contenant un événement Recall.
+    - [x] Exécuter la suite complète de tests Vitest.
+    - [x] Vérifier sur la page d'overview que la carte s'affiche et affiche des données après l'analyse d'un match (manuel ou cron).

@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from 'next/link'
+import { UserCircle } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -258,18 +259,25 @@ export default function AccountPage() {
   return (
     <>
       <main className="app-container app-main flex-1">
-        <header className="app-panel mb-6 px-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Mon compte</h1>
-              <p className="text-sm text-gray-600">Modifie ton email, ton pseudo d&apos;affichage et ton avatar.</p>
+        <header
+          className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/account.jpg')`, backgroundPosition: 'center top' }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <Link
+            href={dashboardHref}
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 sm:right-4 sm:top-4 sm:px-3 sm:py-1.5 sm:text-sm"
+          >
+            Dashboard
+          </Link>
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <UserCircle className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Mon compte</h1>
             </div>
-            <Link
-              href={dashboardHref}
-              className="app-btn app-btn--md app-btn--secondary"
-            >
-              Dashboard
-            </Link>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Modifie ton email, ton pseudo d&apos;affichage et ton avatar.
+            </p>
           </div>
         </header>
 

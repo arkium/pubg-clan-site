@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import Link from 'next/link'
+import { LayoutDashboard } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 
@@ -433,14 +434,14 @@ export default function DashboardPage() {
     <div className="app-page-surface min-h-screen">
       {/* Content */}
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:py-8">
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <MemberPageHeader
-            title="Tableau de bord"
-            subtitle="Vue synthese des performances du joueur."
-            showBackButton={false}
-            framed={false}
-          />
-        </section>
+        <MemberPageHeader
+          title="Tableau de bord"
+          subtitle="Vue synthese des performances du joueur."
+          showBackButton={false}
+          backgroundImage="/member-dashboard.jpg"
+          backgroundPosition="center top"
+          icon={<LayoutDashboard className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+        />
 
         {/* Stats principales */}
         <PlayerStats

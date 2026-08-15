@@ -1,5 +1,6 @@
 'use client'
 
+import { Swords } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -140,15 +141,18 @@ function ComparatorContent() {
 
   return (
     <main className="app-container app-main">
-      <header 
-        className="app-panel relative mb-6 overflow-hidden bg-cover bg-center bg-no-repeat px-6 py-6 sm:py-8"
-        style={{ backgroundImage: `url('/comparateurclans.jpg')` }}
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/comparateurclans.jpg')`, backgroundPosition: 'center 20%' }}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-transparent" />
-        <div className="relative z-10">
-          <h1 className="text-2xl font-black text-white drop-shadow-md">Comparateur de clans</h1>
-          <p className="mt-1.5 text-sm font-medium text-gray-200 drop-shadow-md">
-            Compare l&apos;activité, le style de jeu et les performances de jusqu&apos;à {MAX_CLANS} clans suivis sur le site.
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Swords className="h-4 w-4 text-red-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Comparateur de clans</h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Compare l&apos;activité, le style de jeu et les performances de jusqu&apos;à {MAX_CLANS} clans suivis.
           </p>
         </div>
       </header>

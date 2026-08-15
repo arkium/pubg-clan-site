@@ -575,13 +575,6 @@ export default function ClanOverviewPage() {
 
   return (
     <main className="app-container app-main">
-      <header className="app-panel mb-6 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">Vue d&apos;ensemble du clan</h1>
-        <p className="text-sm text-gray-600">
-          Données PUBG officielles, roster et comparaison des membres.
-        </p>
-      </header>
-
       {loading && <p className="text-sm text-gray-500">Chargement...</p>}
 
       {error && (
@@ -595,12 +588,12 @@ export default function ClanOverviewPage() {
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Bloc 1 — Fiche PUBG officielle */}
-          <section className="app-panel relative overflow-hidden">
+          <header className="app-panel relative overflow-hidden">
             {!pubg ? (
               <div className="p-6">
-                <h2 className="mb-2 text-base font-semibold text-gray-900">
-                  Fiche PUBG officielle
-                </h2>
+                <h1 className="mb-2 text-base font-semibold text-gray-900">
+                  Vue d&apos;ensemble du clan
+                </h1>
                 <p className="text-sm text-gray-500">
                   Aucune donnée PUBG — lancez une sync stats depuis les paramètres d&apos;abord.
                 </p>
@@ -626,9 +619,9 @@ export default function ClanOverviewPage() {
                       </span>
                       <span className="font-mono text-xs text-white/40">{pubg.clanId}</span>
                     </div>
-                    <h2 className="text-4xl font-bold leading-tight text-white drop-shadow">
+                    <h1 className="text-4xl font-bold leading-tight text-white drop-shadow">
                       {pubg.name}
-                    </h2>
+                    </h1>
                   </div>
 
                   {/* Badge sync */}
@@ -673,7 +666,7 @@ export default function ClanOverviewPage() {
                 </div>
               </>
             )}
-          </section>
+          </header>
 
           {/* Bloc 2 — Statistiques et Analyses */}
           <section className="app-panel relative overflow-hidden p-6">

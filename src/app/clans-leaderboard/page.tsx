@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
 
 import { ClanLeaderboardTable } from '@/components/leaderboard/ClanLeaderboardTable'
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import type { ClanLeaderboardEntry, ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
@@ -55,31 +54,20 @@ export default function ClansLeaderboardPage() {
 
   return (
     <main className="app-container app-main">
-      <header className="app-panel relative mb-6 overflow-hidden px-6 py-6 sm:py-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-amber-500/20 p-2 rounded-lg border border-amber-500/30">
-              <Trophy className="w-6 h-6 text-amber-500" />
-            </div>
-            <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-200">
-              Ligue Inter-Clans
-            </h1>
-          </div>
-          <p className="text-[var(--theme-ui-text-muted)] max-w-2xl text-sm font-medium">
-            Classement global des clans basé sur le Power Score composite (Win Rate, Dégâts, Kills).
-          </p>
-        </div>
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/ClanLeaderboardTable.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
-        <div className="shrink-0 relative z-10">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--theme-ui-text-muted)] text-right">Période</p>
-          <SegmentedControl
-            options={PERIOD_OPTIONS}
-            value={period}
-            onChange={setPeriod}
-            size="sm"
-            fullWidthOnMobile
-            className="w-full sm:w-auto"
-          />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Trophy className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Ligue Inter-Clans</h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Classement global basé sur le Power Score composite (Win Rate, Dégâts, Kills).
+          </p>
         </div>
       </header>
 
@@ -96,7 +84,12 @@ export default function ClansLeaderboardPage() {
       )}
 
       {!loading && !error && (
-        <ClanLeaderboardTable entries={leaderboard} />
+        <ClanLeaderboardTable
+          entries={leaderboard}
+          period={period}
+          periodOptions={PERIOD_OPTIONS}
+          onPeriodChange={setPeriod}
+        />
       )}
     </main>
   )

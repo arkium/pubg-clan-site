@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { Trophy } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -203,27 +204,30 @@ export default function ClanAwardsPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-6">
-      <header className="app-panel p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Awards du clan</h1>
-            <p className="text-sm text-gray-600">
-              Les distinctions fun sont calculees a la volee pour la periode selectionnee.
-            </p>
+      <header
+        className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/awards.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <button
+          type="button"
+          className="absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 disabled:opacity-60 sm:right-4 sm:top-4 sm:px-3 sm:py-1.5 sm:text-sm"
+          onClick={() => {
+            void handleRefresh()
+          }}
+          disabled={refreshing || loading}
+        >
+          {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
+        </button>
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Trophy className="h-4 w-4 text-yellow-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Awards du clan</h1>
           </div>
-
-          <button
-            type="button"
-            className="app-btn app-btn--md app-btn--secondary"
-            onClick={() => {
-              void handleRefresh()
-            }}
-            disabled={refreshing || loading}
-          >
-            {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
-          </button>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Distinctions fun calculées à la volée.
+          </p>
         </div>
-
       </header>
 
       <section className="app-panel p-4">

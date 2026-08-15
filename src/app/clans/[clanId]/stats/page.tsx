@@ -746,14 +746,21 @@ export default function ClanStatsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {data?.clan?.name ?? `Clan #${clanId}`} | Clan
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/clan-stats2.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <ChartNoAxesColumnIncreasing className="h-4 w-4 text-emerald-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+              {data?.clan?.name ?? `Clan #${clanId}`} · Statistiques
             </h1>
-            <p className="text-sm text-gray-600">Vue clan complete avec top 3 pour chaque statistique.</p>
           </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Vue clan complète avec top 3 pour chaque statistique.
+          </p>
         </div>
       </header>
 

@@ -1,4 +1,5 @@
 ﻿'use client'
+import { Crown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -80,15 +81,20 @@ export default function LeaderboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Classement du clan</h1>
-            <p className="text-sm text-gray-600">
-              Performances individuelles par période.
-            </p>
-            <p className="mt-1 text-xs text-gray-500">{formatLastUpdated(lastUpdatedAt)}</p>
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/leaderboard.jpg')`, backgroundPosition: 'center top' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Crown className="h-4 w-4 text-yellow-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Classement du clan</h1>
           </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Performances individuelles par période.
+          </p>
+          <p className="mt-0.5 text-[10px] text-gray-300 drop-shadow-md sm:text-xs">{formatLastUpdated(lastUpdatedAt)}</p>
         </div>
       </header>
 

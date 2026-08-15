@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import Image from 'next/image'
+import { Compass } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -659,21 +660,19 @@ export default function ClanPositionsHeatmapPage() {
 
   return (
     <main className="app-container app-main mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-      <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Cartographie tactique du clan</h1>
-            <p className="mt-1 text-sm text-slate-200">
-              Zones de combat et d’entraide par ville, joueur et période.
-            </p>
+      <header
+        className="relative mb-5 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/cartographie-tactique.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Compass className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Cartographie tactique</h1>
           </div>
-          <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs text-slate-100">
-            <p>Carte: {selectedMapLabel}</p>
-            <p>Membre: {selectedMemberLabel}</p>
-            <p>Phase: {tacticalPhaseLabel(phase)}</p>
-          </div>
-        </div>
-        <div className="mt-3">
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Zones de combat et d&apos;entraide par ville, joueur et période.
+          </p>
         </div>
       </header>
 

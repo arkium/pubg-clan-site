@@ -1,3 +1,5 @@
+import { Layers } from 'lucide-react'
+
 import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { prisma } from '@/lib/prisma'
@@ -208,14 +210,21 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
 
   return (
     <main className="app-container app-main space-y-6">
-      <section className="app-panel p-4">
-        <div className="px-1 py-1">
-          <h1 className="text-2xl font-bold text-gray-900">Catégories armes</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Mapping utilisé pour classer les armes par catégorie dans la télémétrie.
+      <header
+        className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/weapon-categories.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Layers className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Catégories armes</h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Classement des armes par catégorie.
           </p>
         </div>
-      </section>
+      </header>
 
       <section className="app-panel p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>

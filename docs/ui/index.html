@@ -707,6 +707,9 @@
         <a class="docs-sidebar-link" href="#icones" onclick="setActive(this)">
           <span class="num">15</span> Icônes PUBG
         </a>
+        <a class="docs-sidebar-link" href="#en-tetes" onclick="setActive(this)">
+          <span class="num">16</span> En-têtes de page
+        </a>
       </div>
     </aside>
 
@@ -4039,11 +4042,78 @@ border-gray-200  ← hardcodé</code>
       </section>
 
       <!-- ══════════════════════════════════════════════════════════
+           SECTION 16 — EN-TÊTES DE PAGE
+      ══════════════════════════════════════════════════════════ -->
+      <section class="docs-section" id="en-tetes">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">16</span>
+          En-têtes de page
+        </h2>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Règle — chaque page a une image liée à son sujet</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1rem;line-height:1.6;">
+            Tout en-tête de page (<code class="docs-code">.app-main</code> ou en tête de panneau) doit utiliser une image de fond illustrant le sujet de la page — pas de bandeau uni. Titre et sous-titre en bas à gauche sur un dégradé sombre, action principale ancrée en haut à droite en verre dépoli.
+          </div>
+          <button class="copy-btn" onclick="copyCode(this, `&lt;header className=&quot;relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]&quot; style={{ backgroundImage: \`url('/sujet.jpg')\` }}&gt;\n  &lt;div className=&quot;absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent&quot; /&gt;\n  &lt;Link href={href} className=&quot;absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 sm:right-4 sm:top-4 sm:px-3 sm:py-1.5 sm:text-sm&quot;&gt;\n    Action\n  &lt;/Link&gt;\n  &lt;div className=&quot;absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4&quot;&gt;\n    &lt;div className=&quot;flex items-center gap-1.5 sm:gap-2&quot;&gt;\n      &lt;Icon className=&quot;h-4 w-4 text-orange-400 sm:h-6 sm:w-6&quot; /&gt;\n      &lt;h1 className=&quot;text-sm font-bold text-white drop-shadow-md sm:text-xl md:text-2xl&quot;&gt;Titre&lt;/h1&gt;\n    &lt;/div&gt;\n    &lt;p className=&quot;mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm&quot;&gt;Sous-titre&lt;/p&gt;\n  &lt;/div&gt;\n&lt;/header&gt;`)">⎘ copier</button>
+
+          <header
+            style="position:relative;min-height:10rem;overflow:hidden;border-radius:1rem;background-image:url('../../public/drop2.jpg');background-size:cover;background-position:center;background-repeat:no-repeat;"
+          >
+            <div style="position:absolute;inset:0;background:linear-gradient(to top, rgb(0 0 0 / 0.85), rgb(0 0 0 / 0.3), transparent);"></div>
+            <a href="#en-tetes" style="position:absolute;right:1rem;top:1rem;z-index:10;display:inline-flex;align-items:center;gap:0.375rem;border-radius:0.5rem;border:1px solid rgb(255 255 255 / 0.3);background:rgb(0 0 0 / 0.5);padding:0.375rem 0.75rem;font-size:0.8125rem;font-weight:600;color:#fff;backdrop-filter:blur(6px);">
+              Voir la carte
+            </a>
+            <div style="position:absolute;left:0;right:0;bottom:0;z-index:10;padding:1rem 1.25rem;">
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+                <h1 style="font-size:1.375rem;font-weight:800;color:#fff;text-shadow:0 1px 3px rgb(0 0 0 / 0.5);">Pression au drop</h1>
+              </div>
+              <p style="margin-top:0.25rem;font-size:0.875rem;font-weight:500;color:rgb(229 231 235);text-shadow:0 1px 3px rgb(0 0 0 / 0.5);">Joueurs présents dans un rayon de 250 m · Tous</p>
+            </div>
+          </header>
+          <div class="docs-label">Exemple réel — <code class="docs-code">DropPressureStatsPanel.tsx</code> et <code class="docs-code">drop-zones/page.tsx</code>, image <code class="docs-code">/drop2.jpg</code></div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Anatomie</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.9;">
+            <code class="docs-code">min-h-[10rem] sm:min-h-[13rem]</code> — hauteur mini, l'image respire<br>
+            <code class="docs-code">bg-cover bg-center bg-no-repeat</code> — image toujours cadrée, jamais étirée<br>
+            <code class="docs-code">bg-gradient-to-t from-black/85 via-black/30 to-transparent</code> — dégradé bas→haut pour garder le texte lisible sans assombrir toute l'image<br>
+            <code class="docs-code">absolute inset-x-0 bottom-0</code> — bloc titre/sous-titre ancré en bas à gauche<br>
+            <code class="docs-code">absolute right-2 top-2 sm:right-4 sm:top-4</code> — action principale en haut à droite, style verre dépoli (<code class="docs-code">bg-black/50 backdrop-blur-md border-white/30</code>)<br>
+            Tailles de texte responsives : <code class="docs-code">text-sm sm:text-xl md:text-2xl</code> pour le titre, pour éviter le chevauchement avec le bouton sur mobile.
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Do / Don't</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <div style="border:1px solid rgb(16 185 129 / 0.4);border-radius:0.75rem;padding:1rem;background:var(--app-surface);">
+              <div style="font-size:0.7rem;font-weight:700;color:rgb(6 95 70);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;">✓ Correct</div>
+              <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.6;">
+                Image liée au sujet de la page (drop → parachute, duo/trio/squad → mode, comparateur → clans).<br>
+                Titre + sous-titre courts et lisibles pour un joueur, pas un nom technique.
+              </div>
+            </div>
+            <div style="border:1px solid rgb(244 63 94 / 0.4);border-radius:0.75rem;padding:1rem;background:var(--app-surface);">
+              <div style="font-size:0.7rem;font-weight:700;color:rgb(159 18 57);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;">✗ Éviter</div>
+              <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.6;">
+                Bandeau de couleur uni ou dégradé abstrait sans image.<br>
+                Titre technique (nom de table, nom de log) ou stats dupliquées déjà affichées plus bas dans la page.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════
            FIN — pied de page de la doc
       ══════════════════════════════════════════════════════════ -->
       <div style="margin-top:4rem;padding-top:2rem;border-top:1px solid var(--app-border);text-align:center;">
         <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);">
-          Design System — PUBG Clan Site · 14 sections · Généré depuis <code class="docs-code">globals.css</code>
+          Design System — PUBG Clan Site · 16 sections · Généré depuis <code class="docs-code">globals.css</code>
         </div>
         <div style="font-size:0.7rem;color:var(--theme-ui-text-muted);margin-top:0.375rem;">
           Basculer le thème avec le bouton en haut à droite pour valider chaque composant en clair et en sombre.

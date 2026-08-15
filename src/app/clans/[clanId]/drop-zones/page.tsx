@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import Image from 'next/image'
+import { Flame } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -426,23 +427,19 @@ export default function ClanDropZonesPage() {
 
   return (
     <main className="app-container app-main">
-      <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Drop zones clan</h1>
-            <p className="mt-1 text-sm text-slate-200">
-              Analyse des zones de saut (points + heatmap) issue de LogParachuteLanding.
-            </p>
+      <header
+        className="relative mb-5 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/drop2.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Flame className="h-4 w-4 text-orange-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Drop Zones</h1>
           </div>
-          <div className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs text-slate-100">
-            <p>Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</p>
-            <p>Dropzones visibles: {formatNumber(filteredPoints.length)}</p>
-            <p>Pression moyenne: {pressureStats.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}</p>
-            <p>Hot drops: {pressureStats.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</p>
-            <p>Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}</p>
-          </div>
-        </div>
-        <div className="mt-3">
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Zones de saut préférées et points chauds à l&apos;atterrissage.
+          </p>
         </div>
       </header>
 

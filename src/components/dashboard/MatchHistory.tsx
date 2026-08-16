@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { ChevronRight } from 'lucide-react'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -83,7 +84,7 @@ function formatTime(iso: string): string {
 }
 
 function telemetryHref(match: DashboardMatch): string | null {
-  if (!match.clanId || !match.squadMatchId) {
+  if (!match.clanId || !match.squadMatchId || !match.telemetryAvailable) {
     return null
   }
   return `/clans/${match.clanId}/matches/${match.squadMatchId}/telemetry`
@@ -322,21 +323,31 @@ export default function MatchHistory({
                         <TeamModeBadge mode={m.clanMode} label={clanModeLabel(m.clanMode)} size="xs" className="shadow-none" />
                       </td>
                       <td className="px-4 py-2 text-gray-600">
-                        <div>{mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}</div>
-                        <div className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-gray-500">
-                          {modeIcon ? (
-                            <Image
-                              src={modeIcon.src}
-                              alt={modeIcon.alt}
-                              width={12}
-                              height={12}
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <div>{mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}</div>
+                            <div className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-gray-500">
+                              {modeIcon ? (
+                                <Image
+                                  src={modeIcon.src}
+                                  alt={modeIcon.alt}
+                                  width={12}
+                                  height={12}
+                                />
+                              ) : (
+                                <span className="inline-block h-2 w-2 rounded-full bg-gray-400" aria-hidden="true" />
+                              )}
+                              <span>{formatMode(m.gameMode)}</span>
+                              <span>•</span>
+                              <span>{formatDuration(m.duration)}</span>
+                            </div>
+                          </div>
+                          {href ? (
+                            <ChevronRight
+                              className="h-4 w-4 shrink-0 text-blue-500"
+                              aria-label="Télémétrie disponible, cliquez pour voir le détail"
                             />
-                          ) : (
-                            <span className="inline-block h-2 w-2 rounded-full bg-gray-400" aria-hidden="true" />
-                          )}
-                          <span>{formatMode(m.gameMode)}</span>
-                          <span>•</span>
-                          <span>{formatDuration(m.duration)}</span>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

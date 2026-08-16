@@ -101,6 +101,7 @@ export interface DashboardMatch {
   squad: string[]
   clanId?: number | null
   squadMatchId?: string | null
+  telemetryAvailable?: boolean
 }
 
 export interface MatchesResponse {

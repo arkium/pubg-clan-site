@@ -4,13 +4,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { Crosshair, MapPin, Radar } from 'lucide-react'
 
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 import { WeaponStatsTable } from './WeaponStatsTable'
 import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
-import { resolveGameMode } from '@/lib/pubg-assets'
+import { resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
 import InteractiveMap from '@/components/ui/InteractiveMap'
 
 type TelemetryStatus = 'success' | 'failed' | 'pending'
@@ -1109,20 +1110,31 @@ export default function MatchTelemetryDetailPage() {
 
   return (
     <main className="app-container app-main space-y-4">
-      <section className="app-panel p-4 md:p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Telemetry match detail</p>
-            <h1 className="text-2xl font-bold text-slate-900">Detail telemetrie du match</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Donnees lues depuis SquadMatchTelemetry pour audit parser/aggregats.
-            </p>
-          </div>
-          <Link href={backHref} className="app-btn app-btn--sm app-btn--secondary">
+      <header
+        className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/matchtelemetry.jpg')` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+
+        <div className="absolute right-2 top-2 z-10 sm:right-4 sm:top-4">
+          <Link
+            href={backHref}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 sm:px-3 sm:py-1.5 sm:text-sm"
+          >
             Retour
           </Link>
         </div>
-      </section>
+
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Radar className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Detail telemetrie du match</h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Donnees lues depuis SquadMatchTelemetry pour audit parser/aggregats.
+          </p>
+        </div>
+      </header>
 
       {loading ? <p className="text-sm text-slate-600">Chargement de la telemetrie...</p> : null}
       {!loading && error ? (
@@ -1133,17 +1145,34 @@ export default function MatchTelemetryDetailPage() {
 
       {!loading && !error && match && telemetry ? (
         <>
-          <section className="app-panel p-4 md:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Contexte match</h2>
-                <p className="text-sm text-slate-600">Match {match.pubgMatchId}</p>
+          <section className="app-panel overflow-hidden p-0">
+            <header
+              className="relative min-h-[10rem] overflow-hidden bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+              style={{ backgroundImage: `url('${mapAssetPath(match.mapName)}')` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" aria-hidden="true" />
+              <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <MapPin className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+                  <h2 className="text-sm font-bold text-white drop-shadow-md sm:text-xl md:text-2xl">
+                    {resolveMapName(match.mapName)}
+                  </h2>
+                </div>
+                <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+                  Match {match.pubgMatchId}
+                </p>
               </div>
+            </header>
+
+            <div className="p-4 md:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-2">
                 <TeamModeBadge mode={teamModeFromMemberCount(match.members.length)} />
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${telemetryTone(telemetry.status)}`}>
                   {telemetryLabel(telemetry.status)}
                 </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={runResyncMatch}
@@ -1249,6 +1278,7 @@ export default function MatchTelemetryDetailPage() {
                 </tbody>
               </table>
             </div>
+            </div>
           </section>
 
           <section className="app-panel p-4 md:p-5">
@@ -1326,15 +1356,32 @@ export default function MatchTelemetryDetailPage() {
             )}
           </section>
 
-          <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Top armes (weaponStats)</h2>
-            {weaponStats.length > 0 ? (
-              <div className="mt-3">
-                <WeaponStatsTable weaponStats={weaponStats} weaponLabels={weaponLabels} />
+          <section className="app-panel overflow-hidden p-0">
+            <header
+              className="relative min-h-[10rem] overflow-hidden bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+              style={{ backgroundImage: `url('/weaponsplayer.jpg')` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" aria-hidden="true" />
+              <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+                  <h2 className="text-sm font-bold text-white drop-shadow-md sm:text-xl md:text-2xl">Top armes</h2>
+                </div>
+                <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+                  Armes utilisées par l&apos;équipe durant ce match
+                </p>
               </div>
-            ) : (
-              <p className="mt-2 text-sm text-slate-600">Aucune arme exploitable dans weaponStats.</p>
-            )}
+            </header>
+
+            <div className="p-4 md:p-5">
+              {weaponStats.length > 0 ? (
+                <div className="mt-3">
+                  <WeaponStatsTable weaponStats={weaponStats} weaponLabels={weaponLabels} />
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">Aucune arme exploitable dans weaponStats.</p>
+              )}
+            </div>
           </section>
 
           <section className="app-panel mb-4 p-4 md:p-5">
@@ -1737,69 +1784,6 @@ export default function MatchTelemetryDetailPage() {
               </div>
             ) : null}
 
-            <div className="mt-3 grid gap-3 lg:grid-cols-2">
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Apercu positionSamples</p>
-                <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(filteredPositionSamples.slice(0, 40), null, 2)}
-                </pre>
-              </article>
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Apercu deathSamples</p>
-                <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(filteredDeathSamples.slice(0, 40), null, 2)}
-                </pre>
-              </article>
-            </div>
-          </section>
-
-          <section className="app-panel p-4 md:p-5">
-            <h2 className="text-lg font-semibold text-slate-900">Payload JSON brut (DB)</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Affichage integral des colonnes JSON pour debug et verification des donnees persistees.
-            </p>
-
-            <div className="mt-3 grid gap-3 lg:grid-cols-3">
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">summary</p>
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(telemetry.summary, null, 2)}
-                </pre>
-              </article>
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">weaponStats</p>
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(telemetry.weaponStats, null, 2)}
-                </pre>
-              </article>
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">memberStats</p>
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(telemetry.memberStats, null, 2)}
-                </pre>
-              </article>
-            </div>
-
-            <div className="mt-3 grid gap-3 lg:grid-cols-3">
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">positionSamples</p>
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(telemetry.positionSamples, null, 2)}
-                </pre>
-              </article>
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">trajectorySegments</p>
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(telemetry.trajectorySegments, null, 2)}
-                </pre>
-              </article>
-              <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">deathSamples</p>
-                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-900 p-2 text-xs text-slate-100">
-                  {JSON.stringify(telemetry.deathSamples, null, 2)}
-                </pre>
-              </article>
-            </div>
           </section>
         </>
       ) : null}

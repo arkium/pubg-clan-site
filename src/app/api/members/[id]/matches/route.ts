@@ -146,6 +146,9 @@ export async function GET(
                       members: true,
                     },
                   },
+                  telemetry: {
+                    select: { status: true },
+                  },
                 },
               },
             },
@@ -154,12 +157,17 @@ export async function GET(
 
       const clanMemberCountByMatchId = new Map<string, number>()
       const squadMatchIdByPubgMatchId = new Map<string, string>()
+      const telemetryAvailableByPubgMatchId = new Map<string, boolean>()
       for (const squadMember of squadMembers) {
         clanMemberCountByMatchId.set(
           squadMember.squadMatch.pubgMatchId,
           squadMember.squadMatch._count.members
         )
         squadMatchIdByPubgMatchId.set(squadMember.squadMatch.pubgMatchId, squadMember.squadMatch.id)
+        telemetryAvailableByPubgMatchId.set(
+          squadMember.squadMatch.pubgMatchId,
+          squadMember.squadMatch.telemetry?.status === 'success'
+        )
       }
 
       return NextResponse.json({
@@ -181,6 +189,7 @@ export async function GET(
           squad: [],
           clanId: memberForClan?.clanId ?? null,
           squadMatchId: squadMatchIdByPubgMatchId.get(m.pubgMatchId) ?? null,
+          telemetryAvailable: telemetryAvailableByPubgMatchId.get(m.pubgMatchId) ?? false,
         })),
         totalCount,
         mapLabels: await getMapLabels(),

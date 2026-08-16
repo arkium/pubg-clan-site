@@ -274,7 +274,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       return storedTheme
     }
 
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return 'dark'
   })
   const [cronPending, setCronPending] = useState<CronAction | null>(null)
   const [cronMessage, setCronMessage] = useState<string | null>(null)

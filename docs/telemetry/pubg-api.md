@@ -110,11 +110,14 @@ Le parser lit le fichier JSON du CDN et route chaque événement par type. Fichi
 
 Repo source : `https://github.com/pubg/api-assets`. Fichiers versionnés dans `src/lib/pubg-assets/`. Assets visuels dans `public/icons/pubg/` (non versionnés, générés via `npm run sync:pubg-assets`).
 
+**Comment un ID télémétrie devient une icône, un nom affiché et une catégorie de filtre (conventions de nommage, synchronisation locale, dégradé gracieux, runbook nouvelle arme) : voir [pubg-assets.md](pubg-assets.md), doc dédiée.** Cette section-ci reste l'inventaire des dictionnaires/enums bruts.
+
 ### Dictionnaires
 
 | Fichier | Contenu | Usage dans l'application |
 |---------|---------|--------------------------|
-| `dictionaries/damageCauserName.json` | ~160 entrées : armes (`WeapAK47_C → "AKM"`), véhicules (`BP_ATV_C → "Quad"`), entités | Alimente `weapon-label-service.ts` (remplace `DEFAULT_WEAPON_LABELS`) et `vehicle-label-service.ts` |
+| `dictionaries/damageCauserName.json` | ~160 entrées : armes (`WeapAK47_C → "AKM"`), jetables (`ProjMolotov_C → "Molotov Cocktail"`), véhicules (`BP_ATV_C → "Quad"`), entités | Alimente `weapon-label-service.ts` (remplace `DEFAULT_WEAPON_LABELS`) et `vehicle-label-service.ts` |
+| `dictionaries/itemId.json` | Dictionnaire plus large que `damageCauserName.json` : tous les items (armes, munitions, équipement, items Use — `Item_Heal_Bandage_C → "Bandage"`) | `resolveItemName()`, ajouté le 2026-08-16 pour les icônes items Use |
 | `dictionaries/damageTypeCategory.json` | 45 entrées : catégories de dégâts (`Damage_Gun`, `Damage_BlueZone`, `Damage_Instant_Fall`) | `damage-type-label-service.ts`, prêt pour future page analytics dégâts |
 | `dictionaries/mapName.json` | 12 entrées : noms officiels des cartes (`Baltic_Main → "Erangel (Remastered)"`) | Alimente `map-label-service.ts` |
 | `dictionaries/gameMode.json` | 40 modes : Solo/Duo/Squad TPP+FPP, War Mode, Team Deathmatch | `game-mode-label-service.ts`, appliqué dans les pages telemetry/recoveries |
@@ -132,40 +135,15 @@ Repo source : `https://github.com/pubg/api-assets`. Fichiers versionnés dans `s
 | `enums/vehicle/vehicleType.json` | `WheeledVehicle`, `FloatingVehicle`, `FlyingVehicle`, `Parachute`... | Type TypeScript `VehicleType` |
 | `enums/weatherId.json` | `Clear`, `Night`, `Snow`, `Sunrise`, `Overcast`... | Non utilisé — donnée météo absente du schéma DB |
 
-### Assets visuels
+### Assets visuels — résumé
 
-Téléchargés via `npm run sync:pubg-assets` (script `scripts/sync-pubg-assets.ts`) :
+Téléchargés via `npm run sync:pubg-assets` (script `scripts/sync-pubg-assets.ts`), incrémental, non versionnés (`.gitignore`). Détail complet (conventions de nommage, exceptions de casse, runbook) dans [pubg-assets.md](pubg-assets.md).
 
-| Dossier source | Destination locale | Contenu |
-|---------------|-------------------|---------|
-| `Assets/Item/Weapon/Main/` | `public/icons/pubg/weapons/` | ~30 armes longues |
-| `Assets/Item/Weapon/Handgun/` | `public/icons/pubg/weapons/` | ~7 pistolets |
-| `Assets/Item/Weapon/Melee/` | `public/icons/pubg/weapons/` | ~4 armes de mêlée |
-| `Assets/Vehicle/` | `public/icons/pubg/vehicles/` | 38 véhicules |
-
-Total : **164 icônes armes + 38 icônes véhicules** lors de la dernière synchronisation.
-
-Le dossier `public/icons/pubg/` est dans `.gitignore` — les assets sont générés et non versionnés.
-
-**Convention de nommage armes :**
-
-```typescript
-// Clé télémétrie → nom de fichier asset
-// "WeapAK47_C" → "Item_Weapon_AK47_C.png"
-function weaponTelemetryToAssetName(telemetryId: string): string {
-  return telemetryId.replace(/^Weap/, 'Item_Weapon_')
-}
-```
-
-**Convention de nommage véhicules :**
-
-```typescript
-// "Dacia_A_03_v2_C" → "Dacia_A_00_v2_C"
-// Les variantes de couleur (01, 02, 03...) → variante canonique 00
-function vehicleTelemetryToAssetName(telemetryId: string): string {
-  return telemetryId.replace(/_\d{2}_/, '_00_')
-}
-```
+| Dossier source | Destination locale | Contenu | État au 2026-08-16 |
+|---------------|-------------------|---------|---|
+| `Assets/Item/Weapon/{Main,Handgun,Melee}` + `Assets/Item/Equipment/Throwable` | `public/icons/pubg/weapons/` | Armes à feu + objets lancés (grenades, Molotov, C4...) | 178 fichiers |
+| `Assets/Vehicle/` | `public/icons/pubg/vehicles/` | Véhicules | 38 fichiers |
+| `Assets/Item/Use/{Heal,Boost,Fuel,Gadget}` | `public/icons/pubg/items/` | Soin, boost, fuel, gadget | 8 fichiers |
 
 ---
 

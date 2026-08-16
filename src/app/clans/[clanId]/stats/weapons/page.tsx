@@ -6,6 +6,9 @@ import { useEffect, useMemo, useState } from 'react'
 
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import WeaponIcon from '@/components/ui/WeaponIcon'
+import VehicleIcon from '@/components/ui/VehicleIcon'
+import { weaponIconUrl, vehicleIconUrl } from '@/lib/pubg-assets'
+import { isVehicleKey } from '@/lib/pubg-assets/vehicle-detection'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -51,6 +54,17 @@ const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
 
 const PAGE_SIZE = 10
 
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: 'kills', label: 'Kills' },
+  { value: 'totalDamage', label: 'Damages' },
+  { value: 'headshotRate', label: 'HS%' },
+  { value: 'accuracy', label: 'Précision' },
+  { value: 'avgDistance', label: 'Dist. moy.' },
+  { value: 'shotsFired', label: 'Tirs' },
+  { value: 'hitsLanded', label: 'Touches' },
+  { value: 'matchCount', label: 'Matchs' },
+]
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -78,6 +92,24 @@ function compareText(left: string, right: string) {
 
 function compareNumber(left: number, right: number) {
   return left - right
+}
+
+function WeaponWatermark({ weaponName }: { weaponName: string }) {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) {
+    return null
+  }
+
+  return (
+    <img
+      src={isVehicleKey(weaponName) ? vehicleIconUrl(weaponName) : weaponIconUrl(weaponName)}
+      alt=""
+      aria-hidden="true"
+      className="pubg-icon-filter pointer-events-none absolute -right-4 -top-4 h-32 w-32 rotate-[-12deg] object-contain opacity-80"
+      onError={() => setFailed(true)}
+    />
+  )
 }
 
 export default function ClanTelemetryWeaponsPage() {
@@ -282,12 +314,49 @@ export default function ClanTelemetryWeaponsPage() {
     setSortDirection(nextKey === 'player' || nextKey === 'weapon' ? 'asc' : 'desc')
   }
 
+  function selectSortDescending(key: SortKey) {
+    setSortKey(key)
+    setSortDirection('desc')
+  }
+
   function sortLabel(key: SortKey) {
     if (sortKey !== key) {
       return ''
     }
 
     return sortDirection === 'asc' ? ' ▲' : ' ▼'
+  }
+
+  function headerButtonClass(key: SortKey) {
+    return sortKey === key ? 'font-bold text-[rgb(217,119,6)]' : 'font-semibold'
+  }
+
+  function sortedCellClass(key: SortKey) {
+    return sortKey === key
+      ? 'px-3 py-2 text-right font-black tabular-nums text-[rgb(217,119,6)] bg-[rgba(217,119,6,0.08)]'
+      : 'px-3 py-2 text-right tabular-nums'
+  }
+
+  function sortedCellClassLeft(key: SortKey) {
+    return sortKey === key ? 'px-3 py-2 bg-[rgba(217,119,6,0.08)]' : 'px-3 py-2'
+  }
+
+  function statTileClass(key: SortKey) {
+    return sortKey === key
+      ? 'rounded border border-[rgba(217,119,6,0.35)] bg-[rgba(217,119,6,0.12)] px-1.5 py-1 text-center'
+      : 'rounded bg-gray-50 px-2 py-1.5 text-center'
+  }
+
+  function statLabelClass(key: SortKey) {
+    return sortKey === key
+      ? 'text-[9px] font-bold uppercase tracking-wide text-[rgb(217,119,6)] whitespace-nowrap'
+      : 'text-[10px] font-medium uppercase tracking-wide text-gray-500'
+  }
+
+  function statValueClass(key: SortKey) {
+    return sortKey === key
+      ? 'text-xs font-extrabold tabular-nums text-[rgb(217,119,6)] whitespace-nowrap'
+      : 'text-sm font-semibold tabular-nums text-gray-900'
   }
 
   useEffect(() => {
@@ -419,6 +488,20 @@ export default function ClanTelemetryWeaponsPage() {
               onSelect: () => setActivePlayer(p.value),
             }))}
           />
+
+          <MobileDropdownNav
+            id="weapon-sort-dropdown"
+            label="Trier par (décroissant)"
+            variant="compact"
+            currentLabel={SORT_OPTIONS.find((s) => s.value === sortKey)?.label ?? 'Kills'}
+            visibilityClass="md:hidden"
+            items={SORT_OPTIONS.map((s) => ({
+              key: s.value,
+              label: s.label,
+              active: s.value === sortKey && sortDirection === 'desc',
+              onSelect: () => selectSortDescending(s.value),
+            }))}
+          />
         </div>
 
         {!loading && payload?.matchCount !== undefined ? (
@@ -455,53 +538,58 @@ export default function ClanTelemetryWeaponsPage() {
                       : 'app-podium-badge--bronze'
 
                 return (
-                  <div key={`${row.memberId}:${row.weaponName}`} className="rounded-lg border border-gray-200 bg-white p-3">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-gray-900">{row.displayName}</p>
-                        <div className="mt-0.5 flex items-center gap-1.5">
-                          <WeaponIcon id={row.weaponName} size="sm" />
-                          <p className="truncate text-sm text-gray-600">{row.weaponLabel ?? row.weaponName}</p>
-                          {podiumRank ? (
-                            <span className={`app-podium-badge ${podiumTone} shrink-0`}>#{podiumRank}</span>
-                          ) : null}
+                  <div
+                    key={`${row.memberId}:${row.weaponName}`}
+                    className="relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3"
+                  >
+                    <WeaponWatermark weaponName={row.weaponName} />
+                    <div className="relative">
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-base font-semibold text-gray-900">{row.weaponLabel ?? row.weaponName}</p>
+                            {podiumRank ? (
+                              <span className={`app-podium-badge ${podiumTone} shrink-0`}>#{podiumRank}</span>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 truncate text-sm text-gray-600">{row.displayName}</p>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-2xl font-bold tabular-nums text-gray-900">{formatNumber(row.kills)}</p>
-                        <p className="text-xs text-gray-500">kills</p>
-                        {typeof row.totalDamage === 'number' ? (
-                          <>
-                            <p className="mt-1 text-sm font-semibold tabular-nums text-gray-900">{formatNumber(Math.round(row.totalDamage))}</p>
-                            <p className="text-xs text-gray-500">damages</p>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      <div className="rounded bg-gray-50 px-2 py-1.5 text-center">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">HS%</p>
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{formatPercent(headshotRate)}</p>
-                      </div>
-                      <div className="rounded bg-gray-50 px-2 py-1.5 text-center">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Précision</p>
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{formatPercent(row.accuracy)}</p>
-                      </div>
-                      <div className="rounded bg-gray-50 px-2 py-1.5 text-center">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Dist. moy.</p>
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{formatMeters(row.avgDistance)}</p>
-                      </div>
-                      <div className="rounded bg-gray-50 px-2 py-1.5 text-center">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Tirs</p>
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{formatNumber(row.shotsFired)}</p>
-                      </div>
-                      <div className="rounded bg-gray-50 px-2 py-1.5 text-center">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Touches</p>
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{formatNumber(row.hitsLanded)}</p>
-                      </div>
-                      <div className="rounded bg-gray-50 px-2 py-1.5 text-center">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Matchs</p>
-                        <p className="text-sm font-semibold tabular-nums text-gray-900">{formatNumber(row.matchCount)}</p>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        <div className={statTileClass('kills')}>
+                          <p className={statLabelClass('kills')}>Kills</p>
+                          <p className={statValueClass('kills')}>{formatNumber(row.kills)}</p>
+                        </div>
+                        <div className={statTileClass('totalDamage')}>
+                          <p className={statLabelClass('totalDamage')}>Damages</p>
+                          <p className={statValueClass('totalDamage')}>
+                            {typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}
+                          </p>
+                        </div>
+                        <div className={statTileClass('headshotRate')}>
+                          <p className={statLabelClass('headshotRate')}>HS%</p>
+                          <p className={statValueClass('headshotRate')}>{formatPercent(headshotRate)}</p>
+                        </div>
+                        <div className={statTileClass('accuracy')}>
+                          <p className={statLabelClass('accuracy')}>Précision</p>
+                          <p className={statValueClass('accuracy')}>{formatPercent(row.accuracy)}</p>
+                        </div>
+                        <div className={statTileClass('avgDistance')}>
+                          <p className={statLabelClass('avgDistance')}>Dist. moy.</p>
+                          <p className={statValueClass('avgDistance')}>{formatMeters(row.avgDistance)}</p>
+                        </div>
+                        <div className={statTileClass('shotsFired')}>
+                          <p className={statLabelClass('shotsFired')}>Tirs</p>
+                          <p className={statValueClass('shotsFired')}>{formatNumber(row.shotsFired)}</p>
+                        </div>
+                        <div className={statTileClass('hitsLanded')}>
+                          <p className={statLabelClass('hitsLanded')}>Touches</p>
+                          <p className={statValueClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</p>
+                        </div>
+                        <div className={statTileClass('matchCount')}>
+                          <p className={statLabelClass('matchCount')}>Matchs</p>
+                          <p className={statValueClass('matchCount')}>{formatNumber(row.matchCount)}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -515,57 +603,57 @@ export default function ClanTelemetryWeaponsPage() {
                 <thead className="app-table-head text-left text-xs uppercase tracking-wide">
                   <tr>
                     <th className="px-3 py-2">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('player')}>
+                      <button type="button" className={headerButtonClass('player')} onClick={() => handleSortClick('player')}>
                         Joueur{sortLabel('player')}
                       </button>
                     </th>
                     <th className="px-3 py-2">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('weapon')}>
+                      <button type="button" className={headerButtonClass('weapon')} onClick={() => handleSortClick('weapon')}>
                         Arme{sortLabel('weapon')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('kills')}>
+                      <button type="button" className={headerButtonClass('kills')} onClick={() => handleSortClick('kills')}>
                         Kills{sortLabel('kills')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('headshotRate')}>
+                      <button type="button" className={headerButtonClass('headshotRate')} onClick={() => handleSortClick('headshotRate')}>
                         Headshots %{sortLabel('headshotRate')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('shotsFired')}>
+                      <button type="button" className={headerButtonClass('shotsFired')} onClick={() => handleSortClick('shotsFired')}>
                         Tirs{sortLabel('shotsFired')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('hitsLanded')}>
+                      <button type="button" className={headerButtonClass('hitsLanded')} onClick={() => handleSortClick('hitsLanded')}>
                         Touches{sortLabel('hitsLanded')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
+                      <button type="button" className={headerButtonClass('accuracy')} onClick={() => handleSortClick('accuracy')}>
                         Precision{sortLabel('accuracy')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
+                      <button type="button" className={headerButtonClass('avgDistance')} onClick={() => handleSortClick('avgDistance')}>
                         Distance moyenne{sortLabel('avgDistance')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('totalDamage')}>
+                      <button type="button" className={headerButtonClass('totalDamage')} onClick={() => handleSortClick('totalDamage')}>
                         Damages{sortLabel('totalDamage')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('maxDistance')}>
+                      <button type="button" className={headerButtonClass('maxDistance')} onClick={() => handleSortClick('maxDistance')}>
                         Distance max{sortLabel('maxDistance')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('matchCount')}>
+                      <button type="button" className={headerButtonClass('matchCount')} onClick={() => handleSortClick('matchCount')}>
                         Matchs{sortLabel('matchCount')}
                       </button>
                     </th>
@@ -584,27 +672,31 @@ export default function ClanTelemetryWeaponsPage() {
 
                     return (
                       <tr key={`${row.memberId}:${row.weaponName}`} className="app-table-row">
-                        <td className="px-3 py-2">
+                        <td className={sortedCellClassLeft('player')}>
                           <div className="font-medium text-gray-900">{row.displayName}</div>
                         </td>
-                        <td className="px-3 py-2 text-gray-900">
-                          <div className="flex items-center gap-2">
-                            <WeaponIcon id={row.weaponName} size="sm" />
+                        <td className={`${sortedCellClassLeft('weapon')} text-gray-900`}>
+                          <div className="flex items-center gap-3">
+                            {isVehicleKey(row.weaponName) ? (
+                              <VehicleIcon id={row.weaponName} size="3xl" />
+                            ) : (
+                              <WeaponIcon id={row.weaponName} size="2xl" />
+                            )}
                             <span>{row.weaponLabel ?? row.weaponName}</span>
                             {podiumRank ? (
                               <span className={`app-podium-badge ${podiumTone}`}>#{podiumRank}</span>
                             ) : null}
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.shotsFired)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.hitsLanded)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.accuracy)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.matchCount)}</td>
+                        <td className={sortedCellClass('kills')}>{formatNumber(row.kills)}</td>
+                        <td className={sortedCellClass('headshotRate')}>{formatPercent(headshotRate)}</td>
+                        <td className={sortedCellClass('shotsFired')}>{formatNumber(row.shotsFired)}</td>
+                        <td className={sortedCellClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</td>
+                        <td className={sortedCellClass('accuracy')}>{formatPercent(row.accuracy)}</td>
+                        <td className={sortedCellClass('avgDistance')}>{formatMeters(row.avgDistance)}</td>
+                        <td className={sortedCellClass('totalDamage')}>{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
+                        <td className={sortedCellClass('maxDistance')}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
+                        <td className={sortedCellClass('matchCount')}>{formatNumber(row.matchCount)}</td>
                       </tr>
                     )
                   })}
@@ -617,41 +709,29 @@ export default function ClanTelemetryWeaponsPage() {
                 <p>
                   Lignes {paginationRange.start}-{paginationRange.end} sur {filteredRows.length}
                 </p>
-                <div className="flex items-center gap-2">
+                <div className="app-pagination">
                   <button
                     type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                  >
-                    Premiere
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
+                    className="app-pagination-button"
                     onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                     disabled={currentPage === 1}
+                    aria-label="Page precedente"
+                    title="Page precedente"
                   >
-                    Precedent
+                    ←
                   </button>
-                  <span className="tabular-nums text-xs font-semibold text-gray-500">
-                    Page {currentPage} / {totalPages}
+                  <span className="app-pagination-label">
+                    {currentPage} / {totalPages}
                   </span>
                   <button
                     type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
+                    className="app-pagination-button"
                     onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                     disabled={currentPage === totalPages}
+                    aria-label="Page suivante"
+                    title="Page suivante"
                   >
-                    Suivant
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                  >
-                    Derniere
+                    →
                   </button>
                 </div>
               </div>

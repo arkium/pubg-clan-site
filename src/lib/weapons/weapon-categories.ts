@@ -30,6 +30,7 @@ const WEAPON_CATEGORY_ENTRIES: readonly WeaponCategoryEntry[] = [
   { key: 'k2', category: 'AR', aliases: ['k2'] },
   { key: 'mk47 mutant', category: 'AR', aliases: ['mk47 mutant', 'mutant'] },
   { key: 'famas', category: 'AR', aliases: ['famas'] },
+  { key: 'groza', category: 'AR', aliases: ['groza'] },
 
   { key: 'mini14', category: 'DMR', aliases: ['mini14'] },
   { key: 'slr', category: 'DMR', aliases: ['slr'] },
@@ -38,6 +39,7 @@ const WEAPON_CATEGORY_ENTRIES: readonly WeaponCategoryEntry[] = [
   { key: 'vss', category: 'DMR', aliases: ['vss'] },
   { key: 'qbu88', category: 'DMR', aliases: ['qbu88', 'qbu'] },
   { key: 'mk14', category: 'DMR', aliases: ['mk14'] },
+  { key: 'dragunov', category: 'DMR', aliases: ['dragunov', 'svd'] },
 
   { key: 'kar98k', category: 'SR', aliases: ['kar98k'] },
   { key: 'm24', category: 'SR', aliases: ['m24'] },
@@ -54,16 +56,19 @@ const WEAPON_CATEGORY_ENTRIES: readonly WeaponCategoryEntry[] = [
   { key: 'pp-19 bizon', category: 'SMG', aliases: ['pp-19 bizon', 'bizon'] },
   { key: 'mp9', category: 'SMG', aliases: ['mp9'] },
   { key: 'js9', category: 'SMG', aliases: ['js9'] },
+  { key: 'p90', category: 'SMG', aliases: ['p90'] },
 
   { key: 'm249', category: 'LMG', aliases: ['m249'] },
   { key: 'dp-28', category: 'LMG', aliases: ['dp-28', 'dp28'] },
   { key: 'mg3', category: 'LMG', aliases: ['mg3'] },
+  { key: 'rpd', category: 'LMG', aliases: ['rpd'] },
 
   { key: 's12k', category: 'SG', aliases: ['s12k'] },
   { key: 's1897', category: 'SG', aliases: ['s1897'] },
   { key: 's686', category: 'SG', aliases: ['s686'] },
   { key: 'dbs', category: 'SG', aliases: ['dbs'] },
   { key: 'o12', category: 'SG', aliases: ['o12'] },
+  { key: 'sawed-off', category: 'SG', aliases: ['sawed-off', 'sawnoff'] },
 
   { key: 'p92', category: 'PISTOL', aliases: ['p92'] },
   { key: 'p1911', category: 'PISTOL', aliases: ['p1911'] },
@@ -77,17 +82,21 @@ const WEAPON_CATEGORY_ENTRIES: readonly WeaponCategoryEntry[] = [
   { key: 'machete', category: 'MELEE', aliases: ['machete'] },
   { key: 'crowbar', category: 'MELEE', aliases: ['crowbar'] },
   { key: 'sickle', category: 'MELEE', aliases: ['sickle'] },
+  { key: 'pickaxe', category: 'MELEE', aliases: ['pickaxe'] },
 
   { key: 'frag grenade', category: 'THROWABLE', aliases: ['frag grenade', 'grenade'] },
   { key: 'molotov', category: 'THROWABLE', aliases: ['molotov'] },
   { key: 'smoke grenade', category: 'THROWABLE', aliases: ['smoke grenade'] },
   { key: 'stun grenade', category: 'THROWABLE', aliases: ['stun grenade'] },
   { key: 'c4', category: 'THROWABLE', aliases: ['c4'] },
+  { key: 'sticky grenade', category: 'THROWABLE', aliases: ['sticky grenade', 'sticky bomb'] },
 
   { key: 'crossbow', category: 'SPECIAL', aliases: ['crossbow'] },
   { key: 'panzerfaust', category: 'SPECIAL', aliases: ['panzerfaust'] },
   { key: 'mortar', category: 'SPECIAL', aliases: ['mortar'] },
   { key: 'bluezone grenade', category: 'SPECIAL', aliases: ['bluezone grenade'] },
+  { key: 'm79', category: 'SPECIAL', aliases: ['m79'] },
+  { key: 'stun gun', category: 'SPECIAL', aliases: ['stun gun'] },
 ]
 
 const CATEGORY_BY_ALIAS = new Map<string, WeaponCategory>()

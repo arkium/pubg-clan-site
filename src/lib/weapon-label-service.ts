@@ -4,9 +4,15 @@ import damageCauserNameData from '@/lib/pubg-assets/dictionaries/damageCauserNam
 const WEAPON_LABELS_KEY = 'pubg_weapon_labels'
 const MAX_LABEL_LENGTH = 50
 
-export const DEFAULT_WEAPON_LABELS: Record<string, string> = Object.fromEntries(
-  Object.entries(damageCauserNameData).filter(([key]) => key.startsWith('Weap'))
-)
+/**
+ * MemberWeaponStats.weaponName stores every damage-causer telemetry ID that ever
+ * scored a kill — not just firearms (Weap*_C). Vehicle ramming, Molotov fire fields,
+ * bluezone grenades, etc. all show up here too, so the label dictionary must cover
+ * the whole damageCauserName.json, not just the "Weap" prefix (previously filtered,
+ * which left ~140 real causer IDs falling back to a raw humanized ID — e.g. "BP
+ * CoupeRB" instead of the official "Coupe RB").
+ */
+export const DEFAULT_WEAPON_LABELS: Record<string, string> = { ...damageCauserNameData }
 
 function sanitizeLabel(raw: string, fallback: string) {
   const trimmed = raw.trim()

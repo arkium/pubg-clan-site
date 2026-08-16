@@ -12,6 +12,7 @@ import SquadFrequency from '@/components/dashboard/SquadFrequency'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import TeamPlayCompositionsCard from '@/components/member/TeamPlayCompositionsCard'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
 import type {
@@ -1060,6 +1061,8 @@ export default function DashboardPage() {
         </section>
 
         <ComparisonRadar stats={stats} clanAverage={clanAverage} />
+
+        <TeamPlayCompositionsCard memberId={memberId} period={period} />
 
         {botKillCount !== null ? (
           <Link

@@ -2,13 +2,14 @@
 import { useState } from 'react'
 import { weaponIconUrl, resolveWeaponName } from '@/lib/pubg-assets'
 
-type Size = 'sm' | 'md' | 'lg' | 'xl'
+type Size = 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 
 const sizeClass: Record<Size, string> = {
   sm: 'h-5 w-5',
   md: 'h-6 w-6',
   lg: 'h-8 w-8',
   xl: 'h-12 w-12',
+  '2xl': 'h-16 w-16',
 }
 
 type WeaponIconProps = {

@@ -60,6 +60,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [API — contrats](telemetry/api.md) | Contrats JSON des 30+ routes (clan analytics, queue management, member scope) |
 | [Dashboard monitoring](telemetry/dashboard.md) | Pages dashboard/errors, métriques Prometheus, pages annexes télémétrie, améliorations restantes |
 | [API PUBG](telemetry/pubg-api.md) | 11 endpoints consommés, endpoints non consommés, dictionnaires pubg-assets, contraintes CDN |
+| [Assets pubg-assets](telemetry/pubg-assets.md) | Résolution icône/nom/catégorie depuis un ID télémétrie, convention `Weap`/`Proj`, sync visuel, runbook nouvelle arme |
 | [Ops production](telemetry/ops.md) | Migration SQL manuelle, rollout TEL-403, backfill v1→v2, auto-cleanup, variables d'env, systemd |
 
 ---

@@ -1,23 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import damageCauserNameData from '@/lib/pubg-assets/dictionaries/damageCauserName.json'
+import { isVehicleKey } from '@/lib/pubg-assets/vehicle-detection'
 
 const VEHICLE_LABELS_KEY = 'pubg_vehicle_labels'
 const MAX_LABEL_LENGTH = 50
 
-const VEHICLE_KEY_PREFIXES = [
-  'AirBoat', 'AquaRail',
-  'BP_ATV', 'BP_BearV2', 'BP_BRDM', 'BP_Bicycle', 'BP_Blanc', 'BP_CoupeRB',
-  'BP_DO_', 'BP_Dirtbike', 'BP_Food_Truck', 'BP_Helicopter',
-  'BP_KillTruck', 'BP_LootTruck', 'BP_M_Rony', 'BP_Mirado',
-  'BP_Motorbike', 'BP_Motorglider', 'BP_Niva', 'BP_PickupTruck',
-  'BP_Pillar_Car', 'BP_PonyCoupe', 'BP_Porter', 'BP_Scooter',
-  'BP_Snowbike', 'BP_Snowmobile', 'BP_TukTukTuk', 'BP_Van',
-  'Boat_', 'Buggy_', 'Dacia_', 'EmergencyAircraft_', 'PG117_', 'Uaz_',
-] as const
-
-function isVehicleKey(key: string): boolean {
-  return VEHICLE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))
-}
+export { isVehicleKey } from '@/lib/pubg-assets/vehicle-detection'
 
 export const DEFAULT_VEHICLE_LABELS: Record<string, string> = Object.fromEntries(
   Object.entries(damageCauserNameData).filter(([key]) => isVehicleKey(key))

@@ -2,6 +2,7 @@ import damageCauserNameData from './dictionaries/damageCauserName.json'
 import damageTypeCategoryData from './dictionaries/damageTypeCategory.json'
 import mapNameData from './dictionaries/mapName.json'
 import gameModeData from './dictionaries/gameMode.json'
+import itemIdData from './dictionaries/itemId.json'
 import damageReasonData from './enums/damageReason.json'
 import itemCategoryData from './enums/item/category.json'
 import itemSubCategoryData from './enums/item/subCategory.json'
@@ -22,6 +23,7 @@ export const damageCauserName = damageCauserNameData as Record<string, string>
 export const damageTypeCategory = damageTypeCategoryData as Record<string, string>
 export const mapName = mapNameData as Record<string, string>
 export const gameMode = gameModeData as Record<string, string>
+export const itemId = itemIdData as Record<string, string>
 
 // ── Resolvers ────────────────────────────────────────────────────────────────
 
@@ -55,11 +57,17 @@ export function resolveGameMode(id: string): string {
   return gameMode[id] ?? id
 }
 
+/** Résout un ID d'item (`Item_Heal_Bandage_C`, `Item_Boost_PainKiller_C`…) en nom affiché. */
+export function resolveItemName(id: string): string {
+  return itemId[id] ?? id
+}
+
 // ── Asset URLs ───────────────────────────────────────────────────────────────
 
 export {
   weaponIconUrl,
   vehicleIconUrl,
+  itemIconUrl,
   mapImageUrl,
   weaponTelemetryToAssetName,
   vehicleTelemetryToAssetName,

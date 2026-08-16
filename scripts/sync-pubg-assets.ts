@@ -4,14 +4,15 @@
  * Télécharge les assets visuels depuis pubg/api-assets (raw GitHub).
  *
  * Usages:
- *   npm run sync:pubg-assets                  # armes + véhicules
- *   npm run sync:pubg-assets -- --weapons     # armes uniquement
+ *   npm run sync:pubg-assets                  # armes (+ jetables) + véhicules + items Use
+ *   npm run sync:pubg-assets -- --weapons     # armes + jetables (grenades, C4...) uniquement
  *   npm run sync:pubg-assets -- --vehicles    # véhicules uniquement
+ *   npm run sync:pubg-assets -- --items       # items Use (soin, boost, fuel, gadget) uniquement
  *   npm run sync:pubg-assets -- --maps        # maps No_Text (heatmaps)
  *   npm run sync:pubg-assets -- --force       # réécrit les fichiers existants
  */
 
-import { writeFileSync, mkdirSync, existsSync } from 'fs'
+import { writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from 'fs'
 import { join } from 'path'
 
 const GITHUB_API = 'https://api.github.com/repos/pubg/api-assets/contents'
@@ -74,36 +75,73 @@ async function syncFolder(
   return { downloaded, skipped }
 }
 
+/**
+ * Copie les PNG absents du repo officiel pubg/api-assets (armes trop récentes,
+ * pas encore ajoutées par la communauté — ex. JS9) depuis un dossier versionné
+ * du projet. Toujours écrasé (contrairement au sync GitHub) : un fichier manuel
+ * est sciemment maintenu par le projet, pas un cache à préserver.
+ */
+function copyManualOverrides(sourceDir: string, destDir: string): number {
+  if (!existsSync(sourceDir)) return 0
+  mkdirSync(destDir, { recursive: true })
+  let copied = 0
+  for (const name of readdirSync(sourceDir)) {
+    if (!name.endsWith('.png')) continue
+    copyFileSync(join(sourceDir, name), join(destDir, name))
+    copied++
+  }
+  return copied
+}
+
 const args = process.argv.slice(2)
 const force = args.includes('--force')
 const flagWeapons = args.includes('--weapons')
 const flagVehicles = args.includes('--vehicles')
+const flagItems = args.includes('--items')
 const flagMaps = args.includes('--maps')
-const syncAll = !flagWeapons && !flagVehicles && !flagMaps
+const syncAll = !flagWeapons && !flagVehicles && !flagItems && !flagMaps
 
 const root = process.cwd()
 const weaponsDir = join(root, 'public', 'icons', 'pubg', 'weapons')
 const vehiclesDir = join(root, 'public', 'icons', 'pubg', 'vehicles')
+const itemsDir = join(root, 'public', 'icons', 'pubg', 'items')
 const mapsDir = join(root, 'public', 'maps', 'pubg')
+const manualWeaponAssetsDir = join(root, 'scripts', 'manual-weapon-assets')
 
 async function main() {
   console.log(`Mode: ${force ? 'force (réécriture)' : 'incrémental (skip existants)'}`)
 
   if (syncAll || flagWeapons) {
-    console.log('\nArmes — Main, Handgun, Melee...')
+    console.log('\nArmes — Main, Handgun, Melee, Throwable...')
     let total = { downloaded: 0, skipped: 0 }
-    for (const sub of ['Main', 'Handgun', 'Melee']) {
-      const result = await syncFolder(`Assets/Item/Weapon/${sub}`, weaponsDir, force)
+    for (const sub of ['Weapon/Main', 'Weapon/Handgun', 'Weapon/Melee', 'Equipment/Throwable']) {
+      const result = await syncFolder(`Assets/Item/${sub}`, weaponsDir, force)
       total.downloaded += result.downloaded
       total.skipped += result.skipped
     }
     console.log(`\n  ✓ ${total.downloaded} téléchargés, ${total.skipped} déjà présents`)
+
+    const manualCopied = copyManualOverrides(manualWeaponAssetsDir, weaponsDir)
+    if (manualCopied > 0) {
+      console.log(`  ✓ ${manualCopied} icône(s) manuelle(s) recopiée(s) depuis scripts/manual-weapon-assets/ (absentes du repo officiel)`)
+    }
   }
 
   if (syncAll || flagVehicles) {
     console.log('\nVéhicules...')
     const result = await syncFolder('Assets/Vehicle', vehiclesDir, force)
     console.log(`\n  ✓ ${result.downloaded} téléchargés, ${result.skipped} déjà présents`)
+  }
+
+  if (syncAll || flagItems) {
+    console.log('\nItems — Heal, Boost, Fuel, Gadget...')
+    let total = { downloaded: 0, skipped: 0 }
+    for (const sub of ['Heal', 'Boost', 'Fuel', 'Gadget']) {
+      const result = await syncFolder(`Assets/Item/Use/${sub}`, itemsDir, force)
+      total.downloaded += result.downloaded
+      total.skipped += result.skipped
+    }
+    console.log(`\n  ✓ ${total.downloaded} téléchargés, ${total.skipped} déjà présents`)
   }
 
   if (flagMaps) {

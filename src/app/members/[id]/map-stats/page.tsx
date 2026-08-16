@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { Map } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
-import TeamModeBadge from '@/components/ui/TeamModeBadge'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -59,138 +59,37 @@ const SORT_LABELS: Record<SortKey, string> = {
   avgDurationSeconds: 'Duree moyenne',
 }
 
-type MetricTone = 'sky' | 'emerald' | 'violet' | 'amber' | 'rose'
+type StatTone = 'success' | 'danger' | 'info' | 'neutral'
 
-function MetricIcon({ name }: { name: 'wins' | 'winRate' | 'top10' | 'placement' | 'kills' | 'damage' | 'ko' | 'assists' | 'headshots' | 'revives' | 'duration' }) {
-  if (name === 'wins') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M6 4h8v2a4 4 0 0 1-8 0V4Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M6 5H4a1 1 0 0 0-1 1v.5A2.5 2.5 0 0 0 5.5 9H6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M14 5h2a1 1 0 0 1 1 1v.5A2.5 2.5 0 0 1 14.5 9H14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M10 10v3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        <path d="M7.5 16h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'winRate') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M10 3v7l4.5 2.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="10" cy="10" r="6.5" stroke="currentColor" strokeWidth="1.6" />
-      </svg>
-    )
-  }
-
-  if (name === 'top10') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="m10 3 1.7 3.4 3.8.6-2.7 2.6.6 3.8-3.4-1.8-3.4 1.8.6-3.8L4.5 7l3.8-.6L10 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'placement') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M4 15h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        <path d="M6 15V9h2v6M11 15V5h2v10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'kills') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <circle cx="10" cy="10" r="4.5" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M10 2.5v3M10 14.5v3M2.5 10h3M14.5 10h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'damage') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M11 2 5.5 10H10L9 18l5.5-8H10l1-8Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'ko') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M5 11.5 8 8.5l2 2 5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M4 15h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'assists') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M6.5 11c1 0 1.8-.8 1.8-1.8S7.5 7.5 6.5 7.5s-1.8.8-1.8 1.7S5.5 11 6.5 11ZM13.5 11c1 0 1.8-.8 1.8-1.8s-.8-1.7-1.8-1.7-1.8.8-1.8 1.7.8 1.8 1.8 1.8Z" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M3.8 15c.7-1.8 2-2.7 3.9-2.7 1.1 0 2 .3 2.8.9.8-.6 1.7-.9 2.8-.9 1.9 0 3.2.9 3.9 2.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    )
-  }
-
-  if (name === 'headshots') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <circle cx="10" cy="10" r="5" stroke="currentColor" strokeWidth="1.6" />
-        <circle cx="10" cy="10" r="1.4" fill="currentColor" />
-      </svg>
-    )
-  }
-
-  if (name === 'revives') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-        <path d="M10 16s-5-2.8-5-7a2.8 2.8 0 0 1 5-1.7A2.8 2.8 0 0 1 15 9c0 4.2-5 7-5 7Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-        <path d="M10 7.5v3M8.5 9h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
-      <circle cx="10" cy="10" r="6" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M10 6.5v3.8l2.5 1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+function statToneClass(tone: StatTone) {
+  if (tone === 'success') return 'text-emerald-500'
+  if (tone === 'danger') return 'text-red-500'
+  if (tone === 'info') return 'text-blue-500'
+  return 'text-gray-900'
 }
 
-function metricToneClasses(tone: MetricTone) {
-  if (tone === 'emerald') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
-  if (tone === 'violet') return 'border-violet-200 bg-violet-50 text-violet-700'
-  if (tone === 'amber') return 'border-amber-200 bg-amber-50 text-amber-700'
-  if (tone === 'rose') return 'border-rose-200 bg-rose-50 text-rose-700'
-  return 'border-sky-200 bg-sky-50 text-sky-700'
-}
-
-function MetricTile({
+function CompactStat({
   label,
   value,
-  icon,
   tone,
-  compact = false,
+  active = false,
 }: {
   label: string
   value: string | number
-  icon: 'wins' | 'winRate' | 'top10' | 'placement' | 'kills' | 'damage' | 'ko' | 'assists' | 'headshots' | 'revives' | 'duration'
-  tone: MetricTone
-  compact?: boolean
+  tone: StatTone
+  active?: boolean
 }) {
+  const boxClass = active
+    ? 'rounded-lg border border-[rgba(217,119,6,0.4)] bg-[rgba(217,119,6,0.12)] px-1 py-1.5 text-center'
+    : 'rounded-lg bg-gray-50 px-1 py-1.5 text-center'
+  const labelClass = active
+    ? 'mt-1 text-[9px] font-bold uppercase leading-tight tracking-wide text-[rgb(217,119,6)]'
+    : 'mt-1 text-[9px] font-semibold uppercase leading-tight tracking-wide text-gray-500'
+
   return (
-    <div className={`map-stats-metric-tile rounded-xl border px-3 py-3 ${compact ? 'min-h-[5.5rem]' : 'min-h-[6.4rem]'} ${metricToneClasses(tone)}`}>
-      <div className="mb-2 flex items-center justify-start gap-2 text-left">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-current/20 bg-white/70">
-          <MetricIcon name={icon} />
-        </span>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
-      </div>
-      <p className={`mt-1 text-center font-semibold ${compact ? 'text-base' : 'text-lg'}`}>{value}</p>
+    <div className={boxClass}>
+      <p className={`text-base font-black leading-none tabular-nums ${statToneClass(tone)}`}>{value}</p>
+      <p className={labelClass}>{label}</p>
     </div>
   )
 }
@@ -228,14 +127,20 @@ type MapStatsPayload = {
   error?: string
 }
 
+function podiumToneClass(rank: number) {
+  if (rank === 1) return 'app-podium-badge--gold'
+  if (rank === 2) return 'app-podium-badge--silver'
+  return 'app-podium-badge--bronze'
+}
+
 function MapCardBanner({
   mapName,
   mapLabel,
-  matches,
+  podiumRank,
 }: {
   mapName: string
   mapLabel: string
-  matches: number
+  podiumRank: number | null
 }) {
   const [imgFailed, setImgFailed] = useState(false)
 
@@ -246,10 +151,9 @@ function MapCardBanner({
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">Carte</p>
           <h3 className="mt-1 text-xl font-semibold text-gray-900">{mapLabel}</h3>
         </div>
-        <div className="flex min-w-[5.5rem] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 px-3 py-2 text-center shadow-sm ring-1 ring-slate-200/70">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Matchs</p>
-          <p className="mt-1 text-xl font-bold leading-none text-gray-900">{matches}</p>
-        </div>
+        {podiumRank ? (
+          <span className={`app-podium-badge ${podiumToneClass(podiumRank)} shrink-0`}>#{podiumRank}</span>
+        ) : null}
       </div>
     )
   }
@@ -268,10 +172,9 @@ function MapCardBanner({
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">Carte</p>
           <h3 className="text-lg font-bold leading-tight text-white drop-shadow">{mapLabel}</h3>
         </div>
-        <div className="flex shrink-0 flex-col items-center rounded-xl border border-white/20 bg-black/40 px-2.5 py-1.5 text-center backdrop-blur-sm">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">Matchs</p>
-          <p className="text-lg font-bold leading-none text-white">{matches}</p>
-        </div>
+        {podiumRank ? (
+          <span className={`app-podium-badge ${podiumToneClass(podiumRank)} shrink-0`}>#{podiumRank}</span>
+        ) : null}
       </div>
     </div>
   )
@@ -295,39 +198,6 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(total / 60)
   const remaining = total % 60
   return `${minutes}m ${String(remaining).padStart(2, '0')}s`
-}
-
-function modeCardTone(mode: BestMode) {
-  if (mode === 'duo') {
-    return {
-      card: 'border-sky-200 bg-sky-50 text-sky-800',
-      title: 'text-sky-900',
-      playersWrap: 'border-sky-200 bg-white/80',
-      playerPill: 'border-sky-200 bg-white text-sky-900',
-      metric: 'border-sky-200 bg-white/85',
-      metricValue: 'text-sky-900',
-    }
-  }
-
-  if (mode === 'trio') {
-    return {
-      card: 'border-violet-200 bg-violet-50 text-violet-800',
-      title: 'text-violet-900',
-      playersWrap: 'border-violet-200 bg-white/80',
-      playerPill: 'border-violet-200 bg-white text-violet-900',
-      metric: 'border-violet-200 bg-white/85',
-      metricValue: 'text-violet-900',
-    }
-  }
-
-  return {
-    card: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    title: 'text-emerald-900',
-    playersWrap: 'border-emerald-200 bg-white/80',
-    playerPill: 'border-emerald-200 bg-white text-emerald-900',
-    metric: 'border-emerald-200 bg-white/85',
-    metricValue: 'text-emerald-900',
-  }
 }
 
 function compactScopeLabel(label: string) {
@@ -454,16 +324,6 @@ export default function MemberMapStatsPage() {
     )
   }
 
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'))
-      return
-    }
-
-    setSortKey(key)
-    setSortDir('desc')
-  }
-
   const sortedMapStats = [...(payload?.mapStats ?? [])].sort((left, right) => {
     const leftValue = left[sortKey]
     const rightValue = right[sortKey]
@@ -480,16 +340,6 @@ export default function MemberMapStatsPage() {
     const result = Number(leftValue) - Number(rightValue)
     return sortDir === 'asc' ? result : -result
   })
-
-  const bestCompositionCards =
-    scope === 'best'
-      ? (payload?.bestCompositions ?? []).filter((entry) => entry.mode === bestMode)
-      : payload?.bestCompositions ?? []
-
-  const bestCompositionsTitle =
-    scope === 'best'
-      ? `Team Play ${bestMode === 'duo' ? 'Duo' : bestMode === 'trio' ? 'Trio' : 'Squad'}`
-      : 'Team Play Duo/Trio/Squad'
 
   const scopeLabelMap: Record<Scope, string> = {
     self: 'Le joueur',
@@ -611,12 +461,13 @@ export default function MemberMapStatsPage() {
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="mb-6">
         <MemberPageHeader
           title="Statistique des cartes"
           subtitle="Pilote les performances d'equipe carte par carte avec les filtres actifs."
           showBackButton={false}
-          framed={false}
+          backgroundImage="/map-stats.jpg"
+          icon={<Map className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
       </section>
 
@@ -721,64 +572,6 @@ export default function MemberMapStatsPage() {
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       ) : null}
 
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">{bestCompositionsTitle}</h2>
-        <p className="mb-3 text-sm text-gray-500">
-          Repere en un coup d'oeil les coequipiers avec qui ton impact est le plus fort.
-        </p>
-        <div className="grid gap-3 md:grid-cols-3">
-          {bestCompositionCards.map((entry) => {
-            const tone = modeCardTone(entry.mode)
-
-            return (
-            <article key={entry.mode} className={`rounded-2xl border p-4 shadow-sm ${tone.card}`}>
-              <div className="flex items-center justify-between gap-2">
-                <TeamModeBadge mode={entry.mode} label={entry.label} size="sm" className="shadow-none" />
-                <span className={`text-lg font-bold ${tone.title}`}>{formatPercent(entry.winRate)}</span>
-              </div>
-
-              <div className={`mt-3 rounded-xl border p-3 ${tone.playersWrap}`}>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Composition</p>
-                {entry.teamMembers.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {entry.teamMembers.map((name) => (
-                      <span
-                        key={`${entry.mode}-${name}`}
-                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-sm font-semibold ${tone.playerPill}`}
-                      >
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">Aucune composition</p>
-                )}
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Matchs</p>
-                  <p className={`mt-1 text-lg font-bold ${tone.metricValue}`}>{entry.matches}</p>
-                </div>
-                <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Wins</p>
-                  <p className={`mt-1 text-lg font-bold ${tone.metricValue}`}>{entry.wins}</p>
-                </div>
-                <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Win rate</p>
-                  <p className={`mt-1 text-base font-bold ${tone.metricValue}`}>{formatPercent(entry.winRate)}</p>
-                </div>
-                <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Place moy.</p>
-                  <p className={`mt-1 text-base font-bold ${tone.metricValue}`}>{entry.avgPlacement.toFixed(2)}</p>
-                </div>
-              </div>
-            </article>
-            )
-          })}
-        </div>
-      </section>
-
       <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -830,47 +623,35 @@ export default function MemberMapStatsPage() {
           <p className="text-sm text-gray-500">Aucune statistique disponible pour les filtres sélectionnés.</p>
         ) : (
           <div className="map-stats-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {sortedMapStats.map((entry) => (
-              <article
-                key={entry.mapName}
-                className="map-stats-card overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-gray-50 p-4 shadow-sm"
-              >
-                <MapCardBanner mapName={entry.mapName} mapLabel={entry.mapLabel} matches={entry.matches} />
+            {sortedMapStats.map((entry, index) => {
+              const podiumRank = sortKey !== 'mapLabel' && index < 3 ? index + 1 : null
 
-                <div className="grid grid-cols-2 gap-3">
-                  <MetricTile label="Wins" value={entry.wins} icon="wins" tone="amber" />
-                  <MetricTile label="Win rate" value={formatPercent(entry.winRate)} icon="winRate" tone="emerald" />
-                  <MetricTile label="Top 10" value={formatPercent(entry.top10Rate)} icon="top10" tone="violet" />
-                  <MetricTile label="Place moy." value={Math.round(entry.avgPlacement)} icon="placement" tone="sky" />
-                </div>
+              return (
+                <article
+                  key={entry.mapName}
+                  className="map-stats-card overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-gray-50 p-4 shadow-sm"
+                >
+                  <MapCardBanner mapName={entry.mapName} mapLabel={entry.mapLabel} podiumRank={podiumRank} />
 
-                <details className="mt-4 rounded-2xl border border-gray-200 bg-white/70 p-3 group">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 select-none [&::-webkit-details-marker]:hidden">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Detail performance</p>
-                      <p className="mt-1 text-xs text-gray-500">Voir les metriques complementaires.</p>
-                    </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition group-open:rotate-180">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M3.5 6L8 10.5L12.5 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                  </summary>
-                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                    <MetricTile label="Kills" value={entry.totalKills} icon="kills" tone="sky" compact />
-                    <MetricTile label="Damage" value={Math.round(entry.totalDamage)} icon="damage" tone="rose" compact />
-                    <MetricTile label="KO" value={entry.totalKnockouts} icon="ko" tone="violet" compact />
-                    <MetricTile label="Assists" value={entry.totalAssists} icon="assists" tone="emerald" compact />
-                    <MetricTile label="Headshots" value={entry.totalHeadshots} icon="headshots" tone="amber" compact />
-                    <MetricTile label="Revives" value={entry.totalRevives} icon="revives" tone="emerald" compact />
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <CompactStat label="Matchs" value={entry.matches} tone="neutral" active={sortKey === 'matches'} />
+                    <CompactStat label="Victoires" value={entry.wins} tone="success" active={sortKey === 'wins'} />
+                    <CompactStat label="Win rate" value={formatPercent(entry.winRate)} tone="success" active={sortKey === 'winRate'} />
+                    <CompactStat label="Top 10" value={formatPercent(entry.top10Rate)} tone="success" active={sortKey === 'top10Rate'} />
+
+                    <CompactStat label="Place moy." value={Math.round(entry.avgPlacement)} tone="neutral" active={sortKey === 'avgPlacement'} />
+                    <CompactStat label="Kills" value={entry.totalKills} tone="danger" active={sortKey === 'totalKills'} />
+                    <CompactStat label="KO" value={entry.totalKnockouts} tone="danger" active={sortKey === 'totalKnockouts'} />
+                    <CompactStat label="Headshots" value={entry.totalHeadshots} tone="danger" active={sortKey === 'totalHeadshots'} />
+
+                    <CompactStat label="Damage" value={Math.round(entry.totalDamage)} tone="neutral" active={sortKey === 'totalDamage'} />
+                    <CompactStat label="Assists" value={entry.totalAssists} tone="info" active={sortKey === 'totalAssists'} />
+                    <CompactStat label="Revives" value={entry.totalRevives} tone="info" active={sortKey === 'totalRevives'} />
+                    <CompactStat label="Duree" value={formatDuration(entry.avgDurationSeconds)} tone="neutral" active={sortKey === 'avgDurationSeconds'} />
                   </div>
-                </details>
-
-                <div className="mt-4">
-                  <MetricTile label="Duree moyenne" value={formatDuration(entry.avgDurationSeconds)} icon="duration" tone="sky" compact />
-                </div>
-              </article>
-            ))}
+                </article>
+              )
+            })}
           </div>
         )}
       </section>

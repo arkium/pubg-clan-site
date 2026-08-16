@@ -645,7 +645,7 @@ Le parser `parseTelemetrySnapshotFromStream` dans `parser.ts` est un vrai stream
 
 ### Events télémétrie non parsés
 
-Développé et déployé le 2026-08-04 à partir de fichiers réels dans `.telemetry-captured/` (structure des événements vérifiée directement, pas juste le nom du champ). **Résultat sur les 3 items : 1 déployé (lancers), 1 abandonné après investigation car déjà résolu autrement (distance véhicule), 1 abandonné car la prémisse était fausse (arme au moment du kill).**
+Développé et déployé le 2026-08-04 à partir de fichiers réels dans `.telemetry-captured/` (structure des événements vérifiée directement, pas juste le nom du champ). **Résultat sur les 3 premiers items : 1 déployé (lancers), 1 abandonné après investigation car déjà résolu autrement (distance véhicule), 1 abandonné car la prémisse était fausse (arme au moment du kill).** Un 4e item (objets de soin/boost consommés) a été ajouté le 2026-08-16, non encore développé.
 
 **Correction d'abord :** `LogVehicleLeave.maxSpeed` est **déjà parsé** ([parser.ts:1379](../../src/lib/pubg-telemetry/parser.ts#L1379), champ `TelemetryMemberStats.maxVehicleSpeedKph`) — la ligne du tableau précédent était obsolète, ce n'est plus à faire.
 
@@ -682,6 +682,39 @@ Développé et déployé le 2026-08-04 à partir de fichiers réels dans `.telem
 - [ ] Si un besoin distinct existe vraiment ("composition d'arsenal transportée", indépendamment des kills), ce serait une reconstruction complète de l'état d'équipement dans le temps via `LogItemEquip`/`LogItemUnequip`/`LogItemPickup`/`LogItemDrop` croisés par timestamp — un chantier bien plus lourd que l'estimation initiale (4–8h → plutôt 2–3 jours), avec une justification produit à clarifier avant de s'y engager
 
 **Ce qui n'est PAS à faire (confirmé) :** chercher `primaryWeaponFirst` par kill, c'est structurellement absent de la télémétrie.
+
+#### 4. `LogItemUse` (catégorie `Use`) — détail des objets de soin/boost consommés + page dédiée — 🆕 À faire
+
+Demandé le 2026-08-16, en prolongement de l'ajout des icônes manquantes (`public/icons/pubg/items/`, synchronisées via `npm run sync:pubg-assets -- --items`, voir plus bas) pour Heal/Boost/Fuel/Gadget.
+
+**État actuel :** `LogItemUse` est déjà parsé ([parser.ts:1347](../../src/lib/pubg-telemetry/parser.ts#L1347)) mais uniquement en agrégats grossiers : `summary.itemUseEvents` (compteur global, tous types confondus — y compris munitions/attachments, pas seulement `Use`), `boostsUsed` (détection **fragile par sous-chaîne** sur l'`itemId` : `.includes('boost')`/`'energy'`/`'adrenaline'`/`'painkiller'`), `recalls` (bluechip transmitter). `LogHeal` ([parser.ts:1395](../../src/lib/pubg-telemetry/parser.ts#L1395)) alimente `healsUsed` + `healAmountTotal`, sans détail par type d'objet.
+
+**Découverte en préparant ce chantier (vérifiée sur des captures réelles dans `.telemetry-captured/`) :** `LogItemUse` porte déjà `item.category` et `item.subCategory` directement dans le payload — pas besoin de deviner via des sous-chaînes comme le fait `boostsUsed` aujourd'hui :
+```json
+{"item": {"itemId": "Item_Heal_FirstAid_C", "category": "Use", "subCategory": "Heal"}}
+{"item": {"itemId": "Item_Boost_AdrenalineSyringe_C", "category": "Use", "subCategory": "Boost"}}
+{"item": {"itemId": "Item_JerryCan_C", "category": "Use", "subCategory": "Fuel"}}
+{"item": {"itemId": "Item_Mountainbike_C", "category": "Use", "subCategory": "Gadget"}}
+```
+**Piège vérifié :** `LogHeal.item.itemId` est **vide** dans les captures réelles (`""`) — ne pas s'appuyer dessus pour le détail par objet, c'est `LogItemUse` avec `subCategory === 'Heal'` qui porte l'`itemId` fiable.
+
+**Bug de casse déjà corrigé au passage (2026-08-16) :** l'`itemId` télémétrie du vélo de montagne est `Item_Mountainbike_C` (« b » minuscule) mais l'asset du repo officiel est `Item_MountainBike_C.png` (« B » majuscule) — invisible sur Windows/macOS (FS insensible à la casse) mais aurait cassé silencieusement en prod Linux. Corrigé via une table d'alias dans `itemIconUrl()` ([asset-url.ts](../../src/lib/pubg-assets/asset-url.ts)).
+
+- [ ] Nouvelle table `MemberItemUseStat` (`squadMatchId`, `memberId`, `itemId`, `category`, `subCategory`, `count`, `matchDate`), unique sur `[squadMatchId, memberId, itemId]` — même schéma que `MemberThrowableStat` (migration `20260804150000_add_member_throwable_stat`), remplacement idempotent par match reparsé.
+- [ ] Capturer les échantillons dans le parser (`parser.ts`, bloc `LogItemUse` ~ligne 1347) : pousser `{actorKey, itemId, category, subCategory}` dans un nouveau tableau `itemUseSamples` de l'accumulateur, **sans filtrer** sur `category === 'Use'` à ce stade (garder tout, filtrer à la persistance) — même raison que pour les lancers : `clanMemberKeys` est vide sur le chemin de sync principal, la résolution contre le roster se fait à la persistance.
+- [ ] Remplacer la détection par sous-chaîne de `boostsUsed` (parser.ts ~lignes 1353–1357) par un test sur `item.subCategory === 'Boost'` — plus robuste, aligné sur les enums déjà présents dans `src/lib/pubg-assets/enums/item/{category,subCategory}.json`.
+- [ ] Créer `item-use-persistence.ts` sur le modèle de `throwable-persistence.ts` : résoudre chaque `actorKey` contre tout le roster clan (pas seulement la squad détectée), écrire les lignes `MemberItemUseStat` en ne conservant que `category === 'Use'`.
+- [ ] Brancher la persistance sur les 3 chemins de sync existants (`pubg-telemetry/index.ts` + les 2 points de `manual-sync.ts`), juste après `persistThrowableStatsForMatch`.
+- [ ] Route API `GET /api/members/[id]/item-use` (cumul lifetime, `groupBy` Prisma sur `itemId`) sur le modèle de `GET /api/members/[id]/throwables` ; envisager aussi `GET /api/clans/[clanId]/telemetry/item-use` si la page clan agrège par clan et pas seulement par membre.
+- [ ] **Page dédiée** (contrairement aux lancers, qui n'ont qu'une section sur `/members/[id]/weapons`) : `/members/[id]/items` et/ou `/clans/[clanId]/stats/items` — répartition Heal vs Boost vs Fuel vs Gadget, top objets utilisés par joueur, icône via `ItemIcon` (déjà créé, `src/components/ui/ItemIcon.tsx`) + libellé via `resolveItemName()` (`src/lib/pubg-assets/index.ts`). Suivre les conventions du projet : `app-container`/`app-main`, `ClanSectionNav`, cartes mobile + tableau desktop comme `/clans/[clanId]/stats/weapons`.
+- [ ] Vérifier après ajout de tout nouvel `itemId` apparu en prod (nouvelle saison, nouvel objet) qu'il est bien couvert par `npm run sync:pubg-assets -- --items` — sinon l'icône se dégrade silencieusement vers `null` (comportement `ItemIcon` déjà en place, pas un bug bloquant).
+- [ ] **Tests parser** : un event `LogItemUse` par `subCategory` (Heal/Boost/Fuel/Gadget) doit produire un échantillon avec le bon `itemId`/`category`/`subCategory` ; un `LogHeal` sans `itemId` ne doit pas produire de faux échantillon "Heal" ; un item hors catégorie `Use` (ex. `Ammunition`, observé dans les captures réelles) ne doit pas apparaître dans les agrégats "objets consommés" une fois le filtre de persistance appliqué.
+- [ ] **Tests service de persistance** : remplacement idempotent par match (comme `throwable-persistence.test.ts`), résolution `memberId` depuis `actorKey` contre le roster clan complet, filtrage `category !== 'Use'` exclu.
+- [ ] **Tests route API** : cumul lifetime correct, tri par `count`, comportement sur un membre sans aucune donnée.
+- [ ] Valider ESLint et TypeScript sur tous les fichiers touchés.
+- [ ] Vérifier par un vrai resync (comme pour les lancers le 2026-08-04) que les compteurs par item correspondent à une lecture manuelle de quelques événements `LogItemUse` d'un match réel.
+
+**Effort estimé :** comparable aux lancers pour l'extraction/persistance (2–4h), plus le temps d'une page dédiée complète (mobile + desktop, contrairement à la simple section ajoutée pour les lancers) et ses tests — plutôt 1 jour complet.
 
 ---
 

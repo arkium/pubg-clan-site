@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import Image from 'next/image'
+import { MapPin } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -492,14 +493,18 @@ export default function MemberDropZonesPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="app-panel mb-5 p-4">
+      <section className="mb-5">
         <MemberPageHeader
           title="Drop zones"
           subtitle="Positions d'atterrissage du joueur (points + zones d'influence) selon la période."
           showBackButton={false}
-          framed={false}
+          backgroundImage="/drop-zones.jpg"
+          icon={<MapPin className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
-        <div className="mt-4 border-t border-slate-200 pt-4">
+      </section>
+
+      <section className="app-panel mb-5 p-4">
+        <div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <div className="min-w-0">
             <MobileDropdownNav

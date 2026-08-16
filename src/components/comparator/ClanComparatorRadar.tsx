@@ -205,6 +205,29 @@ export default function ClanComparatorRadar({ clans }: ClanComparatorRadarProps)
               </tbody>
             </table>
           </div>
+
+          <dl className="mt-3 grid gap-x-4 gap-y-1 border-t border-[var(--theme-ui-border)] pt-2 text-[11px] text-[var(--theme-ui-text-muted)] sm:grid-cols-2">
+            <div className="flex gap-1">
+              <dt className="shrink-0 font-semibold text-[var(--theme-ui-text-secondary)]">Agressivité :</dt>
+              <dd>dégâts moyens infligés par match</dd>
+            </div>
+            <div className="flex gap-1">
+              <dt className="shrink-0 font-semibold text-[var(--theme-ui-text-secondary)]">Survie :</dt>
+              <dd>temps de survie moyen par match</dd>
+            </div>
+            <div className="flex gap-1">
+              <dt className="shrink-0 font-semibold text-[var(--theme-ui-text-secondary)]">Teamplay :</dt>
+              <dd>revives donnés par match</dd>
+            </div>
+            <div className="flex gap-1">
+              <dt className="shrink-0 font-semibold text-[var(--theme-ui-text-secondary)]">Activité :</dt>
+              <dd>part du roster actif sur la période</dd>
+            </div>
+            <div className="flex gap-1">
+              <dt className="shrink-0 font-semibold text-[var(--theme-ui-text-secondary)]">Winrate :</dt>
+              <dd>part des matchs terminés en victoire</dd>
+            </div>
+          </dl>
         </div>
       </div>
 

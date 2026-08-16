@@ -119,6 +119,10 @@ const CATEGORY_INFO: Partial<Record<WeaponCategory, CategoryInfo>> = {
 }
 
 // Static mapping: weapon-categories.ts key → PUBG telemetry ID (for icon lookup)
+// Smoke/stun grenades have no real damage-causer telemetry ID (they never cause a kill,
+// verified against dictionaries/damageCauserName.json) — the IDs below for those two
+// are synthetic ("Proj" + asset name), built solely to resolve through
+// weaponTelemetryToAssetName()'s prefix rule, never expected to match a real kill row.
 const KEY_TO_TELEMETRY_ID: Record<string, string> = {
   akm: 'WeapAK47_C',
   m16a4: 'WeapM16A4_C',
@@ -127,6 +131,8 @@ const KEY_TO_TELEMETRY_ID: Record<string, string> = {
   'beryl m762': 'WeapBerylM762_C',
   'aug a3': 'WeapAUG_C',
   ace32: 'WeapACE32_C',
+  famas: 'WeapFAMASG2_C',
+  groza: 'WeapGroza_C',
   qbz95: 'WeapQBZ95_C',
   g36c: 'WeapG36C_C',
   k2: 'WeapK2_C',
@@ -144,6 +150,7 @@ const KEY_TO_TELEMETRY_ID: Record<string, string> = {
   'mosin nagant': 'WeapMosinNagant_C',
   win94: 'WeapWin94_C',
   'lynx amr': 'WeapL6_C',
+  dragunov: 'WeapDragunov_C',
   ump9: 'WeapUMP_C',
   vector: 'WeapVector_C',
   'tommy gun': 'WeapThompson_C',
@@ -152,14 +159,17 @@ const KEY_TO_TELEMETRY_ID: Record<string, string> = {
   'pp-19 bizon': 'WeapBizonPP19_C',
   mp9: 'WeapMP9_C',
   js9: 'WeapJS9_C',
+  p90: 'WeapP90_C',
   m249: 'WeapM249_C',
   'dp-28': 'WeapDP28_C',
   mg3: 'WeapMG3_C',
+  rpd: 'WeapRPD_C',
   s12k: 'WeapSaiga12_C',
   s1897: 'WeapWinchester_C',
   s686: 'WeapBerreta686_C',
   dbs: 'WeapDP12_C',
   o12: 'WeapOriginS12_C',
+  'sawed-off': 'WeapSawnoff_C',
   p92: 'WeapM9_C',
   p1911: 'WeapM1911_C',
   p18c: 'WeapG18_C',
@@ -173,6 +183,17 @@ const KEY_TO_TELEMETRY_ID: Record<string, string> = {
   sickle: 'WeapSickle_C',
   crossbow: 'WeapCrossbow_1_C',
   panzerfaust: 'WeapPanzerFaust100M1_C',
+  'frag grenade': 'ProjGrenade_C',
+  molotov: 'ProjMolotov_C',
+  'smoke grenade': 'ProjSmokeBomb_C',
+  'stun grenade': 'ProjFlashBang_C',
+  c4: 'ProjC4_C',
+  'sticky grenade': 'ProjStickyGrenade_C',
+  mortar: 'Mortar_Projectile_C',
+  'bluezone grenade': 'Bluezonebomb_EffectActor_C',
+  pickaxe: 'WeapPickAxe_C',
+  m79: 'WeapM79_C',
+  'stun gun': 'WeapStunGun_C',
 }
 
 export default async function WeaponCategoryAliasesPage({ params, searchParams }: PageProps) {

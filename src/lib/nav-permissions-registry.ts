@@ -464,6 +464,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'superuser',
     description: 'Vue transverse des clans suivis et des clans adverses croisés, tous clans confondus.',
   },
+  {
+    navKey: 'superuser.match-import',
+    section: 'superuser-menu',
+    label: 'Import de matchs PUBG',
+    hrefTemplate: '/settings/match-import',
+    defaultRole: 'superuser',
+    description: "Vérification et import manuel des derniers matchs PUBG d'un membre, tous clans confondus.",
+  },
 ]
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */

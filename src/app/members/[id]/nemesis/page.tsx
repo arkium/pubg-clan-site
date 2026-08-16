@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { Skull } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
@@ -227,7 +228,10 @@ export default function MemberNemesisPage() {
     <main className="app-container app-main space-y-4">
       <MemberPageHeader
         title="Némésis"
-        subtitle="Qui vous a le plus tué, et qui vous avez le plus tué — construit progressivement à partir des nouveaux matchs et d'un backfill partiel, pas d'historique complet garanti."
+        subtitle="Qui vous a le plus tué, et qui vous avez le plus tué."
+        showBackButton={false}
+        backgroundImage="/nemesis.jpg"
+        icon={<Skull className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
       />
 
       {payload ? (

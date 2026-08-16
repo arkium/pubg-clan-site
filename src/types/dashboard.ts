@@ -99,6 +99,8 @@ export interface DashboardMatch {
   revives: number
   pubgCreatedAt: string
   squad: string[]
+  clanId?: number | null
+  squadMatchId?: string | null
 }
 
 export interface MatchesResponse {

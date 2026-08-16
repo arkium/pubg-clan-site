@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { CalendarDays } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
@@ -307,14 +308,18 @@ export default function MemberHeatmapPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="app-panel mb-5 p-4">
+      <section className="mb-5">
         <MemberPageHeader
           title="Calendrier d'activite"
           subtitle="Repartition de l'activite par jour et par heure."
           showBackButton={false}
-          framed={false}
+          backgroundImage="/heatmap.jpg"
+          icon={<CalendarDays className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
-        <div className="mt-4 border-t border-slate-200 pt-4">
+      </section>
+
+      <section className="app-panel mb-5 p-4">
+        <div>
           <div className="flex flex-wrap items-end gap-3">
           <MobileDropdownNav
             id={`heatmap-scope-${memberId}`}

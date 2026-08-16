@@ -27,6 +27,23 @@ function getPeriodDateFilter(period: string | null): Date | null {
   return null
 }
 
+/** Parses a "YYYY-MM-DD" query param into a [start, end) day range, or null if absent/invalid. */
+function getExactDateRange(value: string | null): { start: Date; end: Date } | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null
+  }
+
+  const start = new Date(`${value}T00:00:00.000`)
+  if (Number.isNaN(start.getTime())) {
+    return null
+  }
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+
+  return { start, end }
+}
+
 function parseMatchSortKey(value: string | null): MatchSortKey {
   return MATCH_SORT_KEYS.includes(value as MatchSortKey) ? (value as MatchSortKey) : 'pubgCreatedAt'
 }
@@ -72,6 +89,7 @@ export async function GET(
     const offsetParam = searchParams.get('offset')
     const sortBy = parseMatchSortKey(searchParams.get('sortBy'))
     const sortDirection = parseMatchSortDirection(searchParams.get('sortDirection'))
+    const exactDateRange = getExactDateRange(searchParams.get('date'))
 
     // Dashboard mode: when period, limit or offset params are provided,
     // return stored matches in a simplified format
@@ -82,7 +100,11 @@ export async function GET(
 
       const where = {
         memberId,
-        ...(since ? { pubgCreatedAt: { gte: since } } : {}),
+        ...(exactDateRange
+          ? { pubgCreatedAt: { gte: exactDateRange.start, lt: exactDateRange.end } }
+          : since
+            ? { pubgCreatedAt: { gte: since } }
+            : {}),
       }
 
       const orderBy = [
@@ -100,6 +122,11 @@ export async function GET(
         prisma.match.count({ where }),
       ])
 
+      const memberForClan = await prisma.clanMember.findUnique({
+        where: { id: memberId },
+        select: { clanId: true },
+      })
+
       const pubgMatchIds = matches.map((match) => match.pubgMatchId)
       const squadMembers = pubgMatchIds.length
         ? await prisma.squadMember.findMany({
@@ -112,6 +139,7 @@ export async function GET(
             select: {
               squadMatch: {
                 select: {
+                  id: true,
                   pubgMatchId: true,
                   _count: {
                     select: {
@@ -125,11 +153,13 @@ export async function GET(
         : []
 
       const clanMemberCountByMatchId = new Map<string, number>()
+      const squadMatchIdByPubgMatchId = new Map<string, string>()
       for (const squadMember of squadMembers) {
         clanMemberCountByMatchId.set(
           squadMember.squadMatch.pubgMatchId,
           squadMember.squadMatch._count.members
         )
+        squadMatchIdByPubgMatchId.set(squadMember.squadMatch.pubgMatchId, squadMember.squadMatch.id)
       }
 
       return NextResponse.json({
@@ -149,6 +179,8 @@ export async function GET(
           revives: m.revives,
           pubgCreatedAt: m.pubgCreatedAt.toISOString(),
           squad: [],
+          clanId: memberForClan?.clanId ?? null,
+          squadMatchId: squadMatchIdByPubgMatchId.get(m.pubgMatchId) ?? null,
         })),
         totalCount,
         mapLabels: await getMapLabels(),

@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ClipboardList } from 'lucide-react'
 
 import MemberLifetimeStatsPanel from '@/components/MemberLifetimeStatsPanel'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
@@ -406,12 +407,13 @@ export default function MemberStatsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="mb-6">
         <MemberPageHeader
           title="Statistiques globales"
           subtitle="Vue complete des statistiques PUBG cumulees du joueur."
           showBackButton={false}
-          framed={false}
+          backgroundImage="/statsplayer.jpg"
+          icon={<ClipboardList className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
       </section>
 

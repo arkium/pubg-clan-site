@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { Crosshair } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
@@ -724,15 +725,18 @@ export default function MemberWeaponsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="mb-6">
         <MemberPageHeader
           title="Vos armes"
-          subtitle="Top armes, headshots et distance moyenne sur la période sélectionnée."
+          subtitle="Top armes, headshots et distance moyenne."
           showBackButton={false}
-          framed={false}
+          backgroundImage="/weaponsplayer2.jpg"
+          icon={<Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
+      </section>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="min-w-0">
             <MobileDropdownNav
               id="member-weapons-period-filter"

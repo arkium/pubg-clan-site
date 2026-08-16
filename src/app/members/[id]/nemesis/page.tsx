@@ -253,7 +253,7 @@ export default function MemberNemesisPage() {
 
       {!loading && payload ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <article className="app-panel p-4">
               <p className="text-xs uppercase tracking-wide text-slate-500">Morts trackées</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalDeathsTracked}</p>

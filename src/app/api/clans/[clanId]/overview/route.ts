@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
-import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
+import { getActorMemberId, requireNavPermission } from '@/middleware/auth-permission'
 
 const ROLE_PRIORITY: Record<string, number> = {
   Owner: 4,
@@ -31,9 +31,8 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_members')(request, {
+    const permissionError = await requireNavPermission('clan.overview')(request, {
       clanId: parsedClanId,
-      allowMissingActor: true,
     })
     if (permissionError) return permissionError
 

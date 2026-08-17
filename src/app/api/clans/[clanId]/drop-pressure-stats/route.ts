@@ -3,7 +3,7 @@ import {
   getDropPressureMemberRanking,
   getDropPressureTimeline,
 } from '@/lib/drop-pressure-stats'
-import { requirePermission } from '@/middleware/auth-permission'
+import { requireNavPermission } from '@/middleware/auth-permission'
 import type { DropPressurePeriod } from '@/types/drop-pressure'
 
 function parseClanId(value: string) {
@@ -26,9 +26,8 @@ export async function GET(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_members')(request, {
+  const permissionError = await requireNavPermission('clan.overview')(request, {
     clanId: parsedClanId,
-    allowMissingActor: true,
   })
   if (permissionError) return permissionError
 

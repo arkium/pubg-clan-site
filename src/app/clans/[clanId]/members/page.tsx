@@ -62,7 +62,7 @@ export default function ClanMembersPage() {
   const params = useParams()
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
-  const { loading: authLoading, authenticated } = useAuthSession()
+  const { loading: authLoading, authenticated, authDisabled } = useAuthSession()
 
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const [clanName, setClanName] = useState('')
@@ -106,7 +106,7 @@ export default function ClanMembersPage() {
   }, [clanId, router, setClanId])
 
   useEffect(() => {
-    if (authLoading || !authenticated || !clanId) {
+    if (authLoading || (!authenticated && !authDisabled) || !clanId) {
       return
     }
 
@@ -145,7 +145,7 @@ export default function ClanMembersPage() {
     return () => {
       cancelled = true
     }
-  }, [authLoading, authenticated, clanId])
+  }, [authDisabled, authLoading, authenticated, clanId])
 
   if (authLoading) {
     return (
@@ -155,7 +155,7 @@ export default function ClanMembersPage() {
     )
   }
 
-  if (!authenticated || !clanId) {
+  if ((!authenticated && !authDisabled) || !clanId) {
     return (
       <main className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
         <p className="text-sm text-gray-600">Redirection...</p>

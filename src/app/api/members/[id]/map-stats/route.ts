@@ -156,7 +156,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const authError = await requireSameClanAsMember(memberId, request)
+    const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
     if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({

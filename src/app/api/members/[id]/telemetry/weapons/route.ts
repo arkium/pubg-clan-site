@@ -196,7 +196,7 @@ export async function GET(
       })
     }
 
-    const authError = await requireSameClanAsMember(memberId, request)
+    const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
     if (authError) return authError
 
     const member = await prisma.clanMember.findUnique({

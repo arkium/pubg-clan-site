@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
@@ -171,7 +172,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromRequest(request)
-    if (!session) {
+    if (!session && !isAuthDisabled()) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }

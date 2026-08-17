@@ -8,7 +8,7 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export default function HomeRedirect() {
   const router = useRouter()
-  const { loading: authLoading, authenticated } = useAuthSession()
+  const { loading: authLoading, authenticated, authDisabled } = useAuthSession()
   const { clanId, hydrated } = useSelectedClan()
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function HomeRedirect() {
       return
     }
 
-    if (!authenticated) {
+    if (!authenticated && !authDisabled) {
       router.replace('/login')
       return
     }
@@ -27,7 +27,7 @@ export default function HomeRedirect() {
     }
 
     router.replace('/clans')
-  }, [authenticated, authLoading, clanId, hydrated, router])
+  }, [authDisabled, authenticated, authLoading, clanId, hydrated, router])
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">

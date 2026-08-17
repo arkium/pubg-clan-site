@@ -114,7 +114,7 @@ export async function GET(
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const authError = await requireSameClanAsMember(memberId, request)
+    const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
     if (authError) return authError
 
     const url = new URL(request.url)

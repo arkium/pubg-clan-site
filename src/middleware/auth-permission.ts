@@ -81,8 +81,13 @@ async function ensureMemberInClan(memberId: number, clanId: number) {
  */
 export async function requireSameClanAsMember(
   targetMemberId: number,
-  request: Request
+  request: Request,
+  options?: { readOnly?: boolean }
 ): Promise<NextResponse | null> {
+  if (options?.readOnly && isAuthDisabled()) {
+    return null
+  }
+
   const session = await getSessionFromRequest(request)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

@@ -9,20 +9,20 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 export default function MembersPage() {
   const router = useRouter()
   const { clanId } = useSelectedClan()
-  const { loading: authLoading, authenticated } = useAuthSession()
+  const { loading: authLoading, authenticated, authDisabled } = useAuthSession()
 
   useEffect(() => {
     if (authLoading) {
       return
     }
 
-    if (!authenticated) {
+    if (!authenticated && !authDisabled) {
       router.replace('/login')
       return
     }
 
     router.replace(clanId ? `/clans/${clanId}/members` : '/clans')
-  }, [authLoading, authenticated, clanId, router])
+  }, [authDisabled, authLoading, authenticated, clanId, router])
 
   return null
 }

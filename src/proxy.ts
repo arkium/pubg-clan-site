@@ -4,6 +4,7 @@ const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
 const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/','/activate','/login','/reset-password'])
 const PUBLIC_PATHS = new Set(['/login', '/activate', '/reset-password'])
 const SESSION_COOKIE_NAME = 'pubg_clan_session'
+const AUTH_DISABLED = process.env.DISABLE_AUTH_PERMISSIONS === 'true'
 
 async function getSetupState(origin: string): Promise<'first_run' | 'pending_activation' | 'completed'> {
   try {
@@ -60,7 +61,7 @@ export async function proxy(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null
 
   if (!sessionToken) {
-    if (PUBLIC_PATHS.has(pathname)) {
+    if (PUBLIC_PATHS.has(pathname) || AUTH_DISABLED) {
       return NextResponse.next()
     }
 

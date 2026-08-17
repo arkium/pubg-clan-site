@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
-import { getActorMemberId, requireNavPermission } from '@/middleware/auth-permission'
+import { requireNavPermission } from '@/middleware/auth-permission'
 
 const ROLE_PRIORITY: Record<string, number> = {
   Owner: 4,
@@ -35,11 +35,6 @@ export async function GET(
       clanId: parsedClanId,
     })
     if (permissionError) return permissionError
-
-    const actorMemberId = await getActorMemberId(request)
-    if (!actorMemberId) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const clan = await prisma.clan.findUnique({
       where: { id: parsedClanId },

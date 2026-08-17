@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { getNavItemRole } from '@/lib/nav-permissions-service'
 import { prisma } from '@/lib/prisma'
@@ -56,6 +57,13 @@ export async function getActorMemberId(request: Request) {
 type PermissionGuardOptions = {
   clanId?: number
   allowMissingActor?: boolean
+  /**
+   * Marque une route de lecture pure (consultation de données de clan).
+   * Sous DISABLE_AUTH_PERMISSIONS=true, ces routes deviennent publiques et
+   * cross-clan. Les routes d'écriture/actions ne doivent JAMAIS passer cette
+   * option — elles restent protégées normalement quel que soit le flag.
+   */
+  readOnly?: boolean
 }
 
 async function ensureMemberInClan(memberId: number, clanId: number) {
@@ -107,6 +115,10 @@ export async function requireSameClanAsMember(
 
 export function requirePermission(permission: string) {
   return async function checkPermission(request: Request, options?: PermissionGuardOptions) {
+    if (options?.readOnly && isAuthDisabled()) {
+      return null
+    }
+
     const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
@@ -140,6 +152,10 @@ export function requirePermission(permission: string) {
 
 export function requireRole(roleNames: string[]) {
   return async function checkRole(request: Request, options?: PermissionGuardOptions) {
+    if (options?.readOnly && isAuthDisabled()) {
+      return null
+    }
+
     const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
@@ -173,6 +189,12 @@ export function requireRole(roleNames: string[]) {
 
 export function requireNavPermission(navKey: string) {
   return async function checkNavPermission(request: Request, options?: PermissionGuardOptions) {
+    // Toutes les routes gardées par requireNavPermission sont des routes de
+    // consultation (dashboards, stats, matches...) — jamais des actions.
+    if (isAuthDisabled()) {
+      return null
+    }
+
     const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {

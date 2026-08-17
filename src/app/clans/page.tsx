@@ -10,36 +10,39 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 export default function ClansPage() {
   const router = useRouter()
   const { clanId: activeClanId, setClanId, syncCanSwitchClan } = useSelectedClan()
-  const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
+  const { loading: authLoading, authenticated, isSuperUser, authDisabled } = useAuthSession()
   const [clans, setClans] = useState<Clan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryToken, setRetryToken] = useState(0)
   const [pendingClanId, setPendingClanId] = useState<number | null>(null)
 
-  const canSwitchClan = isSuperUser
+  const isVisitor = !authenticated && authDisabled
+  const canSwitchClan = isSuperUser || isVisitor
 
   useEffect(() => {
     if (authLoading) {
       return
     }
 
-    if (!authenticated) {
+    if (!authenticated && !authDisabled) {
       router.replace('/login')
       return
     }
 
     // Keep the persisted switch flag in sync with the live session, since the
     // one written at login time can go stale (e.g. SuperUser status granted since).
-    syncCanSwitchClan(isSuperUser)
+    if (authenticated) {
+      syncCanSwitchClan(isSuperUser)
+    }
 
     if (!canSwitchClan) {
       router.replace('/members')
     }
-  }, [authLoading, authenticated, canSwitchClan, isSuperUser, router, syncCanSwitchClan])
+  }, [authDisabled, authLoading, authenticated, canSwitchClan, isSuperUser, router, syncCanSwitchClan])
 
   useEffect(() => {
-    if (authLoading || !authenticated || !canSwitchClan) {
+    if (authLoading || (!authenticated && !isVisitor) || !canSwitchClan) {
       return
     }
 
@@ -76,7 +79,7 @@ export default function ClansPage() {
     return () => {
       cancelled = true
     }
-  }, [authLoading, authenticated, canSwitchClan, retryToken])
+  }, [authLoading, authenticated, canSwitchClan, isVisitor, retryToken])
 
   function handleSelect(clanId: number) {
     if (activeClanId !== null && activeClanId !== clanId) {
@@ -118,7 +121,7 @@ export default function ClansPage() {
     )
   }
 
-  if (!authenticated || !canSwitchClan) {
+  if ((!authenticated && !isVisitor) || !canSwitchClan) {
     return (
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         <p className="text-sm text-gray-600">Redirection...</p>

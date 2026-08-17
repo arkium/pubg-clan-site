@@ -56,6 +56,19 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
         setCanSwitchClanState(switchAllowed)
       }
 
+      try {
+        const modeResponse = await fetch('/api/auth/mode', { cache: 'no-store' })
+        const modePayload = (await modeResponse.json().catch(() => null)) as
+          | { authDisabled?: boolean }
+          | null
+        if (!cancelled && modePayload?.authDisabled) {
+          window.localStorage.setItem(CLAN_SWITCH_ALLOWED_STORAGE_KEY, '1')
+          setCanSwitchClanState(true)
+        }
+      } catch {
+        // Ignore — falls back to the stored switch flag.
+      }
+
       if (storedClanId) {
         if (!cancelled) {
           setClanIdState(storedClanId)

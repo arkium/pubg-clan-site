@@ -260,7 +260,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { clanId, clearClanId, setClanId } = useSelectedClan()
-  const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, refresh } = useAuthSession()
+  const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, authDisabled, refresh } = useAuthSession()
+  const isVisitor = !authenticated && authDisabled
   const [clan, setClan] = useState<ClanSummary | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mobilePanelVisible, setMobilePanelVisible] = useState(false)
@@ -624,7 +625,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   // ── End contextual sidebar section ─────────────────────────────────────
 
   const activeMember = members.find((member) => member.memberId === activeMemberId) ?? null
-  const playerName = activeMember?.displayName ?? email ?? 'Joueur'
+  const playerName = activeMember?.displayName ?? email ?? (isVisitor ? 'Visiteur' : 'Joueur')
   const playerInitial = playerName.trim().charAt(0).toUpperCase() || 'J'
 
   useEffect(() => {
@@ -662,10 +663,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }, [clanId])
 
   useEffect(() => {
-    if (!loading && setupState === 'completed' && !authenticated) {
+    if (!loading && setupState === 'completed' && !authenticated && !authDisabled) {
       router.replace('/login')
     }
-  }, [authenticated, loading, router, setupState])
+  }, [authDisabled, authenticated, loading, router, setupState])
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -1018,7 +1019,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     )
   }
 
-  if (setupState !== 'completed' || !authenticated) {
+  if (setupState !== 'completed' || (!authenticated && !authDisabled)) {
     return null
   }
 
@@ -1054,7 +1055,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                   <p className={cx('truncate text-sm font-semibold', appTheme === 'dark' ? 'text-slate-100' : 'text-slate-900')}>
                     {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionne'}
                   </p>
-                  <p className={cx('text-xs', appTheme === 'dark' ? 'text-emerald-300' : 'text-emerald-700')}>Connecte</p>
+                  <p className={cx('text-xs', isVisitor ? (appTheme === 'dark' ? 'text-amber-300' : 'text-amber-700') : (appTheme === 'dark' ? 'text-emerald-300' : 'text-emerald-700'))}>
+                    {isVisitor ? 'Visiteur' : 'Connecte'}
+                  </p>
                 </div>
               </div>
               {renderThemeToggle()}
@@ -1153,6 +1156,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                         <p className="text-xs text-slate-500">Verification de session...</p>
                       ) : authenticated ? (
                         <p className="text-xs text-emerald-700">Session active</p>
+                      ) : isVisitor ? (
+                        <p className="text-xs text-amber-700">Mode visiteur</p>
                       ) : (
                         <p className="text-xs text-amber-700">Session non connectee</p>
                       )}
@@ -1161,8 +1166,18 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <div className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5">
-                    <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-emerald-600 text-xs font-bold text-white">
+                  <div
+                    className={cx(
+                      'inline-flex min-h-10 items-center gap-2 rounded-xl border px-2.5 py-1.5',
+                      isVisitor ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        'relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white',
+                        isVisitor ? 'bg-amber-500' : 'bg-emerald-600'
+                      )}
+                    >
                       {playerAvatarUrl ? (
                         <img
                           src={playerAvatarUrl}
@@ -1175,11 +1190,20 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       ) : (
                         <span>{playerInitial}</span>
                       )}
-                      <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-400" />
+                      {!isVisitor && (
+                        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-400" />
+                      )}
                     </span>
                     <span className="hidden text-left sm:block">
                       <span className="flex max-w-44 items-center gap-1.5">
-                        <span className="block max-w-36 truncate text-xs font-semibold text-emerald-900">{playerName}</span>
+                        <span
+                          className={cx(
+                            'block max-w-36 truncate text-xs font-semibold',
+                            isVisitor ? 'text-amber-900' : 'text-emerald-900'
+                          )}
+                        >
+                          {playerName}
+                        </span>
                         {isSuperUser ? (
                           <span
                             className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-[9px] font-bold uppercase leading-none text-violet-700"
@@ -1190,22 +1214,26 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                           </span>
                         ) : null}
                       </span>
-                      <span className="block text-[11px] font-medium text-emerald-700">Connecte</span>
+                      <span className={cx('block text-[11px] font-medium', isVisitor ? 'text-amber-700' : 'text-emerald-700')}>
+                        {isVisitor ? 'Visiteur' : 'Connecte'}
+                      </span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowLogoutConfirm(true)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800"
-                      aria-label="Se deconnecter"
-                      title="Se deconnecter"
-                    >
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
-                        <path
-                          fill="currentColor"
-                          d="M8.5 3.5A1.5 1.5 0 0 0 7 5v2h1.5V5h6v10h-6v-2H7v2a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 16 15V5a1.5 1.5 0 0 0-1.5-1.5h-6Zm-1.97 4.53-2 2a.75.75 0 0 0 0 1.06l2 2 1.06-1.06L6.89 11H12V9.5H6.89l1.7-1.69-1.06-1.06Z"
-                        />
-                      </svg>
-                    </button>
+                    {!isVisitor && (
+                      <button
+                        type="button"
+                        onClick={() => setShowLogoutConfirm(true)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800"
+                        aria-label="Se deconnecter"
+                        title="Se deconnecter"
+                      >
+                        <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
+                          <path
+                            fill="currentColor"
+                            d="M8.5 3.5A1.5 1.5 0 0 0 7 5v2h1.5V5h6v10h-6v-2H7v2a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 16 15V5a1.5 1.5 0 0 0-1.5-1.5h-6Zm-1.97 4.53-2 2a.75.75 0 0 0 0 1.06l2 2 1.06-1.06L6.89 11H12V9.5H6.89l1.7-1.69-1.06-1.06Z"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

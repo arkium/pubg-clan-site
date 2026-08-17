@@ -21,6 +21,8 @@ type AuthSessionState = {
   permissions: string[]
   members: SessionMember[]
   isSuperUser: boolean
+  /** DISABLE_AUTH_PERMISSIONS=true côté serveur — mode visiteur (lecture publique). */
+  authDisabled: boolean
 }
 
 const INITIAL_STATE: AuthSessionState = {
@@ -31,12 +33,18 @@ const INITIAL_STATE: AuthSessionState = {
   permissions: [],
   members: [],
   isSuperUser: false,
+  authDisabled: false,
 }
 
 export function useAuthSession() {
   const [state, setState] = useState<AuthSessionState>(INITIAL_STATE)
 
   const refresh = useCallback(async () => {
+    const authDisabled = await fetch('/api/auth/mode', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((payload: { authDisabled?: boolean }) => payload.authDisabled === true)
+      .catch(() => false)
+
     async function resetToLoggedOut(clearCookie: boolean) {
       if (clearCookie) {
         await fetch('/api/auth/logout', {
@@ -44,7 +52,7 @@ export function useAuthSession() {
         }).catch(() => undefined)
       }
 
-      setState({ ...INITIAL_STATE, loading: false })
+      setState({ ...INITIAL_STATE, loading: false, authDisabled })
     }
 
     try {
@@ -79,6 +87,7 @@ export function useAuthSession() {
         permissions: Array.isArray(data.permissions) ? data.permissions : [],
         members: data.members,
         isSuperUser: data.isSuperUser === true,
+        authDisabled,
       })
     } catch {
       await resetToLoggedOut(false)

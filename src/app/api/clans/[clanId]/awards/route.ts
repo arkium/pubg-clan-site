@@ -27,6 +27,7 @@ export async function GET(
 
     const roleError = await requireRole(['Owner', 'Admin', 'Member'])(request, {
       clanId: parsedClanId,
+      readOnly: true,
     })
     if (roleError) return roleError
 

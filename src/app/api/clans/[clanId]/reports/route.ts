@@ -40,6 +40,7 @@ export async function GET(
     const permissionError = await requirePermission('view_reports')(request, {
       clanId: parsedClanId,
       allowMissingActor: true,
+      readOnly: true,
     })
     if (permissionError) {
       return permissionError

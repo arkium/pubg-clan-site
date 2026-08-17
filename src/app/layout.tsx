@@ -5,6 +5,7 @@ import packageJson from '../../package.json'
 import ClanNavigation from '@/components/ClanNavigation'
 import DatabaseUnavailable from '@/components/DatabaseUnavailable'
 import ThemeInitializer from '@/components/ThemeInitializer'
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getDatabaseErrorPresentation } from '@/lib/database-error'
 import { getSetupState } from '@/lib/setup-service'
@@ -55,7 +56,7 @@ export default async function RootLayout({
     )
   }
 
-  const showAppShell = setupState === 'completed' && Boolean(session)
+  const showAppShell = setupState === 'completed' && (Boolean(session) || isAuthDisabled())
 
   const footer = (
     <footer className="app-footer border-t border-slate-200 bg-white/85 backdrop-blur">

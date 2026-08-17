@@ -219,9 +219,11 @@ async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
   const pubgApiKey = process.env.PUBG_API_KEY ?? ''
   const pubgApiRateLimitRpm = await getPubgApiRateLimitRpm()
   const databaseUrl = process.env.DATABASE_URL ?? ''
+  const disableAuthPermissions = process.env.DISABLE_AUTH_PERMISSIONS
 
   const cronJobsEnabled = enableCron === 'true'
   const cronBootstrapEnabled = enableCronBootstrap === 'true'
+  const authPermissionsDisabled = disableAuthPermissions === 'true'
 
   const checks: CronConfigCheck[] = [
     {
@@ -312,6 +314,15 @@ async function getCronEnvChecks(): Promise<CronConfigCheck[]> {
       label: 'NEXT_PUBLIC_APP_URL',
       status: nextPublicAppUrl ? 'ok' : 'warning',
       value: nextPublicAppUrl || '(non defini)',
+    },
+    {
+      key: 'disable_auth_permissions',
+      label: 'DISABLE_AUTH_PERMISSIONS',
+      status: authPermissionsDisabled ? 'warning' : 'ok',
+      value: disableAuthPermissions || '(non defini)',
+      hint: authPermissionsDisabled
+        ? 'Login desactive et donnees de tous les clans consultables publiquement (lecture seule, cross-clan). A desactiver si non voulu.'
+        : undefined,
     },
   ]
 

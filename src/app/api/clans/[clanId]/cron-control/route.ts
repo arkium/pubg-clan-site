@@ -13,7 +13,6 @@ import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
-import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
   import { getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { getActorMemberId, isSuperUserSession, requireRole } from '@/middleware/auth-permission'
 
@@ -22,8 +21,6 @@ type CronAction =
   | 'sync_stats'
   | 'sync_telemetry_aggregates'
   | 'sync_lifetime_stats'
-  | 'generate_weekly_report'
-  | 'generate_monthly_report'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -51,9 +48,7 @@ function parseAction(value: unknown): CronAction | null {
     value === 'sync_matches' ||
     value === 'sync_stats' ||
     value === 'sync_telemetry_aggregates' ||
-    value === 'sync_lifetime_stats' ||
-    value === 'generate_weekly_report' ||
-    value === 'generate_monthly_report'
+    value === 'sync_lifetime_stats'
   ) {
     return value
   }
@@ -408,45 +403,7 @@ export async function POST(
       })
     }
 
-    if (action === 'generate_weekly_report') {
-      const weekStart = getLastCompletedWeekStart()
-      await generateWeeklyReport(parsedClanId, weekStart)
-
-      await finishCronExecution({
-        id: executionLog.id,
-        startedAt: executionLog.startedAt,
-        status: 'success',
-        message: `Rapport hebdomadaire genere (${weekStart.toISOString().slice(0, 10)})`,
-        details: {
-          weekStart: weekStart.toISOString(),
-        },
-      })
-
-      return NextResponse.json({
-        ok: true,
-        action,
-        message: `Rapport hebdomadaire genere (${weekStart.toISOString().slice(0, 10)})`,
-      })
-    }
-
-    const monthStart = getLastCompletedMonthStart()
-    await generateMonthlyReport(parsedClanId, monthStart)
-
-    await finishCronExecution({
-      id: executionLog.id,
-      startedAt: executionLog.startedAt,
-      status: 'success',
-      message: `Rapport mensuel genere (${monthStart.toISOString().slice(0, 10)})`,
-      details: {
-        monthStart: monthStart.toISOString(),
-      },
-    })
-
-    return NextResponse.json({
-      ok: true,
-      action,
-      message: `Rapport mensuel genere (${monthStart.toISOString().slice(0, 10)})`,
-    })
+    return NextResponse.json({ error: 'Action not supported anymore' }, { status: 400 })
   } catch (error) {
     if (execution) {
       await finishCronExecution({

@@ -18,8 +18,6 @@ type CronAction =
   | 'sync_stats'
   | 'sync_telemetry_aggregates'
   | 'sync_lifetime_stats'
-  | 'generate_weekly_report'
-  | 'generate_monthly_report'
 
 type CronHistoryEntry = {
   id: string
@@ -126,8 +124,6 @@ const KNOWN_ACTIONS = [
   'sync_stats',
   'sync_telemetry_aggregates',
   'sync_lifetime_stats',
-  'generate_weekly_report',
-  'generate_monthly_report',
 ] as const
 
 const ACTION_DESCRIPTIONS: Record<CronAction, string> = {
@@ -139,10 +135,6 @@ const ACTION_DESCRIPTIONS: Record<CronAction, string> = {
     'Recalcule les périodes d\'agrégats télémétrie (positions, armes, synergies) à partir des données déjà parsées.',
   sync_lifetime_stats:
     'Récupère les statistiques lifetime (toutes saisons confondues) de chaque membre via l\'API PUBG.',
-  generate_weekly_report:
-    'Génère le rapport de la semaine écoulée (lundi–dimanche N-1) pour le clan actif.',
-  generate_monthly_report:
-    'Génère le rapport du mois écoulé (mois N-1) pour le clan actif.',
 }
 
 const MANUAL_ACTIONS: { action: CronAction; label: string }[] = [
@@ -150,8 +142,6 @@ const MANUAL_ACTIONS: { action: CronAction; label: string }[] = [
   { action: 'sync_stats', label: 'Recalcul stats' },
   { action: 'sync_telemetry_aggregates', label: 'Recalcul agrégats télémétrie' },
   { action: 'sync_lifetime_stats', label: 'Sync stats lifetime' },
-  { action: 'generate_weekly_report', label: 'Rapport hebdo' },
-  { action: 'generate_monthly_report', label: 'Rapport mensuel' },
 ]
 
 const HISTORY_PAGE_SIZE = 10

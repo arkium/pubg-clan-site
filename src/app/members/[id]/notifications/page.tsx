@@ -205,7 +205,6 @@ export default function NotificationsPage() {
     squad_detected: formatTypeLabel('squad_detected'),
     top_performance: formatTypeLabel('top_performance'),
     challenge_started: formatTypeLabel('challenge_started'),
-    report_ready: formatTypeLabel('report_ready'),
     invite_reminder: formatTypeLabel('invite_reminder'),
     join_request: formatTypeLabel('join_request'),
   }

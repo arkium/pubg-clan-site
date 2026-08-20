@@ -163,6 +163,7 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
     }
 
     window.localStorage.setItem(SELECTED_CLAN_STORAGE_KEY, String(nextClanId))
+    window.sessionStorage.removeItem('pubg-nav-stack')
     window.dispatchEvent(
       new CustomEvent<number>(SELECTED_CLAN_EVENT_NAME, { detail: nextClanId })
     )
@@ -184,6 +185,7 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
     }
 
     window.localStorage.removeItem(SELECTED_CLAN_STORAGE_KEY)
+    window.sessionStorage.removeItem('pubg-nav-stack')
     window.dispatchEvent(
       new CustomEvent<number | null>(SELECTED_CLAN_EVENT_NAME, { detail: null })
     )

@@ -19,6 +19,7 @@ import {
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type EmailDeliveryStatus = {
   ready: boolean
@@ -302,6 +303,11 @@ export default function EmailDeliverySettingsPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Test de livraison email"
+        currentHref="/settings/email-delivery"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel p-4">
         <SettingsPageHeader
           title="Test de livraison email"

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
@@ -6,6 +6,7 @@ import { History } from 'lucide-react'
 
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import type {
   DashboardMatchSortDirection,
   DashboardMatchSortKey,
@@ -98,15 +99,27 @@ export default function MatchesPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        <p className="text-sm text-red-600">ID joueur invalide.</p>
+      <main className="app-page-surface min-h-screen px-4 py-8 space-y-4">
+        <div className="mx-auto max-w-6xl">
+          <NavigationTrail
+            currentLabel="Matchs"
+            currentHref={`/members`}
+            fallbackParent={{ href: `/members`, label: 'Membres' }}
+          />
+          <p className="mt-4 text-sm text-red-600">ID joueur invalide.</p>
+        </div>
       </main>
     )
   }
 
   return (
-    <main className="app-page-surface min-h-screen px-4 py-8">
+    <main className="app-page-surface min-h-screen px-4 py-8 space-y-4">
       <div className="mx-auto max-w-6xl space-y-6">
+        <NavigationTrail
+          currentLabel="Matchs récents"
+          currentHref={`/members/${memberId}/matches`}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+        />
         <MemberPageHeader
           title="Matchs"
           subtitle="Historique des matchs, avec tri et filtres par periode."

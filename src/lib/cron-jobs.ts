@@ -31,7 +31,6 @@ import {
 import { listSquadMatchesNeedingTelemetry } from '@/lib/pubg-telemetry/backlog'
 import { upsertFailedTelemetrySnapshot } from '@/lib/pubg-telemetry/index'
 import { enqueueTelemetryLiveSyncJobs } from '@/lib/pubg-telemetry/live-sync-queue'
-import { generateMonthlyReport, generateWeeklyReport } from '@/lib/report-generator'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
 
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
@@ -48,7 +47,6 @@ type TelemetryCronSyncSummary = {
 
 type NotificationService = {
   notifyInviteReminder: (memberId: number) => Promise<void>
-  notifyReportReady: (reportId: string, memberId: number) => Promise<void>
 }
 
 type ChallengeService = {
@@ -68,10 +66,6 @@ const globalForCron = globalThis as typeof globalThis & {
   seasonStatsSyncCronTask?: ScheduledTask
   seasonStatsSyncInProgress?: boolean
   clanReminderCronTask?: ScheduledTask
-  reportReminderCronTask?: ScheduledTask
-  weeklyReportCronTask?: ScheduledTask
-  monthlyReportCronTask?: ScheduledTask
-  reportGenerationInProgress?: boolean
   challengeProcessingCronTask?: ScheduledTask
   challengeProcessingInProgress?: boolean
   encounteredPlayerResolutionCronTask?: ScheduledTask
@@ -883,106 +877,10 @@ async function runDailyClanSync() {
   }
 }
 
-function getLastCompletedWeekStart(referenceDate = new Date()) {
-  const currentWeekStart = new Date(referenceDate)
-  const day = currentWeekStart.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  currentWeekStart.setDate(currentWeekStart.getDate() + diff)
-  currentWeekStart.setHours(0, 0, 0, 0)
-
-  const previousWeekStart = new Date(currentWeekStart)
-  previousWeekStart.setDate(previousWeekStart.getDate() - 7)
-  return previousWeekStart
-}
-
-function getLastCompletedMonthStart(referenceDate = new Date()) {
-  return new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1, 1, 0, 0, 0, 0)
-}
-
-export async function generateReportsAutomatically(reportType: 'weekly' | 'monthly' | 'all' = 'all') {
-  if (globalForCron.reportGenerationInProgress) {
-    console.warn('[Cron] Report generation skipped because a previous run is still in progress')
-    return
-  }
-
-  globalForCron.reportGenerationInProgress = true
-  const startedAt = new Date()
-  console.info(
-    `[Cron] Automatic report generation started at ${startedAt.toISOString()} (${reportType})`
-  )
-
-  try {
-    const activeClans = await prisma.clan.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        name: true,
-      },
-      orderBy: {
-        id: 'asc',
-      },
-    })
-
-    if (activeClans.length === 0) {
-      console.info('[Cron] No active clans found for report generation')
-      return
-    }
-
-    const weeklyStart = getLastCompletedWeekStart(startedAt)
-    const monthlyStart = getLastCompletedMonthStart(startedAt)
-
-    for (const clan of activeClans) {
-      const execution = await startCronExecution({
-        clanId: clan.id,
-        action: reportType === 'weekly' ? 'weekly_report_auto' : 'monthly_report_auto',
-        source: 'scheduler',
-      })
-
-      try {
-        if (reportType === 'weekly' || reportType === 'all') {
-          await generateWeeklyReport(clan.id, weeklyStart)
-        }
-
-        if (reportType === 'monthly' || reportType === 'all') {
-          await generateMonthlyReport(clan.id, monthlyStart)
-        }
-
-        console.info(`[Cron] Reports generated for clan "${clan.name}" (${clan.id})`)
-
-        await finishCronExecution({
-          id: execution.id,
-          startedAt: execution.startedAt,
-          status: 'success',
-          message: `Automatic report generation completed (${reportType})`,
-          details: {
-            reportType,
-            weeklyStart: weeklyStart.toISOString(),
-            monthlyStart: monthlyStart.toISOString(),
-          },
-        })
-      } catch (error) {
-        console.error(`[Cron] Failed to generate reports for clan "${clan.name}" (${clan.id})`, error)
-
-        await finishCronExecution({
-          id: execution.id,
-          startedAt: execution.startedAt,
-          status: 'failed',
-          message: error instanceof Error ? error.message : 'Automatic report generation failed',
-          details: {
-            reportType,
-          },
-        }).catch(() => undefined)
-      }
-    }
-  } finally {
-    globalForCron.reportGenerationInProgress = false
-  }
-}
-
 export async function sendNotificationsReminders(
-  reminderType: 'clan_online' | 'weekly_report'
+  reminderType: 'clan_online'
 ) {
-  const { notifyInviteReminder, notifyReportReady } = await loadNotificationService()
+  const { notifyInviteReminder } = await loadNotificationService()
 
   const activeMembers = await prisma.clanMember.findMany({
     where: { isActive: true, joinStatus: 'active' },
@@ -998,13 +896,7 @@ export async function sendNotificationsReminders(
     await Promise.all(
       activeMembers.map((member) => notifyInviteReminder(member.id))
     )
-    return
   }
-
-  const reportId = `weekly-${new Date().toISOString().slice(0, 10)}`
-  await Promise.all(
-    activeMembers.map((member) => notifyReportReady(reportId, member.id))
-  )
 }
 
 export async function processChallenges() {
@@ -1271,9 +1163,6 @@ export type CronScheduleKey =
   | 'daily_lifetime_stats_sync'
   | 'daily_season_stats_sync'
   | 'clan_online_reminder'
-  | 'weekly_report_reminder'
-  | 'weekly_report_auto'
-  | 'monthly_report_auto'
   | 'challenge_processing'
   | 'encountered_player_clan_resolution'
 
@@ -1283,9 +1172,6 @@ type CronScheduleGlobalKey =
   | 'lifetimeStatsSyncCronTask'
   | 'seasonStatsSyncCronTask'
   | 'clanReminderCronTask'
-  | 'reportReminderCronTask'
-  | 'weeklyReportCronTask'
-  | 'monthlyReportCronTask'
   | 'challengeProcessingCronTask'
   | 'encounteredPlayerResolutionCronTask'
 
@@ -1332,27 +1218,6 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '0 18 * * *',
     globalKey: 'clanReminderCronTask',
     run: () => sendNotificationsReminders('clan_online'),
-  },
-  {
-    key: 'weekly_report_reminder',
-    envVar: 'WEEKLY_REPORT_REMINDER_CRON',
-    defaultExpression: '0 9 * * *',
-    globalKey: 'reportReminderCronTask',
-    run: () => sendNotificationsReminders('weekly_report'),
-  },
-  {
-    key: 'weekly_report_auto',
-    envVar: 'WEEKLY_REPORT_GENERATION_CRON',
-    defaultExpression: '0 8 * * 1',
-    globalKey: 'weeklyReportCronTask',
-    run: () => generateReportsAutomatically('weekly'),
-  },
-  {
-    key: 'monthly_report_auto',
-    envVar: 'MONTHLY_REPORT_GENERATION_CRON',
-    defaultExpression: '0 8 1 * *',
-    globalKey: 'monthlyReportCronTask',
-    run: () => generateReportsAutomatically('monthly'),
   },
   {
     key: 'challenge_processing',

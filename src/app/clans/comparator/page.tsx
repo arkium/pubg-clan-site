@@ -3,6 +3,7 @@
 import { Swords } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -10,6 +11,9 @@ import ClanComparatorRadar from '@/components/comparator/ClanComparatorRadar'
 import HeadToHeadCard from '@/components/comparator/HeadToHeadCard'
 import ModePerformancesCard from '@/components/comparator/ModePerformancesCard'
 import ClanActivityHeatmap from '@/components/comparator/ClanActivityHeatmap'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useClanComparator, type ClanComparatorEntry } from '@/hooks/useClanComparator'
 import type { SquadPeriod } from '@/types/squad-matches'
 
@@ -140,7 +144,12 @@ function ComparatorContent() {
     comparatorClans.find((c) => c.clanId === id)
 
   return (
-    <main className="app-container app-main">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Comparateur"
+        currentHref="/clans/comparator"
+        fallbackParent={{ href: '/clans', label: 'Clans' }}
+      />
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/comparateurclans.jpg')`, backgroundPosition: 'center 20%' }}
@@ -164,7 +173,7 @@ function ComparatorContent() {
               Clans ({selectedClanIds.length}/{MAX_CLANS})
             </p>
             {clansLoading ? (
-              <p className="text-sm text-[var(--theme-ui-text-muted)]">Chargement des clans...</p>
+              <Skeleton className="h-6 w-48" />
             ) : clansError ? (
               <p className="text-sm text-red-600">{clansError}</p>
             ) : (
@@ -212,7 +221,7 @@ function ComparatorContent() {
           Sélectionne au moins un clan ci-dessus pour démarrer la comparaison.
         </section>
       ) : loading ? (
-        <section className="app-panel p-6 text-sm text-[var(--theme-ui-text-muted)]">Chargement...</section>
+        <CardSkeleton />
       ) : error ? (
         <section className="app-panel p-6 text-sm text-red-600">{error}</section>
       ) : (
@@ -240,7 +249,9 @@ function ComparatorContent() {
                     return (
                       <tr key={id}>
                         <td className="py-2 font-semibold text-[var(--theme-ui-text)]">
-                          {clan.clanName} [{clan.clanTag}]
+                          <Link href={`/clans/${clan.clanId}/overview`} className="hover:text-emerald-500 transition-colors">
+                            {clan.clanName} [{clan.clanTag}]
+                          </Link>
                         </td>
                         <td className="py-2 text-right text-[var(--theme-ui-text-secondary)]">
                           {formatNumber(clan.performance?.matchCount)}
@@ -386,7 +397,7 @@ function ComparatorContent() {
 
 export default function ClanComparatorPage() {
   return (
-    <Suspense fallback={<main className="app-container app-main">Chargement...</main>}>
+    <Suspense fallback={<main className="app-container app-main"><CardSkeleton /></main>}>
       <ComparatorContent />
     </Suspense>
   )

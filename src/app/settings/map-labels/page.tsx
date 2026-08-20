@@ -14,6 +14,7 @@ import MapImage from '@/components/ui/MapImage'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 const MAP_KEYS = [
   'Baltic_Main',
@@ -309,7 +310,12 @@ export default function MapLabelsSettingsPage() {
 
   if (!canManageSettings) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Cartes PUBG"
+        currentHref="/settings/map-labels"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
           <h1 className="mt-2 text-2xl font-bold text-gray-900">Acces restreint</h1>
@@ -331,7 +337,12 @@ export default function MapLabelsSettingsPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Cartes PUBG"
+        currentHref="/settings/map-labels"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Configuration des cartes PUBG"

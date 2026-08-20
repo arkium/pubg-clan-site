@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 const PLATFORM_OPTIONS = [
   { value: 'steam', label: 'Steam' },
@@ -168,7 +169,12 @@ export default function AddMemberPage() {
 
   return (
     <>
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+        <NavigationTrail
+          currentLabel="Ajouter un membre"
+          currentHref="/members/add"
+          fallbackParent={{ href: '/members', label: 'Membres' }}
+        />
         <section className="app-panel mb-6 p-4">
           <SettingsPageHeader
             title="Ajouter un joueur"

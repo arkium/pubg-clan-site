@@ -8,6 +8,7 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 import WeaponSelect from '@/components/ui/WeaponSelect'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { resolveWeaponName } from '@/lib/pubg-assets'
 
 type OpponentRow = {
@@ -224,8 +225,26 @@ export default function MemberNemesisPage() {
     }
   }, [memberId, weaponFilter])
 
+  if (!memberId) {
+    return (
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Némésis"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
+        <p className="text-sm text-rose-700">Identifiant joueur invalide.</p>
+      </main>
+    )
+  }
+
   return (
     <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Némésis"
+        currentHref={`/members/${memberId}/nemesis`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <MemberPageHeader
         title="Némésis"
         subtitle="Qui vous a le plus tué, et qui vous avez le plus tué."

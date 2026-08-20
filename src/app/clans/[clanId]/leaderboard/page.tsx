@@ -1,9 +1,12 @@
-﻿'use client'
+'use client'
 import { Crown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import Leaderboard from '@/components/Leaderboard'
+import { ClanLeaderboardTable } from '@/components/leaderboard/ClanLeaderboardTable'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import LeaderboardStats from '@/components/LeaderboardStats'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
@@ -127,7 +130,7 @@ export default function LeaderboardPage() {
       </div>
 
       {loading ? (
-        <p className="mb-6 text-sm text-gray-600">Chargement du classement...</p>
+        <TableSkeleton className="mb-6" />
       ) : null}
       {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
 

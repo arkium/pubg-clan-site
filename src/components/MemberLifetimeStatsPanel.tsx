@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 
 type LifetimeStats = {
   combat: {
@@ -232,9 +233,10 @@ export default function MemberLifetimeStatsPanel({
         ) : null}
       </div>
 
-      {loadingStats && !lifetimeStats ? (
-        <p className="member-lifetime-stats-muted text-sm text-gray-500">Chargement des statistiques globales...</p>
-      ) : statsError && !lifetimeStats ? (
+      {loadingStats ? (
+        <CardSkeleton className="mt-4" />
+      ) : null}
+      {statsError && !lifetimeStats ? (
         <div className="member-lifetime-stats-alert rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {statsError}
         </div>

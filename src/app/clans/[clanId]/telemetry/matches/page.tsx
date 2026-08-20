@@ -1,10 +1,12 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -76,7 +78,13 @@ export default function TelemetryMatchesPage() {
         />
       </section>
 
-      {loading ? <p className="mb-4 text-sm text-slate-600">Chargement des soirées...</p> : null}
+      {loading ? (
+        <div className="space-y-3">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      ) : null}
       {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
 
       {!loading && !error ? (

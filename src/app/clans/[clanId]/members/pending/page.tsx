@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 interface PendingMember {
   id: number
@@ -133,6 +134,12 @@ export default function PendingMembersPage() {
 
   return (
     <main className="app-container app-main">
+      <NavigationTrail
+        currentLabel="Demandes en attente"
+        currentHref={`/clans/${clanId}/members/pending`}
+        fallbackParent={{ href: `/clans/${clanId}/members`, label: 'Membres', altHref: '/clans' }}
+      />
+      
       <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
         <div>
           <div>

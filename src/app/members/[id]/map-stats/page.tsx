@@ -1,10 +1,12 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Map } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
@@ -318,7 +320,12 @@ export default function MemberMapStatsPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Cartes"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
       </main>
     )
@@ -460,7 +467,12 @@ export default function MemberMapStatsPage() {
   }))
 
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Statistiques Cartes"
+        currentHref={`/members/${memberId}/map-stats`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <section className="mb-6">
         <MemberPageHeader
           title="Statistique des cartes"

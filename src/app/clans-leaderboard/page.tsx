@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Trophy } from 'lucide-react'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 import { ClanLeaderboardTable } from '@/components/leaderboard/ClanLeaderboardTable'
 import type { ClanLeaderboardEntry, ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
@@ -53,7 +54,12 @@ export default function ClansLeaderboardPage() {
   }, [period])
 
   return (
-    <main className="app-container app-main">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Classement Inter-Clans"
+        currentHref="/clans-leaderboard"
+        fallbackParent={{ href: '/clans', label: 'Clans' }}
+      />
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/ClanLeaderboardTable.jpg')` }}

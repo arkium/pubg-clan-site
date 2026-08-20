@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -26,6 +26,8 @@ import {
 
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 import { resolveGameMode } from '@/lib/pubg-assets'
@@ -918,7 +920,12 @@ export default function TelemetryMatchDetailPage() {
 
   if (!clanId || !matchId) {
     return (
-      <main className="app-container app-main">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Détail du match"
+          currentHref={`/clans/${clanId}/telemetry/matches`}
+          fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
+        />
         <p className="text-sm text-rose-700">Identifiants invalides.</p>
       </main>
     )
@@ -1128,6 +1135,12 @@ export default function TelemetryMatchDetailPage() {
 
   return (
     <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel={`Match ${matchId.slice(0, 8)}...`}
+        currentHref={`/clans/${clanId}/telemetry/matches/${matchId}/telemetry`}
+        fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
+      />
+
       <section className="app-panel p-4 md:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1147,7 +1160,7 @@ export default function TelemetryMatchDetailPage() {
         </div>
       </section>
 
-      {loading ? <p className="text-sm text-slate-600">Chargement de la telemetrie...</p> : null}
+      {loading ? <CardSkeleton /> : null}
       {!loading && error ? (
         <section className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}

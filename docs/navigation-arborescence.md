@@ -279,69 +279,69 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 
 | Route | Existe dans `src/app` | Rôle cible validé | Parent fallback défini | Lien entrant | Lien sortant | Test manuel OK | E2E OK |
 |---|---|---|---|---|---|---|---|
-| `/` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/overview` | ✅ | ⚠️ (ouverture à Tous) | ✅ | ✅ | ⚠️ (hub à finaliser) | ☐ | ☐ |
-| `/clans/[clanId]/members` | ✅ | ⚠️ (ouverture à Tous) | ✅ | ✅ | ⚠️ (lien pending à ajouter) | ☐ | ☐ |
+| `/` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/overview` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | `/members/[id]/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/stats` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/weapons` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/matches` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/map-stats` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/nemesis` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/heatmap` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members/[id]/rewards` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/matches` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/stats` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats/weapons` | ✅ | ⚠️ (Owner -> Tous à trancher) | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/stats/weapons/categories` | ✅ | ⚠️ (Owner -> Tous à trancher) | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/stats/heatmap-kills` | ✅ | ⚠️ (Owner -> Tous à trancher) | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/stats/positions` | ✅ | ⚠️ (Owner -> Tous à trancher) | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/leaderboard` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/awards` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/challenges` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/challenges/[challengeId]` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/reports` | ✅ | 🗑️ | ⚠️ | ✅ | 🗑️ | ☐ | ☐ |
-| `/clans/[clanId]/reports/[reportId]` | ✅ | 🗑️ | ⚠️ | ✅ | 🗑️ | ☐ | ☐ |
-| `/clans/[clanId]/drop-zones` | ✅ | ⚠️ (Owner -> Tous à trancher) | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans-leaderboard` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ (lien vers clan à ajouter) | ☐ | ☐ |
-| `/clans/comparator` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ (lien vers clan à ajouter) | ☐ | ☐ |
-| `/account` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ (carte notifications à créer) | ☐ | ☐ |
-| `/members/[id]/notifications` | ✅ | ✅ | ⚠️ | ⚠️ (depuis account à ajouter) | ✅ | ☐ | ☐ |
-| `/members/[id]/notification-preferences` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/settings` | ❌ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/settings/members` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/settings/login-welcome` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/members/pending` | ✅ | ✅ | ⚠️ | ⚠️ (depuis members à ajouter) | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/dashboard` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ (cartes sortantes à créer) | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/errors` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/sync-batch-manual` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/recoveries` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ⚠️ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/opponents` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/members` | ✅ | ✅ | ⚠️ | ✅ | ✅ (redirect) | ☐ | ☐ |
-| `/members/add` | ✅ | ✅ | ⚠️ | ⚠️ (aller depuis members/manage) | ✅ | ☐ | ☐ |
-| `/members/manage` | ✅ | ✅ | ⚠️ | ✅ | ✅ (redirect) | ☐ | ☐ |
-| `/login` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/activate` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/reset-password` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/join` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/map-labels` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/weapon-labels` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/weapon-categories` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/phase-labels` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/email-delivery` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/pubg-api` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/nav-permissions` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/cron` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/telemetry-recoveries` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/opponents` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
-| `/settings/match-import` | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ☐ | ☐ |
+| `/members/[id]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/map-stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/nemesis` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/heatmap` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/rewards` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats/weapons/categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/awards` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/challenges` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/challenges/[challengeId]` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/reports` | ✅ | 🗑️ | ✅ | ✅ | 🗑️ | ☐ | ☐ |
+| `/clans/[clanId]/reports/[reportId]` | ✅ | 🗑️ | ✅ | ✅ | 🗑️ | ☐ | ☐ |
+| `/clans/[clanId]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans-leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/comparator` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/account` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/notifications` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/notification-preferences` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/settings` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/settings/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/settings/login-welcome` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/members/pending` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/errors` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/sync-batch-manual` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/telemetry/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/add` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/manage` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/login` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/activate` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/reset-password` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/join` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/map-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/weapon-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/weapon-categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/phase-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/email-delivery` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/pubg-api` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/nav-permissions` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/cron` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/telemetry-recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/settings/match-import` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 
 ### 13.4.1 Tickets issus du tableau de suivi
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
@@ -332,7 +333,12 @@ export default function PubgApiSettingsPage() {
 
   if (!isSuperUser) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Monitoring PUBG API"
+        currentHref="/settings/pubg-api"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
           <p className="mt-2 text-sm text-amber-800">
@@ -350,7 +356,12 @@ export default function PubgApiSettingsPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Monitoring PUBG API"
+        currentHref="/settings/pubg-api"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Monitoring PUBG API"

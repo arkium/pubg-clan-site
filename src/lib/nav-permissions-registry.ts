@@ -93,7 +93,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Catégories armes',
     hrefTemplate: '/clans/:clanId/stats/weapons/categories',
-    defaultRole: 'owner',
+    defaultRole: 'none',
     description: 'Stats télémétrie par catégorie d\'arme.',
   },
   {
@@ -101,7 +101,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: "Vue d'ensemble",
     hrefTemplate: '/clans/:clanId/overview',
-    defaultRole: 'admin',
+    defaultRole: 'none',
     description: 'Vue synoptique du clan : membres, rôles, état PUBG.',
   },
   {
@@ -109,7 +109,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Membres',
     hrefTemplate: '/clans/:clanId/members',
-    defaultRole: 'admin',
+    defaultRole: 'none',
     description: 'Liste des membres avec gestion des rôles (API requiert manage_members).',
   },
   {
@@ -141,7 +141,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Stats armes',
     hrefTemplate: '/clans/:clanId/stats/weapons',
-    defaultRole: 'owner',
+    defaultRole: 'none',
     description: 'Télémétrie armes — API /telemetry/weapons (Owner uniquement).',
   },
   {
@@ -149,7 +149,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Heatmap kills',
     hrefTemplate: '/clans/:clanId/stats/heatmap-kills',
-    defaultRole: 'owner',
+    defaultRole: 'none',
     description: 'Heatmap des kills via télémétrie — API /telemetry/heatmap.',
   },
   {
@@ -157,7 +157,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Cartographie tactique',
     hrefTemplate: '/clans/:clanId/stats/positions',
-    defaultRole: 'owner',
+    defaultRole: 'none',
     description: 'Cartographie des événements de combat et d’équipe via télémétrie — API /telemetry/positions.',
   },
   {
@@ -165,7 +165,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Drop zones',
     hrefTemplate: '/clans/:clanId/drop-zones',
-    defaultRole: 'owner',
+    defaultRole: 'none',
     description: 'Zones de drop préférées — API /telemetry/drop-zones.',
   },
   {
@@ -183,14 +183,6 @@ export const NAV_REGISTRY: NavItemDef[] = [
     hrefTemplate: '/clans/:clanId/leaderboard',
     defaultRole: 'none',
     description: 'Classement des membres du clan.',
-  },
-  {
-    navKey: 'clan.reports',
-    section: 'clan-section',
-    label: 'Rapports',
-    hrefTemplate: '/clans/:clanId/reports',
-    defaultRole: 'none',
-    description: 'Rapports hebdomadaires et mensuels — API requiert view_reports.',
   },
 
   // --- Member section nav ---

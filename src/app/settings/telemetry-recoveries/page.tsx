@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type TelemetryWindow = '24h' | '7d' | '30d' | 'all'
 
@@ -131,7 +132,12 @@ export default function TelemetryRecoveriesOverviewPage() {
 
   if (!isSuperUser) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Recoveries Télémétrie Cross-clans"
+        currentHref="/settings/telemetry-recoveries"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
           <p className="mt-2 text-sm text-amber-800">Cette page est reservee au SuperUser.</p>
@@ -144,7 +150,12 @@ export default function TelemetryRecoveriesOverviewPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Recoveries Télémétrie Cross-clans"
+        currentHref="/settings/telemetry-recoveries"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Telemetrie — vue cross-clans"

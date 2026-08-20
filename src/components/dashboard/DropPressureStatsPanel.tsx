@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowDown, ArrowUp, ArrowUpDown, Flame, MapPin, Target, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { Skeleton } from '@/components/ui/Skeleton'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import {
   getDropPressureRankingDisplay,
@@ -255,7 +256,11 @@ export default function DropPressureStatsPanel({
       </header>
 
       {loading ? (
-        <p className="px-5 py-8 text-sm text-gray-500">Chargement des statistiques de drop...</p>
+        <div className="px-5 py-8 space-y-3">
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </div>
       ) : error ? (
         <p className="px-5 py-8 text-sm text-amber-700">{error}</p>
       ) : !stats || stats.dropCount === 0 ? (

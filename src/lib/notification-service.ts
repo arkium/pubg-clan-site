@@ -10,7 +10,6 @@ const DEFAULT_PREFERENCES = {
   squadDetected: true,
   topPerformance: true,
   challengeStarted: true,
-  reportReady: true,
   inviteReminder: false,
   emailNotifications: false,
   pushNotifications: true,
@@ -51,8 +50,6 @@ function isTypeEnabled(
       return preference.topPerformance
     case 'challenge_started':
       return preference.challengeStarted
-    case 'report_ready':
-      return preference.reportReady
     case 'invite_reminder':
       return preference.inviteReminder
     default:
@@ -238,29 +235,6 @@ export async function notifyChallengeStarted(challengeId: string, clanId: number
       })
     )
   )
-}
-
-export async function notifyReportReady(
-  reportId: string,
-  memberId: number,
-  options?: {
-    clanId?: number
-    reportType?: 'weekly' | 'monthly'
-  }
-) {
-  const reportLabel = options?.reportType === 'monthly' ? 'monthly' : 'weekly'
-  await createNotificationForMember({
-    memberId,
-    type: 'report_ready',
-    title: `Your ${reportLabel} report is ready`,
-    message: 'Open your report to review your latest PUBG progress.',
-    data: {
-      reportId,
-      memberId,
-      link: options?.clanId ? `/clans/${options.clanId}/reports/${reportId}` : `/reports/${reportId}`,
-      reportType: reportLabel,
-    },
-  })
 }
 
 export async function notifyJoinRequest(

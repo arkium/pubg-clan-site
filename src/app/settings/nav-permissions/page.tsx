@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useRouter } from 'next/navigation'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { invalidateNavPermissionsCache } from '@/hooks/useNavPermissions'

@@ -1,8 +1,10 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 
 interface FailedJob {
   id: string
@@ -64,11 +66,25 @@ export default function TelemetryErrorsPage() {
   const filtered = getFilteredJobs()
 
   if (loading) {
-    return <div className="max-w-4xl mx-auto p-4">Chargement...</div>
+    return (
+      <main className="app-container app-main flex-1 space-y-4">
+        <NavigationTrail
+          currentLabel="Erreurs"
+          currentHref={`/clans/${clanId}/telemetry/errors`}
+          fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+        />
+        <TableSkeleton rows={3} />
+      </main>
+    )
   }
 
   return (
     <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Erreurs"
+        currentHref={`/clans/${clanId}/telemetry/errors`}
+        fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+      />
       <section className="app-panel p-4">
         <SettingsPageHeader
           title="Logs d'erreurs télémétrie"

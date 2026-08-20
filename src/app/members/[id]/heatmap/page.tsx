@@ -6,6 +6,7 @@ import { CalendarDays } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type HeatmapScope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -160,7 +161,12 @@ export default function MemberHeatmapPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Heatmap"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
       </main>
     )
@@ -307,7 +313,12 @@ export default function MemberHeatmapPage() {
   ]
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Heatmap"
+        currentHref={`/members/${memberId}/heatmap`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <section className="mb-5">
         <MemberPageHeader
           title="Calendrier d'activite"

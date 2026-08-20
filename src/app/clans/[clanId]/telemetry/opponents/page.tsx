@@ -4,6 +4,8 @@ import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import type { EncounteredPlayerResolutionStatus } from '@/lib/encountered-player-status'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -357,13 +359,23 @@ export default function EncounteredOpponentsPage() {
   if (loading) {
     return (
       <main className="app-container app-main flex-1 space-y-4">
-        <p className="text-sm text-slate-600">Chargement des adversaires rencontrés...</p>
+        <NavigationTrail
+          currentLabel="Adversaires rencontrés"
+          currentHref={`/clans/${clanId}/telemetry/opponents`}
+          fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+        />
+        <TableSkeleton rows={3} />
       </main>
     )
   }
 
   return (
     <main className="app-container app-main flex-1 space-y-6">
+      <NavigationTrail
+        currentLabel="Adversaires rencontrés"
+        currentHref={`/clans/${clanId}/telemetry/opponents`}
+        fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+      />
       <section className="app-panel p-4">
         <SettingsPageHeader
           title="Adversaires rencontrés"

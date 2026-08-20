@@ -1,16 +1,24 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
+import { Inter } from 'next/font/google'
 import packageJson from '../../package.json'
 
 import ClanNavigation from '@/components/ClanNavigation'
 import DatabaseUnavailable from '@/components/DatabaseUnavailable'
 import ThemeInitializer from '@/components/ThemeInitializer'
+import { GlobalCommandPalette } from '@/components/ui/GlobalCommandPalette'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getDatabaseErrorPresentation } from '@/lib/database-error'
 import { getSetupState } from '@/lib/setup-service'
 
 import './globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -47,8 +55,8 @@ export default async function RootLayout({
     })
 
     return (
-      <html lang="fr" className="h-full antialiased" suppressHydrationWarning>
-        <body className="min-h-full bg-gray-50 text-gray-900" suppressHydrationWarning>
+      <html lang="fr" className={`h-full antialiased ${inter.variable}`} suppressHydrationWarning>
+        <body className="min-h-full bg-gray-50 text-gray-900 font-sans" suppressHydrationWarning>
           <ThemeInitializer />
           <DatabaseUnavailable {...databaseError} />
         </body>
@@ -138,18 +146,20 @@ export default async function RootLayout({
   )
 
   return (
-    <html lang="fr" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full bg-gray-50 text-gray-900" suppressHydrationWarning>
+    <html lang="fr" className={`h-full antialiased ${inter.variable}`} suppressHydrationWarning>
+      <body className="min-h-full bg-gray-50 text-gray-900 font-sans" suppressHydrationWarning>
         <ThemeInitializer />
         {showAppShell ? (
           <ClanNavigation>
             <div className="flex-1">{children}</div>
             {footer}
+            <GlobalCommandPalette />
           </ClanNavigation>
         ) : (
           <div className="flex min-h-full flex-col">
             <div className="flex-1">{children}</div>
             {footer}
+            <GlobalCommandPalette />
           </div>
         )}
       </body>

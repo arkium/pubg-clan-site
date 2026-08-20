@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
@@ -8,6 +8,7 @@ import { ClipboardList } from 'lucide-react'
 import MemberLifetimeStatsPanel from '@/components/MemberLifetimeStatsPanel'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type LifetimeStats = {
   combat: {
@@ -399,14 +400,24 @@ export default function MemberStatsPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Statistiques"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
       </main>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Statistiques globales"
+        currentHref={`/members/${memberId}/stats`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <section className="mb-6">
         <MemberPageHeader
           title="Statistiques globales"

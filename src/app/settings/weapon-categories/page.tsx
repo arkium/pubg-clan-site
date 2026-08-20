@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useEffect, useMemo, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -117,7 +118,12 @@ export default function WeaponCategoriesSettingsPage() {
 
   if (!canManageSettings) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Catégories d'armes"
+        currentHref="/settings/weapon-categories"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
           <h1 className="mt-2 text-2xl font-bold text-gray-900">Acces restreint</h1>
@@ -133,7 +139,12 @@ export default function WeaponCategoriesSettingsPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Catégories d'armes"
+        currentHref="/settings/weapon-categories"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Catégories des armes"

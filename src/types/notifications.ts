@@ -2,7 +2,6 @@ export const NOTIFICATION_TYPES = [
   'squad_detected',
   'top_performance',
   'challenge_started',
-  'report_ready',
   'invite_reminder',
   'join_request',
 ] as const
@@ -27,7 +26,6 @@ export interface NotificationPreferenceItem {
   squadDetected: boolean
   topPerformance: boolean
   challengeStarted: boolean
-  reportReady: boolean
   inviteReminder: boolean
   emailNotifications: boolean
   pushNotifications: boolean

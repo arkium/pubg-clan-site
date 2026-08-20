@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type PlayerRewards = {
   totalPoints: number
@@ -74,11 +75,12 @@ export default function MemberRewardsPage() {
   if (!memberId) return null
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-8">
-      <Link href="/clans" className="mb-4 inline-block text-sm text-blue-600 hover:underline">
-        ← Retour
-      </Link>
-
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Récompenses"
+        currentHref={`/members/${memberId}/rewards`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <h1 className="mb-6 text-2xl font-bold text-gray-900">
         Récompenses{memberName ? ` de ${memberName}` : ''}
       </h1>

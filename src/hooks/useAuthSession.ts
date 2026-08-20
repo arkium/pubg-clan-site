@@ -52,6 +52,10 @@ export function useAuthSession() {
         }).catch(() => undefined)
       }
 
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('pubg-nav-stack')
+      }
+
       setState({ ...INITIAL_STATE, loading: false, authDisabled })
     }
 

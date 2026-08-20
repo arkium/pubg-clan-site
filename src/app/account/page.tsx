@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type ProfileMember = {
   memberId: number
@@ -258,7 +259,12 @@ export default function AccountPage() {
 
   return (
     <>
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+        <NavigationTrail
+          currentLabel="Mon compte"
+          currentHref="/account"
+          fallbackParent={{ href: '/clans', label: 'Clans' }}
+        />
         <header
           className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/account.jpg')`, backgroundPosition: 'center top' }}
@@ -421,11 +427,19 @@ export default function AccountPage() {
 
               <ul className="mt-4 space-y-2">
                 {activeMembers.map((member) => (
-                  <li key={member.memberId} className="rounded border border-gray-200 px-3 py-2">
-                    <p className="text-sm font-medium text-gray-900">{member.displayName}</p>
-                    <p className="text-xs text-gray-600">
-                      PUBG: {member.pubgPlayerName} ({member.platformShard})
-                    </p>
+                  <li key={member.memberId} className="rounded border border-gray-200 px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{member.displayName}</p>
+                      <p className="text-xs text-gray-600">
+                        PUBG: {member.pubgPlayerName} ({member.platformShard})
+                      </p>
+                    </div>
+                    <Link
+                      href={`/members/${member.memberId}/notifications`}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Notifications
+                    </Link>
                   </li>
                 ))}
                 {activeMembers.length === 0 ? (

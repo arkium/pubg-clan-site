@@ -34,10 +34,8 @@ const PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { key: 'manage_roles', name: 'Manage Roles', description: 'Manage clan roles', category: 'role_management' },
   { key: 'assign_roles', name: 'Assign Roles', description: 'Assign roles to members', category: 'role_management' },
   { key: 'revoke_roles', name: 'Revoke Roles', description: 'Revoke roles from members', category: 'role_management' },
-  { key: 'view_reports', name: 'View Reports', description: 'View clan reports', category: 'reports' },
   { key: 'view_leaderboard', name: 'View Leaderboard', description: 'View leaderboard', category: 'reports' },
   { key: 'view_notifications', name: 'View Notifications', description: 'View notifications', category: 'reports' },
-  { key: 'export_reports', name: 'Export Reports', description: 'Export reports', category: 'reports' },
   { key: 'moderate_members', name: 'Moderate Members', description: 'Moderate members (notes, warnings)', category: 'moderation' },
   { key: 'manage_notifications', name: 'Manage Notifications', description: 'Post announcements and reminders', category: 'moderation' },
   { key: 'manage_channels', name: 'Manage Channels', description: 'Configure notification channels (Discord, email)', category: 'moderation' },
@@ -55,17 +53,17 @@ export const PREDEFINED_ROLES = {
   ADMIN: {
     name: 'Admin',
     description: 'Manage members and settings',
-    permissions: ['edit_clan', 'manage_members', 'view_reports', 'manage_roles', 'manage_settings', 'assign_roles', 'revoke_roles', 'invite_members', 'remove_members', 'manage_challenges'],
+    permissions: ['edit_clan', 'manage_members', 'manage_roles', 'manage_settings', 'assign_roles', 'revoke_roles', 'invite_members', 'remove_members', 'manage_challenges'],
   },
   MODERATOR: {
     name: 'Moderator',
     description: 'Clan animation: challenges, announcements, recruitment',
-    permissions: ['invite_members', 'manage_challenges', 'view_reports', 'export_reports', 'manage_notifications', 'manage_channels', 'moderate_members'],
+    permissions: ['invite_members', 'manage_challenges', 'manage_notifications', 'manage_channels', 'moderate_members'],
   },
   MEMBER: {
     name: 'Member',
     description: 'Standard clan access',
-    permissions: ['view_reports', 'view_leaderboard', 'view_notifications'],
+    permissions: ['view_leaderboard', 'view_notifications'],
   },
 } as const
 
@@ -384,10 +382,6 @@ export async function canEditClan(memberId: number) {
 
 export async function canManageMembers(memberId: number) {
   return hasPermission(memberId, 'manage_members')
-}
-
-export async function canViewReports(memberId: number) {
-  return hasPermission(memberId, 'view_reports')
 }
 
 export async function canManageRoles(memberId: number) {

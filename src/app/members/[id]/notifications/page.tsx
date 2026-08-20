@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import type { NotificationItem, NotificationType } from '@/types/notifications'
 import { NOTIFICATION_TYPES } from '@/types/notifications'
 
@@ -102,7 +103,12 @@ export default function NotificationsPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Notifications"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">Invalid member id.</p>
       </main>
     )
@@ -226,7 +232,12 @@ export default function NotificationsPage() {
   ]
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Notifications"
+        currentHref={`/members/${memberId}/notifications`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <MemberPageHeader
           title="Notifications"

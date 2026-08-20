@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import type { DashboardPeriod } from '@/types/dashboard'
 
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -106,7 +107,7 @@ export default function TeamPlayCompositionsCard({ memberId, period = 'all' }: T
       </p>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Chargement...</p>
+        <CardSkeleton />
       ) : (
         <div className="grid gap-3 md:grid-cols-3">
           {(compositions ?? []).map((entry) => {

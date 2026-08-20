@@ -5,8 +5,10 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, CalendarRange, ChartNoAxesColumnIncreasing, RefreshCw } from 'lucide-react'
-
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -764,7 +766,7 @@ export default function ClanStatsPage() {
         </div>
       </header>
 
-      {loading ? <p className="mb-6 text-sm text-gray-600">Chargement des statistiques du clan...</p> : null}
+      {loading ? <CardSkeleton className="mb-6" /> : null}
       {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
 
       {!loading && !error ? (

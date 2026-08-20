@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Crosshair } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import WeaponIcon from '@/components/ui/WeaponIcon'
@@ -717,14 +719,24 @@ export default function MemberWeaponsPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Maîtrise armes"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
       </main>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Armes favorites"
+        currentHref={`/members/${memberId}/weapons`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <section className="mb-6">
         <MemberPageHeader
           title="Vos armes"

@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Clock3, Crosshair, Gauge, ShieldCheck, Swords, type LucideIcon } from 'lucide-react'
 
+import SquadMatchList from '@/components/SquadMatchList'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import SessionRecap from '@/components/SessionRecap'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -181,7 +184,7 @@ export default function ClanMatchesPage() {
         </div>
       </div>
 
-      {loading ? <p className="mb-6 text-sm text-gray-600">Chargement des matchs en équipe...</p> : null}
+      {loading ? <TableSkeleton className="mb-6" /> : null}
       {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
 
       {!loading && !error ? (

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { PHASE_KEYS, DEFAULT_PHASE_LABELS, type PhaseKey } from '@/lib/phase-label-service'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type PhaseLabels = Record<string, string>
 
@@ -118,7 +119,12 @@ export default function PhaseLabelSettingsPage() {
 
   if (!canManageSettings) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Alias des phases PUBG"
+        currentHref="/settings/phase-labels"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Permissions</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">Accès restreint</h1>
@@ -134,7 +140,12 @@ export default function PhaseLabelSettingsPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Alias des phases PUBG"
+        currentHref="/settings/phase-labels"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Alias des phases PUBG"

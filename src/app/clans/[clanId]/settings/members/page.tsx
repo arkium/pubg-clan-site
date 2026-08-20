@@ -10,6 +10,7 @@ import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import ClanSyncPanel from '@/components/settings/ClanSyncPanel'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanOverview } from '@/hooks/useClanOverview'
 
@@ -670,11 +671,21 @@ export default function ClanMembersSettingsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Joueurs et rôles"
+        currentHref={`/clans/${clanId}/settings/members`}
+        fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Membres et rôles"
           subtitle="Cartes premium pour les membres du clan, leurs rôles et leurs invitations."
-          actions={<Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>}
+          actions={
+            <div className="flex items-center gap-3">
+              <Link href="/members/add" className="app-btn app-btn--md app-btn--primary">Ajouter un joueur</Link>
+              <Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>
+            </div>
+          }
         />
       </section>
       

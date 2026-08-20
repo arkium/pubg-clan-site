@@ -198,7 +198,7 @@ export function ClanLeaderboardTable({
                     </td>
                     <td className="px-3 py-3">
                       <Link
-                        href={`/clans/${entry.clanId}/stats`}
+                        href={`/clans/${entry.clanId}/overview`}
                         className="font-bold text-gray-900 hover:text-emerald-500 transition-colors flex flex-col"
                       >
                         <span>{entry.name}</span>

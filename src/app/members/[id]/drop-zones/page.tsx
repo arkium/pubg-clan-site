@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import { MapPin } from 'lucide-react'
@@ -12,6 +12,7 @@ import DropPressureLegend from '@/components/drop-zones/DropPressureLegend'
 import DropPressureMarker from '@/components/drop-zones/DropPressureMarker'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
@@ -485,14 +486,24 @@ export default function MemberDropZonesPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Drop Zones"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
       </main>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Zones de drop"
+        currentHref={`/members/${memberId}/drop-zones`}
+        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+      />
       <section className="mb-5">
         <MemberPageHeader
           title="Drop zones"

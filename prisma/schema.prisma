@@ -28,7 +28,6 @@ model Clan {
 
   members                   ClanMember[]
   roles                     ClanRole[]
-  reports                   Report[]
   clanSynergyTelemetryStats ClanSynergyTelemetryStats[]
   challenges                Challenge[]
   invites                   MemberInvite[]
@@ -514,7 +513,6 @@ model NotificationPreference {
   squadDetected    Boolean @default(true)
   topPerformance   Boolean @default(true)
   challengeStarted Boolean @default(true)
-  reportReady      Boolean @default(true)
   inviteReminder   Boolean @default(false)
 
   emailNotifications Boolean @default(false)
@@ -876,48 +874,6 @@ model ClanSynergyTelemetryStats {
   @@unique([clanId, period, memberAId, memberBId])
   @@index([clanId, period])
   @@map("ClanSynergyTelemetryStats")
-}
-
-model Report {
-  id     String @id @default(cuid())
-  clanId Int
-  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
-
-  type        String
-  periodStart DateTime
-  periodEnd   DateTime
-
-  topKiller   Int?
-  topDamage   Int?
-  bestWinRate Int?
-  mvp         Int?
-
-  totalMatches Int
-  totalKills   Int
-  totalDamage  Float
-  avgTeamSize  Float
-  avgWinRate   Float
-
-  playerStats Json
-
-  createdAt DateTime @default(now())
-
-  sections ReportSection[]
-
-  @@index([clanId, type, periodStart])
-  @@map("Report")
-}
-
-model ReportSection {
-  id       String @id @default(cuid())
-  reportId String
-  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  sectionType String
-  title       String
-  content     Json
-
-  @@map("ReportSection")
 }
 
 model MemberSeasonStats {

@@ -1,4 +1,4 @@
-﻿ 'use client'
+ 'use client'
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -8,6 +8,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -62,7 +64,8 @@ export default function ClanMembersPage() {
   const params = useParams()
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
-  const { loading: authLoading, authenticated, authDisabled } = useAuthSession()
+  const { loading: authLoading, authenticated, authDisabled, permissions, isSuperUser } = useAuthSession()
+  const isAdmin = isSuperUser || permissions.includes('manage_members')
 
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const [clanName, setClanName] = useState('')
@@ -166,6 +169,12 @@ export default function ClanMembersPage() {
   return (
     <div className="members-page app-page-surface min-h-screen">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+        <NavigationTrail
+          currentLabel="Membres"
+          currentHref={`/clans/${clanId}/members`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+
         <header
           className="relative mb-8 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/members.jpg')`, backgroundPosition: 'center 20%' }}
@@ -184,7 +193,17 @@ export default function ClanMembersPage() {
 
         <div className="members-panel rounded bg-white p-4 shadow sm:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <h2 className="text-xl font-semibold">Joueurs ({members.length})</h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold">Joueurs ({members.length})</h2>
+              {isAdmin && (
+                <Link
+                  href={`/clans/${clanId}/members/pending`}
+                  className="text-sm font-medium text-cyan-600 hover:text-cyan-700 hover:underline"
+                >
+                  Demandes en attente
+                </Link>
+              )}
+            </div>
             <MobileDropdownNav
               id={`members-sort-${clanId}`}
               label="Trier les joueurs"
@@ -206,7 +225,7 @@ export default function ClanMembersPage() {
             />
           </div>
           {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-          {loading ? <p className="text-sm text-gray-500">Chargement des membres...</p> : null}
+          {loading ? <TableSkeleton /> : null}
           {!loading && members.length === 0 ? (
             <p className="text-gray-500">No members yet</p>
           ) : (

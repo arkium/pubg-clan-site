@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 interface MemberOption {
   id: number
@@ -289,7 +290,12 @@ export default function MatchImportSettingsPage() {
 
   if (!isSuperUser) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Import manuel de matchs"
+        currentHref="/settings/match-import"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
           <p className="mt-2 text-sm text-amber-800">Cette page est reservee au SuperUser.</p>
@@ -303,6 +309,11 @@ export default function MatchImportSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Import manuel de matchs"
+        currentHref="/settings/match-import"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel p-4">
         <SettingsPageHeader
           title="Import de matchs PUBG"

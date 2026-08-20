@@ -1,10 +1,11 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import type { NotificationPreferenceItem } from '@/types/notifications'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -68,7 +69,12 @@ export default function NotificationPreferencesPage() {
 
   if (!memberId) {
     return (
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Préférences"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
         <p className="text-sm text-red-600">Invalid member id.</p>
       </main>
     )
@@ -118,18 +124,17 @@ export default function NotificationPreferencesPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel="Préférences"
+        currentHref={`/members/${memberId}/notification-preferences`}
+        fallbackParent={{ href: `/members/${memberId}/notifications`, label: 'Notifications', altHref: '/members' }}
+      />
+      <div className="mb-6">
+        <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold text-gray-900">Préférences notifications</h1>
           <p className="text-sm text-gray-600">Configure tes alertes in-app, push et email.</p>
         </div>
-        <Link
-          href={`/members/${memberId}/notifications`}
-          className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Retour notifications
-        </Link>
       </div>
 
 

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 const WEAPON_KEYS = [
   'WeapAK47_C',
@@ -184,7 +185,12 @@ export default function WeaponLabelsSettingsPage() {
 
   if (!canManageSettings) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Alias des armes PUBG"
+        currentHref="/settings/weapon-labels"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
           <h1 className="mt-2 text-2xl font-bold text-gray-900">Acces restreint</h1>
@@ -203,7 +209,12 @@ export default function WeaponLabelsSettingsPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Alias des armes PUBG"
+        currentHref="/settings/weapon-labels"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Alias des armes PUBG"

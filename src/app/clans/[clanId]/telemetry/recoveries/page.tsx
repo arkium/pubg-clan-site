@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import FilterDropdown from '@/components/ui/FilterDropdown'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -734,13 +736,23 @@ export default function TelemetryRecoveriesPage() {
   if (loading) {
     return (
       <main className="app-container app-main flex-1 space-y-4">
-        <p className="text-sm text-slate-600">Chargement des recuperations telemetrie...</p>
+        <NavigationTrail
+          currentLabel="Récupérations télémétrie"
+          currentHref={`/clans/${clanId}/telemetry/recoveries`}
+          fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+        />
+        <TableSkeleton rows={3} />
       </main>
     )
   }
 
   return (
     <main className="app-container app-main flex-1 space-y-6">
+      <NavigationTrail
+        currentLabel="Récupérations télémétrie"
+        currentHref={`/clans/${clanId}/telemetry/recoveries`}
+        fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+      />
       <section className="app-panel p-4">
         <SettingsPageHeader
           title="Récupérations télémétrie"

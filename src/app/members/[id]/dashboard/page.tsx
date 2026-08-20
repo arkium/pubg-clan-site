@@ -1,11 +1,12 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { LayoutDashboard } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-
 import { usePlayerDashboard, usePlayerMatches } from '@/hooks/usePlayerDashboard'
+import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PlayerStats from '@/components/dashboard/PlayerStats'
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
@@ -187,6 +188,7 @@ function getTelemetryErrorMessage(payload: unknown, fallback: string) {
 export default function DashboardPage() {
   const params = useParams()
   const memberId = params?.id ? Number(params.id) : null
+  const { clanId } = useSelectedClan()
 
   const [period, setPeriod] = useState<DashboardPeriod>('week')
   const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
@@ -435,6 +437,11 @@ export default function DashboardPage() {
     <div className="app-page-surface min-h-screen">
       {/* Content */}
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:py-8">
+        <NavigationTrail
+          currentLabel="Dashboard"
+          currentHref={`/members/${memberId}/dashboard`}
+          fallbackParent={clanId ? { href: `/clans/${clanId}/members`, label: 'Membres', altHref: '/clans' } : { href: '/members', label: 'Membres' }}
+        />
         <MemberPageHeader
           title="Tableau de bord"
           subtitle="Vue synthese des performances du joueur."

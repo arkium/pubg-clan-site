@@ -6,10 +6,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, UsersRound } from 'lucide-react'
+import { ChevronRight, UsersRound, Users, Swords, BarChart2, Trophy, Medal, Target, MapPin } from 'lucide-react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
 import TopPerformers from '@/components/TopPerformers'
 import SquadSynergies from '@/components/SquadSynergies'
@@ -575,7 +578,13 @@ export default function ClanOverviewPage() {
 
   return (
     <main className="app-container app-main">
-      {loading && <p className="text-sm text-gray-500">Chargement...</p>}
+      <NavigationTrail
+        currentLabel="Vue d'ensemble"
+        currentHref={`/clans/${clanId}/overview`}
+        fallbackParent={{ href: '/clans', label: 'Liste des clans' }}
+      />
+
+      {loading && <CardSkeleton />}
 
       {error && (
         <div className="app-panel p-6 text-sm text-red-600">
@@ -587,6 +596,40 @@ export default function ClanOverviewPage() {
 
       {!loading && !error && data && (
         <div className="space-y-6">
+          <section className="app-panel p-6 mb-6">
+            <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <Link href={`/clans/${clanId}/members`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Users className="w-6 h-6 text-blue-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Membres</span>
+              </Link>
+              <Link href={`/clans/${clanId}/matches`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Swords className="w-6 h-6 text-red-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Matchs</span>
+              </Link>
+              <Link href={`/clans/${clanId}/stats`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <BarChart2 className="w-6 h-6 text-purple-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Stats globales</span>
+              </Link>
+              <Link href={`/clans/${clanId}/leaderboard`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Trophy className="w-6 h-6 text-yellow-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Classement</span>
+              </Link>
+              <Link href={`/clans/${clanId}/awards`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Medal className="w-6 h-6 text-amber-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Awards</span>
+              </Link>
+              <Link href={`/clans/${clanId}/challenges`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Target className="w-6 h-6 text-green-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Défis</span>
+              </Link>
+              <Link href={`/clans/${clanId}/drop-zones`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <MapPin className="w-6 h-6 text-orange-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Drop zones</span>
+              </Link>
+            </div>
+          </section>
+
           {/* Bloc 1 — Fiche PUBG officielle */}
           <header className="app-panel relative overflow-hidden">
             {!pubg ? (
@@ -721,7 +764,11 @@ export default function ClanOverviewPage() {
             )}
 
             {cacheLoading && (
-              <p className="mb-4 text-sm text-gray-500">Chargement des statistiques...</p>
+              <div className="space-y-3">
+                <Skeleton className="h-6 w-1/3" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+              </div>
             )}
 
             {!cacheLoading && cacheData && (

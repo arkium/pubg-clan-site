@@ -1,10 +1,12 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SquadMatchList from '@/components/SquadMatchList'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
@@ -1019,7 +1021,12 @@ export default function TelemetrySessionDatePage() {
 
   return (
     <main className="app-container app-main">
-      <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg">
+      <NavigationTrail
+        currentLabel={`Session du ${date}`}
+        currentHref={`/clans/${clanId}/telemetry/matches/session/${date}`}
+        fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
+      />
+      <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg mt-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Télémétrie — Soirée</p>
           <h1 className="text-2xl font-bold tracking-tight">{clanName || `Clan #${clanId}`} | {formatDateLabel(date)}</h1>
@@ -1067,7 +1074,7 @@ export default function TelemetrySessionDatePage() {
         </div>
       </section>
 
-      {loading ? <p className="mb-5 text-sm text-slate-600">Chargement de la soirée...</p> : null}
+      {loading ? <TableSkeleton className="mb-5" /> : null}
       {error ? <p className="mb-5 text-sm text-red-600">{error}</p> : null}
 
       {!loading && !error && sessionMatches.length > 0 ? (
@@ -1195,7 +1202,7 @@ export default function TelemetrySessionDatePage() {
                     <p className="text-xs font-semibold text-green-900">Etat de la file en direct (telemetry_live_sync)</p>
                     <p className="text-[11px] text-green-700">Actualisation auto: 5s</p>
                   </div>
-                  {directQueueLiveStatusLoading && !directQueueLiveStatus ? <p className="mt-2 text-xs text-green-700">Chargement du statut...</p> : null}
+                  {directQueueLiveStatusLoading && !directQueueLiveStatus ? <span className="ml-2 animate-pulse text-xs text-green-700">Chargement...</span> : null}
                   {directQueueLiveStatus ? (
                     <>
                       <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
@@ -1287,7 +1294,7 @@ export default function TelemetrySessionDatePage() {
                   {queueCleanupMessage ? (
                     <p className="mt-1 text-[11px] text-rose-700">{queueCleanupMessage}</p>
                   ) : null}
-                  {queueLiveStatusLoading && !queueLiveStatus ? <p className="mt-2 text-xs text-purple-700">Chargement du statut...</p> : null}
+                  {queueLiveStatusLoading && !queueLiveStatus ? <span className="ml-2 animate-pulse text-xs text-purple-700">Chargement...</span> : null}
                   {queueLiveStatus ? (
                     <>
                       <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">

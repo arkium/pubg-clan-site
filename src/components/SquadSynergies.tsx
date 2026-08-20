@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { Users, Zap, HeartPulse, Target, Flame, RefreshCcw } from 'lucide-react'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
@@ -244,7 +245,13 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
         <h3 className="text-sm font-semibold text-gray-700">Statistiques de Coopération</h3>
       </div>
       <div className="app-panel p-4">
-          {telemetryLoading ? <p className="text-sm text-gray-500">Chargement des synergies telemetry...</p> : null}
+          {telemetryLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+          ) : null}
           {telemetryError ? <p className="text-sm text-amber-500">{telemetryError}</p> : null}
 
           {!telemetryLoading && !telemetryError ? (

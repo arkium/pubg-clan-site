@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -790,6 +791,11 @@ export default function CronSettingsPage() {
   if (authLoading || loading) {
     return (
       <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Ops Cron"
+        currentHref="/settings/cron"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <p className="text-sm text-slate-600">Chargement...</p>
       </main>
     )
@@ -799,7 +805,12 @@ export default function CronSettingsPage() {
 
   if (!clanId) {
     return (
-      <main className="app-container app-main flex-1">
+      <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Ops Cron"
+        currentHref="/settings/cron"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
         <section className="app-panel p-6">
           <SettingsPageHeader title="Ops Cron (global)" subtitle="Pilotage des tâches cron et statut des workers." />
           <p className="mt-4 text-sm text-slate-600">
@@ -819,7 +830,12 @@ export default function CronSettingsPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <main className="app-container app-main flex-1 space-y-6">
+    <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Ops Cron"
+        currentHref="/settings/cron"
+        fallbackParent={{ href: '/', label: 'Accueil' }}
+      />
 
       {/* --- En-tête --- */}
       <section className="app-panel p-4">

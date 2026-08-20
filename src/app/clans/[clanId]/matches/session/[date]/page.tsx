@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -6,6 +6,7 @@ import { useEffect, useMemo } from 'react'
 
 import SquadMatchList from '@/components/SquadMatchList'
 import TeamModeBadge, { teamModeFromMemberCount, type TeamMode } from '@/components/ui/TeamModeBadge'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
@@ -201,7 +202,12 @@ export default function ClanSessionDatePage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+    <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel={`Session du ${date}`}
+        currentHref={`/clans/${clanId}/matches/session/${date}`}
+        fallbackParent={{ href: `/clans/${clanId}/matches`, label: 'Matchs récents', altHref: '/clans' }}
+      />
       <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Détail par date</p>
@@ -215,14 +221,7 @@ export default function ClanSessionDatePage() {
       </header>
 
       <section className="mb-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <Link
-            href={backHref}
-            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-          >
-            Retour aux matchs
-          </Link>
-
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
           <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:grid-cols-1 md:grid-flow-col md:justify-end">
             {previousDate ? (
               <Link

@@ -13,6 +13,7 @@ import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 import { resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
 import InteractiveMap from '@/components/ui/InteractiveMap'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type TelemetryStatus = 'success' | 'failed' | 'pending'
 
@@ -874,7 +875,12 @@ export default function MatchTelemetryDetailPage() {
 
   if (!clanId || !matchId) {
     return (
-      <main className="app-container app-main">
+      <main className="app-container app-main space-y-4">
+        <NavigationTrail
+          currentLabel="Détail du match"
+          currentHref={`/clans/${clanId}/matches`}
+          fallbackParent={{ href: `/clans/${clanId}/matches`, label: 'Matchs récents', altHref: '/clans' }}
+        />
         <p className="text-sm text-rose-700">Identifiants invalides.</p>
       </main>
     )
@@ -1110,6 +1116,12 @@ export default function MatchTelemetryDetailPage() {
 
   return (
     <main className="app-container app-main space-y-4">
+      <NavigationTrail
+        currentLabel={`Match ${matchId.slice(0, 8)}...`}
+        currentHref={`/clans/${clanId}/matches/${matchId}/telemetry`}
+        fallbackParent={{ href: `/clans/${clanId}/matches`, label: 'Matchs récents', altHref: '/clans' }}
+      />
+      
       <header
         className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/matchtelemetry.jpg')` }}

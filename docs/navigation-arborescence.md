@@ -365,6 +365,7 @@ Chaque ticket doit faire disparaître au moins un `⚠️` du tableau 13.4 et ê
 | NAV-14 | Suppression rapports | `/clans/[clanId]/reports*` | Pages, API, cron, Prisma et clés nav associés | Les rapports sont supprimés ou redirigés selon la décision finale ; aucune entrée nav, carte ou tâche cron ne pointe encore vers ces routes. |
 | NAV-15 | Breadcrumb/provenance | Toutes les routes profondes | Store `sessionStorage` + composant breadcrumb | La pile est bornée à 30, dédupliquée, réinitialisée au logout/changement de clan et remplacée par le fallback si elle est absente ou invalide. |
 | NAV-16 | Parcours critique | Overview -> carte -> détail -> retour | Test unitaire + E2E Playwright à ajouter | Le parcours passe en thème clair et sombre, sur desktop et mobile ; l'URL et le contexte de retour sont corrects après navigation directe et refresh. |
+| NAV-17 | Direction visuelle (hors vagues, §14.3) | Toutes les pages, par famille de gabarit (§"5 groupes") | Police, palette, densité — décisions à trancher puis appliquées via tokens CSS `globals.css` | Une police et une palette sont choisies et documentées ; chaque famille de gabarit est migrée sans régression clair/sombre ; aucune dépendance avec NAV-01→16. |
 
 ### 13.5 Gate de fin de PR (obligatoire)
 
@@ -373,3 +374,70 @@ Chaque ticket doit faire disparaître au moins un `⚠️` du tableau 13.4 et ê
 3. Le breadcrumb revient à la page d'appel, sinon au parent de repli.
 4. Les liens aller/retour existent (pas seulement une route accessible manuellement).
 5. Le parcours critique E2E passe : Overview -> carte -> détail -> retour (clair + sombre).
+
+## 14. Propositions pour combler les lacunes (§10)
+
+Réponses concrètes aux 7 trous identifiés en relecture. Chaque proposition est actionnable telle quelle ; à valider avant de lancer NAV-15/NAV-06.
+
+### 14.1 Spec du composant Breadcrumb (bloquant NAV-15)
+
+- **Fichier :** `src/components/ui/NavigationTrail.tsx` (nommage cohérent avec les autres composants `ui/` du §6 de CLAUDE.md).
+- **Montage :** pas dans `layout.tsx` (async server, pas d'accès `sessionStorage`). Chaque page client l'inclut explicitement juste sous `ClanSectionNav` / la nav de section membre, au-dessus du contenu — même position que le futur remplaçant de `sidebar-ctx-nav`.
+- **Props :**
+  ```typescript
+  type NavigationTrailProps = {
+    currentLabel: string
+    fallbackParent: { href: string; label: string } // depuis le registre §14.2
+  }
+  ```
+- **Source des libellés (pas de duplication) :** `nav-permissions-registry.ts` a déjà un champ `label` par entrée (`'Dashboard'`, `'Mon clan'`, `"Vue d'ensemble"`, etc. — vérifié dans le code). `currentLabel` et les `label` du registre §14.2 doivent lire ce même champ plutôt que redéfinir leur propre texte : `nav-parent-registry.ts` importe les labels depuis `nav-permissions-registry.ts` au lieu de les recopier. Une seule route → un seul libellé, dans un seul fichier source.
+- **Stockage :** clé sessionStorage `pubg-nav-stack`, tableau `{ href: string; label: string; ts: number }[]`, plafonné à 30 entrées (FIFO), déduplication si `href` identique à la dernière entrée poussée.
+- **Comportement au montage :** lit la pile, si l'avant-dernière entrée existe → l'affiche comme lien "retour" ; sinon utilise `fallbackParent`. Pousse ensuite l'entrée courante (`currentLabel` + `pathname` réel) sur la pile.
+- **Reset de la pile :**
+  - Sur logout : dans le handler `useAuthSession()` qui appelle déjà `POST /api/auth/logout`, ajouter `sessionStorage.removeItem('pubg-nav-stack')`.
+  - Sur changement de clan : dans `useSelectedClan()`, au moment où le `clanId` stocké change.
+
+### 14.2 Registre des parents de repli (bloquant NAV-03)
+
+- **Fichier :** `src/lib/nav-parent-registry.ts`, à côté de `nav-permissions-registry.ts` (même style d'implémentation, un seul fichier source de vérité pour le fallback statique).
+- **Forme :** table de patterns de route → `{ hrefTemplate, label }`, résolue avec les params dynamiques de la page appelante (`clanId`, `id`, `matchId`, etc.), initialisée directement depuis la table §13.2.
+- **API exposée :** `getFallbackParent(routeKey: string, params: Record<string, string | number>): { href: string; label: string } | null`, consommée par `NavigationTrail`.
+- **Test unitaire (§11) :** un cas par ligne de la table §13.2 — vérifie la résolution avec params et le cas "parent indisponible → remonte au premier lien autorisé de section".
+
+### 14.3 Direction visuelle — proposition de découplage
+
+Aucune décision de police/palette/densité n'existe à ce jour, et rien dans NAV-01→16 n'en dépend : la refonte de nav (breadcrumb, hubs, rôles) est de l'infra, la refonte de charte est un chantier visuel séparé.
+
+**Proposition :** découpler explicitement. Créer **NAV-17 — Direction visuelle** (police + palette + densité, scope par les 5 familles de gabarits déjà en §"5 groupes") comme chantier indépendant, sans bloquer 13.3. Les nouveaux composants (`NavigationTrail`, hubs) sont construits avec les tokens CSS existants (`app-panel`, remapping Tailwind de CLAUDE.md) pour rester neutres vis-à-vis de la future refonte visuelle. Ticket ajouté à la table 13.4.1 et hors séquencement 14.5 (voir note en 14.5).
+
+### 14.4 Infra de test E2E (bloquant NAV-16)
+
+**Proposition :**
+- `npm install -D @playwright/test`, config minimale `playwright.config.ts` à la racine, dossier `e2e/`.
+- Script `package.json` : `"test:e2e": "playwright test"`.
+- Exécution **locale uniquement** pour l'instant (pas de job CI existant identifié dans le repo) — décision alignée avec §11 qui écarte déjà la regression visuelle automatisée pour raison de coût d'infra. Un futur pipeline CI reste une décision séparée, hors scope nav.
+- Premier test : le parcours NAV-16 (Overview → carte → détail → retour, clair + sombre, desktop + mobile via les viewports Playwright).
+
+### 14.5 Ordre de dépendance entre tickets NAV-01→16
+
+Séquencement proposé, en 4 vagues alignées sur le plan de migration §13.3 :
+
+| Vague | Tickets | Raison |
+|---|---|---|
+| 1 — Décisions & infra pure | NAV-01, NAV-02, NAV-03, NAV-15 | Aucun ne dépend d'une page existante ; NAV-15 dépend de la spec §14.1, NAV-03 du registre §14.2. Tout le reste consomme ces rôles/fallbacks/le breadcrumb. |
+| 2 — Hubs | NAV-04, NAV-05, NAV-06, NAV-07 | Consomment les rôles de la vague 1. NAV-06 est un développement neuf (page inexistante), à prévoir plus long que les autres hubs. |
+| 3 — Sous-pages & entrées | NAV-08, NAV-09, NAV-10, NAV-11, NAV-12, NAV-13 | Câblage de liens vers/depuis les hubs de la vague 2 ; peuvent se paralléliser entre eux une fois la vague 2 posée. |
+| 4 — Nettoyage & validation | NAV-14, NAV-16 | NAV-14 (suppression Rapports) est indépendant mais mieux fait en fin de chantier pour ne pas bruiter le diff de nav. NAV-16 valide l'ensemble une fois toutes les autres vagues posées. |
+
+**NAV-17 (direction visuelle)** n'entre dans aucune vague : chantier séparé (§14.3), sans dépendance vers/depuis NAV-01→16, peut démarrer et avancer en parallèle à tout moment.
+
+### 14.6 Rollback
+
+Pas de feature flag proposé : `NavigationTrail` est additif (une page qui ne l'inclut pas garde son comportement actuel) et chaque page l'intègre dans un commit dédié. **Rollback = revert du commit d'intégration** sur la page concernée, sans toucher aux autres pages déjà migrées. Le composant lui-même et le registre §14.2 restent inertes tant qu'aucune page ne les importe, donc leur ajout initial ne présente pas de risque de régression à revert.
+
+### 14.7 Hub `/clans/[clanId]/settings` (NAV-06)
+
+Page à créer, `src/app/clans/[clanId]/settings/page.tsx`, calquée sur le patron Overview (§8, "hub avec cartes → détail") :
+- Client component, protégé Admin (même garde que les autres pages `settings/*` existantes).
+- Structure standard `app-container` + `app-main` + `ClanSectionNav`.
+- Deux cartes sortantes minimum pour satisfaire le critère d'acceptation NAV-06 : **Joueurs et rôles** (`/clans/[clanId]/settings/members`) et **Accueil login** (`/clans/[clanId]/settings/login-welcome`), réutilisant le pattern de carte déjà utilisé sur Overview plutôt qu'un nouveau composant.

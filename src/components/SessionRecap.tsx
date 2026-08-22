@@ -196,7 +196,7 @@ export default function SessionRecap({ clanId, period, gameMode, sessions }: Ses
                           {member.displayName.slice(0, 1).toUpperCase()}
                         </span>
                         <span className="hidden md:contents">
-                          <PlayerNameBadge name={member.displayName} />
+                          <PlayerNameBadge name={member.displayName} memberId={member.memberId} />
                         </span>
                       </span>
                     ))}

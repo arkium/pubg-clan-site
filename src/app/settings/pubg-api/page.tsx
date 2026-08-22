@@ -337,7 +337,7 @@ export default function PubgApiSettingsPage() {
       <NavigationTrail
         currentLabel="Monitoring PUBG API"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/owner', label: 'Propri�taire' }}
       />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
@@ -360,7 +360,7 @@ export default function PubgApiSettingsPage() {
       <NavigationTrail
         currentLabel="Monitoring PUBG API"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/owner', label: 'Propri�taire' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

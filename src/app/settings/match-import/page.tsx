@@ -294,7 +294,7 @@ export default function MatchImportSettingsPage() {
       <NavigationTrail
         currentLabel="Import manuel de matchs"
         currentHref="/settings/match-import"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
@@ -312,7 +312,7 @@ export default function MatchImportSettingsPage() {
       <NavigationTrail
         currentLabel="Import manuel de matchs"
         currentHref="/settings/match-import"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
       <section className="app-panel p-4">
         <SettingsPageHeader

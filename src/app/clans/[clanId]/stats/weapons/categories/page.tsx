@@ -4,6 +4,7 @@ import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
 import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import { prisma } from '@/lib/prisma'
 import { weaponIconUrl } from '@/lib/pubg-assets/asset-url'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import {
   getWeaponCategoryAliases,
   type WeaponCategory,
@@ -231,6 +232,11 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
 
   return (
     <main className="app-container app-main space-y-6">
+      <NavigationTrail
+        currentLabel="Catégories d'armes"
+        currentHref={`/clans/${clanId}/stats/weapons/categories`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <header
         className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/weapon-categories.jpg')` }}

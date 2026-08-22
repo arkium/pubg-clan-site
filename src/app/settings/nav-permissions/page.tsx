@@ -1103,6 +1103,11 @@ export default function NavPermissionsPage() {
 
   return (
     <main className="app-container app-main">
+      <NavigationTrail
+        currentLabel="Navigation"
+        currentHref="/settings/nav-permissions"
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+      />
       {showCreateModal && (
         <CreateItemModal
           onClose={() => setShowCreateModal(false)}

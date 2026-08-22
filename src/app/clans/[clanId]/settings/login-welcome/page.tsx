@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type WelcomeSettings = {
   badge: string
@@ -134,6 +135,11 @@ export default function ClanLoginWelcomeSettingsPage() {
   if (loading || loadingData) {
     return (
       <main className="app-container app-main flex flex-1 items-center justify-center">
+      <NavigationTrail
+        currentLabel="Accueil login"
+        currentHref={`/clans/${clanId}/settings/login-welcome`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
         <p className="text-sm text-gray-600">Chargement de la configuration...</p>
       </main>
     )
@@ -177,6 +183,11 @@ export default function ClanLoginWelcomeSettingsPage() {
 
   return (
     <main className="app-container app-main flex-1">
+      <NavigationTrail
+        currentLabel="Accueil login"
+        currentHref={`/clans/${clanId}/settings/login-welcome`}
+        fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Message de bienvenue login"

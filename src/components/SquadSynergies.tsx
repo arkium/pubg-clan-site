@@ -92,10 +92,11 @@ function SynergyList({
                   </div>
                   
                   <div className="flex flex-col items-start gap-1">
-                    {entry.memberNames.map((memberName) => (
+                    {entry.memberNames.map((memberName, i) => (
                       <PlayerNameBadge
                         key={`${entry.memberIds.join(':')}:${memberName}`}
                         name={memberName}
+                        memberId={entry.memberIds[i]}
                       />
                     ))}
                   </div>
@@ -341,8 +342,8 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
                                   )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1">
-                                  <PlayerNameBadge name={row.memberAName} />
-                                  <PlayerNameBadge name={row.memberBName} />
+                                  <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
+                                  <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
                                 </div>
                               </div>
                               <span className="rounded bg-emerald-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-emerald-500">
@@ -381,8 +382,8 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
                                   )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1">
-                                  <PlayerNameBadge name={row.memberAName} />
-                                  <PlayerNameBadge name={row.memberBName} />
+                                  <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
+                                  <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
                                 </div>
                               </div>
                               <span className="rounded bg-orange-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-orange-500">
@@ -421,8 +422,8 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
                                   )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1">
-                                  <PlayerNameBadge name={row.memberAName} />
-                                  <PlayerNameBadge name={row.memberBName} />
+                                  <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
+                                  <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
                                 </div>
                               </div>
                               <span className="rounded bg-blue-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-blue-500">

@@ -136,7 +136,7 @@ export default function TelemetryRecoveriesOverviewPage() {
       <NavigationTrail
         currentLabel="Recoveries Télémétrie Cross-clans"
         currentHref="/settings/telemetry-recoveries"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
@@ -154,7 +154,7 @@ export default function TelemetryRecoveriesOverviewPage() {
       <NavigationTrail
         currentLabel="Recoveries Télémétrie Cross-clans"
         currentHref="/settings/telemetry-recoveries"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import { Flame } from 'lucide-react'
@@ -19,6 +19,7 @@ import {
 } from '@/lib/drop-zone-pressure'
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type DropZonesViewMode = 'mix' | 'heatmap' | 'points'
@@ -420,6 +421,11 @@ export default function ClanDropZonesPage() {
   if (!clanId) {
     return (
       <main className="app-container app-main">
+      <NavigationTrail
+        currentLabel="Zones de drop"
+        currentHref={`/clans/${clanId}/drop-zones`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
         <p className="text-sm text-red-600">Clan invalide.</p>
       </main>
     )
@@ -427,6 +433,11 @@ export default function ClanDropZonesPage() {
 
   return (
     <main className="app-container app-main">
+      <NavigationTrail
+        currentLabel="Zones de drop"
+        currentHref={`/clans/${clanId}/drop-zones`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <header
         className="relative mb-5 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/drop2.jpg')` }}

@@ -748,6 +748,11 @@ export default function ClanStatsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Statistiques"
+        currentHref={`/clans/${clanId}/stats`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/clan-stats2.jpg')` }}

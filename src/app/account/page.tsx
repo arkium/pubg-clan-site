@@ -8,7 +8,6 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type ProfileMember = {
   memberId: number
@@ -260,11 +259,6 @@ export default function AccountPage() {
   return (
     <>
       <main className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Mon compte"
-          currentHref="/account"
-          fallbackParent={{ href: '/clans', label: 'Clans' }}
-        />
         <header
           className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/account.jpg')`, backgroundPosition: 'center top' }}

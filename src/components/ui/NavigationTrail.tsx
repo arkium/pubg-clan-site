@@ -14,6 +14,7 @@ export interface NavigationTrailProps {
   currentLabel: string
   currentHref: string
   fallbackParent: FallbackParent | null
+  hidden?: boolean
 }
 
 interface NavStackEntry {
@@ -25,7 +26,7 @@ interface NavStackEntry {
 const STORAGE_KEY = 'pubg-nav-stack'
 const MAX_ENTRIES = 30
 
-export function NavigationTrail({ currentLabel, currentHref, fallbackParent }: NavigationTrailProps) {
+export function NavigationTrail({ currentLabel, currentHref, fallbackParent, hidden = false }: NavigationTrailProps) {
   const [backEntry, setBackEntry] = useState<{ href: string; label: string } | null>(null)
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export function NavigationTrail({ currentLabel, currentHref, fallbackParent }: N
     }
   }, [currentLabel, currentHref, fallbackParent])
 
-  if (!backEntry) return null
+  if (!backEntry || hidden) return null
 
   return (
     <div className="mb-4 flex items-center text-sm text-zinc-400">

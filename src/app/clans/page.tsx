@@ -15,7 +15,6 @@ export default function ClansPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryToken, setRetryToken] = useState(0)
-  const [pendingClanId, setPendingClanId] = useState<number | null>(null)
 
   const isVisitor = !authenticated && authDisabled
   const canSwitchClan = isSuperUser || isVisitor
@@ -82,11 +81,6 @@ export default function ClansPage() {
   }, [authLoading, authenticated, canSwitchClan, isVisitor, retryToken])
 
   function handleSelect(clanId: number) {
-    if (activeClanId !== null && activeClanId !== clanId) {
-      setPendingClanId(clanId)
-      return
-    }
-
     switchToClan(clanId)
   }
 
@@ -97,20 +91,7 @@ export default function ClansPage() {
       return
     }
 
-    router.push(`/clans/${clanId}/members`)
-  }
-
-  function handleConfirmSwitch() {
-    if (pendingClanId === null) {
-      return
-    }
-
-    switchToClan(pendingClanId)
-    setPendingClanId(null)
-  }
-
-  function handleCancelSwitch() {
-    setPendingClanId(null)
+    router.push(`/clans/${clanId}/overview`)
   }
 
   if (authLoading) {
@@ -145,9 +126,6 @@ export default function ClansPage() {
         activeClanId={activeClanId}
         onSelect={handleSelect}
         onRetry={() => setRetryToken((token) => token + 1)}
-        pendingClan={clans.find((clan) => clan.id === pendingClanId) ?? null}
-        onConfirmSwitch={handleConfirmSwitch}
-        onCancelSwitch={handleCancelSwitch}
       />
     </main>
   )

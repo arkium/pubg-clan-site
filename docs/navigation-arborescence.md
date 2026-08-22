@@ -279,69 +279,69 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 
 | Route | Existe dans `src/app` | Rôle cible validé | Parent fallback défini | Lien entrant | Lien sortant | Test manuel OK | E2E OK |
 |---|---|---|---|---|---|---|---|
-| `/` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/overview` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/map-stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/nemesis` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/heatmap` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/rewards` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats/weapons/categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/awards` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/challenges` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/challenges/[challengeId]` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/reports` | ✅ | 🗑️ | ✅ | ✅ | 🗑️ | ☐ | ☐ |
-| `/clans/[clanId]/reports/[reportId]` | ✅ | 🗑️ | ✅ | ✅ | 🗑️ | ☐ | ☐ |
-| `/clans/[clanId]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans-leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/comparator` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/account` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/notifications` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/[id]/notification-preferences` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/settings` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/settings/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/settings/login-welcome` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/members/pending` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/errors` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/sync-batch-manual` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/telemetry/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/add` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/members/manage` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/login` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/activate` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/reset-password` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/join` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/map-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/weapon-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/weapon-categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/phase-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/email-delivery` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/pubg-api` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/nav-permissions` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/cron` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/telemetry-recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/settings/match-import` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/overview` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/map-stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/nemesis` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/heatmap` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/rewards` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/weapons/categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/awards` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/challenges` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/challenges/[challengeId]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/reports` | ❌ | 🗑️ | ❌ | ❌ | 🗑️ | ✅ | ☐ |
+| `/clans/[clanId]/reports/[reportId]` | ❌ | 🗑️ | ❌ | ❌ | 🗑️ | ✅ | ☐ |
+| `/clans/[clanId]/drop-zones` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans-leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/comparator` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/account` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/notifications` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/[id]/notification-preferences` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/login-welcome` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/members/pending` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/errors` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/sync-batch-manual` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/telemetry/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/add` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/members/manage` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/login` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/activate` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/reset-password` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/join` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/map-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/weapon-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/weapon-categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/phase-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/email-delivery` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/pubg-api` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/nav-permissions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/cron` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/telemetry-recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/match-import` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 
 ### 13.4.1 Tickets issus du tableau de suivi
 
@@ -349,23 +349,23 @@ Chaque ticket doit faire disparaître au moins un `⚠️` du tableau 13.4 et ê
 
 | ID | Lot | Routes concernées | Cible technique | Critère d'acceptation |
 |---|---|---|---|---|
-| NAV-01 | Décision rôles | Overview, Membres | DB nav permissions + `src/lib/nav-permissions-registry.ts` | `clan.overview` et `clan.members` sont accessibles à Tous dans l'API/DB et dans le fallback ; un rôle non autorisé ne voit ni l'entrée ni la page. |
-| NAV-02 | Décision rôles | Stats armes, catégories, heatmap kills, positions, drop zones | DB nav permissions + registre fallback | Le rôle cible est explicitement choisi (Tous ou Owner), identique dans DB et registre, puis testé avec un membre et un Owner. |
-| NAV-03 | Parents fallback | `/`, `/clans`, toutes les routes dont la colonne est ⚠️ | Matrice §13.2 + futur registre statique des parents | Chaque route dynamique dispose d'un parent résoluble avec ses paramètres ; une URL directe revient au parent autorisé, puis au premier lien autorisé de section si nécessaire. |
-| NAV-04 | Hub clan | `/clans/[clanId]/overview` | Page Overview et composant de navigation contextuelle | Les cartes Overview pointent vers Membres, Matchs, Stats, Leaderboard, Awards, Challenges et Drop zones ; chaque détail conserve Overview comme provenance de repli. |
-| NAV-05 | Hub membres | `/clans/[clanId]/members`, `/clans/[clanId]/members/pending` | Page Membres + page Pending | Un lien visible vers Pending existe pour un Admin ; un membre standard ne voit pas ce lien ; le retour depuis Pending fonctionne. |
-| NAV-06 | Hub paramètres | `/clans/[clanId]/settings` | Nouvelle page `src/app/clans/[clanId]/settings/page.tsx` | Le hub existe, est protégé par le rôle Admin, et expose les cartes Joueurs et rôles et Accueil login. |
-| NAV-07 | Hub télémétrie | `/clans/[clanId]/telemetry/dashboard` | Page dashboard télémétrie | Le dashboard expose des liens vers Erreurs, Sync batch manuel, Recoveries, Matchs et Adversaires ; les liens sont masqués hors Owner. |
-| NAV-08 | Détails match | Routes telemetry `[matchId]` et `session/[date]` | Pages détail/session + breadcrumb | Chaque détail propose un retour vers la liste ou la session d'origine ; l'accès direct utilise le fallback de §13.2. |
-| NAV-09 | Sous-pages membre | Stats, Armes, Matchs, Cartes, Némésis, Drop zones, Heatmap, Récompenses | Pages `src/app/members/[id]/**` | Le dashboard membre expose les destinations utiles et chaque sous-page revient au dashboard sans URL codée en dur incorrecte. |
-| NAV-10 | Entrées inter-clans | `/clans-leaderboard`, `/clans/comparator` | Pages de classement/comparateur | Cliquer sur un clan ouvre son Overview avec le bon `clanId`, puis le retour revient à la page d'origine. |
-| NAV-11 | Compte et notifications | `/account`, `/members/[id]/notifications` | Pages compte/notifications | Une carte ou entrée depuis le compte mène aux notifications du membre courant ; l'accès inverse vers les préférences reste disponible. |
-| NAV-12 | Routes de gestion membres | `/members`, `/members/add`, `/members/manage` | Pages de gestion membres | Les entrées Aller/Retour sont cohérentes, notamment Members -> Add et Members -> Manage ; les redirections existantes sont conservées. |
-| NAV-13 | Menu fixe settings | Toutes les routes `/settings/*` du §9 | `ClanNavigation.tsx` + pages settings | Chaque entrée du menu fixe pointe vers une page existante, reste filtrée par rôle et possède un fallback de retour documenté. |
-| NAV-14 | Suppression rapports | `/clans/[clanId]/reports*` | Pages, API, cron, Prisma et clés nav associés | Les rapports sont supprimés ou redirigés selon la décision finale ; aucune entrée nav, carte ou tâche cron ne pointe encore vers ces routes. |
-| NAV-15 | Breadcrumb/provenance | Toutes les routes profondes | Store `sessionStorage` + composant breadcrumb | La pile est bornée à 30, dédupliquée, réinitialisée au logout/changement de clan et remplacée par le fallback si elle est absente ou invalide. |
+| ✅ NAV-01 | Décision rôles | Overview, Membres | DB nav permissions + `src/lib/nav-permissions-registry.ts` | `clan.overview` et `clan.members` sont accessibles à Tous dans l'API/DB et dans le fallback ; un rôle non autorisé ne voit ni l'entrée ni la page. |
+| ✅ NAV-02 | Décision rôles | Stats armes, catégories, heatmap kills, positions, drop zones | DB nav permissions + registre fallback | Le rôle cible est explicitement choisi (Tous ou Owner), identique dans DB et registre, puis testé avec un membre et un Owner. |
+| ✅ NAV-03 | Parents fallback | `/`, `/clans`, toutes les routes dont la colonne est ⚠️ | Matrice §13.2 + futur registre statique des parents | Chaque route dynamique dispose d'un parent résoluble avec ses paramètres ; une URL directe revient au parent autorisé, puis au premier lien autorisé de section si nécessaire. |
+| ✅ NAV-04 | Hub clan | `/clans/[clanId]/overview` | Page Overview et composant de navigation contextuelle | Les cartes Overview pointent vers Membres, Matchs, Stats, Leaderboard, Awards, Challenges et Drop zones ; chaque détail conserve Overview comme provenance de repli. |
+| ✅ NAV-05 | Hub membres | `/clans/[clanId]/members`, `/clans/[clanId]/members/pending` | Page Membres + page Pending | Un lien visible vers Pending existe pour un Admin ; un membre standard ne voit pas ce lien ; le retour depuis Pending fonctionne. |
+| ✅ NAV-06 | Hub paramètres | `/clans/[clanId]/settings` | Nouvelle page `src/app/clans/[clanId]/settings/page.tsx` | Le hub existe, est protégé par le rôle Admin, et expose les cartes Joueurs et rôles et Accueil login. |
+| ✅ NAV-07 | Hub télémétrie | `/clans/[clanId]/telemetry/dashboard` | Page dashboard télémétrie | Le dashboard expose des liens vers Erreurs, Sync batch manuel, Recoveries, Matchs et Adversaires ; les liens sont masqués hors Owner. |
+| ✅ NAV-08 | Détails match | Routes telemetry `[matchId]` et `session/[date]` | Pages détail/session + breadcrumb | Chaque détail propose un retour vers la liste ou la session d'origine ; l'accès direct utilise le fallback de §13.2. |
+| ✅ NAV-09 | Sous-pages membre | Stats, Armes, Matchs, Cartes, Némésis, Drop zones, Heatmap, Récompenses | Pages `src/app/members/[id]/**` | Le dashboard membre expose les destinations utiles et chaque sous-page revient au dashboard sans URL codée en dur incorrecte. |
+| ✅ NAV-10 | Entrées inter-clans | `/clans-leaderboard`, `/clans/comparator` | Pages de classement/comparateur | Cliquer sur un clan ouvre son Overview avec le bon `clanId`, puis le retour revient à la page d'origine. |
+| ✅ NAV-11 | Compte et notifications | `/account`, `/members/[id]/notifications` | Pages compte/notifications | Une carte ou entrée depuis le compte mène aux notifications du membre courant ; l'accès inverse vers les préférences reste disponible. |
+| ✅ NAV-12 | Routes de gestion membres | `/members`, `/members/add`, `/members/manage` | Pages de gestion membres | Les entrées Aller/Retour sont cohérentes, notamment Members -> Add et Members -> Manage ; les redirections existantes sont conservées. |
+| ✅ NAV-13 | Menu fixe settings | Toutes les routes `/settings/*` du §9 | `ClanNavigation.tsx` + pages settings | Chaque entrée du menu fixe pointe vers une page existante, reste filtrée par rôle et possède un fallback de retour documenté. |
+| ✅ NAV-14 | Suppression rapports | `/clans/[clanId]/reports*` | Pages, API, cron, Prisma et clés nav associés | Les rapports sont supprimés ou redirigés selon la décision finale ; aucune entrée nav, carte ou tâche cron ne pointe encore vers ces routes. |
+| ✅ NAV-15 | Breadcrumb/provenance | Toutes les routes profondes | Store `sessionStorage` + composant breadcrumb | La pile est bornée à 30, dédupliquée, réinitialisée au logout/changement de clan et remplacée par le fallback si elle est absente ou invalide. |
 | NAV-16 | Parcours critique | Overview -> carte -> détail -> retour | Test unitaire + E2E Playwright à ajouter | Le parcours passe en thème clair et sombre, sur desktop et mobile ; l'URL et le contexte de retour sont corrects après navigation directe et refresh. |
-| NAV-17 | Direction visuelle (hors vagues, §14.3) | Toutes les pages, par famille de gabarit (§"5 groupes") | Police, palette, densité — décisions à trancher puis appliquées via tokens CSS `globals.css` | Une police et une palette sont choisies et documentées ; chaque famille de gabarit est migrée sans régression clair/sombre ; aucune dépendance avec NAV-01→16. |
+| ✅ NAV-17 | Direction visuelle (hors vagues, §14.3) | Toutes les pages, par famille de gabarit (§"5 groupes") | Police, palette, densité — décisions à trancher puis appliquées via tokens CSS `globals.css` | Une police et une palette sont choisies et documentées ; chaque famille de gabarit est migrée sans régression clair/sombre ; aucune dépendance avec NAV-01→16. |
 
 ### 13.5 Gate de fin de PR (obligatoire)
 

@@ -7,6 +7,7 @@ import ChallengeCard from '@/components/ChallengeCard'
 import ChallengeCreator from '@/components/ChallengeCreator'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { ChallengeDuration, ChallengeRewards } from '@/lib/challenge-service'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type Participant = {
   memberId: number
@@ -155,6 +156,11 @@ export default function ChallengesPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
+      <NavigationTrail
+        currentLabel="Défis"
+        currentHref={`/clans/${clanId}/challenges`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <h1 className="mb-6 text-2xl font-bold text-gray-900">Challenges du clan</h1>
 
       <div className="mb-6 flex gap-2 border-b border-gray-200">

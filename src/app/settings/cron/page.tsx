@@ -784,7 +784,7 @@ export default function CronSettingsPage() {
       <NavigationTrail
         currentLabel="Ops Cron"
         currentHref="/settings/cron"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <p className="text-sm text-slate-600">Chargement...</p>
       </main>
@@ -799,7 +799,7 @@ export default function CronSettingsPage() {
       <NavigationTrail
         currentLabel="Ops Cron"
         currentHref="/settings/cron"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <section className="app-panel p-6">
           <SettingsPageHeader title="Ops Cron (global)" subtitle="Pilotage des tâches cron et statut des workers." />
@@ -824,7 +824,7 @@ export default function CronSettingsPage() {
       <NavigationTrail
         currentLabel="Ops Cron"
         currentHref="/settings/cron"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
 
       {/* --- En-tête --- */}

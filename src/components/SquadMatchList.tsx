@@ -275,8 +275,8 @@ export default function SquadMatchList({
               <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-2.5 py-2 text-center">
                 <p className="text-[9px] uppercase tracking-wide text-gray-500">Membres présents</p>
                 <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
-                  {memberNames.map((memberName) => (
-                    <PlayerNameBadge key={memberName} name={memberName} />
+                  {match.members.map((member) => (
+                    <PlayerNameBadge key={member.memberId || member.displayName} name={member.displayName} memberId={member.memberId} />
                   ))}
                 </div>
               </div>

@@ -189,7 +189,7 @@ export default function WeaponLabelsSettingsPage() {
       <NavigationTrail
         currentLabel="Alias des armes PUBG"
         currentHref="/settings/weapon-labels"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
@@ -213,7 +213,7 @@ export default function WeaponLabelsSettingsPage() {
       <NavigationTrail
         currentLabel="Alias des armes PUBG"
         currentHref="/settings/weapon-labels"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

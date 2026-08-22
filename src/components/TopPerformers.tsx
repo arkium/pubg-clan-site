@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import { Target, Flame, HeartPulse } from 'lucide-react'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 
@@ -54,7 +55,9 @@ function PerformerList({
                     <span className="text-xs font-bold text-gray-500">{index + 1}</span>
                   )}
                 </span>
-                {entry.displayName}
+                <Link href={`/members/${entry.memberId}/dashboard`} className="hover:text-emerald-500 transition-colors">
+                  {entry.displayName}
+                </Link>
               </span>
               <span className={`inline-flex items-center font-bold tabular-nums ${valueClass}`}>
                 {value(entry)}

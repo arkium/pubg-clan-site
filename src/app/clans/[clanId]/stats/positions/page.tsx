@@ -12,6 +12,7 @@ import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import {
   TACTICAL_PHASE_OPTIONS,
   tacticalPhaseLabel,
@@ -653,6 +654,11 @@ export default function ClanPositionsHeatmapPage() {
   if (!clanId) {
     return (
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Positions & Top 10"
+        currentHref={`/clans/${clanId}/stats/positions`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
         <p className="text-sm text-red-600">Clan invalide.</p>
       </main>
     )

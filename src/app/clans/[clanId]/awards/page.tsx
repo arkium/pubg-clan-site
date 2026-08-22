@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type AwardPeriod = 'week' | 'month' | 'all'
 
@@ -204,6 +205,11 @@ export default function ClanAwardsPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-6">
+      <NavigationTrail
+        currentLabel="Awards"
+        currentHref={`/clans/${clanId}/awards`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <header
         className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/awards.jpg')` }}

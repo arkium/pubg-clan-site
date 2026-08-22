@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Image from 'next/image'
+import Link from 'next/link'
 
 import { DISTINCTION_BADGE_META, isDistinctionBadgeKey, type DistinctionBadgeKey } from '@/lib/distinction-badges'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -300,7 +301,9 @@ export default function Leaderboard({
                         )}
                       </span>
                       <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-gray-900">
-                        <span className="truncate">{entry.displayName}</span>
+                        <Link href={`/members/${entry.memberId}/dashboard`} className="truncate hover:text-emerald-500 transition-colors">
+                          {entry.displayName}
+                        </Link>
                         {badgeKeys.length > 0 ? (
                           <span className="inline-flex items-center gap-1">
                             {badgeKeys.map((badgeKey) => {
@@ -573,7 +576,9 @@ export default function Leaderboard({
                             )}
                           </span>
                           <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                            <span className="truncate">{entry.displayName}</span>
+                            <Link href={`/members/${entry.memberId}/dashboard`} className="truncate hover:text-emerald-500 transition-colors">
+                              {entry.displayName}
+                            </Link>
                             {badgeKeys.length > 0 ? (
                               <span className="inline-flex items-center gap-1">
                                 {badgeKeys.map((badgeKey) => {

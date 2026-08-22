@@ -54,6 +54,11 @@ export default function TelemetryMatchesPage() {
 
   return (
     <main className="app-container app-main">
+      <NavigationTrail
+        currentLabel="Historique Télémétrie"
+        currentHref={`/clans/${clanId}/telemetry/matches`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
           title="Télémétrie — Soirées"

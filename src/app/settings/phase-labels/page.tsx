@@ -123,7 +123,7 @@ export default function PhaseLabelSettingsPage() {
       <NavigationTrail
         currentLabel="Alias des phases PUBG"
         currentHref="/settings/phase-labels"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Permissions</p>
@@ -144,7 +144,7 @@ export default function PhaseLabelSettingsPage() {
       <NavigationTrail
         currentLabel="Alias des phases PUBG"
         currentHref="/settings/phase-labels"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

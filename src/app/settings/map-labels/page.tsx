@@ -314,7 +314,7 @@ export default function MapLabelsSettingsPage() {
       <NavigationTrail
         currentLabel="Cartes PUBG"
         currentHref="/settings/map-labels"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
@@ -341,7 +341,7 @@ export default function MapLabelsSettingsPage() {
       <NavigationTrail
         currentLabel="Cartes PUBG"
         currentHref="/settings/map-labels"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

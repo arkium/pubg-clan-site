@@ -784,7 +784,7 @@ export default function OpponentsSettingsPage() {
       <NavigationTrail
         currentLabel="Recherche transverse joueurs"
         currentHref="/settings/opponents"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
@@ -806,7 +806,7 @@ export default function OpponentsSettingsPage() {
       <NavigationTrail
         currentLabel="Recherche transverse joueurs"
         currentHref="/settings/opponents"
-        fallbackParent={{ href: '/', label: 'Accueil' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

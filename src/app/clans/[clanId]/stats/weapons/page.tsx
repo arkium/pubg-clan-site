@@ -9,6 +9,7 @@ import WeaponIcon from '@/components/ui/WeaponIcon'
 import VehicleIcon from '@/components/ui/VehicleIcon'
 import { weaponIconUrl, vehicleIconUrl } from '@/lib/pubg-assets'
 import { isVehicleKey } from '@/lib/pubg-assets/vehicle-detection'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -422,6 +423,11 @@ export default function ClanTelemetryWeaponsPage() {
   if (!clanId) {
     return (
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Armes du clan"
+        currentHref={`/clans/${clanId}/stats/weapons`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
         <p className="text-sm text-red-600">Clan invalide.</p>
       </main>
     )

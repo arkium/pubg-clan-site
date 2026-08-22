@@ -11,7 +11,6 @@ import ClanComparatorRadar from '@/components/comparator/ClanComparatorRadar'
 import HeadToHeadCard from '@/components/comparator/HeadToHeadCard'
 import ModePerformancesCard from '@/components/comparator/ModePerformancesCard'
 import ClanActivityHeatmap from '@/components/comparator/ClanActivityHeatmap'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useClanComparator, type ClanComparatorEntry } from '@/hooks/useClanComparator'
@@ -144,12 +143,7 @@ function ComparatorContent() {
     comparatorClans.find((c) => c.clanId === id)
 
   return (
-    <main className="app-container app-main space-y-4">
-      <NavigationTrail
-        currentLabel="Comparateur"
-        currentHref="/clans/comparator"
-        fallbackParent={{ href: '/clans', label: 'Clans' }}
-      />
+    <main className="app-container app-main flex-1 space-y-4">
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/comparateurclans.jpg')`, backgroundPosition: 'center 20%' }}

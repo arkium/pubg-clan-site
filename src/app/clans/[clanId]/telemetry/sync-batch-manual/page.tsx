@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type SyncMode = 'direct' | 'capture' | 'queue'
 
@@ -162,6 +163,11 @@ export default function TelemetrySyncBatchPage() {
 
   return (
     <main className="app-container app-main flex-1 space-y-4">
+      <NavigationTrail
+        currentLabel="Synchro manuelle"
+        currentHref={`/clans/${clanId}/telemetry/sync-batch-manual`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <section className="app-panel p-4">
         <SettingsPageHeader
           title="Récupération manuelle"

@@ -1,6 +1,7 @@
 'use client'
 
 /* eslint-disable @next/next/no-img-element */
+import Link from 'next/link'
 
 type LeaderboardEntry = {
   rank: number
@@ -74,10 +75,10 @@ export default function ChallengeLeaderboard({ leaderboard, currentMemberId, met
                         </span>
                       )}
                     </span>
-                    <span>
+                    <Link href={`/members/${entry.memberId}/dashboard`} className="hover:text-emerald-500 transition-colors">
                       {entry.displayName}
                       {isMe ? <span className="ml-1 text-xs text-blue-600">(vous)</span> : null}
-                    </span>
+                    </Link>
                   </div>
                 </td>
                 <td className="px-4 py-2 text-right font-medium text-gray-900">

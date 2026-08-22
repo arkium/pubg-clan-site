@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import ChallengeLeaderboard from '@/components/ChallengeLeaderboard'
 import { CHALLENGE_TYPES } from '@/lib/challenge-types'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type LeaderboardEntry = {
   rank: number
@@ -159,6 +160,11 @@ export default function ChallengePage() {
   if (loading) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
+      <NavigationTrail
+        currentLabel="Détail du défi"
+        currentHref={`/clans/${clanId}/challenges/${challengeId}`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
         <p className="text-sm text-gray-500">Chargement...</p>
       </main>
     )

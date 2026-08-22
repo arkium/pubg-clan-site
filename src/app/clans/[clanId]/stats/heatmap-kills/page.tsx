@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -159,6 +160,11 @@ export default function ClanTelemetryHeatmapKillsPage() {
   if (!clanId) {
     return (
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Heatmap des kills"
+        currentHref={`/clans/${clanId}/stats/heatmap-kills`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
         <p className="text-sm text-red-600">Clan invalide.</p>
       </main>
     )

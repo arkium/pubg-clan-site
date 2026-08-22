@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 
 import { DISTINCTION_BADGE_META, type DistinctionBadgeKey } from '@/lib/distinction-badges'
 import type {
@@ -23,7 +24,9 @@ function HighlightCard({
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
       {entry ? (
         <div className="flex flex-1 flex-col items-center gap-1.5 text-center sm:items-start sm:text-left">
-          <p className="text-base leading-5 font-bold text-gray-900">{entry.displayName}</p>
+          <Link href={`/members/${entry.memberId}/dashboard`} className="text-base leading-5 font-bold text-gray-900 hover:text-emerald-500 transition-colors">
+            {entry.displayName}
+          </Link>
           <p className="text-sm leading-5 text-blue-700">{value(entry)}</p>
           <span className="app-performer-pill app-performer-pill--award mt-auto self-center sm:self-start">
             <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} className="app-performer-pill__icon" />

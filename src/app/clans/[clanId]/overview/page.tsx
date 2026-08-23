@@ -432,7 +432,7 @@ export default function ClanOverviewPage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
 
   const { data, loading, error } = useClanOverview(clanId)
-  const [selectedPeriod, setSelectedPeriod] = useState<SquadPeriod>('all')
+  const [selectedPeriod, setSelectedPeriod] = useState<SquadPeriod>('week')
   const [selectedMode, setSelectedMode] = useState<'all' | 'duo' | 'trio' | 'squad'>('all')
 
   const { data: cacheData, loading: cacheLoading, error: cacheError } = useClanMatchesCache(

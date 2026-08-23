@@ -23,11 +23,6 @@ function parseClanIds(clanIdsParam: string | null): number[] {
 
 export async function GET(request: Request) {
   try {
-    const session = await getSessionFromRequest(request)
-    if (!session) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const url = new URL(request.url)
     const clanIds = parseClanIds(url.searchParams.get('clanIds'))
 

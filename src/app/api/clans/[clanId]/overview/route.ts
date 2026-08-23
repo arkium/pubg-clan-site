@@ -45,6 +45,10 @@ export async function GET(
         pubgClanId: true,
         platformShard: true,
         clanStats: true,
+        clanConfigs: {
+          where: { key: 'login_welcome_image_url' },
+          select: { value: true },
+        },
         members: {
           where: { isActive: true },
           orderBy: { createdAt: 'asc' },
@@ -122,6 +126,7 @@ export async function GET(
         tag: clan.tag,
         pubgClanId: clan.pubgClanId,
         platformShard: clan.platformShard,
+        imageUrl: clan.clanConfigs[0]?.value ?? null,
       },
       clanStats: clan.clanStats,
       roster,

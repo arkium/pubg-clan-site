@@ -64,6 +64,7 @@ export type ClanOverview = {
     tag: string
     pubgClanId: string | null
     platformShard: string
+    imageUrl: string | null
   }
   clanStats: ClanOverviewStats
   roster: RosterMember[]

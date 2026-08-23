@@ -4,6 +4,7 @@
 
 import Link from 'next/link'
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
+import pubgLogo from '@/assets/pubg-logo-official.webp'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import FirstRunSetup from '@/components/FirstRunSetup'
@@ -16,12 +17,12 @@ type WelcomeSettings = {
   imageUrl: string | null
 }
 
-const DEFAULT_WELCOME: WelcomeSettings = {
-  badge: 'Bienvenue au clan',
-  title: 'Connexion escouade',
+const DEFAULT_GLOBAL_WELCOME: WelcomeSettings = {
+  badge: 'Portail PUBG',
+  title: 'Connexion globale',
   message:
-    'Connectez-vous pour retrouver vos statistiques, votre progression et les outils de coordination du clan.',
-  imageUrl: null,
+    'Connectez-vous pour gérer vos clans, synchroniser vos statistiques et accéder à vos tableaux de bord.',
+  imageUrl: '/maps/pubg/Baltic_Main.webp',
 }
 
 function LoginPageContent() {
@@ -44,7 +45,7 @@ function LoginPageContent() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_WELCOME)
+  const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_GLOBAL_WELCOME)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
   const heroImageUrl = welcome.imageUrl?.trim() ? welcome.imageUrl : '/pubg.png'
 
@@ -53,26 +54,23 @@ function LoginPageContent() {
 
     async function loadSetupState() {
       try {
-        const welcomeUrl = welcomeClanId
-          ? `/api/clans/${welcomeClanId}/settings/login-welcome`
-          : '/api/settings/login-welcome'
-
-        const [setupResponse, welcomeResponse] = await Promise.all([
-          fetch('/api/setup/status', { cache: 'no-store' }),
-          fetch(welcomeUrl, { cache: 'no-store' }),
-        ])
-
+        const setupResponse = await fetch('/api/setup/status', { cache: 'no-store' })
         const setupPayload = (await setupResponse.json().catch(() => null)) as
           | { setupState?: 'completed' | 'pending_activation' | 'first_run' }
-          | null
-        const welcomePayload = (await welcomeResponse.json().catch(() => null)) as
-          | { settings?: WelcomeSettings; clanLabel?: string | null }
           | null
 
         if (!cancelled) {
           setSetupState(setupResponse.ok ? (setupPayload?.setupState ?? 'completed') : 'completed')
-          if (welcomeResponse.ok) {
-            setWelcome(welcomePayload?.settings ?? DEFAULT_WELCOME)
+        }
+
+        if (welcomeClanId) {
+          const welcomeResponse = await fetch(`/api/clans/${welcomeClanId}/settings/login-welcome`, { cache: 'no-store' })
+          const welcomePayload = (await welcomeResponse.json().catch(() => null)) as
+            | { settings?: WelcomeSettings; clanLabel?: string | null }
+            | null
+
+          if (!cancelled && welcomeResponse.ok) {
+            setWelcome(welcomePayload?.settings ?? DEFAULT_GLOBAL_WELCOME)
             setClanLabel(welcomePayload?.clanLabel ?? null)
           }
         }
@@ -152,11 +150,11 @@ function LoginPageContent() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_44%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.14),_transparent_40%)]" />
 
       <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="relative bg-slate-900 p-7 text-white sm:p-10">
+        <div className="relative overflow-hidden bg-slate-900 p-7 text-white sm:p-10">
           <img
             src={heroImageUrl}
             alt="Visuel du clan"
-            className="absolute inset-4 hidden h-[calc(100%-2rem)] w-[calc(100%-2rem)] rounded-2xl object-cover opacity-35 lg:block"
+            className="absolute inset-0 h-full w-full object-cover object-[28%_55%] lg:object-[38%_40%] scale-[6] origin-center opacity-60"
           />
           <div className="absolute inset-0 bg-slate-900/72" />
           <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
@@ -164,9 +162,15 @@ function LoginPageContent() {
 
           <div className="relative z-10 flex items-start justify-between gap-4">
             <div>
-              <p className="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
-                {welcome.badge}
-              </p>
+              {welcome.badge === 'Portail PUBG' ? (
+                <div className="mb-4 flex items-center">
+                  <img src={pubgLogo.src} alt="PUBG" className="h-10 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+                </div>
+              ) : (
+                <p className="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
+                  {welcome.badge}
+                </p>
+              )}
               <h1 className="mt-4 text-3xl font-black leading-tight sm:text-4xl">{welcome.title}</h1>
               <p className="mt-4 max-w-md text-sm text-slate-200">{welcome.message}</p>
 
@@ -177,13 +181,15 @@ function LoginPageContent() {
               ) : null}
             </div>
 
-            <div className="shrink-0 pt-1 md:mr-2 md:mt-1 lg:hidden">
-              <img
-                src={heroImageUrl}
-                alt="Logo du clan"
-                className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow md:h-20 md:w-20"
-              />
-            </div>
+            {welcome.badge !== 'Portail PUBG' && (
+              <div className="shrink-0 pt-1 md:mr-2 md:mt-1 lg:hidden">
+                <img
+                  src={heroImageUrl}
+                  alt="Logo du clan"
+                  className="h-16 w-16 rounded-xl border border-white/30 object-cover shadow md:h-20 md:w-20"
+                />
+              </div>
+            )}
           </div>
         </div>
 

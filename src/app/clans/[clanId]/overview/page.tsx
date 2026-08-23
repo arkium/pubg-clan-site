@@ -596,42 +596,8 @@ export default function ClanOverviewPage() {
 
       {!loading && !error && data && (
         <div className="space-y-6">
-          <section className="app-panel p-6 mb-6">
-            <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              <Link href={`/clans/${clanId}/members`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Users className="w-6 h-6 text-blue-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Membres</span>
-              </Link>
-              <Link href={`/clans/${clanId}/matches`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Swords className="w-6 h-6 text-red-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Matchs</span>
-              </Link>
-              <Link href={`/clans/${clanId}/stats`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <BarChart2 className="w-6 h-6 text-purple-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Stats globales</span>
-              </Link>
-              <Link href={`/clans/${clanId}/leaderboard`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Trophy className="w-6 h-6 text-yellow-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Classement</span>
-              </Link>
-              <Link href={`/clans/${clanId}/awards`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Medal className="w-6 h-6 text-amber-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Awards</span>
-              </Link>
-              <Link href={`/clans/${clanId}/challenges`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Target className="w-6 h-6 text-green-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Défis</span>
-              </Link>
-              <Link href={`/clans/${clanId}/drop-zones`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <MapPin className="w-6 h-6 text-orange-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Drop zones</span>
-              </Link>
-            </div>
-          </section>
-
           {/* Bloc 1 — Fiche PUBG officielle */}
-          <header className="app-panel relative overflow-hidden">
+          <header className="app-panel relative overflow-hidden mb-6">
             {!pubg ? (
               <div className="p-6">
                 <h1 className="mb-2 text-base font-semibold text-gray-900">
@@ -644,11 +610,11 @@ export default function ClanOverviewPage() {
             ) : (
               <>
                 <img
-                  src="/maps/pubg/Baltic_Main.webp"
+                  src={clan?.imageUrl || "/maps/pubg/Baltic_Main.webp"}
                   alt=""
-                  className="absolute inset-0 h-full w-full object-cover object-[center_30%] opacity-70"
+                  className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
                 />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/55 to-black/85" />
+                <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/20 to-slate-900/80" />
 
                 <div className="relative px-6 py-5">
                   {/* Identité du clan */}
@@ -710,6 +676,40 @@ export default function ClanOverviewPage() {
               </>
             )}
           </header>
+
+          <section className="app-panel p-6 mb-6">
+            <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              <Link href={`/clans/${clanId}/members`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Users className="w-6 h-6 text-blue-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Membres</span>
+              </Link>
+              <Link href={`/clans/${clanId}/matches`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Swords className="w-6 h-6 text-red-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Matchs</span>
+              </Link>
+              <Link href={`/clans/${clanId}/stats`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <BarChart2 className="w-6 h-6 text-purple-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Stats globales</span>
+              </Link>
+              <Link href={`/clans/${clanId}/leaderboard`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Trophy className="w-6 h-6 text-yellow-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Classement</span>
+              </Link>
+              <Link href={`/clans/${clanId}/awards`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Medal className="w-6 h-6 text-amber-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Awards</span>
+              </Link>
+              <Link href={`/clans/${clanId}/challenges`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Target className="w-6 h-6 text-green-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Défis</span>
+              </Link>
+              <Link href={`/clans/${clanId}/drop-zones`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <MapPin className="w-6 h-6 text-orange-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Drop zones</span>
+              </Link>
+            </div>
+          </section>
 
           {/* Bloc 2 — Statistiques et Analyses */}
           <section className="app-panel relative overflow-hidden p-6">

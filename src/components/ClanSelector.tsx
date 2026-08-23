@@ -109,7 +109,7 @@ function StatTile({
       ].join(' ')}
       title={title}
     >
-      <Icon className={`mx-auto h-4 w-4 ${hasImage ? 'text-white/80' : tone}`} aria-hidden="true" />
+      <Icon className={`mx-auto h-4 w-4 ${tone}`} aria-hidden="true" />
       <p className={`mt-1 text-sm font-bold tabular-nums ${hasImage ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>
         {value}
       </p>
@@ -238,14 +238,20 @@ export default function ClanSelector({
                   type="button"
                   onClick={() => onSelect(clan.id)}
                   className={[
-                    'app-panel relative w-full overflow-hidden rounded-2xl p-4 text-left transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 bg-cover bg-center',
+                    'group app-panel relative w-full overflow-hidden rounded-2xl p-4 text-left transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600',
                     isActive ? 'ring-2 ring-blue-600' : 'hover:border-blue-500/30 hover:bg-slate-50/80 dark:hover:bg-slate-800/50',
                     !clan.imageUrl && isActive ? 'bg-blue-50/30 dark:bg-blue-900/20' : '',
                   ].join(' ')}
-                  style={clan.imageUrl ? { backgroundImage: `url('${clan.imageUrl}')` } : undefined}
                 >
                   {clan.imageUrl ? (
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/70 to-slate-900/40" />
+                    <>
+                      <img
+                        src={clan.imageUrl}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/20 to-slate-900/80 transition-opacity duration-300 group-hover:opacity-80" />
+                    </>
                   ) : null}
 
                   {isActive ? (

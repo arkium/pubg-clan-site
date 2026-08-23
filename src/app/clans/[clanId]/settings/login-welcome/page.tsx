@@ -42,6 +42,7 @@ export default function ClanLoginWelcomeSettingsPage() {
   const [settings, setSettings] = useState<WelcomeSettings>(DEFAULT_SETTINGS)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -101,6 +102,44 @@ export default function ClanLoginWelcomeSettingsPage() {
   }, [authenticated, canManageSettings, loading, clanId])
 
   const loadingData = authenticated && canManageSettings && !dataLoaded
+
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!clanId) return
+
+    try {
+      setUploading(true)
+      setError('')
+      setSuccess('')
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`/api/clans/${clanId}/settings/login-welcome/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "Échec de l'upload")
+      }
+
+      if (payload?.imageUrl) {
+        setSettings((current) => ({ ...current, imageUrl: payload.imageUrl }))
+        setSuccess("Image téléchargée avec succès. N'oubliez pas d'enregistrer.")
+      }
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Échec de l'upload")
+    } finally {
+      setUploading(false)
+      // Reset input value to allow selecting the same file again if needed
+      event.target.value = ''
+    }
+  }
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -255,20 +294,33 @@ export default function ClanLoginWelcomeSettingsPage() {
 
             <div className="space-y-1 text-sm font-medium text-gray-700">
               <label htmlFor="imageUrl">Image du clan (URL ou chemin local, optionnel)</label>
-              <input
-                id="imageUrl"
-                type="text"
-                value={settings.imageUrl ?? ''}
-                maxLength={500}
-                onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    imageUrl: event.target.value.trim() ? event.target.value : null,
-                  }))
-                }
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Ex: /clans/d32.jpg ou https://..."
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  id="imageUrl"
+                  type="text"
+                  value={settings.imageUrl ?? ''}
+                  maxLength={500}
+                  onChange={(event) =>
+                    setSettings((current) => ({
+                      ...current,
+                      imageUrl: event.target.value.trim() ? event.target.value : null,
+                    }))
+                  }
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Ex: /clans/d32.jpg ou https://..."
+                />
+                
+                <label className={`app-btn app-btn--sm app-btn--secondary whitespace-nowrap cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
+                  {uploading ? 'Upload...' : 'Uploader...'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg, image/png, image/webp"
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
               <p className="text-xs font-normal text-gray-500">
                 Format recommandé : 1024x434 px (JPG, PNG ou WEBP).
               </p>

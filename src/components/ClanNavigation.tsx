@@ -1108,7 +1108,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {/* Player Info Link */}
-                  {viewedMemberId && viewedMemberData && (
+                  {viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId && (
                     <Link
                       href={`/members/${viewedMemberId}/dashboard`}
                       className={cx(

@@ -58,6 +58,7 @@ export async function GET(
         ? await prisma.match.aggregate({
             where: {
               memberId: { in: memberIds },
+              matchType: 'official',
               botCount: { not: null },
               ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
             },

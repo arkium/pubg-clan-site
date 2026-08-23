@@ -531,6 +531,7 @@ model Match {
 
   pubgMatchId String
   gameMode    String
+  matchType   String     @default("official")
   mapName     String
 
   kills         Int
@@ -561,6 +562,7 @@ model SquadMatch {
   id          String   @id @default(cuid())
   pubgMatchId String   @unique
   gameMode    String
+  matchType   String   @default("official")
   mapName     String
   placement   Int
   createdAt   DateTime

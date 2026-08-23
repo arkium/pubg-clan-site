@@ -339,6 +339,7 @@ async function fetchLeaderboardActivity(
     prisma.match.findMany({
       where: {
         memberId: { in: memberIds },
+        matchType: 'official',
         ...(rangeFilter
           ? {
               pubgCreatedAt: rangeFilter,

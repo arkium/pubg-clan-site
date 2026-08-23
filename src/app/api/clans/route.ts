@@ -34,7 +34,10 @@ export async function GET() {
 
     const matchAggregates = await prisma.match.groupBy({
       by: ['memberId'],
-      where: { memberId: { in: activeMembers.map((member) => member.id) } },
+      where: { 
+        memberId: { in: activeMembers.map((member) => member.id) },
+        matchType: 'official'
+      },
       _count: { _all: true },
       _max: { pubgCreatedAt: true },
     })

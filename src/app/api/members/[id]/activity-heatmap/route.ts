@@ -176,6 +176,7 @@ export async function GET(
 
       const clanMatches = await prisma.squadMatch.findMany({
         where: {
+          matchType: 'official',
           ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
           members: {
             some: {
@@ -240,6 +241,7 @@ export async function GET(
     if (scope === 'best') {
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
+          matchType: 'official',
           ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
           members: {
             some: {
@@ -376,6 +378,7 @@ export async function GET(
     const matches = await prisma.match.findMany({
       where: {
         memberId: effectiveMemberId,
+        matchType: 'official',
         ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
       },
       select: {

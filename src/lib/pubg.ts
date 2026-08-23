@@ -214,6 +214,7 @@ type PubgMatchResponse = {
     id: string
     attributes?: {
       gameMode?: string
+      matchType?: string
       mapName?: string
       createdAt?: string
       duration?: number
@@ -231,6 +232,7 @@ type PubgMatchResponse = {
 export type ResolvedPubgMatch = {
   id: string
   gameMode: string
+  matchType: string
   mapName: string
   createdAt: string
   durationSeconds: number
@@ -1207,6 +1209,7 @@ function resolveMatchDetails(
   return {
     id: match.id,
     gameMode: match.attributes?.gameMode ?? 'unknown',
+    matchType: match.attributes?.matchType ?? 'official',
     mapName: match.attributes?.mapName ?? 'Unknown',
     createdAt: match.attributes?.createdAt ?? new Date().toISOString(),
     durationSeconds: match.attributes?.durationSeconds ?? match.attributes?.duration ?? 0,

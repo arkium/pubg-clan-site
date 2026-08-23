@@ -162,6 +162,7 @@ export async function POST(
               memberId: member.id,
               pubgMatchId: matchDetails.id,
               gameMode: matchDetails.gameMode,
+              matchType: matchDetails.matchType,
               mapName: matchDetails.mapName,
               kills: matchDetails.stats.kills,
               knockouts: matchDetails.stats.knockouts,
@@ -185,6 +186,7 @@ export async function POST(
               },
               update: {
                 gameMode: matchData.gameMode,
+                matchType: matchData.matchType,
                 mapName: matchData.mapName,
                 kills: matchData.kills,
                 knockouts: matchData.knockouts,

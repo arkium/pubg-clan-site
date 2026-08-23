@@ -193,6 +193,7 @@ export async function GET(
     const topPerformanceCandidates = await prisma.match.findMany({
       where: {
         memberId,
+        matchType: 'official',
         ...(dateRange
           ? {
               pubgCreatedAt: {

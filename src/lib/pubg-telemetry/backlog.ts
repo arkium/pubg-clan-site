@@ -95,6 +95,11 @@ export async function listSquadMatchesNeedingTelemetry(
         // version bump above (retrying would just waste API calls on a certain 404).
         OR: [{ telemetry: null }, { telemetry: { is: { errorCode: { not: 'TELEMETRY_DATA_EXPIRED' } } } }],
       },
+      {
+        matchType: {
+          not: 'airoyale', // We do not want telemetry for Casual matches
+        },
+      },
     ],
     ...(typeof options.clanId === 'number'
       ? {

@@ -381,6 +381,7 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
     data: {
       pubgMatchId: matchDetails.id,
       gameMode: matchDetails.gameMode,
+      matchType: matchDetails.matchType,
       mapName: matchDetails.mapName,
       placement: detectedSquad.placement,
       createdAt: new Date(matchDetails.createdAt),

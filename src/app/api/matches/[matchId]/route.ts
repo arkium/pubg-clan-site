@@ -17,6 +17,7 @@ function toImportedMatchData(memberId: number, match: Awaited<ReturnType<typeof 
     memberId,
     pubgMatchId: match.id,
     gameMode: match.gameMode,
+    matchType: match.matchType,
     mapName: match.mapName,
     kills: match.stats.kills,
     knockouts: match.stats.knockouts,
@@ -101,6 +102,7 @@ export async function POST(
     }
 
     const match = await fetchMatchDetails(matchId, playerId, shard, { memberId })
+
     const importedMatchData = toImportedMatchData(memberId, match)
 
     const savedMatch = await prisma.match.upsert({
@@ -112,6 +114,7 @@ export async function POST(
       },
       update: {
         gameMode: importedMatchData.gameMode,
+        matchType: importedMatchData.matchType,
         mapName: importedMatchData.mapName,
         kills: importedMatchData.kills,
         knockouts: importedMatchData.knockouts,

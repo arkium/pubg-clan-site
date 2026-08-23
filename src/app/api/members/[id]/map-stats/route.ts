@@ -253,6 +253,7 @@ export async function GET(
             clanId: member.clanId,
             isActive: true,
           },
+          matchType: 'official',
           ...(periodBounds
             ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),
@@ -273,6 +274,7 @@ export async function GET(
     } else if (scope === 'best') {
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
+          matchType: 'official',
           ...(periodBounds
             ? { createdAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),
@@ -313,6 +315,7 @@ export async function GET(
         matchRows = await prisma.match.findMany({
           where: {
             memberId: { in: bestTeam.memberIds },
+            matchType: 'official',
             pubgMatchId: { in: pubgMatchIds.map((entry) => entry.pubgMatchId) },
             ...(periodBounds
               ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
@@ -342,6 +345,7 @@ export async function GET(
       matchRows = await prisma.match.findMany({
         where: {
           memberId: effectiveMemberId,
+          matchType: 'official',
           ...(periodBounds
             ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),

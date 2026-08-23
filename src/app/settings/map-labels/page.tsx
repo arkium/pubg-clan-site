@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { Map } from 'lucide-react'
 
 import DropZoneMapViewport, {
   type DropZoneMapViewportHandle,
@@ -12,7 +13,6 @@ import { useAuthSession } from '@/hooks/useAuthSession'
 import FilterDropdown from '@/components/ui/FilterDropdown'
 import MapImage from '@/components/ui/MapImage'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
@@ -343,11 +343,24 @@ export default function MapLabelsSettingsPage() {
         currentHref="/settings/map-labels"
         fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/banner-maps.jpg')`, backgroundPosition: 'center 35%' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Map className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+              Configuration des cartes PUBG
+            </h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Gérez les libellés des cartes et les périmètres des villes.
+          </p>
+        </div>
+      </header>
       <section className="app-panel mb-4 p-4">
-        <SettingsPageHeader
-          title="Configuration des cartes PUBG"
-          subtitle="Gerez les libelles des cartes et les perimetres des villes."
-        />
         <div className="mt-4 border-t border-gray-200 pt-4">
           <SegmentedControl
             options={VIEW_OPTIONS}

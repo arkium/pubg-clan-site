@@ -5,6 +5,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Users } from 'lucide-react'
 
 import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -676,18 +677,31 @@ export default function ClanMembersSettingsPage() {
         currentHref={`/clans/${clanId}/settings/members`}
         fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
       />
-      <section className="app-panel mb-4 p-4">
-        <SettingsPageHeader
-          title="Membres et rôles"
-          subtitle="Cartes premium pour les membres du clan, leurs rôles et leurs invitations."
-          actions={
-            <div className="flex items-center gap-3">
-              <Link href="/members/add" className="app-btn app-btn--md app-btn--primary">Ajouter un joueur</Link>
-              <Link href="/clans" className="app-btn app-btn--md app-btn--secondary">Changer de clan</Link>
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/banner-members.jpg')`, backgroundPosition: 'center 35%' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Users className="h-4 w-4 text-blue-400 sm:h-6 sm:w-6" aria-hidden="true" />
+                <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+                  Membres et rôles
+                </h1>
+              </div>
+              <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+                Cartes premium pour les membres du clan, leurs rôles et leurs invitations.
+              </p>
             </div>
-          }
-        />
-      </section>
+            <div className="flex items-center gap-2">
+              <Link href="/members/add" className="app-btn app-btn--sm app-btn--primary shadow-sm hidden sm:inline-flex">Ajouter</Link>
+              <Link href="/clans" className="app-btn app-btn--sm bg-white/10 text-white hover:bg-white/20 border-white/20 shadow-sm hidden sm:inline-flex">Changer de clan</Link>
+            </div>
+          </div>
+        </div>
+      </header>
       
       <div className="mb-6">
         <ClanSyncPanel clanId={clanId} pubgClanId={overviewData?.clan?.pubgClanId} />

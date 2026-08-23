@@ -790,10 +790,18 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
 
   function isActiveLink(href: string) {
-    if (href === '/clans' && (pathname === '/clans/comparator' || pathname.startsWith('/clans/comparator/'))) {
-      return false;
+    if (href === '/clans') {
+      if (pathname === '/clans/comparator' || pathname.startsWith('/clans/comparator/')) return false
+      if (pathname.includes('/settings/')) return false
     }
-    return pathname === href || pathname.startsWith(`${href}/`);
+
+    if (href === '/settings/admin') {
+      if (pathname.includes('/settings/') && !pathname.includes('/settings/owner') && !pathname.includes('/settings/superuser')) {
+        return true
+      }
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   function renderLink(item: NavItem, mobile = false) {
@@ -893,6 +901,103 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     )
   }
 
+  function renderUserProfile(isCollapsedMenu = false) {
+    if (isVisitor) {
+      return (
+        <div className={cx('flex w-full flex-col gap-2 mt-4', isCollapsedMenu ? 'items-center' : 'items-stretch')}>
+          <div className={cx('inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/30 dark:bg-amber-950/20', isCollapsedMenu ? 'p-1' : 'px-2.5 py-1.5 w-full')}>
+             <span className={cx("relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-xs font-bold text-white", isCollapsedMenu ? 'h-10 w-10' : 'h-8 w-8')} title={isCollapsedMenu ? 'Visiteur' : undefined}>
+                <span>{playerInitial}</span>
+             </span>
+             {!isCollapsedMenu && (
+               <span className="flex-1 min-w-0 text-left block">
+                  <span className="block max-w-[130px] truncate text-xs font-semibold text-amber-900 dark:text-amber-100">{playerName}</span>
+                  <span className="block text-[11px] font-medium text-amber-700 dark:text-amber-500">Visiteur</span>
+               </span>
+             )}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className={cx('flex w-full flex-col gap-2', isCollapsedMenu ? 'items-center mt-2' : 'items-stretch mt-4')}>
+        <div
+          className={cx(
+            'inline-flex min-h-10 items-center gap-2 rounded-xl border',
+            isCollapsedMenu ? 'p-1' : 'px-2.5 py-1.5 w-full',
+            'border-emerald-200 bg-emerald-50 dark:border-emerald-900/30 dark:bg-emerald-950/20'
+          )}
+        >
+          <span
+            className={cx(
+              'relative inline-flex items-center justify-center overflow-hidden rounded-full font-bold text-white shrink-0 bg-emerald-600',
+              isCollapsedMenu ? 'h-10 w-10 text-sm' : 'h-8 w-8 text-xs'
+            )}
+            title={isCollapsedMenu ? playerName : undefined}
+          >
+            {playerAvatarUrl ? (
+              <img
+                src={playerAvatarUrl}
+                alt={`${playerName} avatar`}
+                className="h-full w-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                }}
+              />
+            ) : (
+              <span>{playerInitial}</span>
+            )}
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-400 dark:border-slate-900" />
+          </span>
+
+          {!isCollapsedMenu && (
+            <span className="flex-1 min-w-0 text-left block">
+              <span className="flex items-center gap-1.5">
+                <span className="block max-w-[130px] truncate text-xs font-semibold text-emerald-900 dark:text-emerald-100">
+                  {playerName}
+                </span>
+                {isSuperUser && (
+                  <span
+                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-[9px] font-bold uppercase leading-none text-violet-700 dark:border-violet-800 dark:bg-violet-900/50 dark:text-violet-300"
+                    title="Compte SuperUser"
+                  >
+                    S
+                  </span>
+                )}
+              </span>
+              <span className="block text-[11px] font-medium text-emerald-700 dark:text-emerald-500">
+                Connecté
+              </span>
+            </span>
+          )}
+
+          {!isCollapsedMenu && (
+             <button
+               type="button"
+               onClick={() => setShowLogoutConfirm(true)}
+               className="inline-flex shrink-0 h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-800"
+               title="Se déconnecter"
+             >
+                <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true"><path fill="currentColor" d="M8.5 3.5A1.5 1.5 0 0 0 7 5v2h1.5V5h6v10h-6v-2H7v2a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 16 15V5a1.5 1.5 0 0 0-1.5-1.5h-6Zm-1.97 4.53-2 2a.75.75 0 0 0 0 1.06l2 2 1.06-1.06L6.89 11H12V9.5H6.89l1.7-1.69-1.06-1.06Z"/></svg>
+             </button>
+          )}
+        </div>
+
+        {isCollapsedMenu && (
+             <button
+               type="button"
+               onClick={() => setShowLogoutConfirm(true)}
+               className="inline-flex shrink-0 h-10 w-10 mt-1 items-center justify-center rounded-full border border-emerald-200/50 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-500 transition hover:bg-emerald-50 dark:hover:bg-slate-800 shadow-sm"
+               title="Se déconnecter"
+             >
+                <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true"><path fill="currentColor" d="M8.5 3.5A1.5 1.5 0 0 0 7 5v2h1.5V5h6v10h-6v-2H7v2a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 16 15V5a1.5 1.5 0 0 0-1.5-1.5h-6Zm-1.97 4.53-2 2a.75.75 0 0 0 0 1.06l2 2 1.06-1.06L6.89 11H12V9.5H6.89l1.7-1.69-1.06-1.06Z"/></svg>
+             </button>
+        )}
+      </div>
+    )
+  }
+
   if (setupState !== 'completed' || (!authenticated && !authDisabled)) {
     return null
   }
@@ -926,33 +1031,22 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
             <section>
-              
               <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item))}</nav>
             </section>
 
-            {showAdminMenu ? (
-              <section>
+            {(showAdminMenu || showOwnerMenu || showSuperUserMenu) && (
+              <section className="border-t border-slate-200 dark:border-slate-800/80 pt-4">
                 <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'admin.entry', label: 'Param\u00e8tres admin', href: adminEntryHref, tone: 'brand', role: 'admin' })}
+                  {showAdminMenu && renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' })}
+                  {showOwnerMenu && renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
+                  {showSuperUserMenu && renderSubmenuLink({ navKey: 'superuser.entry', label: 'Paramètres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' })}
                 </div>
               </section>
-            ) : null}
+            )}
+          </div>
 
-            {showOwnerMenu ? (
-              <section>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'owner.entry', label: 'Param\u00e8tres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
-                </div>
-              </section>
-            ) : null}
-
-            {showSuperUserMenu ? (
-              <section>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'superuser.entry', label: 'Param\u00e8tres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' })}
-                </div>
-              </section>
-            ) : null}
+          <div className={cx('mt-auto flex shrink-0 items-center border-t px-4 py-2 w-full', appTheme === 'dark' ? 'border-slate-800/80' : 'border-slate-200')}>
+            {renderUserProfile(isCollapsed)}
           </div>
         </aside>
 
@@ -978,39 +1072,57 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       />
                     </svg>
                   </button>
-                  <div className="flex min-w-0 items-center gap-2">
+                  {/* Clan Info Link */}
+                  <Link
+                    href={clanId ? `/clans/${clanId}/overview` : '/clans'}
+                    className={cx(
+                      "flex min-w-0 items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
+                      appTheme === 'dark'
+                        ? 'border-slate-800/80 bg-slate-900/50 hover:bg-slate-800 hover:border-slate-700'
+                        : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
+                    )}
+                  >
                     <img
                       src={clanImageUrl}
                       alt="Logo du clan"
-                      className="h-8 w-8 rounded-lg border border-slate-200 object-cover"
+                      className="h-8 w-8 rounded-lg object-cover bg-slate-900"
                       onError={(event) => {
                         ;(event.currentTarget as HTMLImageElement).src = '/pubg.png'
                       }}
                     />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionne'}
+                    <div className="flex flex-col min-w-0 justify-center">
+                      <p className={cx("truncate text-xs font-bold leading-tight", appTheme === 'dark' ? 'text-slate-200' : 'text-slate-900')}>
+                        {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionné'}
                       </p>
                       {loading ? (
-                        <p className="text-xs text-slate-500">Verification de session...</p>
+                        <p className={cx("text-[10px] font-medium uppercase tracking-wider", appTheme === 'dark' ? 'text-slate-500' : 'text-slate-500')}>Vérification...</p>
                       ) : authenticated ? (
-                        <p className="text-xs text-emerald-700">Session active</p>
+                        <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-emerald-500' : 'text-emerald-700')}>Clan actif</p>
                       ) : isVisitor ? (
-                        <p className="text-xs text-amber-700">Mode visiteur</p>
+                        <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Mode visiteur</p>
                       ) : (
-                        <p className="text-xs text-amber-700">Session non connectee</p>
+                        <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Session non connectée</p>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  {viewedMemberId && viewedMemberData && (
-                    <div className={cx("hidden sm:flex items-center gap-2 rounded-xl border px-3 py-1.5", appTheme === 'dark' ? 'border-blue-900 bg-blue-950/50' : 'border-blue-200 bg-blue-50')}>
+                  {/* Player Info Link */}
+                  {viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId && (
+                    <Link
+                      href={`/members/${viewedMemberId}/dashboard`}
+                      className={cx(
+                        "hidden sm:flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
+                        appTheme === 'dark' 
+                          ? 'border-blue-900 bg-blue-950/50 hover:bg-blue-900/60 hover:border-blue-700' 
+                          : 'border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300'
+                      )}
+                    >
                       <div className={cx("flex h-6 w-6 items-center justify-center rounded", appTheme === 'dark' ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700')}>
                         <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden="true"><path fill="currentColor" d="M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM5.5 7a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Zm-2 10.5c0-2.31 2.37-4.22 5.09-4.87a6.03 6.03 0 0 1 2.82 0c2.72.65 5.09 2.56 5.09 4.87v.25a.75.75 0 0 1-.75.75H4.25a.75.75 0 0 1-.75-.75v-.25Z"/></svg>
                       </div>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col justify-center">
                         <span className={cx("text-[9px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
                           Joueur
                         </span>
@@ -1018,77 +1130,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                           {viewedMemberData.displayName}
                         </span>
                       </div>
-                    </div>
+                    </Link>
                   )}
-                  <div
-                    className={cx(
-                      'inline-flex min-h-10 items-center gap-2 rounded-xl border px-2.5 py-1.5',
-                      isVisitor ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'
-                    )}
-                  >
-                    <span
-                      className={cx(
-                        'relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white',
-                        isVisitor ? 'bg-amber-500' : 'bg-emerald-600'
-                      )}
-                    >
-                      {playerAvatarUrl ? (
-                        <img
-                          src={playerAvatarUrl}
-                          alt={`${playerName} avatar`}
-                          className="h-full w-full object-cover"
-                          onError={(event) => {
-                            event.currentTarget.style.display = 'none'
-                          }}
-                        />
-                      ) : (
-                        <span>{playerInitial}</span>
-                      )}
-                      {!isVisitor && (
-                        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-white bg-emerald-400" />
-                      )}
-                    </span>
-                    <span className="hidden text-left sm:block">
-                      <span className="flex max-w-44 items-center gap-1.5">
-                        <span
-                          className={cx(
-                            'block max-w-36 truncate text-xs font-semibold',
-                            isVisitor ? 'text-amber-900' : 'text-emerald-900'
-                          )}
-                        >
-                          {playerName}
-                        </span>
-                        {isSuperUser ? (
-                          <span
-                            className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-[9px] font-bold uppercase leading-none text-violet-700"
-                            title="Compte SuperUser"
-                            aria-label="Compte SuperUser"
-                          >
-                            S
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className={cx('block text-[11px] font-medium', isVisitor ? 'text-amber-700' : 'text-emerald-700')}>
-                        {isVisitor ? 'Visiteur' : 'Connecte'}
-                      </span>
-                    </span>
-                    {!isVisitor && (
-                      <button
-                        type="button"
-                        onClick={() => setShowLogoutConfirm(true)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800"
-                        aria-label="Se deconnecter"
-                        title="Se deconnecter"
-                      >
-                        <svg viewBox="0 0 20 20" className="h-4 w-4" aria-hidden="true">
-                          <path
-                            fill="currentColor"
-                            d="M8.5 3.5A1.5 1.5 0 0 0 7 5v2h1.5V5h6v10h-6v-2H7v2a1.5 1.5 0 0 0 1.5 1.5h6A1.5 1.5 0 0 0 16 15V5a1.5 1.5 0 0 0-1.5-1.5h-6Zm-1.97 4.53-2 2a.75.75 0 0 0 0 1.06l2 2 1.06-1.06L6.89 11H12V9.5H6.89l1.7-1.69-1.06-1.06Z"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
 
@@ -1148,7 +1191,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <aside
             ref={mobileDrawerRef}
             className={cx(
-              'mobile-drawer-panel relative z-10 h-full w-80 max-w-[85vw] overflow-y-auto border-r p-4 shadow-2xl transition-all duration-300',
+              'mobile-drawer-panel relative z-10 flex h-full w-80 max-w-[85vw] flex-col overflow-y-auto border-r p-4 shadow-2xl transition-all duration-300',
               appTheme === 'dark' ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white',
               mobileOpen ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'
             )}
@@ -1178,34 +1221,25 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <div className="flex min-w-0 items-center justify-end gap-2">{renderThemeToggle()}</div>
             </div>
 
-            <section>
-              
-              <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item, true))}</nav>
-            </section>
-
-            {showAdminMenu ? (
+            <div className="flex-1 space-y-5">
               <section>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'admin.entry', label: 'Param\u00e8tres admin', href: adminEntryHref, tone: 'brand', role: 'admin' }, true)}
-                </div>
+                <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item, true))}</nav>
               </section>
-            ) : null}
 
-            {showOwnerMenu ? (
-              <section>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'owner.entry', label: 'Param\u00e8tres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
-                </div>
-              </section>
-            ) : null}
+              {(showAdminMenu || showOwnerMenu || showSuperUserMenu) && (
+                <section className="border-t border-slate-200 dark:border-slate-800/80 pt-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    {showAdminMenu && renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' }, true)}
+                    {showOwnerMenu && renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
+                    {showSuperUserMenu && renderSubmenuLink({ navKey: 'superuser.entry', label: 'Paramètres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' }, true)}
+                  </div>
+                </section>
+              )}
+            </div>
 
-            {showSuperUserMenu ? (
-              <section>
-                <div className="grid grid-cols-1 gap-2">
-                  {renderSubmenuLink({ navKey: 'superuser.entry', label: 'Param\u00e8tres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' }, true)}
-                </div>
-              </section>
-            ) : null}
+            <div className="mt-auto mb-4 flex justify-center shrink-0 w-full px-4">
+              {renderUserProfile(false)}
+            </div>
           </aside>
         </div>
       ) : null}

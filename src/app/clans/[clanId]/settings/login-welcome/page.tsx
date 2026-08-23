@@ -5,6 +5,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { Monitor } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
@@ -188,16 +189,25 @@ export default function ClanLoginWelcomeSettingsPage() {
         currentHref={`/clans/${clanId}/settings/login-welcome`}
         fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
       />
-      <section className="app-panel mb-4 p-4">
-        <SettingsPageHeader
-          title="Message de bienvenue login"
-          subtitle={
-            clanLabel
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/login-welcome.jpg')`, backgroundPosition: 'center 35%' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Monitor className="h-4 w-4 text-emerald-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+              Message de bienvenue
+            </h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            {clanLabel
               ? `Personnalisez le texte affiché sur la page de connexion pour ${clanLabel}.`
-              : "Personnalisez le texte affiché sur la page de connexion de ce clan."
-          }
-        />
-      </section>
+              : "Personnalisez le texte affiché sur la page de connexion de ce clan."}
+          </p>
+        </div>
+      </header>
 
       <section className="app-panel p-5 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-2">
@@ -243,10 +253,11 @@ export default function ClanLoginWelcomeSettingsPage() {
               />
             </label>
 
-            <label className="block text-sm font-medium text-gray-700">
-              Image du clan (URL, optionnel)
+            <div className="space-y-1 text-sm font-medium text-gray-700">
+              <label htmlFor="imageUrl">Image du clan (URL ou chemin local, optionnel)</label>
               <input
-                type="url"
+                id="imageUrl"
+                type="text"
                 value={settings.imageUrl ?? ''}
                 maxLength={500}
                 onChange={(event) =>
@@ -255,10 +266,13 @@ export default function ClanLoginWelcomeSettingsPage() {
                     imageUrl: event.target.value.trim() ? event.target.value : null,
                   }))
                 }
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="https://..."
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                placeholder="Ex: /clans/d32.jpg ou https://..."
               />
-            </label>
+              <p className="text-xs font-normal text-gray-500">
+                Format recommandé : 1024x434 px (JPG, PNG ou WEBP).
+              </p>
+            </div>
 
             {error ? <p className="text-sm text-rose-700">{error}</p> : null}
             {success ? <p className="text-sm text-emerald-700">{success}</p> : null}

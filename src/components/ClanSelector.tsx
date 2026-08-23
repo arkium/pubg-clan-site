@@ -15,6 +15,7 @@ export interface Clan {
   lastMatchAt?: string | null
   timePlayedSeconds?: number
   activeDays?: number
+  imageUrl?: string | null
 }
 
 interface ClanSelectorProps {
@@ -27,6 +28,7 @@ interface ClanSelectorProps {
   pendingClan?: Clan | null
   onConfirmSwitch?: () => void
   onCancelSwitch?: () => void
+  isSuperUser?: boolean
 }
 
 type SortKey = 'name' | 'members' | 'matches' | 'playtime'
@@ -90,18 +92,30 @@ function StatTile({
   label,
   tone,
   title,
+  hasImage,
 }: {
   icon: typeof Users
   value: string
   label: string
   tone: string
   title?: string
+  hasImage?: boolean
 }) {
   return (
-    <div className="app-panel-muted rounded-lg px-2 py-2 text-center" title={title}>
-      <Icon className={`mx-auto h-4 w-4 ${tone}`} aria-hidden="true" />
-      <p className="mt-1 text-sm font-bold tabular-nums text-gray-900">{value}</p>
-      <p className="text-[10px] uppercase tracking-wide text-gray-500">{label}</p>
+    <div
+      className={[
+        'rounded-lg px-2 py-2 text-center transition-colors',
+        hasImage ? 'bg-black/40 backdrop-blur-sm border border-white/10' : 'app-panel-muted',
+      ].join(' ')}
+      title={title}
+    >
+      <Icon className={`mx-auto h-4 w-4 ${hasImage ? 'text-white/80' : tone}`} aria-hidden="true" />
+      <p className={`mt-1 text-sm font-bold tabular-nums ${hasImage ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>
+        {value}
+      </p>
+      <p className={`text-[10px] uppercase tracking-wide ${hasImage ? 'text-gray-300' : 'text-gray-500'}`}>
+        {label}
+      </p>
     </div>
   )
 }
@@ -116,6 +130,7 @@ export default function ClanSelector({
   pendingClan,
   onConfirmSwitch,
   onCancelSwitch,
+  isSuperUser = false,
 }: ClanSelectorProps) {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
@@ -123,9 +138,14 @@ export default function ClanSelector({
   const filteredClans = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
+    let visibleClans = clans
+    if (!isSuperUser) {
+      visibleClans = visibleClans.filter((clan) => clan.name !== 'Ungrouped')
+    }
+
     const matching = normalizedQuery
-      ? clans.filter((clan) => `${clan.name} ${clan.tag}`.toLowerCase().includes(normalizedQuery))
-      : clans
+      ? visibleClans.filter((clan) => `${clan.name} ${clan.tag}`.toLowerCase().includes(normalizedQuery))
+      : visibleClans
 
     const sorted = [...matching]
     switch (sortKey) {
@@ -143,7 +163,7 @@ export default function ClanSelector({
     }
 
     return sorted
-  }, [clans, query, sortKey])
+  }, [clans, query, sortKey, isSuperUser])
 
   if (loading) {
     return (
@@ -213,45 +233,59 @@ export default function ClanSelector({
             const isActive = clan.id === activeClanId
 
             return (
-              <li
-                key={clan.id}
-                className={[
-                  'app-panel relative overflow-hidden rounded-2xl p-4 transition-shadow hover:shadow-md',
-                  isActive ? 'ring-2 ring-blue-600' : '',
-                ].join(' ')}
-              >
-                {isActive ? (
-                  <span className="absolute right-3 top-3 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
-                    Actif
-                  </span>
-                ) : null}
-
-                <div className="min-w-0 pr-14">
-                  <p className="truncate text-base font-semibold text-gray-900">{clan.name}</p>
-                  <p className="truncate text-xs text-gray-500">
-                    [{clan.tag}] · {clan.platformShard}
-                  </p>
-                </div>
-
-                <div className="mt-4 grid grid-cols-4 gap-2">
-                  <StatTile icon={Users} value={String(clan.membersCount)} label="Membres" tone="text-blue-500" />
-                  <StatTile icon={Swords} value={String(clan.matchesCount)} label="Matchs" tone="text-cyan-500" />
-                  <StatTile icon={Timer} value={formatPlaytimeCompact(clan.timePlayedSeconds)} label="Temps" tone="text-indigo-500" title={`${clan.activeDays ?? 0} jours actifs`} />
-                  <StatTile
-                    icon={Clock}
-                    value={formatLastMatchCompact(clan.lastMatchAt)}
-                    label="Dernier"
-                    tone="text-orange-500"
-                    title={formatLastMatchTitle(clan.lastMatchAt)}
-                  />
-                </div>
-
+              <li key={clan.id}>
                 <button
                   type="button"
                   onClick={() => onSelect(clan.id)}
-                  className="app-btn app-btn--sm app-btn--primary mt-4 w-full"
+                  className={[
+                    'app-panel relative w-full overflow-hidden rounded-2xl p-4 text-left transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 bg-cover bg-center',
+                    isActive ? 'ring-2 ring-blue-600' : 'hover:border-blue-500/30 hover:bg-slate-50/80 dark:hover:bg-slate-800/50',
+                    !clan.imageUrl && isActive ? 'bg-blue-50/30 dark:bg-blue-900/20' : '',
+                  ].join(' ')}
+                  style={clan.imageUrl ? { backgroundImage: `url('${clan.imageUrl}')` } : undefined}
                 >
-                  Consulter
+                  {clan.imageUrl ? (
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/70 to-slate-900/40" />
+                  ) : null}
+
+                  {isActive ? (
+                    <span className="absolute right-3 top-3 z-10 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 shadow-sm">
+                      Actif
+                    </span>
+                  ) : null}
+
+                  <div className="relative z-10 min-w-0 pr-14">
+                    <div className="flex items-center gap-1.5">
+                      <p className={['truncate text-base font-semibold', clan.imageUrl ? 'text-white drop-shadow-md' : 'text-gray-900 dark:text-gray-100'].join(' ')}>
+                        {clan.name}
+                      </p>
+                      {clan.name === 'Ungrouped' && (
+                        <span
+                          className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-violet-900 text-[10px] font-bold text-violet-200 ring-1 ring-violet-500"
+                          title="Groupe système réservé aux Superusers"
+                        >
+                          S
+                        </span>
+                      )}
+                    </div>
+                    <p className={['truncate text-xs', clan.imageUrl ? 'text-gray-300 drop-shadow-md' : 'text-gray-500'].join(' ')}>
+                      [{clan.tag}] · {clan.platformShard}
+                    </p>
+                  </div>
+
+                  <div className="relative z-10 mt-4 grid grid-cols-4 gap-2">
+                    <StatTile icon={Users} value={String(clan.membersCount)} label="Membres" tone="text-blue-500" hasImage={!!clan.imageUrl} />
+                    <StatTile icon={Swords} value={String(clan.matchesCount)} label="Matchs" tone="text-cyan-500" hasImage={!!clan.imageUrl} />
+                    <StatTile icon={Timer} value={formatPlaytimeCompact(clan.timePlayedSeconds)} label="Temps" tone="text-indigo-500" title={`${clan.activeDays ?? 0} jours actifs`} hasImage={!!clan.imageUrl} />
+                    <StatTile
+                      icon={Clock}
+                      value={formatLastMatchCompact(clan.lastMatchAt)}
+                      label="Dernier"
+                      tone="text-orange-500"
+                      title={formatLastMatchTitle(clan.lastMatchAt)}
+                      hasImage={!!clan.imageUrl}
+                    />
+                  </div>
                 </button>
               </li>
             )

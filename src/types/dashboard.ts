@@ -15,6 +15,7 @@ export interface DashboardMember {
   pubgPlayerName: string
   platformShard: string
   createdAt: string
+  clanId?: number | null
 }
 
 export interface DashboardStats {

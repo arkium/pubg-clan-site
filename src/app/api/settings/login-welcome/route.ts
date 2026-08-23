@@ -22,8 +22,8 @@ const UpdateWelcomeSchema = z.object({
 
       return value
     }, z.string().trim().max(500))
-    .refine((value) => value.length === 0 || /^https?:\/\//i.test(value), {
-      message: 'Image URL must start with http:// or https://',
+    .refine((value) => value.length === 0 || /^https?:\/\//i.test(value) || /^\//.test(value), {
+      message: 'Image URL must start with /, http://, or https://',
     }),
 })
 

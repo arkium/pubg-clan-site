@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import { Users } from 'lucide-react'
 
 import ClanSelector, { type Clan } from '@/components/ClanSelector'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -112,12 +114,21 @@ export default function ClansPage() {
 
   return (
     <main className="app-container app-main">
-      <div className="app-panel mb-5 p-4">
-        <h1 className="text-xl font-bold text-gray-900">Sélectionnez votre clan</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Choisissez le clan à consulter pour afficher les membres et les données associées.
-        </p>
-      </div>
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/clan_banner.jpg')`, backgroundPosition: 'center 35%' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Users className="h-4 w-4 text-blue-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Sélectionnez votre clan</h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Choisissez le clan à consulter pour afficher les membres et les données associées.
+          </p>
+        </div>
+      </header>
 
       <ClanSelector
         clans={clans}
@@ -126,6 +137,7 @@ export default function ClansPage() {
         activeClanId={activeClanId}
         onSelect={handleSelect}
         onRetry={() => setRetryToken((token) => token + 1)}
+        isSuperUser={isSuperUser}
       />
     </main>
   )

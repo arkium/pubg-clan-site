@@ -25,7 +25,12 @@ export async function GET() {
       select: { id: true, clanId: true },
     })
 
+    const clanConfigs = await prisma.clanConfig.findMany({
+      where: { key: 'login_welcome_image_url' },
+    })
+
     const memberClanById = new Map(activeMembers.map((member) => [member.id, member.clanId]))
+    const imageUrlByClanId = new Map(clanConfigs.map((config) => [config.clanId, config.value]))
 
     const matchAggregates = await prisma.match.groupBy({
       by: ['memberId'],
@@ -84,6 +89,7 @@ export async function GET() {
         lastMatchAt: stats.lastMatchAt ? stats.lastMatchAt.toISOString() : null,
         timePlayedSeconds: stats.timePlayedSeconds,
         activeDays: stats.activeDays,
+        imageUrl: imageUrlByClanId.get(clan.id) || null,
       }
     })
 

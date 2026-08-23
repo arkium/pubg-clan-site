@@ -373,6 +373,7 @@ export async function GET(
         pubgPlayerName: member.pubgPlayerName,
         platformShard: member.platformShard,
         createdAt: member.createdAt.toISOString(),
+        clanId: member.clanId,
       },
       stats: playerStat
         ? {

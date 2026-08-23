@@ -3,10 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { Activity } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { PHASE_KEYS, DEFAULT_PHASE_LABELS, type PhaseKey } from '@/lib/phase-label-service'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type PhaseLabels = Record<string, string>
@@ -146,12 +146,24 @@ export default function PhaseLabelSettingsPage() {
         currentHref="/settings/phase-labels"
         fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
       />
-      <section className="app-panel mb-4 p-4">
-        <SettingsPageHeader
-          title="Alias des phases PUBG"
-          subtitle="Personnalise les noms affichés pour chaque valeur isGame dans les filtres, graphiques et tableaux de phases."
-        />
-      </section>
+
+      <header
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('/banner-phases.jpg')`, backgroundPosition: 'center 35%' }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Activity className="h-4 w-4 text-sky-400 sm:h-6 sm:w-6" aria-hidden="true" />
+            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+              Alias des phases PUBG
+            </h1>
+          </div>
+          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            Personnalise les noms affichés pour chaque valeur isGame dans les filtres, graphiques et tableaux de phases.
+          </p>
+        </div>
+      </header>
 
       {error ? (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

@@ -92,6 +92,7 @@ export interface DashboardMatch {
   clanMode: 'solo' | 'duo' | 'trio' | 'squad'
   mapName: string
   gameMode: string
+  matchType?: string
   duration: number
   placement: number
   kills: number

@@ -314,21 +314,20 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const isOwner = hasWildcard
   const isAdmin = canManageMembers || canManageRoles || canManageSettings
 
-  // Member id to use for nav links: admin/owner/superuser browsing another
-  // member's page keep pointing at that member (persisted across navigation,
-  // e.g. clicking into "Mon clan" and back) instead of snapping back to self.
-  const canBrowseOtherMembers = isSuperUser || isOwner || isAdmin
-  const memberIdForCtx = canBrowseOtherMembers && viewedMemberId ? viewedMemberId : activeMemberId
+  // Member id to use for nav links: pointing at the currently viewed member
+  // (persisted across navigation, e.g. clicking into "Mon clan" and back)
+  // instead of always snapping back to self.
+  const memberIdForCtx = viewedMemberId ? viewedMemberId : activeMemberId
   const { member: viewedMemberData } = usePlayerStats(viewedMemberId ?? null, "week")
 
   useEffect(() => {
-    if (!canBrowseOtherMembers || urlMemberId === null || urlMemberId === viewedMemberId) {
+    if (urlMemberId === null || urlMemberId === viewedMemberId) {
       return
     }
 
     setViewedMemberId(urlMemberId)
     window.sessionStorage.setItem(VIEWED_MEMBER_STORAGE_KEY, String(urlMemberId))
-  }, [canBrowseOtherMembers, urlMemberId, viewedMemberId])
+  }, [urlMemberId, viewedMemberId])
 
   // Items promoted to another section are no longer visible in their native section
   const ROLE_TO_TARGET: Partial<Record<string, NavSection>> = {
@@ -999,11 +998,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
 
   if (setupState !== 'completed' || (!authenticated && !authDisabled)) {
-    return null
+    return <div className="flex min-h-full flex-col w-full">{children}</div>
   }
 
   if (pathname.startsWith('/activate') || pathname.startsWith('/login') || pathname.startsWith('/reset-password')) {
-    return null
+    return <div className="flex min-h-full flex-col w-full">{children}</div>
   }
 
   return (
@@ -1109,7 +1108,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {/* Player Info Link */}
-                  {viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId && (
+                  {viewedMemberId && viewedMemberData && (
                     <Link
                       href={`/members/${viewedMemberId}/dashboard`}
                       className={cx(

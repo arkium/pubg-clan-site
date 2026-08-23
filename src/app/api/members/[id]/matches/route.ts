@@ -179,6 +179,7 @@ export async function GET(
           clanMode: clanModeFromClanMemberCount(clanMemberCountByMatchId.get(m.pubgMatchId)),
           mapName: m.mapName,
           gameMode: m.gameMode,
+          matchType: m.matchType,
           duration: m.duration,
           placement: m.placement,
           kills: m.kills,

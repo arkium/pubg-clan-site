@@ -1134,7 +1134,7 @@ export async function fetchWeaponMastery(
   }
 }
 
-async function fetchMatchResponse(matchId: string, shard: string, context?: PubgApiCallContext) {
+export async function fetchMatchResponse(matchId: string, shard: string, context?: PubgApiCallContext) {
   ensurePubgApiKey()
   const response = await queuedPubgGet<PubgMatchResponse>(
     `/shards/${shard}/matches/${matchId}`,

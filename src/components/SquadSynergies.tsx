@@ -258,7 +258,7 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
           {!telemetryLoading && !telemetryError ? (
             telemetryRows.length > 0 ? (
               <>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 mb-5">
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-5 mb-5">
                   <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
                     <div className="relative">

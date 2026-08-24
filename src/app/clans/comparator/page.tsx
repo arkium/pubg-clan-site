@@ -224,16 +224,57 @@ function ComparatorContent() {
 
           <section className="app-panel overflow-hidden p-4 sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-[var(--theme-ui-text)]">Performances globales</h2>
-            <div className="w-full overflow-x-auto">
+            
+            {/* Mobile layout (Cards) */}
+            <div className="flex flex-col gap-4 sm:hidden">
+              {selectedClanIds.map((id) => {
+                const clan = clanByIndex(id)
+                if (!clan) return null
+                return (
+                  <div key={id} className="rounded-xl border border-[var(--theme-ui-border)] p-4 flex flex-col gap-3">
+                    <div className="font-semibold text-[var(--theme-ui-text)] text-base border-b border-[var(--theme-ui-border)] pb-2">
+                      <Link href={`/clans/${clan.clanId}/overview`} className="hover:text-emerald-500 transition-colors">
+                        {clan.clanName} [{clan.clanTag}]
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm">
+                      <div>
+                        <div className="text-[var(--theme-ui-text-muted)] text-xs mb-0.5">Matchs</div>
+                        <div className="font-medium text-[var(--theme-ui-text-secondary)]">{formatNumber(clan.performance?.matchCount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[var(--theme-ui-text-muted)] text-xs mb-0.5">Winrate</div>
+                        <div className="font-medium text-[var(--theme-ui-text-secondary)]">{formatPercent(clan.performance?.winRate)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[var(--theme-ui-text-muted)] text-xs mb-0.5">Top 10</div>
+                        <div className="font-medium text-[var(--theme-ui-text-secondary)]">{formatPercent(clan.performance?.top10Rate)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[var(--theme-ui-text-muted)] text-xs mb-0.5">Dégâts/match</div>
+                        <div className="font-medium text-[var(--theme-ui-text-secondary)]">{formatNumber(clan.performance?.avgDamagePerMatch)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[var(--theme-ui-text-muted)] text-xs mb-0.5">Kills/match</div>
+                        <div className="font-medium text-[var(--theme-ui-text-secondary)]">{clan.performance?.avgKillsPerMatch?.toFixed(1) ?? '-'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop/Tablet layout (Table) */}
+            <div className="hidden sm:block w-full overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[var(--theme-ui-text-muted)]">
-                    <th className="pb-2 font-medium">Clan</th>
-                    <th className="pb-2 text-right font-medium">Matchs</th>
-                    <th className="pb-2 text-right font-medium">Winrate</th>
-                    <th className="pb-2 text-right font-medium">Top 10</th>
-                    <th className="pb-2 text-right font-medium">Dégâts/match</th>
-                    <th className="pb-2 text-right font-medium">Kills/match</th>
+                    <th className="pb-2 font-medium whitespace-nowrap">Clan</th>
+                    <th className="pb-2 text-right font-medium whitespace-nowrap">Matchs</th>
+                    <th className="pb-2 text-right font-medium whitespace-nowrap">Winrate</th>
+                    <th className="pb-2 text-right font-medium whitespace-nowrap">Top 10</th>
+                    <th className="pb-2 text-right font-medium whitespace-nowrap">Dégâts/match</th>
+                    <th className="pb-2 text-right font-medium whitespace-nowrap">Kills/match</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--theme-ui-border)]">
@@ -247,20 +288,20 @@ function ComparatorContent() {
                             {clan.clanName} [{clan.clanTag}]
                           </Link>
                         </td>
-                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)]">
+                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)] whitespace-nowrap">
                           {formatNumber(clan.performance?.matchCount)}
                         </td>
-                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)]">
+                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)] whitespace-nowrap">
                           {formatPercent(clan.performance?.winRate)}
                         </td>
-                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)]">
+                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)] whitespace-nowrap">
                           {formatPercent(clan.performance?.top10Rate)}
                         </td>
-                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)]">
+                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)] whitespace-nowrap">
                           {formatNumber(clan.performance?.avgDamagePerMatch)}
                         </td>
-                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)]">
-                          {clan.performance?.avgKillsPerMatch?.toFixed(1) ?? '—'}
+                        <td className="py-2 text-right text-[var(--theme-ui-text-secondary)] whitespace-nowrap">
+                          {clan.performance?.avgKillsPerMatch?.toFixed(1) ?? '-'}
                         </td>
                       </tr>
                     )
@@ -340,10 +381,6 @@ function ComparatorContent() {
                   )
                 })}
               </div>
-              <div className="mt-8 pt-6 border-t border-[var(--theme-ui-border)]">
-                <h3 className="mb-4 text-sm font-semibold text-[var(--theme-ui-text)]">Heatmap d'activité (Punchcard)</h3>
-                <ClanActivityHeatmap clans={selectedClanIds.map((id) => clanByIndex(id)!).filter(Boolean)} />
-              </div>
             </section>
 
             <section className="app-panel overflow-hidden p-4 sm:p-6">
@@ -383,6 +420,11 @@ function ComparatorContent() {
               </div>
             </section>
           </div>
+
+          <section className="app-panel overflow-hidden p-4 sm:p-6">
+            <h2 className="mb-4 text-lg font-semibold text-[var(--theme-ui-text)]">Heatmap d'activité (Punchcard)</h2>
+            <ClanActivityHeatmap clans={selectedClanIds.map((id) => clanByIndex(id)!).filter(Boolean)} />
+          </section>
         </div>
       )}
     </main>

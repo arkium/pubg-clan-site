@@ -61,7 +61,8 @@ export async function proxy(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null
 
   if (!sessionToken) {
-    if (PUBLIC_PATHS.has(pathname) || AUTH_DISABLED) {
+    const isProtectedWhenAuthDisabled = pathname.startsWith('/account') || pathname.startsWith('/settings')
+    if (PUBLIC_PATHS.has(pathname) || (AUTH_DISABLED && !isProtectedWhenAuthDisabled)) {
       return NextResponse.next()
     }
 

@@ -21,13 +21,8 @@ export default function HomeRedirect() {
       return
     }
 
-    if (clanId) {
-      router.replace('/members')
-      return
-    }
-
     router.replace('/clans')
-  }, [authDisabled, authenticated, authLoading, clanId, hydrated, router])
+  }, [authDisabled, authenticated, authLoading, hydrated, router])
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">

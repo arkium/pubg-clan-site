@@ -55,6 +55,7 @@ export default function TelemetryRecoveriesOverviewPage() {
   const [clans, setClans] = useState<ClanStat[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
   const [error, setError] = useState('')
   const [reloadToken, setReloadToken] = useState(0)
 
@@ -171,18 +172,43 @@ export default function TelemetryRecoveriesOverviewPage() {
             onChange={(value) => setWindow(value)}
             options={WINDOW_OPTIONS}
           />
-          <button
-            type="button"
-            onClick={() => {
-              setRefreshing(true)
-              setReloadToken((current) => current + 1)
-            }}
-            disabled={refreshing}
-            className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-          >
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  setRecalculating(true)
+                  await fetch('/api/clans/1/telemetry/recalc-aggregates-batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: 'all-clans' }),
+                  })
+                  setReloadToken((current) => current + 1)
+                } catch {
+                  setError('Erreur lors du recalcul des agrégats')
+                } finally {
+                  setRecalculating(false)
+                }
+              }}
+              disabled={recalculating}
+              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${recalculating ? 'animate-spin' : ''}`} aria-hidden />
+              {recalculating ? 'Recalcul en cours...' : 'Recalculer Agrégats'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRefreshing(true)
+                setReloadToken((current) => current + 1)
+              }}
+              disabled={refreshing || recalculating}
+              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+              {refreshing ? 'Rafraîchissement...' : 'Rafraîchir'}
+            </button>
+          </div>
         </div>
 
         {error ? <p className="mt-3 text-sm text-rose-800">{error}</p> : null}

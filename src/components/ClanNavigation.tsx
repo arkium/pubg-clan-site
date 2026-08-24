@@ -369,8 +369,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       { navKey: 'primary.dashboard', label: 'Les clans', href: '/clans', tone: 'blue' },
       { navKey: 'primary.ligue', label: 'Ligue', href: '/clans-leaderboard', tone: 'brand' },
       { navKey: 'primary.comparator', label: 'Comparateur', href: '/clans/comparator', tone: 'emerald' },
-      { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' },
-    ] as NavItem[]).filter((item) => !isNavHidden(item.navKey))
+      !isVisitor
+        ? { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' }
+        : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },
+    ] as (NavItem | null)[]).filter((item): item is NavItem => item !== null && !isNavHidden(item.navKey))
 
   const adminEntryHref = '/settings/admin'
   const ownerEntryHref = '/settings/owner'

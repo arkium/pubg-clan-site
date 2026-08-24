@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import Link from 'next/link'
-import { Clock, Download, ShieldAlert, Target, RefreshCw, Crosshair, Wrench } from 'lucide-react'
+import { Clock, Download, ShieldAlert, Target, RefreshCw, Crosshair, Wrench, Database } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -70,6 +70,11 @@ export default function SuperUserHubPage() {
               <RefreshCw className="w-8 h-8 text-emerald-500 mb-3" />
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Recoveries Globales</h3>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Outils de récupération de télémétrie inter-clans.</p>
+            </Link>
+            <Link href="/settings/superuser/database" className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
+              <Database className="w-8 h-8 text-[var(--theme-ui-accent)] mb-3" />
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Base de données</h3>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Métriques de taille des tables et stockage.</p>
             </Link>
           </div>
         </div>

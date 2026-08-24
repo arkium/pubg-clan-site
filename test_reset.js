@@ -1,0 +1,1 @@
+﻿const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); async function run() { await prisma.$executeRaw`UPDATE SquadMatchTelemetry SET status = "PENDING" ORDER BY parsedAt DESC LIMIT 100`; console.log("Done"); } run().catch(console.error).finally(() => prisma.$disconnect());

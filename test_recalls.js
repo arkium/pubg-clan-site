@@ -1,0 +1,1 @@
+﻿const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); async function run() { const count = await prisma.playerStats.count({ where: { recalls: { gt: 0 } } }); console.log("PlayerStats with recalls:", count); } run().catch(console.error).finally(() => prisma.$disconnect());

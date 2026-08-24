@@ -129,15 +129,13 @@ function LoginPageContent() {
 
         window.localStorage.setItem('canSwitchClan', payload.canSwitchClan ? '1' : '0')
       }
-      // Si pas de redirect explicite, on va sur le dashboard du membre actif
+      // Force a full page reload so all client-side layout states (like useAuthSession) refresh
       if (redirectTo) {
-        router.replace(redirectTo)
+        window.location.href = redirectTo
       } else {
-        // On récupère l'ID du membre actif depuis la réponse ou on fallback sur /members
         const memberId = payload.activeMemberId
-        router.replace(memberId ? `/members/${memberId}/dashboard` : '/members')
+        window.location.href = memberId ? `/members/${memberId}/dashboard` : '/members'
       }
-      router.refresh()
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Login failed')
     } finally {

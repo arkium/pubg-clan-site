@@ -652,6 +652,10 @@ async function recalculateTelemetryPeriodForClan(
           pairAggregate.reviveCount += 1
         }
 
+        if (leftStats.recalls > 0 || rightStats.recalls > 0) {
+          pairAggregate.recallCount += (leftStats.recalls + rightStats.recalls)
+        }
+
         if (leftStats.kills > 0 && rightStats.kills > 0) {
           pairAggregate.coKillCount += 1
         }

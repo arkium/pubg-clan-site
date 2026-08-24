@@ -1364,7 +1364,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           ).boostsUsed += 1
         }
         
-        const isRecall = lower.includes('bluechip') && lower.includes('transmitter')
+        const isRecall = lower.includes('bluechip')
         if (isRecall) {
           getOrCreateMemberStatsWithTeam(
             accumulator.memberStats,

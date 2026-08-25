@@ -11,6 +11,7 @@ export interface ClanLeaderboardEntry {
   winRate: number
   avgDamage: number
   avgKills: number
+  avgKnocks: number
   powerScore: number
   rank: number
 }
@@ -49,9 +50,11 @@ export async function GET(request: NextRequest) {
       const winRate = payload.performance?.winRate ?? 0
       const avgDamage = payload.performance?.avgDamagePerMatch ?? 0
       const avgKills = payload.performance?.avgKillsPerMatch ?? 0
+      const avgKnocks = payload.performance?.avgKnockoutsPerMatch ?? 0
       
-      // (WinRate * 100) + (AvgDamagePerMatch) + (KillsPerMatch * 10)
-      const powerScore = (winRate * 100) + avgDamage + (avgKills * 10)
+      // ((WinRate * 100) * 100) + (AvgDamagePerMatch) + (KillsPerMatch * 10) + (KnocksPerMatch * 5)
+      // Ex: a 12.5% win rate (0.125) gives 12.5 * 100 = 1250 pts
+      const powerScore = ((winRate * 100) * 100) + avgDamage + (avgKills * 10) + (avgKnocks * 5)
 
       entries.push({
         clanId: row.clanId,
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest) {
         winRate,
         avgDamage,
         avgKills,
+        avgKnocks,
         powerScore,
         rank: 0,
       })

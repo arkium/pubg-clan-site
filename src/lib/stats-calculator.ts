@@ -88,6 +88,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
 
   const matchesPlayed = squadMembers.length
   const totalKills = squadMembers.reduce((sum, m) => sum + m.kills, 0)
+  const totalKnockouts = squadMembers.reduce((sum, m) => sum + m.knockouts, 0)
   const totalDamage = squadMembers.reduce((sum, m) => sum + m.damage, 0)
   const totalAssists = squadMembers.reduce((sum, m) => sum + m.assists, 0)
   const totalRevives = squadMembers.reduce((sum, m) => sum + m.revives, 0)
@@ -104,12 +105,14 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
 
   const winRate = matchesPlayed > 0 ? matchesWon / matchesPlayed : 0
   const avgKillsPerGame = matchesPlayed > 0 ? totalKills / matchesPlayed : 0
+  const avgKnockoutsPerGame = matchesPlayed > 0 ? totalKnockouts / matchesPlayed : 0
   const avgDamagePerGame = matchesPlayed > 0 ? totalDamage / matchesPlayed : 0
 
   await prisma.playerStats.upsert({
     where: { memberId_period: { memberId, period: periodKey } },
     update: {
       totalKills,
+      totalKnockouts,
       totalDamage,
       totalAssists,
       totalRevives,
@@ -117,6 +120,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
       matchesWon,
       winRate,
       avgKillsPerGame,
+      avgKnockoutsPerGame,
       avgDamagePerGame,
       timePlayedSeconds,
       activeDays,
@@ -129,6 +133,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
       startDate,
       endDate,
       totalKills,
+      totalKnockouts,
       totalDamage,
       totalAssists,
       totalRevives,
@@ -136,6 +141,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
       matchesWon,
       winRate,
       avgKillsPerGame,
+      avgKnockoutsPerGame,
       avgDamagePerGame,
       timePlayedSeconds,
       activeDays,

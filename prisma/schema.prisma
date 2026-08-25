@@ -769,6 +769,7 @@ model PlayerStats {
   endDate    DateTime
 
   totalKills       Int   @default(0)
+  totalKnockouts   Int   @default(0)
   totalDamage      Float @default(0)
   totalAssists     Int   @default(0)
   totalRevives     Int   @default(0)
@@ -776,6 +777,7 @@ model PlayerStats {
   matchesWon       Int   @default(0)
   winRate          Float @default(0)
   avgKillsPerGame  Float @default(0)
+  avgKnockoutsPerGame Float @default(0)
   avgDamagePerGame Float @default(0)
 
   timePlayedSeconds Int  @default(0)

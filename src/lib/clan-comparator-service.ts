@@ -82,6 +82,7 @@ export type ClanComparatorPayload = {
     top10Rate: number
     avgDamagePerMatch: number
     avgKillsPerMatch: number
+    avgKnockoutsPerMatch: number
   }
 }
 
@@ -141,6 +142,7 @@ async function buildClanComparatorPayload(
             memberId: true,
             damage: true,
             kills: true,
+            knockouts: true,
             revives: true,
             timeSurvived: true,
             member: { select: { joinStatus: true } },
@@ -190,6 +192,7 @@ async function buildClanComparatorPayload(
   let top10Count = 0
   let totalDamage = 0
   let totalKills = 0
+  let totalKnockouts = 0
   let totalTimeSurvived = 0
   let sampleCount = 0
   let revivesGiven = 0
@@ -222,6 +225,7 @@ async function buildClanComparatorPayload(
       activeMemberIds.add(member.memberId)
       totalDamage += member.damage
       totalKills += member.kills
+      totalKnockouts += member.knockouts
       matchKills += member.kills
       totalTimeSurvived += member.timeSurvived
       revivesGiven += member.revives
@@ -274,6 +278,7 @@ async function buildClanComparatorPayload(
       top10Rate: matchCount > 0 ? top10Count / matchCount : 0,
       avgDamagePerMatch: matchCount > 0 ? totalDamage / matchCount : 0,
       avgKillsPerMatch: matchCount > 0 ? totalKills / matchCount : 0,
+      avgKnockoutsPerMatch: matchCount > 0 ? totalKnockouts / matchCount : 0,
     },
   }
 }

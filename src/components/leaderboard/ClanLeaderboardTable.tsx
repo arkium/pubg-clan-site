@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Crown, Swords, Target, Activity } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Crown, Swords, Target, Activity, UserMinus } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -9,7 +9,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
 import type { ClanLeaderboardEntry } from '@/app/api/clans-leaderboard/route'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
-export type SortBy = 'powerScore' | 'activeMembers' | 'winRate' | 'avgDamage' | 'avgKills'
+export type SortBy = 'powerScore' | 'activeMembers' | 'winRate' | 'avgDamage' | 'avgKills' | 'avgKnocks'
 
 const MEDAL_BY_RANK = {
   1: { iconPath: '/icons/medal-gold.svg', alt: 'Médaille or, rang 1' },
@@ -23,6 +23,7 @@ const COLUMNS: { key: SortBy; label: string; align: 'center' | 'right' }[] = [
   { key: 'winRate', label: 'Win Rate', align: 'right' },
   { key: 'avgDamage', label: 'Dégâts moy.', align: 'right' },
   { key: 'avgKills', label: 'Kills moy.', align: 'right' },
+  { key: 'avgKnocks', label: 'Knocks moy.', align: 'right' },
 ]
 
 function PodiumPosition({ 
@@ -50,6 +51,7 @@ function PodiumPosition({
   else if (sortBy === 'winRate') metricLabel = `${(entry.winRate * 100).toFixed(1)}% WR`
   else if (sortBy === 'avgDamage') metricLabel = `${Math.round(entry.avgDamage)} dégâts`
   else if (sortBy === 'avgKills') metricLabel = `${entry.avgKills.toFixed(1)} kills`
+  else if (sortBy === 'avgKnocks') metricLabel = `${entry.avgKnocks.toFixed(1)} knocks`
 
   return (
     <div className={`flex flex-col items-center justify-end flex-1 max-w-36 animate-in fade-in slide-in-from-bottom-8 duration-700 ${delayClass}`}>
@@ -229,6 +231,12 @@ export function ClanLeaderboardTable({
                         {entry.avgKills.toFixed(1)}
                       </div>
                     </td>
+                    <td className="px-3 py-3 text-right font-mono">
+                      <div className={`flex items-center justify-end gap-1.5 ${sortBy === 'avgKnocks' ? 'text-gray-900 font-bold' : 'text-gray-700'}`}>
+                        <UserMinus className="w-3.5 h-3.5 text-orange-500" />
+                        {entry.avgKnocks.toFixed(1)}
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -241,9 +249,9 @@ export function ClanLeaderboardTable({
       <section className="app-panel-muted p-4 sm:p-6">
         <h3 className="text-sm font-semibold text-[var(--theme-ui-text)]">Comment le Power Score est calculé</h3>
         <p className="mt-1 text-xs text-gray-500">
-          Un score composite qui combine trois indicateurs de performance sur la période sélectionnée :
+          Un score composite qui combine quatre indicateurs de performance sur la période sélectionnée :
         </p>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs">
             <span className="font-bold text-gray-900">Win Rate × 100</span>
             <p className="mt-0.5 text-gray-500">Taux de victoire du clan</p>
@@ -256,9 +264,13 @@ export function ClanLeaderboardTable({
             <span className="font-bold text-gray-900">+ Kills moy. × 10</span>
             <p className="mt-0.5 text-gray-500">Kills par match</p>
           </div>
+          <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs">
+            <span className="font-bold text-gray-900">+ Knocks moy. × 5</span>
+            <p className="mt-0.5 text-gray-500">Knocks par match</p>
+          </div>
         </div>
         <p className="mt-3 text-xs text-gray-500">
-          Plus un clan gagne, inflige de dégâts et élimine d&apos;adversaires en moyenne, plus son Power Score est élevé.
+          Plus un clan gagne, inflige de dégâts, et met des adversaires au sol ou les élimine en moyenne, plus son Power Score est élevé.
         </p>
       </section>
     </div>

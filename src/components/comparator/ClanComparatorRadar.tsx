@@ -31,6 +31,10 @@ function formatNumber(value: number): string {
   return value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
 }
 
+function formatDecimal(value: number): string {
+  return value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
 function buildAxes(clans: ClanComparatorEntry[]): Axis[] {
   const aggression = clans.map((c) => c.dna?.avgDamagePerMatch ?? 0)
   const survival = clans.map((c) => c.dna?.avgTimeSurvivedSeconds ?? 0)
@@ -42,12 +46,15 @@ function buildAxes(clans: ClanComparatorEntry[]): Axis[] {
   const activity = clans.map((c) => c.pulse?.rosterHealth.participationRate ?? 0)
   const performance = clans.map((c) => c.performance?.winRate ?? 0)
 
-  const withMax = (values: number[]) => Math.max(...values, 1)
+  const withMax = (values: number[]) => {
+    const max = Math.max(...values)
+    return max > 0 ? max : 1
+  }
 
   return [
     { key: 'aggression', label: 'Agressivité', values: aggression, max: withMax(aggression), format: formatNumber },
     { key: 'survival', label: 'Survie', values: survival, max: withMax(survival), format: formatSeconds },
-    { key: 'teamplay', label: 'Teamplay', values: teamplay, max: withMax(teamplay), format: (v) => formatNumber(v) + '/match' },
+    { key: 'teamplay', label: 'Teamplay', values: teamplay, max: withMax(teamplay), format: (v) => formatDecimal(v) + '/match' },
     { key: 'activity', label: 'Activité', values: activity, max: withMax(activity), format: formatPercent },
     { key: 'performance', label: 'Winrate', values: performance, max: withMax(performance), format: formatPercent },
   ]

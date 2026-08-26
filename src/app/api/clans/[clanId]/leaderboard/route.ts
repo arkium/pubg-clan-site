@@ -359,13 +359,10 @@ async function fetchLeaderboardActivity(
     prisma.squadMember.findMany({
       where: {
         memberId: { in: memberIds },
-        ...(rangeFilter
-          ? {
-              squadMatch: {
-                createdAt: rangeFilter,
-              },
-            }
-          : {}),
+        squadMatch: {
+          matchType: 'official',
+          ...(rangeFilter ? { createdAt: rangeFilter } : {}),
+        },
       },
       select: {
         memberId: true,

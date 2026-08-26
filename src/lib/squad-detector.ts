@@ -161,6 +161,7 @@ async function getClanSquadMatches(clanId: number, period?: SquadPeriod) {
 
   return prisma.squadMatch.findMany({
     where: {
+      matchType: 'official',
       ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
       members: {
         some: {

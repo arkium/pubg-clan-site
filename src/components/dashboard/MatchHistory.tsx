@@ -229,7 +229,7 @@ export default function MatchHistory({
                     <div>
                       <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                         {mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}
-                        {m.matchType === 'casual' && <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800 leading-none">Casual</span>}
+                        {(m.matchType === 'casual' || m.matchType === 'airoyale') && <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800 leading-none">Casual</span>}
                         {m.matchType === 'custom' && <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 leading-none">Custom</span>}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">
@@ -331,7 +331,7 @@ export default function MatchHistory({
                           <div>
                             <div className="flex items-center gap-2">
                               {mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}
-                              {m.matchType === 'casual' && <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800 leading-none">Casual</span>}
+                              {(m.matchType === 'casual' || m.matchType === 'airoyale') && <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800 leading-none">Casual</span>}
                               {m.matchType === 'custom' && <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 leading-none">Custom</span>}
                             </div>
                             <div className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-gray-500">

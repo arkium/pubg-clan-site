@@ -73,6 +73,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
     where: {
       memberId,
       squadMatch: {
+        matchType: 'official',
         createdAt: {
           gte: startDate,
           lte: endDate,

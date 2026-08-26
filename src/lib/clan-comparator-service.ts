@@ -120,6 +120,7 @@ async function buildClanComparatorPayload(
   const [squadMatches, dropPressureAgg, hotDropCount, knockoutsTakenAgg, totalMembers] = await Promise.all([
     prisma.squadMatch.findMany({
       where: {
+        matchType: 'official',
         ...(bounds ? { createdAt: { gte: bounds.gte, lte: bounds.lte } } : {}),
         members: { some: { member: activeMemberFilter } },
       },

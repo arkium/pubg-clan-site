@@ -6,8 +6,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, UsersRound, Users, Swords, BarChart2, Trophy, Medal, Target, MapPin, Crosshair, Flame, Map } from 'lucide-react'
-
+import { ChevronRight, UsersRound } from 'lucide-react'
+import { getNavIcon } from '@/lib/nav-icons'
+import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
@@ -439,6 +440,8 @@ export default function ClanOverviewPage() {
     clanId,
     selectedPeriod
   )
+  const clanNavItems = useSectionNavItems('clan-section', clanId, null)
+    .filter(item => item.navKey !== 'clan.overview')
   const [dropPressure, setDropPressure] = useState<DropPressureDashboardStats | null>(null)
   const [dropPressureRanking, setDropPressureRanking] = useState<DropPressureRankingEntry[]>([])
   const [dropPressureTimeline, setDropPressureTimeline] = useState<DropPressureTimelinePoint[]>([])
@@ -677,51 +680,26 @@ export default function ClanOverviewPage() {
             )}
           </header>
 
-          <section className="app-panel p-6 mb-6">
-            <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              <Link href={`/clans/${clanId}/members`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Users className="w-6 h-6 text-blue-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Membres</span>
-              </Link>
-              <Link href={`/clans/${clanId}/matches`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Swords className="w-6 h-6 text-red-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Matchs</span>
-              </Link>
-              <Link href={`/clans/${clanId}/stats`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <BarChart2 className="w-6 h-6 text-purple-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Stats globales</span>
-              </Link>
-              <Link href={`/clans/${clanId}/leaderboard`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Trophy className="w-6 h-6 text-yellow-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Classement</span>
-              </Link>
-              <Link href={`/clans/${clanId}/awards`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Medal className="w-6 h-6 text-amber-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Awards</span>
-              </Link>
-              <Link href={`/clans/${clanId}/challenges`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Target className="w-6 h-6 text-green-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Défis</span>
-              </Link>
-              <Link href={`/clans/${clanId}/drop-zones`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <MapPin className="w-6 h-6 text-orange-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Drop zones</span>
-              </Link>
-              <Link href={`/clans/${clanId}/stats/weapons`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Crosshair className="w-6 h-6 text-blue-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Armes</span>
-              </Link>
-              <Link href={`/clans/${clanId}/stats/heatmap-kills`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Flame className="w-6 h-6 text-rose-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Heatmap</span>
-              </Link>
-              <Link href={`/clans/${clanId}/stats/positions`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-                <Map className="w-6 h-6 text-emerald-500 mb-2" />
-                <span className="text-sm font-semibold text-gray-900">Positions</span>
-              </Link>
-            </div>
-          </section>
+          {clanNavItems.length > 0 && (
+            <section className="app-panel p-6 mb-6">
+              <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {clanNavItems.map((item) => {
+                  const { icon: IconComponent, colorClass } = getNavIcon(item.navKey)
+                  return (
+                    <Link
+                      key={item.navKey}
+                      href={item.href}
+                      className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
+                    >
+                      <IconComponent className={`w-6 h-6 mb-2 ${colorClass}`} />
+                      <span className="text-sm font-semibold text-gray-900 text-center">{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Bloc 2 — Statistiques et Analyses */}
           <section className="app-panel relative overflow-hidden p-6">

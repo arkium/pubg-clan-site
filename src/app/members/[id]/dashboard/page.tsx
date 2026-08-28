@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { LayoutDashboard, Swords, BarChart2, Target, MapPin, Map, Flame, Skull, Medal } from 'lucide-react'
+import { LayoutDashboard } from 'lucide-react'
+import { getNavIcon } from '@/lib/nav-icons'
+import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { usePlayerDashboard, usePlayerMatches } from '@/hooks/usePlayerDashboard'
@@ -189,6 +191,8 @@ export default function DashboardPage() {
   const params = useParams()
   const memberId = params?.id ? Number(params.id) : null
   const { clanId } = useSelectedClan()
+  const memberNavItems = useSectionNavItems('member-section', clanId, memberId)
+    .filter(item => item.navKey !== 'member.dashboard')
 
   const [period, setPeriod] = useState<DashboardPeriod>('week')
   const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
@@ -440,7 +444,8 @@ export default function DashboardPage() {
         <NavigationTrail
           currentLabel="Dashboard"
           currentHref={`/members/${memberId}/dashboard`}
-          fallbackParent={clanId ? { href: `/clans/${clanId}/members`, label: 'Membres', altHref: '/clans' } : { href: '/members', label: 'Membres' }}
+          fallbackParent={clanId ? { href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' } : { href: '/members', label: 'Membres' }}
+          forceFallback={true}
         />
         <MemberPageHeader
           title="Tableau de bord"
@@ -451,43 +456,26 @@ export default function DashboardPage() {
           icon={<LayoutDashboard className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
 
-        <section className="app-panel p-6 mb-6">
-          <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Joueur</h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            <Link href={`/members/${memberId}/matches`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <Swords className="w-6 h-6 text-red-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Matchs</span>
-            </Link>
-            <Link href={`/members/${memberId}/stats`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <BarChart2 className="w-6 h-6 text-purple-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Statistiques</span>
-            </Link>
-            <Link href={`/members/${memberId}/weapons`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <Target className="w-6 h-6 text-blue-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Armes</span>
-            </Link>
-            <Link href={`/members/${memberId}/drop-zones`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <MapPin className="w-6 h-6 text-orange-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Drop zones</span>
-            </Link>
-            <Link href={`/members/${memberId}/map-stats`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <Map className="w-6 h-6 text-emerald-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Cartes</span>
-            </Link>
-            <Link href={`/members/${memberId}/heatmap`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <Flame className="w-6 h-6 text-rose-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Heatmap</span>
-            </Link>
-            <Link href={`/members/${memberId}/nemesis`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <Skull className="w-6 h-6 text-slate-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Nemesis</span>
-            </Link>
-            <Link href={`/members/${memberId}/rewards`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <Medal className="w-6 h-6 text-amber-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900">Récompenses</span>
-            </Link>
-          </div>
-        </section>
+        {memberNavItems.length > 0 && (
+          <section className="app-panel p-6 mb-6">
+            <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Joueur</h2>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {memberNavItems.map((item) => {
+                const { icon: IconComponent, colorClass } = getNavIcon(item.navKey)
+                return (
+                  <Link
+                    key={item.navKey}
+                    href={item.href}
+                    className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <IconComponent className={`w-6 h-6 mb-2 ${colorClass}`} />
+                    <span className="text-sm font-semibold text-gray-900 text-center">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Stats principales */}
         <PlayerStats

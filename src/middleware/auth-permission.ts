@@ -200,9 +200,22 @@ export function requireNavPermission(navKey: string) {
       return null
     }
 
+    const role = await getNavItemRole(navKey)
+
+    if (role === 'hidden') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (role === 'none') {
+      return null
+    }
+
     const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
+      if (options?.allowMissingActor) {
+        return null
+      }
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -216,13 +229,7 @@ export function requireNavPermission(navKey: string) {
       }
     }
 
-    const role = await getNavItemRole(navKey)
-
-    if (role === 'hidden') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    if (role === 'none' || role === 'member') {
+    if (role === 'member') {
       return null
     }
 

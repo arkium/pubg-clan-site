@@ -15,6 +15,7 @@ export interface NavigationTrailProps {
   currentHref: string
   fallbackParent: FallbackParent | null
   hidden?: boolean
+  forceFallback?: boolean
 }
 
 interface NavStackEntry {
@@ -26,7 +27,7 @@ interface NavStackEntry {
 const STORAGE_KEY = 'pubg-nav-stack'
 const MAX_ENTRIES = 30
 
-export function NavigationTrail({ currentLabel, currentHref, fallbackParent, hidden = false }: NavigationTrailProps) {
+export function NavigationTrail({ currentLabel, currentHref, fallbackParent, hidden = false, forceFallback = false }: NavigationTrailProps) {
   const [backEntry, setBackEntry] = useState<{ href: string; label: string } | null>(null)
 
   useEffect(() => {
@@ -70,12 +71,14 @@ export function NavigationTrail({ currentLabel, currentHref, fallbackParent, hid
     }
 
     // 4. Mettre à jour l'état local pour l'affichage
-    if (previous) {
+    if (forceFallback && fallbackParent) {
+      setBackEntry(fallbackParent)
+    } else if (previous) {
       setBackEntry(previous)
     } else if (fallbackParent) {
       setBackEntry(fallbackParent)
     }
-  }, [currentLabel, currentHref, fallbackParent])
+  }, [currentLabel, currentHref, fallbackParent, forceFallback])
 
   if (!backEntry || hidden) return null
 

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -172,6 +172,11 @@ export default function ClanTelemetryHeatmapKillsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Heatmap des kills"
+        currentHref={`/clans/${clanId}/stats/heatmap-kills`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <header className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

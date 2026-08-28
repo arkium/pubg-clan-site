@@ -6,7 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, UsersRound, Users, Swords, BarChart2, Trophy, Medal, Target, MapPin } from 'lucide-react'
+import { ChevronRight, UsersRound, Users, Swords, BarChart2, Trophy, Medal, Target, MapPin, Crosshair, Flame, Map } from 'lucide-react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -707,6 +707,18 @@ export default function ClanOverviewPage() {
               <Link href={`/clans/${clanId}/drop-zones`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
                 <MapPin className="w-6 h-6 text-orange-500 mb-2" />
                 <span className="text-sm font-semibold text-gray-900">Drop zones</span>
+              </Link>
+              <Link href={`/clans/${clanId}/stats/weapons`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Crosshair className="w-6 h-6 text-blue-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Armes</span>
+              </Link>
+              <Link href={`/clans/${clanId}/stats/heatmap-kills`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Flame className="w-6 h-6 text-rose-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Heatmap</span>
+              </Link>
+              <Link href={`/clans/${clanId}/stats/positions`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                <Map className="w-6 h-6 text-emerald-500 mb-2" />
+                <span className="text-sm font-semibold text-gray-900">Positions</span>
               </Link>
             </div>
           </section>

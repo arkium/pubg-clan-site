@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import { Compass } from 'lucide-react'
@@ -666,6 +666,11 @@ export default function ClanPositionsHeatmapPage() {
 
   return (
     <main className="app-container app-main mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+      <NavigationTrail
+        currentLabel="Positions & Top 10"
+        currentHref={`/clans/${clanId}/stats/positions`}
+        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+      />
       <header
         className="relative mb-5 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/cartographie-tactique.jpg')` }}

@@ -68,8 +68,10 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
       platformShard,
       OR: [
         { pubgClanId: pubgClan.id },
-        { name: pubgClan.name },
-        { tag: pubgClan.tag },
+        { 
+          pubgClanId: null,
+          name: pubgClan.name 
+        },
       ],
     },
   })

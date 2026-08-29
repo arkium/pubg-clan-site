@@ -36,7 +36,7 @@ function parseSortDir(value: string | null, fallback: SortDirection): SortDirect
 }
 
 function parseClanSortKey(value: string | null): ClanSortKey {
-  return CLAN_SORT_KEYS.includes(value as ClanSortKey) ? (value as ClanSortKey) : 'encounters'
+  return CLAN_SORT_KEYS.includes(value as ClanSortKey) ? (value as ClanSortKey) : 'name'
 }
 
 function parseOpponentSortKey(value: string | null): OpponentSortKey {
@@ -142,7 +142,7 @@ export async function GET(request: Request) {
         return row.lastMatchAt ? new Date(row.lastMatchAt).getTime() : 0
       case 'encounters':
       default:
-        return 0
+        return row.name.toLowerCase()
     }
   }
   trackedClanRows.sort((a, b) => {

@@ -84,8 +84,8 @@ export default function OpponentsExplorerPage() {
   const [period, setPeriod] = useState<Period>('all')
 
   const [clansPage, setClansPage] = useState(1)
-  const [clansSortBy, setClansSortBy] = useState<ClanSortKey>('encounters')
-  const [clansSortDir, setClansSortDir] = useState<SortDirection>('desc')
+  const [clansSortBy, setClansSortBy] = useState<ClanSortKey>('name')
+  const [clansSortDir, setClansSortDir] = useState<SortDirection>('asc')
   const [clansQueryInput, setClansQueryInput] = useState('')
   const [clansQuery, setClansQuery] = useState('')
 

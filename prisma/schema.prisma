@@ -22,6 +22,7 @@ model Clan {
   pubgCreatedAt       DateTime?
   pubgMemberCount     Int?
   pubgMembersSyncedAt DateTime?
+  missingMembersCount Int       @default(0)
   isActive            Boolean   @default(true)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -172,8 +173,8 @@ model Player {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  encounters ClanEncounter[]
-  clanMembers ClanMember[]
+  encounters            ClanEncounter[]
+  clanMembers           ClanMember[]
   encounteredPlayerRows EncounteredPlayer[]
 
   @@unique([pubgAccountId, platformShard])
@@ -198,10 +199,34 @@ model OpponentClan {
   updatedAt DateTime @updatedAt
 
   players Player[]
+  stats   OpponentClanStatsCache[]
 
   @@unique([pubgClanId, platformShard])
   @@index([isFavorite])
   @@map("OpponentClan")
+}
+
+model OpponentClanStatsCache {
+  id             String       @id @default(cuid())
+  opponentClanId String
+  opponentClan   OpponentClan @relation(fields: [opponentClanId], references: [id], onDelete: Cascade)
+
+  period    String // 'week' | 'month' | 'all'
+  periodKey String
+
+  asOpponentCount   Int      @default(0)
+  asTeammateCount   Int      @default(0)
+  lastSeenAt        DateTime
+  memberCount       Int      @default(0)
+  trackedClansCount Int      @default(0)
+
+  computedAt DateTime @default(now())
+
+  @@unique([opponentClanId, period])
+  @@index([period, asOpponentCount(sort: Desc)])
+  @@index([period, asTeammateCount(sort: Desc)])
+  @@index([period, lastSeenAt(sort: Desc)])
+  @@map("OpponentClanStatsCache")
 }
 
 // Fait "clan suivi X a croisé le joueur Y" — remplace progressivement
@@ -255,10 +280,10 @@ model EncounteredPlayerResolutionRun {
   resolvedWithoutClan Int @default(0)
   failed              Int @default(0)
 
-  uniqueCandidatesSelected     Int    @default(0)
-  crossClanCandidatesSelected  Int    @default(0)
-  encounterRowsUpdated         Int    @default(0)
-  rowsResolvedPerApiCall       Float?
+  uniqueCandidatesSelected    Int    @default(0)
+  crossClanCandidatesSelected Int    @default(0)
+  encounterRowsUpdated        Int    @default(0)
+  rowsResolvedPerApiCall      Float?
 
   backlogRemaining         Int?
   rateLimitRemainingBefore Int?
@@ -531,7 +556,7 @@ model Match {
 
   pubgMatchId String
   gameMode    String
-  matchType   String     @default("official")
+  matchType   String @default("official")
   mapName     String
 
   kills         Int
@@ -768,20 +793,20 @@ model PlayerStats {
   startDate  DateTime
   endDate    DateTime
 
-  totalKills       Int   @default(0)
-  totalKnockouts   Int   @default(0)
-  totalDamage      Float @default(0)
-  totalAssists     Int   @default(0)
-  totalRevives     Int   @default(0)
-  matchesPlayed    Int   @default(0)
-  matchesWon       Int   @default(0)
-  winRate          Float @default(0)
-  avgKillsPerGame  Float @default(0)
+  totalKills          Int   @default(0)
+  totalKnockouts      Int   @default(0)
+  totalDamage         Float @default(0)
+  totalAssists        Int   @default(0)
+  totalRevives        Int   @default(0)
+  matchesPlayed       Int   @default(0)
+  matchesWon          Int   @default(0)
+  winRate             Float @default(0)
+  avgKillsPerGame     Float @default(0)
   avgKnockoutsPerGame Float @default(0)
-  avgDamagePerGame Float @default(0)
+  avgDamagePerGame    Float @default(0)
 
-  timePlayedSeconds Int  @default(0)
-  activeDays        Int  @default(0)
+  timePlayedSeconds Int @default(0)
+  activeDays        Int @default(0)
 
   badgeType String?
 
@@ -1132,4 +1157,23 @@ model NavItem {
 
   @@index([section, sortOrder])
   @@map("NavItem")
+}
+
+model SystemStatsCache {
+  id     String @id @default(cuid())
+  period String // 'week' | 'month' | 'all'
+
+  // Compteurs globaux
+  trackedClanCount      Int @default(0) // Nombre total de clans suivis
+  opponentClanCount     Int @default(0) // Nombre total de clans adversaires croisés
+  totalEncounters       Int @default(0) // Nombre total de rencontres
+  noClanPlayerCount     Int @default(0) // Joueurs croisés SANS clan
+  withClanPlayerCount   Int @default(0) // Joueurs croisés AVEC clan
+  trackedClanMatchCount Int @default(0) // Nombre total de matchs analysés
+  uniquePlayersCount    Int @default(0) // Nombre total de joueurs uniques croisés
+
+  computedAt DateTime @default(now())
+
+  @@unique([period])
+  @@map("SystemStatsCache")
 }

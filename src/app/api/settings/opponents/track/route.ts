@@ -8,10 +8,10 @@ export async function POST(req: NextRequest) {
     if (permissionError) return permissionError
 
     const body = await req.json()
-    const { playerId, targetClanId } = body
+    let { playerId, targetClanId } = body
 
-    if (!playerId || !targetClanId) {
-      return Response.json({ error: 'playerId and targetClanId are required' }, { status: 400 })
+    if (!playerId) {
+      return Response.json({ error: 'playerId is required' }, { status: 400 })
     }
 
     const player = await prisma.player.findUnique({
@@ -20,6 +20,12 @@ export async function POST(req: NextRequest) {
 
     if (!player) {
       return Response.json({ error: 'Player not found' }, { status: 404 })
+    }
+
+    if (!targetClanId) {
+      const { ensureTrackedClanForPlayer, getOrCreateUngroupedClan } = await import('@/lib/clan-service')
+      const detectedClan = await ensureTrackedClanForPlayer(player.pubgAccountId, player.platformShard)
+      targetClanId = detectedClan?.clan.id ?? (await getOrCreateUngroupedClan(player.platformShard)).id
     }
 
     // Check if player is already in the clan

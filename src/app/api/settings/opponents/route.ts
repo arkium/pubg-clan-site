@@ -8,7 +8,7 @@ const PAGE_SIZE = 10
 const CLAN_SORT_KEYS = ['name', 'members', 'encounters', 'lastMatch'] as const
 type ClanSortKey = (typeof CLAN_SORT_KEYS)[number]
 
-const OPPONENT_SORT_KEYS = ['opponent', 'asOpponent', 'asTeammate', 'lastSeen'] as const
+const OPPONENT_SORT_KEYS = ['opponent', 'asOpponent', 'asTeammate', 'lastSeen', 'memberCount', 'trackedClansCount'] as const
 type OpponentSortKey = (typeof OPPONENT_SORT_KEYS)[number]
 
 type SortDirection = 'asc' | 'desc'
@@ -48,7 +48,6 @@ type TrackedClanRow = {
   name: string
   tag: string
   membersCount: number
-  encounterCount: number
   lastMatchAt: string | null
   missingMembersCount: number
 }
@@ -60,8 +59,9 @@ type OpponentClanRow = {
   isFavorite: boolean
   asOpponentCount: number
   asTeammateCount: number
-  lastSeenAt: string
-  trackedClanTags: string[]
+  lastSeenAt: string | null
+  memberCount: number
+  trackedClansCount: number
 }
 
 export async function GET(request: Request) {
@@ -113,41 +113,17 @@ export async function GET(request: Request) {
     }
   }
 
-  const encounterAggregates = await prisma.$queryRaw<Array<{ clanId: number; total: bigint }>>(
-    Prisma.sql`
-      SELECT ce.clanId as clanId, SUM(ce.encounterCount) as total
-      FROM ClanEncounter ce
-      WHERE 1=1 ${periodFilter}
-      GROUP BY ce.clanId
-    `
-  )
-  const encountersByClanId = new Map(encounterAggregates.map((row) => [row.clanId, Number(row.total)]))
+  // Removed encounterAggregates since the user requested to remove the 'Rencontres' column for tracked clans.
 
-  const missingMembersAggregates = await prisma.$queryRaw<Array<{ clanId: number; missingCount: bigint }>>(
-    Prisma.sql`
-      SELECT c.id as clanId, COUNT(DISTINCT p.id) as missingCount
-      FROM Clan c
-      INNER JOIN OpponentClan oc ON oc.pubgClanId = c.pubgClanId AND oc.platformShard = c.platformShard
-      INNER JOIN Player p ON p.opponentClanId = oc.id
-      WHERE c.pubgClanId IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM ClanMember cm WHERE cm.clanId = c.id AND cm.pubgAccountId = p.pubgAccountId
-        )
-      GROUP BY c.id
-    `
-  )
-  const missingMembersByClanId = new Map(
-    missingMembersAggregates.map((row) => [row.clanId, Number(row.missingCount)])
-  )
+  // Removed missingMembersAggregates calculation, we now read missingMembersCount directly from Clan model
 
   let trackedClanRows: TrackedClanRow[] = clans.map((clan) => ({
     id: clan.id,
     name: clan.name,
     tag: clan.tag,
     membersCount: clan._count.members,
-    encounterCount: encountersByClanId.get(clan.id) ?? 0,
     lastMatchAt: lastMatchByClanId.get(clan.id)?.toISOString() ?? null,
-    missingMembersCount: missingMembersByClanId.get(clan.id) ?? 0,
+    missingMembersCount: clan.missingMembersCount ?? 0,
   }))
 
   if (clansQuery) {
@@ -166,7 +142,7 @@ export async function GET(request: Request) {
         return row.lastMatchAt ? new Date(row.lastMatchAt).getTime() : 0
       case 'encounters':
       default:
-        return row.encounterCount
+        return 0
     }
   }
   trackedClanRows.sort((a, b) => {
@@ -193,11 +169,18 @@ export async function GET(request: Request) {
     opponentsSortBy === 'opponent'
       ? Prisma.sql`COALESCE(oc.tag, oc.name)`
       : opponentsSortBy === 'asTeammate'
-        ? Prisma.sql`asTeammateCount`
+        ? Prisma.sql`stats.asTeammateCount`
         : opponentsSortBy === 'lastSeen'
-          ? Prisma.sql`lastSeenAt`
-          : Prisma.sql`asOpponentCount`
+          ? Prisma.sql`stats.lastSeenAt`
+          : opponentsSortBy === 'memberCount'
+            ? Prisma.sql`stats.memberCount`
+            : opponentsSortBy === 'trackedClansCount'
+              ? Prisma.sql`stats.trackedClansCount`
+              : Prisma.sql`stats.asOpponentCount`
   const opponentSortDirSql = opponentsSortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
+
+  // Use a fallback period if no period is selected, we assume 'all' by default in the cache
+  const periodVal = url.searchParams.get('period') || 'all'
 
   const opponentClanRowsRaw = await prisma.$queryRaw<
     Array<{
@@ -208,6 +191,8 @@ export async function GET(request: Request) {
       asOpponentCount: bigint
       asTeammateCount: bigint
       lastSeenAt: Date
+      memberCount: bigint
+      trackedClansCount: bigint
     }>
   >(
     Prisma.sql`
@@ -216,36 +201,24 @@ export async function GET(request: Request) {
         oc.tag as tag,
         oc.name as name,
         oc.isFavorite as isFavorite,
-        SUM(ce.encounterCount - ce.teammateEncounterCount) as asOpponentCount,
-        SUM(ce.teammateEncounterCount) as asTeammateCount,
-        MAX(ce.lastSeenAt) as lastSeenAt
-      FROM ClanEncounter ce
-      INNER JOIN Player p ON p.id = ce.playerId
-      INNER JOIN OpponentClan oc ON oc.id = p.opponentClanId
-      WHERE 1=1 ${periodFilter} ${opponentSearchFilter}
-      GROUP BY oc.id
+        COALESCE(stats.asOpponentCount, 0) as asOpponentCount,
+        COALESCE(stats.asTeammateCount, 0) as asTeammateCount,
+        stats.lastSeenAt as lastSeenAt,
+        COALESCE(stats.memberCount, 0) as memberCount,
+        COALESCE(stats.trackedClansCount, 0) as trackedClansCount
+      FROM OpponentClan oc
+      LEFT JOIN OpponentClanStatsCache stats ON stats.opponentClanId = oc.id AND stats.period = ${periodVal}
+      WHERE 1=1 
+        ${opponentSearchFilter}
+        AND NOT EXISTS (
+          SELECT 1 FROM Clan c 
+          WHERE c.pubgClanId = oc.pubgClanId 
+            AND c.platformShard = oc.platformShard
+            AND c.isActive = 1
+        )
       ORDER BY oc.isFavorite DESC, ${opponentSortColumn} ${opponentSortDirSql}
     `
   )
-
-  const opponentClanIds = opponentClanRowsRaw.map((row) => row.id)
-  const trackedClanTagsByOpponentId = new Map<string, string[]>()
-  if (opponentClanIds.length > 0) {
-    const trackedClanLinks = await prisma.$queryRaw<Array<{ opponentClanId: string; tag: string }>>(
-      Prisma.sql`
-        SELECT DISTINCT p.opponentClanId as opponentClanId, c.tag as tag
-        FROM ClanEncounter ce
-        INNER JOIN Player p ON p.id = ce.playerId
-        INNER JOIN Clan c ON c.id = ce.clanId
-        WHERE p.opponentClanId IN (${Prisma.join(opponentClanIds)})
-      `
-    )
-    for (const link of trackedClanLinks) {
-      const list = trackedClanTagsByOpponentId.get(link.opponentClanId) ?? []
-      list.push(link.tag)
-      trackedClanTagsByOpponentId.set(link.opponentClanId, list)
-    }
-  }
 
   const opponentClanRows: OpponentClanRow[] = opponentClanRowsRaw.map((row) => ({
     id: row.id,
@@ -254,8 +227,9 @@ export async function GET(request: Request) {
     isFavorite: Boolean(row.isFavorite),
     asOpponentCount: Number(row.asOpponentCount),
     asTeammateCount: Number(row.asTeammateCount),
-    lastSeenAt: row.lastSeenAt.toISOString(),
-    trackedClanTags: trackedClanTagsByOpponentId.get(row.id) ?? [],
+    lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null, // It might be null if no cache is present
+    memberCount: Number(row.memberCount),
+    trackedClansCount: Number(row.trackedClansCount),
   }))
 
   const opponentsTotal = opponentClanRows.length
@@ -266,26 +240,16 @@ export async function GET(request: Request) {
     opponentsPageClamped * PAGE_SIZE
   )
 
-  const [noClanAggregate] = await prisma.$queryRaw<Array<{ playerCount: bigint }>>(
-    Prisma.sql`
-      SELECT COUNT(DISTINCT p.id) as playerCount
-      FROM ClanEncounter ce
-      INNER JOIN Player p ON p.id = ce.playerId
-      WHERE p.opponentClanId IS NULL ${periodFilter}
-    `
-  )
-
-  const totalEncountersAggregate = await prisma.clanEncounter.aggregate({
-    where: periodStart ? { lastSeenAt: { gte: periodStart } } : undefined,
-    _sum: { encounterCount: true },
+  const systemStats = await prisma.systemStatsCache.findUnique({
+    where: { period: periodVal }
   })
 
   return Response.json({
     counters: {
-      trackedClanCount: clans.length,
-      opponentClanCount: opponentClanRows.length,
-      totalEncounters: totalEncountersAggregate._sum.encounterCount ?? 0,
-      noClanPlayerCount: Number(noClanAggregate?.playerCount ?? 0),
+      trackedClanCount: systemStats?.trackedClanCount ?? clans.length,
+      opponentClanCount: systemStats?.opponentClanCount ?? opponentClanRows.length,
+      totalEncounters: systemStats?.totalEncounters ?? 0,
+      noClanPlayerCount: systemStats?.noClanPlayerCount ?? 0,
     },
     trackedClans: {
       rows: trackedClanRowsPage,

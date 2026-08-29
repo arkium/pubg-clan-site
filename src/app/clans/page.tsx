@@ -17,6 +17,7 @@ export default function ClansPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [retryToken, setRetryToken] = useState(0)
+  const [hoveredClan, setHoveredClan] = useState<Clan | null>(null)
 
   const isVisitor = !authenticated && authDisabled
   const canSwitchClan = isSuperUser || isVisitor
@@ -115,10 +116,10 @@ export default function ClansPage() {
   return (
     <main className="app-container app-main">
       <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/clan_banner.jpg')`, backgroundPosition: 'center 35%' }}
+        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat transition-all duration-500 ease-in-out sm:min-h-[13rem]"
+        style={{ backgroundImage: `url('${hoveredClan?.imageUrl || '/clan_banner.jpg'}')`, backgroundPosition: 'center 35%' }}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-[#0b0f19]/80 to-transparent transition-opacity duration-500 ease-in-out" />
         <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Users className="h-4 w-4 text-blue-400 sm:h-6 sm:w-6" aria-hidden="true" />
@@ -136,6 +137,7 @@ export default function ClansPage() {
         error={error}
         activeClanId={activeClanId}
         onSelect={handleSelect}
+        onHoverClan={setHoveredClan}
         onRetry={() => setRetryToken((token) => token + 1)}
         isSuperUser={isSuperUser}
       />

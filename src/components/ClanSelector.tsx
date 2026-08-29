@@ -29,6 +29,7 @@ interface ClanSelectorProps {
   onConfirmSwitch?: () => void
   onCancelSwitch?: () => void
   isSuperUser?: boolean
+  onHoverClan?: (clan: Clan | null) => void
 }
 
 type SortKey = 'name' | 'members' | 'matches' | 'playtime'
@@ -131,6 +132,7 @@ export default function ClanSelector({
   onConfirmSwitch,
   onCancelSwitch,
   isSuperUser = false,
+  onHoverClan,
 }: ClanSelectorProps) {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
@@ -237,6 +239,8 @@ export default function ClanSelector({
                 <button
                   type="button"
                   onClick={() => onSelect(clan.id)}
+                  onMouseEnter={() => onHoverClan?.(clan)}
+                  onMouseLeave={() => onHoverClan?.(null)}
                   className={[
                     'group app-panel relative w-full overflow-hidden rounded-2xl p-4 text-left transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600',
                     isActive ? 'ring-2 ring-blue-600' : 'hover:border-blue-500/30 hover:bg-slate-50/80 dark:hover:bg-slate-800/50',

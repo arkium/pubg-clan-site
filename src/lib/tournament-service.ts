@@ -17,7 +17,7 @@ export type NormalizedTournamentRules = {
 type TournamentMemberRow = {
   memberId: number
   member: {
-    clanId: number
+    clanId: number | null
     displayName?: string | null
   }
   kills: number
@@ -116,10 +116,11 @@ export function groupMatchIntoTeams(
   const byClan = new Map<number, TournamentMemberRow[]>()
 
   for (const member of match.members ?? []) {
-    if (!member || !allowed.has(member.member.clanId)) continue
-    const existing = byClan.get(member.member.clanId) ?? []
+    const clanId = member?.member.clanId
+    if (!member || clanId === null || !allowed.has(clanId)) continue
+    const existing = byClan.get(clanId) ?? []
     existing.push(member)
-    byClan.set(member.member.clanId, existing)
+    byClan.set(clanId, existing)
   }
 
   const teams: TournamentTeam[] = []
@@ -152,7 +153,7 @@ export function computeTournamentStandings(
   participatingClanIds: number[],
   rulesInput: TournamentRulesInput | NormalizedTournamentRules = {}
 ): TournamentStanding[] {
-  const rules = 'placementPoints' in rulesInput ? rulesInput : normalizeTournamentRules(rulesInput)
+  const rules = normalizeTournamentRules(rulesInput)
   const standings = new Map<number, TournamentStanding>()
   const teamScores = new Map<string, { clanId: number; entries: Array<{ points: number; totalKills: number; bestPlacement: number; wins: number }> }>()
 

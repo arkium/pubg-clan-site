@@ -16,7 +16,12 @@ function parseClanId(value: string) {
 function parseTournamentPayload(body: unknown): TournamentCreateInput {
   const value = (body ?? {}) as Record<string, unknown>
   const rules = value.rules && typeof value.rules === 'object'
-    ? value.rules as Record<string, unknown>
+    ? value.rules as {
+        placementPoints?: Record<string, number>
+        killPoints?: number | string | null
+        winBonus?: number | string | null
+        bestOfRounds?: number | null
+      }
     : null
 
   const participantClanIds = Array.isArray(value.participantClanIds)
@@ -24,6 +29,13 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
         .map((entry) => Number(entry))
         .filter((entry) => Number.isInteger(entry) && entry > 0)
     : []
+  const legacyKillPoints = typeof value.killPoints === 'number' || typeof value.killPoints === 'string'
+    ? value.killPoints
+    : 0
+  const legacyWinBonus = typeof value.winBonus === 'number' || typeof value.winBonus === 'string'
+    ? value.winBonus
+    : 0
+  const legacyBestOfRounds = typeof value.bestOfRounds === 'number' ? value.bestOfRounds : null
 
   return {
     title: typeof value.title === 'string' ? value.title : '',
@@ -37,13 +49,10 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
       : 'draft',
     participantClanIds,
     rules: {
-      placementPoints:
-        rules && 'placementPoints' in rules
-          ? ((rules as { placementPoints?: Record<string, number> }).placementPoints ?? null)
-          : null,
-      killPoints: rules?.killPoints ?? value.killPoints ?? 0,
-      winBonus: rules?.winBonus ?? value.winBonus ?? 0,
-      bestOfRounds: rules?.bestOfRounds ?? value.bestOfRounds ?? null,
+      placementPoints: rules?.placementPoints ?? null,
+      killPoints: rules?.killPoints ?? legacyKillPoints,
+      winBonus: rules?.winBonus ?? legacyWinBonus,
+      bestOfRounds: rules?.bestOfRounds ?? legacyBestOfRounds,
     },
   }
 }

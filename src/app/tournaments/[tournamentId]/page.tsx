@@ -49,6 +49,28 @@ type TournamentResponse = {
   error?: string
 }
 
+const MAP_LABELS: Record<string, string> = {
+  Baltic_Main: 'Erangel',
+  Savage_Main: 'Sanhok',
+  Desert_Main: 'Miramar',
+  DihorOtok_Main: 'Vikendi',
+  Range_Main: 'Camp Jackal',
+  Summerland_Main: 'Karakin',
+  Tiger_Main: 'Taego',
+  Kiki_Main: 'Deston',
+  Chimera_Main: 'Paramo',
+  Heaven_Main: 'Haven',
+}
+
+const MODE_LABELS: Record<string, string> = {
+  squad: 'Squad',
+  'squad-fpp': 'Squad FPP',
+  duo: 'Duo',
+  'duo-fpp': 'Duo FPP',
+  solo: 'Solo',
+  'solo-fpp': 'Solo FPP',
+}
+
 function getTournamentId(value: string | string[] | undefined) {
   return typeof value === 'string' && value ? value : null
 }
@@ -59,6 +81,21 @@ function formatDate(value: string) {
     month: '2-digit',
     year: 'numeric',
   })
+}
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatMapName(name: string): string {
+  return MAP_LABELS[name] ?? name
+}
+
+function formatMode(mode: string): string {
+  return MODE_LABELS[mode] ?? mode
 }
 
 function summarizeMatchTeams(match: TournamentMatch, clanNames: Map<number, string>) {
@@ -148,20 +185,37 @@ export default function TournamentDetailPage() {
           </section>
 
           <section className="app-panel p-6">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Classement</h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 text-gray-600">
-                    <th className="pb-2 pr-4">#</th><th className="pb-2 pr-4">Clan</th><th className="pb-2 pr-4">Points</th><th className="pb-2 pr-4">Kills</th><th className="pb-2 pr-4">Matchs</th><th className="pb-2">Victoires</th>
+            <h2 className="mb-4 text-lg font-semibold text-[var(--theme-ui-text)]">Classement</h2>
+            <div className="app-table-shell overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="app-table-head text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="px-3 py-3 text-center">Rang</th>
+                    <th className="px-3 py-3 text-left">Clan</th>
+                    <th className="px-3 py-3 text-right">Points</th>
+                    <th className="px-3 py-3 text-right">Kills</th>
+                    <th className="px-3 py-3 text-right">Matchs</th>
+                    <th className="px-3 py-3 text-right">Victoires</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(data?.standings ?? []).map((standing, index) => (
-                    <tr key={standing.clanId} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2 pr-4 font-medium">{index + 1}</td><td className="py-2 pr-4">{standing.clanId}</td><td className="py-2 pr-4">{standing.totalPoints}</td><td className="py-2 pr-4">{standing.totalKills}</td><td className="py-2 pr-4">{standing.matchesPlayed}</td><td className="py-2">{standing.wins}</td>
-                    </tr>
-                  ))}
+                  {(data?.standings ?? []).map((standing, index) => {
+                    const rank = index + 1
+                    const rankClassName = rank === 1 ? 'app-table-row--top1' : rank === 2 ? 'app-table-row--top2' : rank === 3 ? 'app-table-row--top3' : ''
+                    
+                    return (
+                      <tr key={standing.clanId} className={`app-table-row ${rankClassName}`}>
+                        <td className="px-3 py-3 text-center font-semibold text-gray-700">{rank}</td>
+                        <td className="px-3 py-3 font-bold text-[var(--theme-ui-text)]">
+                          {clanNames.get(standing.clanId) ?? `Clan #${standing.clanId}`}
+                        </td>
+                        <td className="px-3 py-3 text-right font-black text-amber-500">{standing.totalPoints}</td>
+                        <td className="px-3 py-3 text-right font-mono text-[var(--theme-ui-text-muted)]">{standing.totalKills}</td>
+                        <td className="px-3 py-3 text-right font-mono text-[var(--theme-ui-text-muted)]">{standing.matchesPlayed}</td>
+                        <td className="px-3 py-3 text-right font-mono text-[var(--theme-ui-text-muted)]">{standing.wins}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -178,22 +232,37 @@ export default function TournamentDetailPage() {
                   const results = summarizeMatchTeams(match, clanNames)
                   const content = (
                     <>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="font-semibold text-gray-900">
-                          {match.mapName ?? 'Carte inconnue'} <span className="font-normal text-gray-500">{match.gameMode ?? 'Mode inconnu'}</span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--theme-ui-text)] flex items-center gap-2">
+                            {match.mapName ? formatMapName(match.mapName) : 'Carte inconnue'}
+                          </p>
+                          <p className="mt-0.5 text-xs text-[var(--theme-ui-text-muted)]">
+                            {formatDate(match.createdAt)} · {formatTime(match.createdAt)}
+                          </p>
                         </div>
-                        <time className="text-sm text-gray-500">{formatDate(match.createdAt)}</time>
+                        {match.gameMode && (
+                          <div className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-[var(--theme-ui-text-muted)] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
+                            <span>{formatMode(match.gameMode)}</span>
+                          </div>
+                        )}
                       </div>
-                      <p className="mt-2 text-sm text-gray-600">{results.join(' · ')}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {results.map((r, i) => (
+                           <span key={i} className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow-sm">
+                             {r}
+                           </span>
+                        ))}
+                      </div>
                     </>
                   )
 
                   return telemetryClanId ? (
-                    <Link key={match.id} href={`/clans/${telemetryClanId}/matches/${match.id}/telemetry`} className="block rounded-lg border border-gray-200 bg-gray-50 p-4 transition hover:border-blue-300 hover:bg-blue-50">
+                    <Link key={match.id} href={`/tournaments/${tournamentId}/matches/${match.id}/telemetry?clanId=${telemetryClanId}`} className="app-table-shell block p-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       {content}
                     </Link>
                   ) : (
-                    <div key={match.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">{content}</div>
+                    <div key={match.id} className="app-table-shell p-4">{content}</div>
                   )
                 })}
               </div>

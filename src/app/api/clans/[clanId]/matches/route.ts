@@ -360,6 +360,7 @@ export async function GET(
       pubgMatchId: match.pubgMatchId,
       gameMode: match.gameMode,
       mapName: match.mapName,
+      matchType: match.matchType,
       placement: match.placement,
       createdAt: match.createdAt.toISOString(),
       durationSeconds: durationByMatchId.get(match.pubgMatchId) ?? 0,

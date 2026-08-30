@@ -62,7 +62,9 @@ export function useNavPermissions(): NavPermissionsData {
   const [data, setData] = useState<NavPermissionsData>(() => readCache() ?? EMPTY)
 
   useEffect(() => {
-    fetch('/api/settings/nav-permissions')
+    invalidateNavPermissionsCache()
+
+    fetch('/api/settings/nav-permissions', { cache: 'no-store' })
       .then((r) => r.json())
       .then((payload: Partial<NavPermissionsData>) => {
         const safe: NavPermissionsData = {

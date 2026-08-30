@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { Settings, Users, Monitor } from 'lucide-react'
+import { Settings, Users, Monitor, Trophy } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -66,6 +66,11 @@ export default function ClanSettingsHub() {
             <Monitor className="w-8 h-8 text-emerald-500 mb-3" />
             <h3 className="text-base font-semibold text-gray-900">Accueil login</h3>
             <p className="mt-2 text-sm text-gray-500">Personnalisez l'écran d'accueil pour les joueurs non connectés.</p>
+          </Link>
+          <Link href={`/clans/${clanId}/settings/tournaments`} className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center">
+            <Trophy className="w-8 h-8 text-amber-500 mb-3" />
+            <h3 className="text-base font-semibold text-gray-900">Tournois</h3>
+            <p className="mt-2 text-sm text-gray-500">Créez et gérez les tournois inter-clans de votre clan.</p>
           </Link>
         </div>
       </section>

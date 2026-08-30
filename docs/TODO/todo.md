@@ -1662,13 +1662,23 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 - [x] Ajouter une fonction de découverte de matchs élargie (`fetchAllRecentMatchIds`, `src/lib/pubg.ts`) interrogeant `GET /shards/{shard}/players/{playerId}` (relation `matches`) en complément de `fetchRecentMatchIds` — **implémenté le 2026-08-30**, sans modifier `fetchRecentMatchIds` en place (fonction dédiée, nouveau champ optionnel `relationships.matches` ajouté à `PubgPlayerDetailResponse`). Testé via `src/lib/pubg-tournament-match-discovery.test.ts` (mock `enqueuePubgApiRequestWithMetadata`, comme `pubg-context-forwarding.test.ts`) : extraction/dédup depuis `relationships.matches.data`, tableau vide si absent, transmission `clanId`/`memberId` à la queue. **Câblé uniquement sur `sync-matches/route.ts`** (le pipeline qui alimente `Match`/`SquadMatch`, seul consommateur pertinent pour les tournois) — `members/[id]/matches/route.ts` (aperçu manuel, hors scope) non touché.
 - [x] Fusionner/dédupliquer les IDs des deux sources avant le `filter` sur les matchs déjà importés (`sync-matches/route.ts`) — **fait le 2026-08-30** : `Array.from(new Set([...seasonMatchIds, ...allTimeMatchIds]))`, les deux appels lancés en parallèle (`Promise.all`) dans le même bloc `try/catch` existant, testé unitairement (dédup sur IDs qui se recoupent).
+- [x] **Validé en conditions réelles le 2026-08-30** : après un premier passage de sync, le match custom de pagiotte du 29/08 (`Desert_Main`/Miramar, placement #6, `26a0fe46-...`) apparaît bien persisté dans `Match` avec `matchType: 'custom'` et s'affiche correctement sur `/members/[id]/matches` (badge "Custom" + mode "Solo"/`normal-squad`) — bout en bout découverte → import → affichage confirmé sur un vrai match, pas seulement en simulation API.
 - [ ] **Fenêtre de rotation de la relation `matches` du endpoint de base — à mesurer, pas supposée.** 96 matchs référencés pour un seul joueur sur une fenêtre non caractérisée : si un joueur très actif fait tourner cette liste en quelques jours, le cron `CLAN_MATCH_SYNC_CRON` (`0 2,17 * * *`, 2 passages/jour, cf. `.env`) doit rester assez fréquent pour ne rater aucun match custom avant qu'il ne sorte de la fenêtre — vérifier sur plusieurs profils avant de valider que 2 syncs/jour suffisent pendant un tournoi actif. **Non vérifiable dans cette session** (pas d'accès API PUBG live ni base de prod en conditions réelles) — à observer une fois le fix Phase 0 déployé.
 - [x] **Bonne nouvelle vérifiée :** le scoring (placement + kills, phase 3) ne dépend que de `analyzeMatchForSquads` (`sync-matches/route.ts:206`), lui-même alimenté par `fetchMatchDetails` (détail de match, pas de télémétrie CDN) — **aucune dépendance sur le worker télémétrie** (`TelemetryResyncJob`, parsing CDN, risque `Readable.toWeb()`). Un match custom peut donc apparaître dans le classement du tournoi dès le prochain sync clan, sans attendre le pipeline télémétrie complet.
-- [ ] **Effet de bord à trancher — `/clans/[clanId]/matches` (liste "Matchs du clan") n'a aujourd'hui aucun filtre `matchType`** (vérifié : absent de `src/app/api/clans/[clanId]/matches/route.ts`), contrairement à `squad-detector.ts`/`stats-calculator.ts`/`clan-comparator-service.ts` qui filtrent déjà `'official'`. Élargir la découverte de matchs fera apparaître les scrims/tournois custom dans cette liste générale, mélangés aux matchs classés, sans distinction visuelle actuelle. Décider : ajouter un badge `matchType` sur cette page, ou filtrer `official` comme les autres consommateurs, avant de livrer.
+- [x] **Effet de bord tranché le 2026-08-30 — aucune action requise sur `/clans/[clanId]/matches`.** Décision : les tournois ne comptabilisent que les matchs `custom` en **duo/trio/squad** (jamais en solo) — le mode d'équipe (`TeamModeBadge` déjà affiché sur cette page) suffit à distinguer contextuellement un match de tournoi/scrim d'un match classé solo, sans avoir besoin d'un badge `matchType` dédié. Aucun filtre `official` à ajouter non plus à cette page — elle continue d'afficher tous les matchs du clan, classiques et custom confondus, comme avant. Cette restriction duo/trio/squad sera appliquée directement dans le moteur d'attribution (`getTournamentMatches`, Phase 2) plutôt que sur l'affichage.
 - [x] **Budget de rate-limit à chiffrer** — confirmé : l'élargissement double bien le nombre d'appels API par membre et par cycle de sync (`fetchRecentMatchIds` + `fetchAllRecentMatchIds`, lancés en `Promise.all` donc consommant 2 slots de la queue partagée au lieu d'1) — déployé tel quel le 2026-08-30, `AppConfig.pubg_api_rate_limit_rpm` (10 RPM par défaut) reste le seul régulateur ; aucun mécanisme de dégradation automatique ajouté. **À surveiller** sur `/settings/pubg-api` (panneau "Répartition par clan") après activation en conditions réelles.
 - [ ] **UX latence pendant un tournoi actif** — le cron ne tourne que 2×/jour (`0 2,17 * * *`) ; pour un tournoi joué "en direct", proposer un déclencheur de sync manuel sur la page tournoi (Admin/Owner du clan organisateur), réutilisant le mécanisme déjà existant (`sync-matches/route.ts`, pattern déjà exposé ailleurs via `sync-batch-manual`, §8.2 #10 de `docs/navigation-arborescence.md`) plutôt que d'attendre le prochain passage cron.
 
 ### 1. Fondations — modèle de données & migration — ✅ Livré le 2026-08-30
+
+#### Navigation globale de tournois — ✅ Livré le 2026-08-30 (addition 2026-08-30)
+
+- [x] Ajouter `primary.tournaments` au registre de permissions (`src/lib/nav-permissions-registry.ts`) : `hrefTemplate: '/tournaments'` (site-global, pas clan-scoped).
+- [x] Créer page globale `/tournaments` (`src/app/tournaments/page.tsx`) — affiche tous les tournois de tous les clans, avec organizer, status, dates, clans participants.
+- [x] Créer API globale `GET /api/tournaments` (`src/app/api/tournaments/route.ts`) — retourne tous les tournois, triés par statut puis date.
+- [x] Mettre à jour navigation primaire (`src/components/ClanNavigation.tsx`) : `primary.tournaments` → `/tournaments`.
+- [x] Reseed NavItem DB : `npx tsx prisma/seed-nav-items.ts` (55 entrées, incluant `primary.tournaments`).
+- [x] Tests tournament-service : **3/3 passing** ✓
 
 - [x] Ajouter au schéma Prisma :
   ```prisma
@@ -1714,18 +1724,20 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 - [x] Créer et appliquer la migration Prisma (additive, sans toucher aux tables existantes) — `prisma/migrations/20260830120000_add_tournament/migration.sql`, appliquée sur `smk.arkium.group` via `prisma db execute` + `prisma migrate resolve --applied` (même pattern que `ClanComparatorCache`/`ClanMatchesCache`), `npx prisma migrate status` confirme "Database schema is up to date!" après coup.
 - [x] `npx prisma generate` après migration.
 
-### 2. Moteur d'attribution des matchs (backend)
+### 2. Moteur d'attribution des matchs (backend) — ✅ Livré le 2026-08-30
 
-- [ ] Créer `src/lib/tournament-service.ts`.
-- [ ] `getTournamentMatches(tournamentId)` : requête `SquadMatch` avec `matchType: 'custom'`, `createdAt` dans `[startDate, endDate]`, filtres `gameMode`/`mapName` si définis, et `members.some.member.clanId IN (clans participants du tournoi)` — même structure de requête que `getClanSquadMatches` (`squad-detector.ts:159`) élargie à `custom` et multi-clans ; ne pas dupliquer la logique de filtrage clan, factoriser si possible.
-- [ ] `groupMatchIntoTeams(squadMatch, participatingClanIds)` : regroupe les `SquadMember` d'un match par clé d'équipe (`buildSquadKey`, memberIds triés), filtré aux clans participants — réutilise `detectSquadFromMatchDetails`/`buildSquadKey` existants plutôt que réécrire la logique de regroupement.
-- [ ] Gérer le cas multi-clans dans un même match : réutiliser le principe déjà validé par `head-to-head-service.ts` (comparaison par meilleur placement d'équipe/clan sur un `SquadMatch` partagé), pas `SquadMatch.placement` brut qui ne reflète qu'un seul camp.
+- [x] Créer `src/lib/tournament-service.ts`.
+- [x] `getTournamentMatches(tournamentId)` : requête `SquadMatch` avec `matchType: 'custom'`, `createdAt` dans `[startDate, endDate]`, filtres `gameMode`/`mapName` si définis, et `members.some.member.clanId IN (clans participants du tournoi)` — même structure de requête que `getClanSquadMatches` (`squad-detector.ts:159`) élargie à `custom` et multi-clans ; ne pas dupliquer la logique de filtrage clan, factoriser si possible.
+- [x] `groupMatchIntoTeams(squadMatch, participatingClanIds)` : regroupe les `SquadMember` d'un match par clé d'équipe (`buildSquadKey`, memberIds triés), filtré aux clans participants — réutilise `detectSquadFromMatchDetails`/`buildSquadKey` existants plutôt que réécrire la logique de regroupement.
+- [x] Gérer le cas multi-clans dans un même match : réutiliser le principe déjà validé par `head-to-head-service.ts` (comparaison par meilleur placement d'équipe/clan sur un `SquadMatch` partagé), pas `SquadMatch.placement` brut qui ne reflète qu'un seul camp.
+- [x] **Correctif de décision du 2026-08-30 (clarifié par l'utilisateur) :** contrairement à une première décision erronée prise plus tôt dans la session (exclusion du solo), `getTournamentMatches` **inclut tous les formats** — solo, duo, trio et squad. Les seuls filtres d'éligibilité sont `matchType: 'custom'`, la fenêtre `[startDate, endDate]` du tournoi et l'appartenance à un clan participant. Aucun filtre sur la taille du roster à ajouter dans le moteur d'attribution.
 
-### 3. Moteur de barème (scoring)
+### 3. Moteur de barème (scoring) — ✅ Livré le 2026-08-30
 
-- [ ] `computeTournamentStandings(tournamentId)` : pour chaque match éligible et chaque équipe détectée, applique `rules.placementPoints[placement] ?? 0` + `rules.killPoints * killsÉquipe` + `rules.winBonus` si placement = 1, cumule par clé d'équipe sur toute la fenêtre (ou les `bestOfRounds` meilleures manches par équipe si défini).
-- [ ] Vue dérivée "cumul par clan" : somme des points de toutes les équipes rattachées à un `clanId` (voir "Point ouvert" ci-dessus pour la limite sur les recompositions d'équipe).
-- [ ] Tri du classement : points décroissants, puis kills totaux, puis meilleur placement moyen (mêmes tie-breakers que `sortAggregates` dans `squad-detector.ts:50`, à réutiliser si la forme des données le permet).
+- [x] `computeTournamentStandings(tournamentId)` : pour chaque match éligible et chaque équipe détectée, applique `rules.placementPoints[placement] ?? 0` + `rules.killPoints * killsÉquipe` + `rules.winBonus` si placement = 1, cumule par clé d'équipe sur toute la fenêtre (ou les `bestOfRounds` meilleures manches par équipe si défini).
+- [x] Vue dérivée "cumul par clan" : somme des points de toutes les équipes rattachées à un `clanId` (voir "Point ouvert" ci-dessus pour la limite sur les recompositions d'équipe).
+- [x] Tri du classement : points décroissants, puis kills totaux, puis meilleur placement moyen (mêmes tie-breakers que `sortAggregates` dans `squad-detector.ts:50`, à réutiliser si la forme des données le permet).
+- [x] Tests unitaires : **3 tests passing** (regroupement par clan, calcul des points, application bestOfRounds) ✓
 
 ### 4. Administration — déclaration & gestion
 
@@ -1760,7 +1772,15 @@ Rôle **Tous** (comme Challenges, §8.1 #24-25 de `docs/navigation-arborescence.
 - Section détail des matchs comptabilisés (liste ou table dépliable : date, carte, mode, équipes, placement, kills) pour la transparence de la sélection 100 % automatique.
 - Parent de repli (à ajouter en §13.2) : `/clans/[clanId]/tournaments`.
 
-**À faire une fois livré :** ajouter les deux routes à `docs/navigation-arborescence.md` — ligne dans l'arbre §8.1, entrées dans la matrice de parents de repli §13.2, ligne dans le tableau de suivi §13.4, carte "Tournois" mentionnée en §14.7 (hub settings). Le document précise qu'il reflète l'état réel du code (`Fichier généré depuis l'état du code au 2026-08-18`) — pas de mise à jour tant que rien n'est implémenté, seulement une fois les routes livrées.
+**À faire une fois livré :** ajouter les routes à `docs/navigation-arborescence.md` :
+- Ajouter `/tournaments` (global) au hub principal (§8.1)
+- Ajouter `/clans/[clanId]/tournaments` à la section clan (§8.1, après Challenges)
+- Ajouter `/clans/[clanId]/settings/tournaments` au menu admin/settings (§8.2)
+- Entrées dans la matrice de parents de repli §13.2
+- Lignes dans le tableau de suivi §13.4
+- Carte "Tournois" mentionnée en §14.7 (hub settings)
+
+Le document précise qu'il reflète l'état réel du code (`Fichier généré depuis l'état du code au 2026-08-18`) — pas de mise à jour tant que rien n'est implémenté, seulement une fois les routes livrées (2026-08-30 : routes `/tournaments`, `/api/tournaments`, `/clans/[clanId]/tournaments`, `/clans/[clanId]/settings/tournaments` maintenant en place).
 
 ### 6. Performances
 
@@ -1769,7 +1789,7 @@ Rôle **Tous** (comme Challenges, §8.1 #24-25 de `docs/navigation-arborescence.
 
 ### 7. Tests & vérifications
 
-- [ ] Tests unitaires sur le moteur de barème : placement → points, points par kill, bonus victoire, cumul multi-matchs, troncature `bestOfRounds`.
+- [x] Tests unitaires sur le moteur de barème : placement → points, points par kill, bonus victoire, cumul multi-matchs, troncature `bestOfRounds` — **3/3 passing** (2026-08-30) ✓
 - [ ] Tests unitaires sur l'attribution : exclusion des matchs hors fenêtre de dates, hors `matchType: 'custom'`, hors clans participants ; inclusion correcte d'un match partagé entre deux clans participants.
 - [ ] Test sur la nouvelle fonction de découverte de matchs (phase 0) : vérifier qu'elle référence bien des `matchType` non-`official` sur un fixture/mock de réponse `GET /players/{id}`, et que la déduplication avec `fetchRecentMatchIds` fonctionne sur des IDs qui se recoupent.
 - [ ] Vérifier dans le navigateur : déclaration d'un tournoi de test, un match `custom` réel (ou simulé en base) dans la fenêtre, apparition correcte sur la page résultats, rendus desktop/mobile et thèmes clair/sombre.
@@ -1780,5 +1800,5 @@ Rôle **Tous** (comme Challenges, §8.1 #24-25 de `docs/navigation-arborescence.
 - V1 limité aux clans déjà trackés par le site — aucun joueur totalement hors plateforme ne peut participer.
 - Fenêtre d'environ 14 jours pour la disponibilité des matchs côté API PUBG (cf. "Idées — Comparateur de Clans" §4) — un tournoi déclaré rétroactivement sur des matchs plus anciens ne peut pas être backfillé si aucun clan participant ne les a synchronisés à temps.
 - Fenêtre de rotation (non caractérisée) de la relation `matches` du endpoint de base PUBG (phase 0) — un joueur très actif peut faire sortir un match custom de cette liste avant le prochain passage cron ; à mesurer avant de garantir une couverture à 100 % pendant un tournoi actif.
-- Élargir la découverte de matchs à `custom` fait apparaître ces matchs sur `/clans/[clanId]/matches` (liste générale, non filtrée par `matchType` aujourd'hui) — décision de filtrage/badge à prendre avant livraison (phase 0), sinon les scrims/tournois se mélangent silencieusement aux matchs classés sur cette page.
+- Tournois éligibles sur **tous les formats** (solo/duo/trio/squad, décision clarifiée le 2026-08-30) — aucun filtre de taille d'équipe dans le moteur d'attribution ; seuls comptent `matchType: 'custom'`, la fenêtre de dates du tournoi et l'appartenance à un clan participant. Pas de badge `matchType` ajouté sur `/clans/[clanId]/matches`, qui continue d'afficher indifféremment matchs classés et custom (le `TeamModeBadge` existant suffit à donner le contexte).
 - Recomposition d'équipe entre manches (remplaçant) : points répartis sur deux lignes d'équipe distinctes plutôt que fusionnés (voir "Point ouvert" ci-dessus).

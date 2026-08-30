@@ -30,7 +30,7 @@ type NavItem = {
   navKey: string
   label: string
   href: string
-  tone: 'neutral' | 'brand' | 'sky' | 'blue' | 'emerald'
+  tone: 'neutral' | 'brand' | 'sky' | 'blue' | 'emerald' | 'violet'
 }
 
 type SubmenuItem = {
@@ -369,6 +369,12 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       { navKey: 'primary.dashboard', label: 'Les clans', href: '/clans', tone: 'blue' },
       { navKey: 'primary.ligue', label: 'Ligue', href: '/clans-leaderboard', tone: 'brand' },
       { navKey: 'primary.comparator', label: 'Comparateur', href: '/clans/comparator', tone: 'emerald' },
+      {
+        navKey: 'primary.tournaments',
+        label: 'Tournois',
+        href: '/tournaments',
+        tone: 'violet',
+      },
       !isVisitor
         ? { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' }
         : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },

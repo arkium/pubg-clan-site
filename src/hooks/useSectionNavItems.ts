@@ -61,7 +61,8 @@ export function useSectionNavItems(
       if (i.section !== section) return false
       const role = getItemRole(i.navKey, navPerms.roles)
       const target = ROLE_TO_TARGET[role]
-      return !target || target === section
+      const remainsInClanNavigation = section === 'clan-section' && i.navKey === 'clan.tournaments'
+      return !target || target === section || remainsInClanNavigation
     })
 
     // Sort native items

@@ -78,8 +78,24 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'none',
     description: 'Comparateur de clans (méta-dashboard) : pouls, style de jeu et performances transverses.',
   },
+  {
+    navKey: 'primary.tournaments',
+    section: 'nav-primary',
+    label: 'Tournois',
+    hrefTemplate: '/tournaments',
+    defaultRole: 'none',
+    description: 'Tournois inter-clans globaux : gestion par le clan organisateur, classements partagés entre tous les clans.',
+  },
 
   // --- Clan section nav ---
+  {
+    navKey: 'clan.tournaments',
+    section: 'clan-section',
+    label: 'Gérer les tournois',
+    hrefTemplate: '/clans/:clanId/settings/tournaments',
+    defaultRole: 'admin',
+    description: 'Gestion des tournois organisés par le clan, réservée aux administrateurs.',
+  },
   {
     navKey: 'clan.challenges',
     section: 'clan-section',

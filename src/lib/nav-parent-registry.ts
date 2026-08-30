@@ -86,6 +86,11 @@ const FALLBACK_MATRIX: Record<string, FallbackDef> = {
     labelKey: 'clan.challenges',
     labelFallback: 'Challenges',
   },
+  'clan.tournament-detail': {
+    hrefTemplate: '/clans/:clanId/tournaments',
+    labelKey: 'clan.tournaments',
+    labelFallback: 'Tournois',
+  },
 
   // Sous-pages Télémétrie
   'telemetry.match-detail': {

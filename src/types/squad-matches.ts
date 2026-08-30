@@ -56,6 +56,7 @@ export interface SquadMatch {
   pubgMatchId: string
   gameMode: string
   mapName: string
+  matchType: string
   placement: number
   createdAt: string
   durationSeconds: number

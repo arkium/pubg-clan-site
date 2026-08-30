@@ -16,12 +16,6 @@ function parseClanId(value: string) {
 function parseTournamentPayload(body: unknown): TournamentUpdateInput {
   const value = (body ?? {}) as Record<string, unknown>
 
-  const participantClanIds = Array.isArray(value.participantClanIds)
-    ? value.participantClanIds
-        .map((entry) => Number(entry))
-        .filter((entry) => Number.isInteger(entry) && entry > 0)
-    : undefined
-
   const nextRules = value.rules && typeof value.rules === 'object'
     ? {
         placementPoints:
@@ -44,7 +38,6 @@ function parseTournamentPayload(body: unknown): TournamentUpdateInput {
     status: value.status === 'draft' || value.status === 'active' || value.status === 'finished'
       ? value.status
       : undefined,
-    participantClanIds,
     rules: nextRules,
   }
 }

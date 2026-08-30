@@ -5,12 +5,6 @@ export async function GET() {
     const tournaments = await prisma.tournament.findMany({
       include: {
         organizerClan: { select: { id: true, name: true } },
-        clans: {
-          select: {
-            clanId: true,
-            clan: { select: { id: true, name: true } },
-          },
-        },
       },
       orderBy: [
         { status: 'asc' },

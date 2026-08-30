@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Trophy } from 'lucide-react'
+import { Trophy, Info } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -17,7 +17,25 @@ type Tournament = {
   gameMode: string | null
   mapName: string | null
   organizerClan: { id: number; name: string } | null
-  clans: Array<{ clanId: number; clan: { id: number; name: string } }>
+  rules?: {
+    placementPoints?: Record<string | number, number> | null
+    killPoints?: number | string | null
+    winBonus?: number | string | null
+    bestOfRounds?: number | null
+  } | null
+}
+
+const DEFAULT_PLACEMENT_POINTS: Record<number, number> = {
+  1: 15,
+  2: 12,
+  3: 10,
+  4: 8,
+  5: 6,
+  6: 4,
+  7: 2,
+  8: 1,
+  9: 1,
+  10: 1,
 }
 
 type Standing = {
@@ -137,10 +155,9 @@ export default function TournamentDetailPage() {
   }, [tournamentId])
 
   const tournament = data?.tournament
-  const clanNames = new Map<number, string>([
-    ...(tournament?.organizerClan ? [[tournament.organizerClan.id, tournament.organizerClan.name] as [number, string]] : []),
-    ...(tournament?.clans.map((entry) => [entry.clanId, entry.clan.name] as [number, string]) ?? []),
-  ])
+  const clanNames = new Map<number, string>(
+    tournament?.organizerClan ? [[tournament.organizerClan.id, tournament.organizerClan.name] as [number, string]] : []
+  )
 
   return (
     <main className="app-container app-main space-y-6">
@@ -175,12 +192,45 @@ export default function TournamentDetailPage() {
 
       {tournament ? (
         <>
-          <section className="app-panel p-6">
-            {tournament.description ? <p className="text-sm text-gray-700">{tournament.description}</p> : null}
-            <div className="mt-4 flex flex-wrap gap-3 text-sm text-gray-600">
-              {tournament.gameMode ? <span>Mode : {tournament.gameMode}</span> : null}
-              {tournament.mapName ? <span>Carte : {tournament.mapName}</span> : null}
-              <span>{data?.participantClanIds?.length ?? 0} clans suivis détectés</span>
+          <section className="app-panel p-6 flex flex-col gap-6">
+            {tournament.description ? (
+              <div className="rounded-xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-bg)] p-4 shadow-sm border-l-4 border-l-indigo-500">
+                <p className="text-sm font-medium text-[var(--theme-ui-text)]">{tournament.description}</p>
+              </div>
+            ) : null}
+            
+            <div className="flex flex-wrap gap-3">
+              {tournament.gameMode ? <span className="rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 px-3 py-1 text-sm font-semibold">Mode : {tournament.gameMode}</span> : null}
+              {tournament.mapName ? <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-1 text-sm font-semibold">Carte : {tournament.mapName}</span> : null}
+              <span className="rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 px-3 py-1 text-sm font-semibold">{data?.participantClanIds?.length ?? 0} clans suivis détectés</span>
+            </div>
+
+            <div className="rounded-xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-bg)] p-4 shadow-sm">
+              <h3 className="text-sm font-bold text-[var(--theme-ui-text)] mb-3 flex items-center gap-2">
+                <Info className="h-4 w-4 text-amber-400" />
+                Règles d'attribution des points
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="flex flex-col">
+                  <span className="text-[var(--theme-ui-text-muted)] text-[10px] uppercase tracking-wider font-bold">Points par Kill</span>
+                  <span className="text-[var(--theme-ui-text)] font-medium mt-1">{tournament.rules?.killPoints ?? 0} pt(s)</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[var(--theme-ui-text-muted)] text-[10px] uppercase tracking-wider font-bold">Bonus Top 1</span>
+                  <span className="text-[var(--theme-ui-text)] font-medium mt-1">{tournament.rules?.winBonus ?? 0} pt(s)</span>
+                </div>
+                <div className="flex flex-col col-span-2">
+                  <span className="text-[var(--theme-ui-text-muted)] text-[10px] uppercase tracking-wider font-bold">Points de placement</span>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2">
+                    {Object.entries(tournament.rules?.placementPoints || DEFAULT_PLACEMENT_POINTS).map(([place, points]) => (
+                      <span key={place} className="inline-flex items-center gap-1.5 text-[11px] bg-slate-100 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/50">
+                        <span className="text-[var(--theme-ui-text-muted)]">Top {place}</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400">{String(points)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 

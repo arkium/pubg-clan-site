@@ -241,9 +241,6 @@ export async function getTournamentMatches(tournamentId: string) {
       endDate: true,
       gameMode: true,
       mapName: true,
-      clans: {
-        select: { clanId: true },
-      },
     },
   })
 
@@ -263,9 +260,17 @@ export async function getTournamentMatches(tournamentId: string) {
       ...(tournament.gameMode ? { gameMode: tournament.gameMode } : {}),
       ...(tournament.mapName ? { mapName: tournament.mapName } : {}),
       members: {
+        // Un membre du clan ORGANISATEUR doit etre present dans le match :
+        // c'est lui qui heberge chaque partie perso du tournoi (voir principe
+        // produit, docs/TODO/todo.md "Idees - Tournois entre clans"). Sans ce
+        // filtre, un match custom d'un tout autre clan tracke tombant dans la
+        // meme fenetre de dates/mode se glisse dans le classement (bug
+        // constate le 2026-08-30). L'inclusion ci-dessous (pour l'attribution
+        // des points) reste volontairement ouverte a tous les clans suivis.
         some: {
           member: {
             isActive: true,
+            clanId: tournament.organizerClanId,
             clan: { isActive: true },
           },
         },
@@ -310,7 +315,6 @@ export async function materializeTournamentCustomMatches(tournamentId: string) {
       organizerClanId: true,
       startDate: true,
       endDate: true,
-      clans: { select: { clanId: true } },
     },
   })
 
@@ -453,7 +457,6 @@ export type TournamentCreateInput = {
   mapName?: string | null
   status?: 'draft' | 'active' | 'finished'
   rules?: TournamentRulesInput | null
-  participantClanIds?: number[]
 }
 
 export type TournamentUpdateInput = Partial<TournamentCreateInput>
@@ -465,12 +468,6 @@ export async function listClanTournaments(clanId: number) {
     },
     include: {
       organizerClan: { select: { id: true, name: true } },
-      clans: {
-        select: {
-          clanId: true,
-          clan: { select: { id: true, name: true } },
-        },
-      },
     },
     orderBy: [{ status: 'asc' }, { startDate: 'desc' }],
   })
@@ -481,12 +478,6 @@ export async function getTournamentForClan(clanId: number, tournamentId: string)
     where: { id: tournamentId },
     include: {
       organizerClan: { select: { id: true, name: true } },
-      clans: {
-        select: {
-          clanId: true,
-          clan: { select: { id: true, name: true } },
-        },
-      },
     },
   })
 
@@ -534,12 +525,6 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
     },
     include: {
       organizerClan: { select: { id: true, name: true } },
-      clans: {
-        select: {
-          clanId: true,
-          clan: { select: { id: true, name: true } },
-        },
-      },
     },
   })
 }
@@ -547,7 +532,7 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
 export async function updateTournament(clanId: number, tournamentId: string, input: TournamentUpdateInput) {
   const existing = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, organizerClanId: true, clans: { select: { clanId: true } } },
+    select: { id: true, organizerClanId: true },
   })
 
   if (!existing) {
@@ -574,12 +559,6 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
     },
     include: {
       organizerClan: { select: { id: true, name: true } },
-      clans: {
-        select: {
-          clanId: true,
-          clan: { select: { id: true, name: true } },
-        },
-      },
     },
   })
 

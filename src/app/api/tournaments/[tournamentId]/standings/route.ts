@@ -15,12 +15,6 @@ export async function GET(
       where: { id: tournamentId },
       include: {
         organizerClan: { select: { id: true, name: true } },
-        clans: {
-          select: {
-            clanId: true,
-            clan: { select: { id: true, name: true } },
-          },
-        },
       },
     })
 

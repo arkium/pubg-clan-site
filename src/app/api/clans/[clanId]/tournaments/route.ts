@@ -24,11 +24,6 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
       }
     : null
 
-  const participantClanIds = Array.isArray(value.participantClanIds)
-    ? value.participantClanIds
-        .map((entry) => Number(entry))
-        .filter((entry) => Number.isInteger(entry) && entry > 0)
-    : []
   const legacyKillPoints = typeof value.killPoints === 'number' || typeof value.killPoints === 'string'
     ? value.killPoints
     : 0
@@ -47,7 +42,6 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
     status: value.status === 'draft' || value.status === 'active' || value.status === 'finished'
       ? value.status
       : 'draft',
-    participantClanIds,
     rules: {
       placementPoints: rules?.placementPoints ?? null,
       killPoints: rules?.killPoints ?? legacyKillPoints,

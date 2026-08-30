@@ -1631,6 +1631,32 @@ Question de l'utilisateur : "y a-t-il des matchs partagés parmi les 3031, je su
 
 **Pourquoi c'est utile :** permettre à l'admin d'un clan suivi de déclarer un tournoi (règles, fenêtre de dates, clans participants) sans aucune préinscription joueur — l'app détecte elle-même les matchs du tournoi et calcule le classement selon le barème défini, affiché sur une page dédiée. Réflexion menée le 2026-08-29, convergée en plan concret ci-dessous.
 
+### État réel — largement implémenté le 2026-08-30, bugs constatés à corriger
+
+Le plan ci-dessous a été en grande partie codé entre le 2026-08-29 et le 2026-08-30 (commits `1aceb73`, `b26458d`, `860aaf5`, `539415f`, `5038da3`, `76ebe3d`), y compris la Phase 0 (découverte des matchs `custom`, avec commentaires citant explicitement cette section du todo). Vérifié le 2026-08-30 par relecture complète du code — **la Phase 0 est correcte, mais un bug de fond touche le filtrage par clan participant.**
+
+**Ce qui fonctionne, vérifié :**
+- [x] Schéma Prisma `Tournament`/`TournamentClan` (migration `20260830120000_add_tournament`).
+- [x] Phase 0 : `fetchAllRecentMatchIds` (`src/lib/pubg.ts`) interroge `GET /players/{id}` en complément de `fetchRecentMatchIds`, fusionné et dédupliqué dans `sync-matches/route.ts` — corrige bien le gap identifié (0 match `custom` en base avant ce correctif). Testé (`pubg-tournament-match-discovery.test.ts`, mock propre du endpoint et de la déduplication).
+- [x] Permission : `manage_settings` utilisée partout (pas de `manage_tournaments` inventée) — conforme à la correction actée.
+- [x] Moteur de barème (`computeTournamentStandings`, `groupMatchIntoTeams`, `normalizeTournamentRules`) — 3 tests Vitest solides (placement + kills + bonus victoire + `bestOfRounds`), logique relue et correcte.
+- [x] Pages : `/clans/[clanId]/settings/tournaments` (création/gestion), `/clans/[clanId]/tournaments[/[tournamentId]]`, `/tournaments[/[tournamentId]]` (variante top-level), sous-page détail télémétrie d'un match de tournoi.
+- **Décision produit différente de ce qui avait été discuté le 2026-08-29** : pas de sélection manuelle des clans participants par l'organisateur — l'UI l'indique explicitement ("Les clans et joueurs suivis présents dans les matchs récupérés seront détectés automatiquement", `settings/tournaments/page.tsx:461`). Le modèle `TournamentClan`, la relation `Tournament.clans` et le champ `participantClanIds` (type + parsing dans la route POST) existent mais **ne sont jamais écrits** (`createTournament`/`updateTournament` les ignorent) — code mort, pas un choix assumé documenté comme tel.
+
+**Principe produit confirmé (2026-08-30) :** l'admin du clan organisateur est celui qui crée/lance la partie perso dans le jeu — il est donc présent dans chaque match du tournoi. C'est pourquoi la synchro ne cible que son compte (pas tout le roster) : il suffit à découvrir tous les matchs. Le détail PUBG du match révèle ensuite tous les joueurs présents (tous clans confondus), et n'importe quel joueur d'un clan suivi qui y figure marque des points pour son clan — pas de présélection de clans participants, l'auto-détection est voulue. Ce principe **corrige deux entrées de la liste de bugs ci-dessous** (retirées, comportement confirmé correct) et **précise le correctif du bug n°1**.
+
+**Bugs constatés :**
+
+1. ~~`getTournamentMatches` ne réapplique pas le filtre "clan organisateur présent"~~ — **✅ Corrigé le 2026-08-30.** Ajouté `clanId: tournament.organizerClanId` au filtre `members.some.member` de `getTournamentMatches` (`src/lib/tournament-service.ts`), aligné sur `materializeTournamentCustomMatches` — un membre du clan organisateur doit désormais être présent dans le match pour qu'il compte, tout en gardant l'inclusion ouverte à tous les clans suivis pour l'attribution des points. Empêche la contamination entre tournois/scrims non liés tombant dans la même fenêtre de dates/mode.
+2. ~~`TournamentClan`/`participantClanIds` est du code mort~~ — **✅ Supprimé le 2026-08-30.** Modèle `TournamentClan`, relation `Tournament.clans`/`Clan.tournamentEntries`, type `TournamentCreateInput.participantClanIds`, parsing dans les 2 routes POST/PATCH, et tous les usages front (`tournament.clans` dans les 3 pages) retirés. Migration `20260830200000_remove_tournament_clan` (table vérifiée vide avant suppression) appliquée en prod. Les pages affichent désormais le nombre de clans réellement auto-détecté (`participantClanIds` retourné par les routes standings) plutôt qu'un compteur toujours faux (`clans.length + 1` valait toujours `1`).
+3. ~~`materializeTournamentCustomMatches` scopé au clan organisateur~~ — **retiré, comportement correct par conception** (conforme au principe confirmé le 2026-08-30).
+4. ~~Le bouton de sync ne synchronise que l'admin qui clique~~ — **retiré, comportement correct par conception** (l'admin héberge chaque match, synchroniser son seul compte suffit).
+5. **[Faible, non corrigé] `GET /api/tournaments/[tournamentId]/standings` n'a aucun contrôle de permission** (pas d'appel `requireNavPermission`/`requirePermission`) — accessible sans authentification, contrairement au reste du site.
+
+**Vérifié après correctif (2026-08-30) :** `npx vitest run` sur les 2 suites tournois (7/7 tests OK), `tsc --noEmit` et `eslint` propres sur tous les fichiers touchés (schéma, `tournament-service.ts`, 5 routes API, 3 pages). Migration appliquée via `prisma migrate deploy`. Régénération du client Prisma (`npx prisma generate`) en attente — bloquée par le verrou Windows connu sur le moteur de requête tant que le serveur `npm run dev` tourne (cf. gotcha CLAUDE.md) ; à relancer une fois le serveur arrêté.
+
+**Non vérifié dans cette passe (à faire) :** rendu navigateur (clair/sombre, mobile), fenêtre de rotation réelle de la relation `matches` de l'endpoint de base PUBG, budget rate-limit en conditions réelles, filtrage `matchType` sur `/clans/[clanId]/matches` (le point relevé en Phase 0 sur l'effet de bord liste générale).
+
 ### Constat de départ — un signal déjà en base et jamais exploité
 
 | Élément | État actuel |

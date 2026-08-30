@@ -17,7 +17,6 @@ type Tournament = {
   gameMode: string | null
   mapName: string | null
   organizerClan: { id: number; name: string } | null
-  clans: Array<{ clanId: number; clan: { id: number; name: string } }>
 }
 
 type Standing = {
@@ -54,6 +53,7 @@ export default function ClanTournamentDetailPage() {
 
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [standings, setStandings] = useState<Standing[]>([])
+  const [participantClanCount, setParticipantClanCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,9 +79,10 @@ export default function ClanTournamentDetailPage() {
           const payload = (await response.json().catch(() => ({ error: 'Impossible de charger le tournoi.' }))) as { error?: string }
           throw new Error(payload.error ?? 'Impossible de charger le tournoi.')
         }
-        const payload = (await response.json()) as { tournament?: Tournament; standings?: Standing[] }
+        const payload = (await response.json()) as { tournament?: Tournament; standings?: Standing[]; participantClanIds?: number[] }
         setTournament(payload.tournament ?? null)
         setStandings(payload.standings ?? [])
+        setParticipantClanCount(payload.participantClanIds?.length ?? 0)
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Impossible de charger le tournoi.')
       } finally {
@@ -137,7 +138,7 @@ export default function ClanTournamentDetailPage() {
         <div className="flex flex-wrap gap-3 text-sm text-gray-600">
           {tournament.gameMode ? <span>Mode: {tournament.gameMode}</span> : null}
           {tournament.mapName ? <span>Carte: {tournament.mapName}</span> : null}
-          <span>{tournament.clans.length + 1} clans participants</span>
+          <span>{participantClanCount} clan{participantClanCount > 1 ? 's' : ''} détecté{participantClanCount > 1 ? 's' : ''}</span>
         </div>
       </section>
 

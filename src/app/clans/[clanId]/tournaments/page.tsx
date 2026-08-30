@@ -17,7 +17,6 @@ type Tournament = {
   gameMode: string | null
   mapName: string | null
   organizerClan: { id: number; name: string } | null
-  clans: Array<{ clanId: number; clan: { id: number; name: string } }>
 }
 
 function parseClanId(value: string | string[] | undefined) {
@@ -150,7 +149,6 @@ export default function ClanTournamentsPage() {
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600">
                 {tournament.gameMode ? <span>Mode: {tournament.gameMode}</span> : null}
                 {tournament.mapName ? <span>Carte: {tournament.mapName}</span> : null}
-                <span>{tournament.clans.length + 1} clans</span>
               </div>
             </Link>
           ))}

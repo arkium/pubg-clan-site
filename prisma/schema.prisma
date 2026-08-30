@@ -42,7 +42,6 @@ model Clan {
   comparatorCache           ClanComparatorCache[]
   clanEncounters            ClanEncounter[]
   organizedTournaments      Tournament[]      @relation("TournamentOrganizer")
-  tournamentEntries         TournamentClan[]  @relation("TournamentParticipant")
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -353,10 +352,13 @@ model ClanComparatorCache {
   @@map("ClanComparatorCache")
 }
 
-// Tournois inter-clans declares par un clan organisateur, sur des matchs
-// matchType='custom' detectes automatiquement dans la fenetre [startDate,
-// endDate] parmi les clans participants. Voir docs/TODO/todo.md, section
-// "Idees - Tournois entre clans".
+// Tournois inter-clans declares par un clan organisateur : l'admin du clan
+// organisateur heberge chaque match perso (matchType='custom') du tournoi,
+// ce qui permet de les decouvrir a partir de son seul compte. N'importe quel
+// clan suivi present dans un match ainsi decouvert marque des points pour
+// son clan - pas de presequence/selection de clans participants (auto-
+// detection totale, voir getTrackedTournamentClanIds). Voir docs/TODO/todo.md,
+// section "Idees - Tournois entre clans".
 model Tournament {
   id              String @id @default(cuid())
   organizerClanId Int
@@ -377,21 +379,8 @@ model Tournament {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  clans TournamentClan[]
-
   @@index([organizerClanId, status])
   @@map("Tournament")
-}
-
-model TournamentClan {
-  id           String     @id @default(cuid())
-  tournamentId String
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  clanId       Int
-  clan         Clan       @relation("TournamentParticipant", fields: [clanId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentId, clanId])
-  @@map("TournamentClan")
 }
 
 model UserAccount {

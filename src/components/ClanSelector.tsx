@@ -192,7 +192,7 @@ export default function ClanSelector({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="app-panel sticky top-[calc(10rem+6.5rem)] z-30 flex flex-col gap-3 rounded-xl p-2 sm:top-[calc(13rem+6.5rem)] sm:flex-row sm:items-center sm:justify-between">
         <div className="flex-1">
           <label htmlFor="clan-search" className="sr-only">
             Rechercher un clan
@@ -233,6 +233,7 @@ export default function ClanSelector({
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Liste des clans disponibles">
           {filteredClans.map((clan) => {
             const isActive = clan.id === activeClanId
+            const displayImageUrl = clan.imageUrl || '/clans/default_clan.jpg'
 
             return (
               <li key={clan.id}>
@@ -244,19 +245,14 @@ export default function ClanSelector({
                   className={[
                     'group app-panel relative w-full overflow-hidden rounded-2xl p-4 text-left transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600',
                     isActive ? 'ring-2 ring-blue-600' : 'hover:border-blue-500/30 hover:bg-slate-50/80 dark:hover:bg-slate-800/50',
-                    !clan.imageUrl && isActive ? 'bg-blue-50/30 dark:bg-blue-900/20' : '',
                   ].join(' ')}
                 >
-                  {clan.imageUrl ? (
-                    <>
-                      <img
-                        src={clan.imageUrl}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/20 to-slate-900/80 transition-opacity duration-300 group-hover:opacity-80" />
-                    </>
-                  ) : null}
+                  <img
+                    src={displayImageUrl}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/20 to-slate-900/80 transition-opacity duration-300 group-hover:opacity-80" />
 
                   {isActive ? (
                     <span className="absolute right-3 top-3 z-10 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 shadow-sm">
@@ -266,7 +262,7 @@ export default function ClanSelector({
 
                   <div className="relative z-10 min-w-0 pr-14">
                     <div className="flex items-center gap-1.5">
-                      <p className={['truncate text-base font-semibold', clan.imageUrl ? 'text-white drop-shadow-md' : 'text-gray-900 dark:text-gray-100'].join(' ')}>
+                      <p className="truncate text-base font-semibold text-white drop-shadow-md">
                         {clan.name}
                       </p>
                       {clan.name === 'Ungrouped' && (
@@ -278,22 +274,22 @@ export default function ClanSelector({
                         </span>
                       )}
                     </div>
-                    <p className={['truncate text-xs', clan.imageUrl ? 'text-gray-300 drop-shadow-md' : 'text-gray-500'].join(' ')}>
+                    <p className="truncate text-xs text-gray-300 drop-shadow-md">
                       [{clan.tag}] · {clan.platformShard}
                     </p>
                   </div>
 
                   <div className="relative z-10 mt-4 grid grid-cols-4 gap-2">
-                    <StatTile icon={Users} value={String(clan.membersCount)} label="Membres" tone="text-blue-500" hasImage={!!clan.imageUrl} />
-                    <StatTile icon={Swords} value={String(clan.matchesCount)} label="Matchs" tone="text-cyan-500" hasImage={!!clan.imageUrl} />
-                    <StatTile icon={Timer} value={formatPlaytimeCompact(clan.timePlayedSeconds)} label="Temps" tone="text-indigo-500" title={`${clan.activeDays ?? 0} jours actifs`} hasImage={!!clan.imageUrl} />
+                    <StatTile icon={Users} value={String(clan.membersCount)} label="Membres" tone="text-blue-500" hasImage={true} />
+                    <StatTile icon={Swords} value={String(clan.matchesCount)} label="Matchs" tone="text-cyan-500" hasImage={true} />
+                    <StatTile icon={Timer} value={formatPlaytimeCompact(clan.timePlayedSeconds)} label="Temps" tone="text-indigo-500" title={`${clan.activeDays ?? 0} jours actifs`} hasImage={true} />
                     <StatTile
                       icon={Clock}
                       value={formatLastMatchCompact(clan.lastMatchAt)}
                       label="Dernier"
                       tone="text-orange-500"
                       title={formatLastMatchTitle(clan.lastMatchAt)}
-                      hasImage={!!clan.imageUrl}
+                      hasImage={true}
                     />
                   </div>
                 </button>

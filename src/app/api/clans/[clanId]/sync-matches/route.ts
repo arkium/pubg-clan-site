@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { captureEncounteredPlayers, countBotsInMatch } from '@/lib/encountered-players'
 import { isInternalCronRequest } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
-import { fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
+import { fetchAllRecentMatchIds, fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { analyzeMatchForSquads } from '@/lib/squad-detector'
 import { requireRole } from '@/middleware/auth-permission'
 
@@ -129,10 +129,20 @@ export async function POST(
 
         let allMatchIds: string[]
         try {
-          allMatchIds = await fetchRecentMatchIds(playerId, member.platformShard, {
-            clanId: clan.id,
-            memberId: member.id,
-          })
+          // Fusion de deux sources : /seasons/lifetime (matchmaking classe) et
+          // /players/{id} (referme aussi matchType='custom', necessaire aux
+          // tournois inter-clans - voir docs/TODO/todo.md "Idees - Tournois").
+          const [seasonMatchIds, allTimeMatchIds] = await Promise.all([
+            fetchRecentMatchIds(playerId, member.platformShard, {
+              clanId: clan.id,
+              memberId: member.id,
+            }),
+            fetchAllRecentMatchIds(playerId, member.platformShard, {
+              clanId: clan.id,
+              memberId: member.id,
+            }),
+          ])
+          allMatchIds = Array.from(new Set([...seasonMatchIds, ...allTimeMatchIds]))
         } catch (err) {
           const msg = `Member ${member.displayName}: failed to fetch match IDs — ${err instanceof Error ? err.message : String(err)}`
           errors.push(msg)

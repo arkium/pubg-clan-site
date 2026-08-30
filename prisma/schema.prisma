@@ -41,6 +41,8 @@ model Clan {
   matchesCache              ClanMatchesCache[]
   comparatorCache           ClanComparatorCache[]
   clanEncounters            ClanEncounter[]
+  organizedTournaments      Tournament[]      @relation("TournamentOrganizer")
+  tournamentEntries         TournamentClan[]  @relation("TournamentParticipant")
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -349,6 +351,47 @@ model ClanComparatorCache {
 
   @@unique([clanId, period])
   @@map("ClanComparatorCache")
+}
+
+// Tournois inter-clans declares par un clan organisateur, sur des matchs
+// matchType='custom' detectes automatiquement dans la fenetre [startDate,
+// endDate] parmi les clans participants. Voir docs/TODO/todo.md, section
+// "Idees - Tournois entre clans".
+model Tournament {
+  id              String @id @default(cuid())
+  organizerClanId Int
+  organizerClan   Clan   @relation("TournamentOrganizer", fields: [organizerClanId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+
+  startDate DateTime
+  endDate   DateTime
+
+  gameMode String? // filtre optionnel (ex. squad-fpp) - null = tous modes
+  mapName  String? // filtre optionnel - null = toutes cartes
+
+  rules  Json // baremes : placementPoints, killPoints, winBonus, bestOfRounds
+  status String @default("draft") // draft | active | finished
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clans TournamentClan[]
+
+  @@index([organizerClanId, status])
+  @@map("Tournament")
+}
+
+model TournamentClan {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  clanId       Int
+  clan         Clan       @relation("TournamentParticipant", fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, clanId])
+  @@map("TournamentClan")
 }
 
 model UserAccount {

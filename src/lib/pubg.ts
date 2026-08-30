@@ -113,6 +113,12 @@ type PubgPlayerDetailResponse = {
       clans?: {
         data?: JsonApiRelationshipData
       }
+      // Relation 'matches' du endpoint de base /players/{id} — reference TOUS les
+      // matchs recents (custom compris), contrairement a /seasons/lifetime qui ne
+      // referme que les modes de matchmaking classes (voir fetchAllRecentMatchIds).
+      matches?: {
+        data?: MatchReference[]
+      }
     }
   }
   included?: PubgClanResource[]
@@ -701,6 +707,40 @@ export async function fetchRecentMatchIds(
           matchIds.push(match.id)
         }
       })
+    }
+  })
+
+  return matchIds
+}
+
+// Complement de fetchRecentMatchIds : /seasons/lifetime ne referme que les
+// matchs joues en matchmaking classe (official/airoyale), jamais les matchs
+// matchType='custom' (scrims/tournois). Le endpoint de base /players/{id}
+// expose lui une relation 'matches' qui referme aussi les matchs custom —
+// voir docs/TODO/todo.md, section "Idees - Tournois entre clans" (Phase 0).
+// Ne pas fusionner dans fetchRecentMatchIds : les deux appelants existants
+// (sync-matches, members/[id]/matches) doivent fusionner explicitement les
+// deux listes pour rester maitres de la deduplication.
+export async function fetchAllRecentMatchIds(
+  playerId: string,
+  shard: string = 'steam',
+  context?: PubgApiCallContext
+) {
+  ensurePubgApiKey()
+  const response = await queuedPubgGet<PubgPlayerDetailResponse>(
+    `/shards/${shard}/players/${playerId}`,
+    undefined,
+    context
+  )
+  const matchRefs = response.data.data?.relationships?.matches?.data
+  if (!Array.isArray(matchRefs)) {
+    return []
+  }
+
+  const matchIds: string[] = []
+  matchRefs.forEach((match) => {
+    if (match.id && !matchIds.includes(match.id)) {
+      matchIds.push(match.id)
     }
   })
 

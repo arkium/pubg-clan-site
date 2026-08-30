@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { fetchMatchDetails } from '@/lib/pubg'
 
 export type TournamentRulesInput = {
   placementPoints?: Record<string | number, number> | null
@@ -106,6 +107,14 @@ export function normalizeTournamentRules(
 
 function buildTeamKey(memberIds: number[]) {
   return [...memberIds].sort((left, right) => left - right).join(':')
+}
+
+function endOfTournamentDay(value: Date) {
+  const end = new Date(value)
+  if (end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && end.getUTCSeconds() === 0 && end.getUTCMilliseconds() === 0) {
+    end.setUTCHours(23, 59, 59, 999)
+  }
+  return end
 }
 
 export function groupMatchIntoTeams(
@@ -242,21 +251,22 @@ export async function getTournamentMatches(tournamentId: string) {
     throw new Error('Tournament not found')
   }
 
-  const clanIds = [tournament.organizerClanId, ...tournament.clans.map((entry) => entry.clanId)]
+  const endDate = endOfTournamentDay(tournament.endDate)
 
   return prisma.squadMatch.findMany({
     where: {
       matchType: 'custom',
       createdAt: {
         gte: tournament.startDate,
-        lte: tournament.endDate,
+        lte: endDate,
       },
       ...(tournament.gameMode ? { gameMode: tournament.gameMode } : {}),
       ...(tournament.mapName ? { mapName: tournament.mapName } : {}),
       members: {
         some: {
           member: {
-            clanId: { in: clanIds },
+            isActive: true,
+            clan: { isActive: true },
           },
         },
       },
@@ -265,7 +275,8 @@ export async function getTournamentMatches(tournamentId: string) {
       members: {
         where: {
           member: {
-            clanId: { in: clanIds },
+            isActive: true,
+            clan: { isActive: true },
           },
         },
         include: {
@@ -281,6 +292,154 @@ export async function getTournamentMatches(tournamentId: string) {
     },
     orderBy: { createdAt: 'desc' },
   })
+}
+
+export function getTrackedTournamentClanIds(matches: TournamentMatchLike[]) {
+  return Array.from(
+    new Set(
+      matches.flatMap((match) => match.members.map((member) => member.member.clanId))
+        .filter((clanId): clanId is number => clanId !== null)
+    )
+  )
+}
+
+export async function materializeTournamentCustomMatches(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: {
+      organizerClanId: true,
+      startDate: true,
+      endDate: true,
+      clans: { select: { clanId: true } },
+    },
+  })
+
+  if (!tournament) throw new Error('Tournament not found')
+
+  const allCustomMatches = await prisma.match.findMany({
+    where: {
+      matchType: 'custom',
+      member: { clanId: tournament.organizerClanId },
+    },
+    select: {
+      pubgMatchId: true,
+      pubgCreatedAt: true,
+      gameMode: true,
+      matchType: true,
+      mapName: true,
+      kills: true,
+      damageDealt: true,
+      assists: true,
+      revives: true,
+      placement: true,
+      knockouts: true,
+      headshotKills: true,
+      duration: true,
+      member: {
+        select: {
+          id: true,
+          clanId: true,
+          pubgAccountId: true,
+          platformShard: true,
+        },
+      },
+    },
+  })
+  const startAt = tournament.startDate.getTime()
+  const endAt = endOfTournamentDay(tournament.endDate).getTime()
+  const sourceMatches = allCustomMatches.filter((match) =>
+    match.pubgCreatedAt.getTime() >= startAt &&
+    match.pubgCreatedAt.getTime() <= endAt
+  )
+
+  const matchesByPubgId = new Map<string, typeof sourceMatches>()
+  for (const match of sourceMatches) {
+    const grouped = matchesByPubgId.get(match.pubgMatchId) ?? []
+    grouped.push(match)
+    matchesByPubgId.set(match.pubgMatchId, grouped)
+  }
+
+  const existing = await prisma.squadMatch.findMany({
+    where: { pubgMatchId: { in: [...matchesByPubgId.keys()] } },
+    select: { pubgMatchId: true },
+  })
+  const existingIds = new Set(existing.map((match) => match.pubgMatchId))
+  let materializedCount = 0
+  const errors: string[] = []
+
+  const trackedMembers = await prisma.clanMember.findMany({
+    where: { isActive: true, clan: { isActive: true } },
+    select: { id: true, pubgAccountId: true, pubgPlayerName: true },
+  })
+  const membersByAccountId = new Map(
+    trackedMembers.filter((member) => member.pubgAccountId).map((member) => [member.pubgAccountId!, member])
+  )
+  const membersByName = new Map(trackedMembers.map((member) => [member.pubgPlayerName.trim().toLowerCase(), member]))
+
+  for (const [pubgMatchId, matchRows] of matchesByPubgId) {
+
+    try {
+      const reference = matchRows[0]
+      if (!reference) continue
+      if (!reference.member.pubgAccountId) {
+        errors.push(`${pubgMatchId}: organizer account id is missing`)
+        continue
+      }
+      const details = await fetchMatchDetails(pubgMatchId, reference.member.pubgAccountId ?? '', reference.member.platformShard)
+      const trackedParticipants = new Map<number, { memberId: number; kills: number; damage: number; assists: number; revives: number; placement: number; knockouts: number; headshotKills: number; timeSurvived: number; rideDistance: number; walkDistance: number; swimDistance: number; boosts: number; heals: number; vehicleDestroys: number; roadKills: number; longestKill: number; teamKills: number; weaponsAcquired: number }>()
+
+      for (const roster of details.rosters) {
+        for (const participant of roster.participants) {
+          const member = membersByAccountId.get(participant.playerId) ?? membersByName.get(participant.playerName.trim().toLowerCase())
+          if (!member) continue
+          trackedParticipants.set(member.id, {
+            memberId: member.id, kills: participant.kills, damage: participant.damageDealt, assists: participant.assists,
+            revives: participant.revives, placement: participant.position, knockouts: participant.knockouts,
+            headshotKills: participant.headshotKills, timeSurvived: participant.timeSurvived, rideDistance: participant.rideDistance,
+            walkDistance: participant.walkDistance, swimDistance: participant.swimDistance, boosts: participant.boosts,
+            heals: participant.heals, vehicleDestroys: participant.vehicleDestroys, roadKills: participant.roadKills,
+            longestKill: participant.longestKill, teamKills: participant.teamKills, weaponsAcquired: participant.weaponsAcquired,
+          })
+        }
+      }
+
+      const members = Array.from(trackedParticipants.values())
+      if (members.length === 0) continue
+      const existingMatch = existingIds.has(pubgMatchId)
+        ? await prisma.squadMatch.findUnique({ where: { pubgMatchId }, select: { id: true, members: { select: { memberId: true } } } })
+        : null
+
+      if (existingMatch) {
+        const existingMemberIds = new Set(existingMatch.members.map((member) => member.memberId))
+        const missingMembers = members.filter((member) => !existingMemberIds.has(member.memberId))
+        if (missingMembers.length > 0) {
+          await prisma.squadMember.createMany({ data: missingMembers.map(({ memberId, ...member }) => ({ squadMatchId: existingMatch.id, memberId, ...member })) })
+          materializedCount += 1
+        }
+      } else {
+        await prisma.squadMatch.create({
+          data: {
+            pubgMatchId, gameMode: details.gameMode, matchType: details.matchType, mapName: details.mapName,
+            placement: Math.min(...members.map((member) => member.placement)), createdAt: new Date(details.createdAt),
+            totalKills: members.reduce((total, member) => total + member.kills, 0), totalDamage: members.reduce((total, member) => total + member.damage, 0),
+            totalAssists: members.reduce((total, member) => total + member.assists, 0), totalRevives: members.reduce((total, member) => total + member.revives, 0),
+            members: { create: members },
+          },
+        })
+        materializedCount += 1
+      }
+    } catch (error) {
+      errors.push(`${pubgMatchId}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  return {
+    sourceRowCount: sourceMatches.length,
+    sourceMatchCount: matchesByPubgId.size,
+    materializedCount,
+    alreadyMaterializedCount: existingIds.size,
+    errors,
+  }
 }
 
 export type TournamentRulesValue = TournamentRulesInput['placementPoints'] | null
@@ -335,11 +494,8 @@ export async function getTournamentForClan(clanId: number, tournamentId: string)
     throw new Error('Tournament not found')
   }
 
-  const participantClanIds = new Set(tournament.clans.map((entry) => entry.clanId))
-  participantClanIds.add(tournament.organizerClanId)
-
-  if (!participantClanIds.has(clanId) && tournament.organizerClanId !== clanId) {
-    throw new Error('Tournament not found for this clan')
+  if (tournament.organizerClanId !== clanId) {
+    throw new Error('Tournament not found for this organizer clan')
   }
 
   return tournament
@@ -362,25 +518,6 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
     throw new Error('End date must be after start date')
   }
 
-  const uniqueParticipantClanIds = Array.from(
-    new Set([clanId, ...(input.participantClanIds ?? []).filter((value) => Number.isInteger(value) && value > 0)])
-  )
-
-  if (uniqueParticipantClanIds.length === 0) {
-    throw new Error('At least one participating clan is required')
-  }
-
-  const existingClans = await prisma.clan.findMany({
-    where: { id: { in: uniqueParticipantClanIds } },
-    select: { id: true },
-  })
-
-  const existingIds = new Set(existingClans.map((clan) => clan.id))
-  const missingIds = uniqueParticipantClanIds.filter((id) => !existingIds.has(id))
-  if (missingIds.length > 0) {
-    throw new Error(`Unknown clans: ${missingIds.join(', ')}`)
-  }
-
   const normalizedRules = normalizeTournamentRules(input.rules)
 
   return prisma.tournament.create({
@@ -394,11 +531,6 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
       mapName: input.mapName?.trim() || null,
       status: input.status ?? 'draft',
       rules: normalizedRules,
-      clans: {
-        create: uniqueParticipantClanIds
-          .filter((clanIdValue) => clanIdValue !== clanId)
-          .map((clanIdValue) => ({ clanId: clanIdValue })),
-      },
     },
     include: {
       organizerClan: { select: { id: true, name: true } },
@@ -426,20 +558,6 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
     throw new Error('Only the organizer can update this tournament')
   }
 
-  const nextParticipantIds = input.participantClanIds
-    ? Array.from(new Set([...input.participantClanIds.filter((value) => Number.isInteger(value) && value > 0), clanId]))
-    : existing.clans.map((entry) => entry.clanId)
-
-  const existingClans = await prisma.clan.findMany({
-    where: { id: { in: nextParticipantIds } },
-    select: { id: true },
-  })
-
-  const missingIds = nextParticipantIds.filter((id) => !existingClans.some((clan) => clan.id === id))
-  if (missingIds.length > 0) {
-    throw new Error(`Unknown clans: ${missingIds.join(', ')}`)
-  }
-
   const nextRules = input.rules ? normalizeTournamentRules(input.rules) : undefined
 
   const tournament = await prisma.tournament.update({
@@ -453,14 +571,6 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
       ...(input.mapName !== undefined ? { mapName: input.mapName?.trim() || null } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(nextRules ? { rules: nextRules } : {}),
-      clans: input.participantClanIds
-        ? {
-            deleteMany: {},
-            create: nextParticipantIds
-              .filter((id) => id !== clanId)
-              .map((clanIdValue) => ({ clanId: clanIdValue })),
-          }
-        : undefined,
     },
     include: {
       organizerClan: { select: { id: true, name: true } },

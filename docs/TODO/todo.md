@@ -1667,7 +1667,7 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 - [x] **Bonne nouvelle vérifiée :** le scoring (placement + kills, phase 3) ne dépend que de `analyzeMatchForSquads` (`sync-matches/route.ts:206`), lui-même alimenté par `fetchMatchDetails` (détail de match, pas de télémétrie CDN) — **aucune dépendance sur le worker télémétrie** (`TelemetryResyncJob`, parsing CDN, risque `Readable.toWeb()`). Un match custom peut donc apparaître dans le classement du tournoi dès le prochain sync clan, sans attendre le pipeline télémétrie complet.
 - [x] **Effet de bord tranché le 2026-08-30 — aucune action requise sur `/clans/[clanId]/matches`.** Décision : les tournois ne comptabilisent que les matchs `custom` en **duo/trio/squad** (jamais en solo) — le mode d'équipe (`TeamModeBadge` déjà affiché sur cette page) suffit à distinguer contextuellement un match de tournoi/scrim d'un match classé solo, sans avoir besoin d'un badge `matchType` dédié. Aucun filtre `official` à ajouter non plus à cette page — elle continue d'afficher tous les matchs du clan, classiques et custom confondus, comme avant. Cette restriction duo/trio/squad sera appliquée directement dans le moteur d'attribution (`getTournamentMatches`, Phase 2) plutôt que sur l'affichage.
 - [x] **Budget de rate-limit à chiffrer** — confirmé : l'élargissement double bien le nombre d'appels API par membre et par cycle de sync (`fetchRecentMatchIds` + `fetchAllRecentMatchIds`, lancés en `Promise.all` donc consommant 2 slots de la queue partagée au lieu d'1) — déployé tel quel le 2026-08-30, `AppConfig.pubg_api_rate_limit_rpm` (10 RPM par défaut) reste le seul régulateur ; aucun mécanisme de dégradation automatique ajouté. **À surveiller** sur `/settings/pubg-api` (panneau "Répartition par clan") après activation en conditions réelles.
-- [ ] **UX latence pendant un tournoi actif** — le cron ne tourne que 2×/jour (`0 2,17 * * *`) ; pour un tournoi joué "en direct", proposer un déclencheur de sync manuel sur la page tournoi (Admin/Owner du clan organisateur), réutilisant le mécanisme déjà existant (`sync-matches/route.ts`, pattern déjà exposé ailleurs via `sync-batch-manual`, §8.2 #10 de `docs/navigation-arborescence.md`) plutôt que d'attendre le prochain passage cron.
+- [x] **Synchronisation manuelle d'un tournoi actif** — livrée le 2026-08-30 : l'admin organisateur participant déclenche une récupération directe depuis PUBG avec son seul compte. Ses matchs custom récents sont importés, le détail de chaque match est lu une fois, les joueurs actifs des clans suivis sont détectés automatiquement dans les rosters, puis la télémétrie est mise en file. Le worker déclenche le recalcul d'agrégats après import. Aucun cron ni pré-inscription de clan/joueur n'est requis.
 
 ### 1. Fondations — modèle de données & migration — ✅ Livré le 2026-08-30
 
@@ -1727,8 +1727,8 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 ### 2. Moteur d'attribution des matchs (backend) — ✅ Livré le 2026-08-30
 
 - [x] Créer `src/lib/tournament-service.ts`.
-- [x] `getTournamentMatches(tournamentId)` : requête `SquadMatch` avec `matchType: 'custom'`, `createdAt` dans `[startDate, endDate]`, filtres `gameMode`/`mapName` si définis, et `members.some.member.clanId IN (clans participants du tournoi)` — même structure de requête que `getClanSquadMatches` (`squad-detector.ts:159`) élargie à `custom` et multi-clans ; ne pas dupliquer la logique de filtrage clan, factoriser si possible.
-- [x] `groupMatchIntoTeams(squadMatch, participatingClanIds)` : regroupe les `SquadMember` d'un match par clé d'équipe (`buildSquadKey`, memberIds triés), filtré aux clans participants — réutilise `detectSquadFromMatchDetails`/`buildSquadKey` existants plutôt que réécrire la logique de regroupement.
+- [x] `getTournamentMatches(tournamentId)` : requête `SquadMatch` avec `matchType: 'custom'`, `createdAt` dans `[startDate, endDate]`, filtres `gameMode`/`mapName` si définis et membres actifs appartenant à un clan suivi actif. Les clans pris en compte sont découverts depuis les rosters, sans inscription préalable.
+- [x] `groupMatchIntoTeams(squadMatch, trackedClanIds)` : regroupe les `SquadMember` des clans suivis détectés par clé d'équipe (`buildSquadKey`, memberIds triés).
 - [x] Gérer le cas multi-clans dans un même match : réutiliser le principe déjà validé par `head-to-head-service.ts` (comparaison par meilleur placement d'équipe/clan sur un `SquadMatch` partagé), pas `SquadMatch.placement` brut qui ne reflète qu'un seul camp.
 - [x] **Correctif de décision du 2026-08-30 (clarifié par l'utilisateur) :** contrairement à une première décision erronée prise plus tôt dans la session (exclusion du solo), `getTournamentMatches` **inclut tous les formats** — solo, duo, trio et squad. Les seuls filtres d'éligibilité sont `matchType: 'custom'`, la fenêtre `[startDate, endDate]` du tournoi et l'appartenance à un clan participant. Aucun filtre sur la taille du roster à ajouter dans le moteur d'attribution.
 
@@ -1739,26 +1739,27 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 - [x] Tri du classement : points décroissants, puis kills totaux, puis meilleur placement moyen (mêmes tie-breakers que `sortAggregates` dans `squad-detector.ts:50`, à réutiliser si la forme des données le permet).
 - [x] Tests unitaires : **3 tests passing** (regroupement par clan, calcul des points, application bestOfRounds) ✓
 
-### 4. Administration — déclaration & gestion
+### 4. Administration — déclaration & gestion — ✅ Livré le 2026-08-30
 
 Rattachée au clan organisateur, sur le modèle exact de `/clans/[clanId]/settings/members` (§8.2 #5 de `docs/navigation-arborescence.md`) — pas de route `/settings/tournaments` au niveau racine, ce niveau étant réservé aux outils transverses SuperUser (cron, monitoring PUBG API, import de matchs…).
 
-- [ ] `POST /api/clans/[clanId]/tournaments` : créer un tournoi (titre, description, clans participants parmi les clans trackés `isActive` — organisateur pré-sélectionné et non désélectionnable, dates, filtres `gameMode`/`mapName`, barème préremplis avec des valeurs par défaut éditables).
-- [ ] `PATCH /api/clans/[clanId]/tournaments/[tournamentId]` : édition (barème, dates, statut `draft`/`active`/`finished`, ajout/retrait de clans participants).
-- [ ] `GET /api/clans/[clanId]/tournaments` : liste des tournois où ce clan est organisateur ou participant.
-- [ ] Permission : **`manage_settings`**, pas une nouvelle clé dédiée — c'est la seule permission qui gate réellement `/clans/[clanId]/settings/*` aujourd'hui (vérifié dans `src/app/clans/[clanId]/settings/page.tsx:26` : `isSuperUser || permissions.includes('*') || permissions.includes('manage_settings')`). `manage_challenges` (mentionnée dans la section Moderator plus haut) est une permission fine encore non implémentée, pas le pattern actuellement en prod — ne pas s'aligner dessus.
-- [ ] Toutes les routes retournent `Response.json()` standard (pas `NextResponse`), `params` `await`é — conventions du projet (`CLAUDE.md`).
+- [x] `POST /api/clans/[clanId]/tournaments` : créer un tournoi (titre, description, dates, filtres `gameMode`/`mapName`, barème prérempli). Aucun clan participant n'est configuré.
+- [x] `PATCH /api/clans/[clanId]/tournaments/[tournamentId]` : édition du barème, des dates, des filtres et du statut `draft`/`active`/`finished`.
+- [x] `GET /api/clans/[clanId]/tournaments` : liste des tournois organisés par ce clan.
+- [x] Permission : **`manage_settings`** pour l'admin du clan organisateur, avec bypass SuperUser.
+- [x] Synchronisation directe `POST /api/clans/[clanId]/tournaments/[tournamentId]/sync` : récupération PUBG, projection des rosters suivis, télémétrie et recalcul asynchrone.
 
 **Page `/clans/[clanId]/settings/tournaments`** — rôle `manage_settings`, protégée comme les autres pages `settings/*` existantes :
 - Liste des tournois gérés par ce clan (titre, statut, dates, nombre de clans participants), actions Modifier / Changer de statut.
 - Formulaire de création : titre, description, sélecteur multi-clans (parmi les clans trackés actifs, même composant que le sélecteur du Comparateur `src/app/clans/comparator/page.tsx`), deux champs date, dropdowns `gameMode`/`mapName` optionnels (réutiliser les options déjà utilisées sur les pages stats/positions), barème : 10 champs numériques placement→points préremplis (`1→15, 2→12, 3→10, 4→8, 5→6, 6→4, 7→2, 8→1, 9→1, 10→1`), un champ points/kill, un champ bonus victoire, une case à cocher + champ numérique pour `bestOfRounds`.
 - Carte "Tournois" à ajouter au hub `/clans/[clanId]/settings`, **qui existe déjà** (`src/app/clans/[clanId]/settings/page.tsx:59-70` — contrairement à ce que documentait `docs/navigation-arborescence.md` au 2026-08-18 comme "hub à créer" ; le doc a pris du retard sur le code, à corriger dans la même passe que "À faire une fois livré" ci-dessous). Troisième `<Link>` de carte à ajouter aux côtés de "Joueurs et rôles" et "Accueil login", même style (`Users`/`Monitor` de `lucide-react`, classes `bg-gray-50`/`text-gray-900`/`text-gray-500` déjà remappées thème clair/sombre par `globals.css`).
 
-### 5. Consultation — liste & résultats
+### 5. Consultation — liste & résultats — ✅ Livré le 2026-08-30
 
 Rôle **Tous** (comme Challenges, §8.1 #24-25 de `docs/navigation-arborescence.md`) — pas d'accès public non authentifié, cohérent avec le reste du site (aucune page de contenu n'est accessible sans session hors `/login`/`/join`).
 
-- [ ] `GET /api/clans/[clanId]/tournaments/[tournamentId]/standings` : calcule (ou lit un cache si le volume le justifie, voir phase 6) le classement via `computeTournamentStandings`, retourne aussi la liste des matchs comptabilisés (transparence : date, carte, mode, équipes, placements, kills).
+- [x] `GET /api/tournaments/[tournamentId]/standings` : calcule le classement global via `computeTournamentStandings`, retourne les matchs comptabilisés et les clans suivis détectés.
+- [x] `GET /api/clans/[clanId]/tournaments/[tournamentId]/standings` conservé pour compatibilité ; la consultation active est globale.
 
 **Page `/clans/[clanId]/tournaments`** (liste) — `ClanSectionNav` + structure standard, position proposée dans l'arbre §8.1 : juste après "Challenges" (#24-25), même niveau d'indentation (`▸▸`) :
 - Cartes ou table `app-table-*` des tournois où ce clan est organisateur ou participant, triés statut (actif → à venir → terminé) puis date, badge de statut par tournoi.

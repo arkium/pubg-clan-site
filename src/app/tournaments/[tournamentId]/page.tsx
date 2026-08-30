@@ -44,6 +44,7 @@ type TournamentMatch = {
 type TournamentResponse = {
   tournament?: Tournament
   standings?: Standing[]
+  participantClanIds?: number[]
   matches?: TournamentMatch[]
   error?: string
 }
@@ -142,7 +143,7 @@ export default function TournamentDetailPage() {
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-gray-600">
               {tournament.gameMode ? <span>Mode : {tournament.gameMode}</span> : null}
               {tournament.mapName ? <span>Carte : {tournament.mapName}</span> : null}
-              <span>{tournament.clans.length + 1} clans participants</span>
+              <span>{data?.participantClanIds?.length ?? 0} clans suivis détectés</span>
             </div>
           </section>
 

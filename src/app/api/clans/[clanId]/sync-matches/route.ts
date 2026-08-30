@@ -5,7 +5,7 @@ import { isInternalCronRequest } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { fetchAllRecentMatchIds, fetchMatchDetails, fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { analyzeMatchForSquads } from '@/lib/squad-detector'
-import { requireRole } from '@/middleware/auth-permission'
+import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
 function createMatchRecordId(memberId: number, matchId: string) {
   return `${memberId}-${matchId}`
@@ -33,12 +33,24 @@ export async function POST(
   }
 
   if (!isInternalCronRequest(request)) {
-    const roleError = await requireRole(['Owner'])(request, {
+    const roleError = await requirePermission('manage_settings')(request, {
       clanId: parsedClanId,
     })
 
     if (roleError) {
       return roleError
+    }
+  }
+
+  const body = (await request.json().catch(() => null)) as { memberId?: unknown } | null
+  const requestedMemberId = typeof body?.memberId === 'number' && Number.isInteger(body.memberId) && body.memberId > 0
+    ? body.memberId
+    : null
+
+  if (requestedMemberId && !isInternalCronRequest(request)) {
+    const actorMemberId = await getActorMemberId(request)
+    if (actorMemberId !== requestedMemberId) {
+      return NextResponse.json({ error: 'A member can only synchronize their own matches' }, { status: 403 })
     }
   }
 
@@ -85,6 +97,14 @@ export async function POST(
       })
     }
 
+    const membersToSync = requestedMemberId
+      ? clan.members.filter((member) => member.id === requestedMemberId)
+      : clan.members
+
+    if (membersToSync.length === 0) {
+      return NextResponse.json({ error: 'Active member not found in this clan' }, { status: 404 })
+    }
+
     const clanAccountIds = new Set(
       clan.members
         .map((member) => member.pubgAccountId)
@@ -99,7 +119,7 @@ export async function POST(
     // membres du clan dans ce match.
     const capturedEncounterMatchIds = new Set<string>()
 
-    for (const member of clan.members) {
+    for (const member of membersToSync) {
       try {
         let playerId = member.pubgAccountId
 
@@ -261,7 +281,7 @@ export async function POST(
       finishedAt: finishedAt.toISOString(),
       importedCount,
       importedMatches: importedCount,
-      membersProcessed: clan.members.length,
+      membersProcessed: membersToSync.length,
       status: errors.length > 0 ? 'partial' : 'success',
       errorsCount: errors.length,
       errorsPreview: errors.slice(0, 5),

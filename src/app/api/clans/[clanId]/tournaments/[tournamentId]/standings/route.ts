@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
   computeTournamentStandings,
+  getTrackedTournamentClanIds,
   getTournamentForClan,
   getTournamentMatches,
 } from '@/lib/tournament-service'
@@ -30,7 +31,7 @@ export async function GET(
 
     const tournament = await getTournamentForClan(parsedClanId, tournamentId)
     const matches = await getTournamentMatches(tournamentId)
-    const participantClanIds = tournament.clans.map((entry) => entry.clanId)
+    const participantClanIds = getTrackedTournamentClanIds(matches)
 
     const standings = computeTournamentStandings(
       matches,
@@ -41,6 +42,7 @@ export async function GET(
     return NextResponse.json({
       tournament,
       standings,
+      participantClanIds,
       matches: matches.map((match) => ({
         id: match.id,
         createdAt: match.createdAt,

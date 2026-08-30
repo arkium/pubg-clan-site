@@ -1,5 +1,6 @@
 'use client'
 
+import { RefreshCw } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -21,12 +22,6 @@ type Tournament = {
   clans: Array<{ clanId: number; clan: { id: number; name: string } }>
 }
 
-type ClanOption = {
-  id: number
-  name: string
-  tag: string | null
-}
-
 type TournamentFormState = {
   title: string
   description: string
@@ -35,7 +30,6 @@ type TournamentFormState = {
   gameMode: string
   mapName: string
   status: 'draft' | 'active' | 'finished'
-  participantClanIds: number[]
   placementPoints: Record<string, number>
   killPoints: number
   winBonus: number
@@ -46,6 +40,28 @@ const DEFAULT_PLACEMENT_POINTS: Record<string, number> = {
   '1': 15, '2': 12, '3': 10, '4': 8, '5': 6,
   '6': 4, '7': 2, '8': 1, '9': 1, '10': 1,
 }
+
+const TOURNAMENT_GAME_MODE_OPTIONS = [
+  { value: '', label: 'Tous les modes' },
+  { value: 'solo', label: 'Solo' },
+  { value: 'duo', label: 'Duo' },
+  { value: 'trio', label: 'Trio' },
+  { value: 'squad', label: 'Squad' },
+]
+
+const TOURNAMENT_MAP_OPTIONS = [
+  { value: '', label: 'Toutes les cartes' },
+  { value: 'Erangel', label: 'Erangel' },
+  { value: 'Miramar', label: 'Miramar' },
+  { value: 'Sanhok', label: 'Sanhok' },
+  { value: 'Vikendi', label: 'Vikendi' },
+  { value: 'Karakin', label: 'Karakin' },
+  { value: 'Paramo', label: 'Paramo' },
+  { value: 'Taego', label: 'Taego' },
+  { value: 'Deston', label: 'Deston' },
+  { value: 'Haven', label: 'Haven' },
+  { value: 'Rondo', label: 'Rondo' },
+]
 
 function getRulesForm(rules: unknown) {
   const value = rules && typeof rules === 'object' ? rules as Record<string, unknown> : {}
@@ -98,7 +114,6 @@ function getDefaultForm(clanId: number): TournamentFormState {
     gameMode: '',
     mapName: '',
     status: 'draft',
-    participantClanIds: [clanId],
     placementPoints: { ...DEFAULT_PLACEMENT_POINTS },
     killPoints: 1,
     winBonus: 5,
@@ -115,11 +130,12 @@ export default function ClanTournamentSettingsPage() {
   const canManageSettings = isSuperUser || permissions.includes('*') || permissions.includes('manage_settings')
 
   const [tournaments, setTournaments] = useState<Tournament[]>([])
-  const [clans, setClans] = useState<ClanOption[]>([])
   const [form, setForm] = useState<TournamentFormState | null>(null)
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [syncingTournamentId, setSyncingTournamentId] = useState<string | null>(null)
+  const [syncNotice, setSyncNotice] = useState<{ tone: 'progress' | 'success' | 'error'; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -148,20 +164,15 @@ export default function ClanTournamentSettingsPage() {
       setLoading(true)
       setError(null)
       try {
-        const [tournamentsResponse, clansResponse] = await Promise.all([
-          fetch(`/api/clans/${clanId}/tournaments`, { cache: 'no-store' }),
-          fetch('/api/clans', { cache: 'no-store' }),
-        ])
+        const tournamentsResponse = await fetch(`/api/clans/${clanId}/tournaments`, { cache: 'no-store' })
 
         if (!tournamentsResponse.ok) {
           throw new Error('Impossible de charger les tournois.')
         }
 
         const tournamentsPayload = (await tournamentsResponse.json()) as { tournaments?: Tournament[] }
-        const clansPayload = (await clansResponse.json().catch(() => ({ clans: [] }))) as { clans?: ClanOption[] }
 
         setTournaments(tournamentsPayload.tournaments ?? [])
-        setClans((clansPayload.clans ?? []).filter((entry) => entry.id !== clanId))
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Impossible de charger les données.')
       } finally {
@@ -171,24 +182,6 @@ export default function ClanTournamentSettingsPage() {
 
     void loadData()
   }, [clanId, sessionLoading, authenticated, canManageSettings])
-
-  function toggleClan(clanEntryId: number) {
-    if (!clanId || !form) return
-
-    setForm((current) => {
-      if (!current) return current
-      const next = new Set(current.participantClanIds)
-      if (next.has(clanEntryId)) {
-        next.delete(clanEntryId)
-      } else {
-        next.add(clanEntryId)
-      }
-      return {
-        ...current,
-        participantClanIds: Array.from(next),
-      }
-    })
-  }
 
   function editTournament(tournament: Tournament) {
     if (!clanId) return
@@ -201,7 +194,6 @@ export default function ClanTournamentSettingsPage() {
       gameMode: tournament.gameMode ?? '',
       mapName: tournament.mapName ?? '',
       status: tournament.status as TournamentFormState['status'],
-      participantClanIds: [clanId, ...tournament.clans.map((entry) => entry.clanId)],
       ...getRulesForm(tournament.rules),
     })
   }
@@ -250,7 +242,6 @@ export default function ClanTournamentSettingsPage() {
           gameMode: form.gameMode.trim() || null,
           mapName: form.mapName.trim() || null,
           status: form.status,
-          participantClanIds: form.participantClanIds.filter((entry) => entry !== clanId),
           rules: {
             placementPoints: form.placementPoints,
             killPoints: form.killPoints,
@@ -280,10 +271,94 @@ export default function ClanTournamentSettingsPage() {
     }
   }
 
+  async function syncTournament(tournament: Tournament) {
+    if (!clanId) return
+
+    try {
+      setSyncingTournamentId(tournament.id)
+      setError(null)
+      setSuccess(null)
+      setSyncNotice({
+        tone: 'progress',
+        message: `Interrogation directe de PUBG pour « ${tournament.title} » avec votre compte administrateur. Les matchs récents sont récupérés puis leur télémétrie est mise en file.`,
+      })
+
+      const response = await fetch(`/api/clans/${clanId}/tournaments/${tournament.id}/sync`, {
+        method: 'POST',
+      })
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string
+        importedMatches?: number
+        sourceCustomRows?: number
+        sourceCustomMatches?: number
+        sourceMissingAccounts?: number
+        materializedMatches?: number
+        materializationErrors?: string[]
+        eligibleMatches?: number
+        telemetryQueued?: number
+      } | null
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Impossible de synchroniser le tournoi.')
+      }
+
+      const details = [
+        `Découverte PUBG : ${payload?.importedMatches ?? 0} nouveau(x) match(s) importé(s).`,
+        `Analyse tournoi : ${payload?.sourceCustomMatches ?? 0} match(s) custom scanné(s) (${payload?.sourceCustomRows ?? 0} entrée(s) suivie(s)).`,
+        `Résultats : ${payload?.materializedMatches ?? 0} match(s) projeté(s), ${payload?.eligibleMatches ?? 0} éligible(s).`,
+        `Télémétrie : ${payload?.telemetryQueued ?? 0} match(s) mis en file.`,
+      ].join(' ')
+      const materializationError = payload?.materializationErrors?.[0]
+      const message = materializationError
+        ? `${details} Projection impossible : ${materializationError}`
+        : payload?.sourceCustomMatches === 0
+          ? `${details} ${payload?.sourceMissingAccounts ? `${payload.sourceMissingAccounts} ligne(s) n'ont pas de compte PUBG associé.` : 'Aucun match custom n\'est actuellement enregistré pour les clans participants dans la fenêtre du tournoi.'}`
+        : `${details} Le worker lance le recalcul des agrégats après les imports.`
+      setSuccess(message)
+      const filters = [
+        tournament.gameMode ? `mode ${tournament.gameMode}` : null,
+        tournament.mapName ? `carte ${tournament.mapName}` : null,
+      ].filter(Boolean).join(', ')
+      setSyncNotice({
+        tone: 'success',
+        message: materializationError
+          ? message
+          : payload?.eligibleMatches === 0 && filters
+          ? `${message} Aucun match ne correspond aux filtres du tournoi (${filters}).`
+          : message,
+      })
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Impossible de synchroniser le tournoi.'
+      setError(message)
+      setSyncNotice({ tone: 'error', message })
+    } finally {
+      setSyncingTournamentId(null)
+    }
+  }
+
   if (!clanId || sessionLoading || !authenticated || !canManageSettings) return null
 
   return (
     <main className="app-container app-main space-y-6">
+      {syncNotice ? (
+        <div
+          role="status"
+          className={`fixed bottom-5 right-5 z-50 max-w-md rounded-lg border p-4 shadow-lg ${
+            syncNotice.tone === 'error'
+              ? 'border-red-300 bg-red-50 text-red-800'
+              : syncNotice.tone === 'success'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border-blue-300 bg-blue-50 text-blue-800'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {syncNotice.tone === 'progress' ? <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> : null}
+            <p className="flex-1 text-sm font-medium">{syncNotice.message}</p>
+            <button type="button" onClick={() => setSyncNotice(null)} className="text-sm font-semibold opacity-70 hover:opacity-100" aria-label="Fermer la notification">Fermer</button>
+          </div>
+        </div>
+      ) : null}
+
       <NavigationTrail
         currentLabel="Tournois"
         currentHref={`/clans/${clanId}/settings/tournaments`}
@@ -346,22 +421,26 @@ export default function ClanTournamentSettingsPage() {
 
               <label className="space-y-2">
                 <span className="text-sm font-medium text-gray-700">Mode de jeu</span>
-                <input
+                <select
                   value={form.gameMode}
                   onChange={(event) => setForm((current) => current ? { ...current, gameMode: event.target.value } : current)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-blue-400"
-                  placeholder="solo, duo, squad..."
-                />
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-400"
+                >
+                  {!TOURNAMENT_GAME_MODE_OPTIONS.some((option) => option.value === form.gameMode) ? <option value={form.gameMode}>{form.gameMode} (valeur à corriger)</option> : null}
+                  {TOURNAMENT_GAME_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </label>
 
               <label className="space-y-2">
                 <span className="text-sm font-medium text-gray-700">Carte</span>
-                <input
+                <select
                   value={form.mapName}
                   onChange={(event) => setForm((current) => current ? { ...current, mapName: event.target.value } : current)}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-blue-400"
-                  placeholder="Erangel, Miramar..."
-                />
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-400"
+                >
+                  {!TOURNAMENT_MAP_OPTIONS.some((option) => option.value === form.mapName) ? <option value={form.mapName}>{form.mapName} (valeur à corriger)</option> : null}
+                  {TOURNAMENT_MAP_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </label>
 
               <label className="space-y-2">
@@ -378,32 +457,9 @@ export default function ClanTournamentSettingsPage() {
               </label>
             </div>
 
-            <div className="space-y-3">
-              <div className="text-sm font-medium text-gray-700">Clans participants</div>
-              <div className="flex flex-wrap gap-2">
-                {clans.length === 0 ? (
-                  <p className="text-sm text-gray-500">Aucun autre clan actif disponible pour le moment.</p>
-                ) : (
-                  clans.map((item) => {
-                    const selected = form.participantClanIds.includes(item.id)
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => toggleClan(item.id)}
-                        className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                          selected
-                            ? 'border-blue-600 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:text-blue-700'
-                        }`}
-                      >
-                        {item.tag ? `[${item.tag}] ` : ''}{item.name}
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-            </div>
+            <p className="text-sm text-gray-500">
+              Les clans et joueurs suivis présents dans les matchs récupérés seront détectés automatiquement.
+            </p>
 
             <fieldset className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <legend className="px-1 text-sm font-semibold text-gray-900">Barème</legend>
@@ -477,6 +533,18 @@ export default function ClanTournamentSettingsPage() {
                   <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
                     {tournament.status}
                   </span>
+                  {tournament.status === 'active' ? (
+                    <button
+                      type="button"
+                      onClick={() => syncTournament(tournament)}
+                      disabled={syncingTournamentId === tournament.id}
+                      className="app-btn app-btn--secondary app-btn--xs"
+                      title="Récupérer les matchs et lancer la télémétrie"
+                    >
+                      <RefreshCw className={syncingTournamentId === tournament.id ? 'animate-spin' : ''} aria-hidden="true" />
+                      {syncingTournamentId === tournament.id ? 'Synchronisation...' : 'Synchroniser'}
+                    </button>
+                  ) : null}
                   <button type="button" onClick={() => editTournament(tournament)} className="text-sm text-blue-600 hover:underline">
                     Modifier
                   </button>

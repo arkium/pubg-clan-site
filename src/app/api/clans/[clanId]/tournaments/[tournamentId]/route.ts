@@ -39,8 +39,8 @@ function parseTournamentPayload(body: unknown): TournamentUpdateInput {
     description: typeof value.description === 'string' ? value.description : undefined,
     startDate: typeof value.startDate === 'string' ? value.startDate : undefined,
     endDate: typeof value.endDate === 'string' ? value.endDate : undefined,
-    gameMode: typeof value.gameMode === 'string' ? value.gameMode : undefined,
-    mapName: typeof value.mapName === 'string' ? value.mapName : undefined,
+    gameMode: typeof value.gameMode === 'string' || value.gameMode === null ? value.gameMode : undefined,
+    mapName: typeof value.mapName === 'string' || value.mapName === null ? value.mapName : undefined,
     status: value.status === 'draft' || value.status === 'active' || value.status === 'finished'
       ? value.status
       : undefined,

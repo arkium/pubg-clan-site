@@ -127,7 +127,7 @@ export default function TournamentsPage() {
                 {tournament.organizerClan ? <span className="font-medium">Organisé par: {tournament.organizerClan.name}</span> : null}
                 {tournament.gameMode ? <span>Mode: {tournament.gameMode}</span> : null}
                 {tournament.mapName ? <span>Carte: {tournament.mapName}</span> : null}
-                <span>{tournament.clans.length + 1} clans</span>
+                <span>Participants détectés automatiquement</span>
               </div>
             </Link>
           ))}

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import {
   computeTournamentStandings,
+  getTrackedTournamentClanIds,
   getTournamentMatches,
 } from '@/lib/tournament-service'
 
@@ -28,10 +29,7 @@ export async function GET(
     }
 
     const matches = await getTournamentMatches(tournamentId)
-    const participantClanIds = [
-      tournament.organizerClanId,
-      ...tournament.clans.map((entry) => entry.clanId),
-    ]
+    const participantClanIds = getTrackedTournamentClanIds(matches)
 
     const standings = computeTournamentStandings(
       matches,
@@ -42,6 +40,7 @@ export async function GET(
     return Response.json({
       tournament,
       standings,
+      participantClanIds,
       matches: matches.map((match) => ({
         id: match.id,
         createdAt: match.createdAt,

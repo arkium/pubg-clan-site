@@ -25,7 +25,7 @@ const AddMemberSchema = z.object({
  * POST /api/members
  * Ajoute un nouveau membre du clan
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const permissionError = await requirePermission('manage_members')(request)
     if (permissionError) {
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
  * Récupère tous les membres du clan
  * Query param: clanId (optional) — filtre par clan
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session && !isAuthDisabled()) {

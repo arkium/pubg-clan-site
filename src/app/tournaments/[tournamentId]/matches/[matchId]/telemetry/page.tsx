@@ -15,7 +15,7 @@ import { resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
 import InteractiveMap from '@/components/ui/InteractiveMap'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
-export function getTournamentId(value: string | string[] | undefined) {
+function getTournamentId(value: string | string[] | undefined) {
   return typeof value === 'string' && value ? value : null
 }
 

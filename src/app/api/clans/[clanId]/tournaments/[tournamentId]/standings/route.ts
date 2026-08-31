@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import {
@@ -23,7 +23,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requireNavPermission('clan.overview')(request, { clanId: parsedClanId })
@@ -39,7 +39,7 @@ export async function GET(
       tournament.rules as Record<string, unknown>
     )
 
-    return NextResponse.json({
+    return Response.json({
       tournament,
       standings,
       participantClanIds,
@@ -60,7 +60,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching tournament standings:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch standings' },
       { status: 500 }
     )

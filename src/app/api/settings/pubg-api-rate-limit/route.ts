@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -15,11 +14,11 @@ const UpdatePubgRateLimitSchema = z.object({
 async function requireSuperUserSession(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) as NextResponse }
+    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as NextResponse }
   }
 
   if (!session.isSuperUser) {
-    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) as NextResponse }
+    return { error: Response.json({ error: 'Forbidden' }, { status: 403 }) as NextResponse }
   }
 
   return { error: null }
@@ -34,7 +33,7 @@ export async function GET(request: Request) {
   const rpm = await getPubgApiRateLimitRpm()
   const bounds = getPubgApiRateLimitBounds()
 
-  return NextResponse.json({
+  return Response.json({
     rpm,
     bounds,
   })
@@ -50,7 +49,7 @@ export async function POST(request: Request) {
   const validated = UpdatePubgRateLimitSchema.safeParse(body)
 
   if (!validated.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
       { status: 400 }
     )
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
   const rpm = await setPubgApiRateLimitRpm(validated.data.rpm)
   const bounds = getPubgApiRateLimitBounds()
 
-  return NextResponse.json({
+  return Response.json({
     success: true,
     rpm,
     bounds,

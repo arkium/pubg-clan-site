@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { initializeDefaultRoles } from '@/lib/role-service'
@@ -18,7 +18,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_roles')(request, {
@@ -34,7 +34,7 @@ export async function GET(
     })
 
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const roles = await initializeDefaultRoles(parsedClanId)
@@ -42,9 +42,9 @@ export async function GET(
       orderBy: [{ category: 'asc' }, { key: 'asc' }],
     })
 
-    return NextResponse.json({ roles, permissions })
+    return Response.json({ roles, permissions })
   } catch (error) {
     console.error('Error fetching clan roles:', error)
-    return NextResponse.json({ error: 'Failed to fetch clan roles' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch clan roles' }, { status: 500 })
   }
 }

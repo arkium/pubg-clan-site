@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { isInternalCronRequest } from '@/lib/internal-api'
@@ -18,7 +18,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     if (!isInternalCronRequest(request)) {
@@ -33,7 +33,7 @@ export async function POST(
 
     const clan = await syncTrackedClanStats(parsedClanId)
 
-    return NextResponse.json({
+    return Response.json({
       clanId: clan.id,
       clanName: clan.name,
       tag: clan.tag,
@@ -43,11 +43,11 @@ export async function POST(
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'Clan not found') {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     console.error('Error syncing clan stats:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to synchronize clan stats' },
       { status: 500 }
     )

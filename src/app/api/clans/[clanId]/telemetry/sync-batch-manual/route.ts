@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
@@ -26,7 +26,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -44,7 +44,7 @@ export async function POST(
     } | null
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'squadMatchIds must be an array of strings' },
         { status: 400 }
       )
@@ -55,7 +55,7 @@ export async function POST(
       .slice(0, 50)
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No valid squad match ids' }, { status: 400 })
+      return Response.json({ error: 'No valid squad match ids' }, { status: 400 })
     }
 
     const resetBeforeSync = body?.resetBeforeSync === true
@@ -99,7 +99,7 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       batchId: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       batchLabel,
@@ -121,7 +121,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Batch manual sync failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to enqueue telemetry resync batch' },
       { status: 500 }
     )
@@ -137,7 +137,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -197,7 +197,7 @@ export async function GET(
       take: 20,
     })
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       queue: {
@@ -221,7 +221,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Batch sync status failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to fetch batch sync status' },
       { status: 500 }
     )

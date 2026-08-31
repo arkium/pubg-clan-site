@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fetchWeaponMastery, searchPlayerByName } from '@/lib/pubg'
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
@@ -42,7 +42,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
@@ -53,10 +53,10 @@ export async function GET(
       orderBy: { kills: 'desc' },
     })
 
-    return NextResponse.json({ memberId, weapons })
+    return Response.json({ memberId, weapons })
   } catch (error) {
     console.error('[weapon-mastery] GET error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -69,7 +69,7 @@ export async function POST(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request)
@@ -77,13 +77,13 @@ export async function POST(
 
     const resolved = await resolvePlayerId(memberId)
     if (!resolved) {
-      return NextResponse.json({ error: 'Member not found or no PUBG account linked' }, { status: 404 })
+      return Response.json({ error: 'Member not found or no PUBG account linked' }, { status: 404 })
     }
 
     const entries = await fetchWeaponMastery(resolved.playerId, resolved.shard, { memberId })
 
     if (entries.length === 0) {
-      return NextResponse.json({ memberId, count: 0, weapons: [] })
+      return Response.json({ memberId, count: 0, weapons: [] })
     }
 
     const now = new Date()
@@ -126,9 +126,9 @@ export async function POST(
       )
     )
 
-    return NextResponse.json({ memberId, count: entries.length })
+    return Response.json({ memberId, count: entries.length })
   } catch (error) {
     console.error('[weapon-mastery] POST error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

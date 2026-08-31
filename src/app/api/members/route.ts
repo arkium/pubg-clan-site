@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { isAuthDisabled } from '@/lib/auth-mode'
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (!pubgPlayer) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'PUBG player not found' },
         { status: 404 }
       )
@@ -86,13 +85,13 @@ export async function POST(request: NextRequest) {
       if (actorMember?.clanId !== resolvedClanId) {
         const superUser = await isSuperUserSession(request)
         if (!superUser) {
-          return NextResponse.json({ error: 'Forbidden: cannot add members to another clan' }, { status: 403 })
+          return Response.json({ error: 'Forbidden: cannot add members to another clan' }, { status: 403 })
         }
       }
     }
 
     if (validated.mode === 'preview') {
-      return NextResponse.json({
+      return Response.json({
         mode: 'preview',
         player: {
           displayName: validated.displayName,
@@ -140,24 +139,24 @@ export async function POST(request: NextRequest) {
       console.warn('Unable to synchronize clan stats after member creation:', syncError)
     }
 
-    return NextResponse.json(member, { status: 201 })
+    return Response.json(member, { status: 201 })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Member already exists for this PUBG name and platform' },
         { status: 409 }
       )
     }
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
 
     console.error('Error adding member:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to add member' },
       { status: 500 }
     )
@@ -173,7 +172,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session && !isAuthDisabled()) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
@@ -285,10 +284,10 @@ export async function GET(request: NextRequest) {
       medalCounts: medalCountsByMemberId.get(member.id) ?? { gold: 0, silver: 0, bronze: 0 },
     }))
 
-    return NextResponse.json(membersWithMedals)
+    return Response.json(membersWithMedals)
   } catch (error) {
     console.error('Error fetching members:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to fetch members' },
       { status: 500 }
     )

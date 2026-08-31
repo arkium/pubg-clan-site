@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { mapDisplayName, getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
@@ -153,7 +153,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
@@ -169,7 +169,7 @@ export async function GET(
     })
 
     if (!member) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -223,7 +223,7 @@ export async function GET(
 
     if (scope === 'clan') {
       if (!member.clanId) {
-        return NextResponse.json({
+        return Response.json({
           scope,
           scopeLabel: 'Clan indisponible',
           options: {
@@ -516,7 +516,7 @@ export async function GET(
         }
       })
 
-    return NextResponse.json({
+    return Response.json({
       scope,
       scopeLabel,
       options: {
@@ -539,6 +539,6 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching map stats:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

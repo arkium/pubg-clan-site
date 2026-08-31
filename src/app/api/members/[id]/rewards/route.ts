@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
@@ -17,7 +17,7 @@ export async function GET(
     const parsedMemberId = parseMemberId(id)
 
     if (!parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(parsedMemberId, request, { readOnly: true })
@@ -34,10 +34,10 @@ export async function GET(
     })
 
     if (!member || !member.isActive) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    return NextResponse.json({
+    return Response.json({
       displayName: member.displayName,
       rewards: member.playerRewards
         ? {
@@ -48,6 +48,6 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching member rewards:', error)
-    return NextResponse.json({ error: 'Failed to fetch rewards' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch rewards' }, { status: 500 })
   }
 }

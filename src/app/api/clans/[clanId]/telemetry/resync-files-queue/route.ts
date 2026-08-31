@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { enqueueTelemetryResyncJobs } from '@/lib/pubg-telemetry/resync-queue'
 import { requireRole } from '@/middleware/auth-permission'
@@ -17,7 +17,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -36,7 +36,7 @@ export async function POST(
       | null
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
+      return Response.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
     }
 
     const squadMatchIds = body.squadMatchIds.filter(
@@ -44,7 +44,7 @@ export async function POST(
     )
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
+      return Response.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
     const resetBeforeSync = body.resetBeforeSync === true
@@ -57,7 +57,7 @@ export async function POST(
       recalculateAggregates,
     })
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       resetBeforeSync,
@@ -66,6 +66,6 @@ export async function POST(
     })
   } catch (error) {
     console.error('Queue telemetry resync jobs failed:', error)
-    return NextResponse.json({ error: 'Failed to queue telemetry resync jobs' }, { status: 500 })
+    return Response.json({ error: 'Failed to queue telemetry resync jobs' }, { status: 500 })
   }
 }

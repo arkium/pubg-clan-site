@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
@@ -26,14 +25,14 @@ export async function POST(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = (await request.json().catch(() => null)) as unknown
     const validated = JoinRequestSchema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid request' },
         { status: 400 }
       )
@@ -47,7 +46,7 @@ export async function POST(request: Request) {
       include: { member: { include: { clan: { select: { name: true } } } } },
     })
     if (existingIdentity) {
-      return NextResponse.json(
+      return Response.json(
         {
           error: `Your account is already linked to a member of "${existingIdentity.member.clan?.name ?? 'a clan'}". Use the clan dashboard instead.`,
         },
@@ -60,12 +59,12 @@ export async function POST(request: Request) {
     try {
       const player = await searchPlayerByName(pubgPlayerName, platformShard)
       if (!player) {
-        return NextResponse.json({ error: 'Player not found on PUBG API' }, { status: 404 })
+        return Response.json({ error: 'Player not found on PUBG API' }, { status: 404 })
       }
       pubgAccountId = player.accountId
     } catch (error) {
       console.error('Error searching player:', error)
-      return NextResponse.json({ error: 'Failed to search player' }, { status: 500 })
+      return Response.json({ error: 'Failed to search player' }, { status: 500 })
     }
 
     // 1b. Check if this PUBG account is already a member in our DB
@@ -74,7 +73,7 @@ export async function POST(request: Request) {
       include: { clan: { select: { name: true } } },
     })
     if (existingMember) {
-      return NextResponse.json(
+      return Response.json(
         {
           error: `This PUBG account is already registered as a member of "${existingMember.clan?.name ?? 'a clan'}" (status: ${existingMember.joinStatus}).`,
         },
@@ -208,12 +207,12 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json(response)
+    return Response.json(response)
   } catch (error) {
     console.error('Join request error:', error)
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return Response.json({ error: error.message }, { status: 500 })
     }
-    return NextResponse.json({ error: 'Failed to process join request' }, { status: 500 })
+    return Response.json({ error: 'Failed to process join request' }, { status: 500 })
   }
 }

@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { requestPasswordReset } from '@/lib/auth-service'
@@ -12,7 +11,7 @@ export async function POST(request: Request) {
   const validated = ForgotPasswordSchema.safeParse(body)
 
   if (!validated.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: validated.error.issues[0]?.message ?? 'Requête invalide' },
       { status: 400 }
     )
@@ -21,7 +20,7 @@ export async function POST(request: Request) {
   try {
     await requestPasswordReset(validated.data.email)
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message:
         'Si un compte correspond à cet email, un lien de réinitialisation vient d\'être envoyé.',
@@ -29,7 +28,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Forgot password error:', error)
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message:
         'Si un compte correspond à cet email, un lien de réinitialisation vient d\'être envoyé.',

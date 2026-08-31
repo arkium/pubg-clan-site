@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
@@ -17,7 +17,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireNavPermission('clan.challenges')(request, { clanId: parsedClanId })
@@ -34,12 +34,12 @@ export async function GET(
     })
 
     if (!challenge || challenge.clanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Challenge not found' }, { status: 404 })
+      return Response.json({ error: 'Challenge not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ challenge })
+    return Response.json({ challenge })
   } catch (error) {
     console.error('Error fetching challenge:', error)
-    return NextResponse.json({ error: 'Failed to fetch challenge' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch challenge' }, { status: 500 })
   }
 }

@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -19,13 +18,13 @@ export async function POST(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session || !session.isSuperUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     const body = await request.json().catch(() => null)
     const parsed = CreateTrackedClanSchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid payload' }, { status: 400 })
+      return Response.json({ error: parsed.error.issues[0]?.message || 'Invalid payload' }, { status: 400 })
     }
 
     let { pubgClanId, platformShard } = parsed.data
@@ -36,20 +35,20 @@ export async function POST(request: Request) {
         where: { id: opponentClanId }
       })
       if (!opponentClan) {
-        return NextResponse.json({ error: 'OpponentClan introuvable' }, { status: 404 })
+        return Response.json({ error: 'OpponentClan introuvable' }, { status: 404 })
       }
       pubgClanId = opponentClan.pubgClanId
       platformShard = opponentClan.platformShard
     }
 
     if (!pubgClanId) {
-      return NextResponse.json({ error: 'pubgClanId manquant' }, { status: 400 })
+      return Response.json({ error: 'pubgClanId manquant' }, { status: 400 })
     }
 
     // 1. Fetch from PUBG API
     const pubgClan = await fetchPubgClanById(pubgClanId, platformShard)
     if (!pubgClan) {
-      return NextResponse.json(
+      return Response.json(
         { error: `Clan PUBG introuvable (ID: ${pubgClanId})` },
         { status: 404 }
       )
@@ -60,7 +59,7 @@ export async function POST(request: Request) {
 
     // Note: Default roles and telemetry stats will be handled automatically by crons.
     
-    return NextResponse.json({
+    return Response.json({
       success: true,
       clan: {
         id: trackedClan.id,
@@ -70,7 +69,7 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Failed to track clan:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Erreur inattendue lors du suivi du clan' },
       { status: 500 }
     )

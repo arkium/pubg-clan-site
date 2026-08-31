@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { assignRole, initializeDefaultRoles, PREDEFINED_ROLES, revokeRole } from '@/lib/role-service'
@@ -19,7 +19,7 @@ export async function PATCH(
     const parsedMemberId = parsePositiveInt(memberId)
 
     if (!parsedClanId || !parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('assign_roles')(request, {
@@ -32,12 +32,12 @@ export async function PATCH(
 
     const actorMemberId = await getActorMemberId(request)
     if (!actorMemberId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = (await request.json().catch(() => null)) as { roleId?: number } | null
     if (!body || typeof body.roleId !== 'number' || !Number.isInteger(body.roleId) || body.roleId <= 0) {
-      return NextResponse.json({ error: 'Invalid role id' }, { status: 400 })
+      return Response.json({ error: 'Invalid role id' }, { status: 400 })
     }
 
     await initializeDefaultRoles(parsedClanId)
@@ -52,7 +52,7 @@ export async function PATCH(
     })
 
     if (!member || !member.isActive || member.clanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Member not found in clan' }, { status: 404 })
+      return Response.json({ error: 'Member not found in clan' }, { status: 404 })
     }
 
     const nextRole = await prisma.clanRole.findUnique({
@@ -61,7 +61,7 @@ export async function PATCH(
     })
 
     if (!nextRole || nextRole.clanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Role not found in clan' }, { status: 404 })
+      return Response.json({ error: 'Role not found in clan' }, { status: 404 })
     }
 
     const memberHasOwnerRole = member.roles.some((entry) => entry.role.name === PREDEFINED_ROLES.OWNER.name)
@@ -71,7 +71,7 @@ export async function PATCH(
     if (memberHasOwnerRole || targetIsOwnerRole) {
       const superUser = await isSuperUserSession(request)
       if (!superUser) {
-        return NextResponse.json(
+        return Response.json(
           { error: 'Forbidden: only SuperUser can assign or revoke the Owner role' },
           { status: 403 }
         )
@@ -97,15 +97,15 @@ export async function PATCH(
       },
     })
 
-    return NextResponse.json({
+    return Response.json({
       member: refreshedMember,
       roles: refreshedMember?.roles ?? [],
     })
   } catch (error) {
     console.error('Error assigning role:', error)
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 403 })
+      return Response.json({ error: error.message }, { status: 403 })
     }
-    return NextResponse.json({ error: 'Failed to assign role' }, { status: 500 })
+    return Response.json({ error: 'Failed to assign role' }, { status: 500 })
   }
 }

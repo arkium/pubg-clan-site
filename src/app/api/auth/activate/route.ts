@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { activateMemberInvite } from '@/lib/auth-service'
@@ -17,7 +16,7 @@ export async function POST(request: Request) {
     const validated = ActivationSchema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -35,7 +34,7 @@ export async function POST(request: Request) {
       activeMemberId: activated.memberId,
     })
 
-    const response = NextResponse.json({
+    const response = Response.json({
       success: true,
       email: activated.email,
       memberId: activated.memberId,
@@ -45,10 +44,10 @@ export async function POST(request: Request) {
     return response
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Activation error:', error)
-    return NextResponse.json({ error: 'Failed to activate account' }, { status: 500 })
+    return Response.json({ error: 'Failed to activate account' }, { status: 500 })
   }
 }

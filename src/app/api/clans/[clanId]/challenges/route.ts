@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import {
   createChallenge,
@@ -28,7 +28,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireNavPermission('clan.challenges')(request, { clanId: parsedClanId })
@@ -40,7 +40,7 @@ export async function GET(
     })
 
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const status = parseStatus(request.nextUrl.searchParams.get('status'))
@@ -60,10 +60,10 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ challenges })
+    return Response.json({ challenges })
   } catch (error) {
     console.error('Error fetching challenges:', error)
-    return NextResponse.json({ error: 'Failed to fetch challenges' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch challenges' }, { status: 500 })
   }
 }
 
@@ -76,7 +76,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('edit_clan')(request, {
@@ -92,20 +92,20 @@ export async function POST(
     })
 
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const body = (await request.json()) as CreateChallengeInput
 
     if (!body.title || !body.type || !body.duration) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return Response.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const challenge = await createChallenge(parsedClanId, body)
 
-    return NextResponse.json({ challenge }, { status: 201 })
+    return Response.json({ challenge }, { status: 201 })
   } catch (error) {
     console.error('Error creating challenge:', error)
-    return NextResponse.json({ error: 'Failed to create challenge' }, { status: 500 })
+    return Response.json({ error: 'Failed to create challenge' }, { status: 500 })
   }
 }

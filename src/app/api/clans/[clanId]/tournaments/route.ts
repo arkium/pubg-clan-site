@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import {
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_settings')(request, { clanId: parsedClanId })
@@ -65,14 +65,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const clan = await prisma.clan.findUnique({ where: { id: parsedClanId }, select: { id: true } })
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const tournaments = await listClanTournaments(parsedClanId)
-    return NextResponse.json({ tournaments })
+    return Response.json({ tournaments })
   } catch (error) {
     console.error('Error fetching tournaments:', error)
-    return NextResponse.json({ error: 'Failed to fetch tournaments' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch tournaments' }, { status: 500 })
   }
 }
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_settings')(request, { clanId: parsedClanId })
@@ -90,25 +90,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const clan = await prisma.clan.findUnique({ where: { id: parsedClanId }, select: { id: true } })
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const body = await request.json().catch(() => null)
     const payload = parseTournamentPayload(body)
 
     if (!payload.title || !payload.title.trim()) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+      return Response.json({ error: 'Title is required' }, { status: 400 })
     }
 
     if (!payload.startDate || !payload.endDate) {
-      return NextResponse.json({ error: 'Dates are required' }, { status: 400 })
+      return Response.json({ error: 'Dates are required' }, { status: 400 })
     }
 
     const tournament = await createTournament(parsedClanId, payload)
-    return NextResponse.json({ tournament }, { status: 201 })
+    return Response.json({ tournament }, { status: 201 })
   } catch (error) {
     console.error('Error creating tournament:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to create tournament' },
       { status: 500 }
     )

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
@@ -57,7 +57,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+      return Response.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
         status: 400,
       })
     }
@@ -66,7 +66,7 @@ export async function GET(
     if (roleError) return roleError
 
     if (!matchId || typeof matchId !== 'string') {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid match id', 'INVALID_MATCH_ID'), {
+      return Response.json(buildTelemetryErrorResponse('Invalid match id', 'INVALID_MATCH_ID'), {
         status: 400,
       })
     }
@@ -119,7 +119,7 @@ export async function GET(
     const row = rows[0]
 
     if (!row) {
-      return NextResponse.json(
+      return Response.json(
         buildTelemetryErrorResponse('Telemetry not found for this match', 'TELEMETRY_NOT_FOUND'),
         { status: 404 }
       )
@@ -250,7 +250,7 @@ export async function GET(
       memberIdentityMap,
     }
 
-    return NextResponse.json(
+    return Response.json(
       buildTelemetrySuccessResponse(
         {
           scope: 'clan',
@@ -263,11 +263,11 @@ export async function GET(
     )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+      return Response.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry match detail failed:', error)
-    return NextResponse.json(buildTelemetryErrorResponse('Failed to load match telemetry detail'), {
+    return Response.json(buildTelemetryErrorResponse('Failed to load match telemetry detail'), {
       status: 500,
     })
   }

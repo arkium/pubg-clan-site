@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { listLinkedMembers } from '@/lib/auth-service'
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -7,7 +6,7 @@ import { getMemberPermissionKeys } from '@/lib/role-service'
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ authenticated: false }, { status: 401 })
+    return Response.json({ authenticated: false }, { status: 401 })
   }
 
   const linkedMembers = await listLinkedMembers(session.userId)
@@ -15,7 +14,7 @@ export async function GET(request: Request) {
     ? await getMemberPermissionKeys(session.activeMemberId)
     : []
 
-  return NextResponse.json({
+  return Response.json({
     authenticated: true,
     user: {
       id: session.userId,

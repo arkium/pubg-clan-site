@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -12,16 +11,16 @@ function hasManageSettings(permissions: string[]) {
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session?.activeMemberId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const permissions = await getMemberPermissionKeys(session.activeMemberId)
   if (!hasManageSettings(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const labels = await getPhaseLabels()
-  return NextResponse.json({ labels })
+  return Response.json({ labels })
 }
 
 const UpdatePhaseLabelsSchema = z.object({
@@ -31,18 +30,18 @@ const UpdatePhaseLabelsSchema = z.object({
 export async function PUT(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session?.activeMemberId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const permissions = await getMemberPermissionKeys(session.activeMemberId)
   if (!hasManageSettings(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => null)
   const parsed = UpdatePhaseLabelsSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid payload', details: parsed.error.issues }, { status: 400 })
+    return Response.json({ error: 'Invalid payload', details: parsed.error.issues }, { status: 400 })
   }
 
   const filteredInput = Object.fromEntries(
@@ -52,5 +51,5 @@ export async function PUT(request: Request) {
   )
 
   const labels = await updatePhaseLabels(filteredInput)
-  return NextResponse.json({ ok: true, labels })
+  return Response.json({ ok: true, labels })
 }

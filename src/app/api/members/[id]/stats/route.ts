@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { fetchLifetimeStats, searchPlayerByName } from '@/lib/pubg'
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type LifetimeStats = {
@@ -224,7 +224,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
@@ -237,7 +237,7 @@ export async function GET(
     if (cached) {
       const clanRanks = await buildClanMetricRanks(memberId)
 
-      return NextResponse.json({
+      return Response.json({
         memberId,
         stats: toLifetimeStats(cached),
         statsByMode: {
@@ -253,7 +253,7 @@ export async function GET(
     const resolved = await resolvePlayerId(memberId)
 
     if (!resolved) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Member not found or no PUBG account linked' },
         { status: 404 }
       )
@@ -266,7 +266,7 @@ export async function GET(
     await upsertStats(memberId, stats, now)
     const clanRanks = await buildClanMetricRanks(memberId)
 
-    return NextResponse.json({
+    return Response.json({
       memberId,
       playerId,
       shard,
@@ -281,7 +281,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching lifetime stats:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
@@ -297,7 +297,7 @@ export async function POST(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request)
@@ -306,7 +306,7 @@ export async function POST(
     const resolved = await resolvePlayerId(memberId)
 
     if (!resolved) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Member not found or no PUBG account linked' },
         { status: 404 }
       )
@@ -319,7 +319,7 @@ export async function POST(
     await upsertStats(memberId, stats, now)
     const clanRanks = await buildClanMetricRanks(memberId)
 
-    return NextResponse.json({
+    return Response.json({
       memberId,
       playerId,
       shard,
@@ -334,7 +334,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Error refreshing lifetime stats:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

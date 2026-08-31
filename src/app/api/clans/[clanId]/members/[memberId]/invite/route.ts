@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { createMemberInvite, revokeActiveMemberInvite } from '@/lib/auth-service'
@@ -25,7 +25,7 @@ export async function POST(
     const parsedMemberId = parsePositiveInt(memberId)
 
     if (!parsedClanId || !parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_members')(request, {
@@ -39,7 +39,7 @@ export async function POST(
     const body = (await request.json().catch(() => null)) as unknown
     const validated = InviteSchema.safeParse(body)
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -47,7 +47,7 @@ export async function POST(
 
     const shouldSendEmail = validated.data.sendEmail !== false
     if (shouldSendEmail && !validated.data.email) {
-      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+      return Response.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
     const [session, actorMemberId] = await Promise.all([
@@ -56,7 +56,7 @@ export async function POST(
     ])
 
     if (!actorMemberId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const invite = await createMemberInvite({
@@ -68,7 +68,7 @@ export async function POST(
       sendEmail: validated.data.sendEmail,
     })
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
         inviteId: invite.inviteId,
@@ -81,18 +81,18 @@ export async function POST(
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'Member not found in clan') {
-        return NextResponse.json({ error: error.message }, { status: 404 })
+        return Response.json({ error: error.message }, { status: 404 })
       }
 
       if (error.message === 'This player already has an account') {
-        return NextResponse.json({ error: error.message }, { status: 409 })
+        return Response.json({ error: error.message }, { status: 409 })
       }
 
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Error creating member invite:', error)
-    return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
+    return Response.json({ error: 'Failed to create invite' }, { status: 500 })
   }
 }
 
@@ -106,7 +106,7 @@ export async function DELETE(
     const parsedMemberId = parsePositiveInt(memberId)
 
     if (!parsedClanId || !parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_members')(request, {
@@ -122,17 +122,17 @@ export async function DELETE(
       memberId: parsedMemberId,
     })
 
-    return NextResponse.json({ success: true, revokedCount })
+    return Response.json({ success: true, revokedCount })
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'Member not found in clan') {
-        return NextResponse.json({ error: error.message }, { status: 404 })
+        return Response.json({ error: error.message }, { status: 404 })
       }
 
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Error revoking member invite:', error)
-    return NextResponse.json({ error: 'Failed to revoke invite' }, { status: 500 })
+    return Response.json({ error: 'Failed to revoke invite' }, { status: 500 })
   }
 }

@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { getSessionFromRequest, getSessionTokenFromRequest } from '@/lib/auth-session'
@@ -12,14 +11,14 @@ const SwitchMemberSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const body = (await request.json().catch(() => null)) as unknown
   const validated = SwitchMemberSchema.safeParse(body)
 
   if (!validated.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
       { status: 400 }
     )
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
   })
 
   if (!identity) {
-    return NextResponse.json({ error: 'Member is not linked to this account' }, { status: 403 })
+    return Response.json({ error: 'Member is not linked to this account' }, { status: 403 })
   }
 
   // Vérifier si c'est un changement de clan (cross-clan) — réservé au SuperUser
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
         select: { isSuperUser: true },
       })
       if (!user?.isSuperUser) {
-        return NextResponse.json(
+        return Response.json(
           { error: 'Forbidden: clan switching requires SuperUser privileges' },
           { status: 403 }
         )
@@ -69,7 +68,7 @@ export async function POST(request: Request) {
 
   const token = getSessionTokenFromRequest(request)
   if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   await prisma.userSession.updateMany({
@@ -82,7 +81,7 @@ export async function POST(request: Request) {
     },
   })
 
-  return NextResponse.json({
+  return Response.json({
     success: true,
     activeMemberId: identity.memberId,
   })

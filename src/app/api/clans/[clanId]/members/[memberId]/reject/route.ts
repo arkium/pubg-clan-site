@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
@@ -18,7 +18,7 @@ export async function POST(
     const parsedMemberId = parsePositiveInt(memberId)
 
     if (!parsedClanId || !parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner', 'Admin'])(request, {
@@ -40,11 +40,11 @@ export async function POST(
     })
 
     if (!member || member.clanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Member not found in clan' }, { status: 404 })
+      return Response.json({ error: 'Member not found in clan' }, { status: 404 })
     }
 
     if (member.isActive || member.joinStatus !== 'pending') {
-      return NextResponse.json({ error: 'Member is not pending' }, { status: 400 })
+      return Response.json({ error: 'Member is not pending' }, { status: 400 })
     }
 
     const rejectedMember = await prisma.clanMember.update({
@@ -60,15 +60,15 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({
+    return Response.json({
       message: `${rejectedMember.displayName} has been rejected`,
       member: rejectedMember,
     })
   } catch (error) {
     console.error('Member rejection error:', error)
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return Response.json({ error: error.message }, { status: 500 })
     }
-    return NextResponse.json({ error: 'Failed to reject member' }, { status: 500 })
+    return Response.json({ error: 'Failed to reject member' }, { status: 500 })
   }
 }

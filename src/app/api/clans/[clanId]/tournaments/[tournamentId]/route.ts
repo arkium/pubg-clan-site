@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import {
@@ -51,17 +51,17 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requireNavPermission('clan.overview')(request, { clanId: parsedClanId })
     if (permissionError) return permissionError
 
     const tournament = await getTournamentForClan(parsedClanId, tournamentId)
-    return NextResponse.json({ tournament })
+    return Response.json({ tournament })
   } catch (error) {
     console.error('Error fetching tournament:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch tournament' },
       { status: 404 }
     )
@@ -77,7 +77,7 @@ export async function PATCH(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_settings')(request, { clanId: parsedClanId })
@@ -87,10 +87,10 @@ export async function PATCH(
     const payload = parseTournamentPayload(body)
 
     const tournament = await updateTournament(parsedClanId, tournamentId, payload)
-    return NextResponse.json({ tournament })
+    return Response.json({ tournament })
   } catch (error) {
     console.error('Error updating tournament:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to update tournament' },
       { status: 400 }
     )
@@ -106,7 +106,7 @@ export async function DELETE(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_settings')(request, { clanId: parsedClanId })
@@ -118,17 +118,17 @@ export async function DELETE(
     })
 
     if (!tournament) {
-      return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+      return Response.json({ error: 'Tournament not found' }, { status: 404 })
     }
 
     if (tournament.organizerClanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Only organizer can delete this tournament' }, { status: 403 })
+      return Response.json({ error: 'Only organizer can delete this tournament' }, { status: 403 })
     }
 
     await prisma.tournament.delete({ where: { id: tournamentId } })
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error) {
     console.error('Error deleting tournament:', error)
-    return NextResponse.json({ error: 'Failed to delete tournament' }, { status: 500 })
+    return Response.json({ error: 'Failed to delete tournament' }, { status: 500 })
   }
 }

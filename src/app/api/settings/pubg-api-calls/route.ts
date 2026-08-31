@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { getPubgApiCallsOverview, purgePubgApiCallLogHistory } from '@/lib/pubg-api-call-log-service'
@@ -7,11 +6,11 @@ import { getPubgApiRateLimitBounds, getPubgApiRateLimitRpm } from '@/lib/pubg-ra
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   if (!session.isSuperUser) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const url = new URL(request.url)
@@ -34,7 +33,7 @@ export async function GET(request: Request) {
     Promise.resolve(getPubgApiRateLimitBounds()),
   ])
 
-  return NextResponse.json({
+  return Response.json({
     rpm,
     bounds,
     ...overview,
@@ -44,13 +43,13 @@ export async function GET(request: Request) {
 export async function DELETE(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   if (!session.isSuperUser) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const deletedCount = await purgePubgApiCallLogHistory()
-  return NextResponse.json({ deletedCount })
+  return Response.json({ deletedCount })
 }

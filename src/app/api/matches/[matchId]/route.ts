@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails } from '@/lib/pubg'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 function parseMemberId(memberId: unknown) {
   const parsed = Number(memberId)
@@ -42,7 +42,7 @@ export async function GET(
     const playerId = request.nextUrl.searchParams.get('playerId')
 
     if (!shard || !playerId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'shard and playerId are required' },
         { status: 400 }
       )
@@ -50,7 +50,7 @@ export async function GET(
 
     const match = await fetchMatchDetails(matchId, playerId, shard)
 
-    return NextResponse.json({
+    return Response.json({
       id: match.id,
       mode: match.gameMode,
       mapName: match.mapName,
@@ -70,7 +70,7 @@ export async function GET(
     const status = message === 'Player not found in match' ? 404 : 500
 
     console.error('Error fetching match:', error)
-    return NextResponse.json({ error: message }, { status })
+    return Response.json({ error: message }, { status })
   }
 }
 
@@ -86,7 +86,7 @@ export async function POST(
     const playerId = typeof body?.playerId === 'string' ? body.playerId : null
 
     if (!memberId || !shard || !playerId) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'memberId, shard and playerId are required' },
         { status: 400 }
       )
@@ -98,7 +98,7 @@ export async function POST(
     })
 
     if (!member) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
     const match = await fetchMatchDetails(matchId, playerId, shard, { memberId })
@@ -130,12 +130,12 @@ export async function POST(
       create: importedMatchData,
     })
 
-    return NextResponse.json(savedMatch, { status: 201 })
+    return Response.json(savedMatch, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     const status = message === 'Player not found in match' ? 404 : 500
 
     console.error('Error importing match:', error)
-    return NextResponse.json({ error: message }, { status })
+    return Response.json({ error: message }, { status })
   }
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
@@ -17,7 +17,7 @@ export async function PATCH(
     const parsedMemberId = parseMemberId(id)
 
     if (!parsedMemberId || !notifId) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return Response.json({ error: 'Invalid request' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(parsedMemberId, request)
@@ -26,7 +26,7 @@ export async function PATCH(
     const body = (await request.json().catch(() => null)) as { read?: boolean } | null
 
     if (typeof body?.read !== 'boolean') {
-      return NextResponse.json({ error: 'read boolean is required' }, { status: 400 })
+      return Response.json({ error: 'read boolean is required' }, { status: 400 })
     }
 
     const updateResult = await prisma.notification.updateMany({
@@ -41,13 +41,13 @@ export async function PATCH(
     })
 
     if (updateResult.count === 0) {
-      return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
+      return Response.json({ error: 'Notification not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error) {
     console.error('Error updating notification status:', error)
-    return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 })
+    return Response.json({ error: 'Failed to update notification' }, { status: 500 })
   }
 }
 
@@ -60,7 +60,7 @@ export async function DELETE(
     const parsedMemberId = parseMemberId(id)
 
     if (!parsedMemberId || !notifId) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+      return Response.json({ error: 'Invalid request' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(parsedMemberId, request)
@@ -74,12 +74,12 @@ export async function DELETE(
     })
 
     if (deleteResult.count === 0) {
-      return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
+      return Response.json({ error: 'Notification not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error) {
     console.error('Error deleting notification:', error)
-    return NextResponse.json({ error: 'Failed to delete notification' }, { status: 500 })
+    return Response.json({ error: 'Failed to delete notification' }, { status: 500 })
   }
 }

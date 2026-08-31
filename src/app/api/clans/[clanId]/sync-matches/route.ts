@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { captureEncounteredPlayers, countBotsInMatch } from '@/lib/encountered-players'
 import { isInternalCronRequest } from '@/lib/internal-api'
@@ -29,7 +28,7 @@ export async function POST(
   const parsedClanId = parseClanId(clanId)
 
   if (!parsedClanId) {
-    return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+    return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
   if (!isInternalCronRequest(request)) {
@@ -50,7 +49,7 @@ export async function POST(
   if (requestedMemberId && !isInternalCronRequest(request)) {
     const actorMemberId = await getActorMemberId(request)
     if (actorMemberId !== requestedMemberId) {
-      return NextResponse.json({ error: 'A member can only synchronize their own matches' }, { status: 403 })
+      return Response.json({ error: 'A member can only synchronize their own matches' }, { status: 403 })
     }
   }
 
@@ -73,7 +72,7 @@ export async function POST(
     })
 
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const startedAt = new Date()
@@ -83,7 +82,7 @@ export async function POST(
     )
 
     if (clan.members.length === 0) {
-      return NextResponse.json({
+      return Response.json({
         clanId: clan.id,
         clanName: clan.name,
         startedAt: startedAt.toISOString(),
@@ -102,7 +101,7 @@ export async function POST(
       : clan.members
 
     if (membersToSync.length === 0) {
-      return NextResponse.json({ error: 'Active member not found in this clan' }, { status: 404 })
+      return Response.json({ error: 'Active member not found in this clan' }, { status: 404 })
     }
 
     const clanAccountIds = new Set(
@@ -309,10 +308,10 @@ export async function POST(
       )
     }
 
-    return NextResponse.json(payload)
+    return Response.json(payload)
   } catch (err) {
     console.error('Error syncing matches:', err)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to synchronize clan matches' },
       { status: 500 }
     )

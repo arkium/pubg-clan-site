@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { fetchTelemetryFilesForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import { requireRole } from '@/middleware/auth-permission'
@@ -55,7 +55,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -68,7 +68,7 @@ export async function POST(
     const body = (await request.json().catch(() => null)) as { squadMatchIds?: unknown } | null
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
+      return Response.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
     }
 
     const squadMatchIds = body.squadMatchIds.filter(
@@ -76,7 +76,7 @@ export async function POST(
     )
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
+      return Response.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
     const { captureDir, alreadyCapturedMatchIds } = await findAlreadyCapturedMatchIds(squadMatchIds)
@@ -84,7 +84,7 @@ export async function POST(
     const idsToFetch = squadMatchIds.filter((id) => !alreadyCapturedSet.has(id))
 
     if (idsToFetch.length === 0) {
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         requestedCount: squadMatchIds.length,
@@ -107,7 +107,7 @@ export async function POST(
     const capturedCount = result.results.filter((item) => !!item.captureFilePath).length
     const captureErrorCount = result.results.filter((item) => !!item.captureError).length
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       requestedCount: squadMatchIds.length,
@@ -125,7 +125,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Fetch telemetry files from PUBG failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to fetch telemetry files for selected matches' },
       { status: 500 }
     )

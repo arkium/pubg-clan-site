@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { createOwnerBootstrapInvite } from '@/lib/auth-service'
@@ -29,14 +28,14 @@ function hasValidBootstrapSecret(request: Request) {
 export async function POST(request: Request) {
   try {
     if (!hasValidBootstrapSecret(request)) {
-      return NextResponse.json({ error: 'Unauthorized bootstrap request' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized bootstrap request' }, { status: 401 })
     }
 
     const body = (await request.json().catch(() => null)) as unknown
     const validated = BootstrapInviteSchema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
 
     const result = await createOwnerBootstrapInvite(validated.data)
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       inviteId: result.inviteId,
       expiresAt: result.expiresAt,
@@ -57,10 +56,10 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Bootstrap owner invite error:', error)
-    return NextResponse.json({ error: 'Failed to bootstrap owner invite' }, { status: 500 })
+    return Response.json({ error: 'Failed to bootstrap owner invite' }, { status: 500 })
   }
 }

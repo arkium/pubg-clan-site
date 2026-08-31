@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { joinChallenge } from '@/lib/challenge-service'
 import { prisma } from '@/lib/prisma'
@@ -18,12 +18,12 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const memberId = await getActorMemberId(request)
     if (!memberId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const member = await prisma.clanMember.findUnique({
@@ -32,15 +32,15 @@ export async function POST(
     })
 
     if (!member || !member.isActive || member.clan?.id !== parsedClanId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const participant = await joinChallenge(challengeId, memberId)
 
-    return NextResponse.json({ participant }, { status: 201 })
+    return Response.json({ participant }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to join challenge'
     const status = message === 'Challenge is not active' ? 400 : 500
-    return NextResponse.json({ error: message }, { status })
+    return Response.json({ error: message }, { status })
   }
 }

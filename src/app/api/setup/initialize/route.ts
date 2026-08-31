@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { initializeFirstRun, isFirstRun } from '@/lib/setup-service'
@@ -13,14 +12,14 @@ const SetupSchema = z.object({
 export async function POST(request: Request) {
   try {
     if (!(await isFirstRun())) {
-      return NextResponse.json({ error: 'Setup already completed' }, { status: 409 })
+      return Response.json({ error: 'Setup already completed' }, { status: 409 })
     }
 
     const body = (await request.json().catch(() => null)) as unknown
     const parsed = SetupSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: parsed.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
 
     const result = await initializeFirstRun(parsed.data)
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       clan: result.member.clan,
       member: {
@@ -45,21 +44,21 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === 'PUBG player not found') {
-        return NextResponse.json({ error: error.message }, { status: 404 })
+        return Response.json({ error: error.message }, { status: 404 })
       }
 
       if (error.message === 'Member already exists for this PUBG name and platform') {
-        return NextResponse.json({ error: error.message }, { status: 409 })
+        return Response.json({ error: error.message }, { status: 409 })
       }
 
       if (error.message === 'Setup already completed') {
-        return NextResponse.json({ error: error.message }, { status: 409 })
+        return Response.json({ error: error.message }, { status: 409 })
       }
 
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('First-run setup failed:', error)
-    return NextResponse.json({ error: 'Failed to initialize setup' }, { status: 500 })
+    return Response.json({ error: 'Failed to initialize setup' }, { status: 500 })
   }
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { syncTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
@@ -41,7 +41,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -83,7 +83,7 @@ export async function POST(
     const squadMatchIds = candidates.map((row) => row.squadMatchId)
 
     if (dryRun) {
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         dryRun: true,
@@ -94,7 +94,7 @@ export async function POST(
     }
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         dryRun: false,
@@ -126,7 +126,7 @@ export async function POST(
       mergedResults.push(...result.results)
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       dryRun: false,
@@ -141,6 +141,6 @@ export async function POST(
     })
   } catch (error) {
     console.error('Telemetry backfill null json failed:', error)
-    return NextResponse.json({ error: 'Failed to backfill telemetry null json snapshots' }, { status: 500 })
+    return Response.json({ error: 'Failed to backfill telemetry null json snapshots' }, { status: 500 })
   }
 }

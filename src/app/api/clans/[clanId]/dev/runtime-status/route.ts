@@ -1,6 +1,6 @@
 import os from 'node:os'
 
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { requireRole } from '@/middleware/auth-permission'
 
@@ -20,7 +20,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -30,7 +30,7 @@ export async function GET(
       return roleError
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       runtime: {
@@ -42,6 +42,6 @@ export async function GET(
     })
   } catch (error) {
     console.error('Runtime status failed:', error)
-    return NextResponse.json({ error: 'Failed to read runtime status' }, { status: 500 })
+    return Response.json({ error: 'Failed to read runtime status' }, { status: 500 })
   }
 }

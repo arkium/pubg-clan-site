@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { authenticateUser } from '@/lib/auth-service'
@@ -14,7 +13,7 @@ export async function POST(request: Request) {
   try {
     const setupState = await getSetupState()
     if (setupState === 'pending_activation') {
-      return NextResponse.json(
+      return Response.json(
         { error: "Initialisation en attente: activez d'abord le compte Owner." },
         { status: 403 }
       )
@@ -24,7 +23,7 @@ export async function POST(request: Request) {
     const validated = LoginSchema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -32,7 +31,7 @@ export async function POST(request: Request) {
 
     const authenticated = await authenticateUser(validated.data)
     if (!authenticated) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+      return Response.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
     const { token, expiresAt } = await createSession({
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
       activeMemberId: authenticated.defaultMemberId,
     })
 
-    const response = NextResponse.json({
+    const response = Response.json({
       success: true,
       email: authenticated.email,
       activeMemberId: authenticated.defaultMemberId,
@@ -52,6 +51,6 @@ export async function POST(request: Request) {
     return response
   } catch (error) {
     console.error('Login error:', error)
-    return NextResponse.json({ error: 'Failed to login' }, { status: 500 })
+    return Response.json({ error: 'Failed to login' }, { status: 500 })
   }
 }

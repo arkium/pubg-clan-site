@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
@@ -197,7 +197,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
+      return Response.json(buildTelemetryErrorResponse('Invalid clan id', 'INVALID_CLAN_ID'), {
         status: 400,
       })
     }
@@ -367,7 +367,7 @@ export async function GET(
       }
     })
 
-    return NextResponse.json(
+    return Response.json(
       buildTelemetrySuccessResponse(
         {
           scope: 'clan',
@@ -402,11 +402,11 @@ export async function GET(
     )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+      return Response.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry weapons failed:', error)
-    return NextResponse.json(buildTelemetryErrorResponse('Failed to load telemetry weapons'), {
+    return Response.json(buildTelemetryErrorResponse('Failed to load telemetry weapons'), {
       status: 500,
     })
   }

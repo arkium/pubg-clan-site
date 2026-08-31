@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { syncTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
@@ -18,7 +18,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -33,7 +33,7 @@ export async function POST(
       | null
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
+      return Response.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
     }
 
     const squadMatchIds = body.squadMatchIds.filter(
@@ -42,7 +42,7 @@ export async function POST(
     const shouldRecalculateAggregates = body?.recalculateAggregates === true
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
+      return Response.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
     const result = await syncTelemetryForSelectedSquadMatches(parsedClanId, squadMatchIds)
@@ -83,7 +83,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       aggregatesRecalculated: shouldRecalculateAggregates,
@@ -93,7 +93,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Manual telemetry sync failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to synchronize telemetry for selected matches' },
       { status: 500 }
     )

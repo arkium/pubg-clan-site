@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
 
@@ -19,7 +19,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -58,7 +58,7 @@ export async function GET(
       return ageMs > oneHourMs
     })
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       deadLetterCount: filtered.length,
@@ -72,7 +72,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Dead letter queue fetch failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to fetch dead letter queue' },
       { status: 500 }
     )
@@ -88,7 +88,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -103,7 +103,7 @@ export async function POST(
     } | null
 
     if (!Array.isArray(body?.jobIds) || body.jobIds.length === 0) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'jobIds must be a non-empty array of strings' },
         { status: 400 }
       )
@@ -114,7 +114,7 @@ export async function POST(
       .slice(0, 50)
 
     if (jobIds.length === 0) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'No valid job IDs provided' },
         { status: 400 }
       )
@@ -145,7 +145,7 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       jobsRetried: updated.count,
@@ -154,7 +154,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Dead letter retry failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to retry dead letter jobs' },
       { status: 500 }
     )

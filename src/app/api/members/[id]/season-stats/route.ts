@@ -5,7 +5,7 @@ import {
   fetchPlayerSeasonStats,
   searchPlayerByName,
 } from '@/lib/pubg'
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
@@ -115,7 +115,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
@@ -127,10 +127,10 @@ export async function GET(
       take: 3,
     })
 
-    return NextResponse.json({ memberId, seasons: cached })
+    return Response.json({ memberId, seasons: cached })
   } catch (error) {
     console.error('[season-stats] GET error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -143,7 +143,7 @@ export async function POST(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request)
@@ -151,17 +151,17 @@ export async function POST(
 
     const resolved = await resolvePlayerId(memberId)
     if (!resolved) {
-      return NextResponse.json({ error: 'Member not found or no PUBG account linked' }, { status: 404 })
+      return Response.json({ error: 'Member not found or no PUBG account linked' }, { status: 404 })
     }
 
     const result = await fetchAndUpsertSeasonStats(memberId, resolved.shard, resolved.playerId)
     if (!result) {
-      return NextResponse.json({ error: 'Current season not found' }, { status: 404 })
+      return Response.json({ error: 'Current season not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ memberId, ...result })
+    return Response.json({ memberId, ...result })
   } catch (error) {
     console.error('[season-stats] POST error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import {
   syncTelemetryForSquadMatchFromStream,
@@ -43,7 +43,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -59,15 +59,15 @@ export async function POST(
 
     const squadMatchId = typeof squadMatchIdRaw === 'string' ? squadMatchIdRaw.trim() : ''
     if (!squadMatchId) {
-      return NextResponse.json({ error: 'squadMatchId is required' }, { status: 400 })
+      return Response.json({ error: 'squadMatchId is required' }, { status: 400 })
     }
 
     if (!(fileValue instanceof File)) {
-      return NextResponse.json({ error: 'file is required' }, { status: 400 })
+      return Response.json({ error: 'file is required' }, { status: 400 })
     }
 
     if (fileValue.size <= 0) {
-      return NextResponse.json({ error: 'file is empty' }, { status: 400 })
+      return Response.json({ error: 'file is empty' }, { status: 400 })
     }
 
     const shouldRecalculateAggregates = parseBooleanLike(formData.get('recalculateAggregates'))
@@ -117,7 +117,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: result.status === 'success',
       clanId: parsedClanId,
       aggregatesRecalculated: shouldRecalculateAggregates,
@@ -135,6 +135,6 @@ export async function POST(
     })
   } catch (error) {
     console.error('Telemetry file import failed:', error)
-    return NextResponse.json({ error: 'Failed to import telemetry file' }, { status: 500 })
+    return Response.json({ error: 'Failed to import telemetry file' }, { status: 500 })
   }
 }

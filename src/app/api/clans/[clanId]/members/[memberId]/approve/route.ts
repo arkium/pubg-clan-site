@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
@@ -19,7 +19,7 @@ export async function POST(
     const parsedMemberId = parsePositiveInt(memberId)
 
     if (!parsedClanId || !parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid clan or member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
     // Only Owner/Admin can approve members
@@ -42,11 +42,11 @@ export async function POST(
     })
 
     if (!member || member.clanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Member not found in clan' }, { status: 404 })
+      return Response.json({ error: 'Member not found in clan' }, { status: 404 })
     }
 
     if (member.isActive) {
-      return NextResponse.json({ error: 'Member is already active' }, { status: 400 })
+      return Response.json({ error: 'Member is already active' }, { status: 400 })
     }
 
     // Initialize default roles if needed
@@ -87,15 +87,15 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       message: `${activatedMember.displayName} has been approved and activated as a member of ${activatedMember.clan?.name}`,
       member: activatedMember,
     })
   } catch (error) {
     console.error('Member approval error:', error)
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return Response.json({ error: error.message }, { status: 500 })
     }
-    return NextResponse.json({ error: 'Failed to approve member' }, { status: 500 })
+    return Response.json({ error: 'Failed to approve member' }, { status: 500 })
   }
 }

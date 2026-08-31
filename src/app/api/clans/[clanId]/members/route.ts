@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
@@ -67,7 +67,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const permissionError = await requirePermission('manage_members')(request, {
@@ -80,7 +80,7 @@ export async function GET(
 
     const actorMemberId = await getActorMemberId(request)
     if (!actorMemberId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const clan = await prisma.clan.findUnique({
@@ -89,7 +89,7 @@ export async function GET(
     })
 
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     // Check query parameter for status filter
@@ -115,7 +115,7 @@ export async function GET(
         orderBy: { createdAt: 'asc' },
       })
 
-      return NextResponse.json({
+      return Response.json({
         pending: pendingMembers,
         clanName: clan.name,
       })
@@ -261,9 +261,9 @@ export async function GET(
       }
     })
 
-    return NextResponse.json({ members: payload })
+    return Response.json({ members: payload })
   } catch (error) {
     console.error('Error fetching clan members with roles:', error)
-    return NextResponse.json({ error: 'Failed to fetch clan members' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch clan members' }, { status: 500 })
   }
 }

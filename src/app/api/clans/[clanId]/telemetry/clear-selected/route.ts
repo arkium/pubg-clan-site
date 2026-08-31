@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { readdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -42,7 +42,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -57,7 +57,7 @@ export async function POST(
       | null
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
+      return Response.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
     }
 
     const squadMatchIds = sanitizeSquadMatchIds(
@@ -65,7 +65,7 @@ export async function POST(
     )
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
+      return Response.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
     const allowedMatches = await prisma.squadMatch.findMany({
@@ -137,7 +137,7 @@ export async function POST(
       // Ignore missing capture directory or transient file deletion errors.
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       requestedCount: body.squadMatchIds.length,
@@ -151,7 +151,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Clear telemetry selected failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to clear telemetry for selected matches' },
       { status: 500 }
     )

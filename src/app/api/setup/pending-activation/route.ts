@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { createOwnerBootstrapInvite } from '@/lib/auth-service'
 import { getClanLabel, getLoginWelcomeSettings, getPrimaryClanId } from '@/lib/login-welcome-service'
@@ -46,7 +45,7 @@ async function getPendingOwnerInvite() {
 export async function GET() {
   const setupState = await getSetupState()
   if (setupState !== 'pending_activation') {
-    return NextResponse.json({ error: 'Pending activation not active' }, { status: 409 })
+    return Response.json({ error: 'Pending activation not active' }, { status: 409 })
   }
 
   const primaryClanId = await getPrimaryClanId()
@@ -56,7 +55,7 @@ export async function GET() {
     getPendingOwnerInvite(),
   ])
 
-  return NextResponse.json({
+  return Response.json({
     settings,
     clanLabel,
     invite: invite
@@ -72,12 +71,12 @@ export async function GET() {
 export async function POST() {
   const setupState = await getSetupState()
   if (setupState !== 'pending_activation') {
-    return NextResponse.json({ error: 'Pending activation not active' }, { status: 409 })
+    return Response.json({ error: 'Pending activation not active' }, { status: 409 })
   }
 
   const invite = await getPendingOwnerInvite()
   if (!invite) {
-    return NextResponse.json({ error: 'No pending owner invite found' }, { status: 404 })
+    return Response.json({ error: 'No pending owner invite found' }, { status: 404 })
   }
 
   const resent = await createOwnerBootstrapInvite({
@@ -85,7 +84,7 @@ export async function POST() {
     email: invite.email,
   })
 
-  return NextResponse.json({
+  return Response.json({
     success: true,
     invite: {
       email: invite.email,

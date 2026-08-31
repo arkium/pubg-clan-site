@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
@@ -6,11 +5,11 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   if (!session.isSuperUser) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   try {
@@ -55,12 +54,12 @@ export async function GET(request: Request) {
       { totalDataMb: 0, totalIndexMb: 0, totalSizeMb: 0 }
     )
 
-    return NextResponse.json({
+    return Response.json({
       globalStats,
       tables,
     })
   } catch (error) {
     console.error('Failed to fetch database stats:', error)
-    return NextResponse.json({ error: 'Failed to fetch database stats' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch database stats' }, { status: 500 })
   }
 }

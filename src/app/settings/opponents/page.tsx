@@ -13,6 +13,7 @@ import {
   Star,
   UserPlus,
   Users,
+  RefreshCcw,
 } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -386,6 +387,15 @@ export default function OpponentsExplorerPage() {
             <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
               <Users className="h-4 w-4 text-slate-500" aria-hidden />
               Clans suivis
+              <button
+                type="button"
+                onClick={() => setRefreshKey(k => k + 1)}
+                disabled={loadingData}
+                className="ml-2 inline-flex items-center justify-center rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                title="Rafraîchir les données"
+              >
+                <RefreshCcw className={`h-3.5 w-3.5 ${loadingData ? 'animate-spin text-sky-500' : ''}`} aria-hidden />
+              </button>
             </h2>
             <input
               type="text"

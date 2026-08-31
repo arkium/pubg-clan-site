@@ -1,5 +1,4 @@
 import { Prisma } from '@prisma/client'
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { normalizeEmail } from '@/lib/auth-crypto'
@@ -28,7 +27,7 @@ function sanitizeOptionalText(value: string | null | undefined) {
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const account = await prisma.userAccount.findUnique({
@@ -58,10 +57,10 @@ export async function GET(request: Request) {
   })
 
   if (!account) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    return Response.json({ error: 'User not found' }, { status: 404 })
   }
 
-  return NextResponse.json({
+  return Response.json({
     profile: {
       id: account.id,
       email: account.email,
@@ -81,7 +80,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
@@ -89,7 +88,7 @@ export async function PATCH(request: Request) {
     const validated = UpdateProfileSchema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -124,20 +123,20 @@ export async function PATCH(request: Request) {
       },
     })
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       profile: updated,
     })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      return NextResponse.json({ error: 'Email already in use' }, { status: 409 })
+      return Response.json({ error: 'Email already in use' }, { status: 409 })
     }
 
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Profile update error:', error)
-    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
+    return Response.json({ error: 'Failed to update profile' }, { status: 500 })
   }
 }

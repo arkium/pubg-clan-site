@@ -1,6 +1,5 @@
 import { fetchClanMembers } from '@/lib/pubg'
 import { prisma } from '@/lib/prisma'
-import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
@@ -34,9 +33,9 @@ export async function GET() {
     }
 
     console.log("Added", addedCount)
-    return NextResponse.json({ success: true, addedCount })
+    return Response.json({ success: true, addedCount })
   } catch (error: any) {
     console.error("Error in fix2:", error)
-    return NextResponse.json({ error: String(error.message || error) }, { status: 500 })
+    return Response.json({ error: String(error.message || error) }, { status: 500 })
   }
 }

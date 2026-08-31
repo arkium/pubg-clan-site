@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { getLeaderboard } from '@/lib/challenge-service'
@@ -18,7 +18,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireNavPermission('clan.challenges')(request, { clanId: parsedClanId })
@@ -30,14 +30,14 @@ export async function GET(
     })
 
     if (!challengeExists || challengeExists.clanId !== parsedClanId) {
-      return NextResponse.json({ error: 'Challenge not found' }, { status: 404 })
+      return Response.json({ error: 'Challenge not found' }, { status: 404 })
     }
 
     const { challenge, leaderboard } = await getLeaderboard(challengeId)
 
-    return NextResponse.json({ challenge, leaderboard })
+    return Response.json({ challenge, leaderboard })
   } catch (error) {
     console.error('Error fetching leaderboard:', error)
-    return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
   }
 }

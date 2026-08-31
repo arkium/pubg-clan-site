@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
@@ -22,11 +21,11 @@ export async function GET(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     if (!session.isSuperUser) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const url = new URL(request.url)
@@ -34,7 +33,7 @@ export async function GET(request: Request) {
 
     const overview = await getTelemetryRecoveriesOverview(window)
 
-    return NextResponse.json(
+    return Response.json(
       buildTelemetrySuccessResponse(
         { scope: 'global', window, count: overview.clans.length },
         { clans: overview.clans },
@@ -43,11 +42,11 @@ export async function GET(request: Request) {
     )
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(buildTelemetryErrorResponse(error.message), { status: 400 })
+      return Response.json(buildTelemetryErrorResponse(error.message), { status: 400 })
     }
 
     console.error('Telemetry recoveries overview failed:', error)
-    return NextResponse.json(
+    return Response.json(
       buildTelemetryErrorResponse('Failed to load telemetry recoveries overview'),
       { status: 500 }
     )

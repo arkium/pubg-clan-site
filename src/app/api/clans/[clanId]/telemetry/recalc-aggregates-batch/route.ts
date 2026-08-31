@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
@@ -23,7 +23,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -48,7 +48,7 @@ export async function POST(
         0
       )
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         scope: 'clan',
         clanId: parsedClanId,
@@ -108,7 +108,7 @@ export async function POST(
 
       const duration = Date.now() - startTime
 
-      return NextResponse.json({
+      return Response.json({
         ok: totalErrors === 0,
         scope: 'all-clans',
         clansProcessed: allClans.length,
@@ -121,10 +121,10 @@ export async function POST(
       })
     }
 
-    return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    return Response.json({ error: 'Invalid scope' }, { status: 400 })
   } catch (error) {
     console.error('Batch recalc aggregates failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to recalculate aggregates' },
       { status: 500 }
     )
@@ -140,7 +140,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -161,7 +161,7 @@ export async function GET(
       where: { clanId: parsedClanId },
     })
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       aggregatesExisting: {
@@ -176,7 +176,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Batch recalc check failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to check aggregates' },
       { status: 500 }
     )

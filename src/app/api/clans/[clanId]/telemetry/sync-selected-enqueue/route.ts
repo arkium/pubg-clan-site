@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import {
@@ -22,7 +22,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -35,7 +35,7 @@ export async function POST(
     const body = (await request.json().catch(() => null)) as { squadMatchIds?: unknown } | null
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
+      return Response.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
     }
 
     const squadMatchIds = body.squadMatchIds.filter(
@@ -43,7 +43,7 @@ export async function POST(
     )
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
+      return Response.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
     const actorMemberId = await getActorMemberId(request)
@@ -53,14 +53,14 @@ export async function POST(
       actorMemberId
     )
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       ...result,
     })
   } catch (error) {
     console.error('Manual telemetry enqueue failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to enqueue telemetry for selected matches' },
       { status: 500 }
     )
@@ -79,7 +79,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -108,7 +108,7 @@ export async function GET(
       }),
     ])
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       queue,
@@ -116,7 +116,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Manual telemetry enqueue status failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to fetch telemetry enqueue status' },
       { status: 500 }
     )

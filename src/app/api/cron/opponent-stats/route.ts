@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
@@ -23,7 +22,7 @@ export async function GET(request: Request) {
   const isSuperUser = url.searchParams.get('force') === 'true' // In a real app we'd check auth
 
   if (!isCron && !isSuperUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
@@ -172,9 +171,9 @@ export async function GET(request: Request) {
       })
     }
 
-    return NextResponse.json({ success: true })
+    return Response.json({ success: true })
   } catch (error: any) {
     console.error('Error calculating opponent stats:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return Response.json({ error: error.message }, { status: 500 })
   }
 }

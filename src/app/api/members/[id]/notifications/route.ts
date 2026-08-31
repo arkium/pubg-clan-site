@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { NOTIFICATION_TYPES, type NotificationType } from '@/types/notifications'
@@ -41,7 +41,7 @@ export async function GET(
     const parsedMemberId = parseMemberId(id)
 
     if (!parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(parsedMemberId, request)
@@ -73,13 +73,13 @@ export async function GET(
       }),
     ])
 
-    return NextResponse.json({
+    return Response.json({
       notifications,
       unreadCount,
     })
   } catch (error) {
     console.error('Error fetching notifications:', error)
-    return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch notifications' }, { status: 500 })
   }
 }
 
@@ -92,7 +92,7 @@ export async function PATCH(
     const parsedMemberId = parseMemberId(id)
 
     if (!parsedMemberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(parsedMemberId, request)
@@ -103,7 +103,7 @@ export async function PATCH(
       | null
 
     if (body?.read !== true) {
-      return NextResponse.json({ error: 'Only read=true is supported' }, { status: 400 })
+      return Response.json({ error: 'Only read=true is supported' }, { status: 400 })
     }
 
     const updateAll = body?.all === true
@@ -112,7 +112,7 @@ export async function PATCH(
       : []
 
     if (!updateAll && ids.length === 0) {
-      return NextResponse.json({ error: 'Provide all=true or notification ids' }, { status: 400 })
+      return Response.json({ error: 'Provide all=true or notification ids' }, { status: 400 })
     }
 
     const result = await prisma.notification.updateMany({
@@ -127,12 +127,12 @@ export async function PATCH(
       },
     })
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       updatedCount: result.count,
     })
   } catch (error) {
     console.error('Error updating notifications:', error)
-    return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 })
+    return Response.json({ error: 'Failed to update notifications' }, { status: 500 })
   }
 }

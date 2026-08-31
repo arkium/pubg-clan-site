@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { changeUserPassword } from '@/lib/auth-service'
@@ -17,7 +16,7 @@ const ChangePasswordSchema = z
 export async function PATCH(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
@@ -25,7 +24,7 @@ export async function PATCH(request: Request) {
     const validated = ChangePasswordSchema.safeParse(body)
 
     if (!validated.success) {
-      return NextResponse.json(
+      return Response.json(
         { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
         { status: 400 }
       )
@@ -37,16 +36,16 @@ export async function PATCH(request: Request) {
       newPassword: validated.data.newPassword,
     })
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: 'Mot de passe mis a jour',
     })
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Change password error:', error)
-    return NextResponse.json({ error: 'Failed to update password' }, { status: 500 })
+    return Response.json({ error: 'Failed to update password' }, { status: 500 })
   }
 }

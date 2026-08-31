@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getMapLabels } from '@/lib/map-label-service'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 const MATCH_SORT_KEYS = ['pubgCreatedAt', 'kills', 'damageDealt', 'placement'] as const
@@ -77,7 +77,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
@@ -170,7 +170,7 @@ export async function GET(
         )
       }
 
-      return NextResponse.json({
+      return Response.json({
         sortBy,
         sortDirection,
         matches: matches.map((m) => ({
@@ -202,7 +202,7 @@ export async function GET(
     })
 
     if (!member || !member.pubgPlayerName) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Member not found or no PUBG account linked' },
         { status: 404 }
       )
@@ -220,7 +220,7 @@ export async function GET(
       const player = await searchPlayerByName(member.pubgPlayerName, shard, { memberId })
 
       if (!player) {
-        return NextResponse.json(
+        return Response.json(
           { error: 'Player not found in PUBG API' },
           { status: 404 }
         )
@@ -239,7 +239,7 @@ export async function GET(
     const recentWindow = allRecentMatchIds.slice(0, 10)
     const recentApiMatchIds = recentWindow.filter((matchId) => !importedMatchIds.has(matchId))
 
-    return NextResponse.json({
+    return Response.json({
       memberId,
       playerId,
       shard,
@@ -249,7 +249,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching matches:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Internal server error' },
       { status: 500 }
     )

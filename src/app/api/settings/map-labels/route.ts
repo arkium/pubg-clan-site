@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -16,34 +15,34 @@ function hasManageSettings(permissions: string[]) {
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session?.activeMemberId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const permissions = await getMemberPermissionKeys(session.activeMemberId)
   if (!hasManageSettings(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const labels = await getMapLabels()
-  return NextResponse.json({ labels })
+  return Response.json({ labels })
 }
 
 export async function PUT(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session?.activeMemberId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const permissions = await getMemberPermissionKeys(session.activeMemberId)
   if (!hasManageSettings(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const body = (await request.json().catch(() => null)) as unknown
   const validated = UpdateMapLabelsSchema.safeParse(body)
 
   if (!validated.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
       { status: 400 }
     )
@@ -51,7 +50,7 @@ export async function PUT(request: Request) {
 
   const labels = await updateMapLabels(validated.data.labels)
 
-  return NextResponse.json({
+  return Response.json({
     success: true,
     labels,
   })

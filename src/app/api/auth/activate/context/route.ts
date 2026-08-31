@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { getActivationInviteContext } from '@/lib/auth-service'
 
@@ -7,15 +6,15 @@ export async function GET(request: Request) {
   const token = searchParams.get('token')?.trim() ?? ''
 
   if (!token) {
-    return NextResponse.json({ error: 'Activation token is required' }, { status: 400 })
+    return Response.json({ error: 'Activation token is required' }, { status: 400 })
   }
 
   const context = await getActivationInviteContext(token)
   if (!context) {
-    return NextResponse.json({ error: 'Invalid or expired activation token' }, { status: 404 })
+    return Response.json({ error: 'Invalid or expired activation token' }, { status: 404 })
   }
 
-  return NextResponse.json({
+  return Response.json({
     success: true,
     requiresLoginEmail: context.requiresLoginEmail,
   })

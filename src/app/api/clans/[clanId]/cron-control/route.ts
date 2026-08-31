@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import {
   CRON_ACTION_LABELS,
@@ -75,7 +75,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireCronClanAccess(request, parsedClanId)
@@ -93,7 +93,7 @@ export async function GET(
     const criticalChecks = configChecks.filter((entry) => entry.status === 'error').length
     const warningChecks = configChecks.filter((entry) => entry.status === 'warning').length
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       actionLabels: CRON_ACTION_LABELS,
@@ -125,11 +125,11 @@ export async function GET(
     })
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Cron control status failed:', error)
-    return NextResponse.json({ error: 'Failed to load cron status' }, { status: 500 })
+    return Response.json({ error: 'Failed to load cron status' }, { status: 500 })
   }
 }
 
@@ -144,7 +144,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireCronClanAccess(request, parsedClanId)
@@ -156,7 +156,7 @@ export async function POST(
     const action = parseAction(body?.action)
 
     if (!action) {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+      return Response.json({ error: 'Invalid action' }, { status: 400 })
     }
 
     const actorMemberId = await getActorMemberId(request)
@@ -199,7 +199,7 @@ export async function POST(
           details: payload,
         })
 
-        return NextResponse.json(
+        return Response.json(
           {
             error: payload?.error ?? 'Failed to synchronize clan matches',
           },
@@ -227,7 +227,7 @@ export async function POST(
           },
         })
 
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           partial: true,
           action,
@@ -253,7 +253,7 @@ export async function POST(
           },
         })
 
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           action,
           importedMatches,
@@ -281,7 +281,7 @@ export async function POST(
           },
         })
 
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           partial: true,
           action,
@@ -305,7 +305,7 @@ export async function POST(
         },
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         action,
         importedMatches,
@@ -323,7 +323,7 @@ export async function POST(
         message: 'Synchronisation des stats terminee',
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         action,
         message: 'Synchronisation des stats terminee',
@@ -358,7 +358,7 @@ export async function POST(
         },
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         action,
         periodsUpdated: aggregateResult.summaries.length,
@@ -391,7 +391,7 @@ export async function POST(
         },
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         action,
         partial: result.errors.length > 0,
@@ -403,7 +403,7 @@ export async function POST(
       })
     }
 
-    return NextResponse.json({ error: 'Action not supported anymore' }, { status: 400 })
+    return Response.json({ error: 'Action not supported anymore' }, { status: 400 })
   } catch (error) {
     if (execution) {
       await finishCronExecution({
@@ -415,10 +415,10 @@ export async function POST(
     }
 
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Cron control failed:', error)
-    return NextResponse.json({ error: 'Failed to control cron actions' }, { status: 500 })
+    return Response.json({ error: 'Failed to control cron actions' }, { status: 500 })
   }
 }

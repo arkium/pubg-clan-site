@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { syncTrackedClanStats } from '@/lib/clan-service'
@@ -24,7 +24,7 @@ export async function GET(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
@@ -52,10 +52,10 @@ export async function GET(
     })
 
     if (!member || !member.isActive) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    return NextResponse.json({
+    return Response.json({
       id: member.id,
       displayName: member.displayName,
       avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
@@ -64,7 +64,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching member:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to fetch member' },
       { status: 500 }
     )
@@ -80,7 +80,7 @@ export async function DELETE(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     const existingMember = await prisma.clanMember.findUnique({
@@ -94,11 +94,11 @@ export async function DELETE(
     })
 
     if (!existingMember || !existingMember.isActive) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
     if (!existingMember.clanId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const permissionError = await requirePermission('manage_members')(request, {
@@ -115,7 +115,7 @@ export async function DELETE(
         where: { id: memberId },
       })
 
-      return NextResponse.json({
+      return Response.json({
         success: true,
         memberId,
         deleted: 'hard',
@@ -127,14 +127,14 @@ export async function DELETE(
       data: { isActive: false },
     })
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       memberId,
       deleted: 'soft',
     })
   } catch (error) {
     console.error('Error deleting member:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to delete member' },
       { status: 500 }
     )
@@ -150,7 +150,7 @@ export async function PATCH(
     const memberId = parseMemberId(id)
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Invalid member id' }, { status: 400 })
+      return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
     // Déplacer un membre entre clans = opération cross-clan → SuperUser uniquement
@@ -200,31 +200,31 @@ export async function PATCH(
     ])
 
     if (!member || !member.isActive) {
-      return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+      return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
     if (!targetClan || !targetClan.isActive) {
-      return NextResponse.json({ error: 'Target clan not found' }, { status: 404 })
+      return Response.json({ error: 'Target clan not found' }, { status: 404 })
     }
 
     const isOwner = member.roles.some((entry) => entry.role.name === 'Owner')
     const isUngroupedOwner = isOwner && member.clan?.name === 'Ungrouped'
     if (isOwner && !isUngroupedOwner) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Owner member cannot be moved to another clan' },
         { status: 403 }
       )
     }
 
     if (targetClan.platformShard !== member.platformShard) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Member platform and clan platform must match' },
         { status: 400 }
       )
     }
 
     if (member.clanId === targetClan.id) {
-      return NextResponse.json({
+      return Response.json({
         success: true,
         memberId: member.id,
         clanId: targetClan.id,
@@ -266,7 +266,7 @@ export async function PATCH(
       console.warn('Unable to synchronize target clan stats after move:', syncError)
     }
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       memberId: member.id,
       clanId: targetClan.id,
@@ -278,13 +278,13 @@ export async function PATCH(
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Validation error', details: error.issues },
         { status: 400 }
       )
     }
 
     console.error('Error moving member to clan:', error)
-    return NextResponse.json({ error: 'Failed to move member to clan' }, { status: 500 })
+    return Response.json({ error: 'Failed to move member to clan' }, { status: 500 })
   }
 }

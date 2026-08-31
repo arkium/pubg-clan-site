@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
@@ -26,7 +26,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireNavPermission('clan.overview')(request, { clanId: parsedClanId })
@@ -46,10 +46,10 @@ export async function GET(
     if (!cacheEntry) {
       // For the very first time, if cron hasn't run yet, we might return empty state
       // but ideally we'd compute on the fly or just return null.
-      return NextResponse.json({ error: 'Stats not ready for this period' }, { status: 404 })
+      return Response.json({ error: 'Stats not ready for this period' }, { status: 404 })
     }
 
-    return NextResponse.json({
+    return Response.json({
       period: cacheEntry.period,
       periodKey: cacheEntry.periodKey,
       payload: cacheEntry.payload,
@@ -57,6 +57,6 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error fetching matches stats cache:', error)
-    return NextResponse.json({ error: 'Failed to fetch matches stats cache' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch matches stats cache' }, { status: 500 })
   }
 }

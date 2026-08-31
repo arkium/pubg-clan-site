@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { requireRole } from '@/middleware/auth-permission'
 import { getCachedOrComputeClanAwards, type AwardPeriod } from '@/lib/awards-service'
@@ -22,7 +22,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner', 'Admin', 'Member'])(request, {
@@ -36,9 +36,9 @@ export async function GET(
 
     const awards = await getCachedOrComputeClanAwards(parsedClanId, period)
 
-    return NextResponse.json(awards)
+    return Response.json(awards)
   } catch (error) {
     console.error('[awards] GET error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

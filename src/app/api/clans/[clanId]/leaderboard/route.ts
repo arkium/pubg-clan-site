@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
@@ -546,7 +546,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireNavPermission('clan.leaderboard')(request, { clanId: parsedClanId })
@@ -563,7 +563,7 @@ export async function GET(
     })
 
     if (!clan) {
-      return NextResponse.json({ error: 'Clan not found' }, { status: 404 })
+      return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const members = await prisma.clanMember.findMany({
@@ -720,9 +720,9 @@ export async function GET(
       progression,
     }
 
-    return NextResponse.json(payload)
+    return Response.json(payload)
   } catch (error) {
     console.error('Error fetching leaderboard:', error)
-    return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
+    return Response.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
   }
 }

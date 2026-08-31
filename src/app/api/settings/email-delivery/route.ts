@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import {
@@ -67,7 +66,7 @@ function readEmailEnvStatus() {
 async function getAuthorizedPermissions(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session?.activeMemberId) {
-    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) as NextResponse }
+    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as NextResponse }
   }
 
   const permissions = await getMemberPermissionKeys(session.activeMemberId)
@@ -82,14 +81,14 @@ export async function GET(request: Request) {
 
   const permissions = auth.permissions
   if (!canReadEmailDeliveryStatus(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const status = await getEmailDeliveryStatus()
   const env = readEmailEnvStatus()
   const ready = status.ready && env.allRequiredSet
 
-  return NextResponse.json({
+  return Response.json({
     ready,
     lastSuccessAt: status.lastSuccessAt,
     lastTestRecipient: status.lastTestRecipient,
@@ -106,12 +105,12 @@ export async function POST(request: Request) {
 
   const permissions = auth.permissions
   if (!canRunEmailDeliveryTest(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const env = readEmailEnvStatus()
   if (!env.allRequiredSet) {
-    return NextResponse.json(
+    return Response.json(
       {
         error: 'Configuration .env incomplete pour email.',
         env,
@@ -124,7 +123,7 @@ export async function POST(request: Request) {
   const validated = TestEmailSchema.safeParse(body)
 
   if (!validated.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: validated.error.issues[0]?.message ?? 'Invalid payload' },
       { status: 400 }
     )
@@ -148,7 +147,7 @@ export async function POST(request: Request) {
     const currentEnv = readEmailEnvStatus()
     const ready = status.ready && currentEnv.allRequiredSet
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: 'Email de test envoye avec succes.',
       ready,
@@ -162,7 +161,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : 'Echec de l\'envoi de l\'email de test'
     await markEmailDeliveryFailure(message)
 
-    return NextResponse.json({ error: message, ready: false, env }, { status: 500 })
+    return Response.json({ error: message, ready: false, env }, { status: 500 })
   }
 }
 
@@ -174,7 +173,7 @@ export async function DELETE(request: Request) {
 
   const permissions = auth.permissions
   if (!canRunEmailDeliveryTest(permissions)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   await revokeEmailDeliveryValidation()
@@ -182,7 +181,7 @@ export async function DELETE(request: Request) {
   const env = readEmailEnvStatus()
   const ready = status.ready && env.allRequiredSet
 
-  return NextResponse.json({
+  return Response.json({
     success: true,
     message: 'Validation email revoquee.',
     ready,

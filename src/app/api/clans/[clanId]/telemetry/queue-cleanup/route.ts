@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
 import { reorderQueueByPriority, getQueuePriority } from '@/lib/pubg-telemetry/queue-priority'
@@ -23,7 +23,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -44,7 +44,7 @@ export async function POST(
     const cancelMaxAgeMs = typeof body?.cancelMaxAgeMs === 'number' ? body.cancelMaxAgeMs : undefined
 
     if (!action) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'action is required: cleanup-stale | reorder-priority | cancel-old' },
         { status: 400 }
       )
@@ -52,7 +52,7 @@ export async function POST(
 
     if (action === 'reorder-priority') {
       const result = await reorderQueueByPriority(parsedClanId)
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         action,
@@ -68,7 +68,7 @@ export async function POST(
         runningTimeoutHours: 4,
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         action,
@@ -95,7 +95,7 @@ export async function POST(
         },
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         action,
@@ -111,7 +111,7 @@ export async function POST(
         runningTimeoutHours: 999999, // Don't timeout running jobs
       })
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         action,
@@ -120,10 +120,10 @@ export async function POST(
       })
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+    return Response.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Queue cleanup failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to process queue cleanup' },
       { status: 500 }
     )
@@ -139,7 +139,7 @@ export async function GET(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -183,7 +183,7 @@ export async function GET(
       }),
     ])
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       queue: {
@@ -208,7 +208,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Queue cleanup GET failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to get queue status' },
       { status: 500 }
     )

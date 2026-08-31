@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { resetPasswordWithToken } from '@/lib/auth-service'
@@ -13,7 +12,7 @@ export async function POST(request: Request) {
   const validated = ResetPasswordSchema.safeParse(body)
 
   if (!validated.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: validated.error.issues[0]?.message ?? 'Requête invalide' },
       { status: 400 }
     )
@@ -25,16 +24,16 @@ export async function POST(request: Request) {
       newPassword: validated.data.newPassword,
     })
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: 'Mot de passe réinitialisé avec succès.',
     })
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      return Response.json({ error: error.message }, { status: 400 })
     }
 
     console.error('Reset password error:', error)
-    return NextResponse.json({ error: 'Échec de la réinitialisation du mot de passe' }, { status: 500 })
+    return Response.json({ error: 'Échec de la réinitialisation du mot de passe' }, { status: 500 })
   }
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import type { ManualTelemetrySyncItemResult } from '@/lib/pubg-telemetry/manual-sync'
 import { getTelemetryFixtureCaptureMaxBytes } from '@/lib/pubg-telemetry/fixture-capture'
@@ -21,7 +21,7 @@ export async function POST(
     const parsedClanId = parseClanId(clanId)
 
     if (!parsedClanId) {
-      return NextResponse.json({ error: 'Invalid clan id' }, { status: 400 })
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
     const roleError = await requireRole(['Owner'])(request, {
@@ -48,7 +48,7 @@ export async function POST(
 
     if (onlyRecalculateAggregates) {
       if (!shouldRecalculateAggregates) {
-        return NextResponse.json({
+        return Response.json({
           ok: true,
           clanId: parsedClanId,
           aggregatesRecalculated: false,
@@ -100,7 +100,7 @@ export async function POST(
             : 'Recalcul des aggregates telemetry en echec'
       }
 
-      return NextResponse.json({
+      return Response.json({
         ok: true,
         clanId: parsedClanId,
         validateOnly: false,
@@ -122,7 +122,7 @@ export async function POST(
     }
 
     if (!Array.isArray(body?.squadMatchIds)) {
-      return NextResponse.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
+      return Response.json({ error: 'squadMatchIds must be an array' }, { status: 400 })
     }
 
     const squadMatchIds = body.squadMatchIds.filter(
@@ -130,7 +130,7 @@ export async function POST(
     )
 
     if (squadMatchIds.length === 0) {
-      return NextResponse.json({ error: 'No squad match selected' }, { status: 400 })
+      return Response.json({ error: 'No squad match selected' }, { status: 400 })
     }
 
     const captureDir = resolveCaptureDirectory()
@@ -233,7 +233,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       ok: true,
       clanId: parsedClanId,
       validateOnly,
@@ -255,7 +255,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Resync telemetry from files failed:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Failed to resync telemetry from local files' },
       { status: 500 }
     )

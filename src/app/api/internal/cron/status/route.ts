@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 
 import { isCronJobsInitialized } from '@/lib/cron-jobs'
 
@@ -14,10 +13,10 @@ function isAuthorized(request: Request) {
 
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  return NextResponse.json({
+  return Response.json({
     ok: true,
     initialized: isCronJobsInitialized(),
     cronJobsEnabled: process.env.ENABLE_CRON_JOBS === 'true',

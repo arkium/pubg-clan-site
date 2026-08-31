@@ -25,6 +25,15 @@ Le projet bloque explicitement Node 24+ via le script `predev`. Utiliser Node **
 
 Télécharger Node.js 22 LTS depuis [nodejs.org](https://nodejs.org/). Vérifier que la commande `node --version` retourne bien `v22.x.x` et non `v24.x.x`.
 
+### Next.js 16 (App Router)
+
+Ce projet utilise **Next.js 16.2.6** avec le nouveau système **App Router** (`src/app`). 
+Attention aux spécificités de cette version :
+- **Remplacement de `NextResponse`** : L'utilisation de `NextResponse.json()` dans les routes API n'est plus supportée. Utilisez l'objet Web natif `Response.json()`.
+- **Cookies & Headers asynchrones** : Les méthodes `cookies()` et `headers()` doivent systématiquement être appelées avec `await` (ex: `const cookieStore = await cookies()`).
+- **Paramètres de routes asynchrones** : Les objets `params` sont désormais des Promesses et doivent être attendus (ex: `const { id } = await params`).
+- **Contraintes des Pages** : Il est strictement interdit d'exporter d'autres fonctions que les composants standards Next.js depuis les fichiers `page.tsx` et `layout.tsx` (pas d'export de helpers).
+
 ### MySQL / MariaDB local
 
 Plusieurs options :

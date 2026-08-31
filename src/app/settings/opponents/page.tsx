@@ -573,7 +573,18 @@ export default function OpponentsExplorerPage() {
                       {expandedOpponentId === row.id ? (
                         <tr>
                           <td colSpan={7} className="bg-gray-50 px-2 py-3">
-                            <OpponentDetailPanel detail={opponentDetails[row.id]} opponentClanId={row.id} trackedClans={trackedClans?.rows || []} onTrack={handleTrackMember} trackPending={trackPending} onToggleFavorite={handleFavoritePlayer} />
+                            <OpponentDetailPanel 
+                              detail={opponentDetails[row.id]} 
+                              opponentClanId={row.id} 
+                              trackedClans={trackedClans?.rows || []} 
+                              onTrack={handleTrackMember} 
+                              trackPending={trackPending} 
+                              onToggleFavorite={handleFavoritePlayer}
+                              onClanTracked={() => {
+                                addNotification('Clan suivi créé avec succès !', 'success')
+                                setRefreshKey((k) => k + 1)
+                              }}
+                            />
                           </td>
                         </tr>
                       ) : null}
@@ -657,7 +668,7 @@ function ClanDetailPanel({ detail, clanId, onTrack, trackPending }: any) {
   )
 }
 
-function OpponentDetailPanel({ detail, opponentClanId, trackedClans, onTrack, trackPending, onToggleFavorite }: any) {
+function OpponentDetailPanel({ detail, opponentClanId, trackedClans, onTrack, trackPending, onToggleFavorite, onClanTracked }: any) {
   const [selectedClanId, setSelectedClanId] = useState<number>(trackedClans[0]?.id || 0)
   const [trackClanPending, setTrackClanPending] = useState(false)
   const [trackClanSuccess, setTrackClanSuccess] = useState(false)
@@ -682,6 +693,7 @@ function OpponentDetailPanel({ detail, opponentClanId, trackedClans, onTrack, tr
       if (!response.ok) throw new Error(body?.error || 'Erreur lors de la création du clan')
         
       setTrackClanSuccess(true)
+      if (onClanTracked) onClanTracked()
     } catch (err: any) {
       setTrackClanError(err.message)
     } finally {

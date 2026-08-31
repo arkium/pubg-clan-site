@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 import { prisma } from '@/lib/prisma'
 import { generateToken, hashToken } from '@/lib/auth-crypto'
@@ -63,12 +63,14 @@ export async function createSession(params: {
   }
 }
 
-export function setSessionCookie(response: NextResponse, token: string, expiresAt: Date) {
-  response.cookies.set(SESSION_COOKIE_NAME, token, buildCookieOptions(expiresAt))
+export async function setSessionCookie(token: string, expiresAt: Date) {
+  const cookieStore = await cookies()
+  cookieStore.set(SESSION_COOKIE_NAME, token, buildCookieOptions(expiresAt))
 }
 
-export function clearSessionCookie(response: NextResponse) {
-  response.cookies.set(SESSION_COOKIE_NAME, '', {
+export async function clearSessionCookie() {
+  const cookieStore = await cookies()
+  cookieStore.set(SESSION_COOKIE_NAME, '', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

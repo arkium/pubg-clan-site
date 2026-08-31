@@ -66,7 +66,7 @@ function readEmailEnvStatus() {
 async function getAuthorizedPermissions(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session?.activeMemberId) {
-    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as NextResponse }
+    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as Response }
   }
 
   const permissions = await getMemberPermissionKeys(session.activeMemberId)

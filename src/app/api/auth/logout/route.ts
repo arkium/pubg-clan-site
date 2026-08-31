@@ -9,6 +9,6 @@ export async function POST(request: Request) {
   }
 
   const response = Response.json({ success: true })
-  clearSessionCookie(response)
+  await clearSessionCookie()
   return response
 }

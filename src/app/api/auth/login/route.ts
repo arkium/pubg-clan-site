@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       canSwitchClan: authenticated.canSwitchClan,
     })
 
-    setSessionCookie(response, token, expiresAt)
+    await setSessionCookie(token, expiresAt)
     return response
   } catch (error) {
     console.error('Login error:', error)

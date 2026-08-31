@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -16,14 +16,14 @@ export async function isSuperUserSession(request: Request): Promise<boolean> {
   return user?.isSuperUser === true
 }
 
-export async function requireSuperUser(request: Request): Promise<NextResponse | null> {
+export async function requireSuperUser(request: Request): Promise<Response | null> {
   const session = await getSessionFromRequest(request)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   const user = await prisma.userAccount.findUnique({
     where: { id: session.userId },
     select: { isSuperUser: true },
   })
-  if (!user?.isSuperUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!user?.isSuperUser) return Response.json({ error: 'Forbidden' }, { status: 403 })
   return null
 }
 
@@ -83,13 +83,13 @@ export async function requireSameClanAsMember(
   targetMemberId: number,
   request: Request,
   options?: { readOnly?: boolean }
-): Promise<NextResponse | null> {
+): Promise<Response | null> {
   if (options?.readOnly && isAuthDisabled()) {
     return null
   }
 
   const session = await getSessionFromRequest(request)
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const user = await prisma.userAccount.findUnique({
     where: { id: session.userId },
@@ -98,21 +98,21 @@ export async function requireSameClanAsMember(
   if (user?.isSuperUser) return null
 
   const actorMemberId = session.activeMemberId
-  if (!actorMemberId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!actorMemberId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const targetMember = await prisma.clanMember.findUnique({
     where: { id: targetMemberId },
     select: { clanId: true },
   })
-  if (!targetMember) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
-  if (!targetMember.clanId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!targetMember) return Response.json({ error: 'Member not found' }, { status: 404 })
+  if (!targetMember.clanId) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
   const actorMember = await prisma.clanMember.findUnique({
     where: { id: actorMemberId },
     select: { clanId: true, isActive: true },
   })
   if (!actorMember || !actorMember.isActive || actorMember.clanId !== targetMember.clanId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   return null
@@ -131,7 +131,7 @@ export function requirePermission(permission: string) {
         return null
       }
 
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // SuperUsers bypass clan membership and permission checks
@@ -142,13 +142,13 @@ export function requirePermission(permission: string) {
     if (options?.clanId) {
       const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
       if (!inClan) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
     const allowed = await hasPermission(actorMemberId, permission)
     if (!allowed) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     return null
@@ -168,7 +168,7 @@ export function requireRole(roleNames: string[]) {
         return null
       }
 
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // SuperUsers bypass clan membership and role checks
@@ -179,13 +179,13 @@ export function requireRole(roleNames: string[]) {
     if (options?.clanId) {
       const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
       if (!inClan) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
     const allowed = await hasAnyRole(actorMemberId, roleNames)
     if (!allowed) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     return null
@@ -203,7 +203,7 @@ export function requireNavPermission(navKey: string) {
     const role = await getNavItemRole(navKey)
 
     if (role === 'hidden') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     if (role === 'none') {
@@ -216,7 +216,7 @@ export function requireNavPermission(navKey: string) {
       if (options?.allowMissingActor) {
         return null
       }
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // SuperUsers bypass clan membership checks (they may browse any clan)
@@ -225,7 +225,7 @@ export function requireNavPermission(navKey: string) {
     if (!isSU && options?.clanId) {
       const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
       if (!inClan) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
@@ -242,14 +242,14 @@ export function requireNavPermission(navKey: string) {
         || await hasPermission(actorMemberId, 'manage_roles')
         || await hasPermission(actorMemberId, 'manage_settings')
       if (!isAdmin) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
       return null
     }
 
     if (role === 'superuser') {
       if (!isSU) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
       }
       return null
     }
@@ -260,7 +260,7 @@ export function requireNavPermission(navKey: string) {
     }
     const isOwner = await hasPermission(actorMemberId, '*')
     if (!isOwner) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     return null

@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       memberId: activated.memberId,
     })
 
-    setSessionCookie(response, token, expiresAt)
+    await setSessionCookie(token, expiresAt)
     return response
   } catch (error) {
     if (error instanceof Error) {

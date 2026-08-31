@@ -14,11 +14,11 @@ const UpdatePubgRateLimitSchema = z.object({
 async function requireSuperUserSession(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as NextResponse }
+    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as Response }
   }
 
   if (!session.isSuperUser) {
-    return { error: Response.json({ error: 'Forbidden' }, { status: 403 }) as NextResponse }
+    return { error: Response.json({ error: 'Forbidden' }, { status: 403 }) as Response }
   }
 
   return { error: null }

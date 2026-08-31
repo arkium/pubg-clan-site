@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/middleware/auth-permission'
 
@@ -144,7 +144,7 @@ export async function GET(
         `telemetry_avg_duration_ms{clan="${parsedClanId}"} ${avgDurationMs}`,
       ]
 
-      return new NextResponse(lines.join('\n'), {
+      return new Response(lines.join('\n'), {
         headers: { 'Content-Type': 'text/plain; version=0.0.4' },
       })
     }

@@ -28,16 +28,20 @@ export async function POST(req: NextRequest) {
       targetClanId = detectedClan?.clan.id ?? (await getOrCreateUngroupedClan(player.platformShard)).id
     }
 
-    // Check if player is already in the clan
+    // Check if player already exists in the system (a player can only be in one clan at a time)
     const existingMember = await prisma.clanMember.findFirst({
       where: {
-        clanId: targetClanId,
-        pubgAccountId: player.pubgAccountId
+        platformShard: player.platformShard,
+        OR: [
+          { pubgAccountId: player.pubgAccountId },
+          { playerId: player.id },
+          { pubgPlayerName: player.pubgPlayerName }
+        ]
       }
     })
 
     if (existingMember) {
-      if (existingMember.joinStatus === 'active') {
+      if (existingMember.clanId === targetClanId && existingMember.joinStatus === 'active' && existingMember.isActive) {
         return Response.json({ error: 'Ce joueur est déjà un membre actif de ce clan.' }, { status: 400 })
       }
       
@@ -49,7 +53,10 @@ export async function POST(req: NextRequest) {
         data: {
           isActive: true,
           joinStatus: 'active',
-          playerId: player.id
+          clanId: targetClanId,
+          playerId: player.id,
+          pubgAccountId: player.pubgAccountId,
+          pubgPlayerName: player.pubgPlayerName
         }
       })
       return Response.json(updated)

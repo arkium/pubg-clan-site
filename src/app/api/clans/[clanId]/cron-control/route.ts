@@ -13,8 +13,9 @@ import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
-  import { getInternalCronAuthHeaders } from '@/lib/internal-api'
+import { getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { getActorMemberId, isSuperUserSession, requireRole } from '@/middleware/auth-permission'
+import { syncClanMatches } from '@/lib/matches-sync-service'
 
 type CronAction =
   | 'sync_matches'
@@ -174,36 +175,27 @@ export async function POST(
     const executionLog = execution
 
     if (action === 'sync_matches') {
-      const response = await fetch(`${getInternalApiBaseUrl()}/api/clans/${parsedClanId}/sync-matches`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-      })
+      let payload
+      try {
+        payload = await syncClanMatches(parsedClanId)
+      } catch (err) {
+        payload = { error: err instanceof Error ? err.message : 'Failed to synchronize clan matches' }
+      }
 
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            error?: string
-            status?: 'success' | 'partial'
-            importedCount?: number
-            importedMatches?: number
-            errorsCount?: number
-            errorsPreview?: string[]
-          }
-        | null
-
-      if (!response.ok) {
+      if (payload && 'error' in payload && payload.error) {
         await finishCronExecution({
           id: executionLog.id,
           startedAt: executionLog.startedAt,
           status: 'failed',
-          message: payload?.error ?? 'Failed to synchronize clan matches',
+          message: payload.error ?? 'Failed to synchronize clan matches',
           details: payload,
         })
 
         return Response.json(
           {
-            error: payload?.error ?? 'Failed to synchronize clan matches',
+            error: payload.error ?? 'Failed to synchronize clan matches',
           },
-          { status: response.status }
+          { status: 500 }
         )
       }
 

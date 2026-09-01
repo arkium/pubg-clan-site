@@ -32,6 +32,7 @@ import { listSquadMatchesNeedingTelemetry } from '@/lib/pubg-telemetry/backlog'
 import { upsertFailedTelemetrySnapshot } from '@/lib/pubg-telemetry/index'
 import { enqueueTelemetryLiveSyncJobs } from '@/lib/pubg-telemetry/live-sync-queue'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
+import { syncClanMatches } from '@/lib/matches-sync-service'
 
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
 const MAX_SYNC_ATTEMPTS = 3
@@ -133,46 +134,7 @@ async function loadChallengeService(): Promise<ChallengeService> {
 }
 
 async function triggerClanSync(clanId: number) {
-  const response = await fetch(
-    `${getInternalApiBaseUrl()}/api/clans/${clanId}/sync-matches`,
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...getInternalCronAuthHeaders(),
-      },
-    }
-  )
-
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    const message =
-      typeof payload?.error === 'string'
-        ? payload.error
-        : typeof payload?.message === 'string'
-          ? payload.message
-          : `${response.status} ${response.statusText}`.trim()
-    throw new Error(message)
-  }
-
-  return payload as {
-    clanId: number
-    clanName: string
-    status?: 'success' | 'partial'
-    importedCount?: number
-    importedMatches?: number
-    membersProcessed: number
-    errorsCount?: number
-    errorsPreview?: string[]
-    errors?: string[]
-    logs?: string[]
-    memberResults?: Array<{
-      memberId: number
-      memberName: string
-      importedMatches: number
-    }>
-  } | null
+  return await syncClanMatches(clanId)
 }
 
 async function syncClanWithRetry(clanId: number, clanName: string) {

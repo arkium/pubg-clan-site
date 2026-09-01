@@ -1829,3 +1829,12 @@ Le document précise qu'il reflète l'état réel du code (`Fichier généré de
 - Fenêtre de rotation (non caractérisée) de la relation `matches` du endpoint de base PUBG (phase 0) — un joueur très actif peut faire sortir un match custom de cette liste avant le prochain passage cron ; à mesurer avant de garantir une couverture à 100 % pendant un tournoi actif.
 - Tournois éligibles sur **tous les formats** (solo/duo/trio/squad, décision clarifiée le 2026-08-30) — aucun filtre de taille d'équipe dans le moteur d'attribution ; seuls comptent `matchType: 'custom'`, la fenêtre de dates du tournoi et l'appartenance à un clan participant. Pas de badge `matchType` ajouté sur `/clans/[clanId]/matches`, qui continue d'afficher indifféremment matchs classés et custom (le `TeamModeBadge` existant suffit à donner le contexte).
 - Recomposition d'équipe entre manches (remplaçant) : points répartis sur deux lignes d'équipe distinctes plutôt que fusionnés (voir "Point ouvert" ci-dessus).
+
+### ~~Télémétrie — Cron Timeout (UND_ERR_HEADERS_TIMEOUT)~~ — ✅ Corrigé le 2026-09-01
+
+Le cron `daily_sync` déclenchait une erreur `UND_ERR_HEADERS_TIMEOUT` car il appelait la route API `POST /api/clans/[clanId]/sync-matches` qui durait plus de 5 minutes pour les gros clans, dépassant la limite par défaut du client HTTP de Node.js (fetch).
+
+- [x] Extraction de la logique de `sync-matches/route.ts` vers un service dédié `src/lib/matches-sync-service.ts`
+- [x] Appel direct de la fonction `syncClanMatches` dans `src/lib/cron-jobs.ts` pour s'affranchir de la requête HTTP
+- [x] Mise à jour de la route API `sync-matches/route.ts` pour utiliser ce même service tout en conservant les vérifications de permissions existantes
+- [x] Mise à jour de la route de contrôle manuel (`/api/clans/[clanId]/cron-control`) pour appeler également le service en direct plutôt que via HTTP

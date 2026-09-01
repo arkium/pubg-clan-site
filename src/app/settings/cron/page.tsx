@@ -398,7 +398,7 @@ function WorkerPanel({
         {details.map((row) => (
           <div key={row.label} className="flex items-start justify-between gap-2 text-xs">
             <dt className="text-slate-500 shrink-0">{row.label}</dt>
-            <dd className="font-medium text-slate-800 text-right">{row.value}</dd>
+            <dd className="font-medium text-slate-900 text-right">{row.value}</dd>
           </div>
         ))}
       </dl>
@@ -863,7 +863,7 @@ export default function CronSettingsPage() {
 
       {/* --- Cards métriques --- */}
       {payload && (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <article className="app-panel p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Taux de succès</p>
             <p className="mt-2 text-2xl font-bold text-slate-900">

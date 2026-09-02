@@ -977,6 +977,31 @@ Deux mécanismes distincts coexistent dans le code :
 - [x] ESLint et `tsc --noEmit` propres (137 erreurs, baseline inchangée), `npm run test:telemetry` toujours 55/59 (mêmes 3 échecs préexistants)
 - [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès SuperUser disponible
 
+#### Évolution — Backlog, Suivi Worker/Planification, Actions & Chargement Progressif — ✅ Déployé le 2026-09-02
+
+Demande utilisateur : `/settings/telemetry-recoveries` n'affichait aucune information sur ce qui restait à récupérer (backlog invisible), le statut de complétion réel était absent, et aucune indication ne permettait de savoir quand le restant serait récupéré. De plus, un chargement rapide avec affichage progressif des données plus lourdes était requis.
+
+- [x] **Chargement progressif et asynchrone :** suppression de l'écran blanc bloquant. La page et la navigation s'affichent instantanément. Trois flux de données parallèles indépendants :
+  1. `GET /api/settings/telemetry-recoveries/status` : ultra-rapide (< 20ms), lit le lock du worker (`.telemetry-resync-worker.lock`), la file live-sync (`CronExecution`), la configuration scheduler (`TELEMETRY_SYNC_ENABLED`, quota) et l'ETA de traitement.
+  2. `GET /api/settings/telemetry-recoveries?window=...` : rapide (50-100ms), récupère l'activité récente par fenêtre temporelle (`24h`, `7d`, `30d`, `all`).
+  3. `GET /api/settings/telemetry-recoveries/backlog` : audit complet en tâche de fond sous skeleton animé, calculant le vrai volume de matchs éligibles, les télémétries complétées, le backlog restant, les matchs en file et les urgences PUBG 14 jours.
+- [x] **Axe 1 — Visibilité Backlog & Complétion Réelle :**
+  - Nouveau service [telemetry-recoveries-backlog.ts](../../src/lib/telemetry-recoveries-backlog.ts) avec agrégation SQL optimisée groupée par clan (`SquadMatch` non casual, `SquadMember`, `ClanMember`, LEFT JOIN `SquadMatchTelemetry`).
+  - Prise en compte de la règle de rétention PUBG (14 jours) : les matchs de plus de 14 jours sans télémétrie sont isolés en `expiredMatches` (non récupérables).
+  - Alerte d'urgence PUBG : détection des matchs datant de 7 à 13 jours risquant d'expirer prochainement.
+  - Jauge de complétion réelle cross-clans et par clan : `complétés / (total - expirés PUBG)`.
+- [x] **Axe 2 — Moteur & Planification (Quand est-ce récupéré) :**
+  - Nouveau service [telemetry-recoveries-status.ts](../../src/lib/telemetry-recoveries-status.ts) et route [status/route.ts](../../src/app/api/settings/telemetry-recoveries/status/route.ts).
+  - Bandeau temps réel : badge 🟢 Worker Actif (PID, traitement en cours) ou 🔴 Worker Inactif avec consigne explicite (`npm run telemetry:worker`).
+  - File d'attente : nombre de matchs `queued` et `running`, temps estimé (ETA).
+  - Statut de la synchronisation automatique nocturne (`TELEMETRY_SYNC_ENABLED`, heure estimée, quota par clan).
+- [x] **Axe 3 — Actions SuperUser directes :**
+  - Nouvelle route [POST /api/settings/telemetry-recoveries/enqueue-backlog](../../src/app/api/settings/telemetry-recoveries/enqueue-backlog/route.ts) permettant de mettre en file en 1 clic tout le backlog récupérable ou prioritairement les urgences (< 14 jours).
+  - Boutons d'enqueuement cross-clans et par clan directement sur les cartes de clan avec rafraîchissement réactif (`reloadToken`).
+- [x] **Tests & Validation :**
+  - Nouveaux tests unitaires [telemetry-recoveries.test.ts](../../src/lib/telemetry-recoveries.test.ts) validant le statut, le calcul du backlog/complétion et l'enqueuement (3/3 passés).
+  - `npx tsc --noEmit` : 0 erreur. ESLint : 0 erreur, 0 avertissement.
+
 ---
 
 ### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04

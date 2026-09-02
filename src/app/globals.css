@@ -253,6 +253,100 @@ main.mx-auto {
   object-fit: cover;
 }
 
+/* Status pill & Meta pill — issus du Design System docs/ui/index.html */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid;
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.status-pill--online {
+  border-color: rgb(16 185 129 / 0.45);
+  background-color: rgb(209 250 229 / 0.85);
+  color: rgb(6 78 59);
+}
+
+.status-pill--offline {
+  border-color: rgb(148 163 184 / 0.45);
+  background-color: rgb(226 232 240 / 0.85);
+  color: rgb(30 41 59);
+}
+
+.status-pill--pending {
+  border-color: rgb(245 158 11 / 0.45);
+  background-color: rgb(254 243 199 / 0.85);
+  color: rgb(146 64 14);
+}
+
+.status-pill--error {
+  border-color: rgb(244 63 94 / 0.45);
+  background-color: rgb(255 228 230 / 0.85);
+  color: rgb(159 18 57);
+}
+
+html[data-app-theme='dark'] .status-pill--online,
+body[data-app-theme='dark'] .status-pill--online,
+:root[data-app-theme='dark'] .status-pill--online {
+  border-color: rgb(52 211 153 / 0.55);
+  background-color: rgb(6 95 70 / 0.38);
+  color: rgb(209 250 229);
+}
+
+html[data-app-theme='dark'] .status-pill--offline,
+body[data-app-theme='dark'] .status-pill--offline,
+:root[data-app-theme='dark'] .status-pill--offline {
+  border-color: rgb(148 163 184 / 0.5);
+  background-color: rgb(51 65 85 / 0.6);
+  color: rgb(226 232 240);
+}
+
+html[data-app-theme='dark'] .status-pill--pending,
+body[data-app-theme='dark'] .status-pill--pending,
+:root[data-app-theme='dark'] .status-pill--pending {
+  border-color: rgb(251 191 36 / 0.55);
+  background-color: rgb(146 64 14 / 0.32);
+  color: rgb(254 240 138);
+}
+
+html[data-app-theme='dark'] .status-pill--error,
+body[data-app-theme='dark'] .status-pill--error,
+:root[data-app-theme='dark'] .status-pill--error {
+  border-color: rgb(244 63 94 / 0.5);
+  background-color: rgb(76 5 25 / 0.38);
+  color: rgb(253 164 175);
+}
+
+.app-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid var(--theme-ui-border);
+  border-radius: 9999px;
+  background-color: var(--theme-ui-surface);
+  color: var(--theme-ui-text-secondary);
+  box-shadow: var(--app-panel-shadow);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 body[data-app-theme] :where(.bg-white, .bg-white\/90, .bg-white\/85, .bg-white\/80, .bg-white\/70, .bg-white\/60, .bg-white\/50, .bg-white\/30) {
   background-color: var(--theme-ui-surface);
 }

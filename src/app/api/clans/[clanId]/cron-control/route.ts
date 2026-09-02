@@ -1,5 +1,3 @@
-import { NextRequest } from 'next/server'
-
 import {
   CRON_ACTION_LABELS,
   finishCronExecution,
@@ -10,12 +8,11 @@ import {
   type CronActionKey,
 } from '@/lib/cron-observability'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
-import { getInternalApiBaseUrl } from '@/lib/internal-api'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
-import { getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { getActorMemberId, isSuperUserSession, requireRole } from '@/middleware/auth-permission'
 import { syncClanMatches } from '@/lib/matches-sync-service'
+import { prisma } from '@/lib/prisma'
 
 type CronAction =
   | 'sync_matches'
@@ -26,22 +23,6 @@ type CronAction =
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-function getLastCompletedWeekStart(referenceDate = new Date()) {
-  const currentWeekStart = new Date(referenceDate)
-  const day = currentWeekStart.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  currentWeekStart.setDate(currentWeekStart.getDate() + diff)
-  currentWeekStart.setHours(0, 0, 0, 0)
-
-  const previousWeekStart = new Date(currentWeekStart)
-  previousWeekStart.setDate(previousWeekStart.getDate() - 7)
-  return previousWeekStart
-}
-
-function getLastCompletedMonthStart(referenceDate = new Date()) {
-  return new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1, 1, 0, 0, 0, 0)
 }
 
 function parseAction(value: unknown): CronAction | null {
@@ -412,5 +393,44 @@ export async function POST(
 
     console.error('Cron control failed:', error)
     return Response.json({ error: 'Failed to control cron actions' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ clanId: string }> }
+) {
+  try {
+    const { clanId } = await params
+    const parsedClanId = parseClanId(clanId)
+
+    if (!parsedClanId) {
+      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
+    }
+
+    const roleError = await requireCronClanAccess(request, parsedClanId)
+    if (roleError) {
+      return roleError
+    }
+
+    // Supprimer uniquement les exécutions terminées ou échouées, ne JAMAIS supprimer les exécutions en cours ou en attente
+    const result = await prisma.cronExecution.deleteMany({
+      where: {
+        clanId: parsedClanId,
+        status: { notIn: ['running', 'queued'] },
+      },
+    })
+
+    return Response.json({
+      ok: true,
+      deletedCount: result.count,
+      message: `${result.count} entrée(s) d'historique purgée(s) avec succès.`,
+    })
+  } catch (error) {
+    console.error('Failed to purge cron execution history:', error)
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Failed to purge cron history' },
+      { status: 500 }
+    )
   }
 }

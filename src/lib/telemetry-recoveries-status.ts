@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 
 import { getTelemetryLiveSyncQueueStats, TelemetryLiveSyncQueueStats } from '@/lib/pubg-telemetry/live-sync-queue'
+import { prisma } from '@/lib/prisma'
 
 export type TelemetryWorkerStatus = {
   alive: boolean
@@ -60,20 +61,49 @@ async function readWorkerLock(): Promise<TelemetryWorkerStatus> {
   }
 }
 
-function resolveNextDailySyncEstimate(): string {
+async function resolveNextDailySyncEstimate(): Promise<string> {
+  const override = await prisma.cronSchedule
+    .findUnique({ where: { key: 'daily_sync' } })
+    .catch(() => null)
+  const expr = (override?.expression ?? process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *').trim()
+
   const now = new Date()
-  const next = new Date(now)
-  next.setHours(4, 0, 0, 0)
-  if (next.getTime() <= now.getTime()) {
-    next.setDate(next.getDate() + 1)
+  const parts = expr.split(/\s+/)
+  if (parts.length === 5) {
+    const [minStr, hourStr] = parts
+    const minute = Number(minStr)
+    const hour = Number(hourStr)
+
+    // Si minute fixe et heure répétée (ex: "0 * * * *")
+    if (!Number.isNaN(minute) && hourStr === '*') {
+      const next = new Date(now)
+      next.setMinutes(minute, 0, 0)
+      if (next.getTime() <= now.getTime()) {
+        next.setHours(next.getHours() + 1)
+      }
+      return next.toISOString()
+    }
+
+    // Si minute fixe et heure fixe (ex: "0 2 * * *")
+    if (!Number.isNaN(minute) && !Number.isNaN(hour)) {
+      const next = new Date(now)
+      next.setHours(hour, minute, 0, 0)
+      if (next.getTime() <= now.getTime()) {
+        next.setDate(next.getDate() + 1)
+      }
+      return next.toISOString()
+    }
   }
+
+  const next = new Date(now.getTime() + 60 * 60 * 1000)
   return next.toISOString()
 }
 
 export async function getTelemetryRecoveriesStatus(): Promise<TelemetryRecoveriesStatusPayload> {
-  const [worker, queue] = await Promise.all([
+  const [worker, queue, nextDailySyncEstimate] = await Promise.all([
     readWorkerLock(),
     getTelemetryLiveSyncQueueStats(),
+    resolveNextDailySyncEstimate(),
   ])
 
   const syncEnabled = process.env.TELEMETRY_SYNC_ENABLED === 'true'
@@ -94,7 +124,7 @@ export async function getTelemetryRecoveriesStatus(): Promise<TelemetryRecoverie
       syncEnabled,
       cronJobsEnabled,
       maxMatchesPerRun,
-      nextDailySyncEstimate: resolveNextDailySyncEstimate(),
+      nextDailySyncEstimate,
     },
     etaSeconds,
   }

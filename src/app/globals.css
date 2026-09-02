@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where([data-app-theme=dark], [data-app-theme=dark] *));
 
 :root {
   --background: #ffffff;
@@ -371,7 +372,7 @@ body[data-app-theme] :where(.text-gray-900, .text-slate-900) {
   color: var(--theme-ui-text);
 }
 
-body[data-app-theme] :where(.text-gray-800, .text-gray-700, .text-slate-700, .text-slate-600, .text-gray-600) {
+body[data-app-theme] :where(.text-gray-800, .text-gray-700, .text-slate-800, .text-slate-700, .text-slate-600, .text-gray-600) {
   color: var(--theme-ui-text-secondary);
 }
 
@@ -381,6 +382,35 @@ body[data-app-theme] :where(.text-gray-500, .text-slate-500, .text-gray-400) {
 
 body[data-app-theme] :where(.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover) {
   background-color: var(--theme-ui-hover) !important;
+}
+
+/* Toasts de notification télémétrie haute visibilité */
+.telemetry-toast-success {
+  border: 1px solid rgb(52 211 153 / 0.6);
+  background-color: rgb(236 253 245);
+  color: rgb(6 78 59);
+}
+
+.telemetry-toast-error {
+  border: 1px solid rgb(244 63 94 / 0.6);
+  background-color: rgb(255 241 242);
+  color: rgb(159 18 57);
+}
+
+html[data-app-theme='dark'] .telemetry-toast-success,
+body[data-app-theme='dark'] .telemetry-toast-success,
+:root[data-app-theme='dark'] .telemetry-toast-success {
+  border-color: rgb(52 211 153 / 0.5) !important;
+  background-color: rgb(6 95 70 / 0.4) !important;
+  color: rgb(240 253 244) !important;
+}
+
+html[data-app-theme='dark'] .telemetry-toast-error,
+body[data-app-theme='dark'] .telemetry-toast-error,
+:root[data-app-theme='dark'] .telemetry-toast-error {
+  border-color: rgb(244 63 94 / 0.5) !important;
+  background-color: rgb(76 5 25 / 0.4) !important;
+  color: rgb(255 228 230) !important;
 }
 
 html[data-app-theme='dark'] {

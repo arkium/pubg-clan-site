@@ -6,6 +6,50 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-11.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### ~~Modernisation Ops Cron (`/settings/cron`), Purge d'historique et Documentation des tâches~~ — ✅ Complété le 2026-09-02
+
+Refonte moderne de la console de supervision des tâches planifiées `/settings/cron` selon le Design System (`docs/ui/index.html`), clarification du fonctionnement des jobs de synchronisation télémétrie et ajout de la purge des exécutions.
+
+- [x] **Purge de l'historique d'exécutions :**
+  - Ajout de la route API sécurisée `DELETE /api/clans/[clanId]/cron-control` (contrôle SuperUser / Owner, suppression dans `prisma.cronExecution` avec exclusion stricte des jobs `running` et `queued`).
+  - Bouton interactif avec confirmation en ligne dans l'en-tête de la section Historique (`Trash2`, bouton "Confirmer la purge", notification toast haute visibilité et rafraîchissement dynamique).
+- [x] **Descriptions enrichies des tâches cron :**
+  - Dictionnaire `SCHEDULE_DESCRIPTIONS` détaillant le rôle précis et l'impact de chaque job (`daily_sync`, `daily_stats_recalc`, `daily_lifetime_stats_sync`, `daily_season_stats_sync`, `clan_online_reminder`, `weekly_report_reminder`, `weekly_report_auto`, `monthly_report_auto`, `challenge_processing`, `encountered_player_clan_resolution`).
+  - Affichage direct sous le nom de chaque tâche dans le tableau d'édition des expressions cron.
+- [x] **Contraste & Design System :**
+  - Remplacement de tous les badges obsolètes par le composant `StatusPill` exploitant les classes officielles `.status-pill` (`--online`, `--pending`, `--error`, `--offline`) et `.status-dot`.
+  - Intégration de `.app-meta-pill` pour le clan actif et les badges de métadonnées.
+  - Toasts de feedback unifiés avec `.telemetry-toast-success` et `.telemetry-toast-error`.
+  - Tous les textes et labels de tables et cartes adaptés pour un contraste optimal en thème sombre (`text-slate-900 dark:text-white`, `text-slate-700 dark:text-slate-300`, `dark:border-slate-700`, `dark:bg-slate-900`).
+- [x] **Liaison explicite Actions manuelles ↔ Crons & Sélecteur de portée :**
+  - Ajout sur chaque carte d'action manuelle d'un badge de liaison technique (`daily_sync`, `daily_stats_recalc`, `telemetry:aggregates:worker`, `daily_lifetime_stats_sync`) et harmonisation des intitulés de boutons.
+  - Sélecteur de clan mis en évidence dans l'en-tête de la section, permettant de basculer instantanément d'un clan à un autre sans recharger la page, ou de sélectionner l'option globale « Tous les clans ».
+  - Bandeau d'avancement en direct avec spinner, libellé précis de l'action en cours et barre de progression dynamique lors des exécutions unitaires ou par lot.
+- [x] **Documentation du fonctionnement & limites :**
+  - *Fréquence & Quota :* Le job `daily_sync` (par défaut `0 * * * *`, exécuté toutes les heures) découvre et planifie les nouveaux matchs PUBG pour tous les clans actifs avec une limite de sécurité fixée à 50 matchs max par clan par exécution (soit jusqu'à 1200 matchs/clan/jour).
+  - *Découplage Cron / Worker :* Le cron scheduler planifie et dépose les matchs à traiter dans la file d'attente ; c'est le worker dédié en arrière-plan (`telemetry:worker`) qui dépile et télécharge la télémétrie en continu.
+  - *Estimation dynamique :* L'estimation de prochaine relance lit dynamiquement l'expression cron en base plutôt qu'une valeur figée.
+
+
+### Harmonisation de `/clans/[clanId]/telemetry/recoveries` avec la console globale — ✅ Réalisé le 2026-09-02
+
+Mise à niveau de la console télémétrie par clan pour apporter le même état d'esprit et les mêmes capacités d'audit et de pilotage que la page globale `/settings/telemetry-recoveries` :
+- [x] **Pilotage Moteur & File d'attente intégrés :**
+  - Affichage en direct du statut du worker (en ligne/hors ligne, PID, heartbeat), de la file d'attente globale (`queued`, `running`, `remaining`, `total`), de la durée estimée ETA et de la prochaine relance cron estimée.
+- [x] **Audit réel du Backlog du Clan :**
+  - Calcul et affichage des métriques complètes du clan sur l'ensemble de la base : Matchs totaux, Complétés, Expirés définitifs PUBG (>14j), Backlog récupérable (<14j), Urgents (<14j sur le point d'expirer), En file / Restant à enfiler.
+  - Jauge tricolore de complétion (complétés vert, expirés gris, récupérables indigo).
+- [x] **Actions d'enfilage rapide pour le Clan :**
+  - Ajout de la méthode `POST /api/clans/[clanId]/telemetry/recoveries` avec permission Clan Owner et SuperUser.
+  - Bouton « Mettre en file les urgences (< 14j) » pour sécuriser les matchs avant expiration PUBG.
+  - Bouton « Mettre en file tout le backlog » pour ingérer tous les matchs récupérables restants.
+  - Bouton « Backfill JSON manquants » avec feedback toast unifié.
+- [x] **Sélecteur de clan & Design System :**
+  - Sélecteur rapide de clan en haut de page pour switcher immédiatement d'un clan à l'autre.
+  - Lien direct vers la console globale pour les SuperUsers.
+  - Intégration stricte du Design System (`.status-pill`, `.status-dot`, `.app-meta-pill`, `.app-btn`, `.telemetry-toast-success`, contrastes dark mode `dark:*`).
+
+
 ### ~~Clans "trackés" (RATZ, BEE, MTFR, BDXX, FR-Alliance-BE) — stats à zéro malgré la télémétrie~~ — ✅ Corrigé le 2026-08-11
 
 `/clans/6/overview` (RATZ) affichait 0 partout (kills, wins, dégâts, matchs) alors que 511 lignes `SquadMember` existaient bien en base. Cause : `joinStatus: 'tracked'` isole volontairement les membres (voir `tracked-isolation.test.ts`) des agrégats (`recalculateStatsForClan` dans `stats-calculator.ts`, `precomputeClanMatchesStats` dans `matches-cache-service.ts`) — mais ce statut était le **seul** posé par le bouton "tracker" de `/settings/opponents` (`POST /api/settings/opponents/track`), utilisé pour construire la quasi-totalité du roster de 5 clans sur 6 du site (86 `ClanMember` sur ~95 dans ces clans, tous avec `playerId` renseigné → tous créés via cette route, jamais via `/join`).

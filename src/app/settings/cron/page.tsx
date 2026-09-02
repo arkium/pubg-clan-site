@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertOctagon, CheckCircle2, RotateCw, Trash2, Users } from 'lucide-react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -126,22 +127,47 @@ const KNOWN_ACTIONS = [
   'sync_lifetime_stats',
 ] as const
 
-const ACTION_DESCRIPTIONS: Record<CronAction, string> = {
-  sync_matches:
-    'Récupère les derniers matchs depuis l\'API PUBG et déclenche automatiquement la télémétrie + les stats si de nouveaux matchs sont importés.',
-  sync_stats:
-    'Recalcule les agrégats de statistiques du clan à partir des matchs déjà en base, sans appel à l\'API PUBG.',
-  sync_telemetry_aggregates:
-    'Recalcule les périodes d\'agrégats télémétrie (positions, armes, synergies) à partir des données déjà parsées.',
-  sync_lifetime_stats:
-    'Récupère les statistiques lifetime (toutes saisons confondues) de chaque membre via l\'API PUBG.',
+interface ManualActionConfig {
+  action: CronAction
+  label: string
+  cronKey: string
+  cronLabel: string
+  description: string
 }
 
-const MANUAL_ACTIONS: { action: CronAction; label: string }[] = [
-  { action: 'sync_matches', label: 'Sync matchs' },
-  { action: 'sync_stats', label: 'Recalcul stats' },
-  { action: 'sync_telemetry_aggregates', label: 'Recalcul agrégats télémétrie' },
-  { action: 'sync_lifetime_stats', label: 'Sync stats lifetime' },
+const MANUAL_ACTIONS_CONFIG: ManualActionConfig[] = [
+  {
+    action: 'sync_matches',
+    label: 'Synchroniser les matchs',
+    cronKey: 'daily_sync',
+    cronLabel: 'Sync quotidien clans',
+    description:
+      "Interroge l'API PUBG pour découvrir et importer les nouveaux matchs du clan, et les mettre en file d'attente télémétrie.",
+  },
+  {
+    action: 'sync_stats',
+    label: 'Recalculer les stats globales',
+    cronKey: 'daily_stats_recalc',
+    cronLabel: 'Recalcul stats quotidien',
+    description:
+      "Recalcule l'ensemble des totaux, moyennes, scores et synergies du clan à partir des matchs déjà présents en base.",
+  },
+  {
+    action: 'sync_telemetry_aggregates',
+    label: 'Recalculer agrégats télémétrie',
+    cronKey: 'telemetry:aggregates:worker',
+    cronLabel: 'Worker agrégats télémétrie',
+    description:
+      "Reconstruit les tables de statistiques avancées de télémétrie (synergies d'escouade, positions de largage, armes).",
+  },
+  {
+    action: 'sync_lifetime_stats',
+    label: 'Synchroniser stats lifetime',
+    cronKey: 'daily_lifetime_stats_sync',
+    cronLabel: 'Sync lifetime quotidienne',
+    description:
+      "Récupère via l'API PUBG les statistiques de carrière globale (lifetime toutes saisons confondues) de chaque membre.",
+  },
 ]
 
 const HISTORY_PAGE_SIZE = 10
@@ -156,16 +182,71 @@ const SCHEDULE_LABELS: Record<string, string> = {
   weekly_report_auto: 'Génération auto rapport hebdo',
   monthly_report_auto: 'Génération auto rapport mensuel',
   challenge_processing: 'Traitement des challenges',
+  encountered_player_clan_resolution: 'Résolution clans joueurs rencontrés',
+}
+
+const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
+  daily_sync:
+    'Découverte et synchronisation des nouveaux matchs PUBG pour tous les clans actifs. Si activé, met en file jusqu\'à 50 matchs par clan pour la télémétrie.',
+  daily_stats_recalc:
+    'Recalcul global des agrégats du clan (scores, moyennes, classements, synergies, armes) à partir des matchs déjà en base.',
+  daily_lifetime_stats_sync:
+    'Mise à jour des statistiques de carrière globale (lifetime) de chaque joueur du clan via l\'API PUBG.',
+  daily_season_stats_sync:
+    'Mise à jour des statistiques de la saison PUBG en cours pour les membres actifs de chaque plateforme/shard.',
+  clan_online_reminder:
+    'Notification automatique rappelant aux membres les créneaux ou événements programmés du clan.',
+  weekly_report_reminder:
+    'Notification rappelant la disponibilité ou la clôture du rapport de performance hebdomadaire.',
+  weekly_report_auto:
+    'Génération et archivage automatique du bilan de performance hebdomadaire du clan.',
+  monthly_report_auto:
+    'Génération et archivage automatique du bilan de performance mensuel du clan.',
+  challenge_processing:
+    'Contrôle d\'avancement des défis de clan, validation des objectifs complétés et activation des nouveaux challenges.',
+  encountered_player_clan_resolution:
+    'Résolution et identification des clans des adversaires rencontrés dans les matchs récents.',
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function statusClass(status: 'ok' | 'warning' | 'error' | 'running' | 'success' | 'partial' | 'failed') {
-  if (status === 'ok' || status === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-800'
-  if (status === 'warning' || status === 'partial' || status === 'running') return 'border-amber-200 bg-amber-50 text-amber-800'
-  return 'border-rose-200 bg-rose-50 text-rose-800'
+function StatusPill({
+  status,
+  customLabel,
+}: {
+  status: 'ok' | 'warning' | 'error' | 'running' | 'success' | 'partial' | 'failed'
+  customLabel?: string
+}) {
+  let variant = 'status-pill--offline'
+  let dotColor = 'bg-slate-400'
+  let defaultLabel = status as string
+
+  if (status === 'ok' || status === 'success') {
+    variant = 'status-pill--online'
+    dotColor = 'bg-emerald-500'
+    defaultLabel = status === 'ok' ? 'Opérationnel' : 'Succès'
+  } else if (status === 'running') {
+    variant = 'status-pill--pending'
+    dotColor = 'bg-amber-500 animate-pulse'
+    defaultLabel = 'En cours'
+  } else if (status === 'warning' || status === 'partial') {
+    variant = 'status-pill--pending'
+    dotColor = 'bg-amber-500'
+    defaultLabel = status === 'partial' ? 'Partiel' : 'Attention'
+  } else if (status === 'error' || status === 'failed') {
+    variant = 'status-pill--error'
+    dotColor = 'bg-rose-500'
+    defaultLabel = status === 'failed' ? 'Échec' : 'Erreur'
+  }
+
+  return (
+    <span className={`status-pill ${variant}`}>
+      <span className={`status-dot ${dotColor}`} />
+      {customLabel ?? defaultLabel}
+    </span>
+  )
 }
 
 function formatDate(value: string | null | undefined) {
@@ -232,30 +313,28 @@ function CheckGroupTable({ items, title, description }: { items: CronCheck[]; ti
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-sm font-semibold text-slate-800">{title}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+        <p className="text-sm font-bold text-slate-900 dark:text-white">{title}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
       </div>
       <div className="app-table-shell overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <tr>
-              <th className="px-2 py-2">Variable</th>
-              <th className="px-2 py-2">État</th>
-              <th className="px-2 py-2">Valeur</th>
-              <th className="px-2 py-2">Info</th>
+              <th className="px-3 py-2">Variable</th>
+              <th className="px-3 py-2">État</th>
+              <th className="px-3 py-2">Valeur</th>
+              <th className="px-3 py-2">Info</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
               <tr key={item.key} className="app-table-row align-top">
-                <td className="px-2 py-2 font-mono text-xs font-medium text-slate-900">{item.label}</td>
-                <td className="px-2 py-2">
-                  <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(item.status)}`}>
-                    {item.status}
-                  </span>
+                <td className="px-3 py-2 font-mono text-xs font-semibold text-slate-900 dark:text-white">{item.label}</td>
+                <td className="px-3 py-2">
+                  <StatusPill status={item.status} />
                 </td>
-                <td className="px-2 py-2 font-mono text-xs text-slate-700">{item.value}</td>
-                <td className="px-2 py-2 text-xs text-slate-600">{item.hint ?? '-'}</td>
+                <td className="px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{item.value}</td>
+                <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">{item.hint ?? '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -283,26 +362,26 @@ function ScheduleEditorTable({
   onReset: (key: string) => void
 }) {
   if (schedules.length === 0) {
-    return <p className="text-xs text-slate-500">Chargement des schedules...</p>
+    return <p className="text-xs text-slate-500 dark:text-slate-400">Chargement des schedules...</p>
   }
 
   return (
     <div className="space-y-2">
       <div>
-        <p className="text-sm font-semibold text-slate-800">Schedules cron</p>
-        <p className="text-xs text-slate-500">
+        <p className="text-sm font-bold text-slate-900 dark:text-white">Schedules cron</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Expressions cron actives (fuseau {schedules[0]?.timezone ?? 'UTC'}). Modifiable sans redémarrage —
           appliqué immédiatement au process courant.
         </p>
       </div>
       <div className="app-table-shell overflow-x-auto">
         <table className="min-w-full text-left text-sm">
-          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
             <tr>
-              <th className="px-2 py-2">Tâche</th>
-              <th className="px-2 py-2">Source</th>
-              <th className="px-2 py-2">Expression</th>
-              <th className="px-2 py-2">Actions</th>
+              <th className="px-3 py-2.5">Tâche & Description</th>
+              <th className="px-3 py-2.5">Source</th>
+              <th className="px-3 py-2.5">Expression</th>
+              <th className="px-3 py-2.5">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -312,41 +391,55 @@ function ScheduleEditorTable({
               const rowFeedback = feedback[entry.key]
               return (
                 <tr key={entry.key} className="app-table-row align-top">
-                  <td className="px-2 py-2 font-medium text-slate-900">
-                    {SCHEDULE_LABELS[entry.key] ?? entry.key}
+                  <td className="px-3 py-2.5">
+                    <div className="font-semibold text-slate-900 dark:text-white">
+                      {SCHEDULE_LABELS[entry.key] ?? entry.key}
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 max-w-lg leading-relaxed">
+                      {SCHEDULE_DESCRIPTIONS[entry.key] ?? 'Tâche planifiée automatique.'}
+                    </p>
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-3 py-2.5">
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                        entry.source === 'db'
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                          : 'border-slate-200 bg-slate-50 text-slate-600'
+                      className={`status-pill ${
+                        entry.source === 'db' ? 'status-pill--online' : 'status-pill--offline'
                       }`}
                     >
+                      <span
+                        className={`status-dot ${
+                          entry.source === 'db' ? 'bg-emerald-500' : 'bg-slate-400'
+                        }`}
+                      />
                       {entry.source === 'db' ? 'personnalisé' : '.env'}
                     </span>
                   </td>
-                  <td className="px-2 py-2">
+                  <td className="px-3 py-2.5">
                     <input
                       type="text"
                       value={draft}
                       onChange={(e) => onDraftChange(entry.key, e.target.value)}
                       disabled={isBusy}
-                      className="w-40 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-slate-700"
+                      className="w-36 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 font-mono text-xs text-slate-900 dark:text-white"
                     />
                     {rowFeedback && (
-                      <p className={`mt-1 text-xs ${rowFeedback.type === 'error' ? 'text-rose-700' : 'text-emerald-700'}`}>
+                      <p
+                        className={`mt-1 text-xs font-semibold ${
+                          rowFeedback.type === 'error'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
                         {rowFeedback.message}
                       </p>
                     )}
                   </td>
-                  <td className="px-2 py-2">
-                    <div className="flex flex-wrap gap-2">
+                  <td className="px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => onApply(entry.key)}
                         disabled={isBusy || draft.trim() === entry.expression.trim()}
-                        className="app-btn app-btn--sm app-btn--secondary"
+                        className="app-btn app-btn--xs app-btn--primary"
                       >
                         {isBusy ? '...' : 'Appliquer'}
                       </button>
@@ -355,7 +448,7 @@ function ScheduleEditorTable({
                           type="button"
                           onClick={() => onReset(entry.key)}
                           disabled={isBusy}
-                          className="text-xs text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+                          className="app-btn app-btn--xs app-btn--secondary"
                         >
                           Réinitialiser
                         </button>
@@ -388,17 +481,17 @@ function WorkerPanel({
   return (
     <article className="app-panel p-4 space-y-3">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{title}</p>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
       </div>
-      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(badgeStatus)}`}>
-        {badge}
-      </span>
-      <dl className="space-y-1">
+      <div>
+        <StatusPill status={badgeStatus} customLabel={badge} />
+      </div>
+      <dl className="space-y-1.5 pt-1">
         {details.map((row) => (
           <div key={row.label} className="flex items-start justify-between gap-2 text-xs">
-            <dt className="text-slate-500 shrink-0">{row.label}</dt>
-            <dd className="font-medium text-slate-900 text-right">{row.value}</dd>
+            <dt className="text-slate-500 dark:text-slate-400 shrink-0">{row.label}</dt>
+            <dd className="font-semibold text-slate-900 dark:text-white text-right">{row.value}</dd>
           </div>
         ))}
       </dl>
@@ -413,11 +506,16 @@ function WorkerPanel({
 export default function CronSettingsPage() {
   const router = useRouter()
   const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
-  const { clanId, hydrated: clanHydrated } = useSelectedClan()
+  const { clanId, hydrated: clanHydrated, setClanId } = useSelectedClan()
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [pendingAction, setPendingAction] = useState<CronAction | null>(null)
+  const [progressMessage, setProgressMessage] = useState<string | null>(null)
+  const [progressPercent, setProgressPercent] = useState<number | null>(null)
+  const [clansList, setClansList] = useState<{ id: number; name: string; tag?: string | null }[]>([])
+  const [selectedScope, setSelectedScope] = useState<string | null>(null)
+  const targetScope = selectedScope ?? (clanId ? String(clanId) : 'all')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [payload, setPayload] = useState<CronStatusPayload | null>(null)
@@ -434,6 +532,8 @@ export default function CronSettingsPage() {
   const [filterAction, setFilterAction] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+  const [purging, setPurging] = useState(false)
+  const [confirmPurge, setConfirmPurge] = useState(false)
 
   // Auth guard
   useEffect(() => {
@@ -508,28 +608,71 @@ export default function CronSettingsPage() {
     }
   }, [router])
 
+  const loadClans = useCallback(async () => {
+    try {
+      const response = await fetch('/api/clans', { cache: 'no-store' })
+      const data = (await response.json().catch(() => null)) as { id: number; name: string; tag?: string | null }[] | null
+      if (Array.isArray(data)) {
+        setClansList(data.map((c) => ({ id: c.id, name: c.name, tag: c.tag ?? null })))
+      }
+    } catch {
+      // Non-bloquant
+    }
+  }, [])
+
   useEffect(() => {
     if (authLoading || !authenticated || !isSuperUser) return
     if (!clanHydrated) return
 
     if (!clanId) {
-      setLoading(false)
+      queueMicrotask(() => setLoading(false))
       return
     }
 
-    void loadStatus(clanId)
-    void loadWorkers()
-    void loadSchedules()
-  }, [authLoading, authenticated, isSuperUser, clanId, clanHydrated, loadStatus, loadWorkers, loadSchedules])
+    let isMounted = true
+    const init = async () => {
+      if (!isMounted) return
+      await Promise.allSettled([
+        loadStatus(clanId),
+        loadWorkers(),
+        loadSchedules(),
+        loadClans(),
+      ])
+    }
+    void init()
 
-  async function runAction(action: CronAction) {
-    if (!clanId || pendingAction) return
+    return () => {
+      isMounted = false
+    }
+  }, [authLoading, authenticated, isSuperUser, clanId, clanHydrated, loadStatus, loadWorkers, loadSchedules, loadClans])
+
+  const handleScopeChange = (newScope: string) => {
+    setSelectedScope(newScope)
+    if (newScope !== 'all') {
+      const nextId = Number(newScope)
+      if (nextId && nextId !== clanId) {
+        setClanId(nextId)
+        setRefreshing(true)
+        void loadStatus(nextId)
+      }
+    }
+  }
+
+  async function runActionOnSingle(action: CronAction, targetId: number) {
     setPendingAction(action)
     setError(null)
     setInfo(null)
 
+    const actionCfg = MANUAL_ACTIONS_CONFIG.find((a) => a.action === action)
+    const actionLabel = actionCfg?.label ?? action
+    const targetClan = clansList.find((c) => c.id === targetId)
+    const clanDisplayName = targetClan ? `"${targetClan.name}" (#${targetId})` : `clan #${targetId}`
+
+    setProgressPercent(null)
+    setProgressMessage(`Exécution de "${actionLabel}" pour ${clanDisplayName} en cours...`)
+
     try {
-      const response = await fetch(`/api/clans/${clanId}/cron-control`, {
+      const response = await fetch(`/api/clans/${targetId}/cron-control`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -556,21 +699,90 @@ export default function CronSettingsPage() {
           result?.error ?? result?.message ?? `${fallback}. L'action a peut-être été lancée ; vérifiez l'historique.`
         )
         setRefreshing(true)
-        await loadStatus(clanId)
+        await loadStatus(targetId)
         return
       }
 
-      const parts = [result.message ?? 'Action lancée']
+      const parts = [result.message ?? 'Action terminée']
       if (result.warning) parts.push(result.warning)
       setInfo(parts.join(' — '))
       setRefreshing(true)
-      await loadStatus(clanId)
+      await loadStatus(targetId)
     } catch {
-      setError("Réponse non reçue. L'action a peut-être été lancée ; vérifiez l'historique.")
-      setRefreshing(true)
-      await loadStatus(clanId)
+      setError("Erreur de communication lors de l'exécution de l'action.")
     } finally {
       setPendingAction(null)
+      setProgressMessage(null)
+      setProgressPercent(null)
+    }
+  }
+
+  async function runActionOnAll(action: CronAction) {
+    if (clansList.length === 0) return
+    setPendingAction(action)
+    setError(null)
+    setInfo(null)
+
+    const actionCfg = MANUAL_ACTIONS_CONFIG.find((a) => a.action === action)
+    const actionLabel = actionCfg?.label ?? action
+    const total = clansList.length
+    let succeeded = 0
+    let failed = 0
+
+    try {
+      for (let i = 0; i < total; i++) {
+        const clanItem = clansList[i]
+        const pct = Math.round(((i + 1) / total) * 100)
+        setProgressPercent(pct)
+        setProgressMessage(
+          `[${i + 1}/${total}] ${actionLabel} : traitement de "${clanItem.name}" (#${clanItem.id})...`
+        )
+
+        try {
+          const response = await fetch(`/api/clans/${clanItem.id}/cron-control`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action }),
+          })
+          const res = (await response.json().catch(() => null)) as { ok?: boolean } | null
+          if (response.ok && res?.ok) {
+            succeeded++
+          } else {
+            failed++
+          }
+        } catch {
+          failed++
+        }
+      }
+
+      setInfo(
+        `Action globale "${actionLabel}" terminée : ${succeeded} clan(s) avec succès${
+          failed > 0 ? `, ${failed} échec(s)` : ''
+        }.`
+      )
+      if (clanId) {
+        setRefreshing(true)
+        await loadStatus(clanId)
+      }
+    } catch {
+      setError("Erreur imprévue lors de l'exécution globale.")
+    } finally {
+      setPendingAction(null)
+      setProgressMessage(null)
+      setProgressPercent(null)
+    }
+  }
+
+  async function runAction(action: CronAction) {
+    if (pendingAction) return
+
+    if (targetScope === 'all') {
+      await runActionOnAll(action)
+    } else {
+      const targetId = Number(targetScope) || clanId
+      if (targetId) {
+        await runActionOnSingle(action, targetId)
+      }
     }
   }
 
@@ -665,6 +877,38 @@ export default function CronSettingsPage() {
       }))
     } finally {
       setScheduleBusyKey(null)
+    }
+  }
+
+  async function handlePurgeHistory() {
+    if (!clanId || purging) return
+    setPurging(true)
+    setError(null)
+    setInfo(null)
+
+    try {
+      const response = await fetch(`/api/clans/${clanId}/cron-control`, {
+        method: 'DELETE',
+      })
+      const data = (await response.json().catch(() => null)) as {
+        ok?: boolean
+        message?: string
+        deletedCount?: number
+        error?: string
+      } | null
+
+      if (response.ok && data?.ok) {
+        setInfo(data.message ?? 'Historique purgé avec succès.')
+        setConfirmPurge(false)
+        setRefreshing(true)
+        await loadStatus(clanId)
+      } else {
+        setError(data?.error ?? 'Échec de la purge de l’historique.')
+      }
+    } catch {
+      setError('Erreur de communication lors de la purge de l’historique.')
+    } finally {
+      setPurging(false)
     }
   }
 
@@ -834,55 +1078,86 @@ export default function CronSettingsPage() {
           subtitle="Pilotage global des tâches cron, statut des workers et historique des exécutions."
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(cronWorkerHealth.status)}`}>
-            {cronWorkerHealth.label}
-          </span>
+          <StatusPill status={cronWorkerHealth.status} customLabel={cronWorkerHealth.label} />
           {payload && (
             <>
               {payload.checks.errors > 0 && (
-                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass('error')}`}>
-                  {payload.checks.errors} erreur{payload.checks.errors > 1 ? 's' : ''} config
-                </span>
+                <StatusPill
+                  status="error"
+                  customLabel={`${payload.checks.errors} erreur${payload.checks.errors > 1 ? 's' : ''} config`}
+                />
               )}
               {payload.checks.warnings > 0 && (
-                <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass('warning')}`}>
-                  {payload.checks.warnings} warning{payload.checks.warnings > 1 ? 's' : ''} config
-                </span>
+                <StatusPill
+                  status="warning"
+                  customLabel={`${payload.checks.warnings} warning${payload.checks.warnings > 1 ? 's' : ''} config`}
+                />
               )}
             </>
           )}
-          <span className="text-xs text-slate-500">
-            Clan actif : <strong className="text-slate-700">#{clanId}</strong>
+          <span className="app-meta-pill">
+            Clan actif : #{clanId}
           </span>
           {refreshing && <span className="text-xs text-slate-400">Actualisation...</span>}
         </div>
       </section>
 
-      {error && <section className="app-panel p-4 text-sm text-rose-800">{error}</section>}
-      {info && <section className="app-panel p-4 text-sm text-emerald-800">{info}</section>}
+      {error && (
+        <section className="telemetry-toast-error flex items-center justify-between rounded-xl p-3.5 text-sm font-semibold shadow-sm">
+          <p className="flex items-center gap-2">
+            <AlertOctagon className="h-5 w-5 shrink-0" />
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-xs font-bold underline opacity-80 hover:opacity-100 ml-4 shrink-0"
+          >
+            Fermer
+          </button>
+        </section>
+      )}
+
+      {info && (
+        <section className="telemetry-toast-success flex items-center justify-between rounded-xl p-3.5 text-sm font-semibold shadow-sm">
+          <p className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            {info}
+          </p>
+          <button
+            type="button"
+            onClick={() => setInfo(null)}
+            className="text-xs font-bold underline opacity-90 hover:opacity-100 ml-4 shrink-0"
+          >
+            Fermer
+          </button>
+        </section>
+      )}
 
       {/* --- Cards métriques --- */}
       {payload && (
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <article className="app-panel p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Taux de succès</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Taux de succès</p>
+            <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
               {payload.health.successRate === null ? '-' : `${payload.health.successRate}%`}
             </p>
-            <p className="mt-1 text-xs text-slate-500">sur {payload.health.completedRecent} terminées</p>
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">sur {payload.health.completedRecent} terminées</p>
           </article>
           <article className="app-panel p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Exécutions récentes</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{payload.health.totalRecent}</p>
-            <p className="mt-1 text-xs text-slate-500">{payload.health.completedRecent} terminées</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Exécutions récentes</p>
+            <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{payload.health.totalRecent}</p>
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{payload.health.completedRecent} terminées</p>
           </article>
           <article className="app-panel p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">En cours</p>
-            <p className="mt-2 text-2xl font-bold text-amber-700">{payload.health.runningCount}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">En cours</p>
+            <p className="mt-2 text-2xl font-black text-amber-600 dark:text-amber-400">{payload.health.runningCount}</p>
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Jobs actifs</p>
           </article>
           <article className="app-panel p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Échecs récents</p>
-            <p className="mt-2 text-2xl font-bold text-rose-700">{payload.health.failedCount}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Échecs récents</p>
+            <p className="mt-2 text-2xl font-black text-rose-600 dark:text-rose-400">{payload.health.failedCount}</p>
+            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">À surveiller</p>
           </article>
         </section>
       )}
@@ -890,12 +1165,12 @@ export default function CronSettingsPage() {
       {/* --- Statut des 3 workers --- */}
       <section className="app-panel p-4 space-y-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Statut des workers</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">Statut des workers</h2>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
             Ces trois processus sont indépendants. Le cron scheduler tourne dans le process Next.js.
             Les deux workers télémétrie sont des processus Node.js séparés à démarrer manuellement
-            (<code className="text-xs">npm run telemetry:worker</code> et{' '}
-            <code className="text-xs">npm run telemetry:aggregates:worker</code>).
+            (<code className="text-xs font-mono">npm run telemetry:worker</code> et{' '}
+            <code className="text-xs font-mono">npm run telemetry:aggregates:worker</code>).
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -939,23 +1214,23 @@ export default function CronSettingsPage() {
       {payload && (
         <section className="app-panel p-4 space-y-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Dernière exécution par action</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Vue synthétique du dernier run connu pour chaque type d'action. Les actions automatiques
-              (préfixe <code className="text-xs">daily_</code>, <code className="text-xs">weekly_</code>,{' '}
-              <code className="text-xs">monthly_</code>) sont déclenchées par le scheduler ; les autres sont des
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Dernière exécution par action</h2>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+              Vue synthétique du dernier run connu pour chaque type d&apos;action. Les actions automatiques
+              (préfixe <code className="text-xs font-mono">daily_</code>, <code className="text-xs font-mono">weekly_</code>,{' '}
+              <code className="text-xs font-mono">monthly_</code>) sont déclenchées par le scheduler ; les autres sont des
               exécutions manuelles.
             </p>
           </div>
           <div className="app-table-shell overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+              <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <tr>
-                  <th className="px-2 py-2">Action</th>
-                  <th className="px-2 py-2">Statut</th>
-                  <th className="px-2 py-2">Début</th>
-                  <th className="px-2 py-2">Durée</th>
-                  <th className="px-2 py-2">Source</th>
+                  <th className="px-3 py-2">Action</th>
+                  <th className="px-3 py-2">Statut</th>
+                  <th className="px-3 py-2">Début</th>
+                  <th className="px-3 py-2">Durée</th>
+                  <th className="px-3 py-2">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -964,19 +1239,17 @@ export default function CronSettingsPage() {
                   const label = payload.actionLabels[action] ?? action
                   return (
                     <tr key={action} className="app-table-row align-middle">
-                      <td className="px-2 py-2 font-medium text-slate-900">{label}</td>
-                      <td className="px-2 py-2">
+                      <td className="px-3 py-2 font-semibold text-slate-900 dark:text-white">{label}</td>
+                      <td className="px-3 py-2">
                         {entry ? (
-                          <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(entry.status)}`}>
-                            {entry.status}
-                          </span>
+                          <StatusPill status={entry.status} />
                         ) : (
                           <span className="text-xs text-slate-400">Aucune</span>
                         )}
                       </td>
-                      <td className="px-2 py-2 text-slate-700">{entry ? formatDate(entry.startedAt) : '-'}</td>
-                      <td className="px-2 py-2 text-slate-700">{entry ? getDurationLabel(entry.durationMs) : '-'}</td>
-                      <td className="px-2 py-2 text-slate-500">{entry?.source ?? '-'}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{entry ? formatDate(entry.startedAt) : '-'}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{entry ? getDurationLabel(entry.durationMs) : '-'}</td>
+                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{entry?.source ?? '-'}</td>
                     </tr>
                   )
                 })}
@@ -988,34 +1261,125 @@ export default function CronSettingsPage() {
 
       {/* --- Actions manuelles --- */}
       {clanId && (
-        <section className="app-panel p-4 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Actions manuelles</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Lance une action sur le clan actif (#{clanId}) et contrôle le résultat immédiatement dans l'historique.
-              Voir aussi :{' '}
-              <Link
-                href={`/clans/${clanId}/telemetry/recoveries`}
-                className="font-semibold text-emerald-700 underline-offset-2 hover:underline"
-              >
-                Console recoveries télémétrie
-              </Link>
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {MANUAL_ACTIONS.map(({ action, label }) => (
-              <div key={action} className="app-panel-muted rounded-lg p-3 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => void runAction(action)}
-                  disabled={pendingAction !== null}
-                  className="app-btn app-btn--md app-btn--secondary w-full"
-                >
-                  {pendingAction === action ? 'Exécution...' : label}
-                </button>
-                <p className="text-xs text-slate-500">{ACTION_DESCRIPTIONS[action]}</p>
+        <section className="app-panel p-5 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Actions manuelles</h2>
+                <span className="app-meta-pill text-xs">Exécution immédiate</span>
               </div>
-            ))}
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                Déclencheur instantané de la logique des crons. Choisissez le clan cible ou lancez en lot sur tous les clans.
+              </p>
+            </div>
+
+            {/* Sélecteur de clan mis en évidence */}
+            <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 pl-1">
+                <Users className="h-4 w-4 text-indigo-500" />
+                Cible :
+              </span>
+              <select
+                value={targetScope}
+                onChange={(e) => handleScopeChange(e.target.value)}
+                disabled={pendingAction !== null}
+                className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+              >
+                {clansList.length > 0 && (
+                  <option value="all">⚡ Tous les clans ({clansList.length} clans actifs)</option>
+                )}
+                <optgroup label="Sélectionner un clan">
+                  {clansList.map((c) => (
+                    <option key={c.id} value={String(c.id)}>
+                      Clan #{c.id} — {c.name} {c.tag ? `[${c.tag}]` : ''} {c.id === clanId ? '(actif)' : ''}
+                    </option>
+                  ))}
+                  {clansList.length === 0 && (
+                    <option value={String(clanId)}>Clan actif #{clanId}</option>
+                  )}
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          {/* Bandeau d'avancement dynamique */}
+          {pendingAction && (
+            <div className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-indigo-800 dark:text-indigo-200">
+                <span className="flex items-center gap-2">
+                  <RotateCw className="h-4 w-4 animate-spin text-indigo-500 shrink-0" />
+                  {progressMessage ?? 'Exécution en cours...'}
+                </span>
+                {progressPercent !== null && <span>{progressPercent}%</span>}
+              </div>
+              {progressPercent !== null && (
+                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-indigo-600 dark:bg-indigo-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Grille des cartes avec badges de liaison cron */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {MANUAL_ACTIONS_CONFIG.map((actionCfg) => {
+              const isBusy = pendingAction === actionCfg.action
+              const isAnyBusy = pendingAction !== null
+              const isAll = targetScope === 'all'
+
+              return (
+                <div
+                  key={actionCfg.action}
+                  className="app-panel-muted rounded-xl p-3.5 flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    {/* Badge de liaison cron */}
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 font-mono text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
+                        {actionCfg.cronKey}
+                      </span>
+                    </div>
+
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">
+                      {actionCfg.label}
+                    </div>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      {actionCfg.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => void runAction(actionCfg.action)}
+                      disabled={isAnyBusy}
+                      className={`app-btn app-btn--sm w-full font-semibold ${
+                        isBusy
+                          ? 'app-btn--primary'
+                          : isAll
+                          ? 'app-btn--primary'
+                          : 'app-btn--secondary'
+                      }`}
+                    >
+                      {isBusy ? (
+                        <span className="flex items-center justify-center gap-1.5">
+                          <RotateCw className="h-3.5 w-3.5 animate-spin" />
+                          Traitement...
+                        </span>
+                      ) : isAll ? (
+                        'Lancer pour tous les clans'
+                      ) : (
+                        `Lancer pour #${targetScope === 'current' ? clanId : targetScope}`
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </section>
       )}
@@ -1024,9 +1388,9 @@ export default function CronSettingsPage() {
       {payload && (
         <section className="app-panel p-4 space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Configuration</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Vérification des variables d'environnement critiques et des expressions cron actives.
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Configuration</h2>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+              Vérification des variables d&apos;environnement critiques et des expressions cron actives.
               Un statut <strong>error</strong> bloque le fonctionnement ; un statut <strong>warning</strong> indique une
               configuration sous-optimale.
             </p>
@@ -1055,14 +1419,14 @@ export default function CronSettingsPage() {
           {/* Rate limit PUBG API */}
           <div className="space-y-2">
             <div>
-              <p className="text-sm font-semibold text-slate-800">Rate limit PUBG API</p>
-              <p className="text-xs text-slate-500">Snapshot du dernier appel observé.</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Rate limit PUBG API</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Snapshot du dernier appel observé.</p>
             </div>
-            <div className="app-panel-muted rounded-lg p-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500">Limite</span><span className="font-medium text-slate-800">{payload.pubgApi.latestRateLimit?.limit ?? '-'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Restant</span><span className="font-medium text-slate-800">{payload.pubgApi.latestRateLimit?.remaining ?? '-'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Reset</span><span className="font-medium text-slate-800">{formatDate(payload.pubgApi.latestRateLimit?.resetAt ?? null)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Observé</span><span className="font-medium text-slate-800">{formatDate(payload.pubgApi.latestRateLimit?.observedAt ?? null)}</span></div>
+            <div className="app-panel-muted rounded-xl p-3.5 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Limite</span><span className="font-semibold text-slate-900 dark:text-white">{payload.pubgApi.latestRateLimit?.limit ?? '-'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Restant</span><span className="font-semibold text-slate-900 dark:text-white">{payload.pubgApi.latestRateLimit?.remaining ?? '-'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Reset</span><span className="font-semibold text-slate-900 dark:text-white">{formatDate(payload.pubgApi.latestRateLimit?.resetAt ?? null)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Observé</span><span className="font-semibold text-slate-900 dark:text-white">{formatDate(payload.pubgApi.latestRateLimit?.observedAt ?? null)}</span></div>
             </div>
           </div>
         </section>
@@ -1071,12 +1435,48 @@ export default function CronSettingsPage() {
       {/* --- Historique --- */}
       {payload && (
         <section className="app-panel p-4 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Historique</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Dernières exécutions enregistrées, toutes actions confondues (cron scheduler + actions manuelles +
-              workers télémétrie). Utilisez les filtres pour isoler une action ou un statut spécifique.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Historique des exécutions</h2>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                Dernières exécutions enregistrées (cron scheduler + actions manuelles + workers télémétrie).
+              </p>
+            </div>
+
+            {/* Bouton de purge d'historique */}
+            {confirmPurge ? (
+              <div className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-2 text-xs">
+                <span className="font-semibold text-rose-700 dark:text-rose-300">
+                  Purger tous les logs terminés ?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handlePurgeHistory()}
+                  disabled={purging}
+                  className="app-btn app-btn--xs app-btn--danger"
+                >
+                  {purging ? 'Purge...' : 'Confirmer la purge'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmPurge(false)}
+                  disabled={purging}
+                  className="app-btn app-btn--xs app-btn--secondary"
+                >
+                  Annuler
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmPurge(true)}
+                className="app-btn app-btn--xs app-btn--secondary gap-1.5"
+                title="Supprimer les exécutions terminées pour nettoyer la base"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                Purger l&apos;historique
+              </button>
+            )}
           </div>
 
           {/* Filtres */}
@@ -1084,7 +1484,7 @@ export default function CronSettingsPage() {
             <select
               value={filterAction}
               onChange={(e) => { setFilterAction(e.target.value); setHistoryPage(1) }}
-              className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-900 dark:text-white font-medium"
             >
               <option value="">Toutes les actions</option>
               {historyDistinctActions.map((a) => (
@@ -1094,7 +1494,7 @@ export default function CronSettingsPage() {
             <select
               value={filterStatus}
               onChange={(e) => { setFilterStatus(e.target.value); setHistoryPage(1) }}
-              className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-700"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-900 dark:text-white font-medium"
             >
               <option value="">Tous les statuts</option>
               {(['running', 'success', 'partial', 'failed'] as const).map((s) => (
@@ -1105,12 +1505,12 @@ export default function CronSettingsPage() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="text-xs text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+                className="app-btn app-btn--xs app-btn--secondary"
               >
                 Réinitialiser
               </button>
             )}
-            <span className="ml-auto text-xs text-slate-500">
+            <span className="ml-auto app-meta-pill">
               {filteredHistory.length} résultat{filteredHistory.length !== 1 ? 's' : ''}
             </span>
           </div>
@@ -1118,21 +1518,21 @@ export default function CronSettingsPage() {
           {/* Tableau */}
           <div className="app-table-shell overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500">
+              <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <tr>
-                  <th className="px-2 py-2 w-4"></th>
-                  <th className="px-2 py-2">Action</th>
-                  <th className="px-2 py-2">Statut</th>
-                  <th className="px-2 py-2">Début</th>
-                  <th className="px-2 py-2">Durée</th>
-                  <th className="px-2 py-2">Source</th>
-                  <th className="px-2 py-2">Message</th>
+                  <th className="px-3 py-2.5 w-6"></th>
+                  <th className="px-3 py-2.5">Action</th>
+                  <th className="px-3 py-2.5">Statut</th>
+                  <th className="px-3 py-2.5">Début</th>
+                  <th className="px-3 py-2.5">Durée</th>
+                  <th className="px-3 py-2.5">Source</th>
+                  <th className="px-3 py-2.5">Message</th>
                 </tr>
               </thead>
               <tbody>
                 {pagedHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-2 py-3 text-slate-500">
+                    <td colSpan={7} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400 text-xs">
                       Aucune exécution correspondant aux filtres.
                     </td>
                   </tr>
@@ -1144,12 +1544,12 @@ export default function CronSettingsPage() {
                     return (
                       <Fragment key={item.id}>
                         <tr className="app-table-row align-top">
-                          <td className="px-2 py-2">
+                          <td className="px-3 py-2.5">
                             {hasDetails && (
                               <button
                                 type="button"
                                 onClick={() => toggleRow(item.id)}
-                                className="text-slate-400 hover:text-slate-700"
+                                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                                 title="Afficher les détails"
                               >
                                 <svg
@@ -1162,23 +1562,21 @@ export default function CronSettingsPage() {
                               </button>
                             )}
                           </td>
-                          <td className="px-2 py-2 font-medium text-slate-900">
+                          <td className="px-3 py-2.5 font-semibold text-slate-900 dark:text-white">
                             {payload.actionLabels[item.action] ?? item.action}
                           </td>
-                          <td className="px-2 py-2">
-                            <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(item.status)}`}>
-                              {item.status}
-                            </span>
+                          <td className="px-3 py-2.5">
+                            <StatusPill status={item.status} />
                           </td>
-                          <td className="px-2 py-2 text-slate-700">{formatDate(item.startedAt)}</td>
-                          <td className="px-2 py-2 text-slate-700">{getDurationLabel(item.durationMs)}</td>
-                          <td className="px-2 py-2 text-slate-500">{item.source}</td>
-                          <td className="px-2 py-2 text-slate-600">{item.message ?? '-'}</td>
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 text-xs">{formatDate(item.startedAt)}</td>
+                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 text-xs">{getDurationLabel(item.durationMs)}</td>
+                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 text-xs">{item.source}</td>
+                          <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 text-xs">{item.message ?? '-'}</td>
                         </tr>
                         {isExpanded && snippet && (
-                          <tr className="bg-slate-50">
+                          <tr className="bg-slate-100/60 dark:bg-slate-900/80">
                             <td />
-                            <td colSpan={6} className="px-2 py-2 text-xs text-slate-600">
+                            <td colSpan={6} className="px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-800">
                               {snippet}
                             </td>
                           </tr>
@@ -1193,23 +1591,23 @@ export default function CronSettingsPage() {
 
           {/* Pagination */}
           {historyPageCount > 1 && (
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4 pt-2">
               <button
                 type="button"
                 onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
                 disabled={historyPage_ <= 1}
-                className="app-btn app-btn--md app-btn--secondary"
+                className="app-btn app-btn--xs app-btn--secondary"
               >
                 Précédent
               </button>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Page {historyPage_} / {historyPageCount}
               </span>
               <button
                 type="button"
                 onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
                 disabled={historyPage_ >= historyPageCount}
-                className="app-btn app-btn--md app-btn--secondary"
+                className="app-btn app-btn--xs app-btn--secondary"
               >
                 Suivant
               </button>

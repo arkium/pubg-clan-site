@@ -350,24 +350,22 @@ export default function TelemetryRecoveriesOverviewPage() {
       {/* Message de notification d'action */}
       {actionMessage && (
         <div
-          className={`flex items-center justify-between rounded-xl p-3.5 text-sm font-medium border shadow-sm transition-all ${
-            actionMessage.type === 'success'
-              ? 'border-emerald-400 bg-emerald-50 text-emerald-950 dark:border-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-100'
-              : 'border-rose-400 bg-rose-50 text-rose-950 dark:border-rose-600 dark:bg-rose-950/60 dark:text-rose-100'
+          className={`flex items-center justify-between rounded-xl p-3.5 text-sm font-semibold shadow-sm transition-all ${
+            actionMessage.type === 'success' ? 'telemetry-toast-success' : 'telemetry-toast-error'
           }`}
         >
           <p className="flex items-center gap-2">
             {actionMessage.type === 'success' ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
             ) : (
-              <AlertOctagon className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              <AlertOctagon className="h-5 w-5 shrink-0" />
             )}
             {actionMessage.text}
           </p>
           <button
             type="button"
             onClick={() => setActionMessage(null)}
-            className="text-xs font-bold underline opacity-80 hover:opacity-100"
+            className="text-xs font-bold underline opacity-90 hover:opacity-100 ml-4 shrink-0"
           >
             Fermer
           </button>
@@ -716,7 +714,7 @@ export default function TelemetryRecoveriesOverviewPage() {
 
               <div className="app-panel-muted p-3.5 border-l-4 border-l-slate-400 border-slate-200/60 dark:border-slate-700">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Expirés Définitifs</p>
-                <p className="mt-1 text-2xl font-black text-slate-800 dark:text-slate-200">
+                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
                   {backlogData.expiredMatches}
                 </p>
                 <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">Plus de 14 jours PUBG</p>

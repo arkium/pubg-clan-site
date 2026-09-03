@@ -6,24 +6,90 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-03.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### ~~Observatoire des Clans, Résolution & Triage (`/settings/opponents`) — Tri, Métriques, Chargement progressif & Triage interactif~~ — ✅ Complété le 2026-09-03
+
+Refonte transverse des 3 onglets de gestion des adversaires : correction des classements faussés, élimination des blocages de performance, rafraîchissement des cartes métriques, infobulles explicatives et reconnexion du triage unitaire.
+
+#### 1. Onglet « Explorer » (`/settings/opponents`)
+- [x] **Correction du tri par colonne (`src/app/api/settings/opponents/route.ts`) :**
+  - *Suppression du verrou favoris en tête :* Le tri SQL appliquait systématiquement `ORDER BY oc.isFavorite DESC, ...`, forçant les clans favoris en premier (même avec de faibles scores comme 8, 9, 10) et repoussant artificiellement les clans ayant 395+ coéquipiers plus bas.
+  - *Tri primaire strict :* Le tri demandé par l'utilisateur (ex: `asTeammate`, `asOpponent`, `totalEncounters`, `lastSeen`, `memberCount`, `trackedClansCount`) est désormais le critère primaire direct en SQL (`ORDER BY ${col} ${dir}, oc.isFavorite DESC, oc.name ASC`).
+  - *Sécurisation des NULLs :* Utilisation systématique de `COALESCE(stats.asTeammateCount, 0)`, etc. pour éviter les incohérences de classement ASC / DESC en MySQL.
+  - *Tri spécifique par favoris :* L'icône étoile ⭐ dans l'en-tête de colonne est devenue interactive pour permettre un tri explicite par statut favori à la demande.
+- [x] **Nouvelle colonne & Filtres rapides ergonomiques :**
+  - Ajout de la colonne **« Total rencontres »** (`Fois adversaire + Fois coéquipier`) mise en valeur en gras pour évaluer d'un coup d'œil l'activité globale contre chaque clan.
+  - 3 filtres rapides à onglets au-dessus du tableau :
+    - **Tous les clans** (6 742 clans).
+    - **Favoris uniquement ⭐** : isole instantanément les clans surveillés sans avoir à chercher parmi plus de 670 pages.
+    - **Avec coéquipiers (Fill)** : filtre uniquement les clans ayant été croisés au moins une fois dans votre escouade (`asTeammateCount > 0`).
+- [x] **Mise à jour des métriques & Bouton de recalcul du cache :**
+  - Compteurs temps réel pour les clans suivis (22 au lieu de 7) et clans adverses actifs, évitant l'affichage figé d'un cache ancien datant de plusieurs jours.
+  - Affichage de l'horodatage de dernière synchronisation (`lastComputedAt`) avec formatage relatif dynamique (« il y a X jours »).
+  - Nouvelle route sécurisée `POST /api/settings/opponents/recalculate` permettant aux SuperUsers de relancer le calcul complet du cache d'agrégation (`OpponentClanStatsCache` et `SystemStatsCache`) à la demande avec indicateur de progression animé.
+- [x] **Infobulles explicatives (`<Info />`) & Terminologie explicite :**
+  - Ajout d'icônes d'information et d'infobulles descriptives claires au survol de chaque carte métrique et de chaque en-tête de colonne.
+  - Clarification sémantique de la différence entre :
+    - *Fois adversaire :* Confrontation directe contre une escouade ennemie dans la partie.
+    - *Fois coéquipier :* Joueurs de ce clan placés dans votre escouade via le matchmaking aléatoire de PUBG (fill squad).
+  - Encart de légende détaillé au bas de la page clarifiant chaque indicateur.
+
+#### 2. Onglet « Résolution & Jobs » (`/settings/opponents/resolution`)
+- [x] **Élimination de la requête bloquante de 28 secondes (`src/app/api/settings/encountered-player-resolution/route.ts`) :**
+  - Suppression du `groupBy` non indexé sur 1 053 000 lignes dans `buildResponsePayload()` pour un champ qui n'était même pas affiché dans la page (`crossClan`). Le temps de réponse de l'API passe de 28,4 secondes à 20-30 ms en mode rapide.
+- [x] **Chargement progressif (`mode=quick` et `mode=backlog`) :**
+  - La page affiche immédiatement la structure, les contrôles (taille du lot, activation du cron, statut du worker) et le tableau des passages récents (`recentRuns`), tandis que les 6 cartes de métriques de backlog se chargent de manière asynchrone sans figer l'interface.
+- [x] **Bouton « Résoudre un lot maintenant » (`src/app/api/settings/encountered-player-resolution/run/route.ts`) :**
+  - Nouveau déclencheur manuel permettant aux SuperUsers de tester et lancer une passe de résolution immédiate sans attendre le cron planifié, avec récapitulatif détaillé en direct (joueurs résolus avec clan, sans clan, depuis le cache, et échecs).
+- [x] **Infobulles explicatives (`<Info />`) :**
+  - Définition claire sur chaque carte métrique (Jamais tenté, Nouvel essai prévu, Échec définitif, Résolus 24h, Rattrapage estimé, Cadence cron, Taille du lot).
+
+#### 3. Onglet « Triage » (`/settings/opponents/triage`)
+- [x] **Correction des URLs d'API défaillantes :**
+  - Remplacement des routes 404 (`/api/settings/opponents/triage` et `/resolve`) par les véritables endpoints du backend (`GET /api/settings/encountered-players` et `POST /api/settings/encountered-players/[id]/resolve`).
+- [x] **Filtres par statut avec badges thématiques :**
+  - Jamais tenté, Nouvel essai prévu, Échec définitif, Sous le seuil d'éligibilité (<2 rencontres), Résolu avec clan, Sans clan.
+- [x] **Recherche de joueur en direct (`src/app/api/settings/encountered-players/route.ts`) :**
+  - Ajout du filtre par pseudo PUBG (`?q=...`) dans l'API et l'interface de triage.
+- [x] **Lien direct PUBG Lookup & Détails d'interaction :**
+  - Affichage du clan qui a croisé le joueur, volume de rencontres, tentatives échouées, et lien externe de vérification.
+- [x] **Action de résolution unitaire interactive :**
+  - Bouton « Résoudre » ou « Forcer réessai » par ligne avec statut visuel animé en direct (appel PUBG, succès avec tag de clan identifié, ou motif d'échec précis).
+- [x] **Infobulles explicatives :**
+  - Explication des règles de qualification au cron (seuil minimal de 2 rencontres pour préserver les quotas d'API).
+- [x] **Harmonisation Dark Mode & Responsive :**
+  - Styles `dark:bg-slate-900`, `dark:border-slate-800` et contrastes adaptés sur toute l'interface et sur le layout transverse (`src/app/settings/opponents/layout.tsx`).
+
 ### ~~Purge de la télémétrie de géolocalisation & Suivi d'avancement par lots (`/settings/superuser/database`)~~ — ✅ Complété le 2026-09-03
 
 Résolution du timeout HTTP et de l'erreur générique lors de la purge des colonnes volumineuses `positionSamples` et `trajectorySegments` (table `SquadMatchTelemetry`) :
 
 - [x] **Éradication des timeouts HTTP & Full Table Scans dans l'API (`/api/superuser/database/purge-telemetry`) :**
   - *Cause de l'erreur précédente :* Une boucle synchrone `while` tentait de tout purger d'un coup avec `UPDATE ... WHERE positionSamples IS NOT NULL LIMIT 100`. Comme `positionSamples` (longtext) n'est pas indexé, MySQL exécutait un scan complet de table à chaque itération, provoquant des verrous InnoDB et un dépassement de timeout HTTP (504 Gateway Timeout).
-  - *Optimisation par clé primaire (PK) :* Sélection rapide des IDs par tranche (`LIMIT 250`) puis mise à jour instantanée par index groupé `UPDATE ... WHERE id IN (...)`.
-  - *Support complet des deux colonnes :* Prise en compte de `positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL`.
-  - *Filtrage par ancienneté (`olderThanDays`) :* Paramètre optionnel (14, 30, 60, 90 jours ou 'all') calculé via `COALESCE(sourceGeneratedAt, parsedAt, createdAt) < cutoffDate` pour préserver intégralement les replays récents.
+  - *Optimisation par clé primaire (PK) :* Sélection rapide des IDs par tranche (`LIMIT 250`) puis mise à jour instantanée par index groupé `UPDATE ... WHERE id IN (...)` exécutée en moins de 200 ms par lot.
+  - *Support complet des deux colonnes :* Prise en compte simultanée de `positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL`.
+  - *Filtrage par ancienneté (`olderThanDays`) :* Paramètre optionnel (14, 30, 60, 90 jours ou 'all') calculé via `COALESCE(sourceGeneratedAt, parsedAt, createdAt) < cutoffDate` pour préserver intégralement les tracés récents.
+  - *Préservation totale des statistiques de jeu :* Les colonnes de statistiques de combat (`killSamples`, `damageSamples`, `knockoutSamples`, `reviveSamples`, `weaponStats`, `memberStats`) et les événements de mort (`deathSamples`) restent 100% conservés pour les analyses et historiques.
   - *Nouvelle méthode GET :* Fournit les statistiques en direct de la table selon le seuil sélectionné (`totalMatches`, `matchesToPurge`, `purgedMatches`, `percentPurged`).
 - [x] **Suivi en direct & Sélecteur d'ancienneté dans l'interface (`DatabaseStatsPage`) :**
-  - Sélecteur à cartes d'ancienneté : **Plus de 14 jours** (Recommandé - standard PUBG), **Plus de 30 jours**, **Plus de 60 jours**, **Plus de 90 jours**, **Tous les matchs**.
-  - Affichage de 3 compteurs d'état recalculés en direct : Total matchs, Cible à purger selon le filtre, Hors cible / Déjà purgés.
-  - Exécution progressive lot par lot (250 matchs) pilotée côté client avec pause de fluidité.
-  - Barre de progression animée avec pourcentage en temps réel, nombre de matchs traités et restants.
-  - Bouton interactif d'interruption sécurisée (« Interrompre la purge ») conservant les lots déjà validés.
-  - Gestion précise des erreurs : affichage du message détaillé retourné par le serveur et bouton « Reprendre la purge » pour relancer là où l'opération s'était arrêtée.
-  - Détection automatique : bouton désactivé avec badge vert si aucun match ne correspond au seuil choisi.
+  - Sélecteur à 5 cartes d'ancienneté : **Plus de 14 jours** (Recommandé - standard officiel PUBG), **Plus de 30 jours** (1 mois), **Plus de 60 jours** (2 mois), **Plus de 90 jours** (1 trimestre), **Tous les matchs** (purge intégrale).
+  - Affichage de 3 compteurs d'état recalculés en direct : Total matchs, Cible à purger selon le filtre actif, Hors cible / Déjà allégés.
+  - Machine à états côté client (`isPurging`, `cancelPurgeRef`, `purgedCountSession`, `totalToPurgeSession`) pilotant l'enchaînement des lots de 250 matchs avec pause de fluidité de 60 ms.
+  - Barre de progression animée avec pourcentage en temps réel, compteur de matchs traités et restants.
+  - Bouton interactif d'interruption sécurisée (« Interrompre la purge ») avec confirmation du volume intermédiaire nettoyé.
+  - Gestion précise des erreurs : affichage du message détaillé retourné par le serveur et bouton « Reprendre la purge » pour relancer là où l'opération s'était arrêtée sans repartir de zéro.
+  - Détection automatique : bouton désactivé avec badge vert de confirmation si aucun match ne correspond au seuil choisi.
+  - Rafraîchissement automatique des tailles de tables (`fetchStats()`) et des métriques de purge dès la fin de l'opération.
+- [x] **Compacter & Restituer l'espace disque réel (OPTIMIZE TABLE & `data_free`) :**
+  - *Explication technique :* Sous MySQL InnoDB, vider des colonnes (`UPDATE ... SET col = NULL`) libère l'espace dans les pages internes du tablespace mais ne réduit jamais le fichier `.ibd` sur le disque dur automatiquement. `data_length` reste figé tant que la table n'est pas reconstruite.
+  - *Nouvelle route d'optimisation (`POST /api/superuser/database/optimize`) :* Permet d'exécuter soit un compactage physique (`OPTIMIZE TABLE`) qui défragmente le fichier `.ibd` et restitue les Go au système d'exploitation, soit un recalcul rapide des statistiques (`ANALYZE TABLE`).
+  - *Affichage de l'espace récupérable :* Intégration de `data_free_mb` dans l'API et affichage dans le tableau (colonne « Libre ») et dans les métriques globales (« Espace libre / Récupérable »).
+  - *Boutons interactifs d'optimisation :* Bouton « Compacter SquadMatchTelemetry (OPTIMIZE) » et « Recalculer les stats d'index (ANALYZE) » intégrés directement sous la section de purge, ainsi qu'un bouton d'action directe dans le tableau.
+  - *Gain constaté :* Le compactage sur `SquadMatchTelemetry` fait chuter la taille de 10,5 Go à 3,1 Go (plus de 7,4 Go de stockage immédiatement libérés sur le disque).
+- [x] **Correction du rendu de la jauge et suppression des débordements (Desktop & Mobile) :**
+  - Définition de `--theme-ui-accent` dans `globals.css` (manquant, causant un affichage transparent).
+  - Suppression de la 8e colonne superflue « Action » qui gaspillait de la largeur et créait un débordement à droite : le bouton « Compacter » est désormais logé directement dans la 1ère colonne aux côtés du badge « Télémétrie » de `SquadMatchTelemetry`.
+  - Optimisation responsive sur smartphone : masquage élégant des colonnes secondaires sur petit écran (`hidden sm:table-cell`, `hidden md:table-cell`, `hidden lg:table-cell`), ne conservant sur mobile que le nom de la table, le total en Mo et la jauge de pourcentage avec adaptation fluide sans aucun débordement horizontal.
+  - Ajustement des grilles de métriques (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`) et des boutons d'action avec retours à la ligne contrôlés (`flex-wrap`).
 
 ### ~~Synchronisation dynamique des Hubs de Paramètres (`/settings/admin`, `/settings/owner`, `/settings/superuser`) avec `nav-permissions`~~ — ✅ Complété le 2026-09-03
 

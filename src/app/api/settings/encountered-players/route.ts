@@ -55,6 +55,8 @@ export async function GET(request: Request) {
   const clanId = parseClanId(url.searchParams.get('clanId'))
   const page = parsePage(url.searchParams.get('page'))
 
+  const q = (url.searchParams.get('q') ?? '').trim()
+
   const thresholds = {
     minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
     maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
@@ -69,6 +71,7 @@ export async function GET(request: Request) {
     ...(statusFilter ?? {}),
     ...(minAttempts !== null ? { resolveAttempts: { gte: minAttempts } } : {}),
     ...(clanId !== null ? { clanId } : {}),
+    ...(q ? { pubgPlayerName: { contains: q } } : {}),
   }
 
   const [total, rows] = await Promise.all([

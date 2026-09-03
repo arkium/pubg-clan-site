@@ -65,6 +65,7 @@
   --theme-ui-text-secondary: rgb(51 65 85 / 1);
   --theme-ui-text-muted: rgb(100 116 139 / 1);
   --theme-ui-hover: rgb(241 245 249 / 1);
+  --theme-ui-accent: rgb(99 102 241 / 1);
   --theme-avatar-border: rgb(226 232 240 / 1);
   --theme-avatar-bg: rgb(255 255 255 / 1);
   --theme-avatar-ring: rgb(226 232 240 / 0.8);
@@ -156,6 +157,7 @@
   --theme-ui-text-secondary: rgb(203 213 225 / 1);
   --theme-ui-text-muted: rgb(148 163 184 / 1);
   --theme-ui-hover: rgb(30 41 59 / 1);
+  --theme-ui-accent: rgb(129 140 248 / 1);
   --theme-avatar-border: rgb(148 163 184 / 0.42);
   --theme-avatar-bg: rgb(15 23 42 / 0.9);
   --theme-avatar-ring: rgb(255 255 255 / 0.12);

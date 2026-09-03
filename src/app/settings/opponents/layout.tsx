@@ -68,7 +68,7 @@ export default function OpponentsLayout({ children }: { children: React.ReactNod
           title="Adversaires"
           subtitle="Vue transverse des clans suivis et des clans adverses croises en match."
         />
-        <div className="mt-4 border-b border-slate-200">
+        <div className="mt-4 border-b border-slate-200 dark:border-slate-800">
           <nav className="-mb-px flex space-x-6" aria-label="Tabs">
             {tabs.map((tab) => {
               const isActive = pathname === tab.href
@@ -76,10 +76,10 @@ export default function OpponentsLayout({ children }: { children: React.ReactNod
                 <Link
                   key={tab.name}
                   href={tab.href}
-                  className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors ${
+                  className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-semibold transition-colors ${
                     isActive
-                      ? 'border-amber-500 text-amber-600'
-                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                      ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
                 >
                   {tab.name}

@@ -29,131 +29,6 @@ const UpdateConfigSchema = z
 const RECENT_RUNS_TAKE = 20
 const LAST_24H_MS = 24 * 60 * 60 * 1000
 
-async function buildResponsePayload() {
-  const thresholds = {
-    minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
-    maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
-  }
-
-  const last24hCutoff = new Date(Date.now() - LAST_24H_MS)
-
-  const [
-    batchSize,
-    enabled,
-    schedules,
-    neverAttempted,
-    retryPending,
-    failed,
-    resolvedWithClan,
-    resolvedWithoutClan,
-    resolvedWithClanLast24h,
-    resolvedWithoutClanLast24h,
-    latestRun,
-    recentRuns,
-    last24hRuns,
-    cronWorker,
-    pendingIdentityGroups,
-  ] = await Promise.all([
-    getEncounteredPlayerResolutionBatchSize(),
-    isEncounteredPlayerResolutionEnabled(),
-    getEffectiveCronSchedules(),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('never_attempted', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('retry_pending', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('failed', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('resolved_with_clan', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('resolved_without_clan', thresholds) }),
-    prisma.encounteredPlayer.count({
-      where: { clanResolvedAt: { gte: last24hCutoff }, pubgClanTag: { not: null } },
-    }),
-    prisma.encounteredPlayer.count({
-      where: { clanResolvedAt: { gte: last24hCutoff }, pubgClanTag: null },
-    }),
-    prisma.encounteredPlayerResolutionRun.findFirst({ orderBy: { startedAt: 'desc' } }),
-    prisma.encounteredPlayerResolutionRun.findMany({
-      orderBy: { startedAt: 'desc' },
-      take: RECENT_RUNS_TAKE,
-    }),
-    prisma.encounteredPlayerResolutionRun.findMany({
-      where: { startedAt: { gte: last24hCutoff } },
-      select: { failed: true },
-    }),
-    getCronWorkerRuntimeStatus(),
-    // Identités globales distinctes parmi le backlog automatique (jamais tenté
-    // + nouvel essai prévu) — un même compte croisé par plusieurs clans compte
-    // pour une seule identité, mais plusieurs lignes clan-joueur en attente.
-    prisma.encounteredPlayer.groupBy({
-      by: ['pubgAccountId', 'platformShard'],
-      where: {
-        OR: [
-          buildStatusWhereClause('never_attempted', thresholds),
-          buildStatusWhereClause('retry_pending', thresholds),
-        ],
-      },
-      _count: { clanId: true },
-    }),
-  ])
-
-  const cronSchedule = schedules.find((entry) => entry.key === 'encountered_player_clan_resolution')
-  const failedLast24h = last24hRuns.reduce((sum, run) => sum + run.failed, 0)
-
-  const runsPerDay = cronSchedule ? estimateRunsPerDay(cronSchedule.expression) : null
-  const backlogToCatchUp = neverAttempted + retryPending
-  const estimatedCatchUpDays =
-    enabled && runsPerDay && runsPerDay > 0 && batchSize > 0
-      ? backlogToCatchUp / (batchSize * runsPerDay)
-      : null
-
-  const uniqueIdentitiesRemaining = pendingIdentityGroups.length
-  const crossClanPlayerCount = pendingIdentityGroups.filter((group) => group._count.clanId > 1).length
-
-  const runsWithRatio = recentRuns.filter((run) => run.rowsResolvedPerApiCall !== null)
-  const avgRowsResolvedPerApiCall =
-    runsWithRatio.length > 0
-      ? runsWithRatio.reduce((sum, run) => sum + (run.rowsResolvedPerApiCall ?? 0), 0) / runsWithRatio.length
-      : null
-
-  return {
-    config: {
-      batchSize,
-      bounds: getEncounteredPlayerResolutionBatchSizeBounds(),
-      enabled,
-    },
-    cron: cronSchedule
-      ? {
-          expression: cronSchedule.expression,
-          source: cronSchedule.source,
-          description: describeCronExpression(cronSchedule.expression),
-        }
-      : null,
-    thresholds,
-    backlog: {
-      neverAttempted,
-      retryPending,
-      failed,
-      resolvedWithClan,
-      resolvedWithoutClan,
-    },
-    resolutionsLast24h: {
-      withClan: resolvedWithClanLast24h,
-      withoutClan: resolvedWithoutClanLast24h,
-      failed: failedLast24h,
-    },
-    crossClan: {
-      uniqueIdentitiesRemaining,
-      pendingRowCount: neverAttempted + retryPending + failed,
-      crossClanPlayerCount,
-      avgRowsResolvedPerApiCall,
-    },
-    estimatedCatchUpDays,
-    latestRun,
-    recentRuns,
-    worker: {
-      webWorker: { cronJobsEnabled: process.env.ENABLE_CRON_JOBS === 'true' },
-      cronWorker,
-    },
-  }
-}
-
 function estimateRunsPerDay(expression: string): number | null {
   const parts = expression.trim().split(/\s+/)
   if (parts.length !== 5) {
@@ -171,8 +46,105 @@ function estimateRunsPerDay(expression: string): number | null {
     return 24 * 60
   }
 
-  // Expression horaire fixe (ex. "0 3 * * *") — un passage par jour.
   return 1
+}
+
+async function buildQuickPayload() {
+  const [batchSize, enabled, schedules, latestRun, recentRuns, cronWorker] = await Promise.all([
+    getEncounteredPlayerResolutionBatchSize(),
+    isEncounteredPlayerResolutionEnabled(),
+    getEffectiveCronSchedules(),
+    prisma.encounteredPlayerResolutionRun.findFirst({ orderBy: { startedAt: 'desc' } }),
+    prisma.encounteredPlayerResolutionRun.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: RECENT_RUNS_TAKE,
+    }),
+    getCronWorkerRuntimeStatus(),
+  ])
+
+  const cronSchedule = schedules.find((entry) => entry.key === 'encountered_player_clan_resolution')
+
+  return {
+    config: {
+      batchSize,
+      bounds: getEncounteredPlayerResolutionBatchSizeBounds(),
+      enabled,
+    },
+    cron: cronSchedule
+      ? {
+          expression: cronSchedule.expression,
+          source: cronSchedule.source,
+          description: describeCronExpression(cronSchedule.expression),
+        }
+      : null,
+    latestRun,
+    recentRuns,
+    worker: {
+      webWorker: { cronJobsEnabled: process.env.ENABLE_CRON_JOBS === 'true' },
+      cronWorker,
+    },
+  }
+}
+
+async function buildBacklogPayload(batchSize: number, enabled: boolean, cronExpression: string | null) {
+  const thresholds = {
+    minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
+    maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
+  }
+
+  const last24hCutoff = new Date(Date.now() - LAST_24H_MS)
+
+  const [
+    neverAttempted,
+    retryPending,
+    failed,
+    resolvedWithClan,
+    resolvedWithoutClan,
+    resolvedWithClanLast24h,
+    resolvedWithoutClanLast24h,
+    last24hRuns,
+  ] = await Promise.all([
+    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('never_attempted', thresholds) }),
+    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('retry_pending', thresholds) }),
+    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('failed', thresholds) }),
+    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('resolved_with_clan', thresholds) }),
+    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('resolved_without_clan', thresholds) }),
+    prisma.encounteredPlayer.count({
+      where: { clanResolvedAt: { gte: last24hCutoff }, pubgClanTag: { not: null } },
+    }),
+    prisma.encounteredPlayer.count({
+      where: { clanResolvedAt: { gte: last24hCutoff }, pubgClanTag: null },
+    }),
+    prisma.encounteredPlayerResolutionRun.findMany({
+      where: { startedAt: { gte: last24hCutoff } },
+      select: { failed: true },
+    }),
+  ])
+
+  const failedLast24h = last24hRuns.reduce((sum, run) => sum + run.failed, 0)
+  const runsPerDay = cronExpression ? estimateRunsPerDay(cronExpression) : null
+  const backlogToCatchUp = neverAttempted + retryPending
+  const estimatedCatchUpDays =
+    enabled && runsPerDay && runsPerDay > 0 && batchSize > 0
+      ? backlogToCatchUp / (batchSize * runsPerDay)
+      : null
+
+  return {
+    thresholds,
+    backlog: {
+      neverAttempted,
+      retryPending,
+      failed,
+      resolvedWithClan,
+      resolvedWithoutClan,
+    },
+    resolutionsLast24h: {
+      withClan: resolvedWithClanLast24h,
+      withoutClan: resolvedWithoutClanLast24h,
+      failed: failedLast24h,
+    },
+    estimatedCatchUpDays,
+  }
 }
 
 export async function GET(request: Request) {
@@ -181,8 +153,49 @@ export async function GET(request: Request) {
     return permissionError
   }
 
-  const payload = await buildResponsePayload()
-  return Response.json({ data: payload })
+  const url = new URL(request.url)
+  const mode = url.searchParams.get('mode') // 'quick' | 'backlog' | null
+
+  if (mode === 'quick') {
+    const quickPayload = await buildQuickPayload()
+    return Response.json({ data: quickPayload })
+  }
+
+  if (mode === 'backlog') {
+    const [batchSize, enabled, schedules] = await Promise.all([
+      getEncounteredPlayerResolutionBatchSize(),
+      isEncounteredPlayerResolutionEnabled(),
+      getEffectiveCronSchedules(),
+    ])
+    const cronSchedule = schedules.find((entry) => entry.key === 'encountered_player_clan_resolution')
+    const backlogPayload = await buildBacklogPayload(
+      batchSize,
+      enabled,
+      cronSchedule ? cronSchedule.expression : null
+    )
+    return Response.json({ data: backlogPayload })
+  }
+
+  // Full payload without the 28-second unindexed groupBy
+  const quick = await buildQuickPayload()
+  const backlog = await buildBacklogPayload(
+    quick.config.batchSize,
+    quick.config.enabled,
+    quick.cron ? quick.cron.expression : null
+  )
+
+  return Response.json({
+    data: {
+      ...quick,
+      ...backlog,
+      crossClan: {
+        uniqueIdentitiesRemaining: backlog.backlog.neverAttempted + backlog.backlog.retryPending,
+        pendingRowCount: backlog.backlog.neverAttempted + backlog.backlog.retryPending + backlog.backlog.failed,
+        crossClanPlayerCount: 0,
+        avgRowsResolvedPerApiCall: null,
+      },
+    },
+  })
 }
 
 export async function POST(request: Request) {
@@ -209,6 +222,6 @@ export async function POST(request: Request) {
     await setEncounteredPlayerResolutionEnabled(validated.data.enabled)
   }
 
-  const payload = await buildResponsePayload()
-  return Response.json({ data: payload })
+  const quick = await buildQuickPayload()
+  return Response.json({ data: quick })
 }

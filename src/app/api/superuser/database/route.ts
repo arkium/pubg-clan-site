@@ -1,4 +1,3 @@
-
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 
@@ -20,6 +19,7 @@ export async function GET(request: Request) {
         data_size_mb: number
         index_size_mb: number
         total_size_mb: number
+        data_free_mb: number
       }>
     >`
       SELECT 
@@ -27,21 +27,20 @@ export async function GET(request: Request) {
         table_rows AS row_count,
         ROUND(data_length / 1024 / 1024, 2) AS data_size_mb,
         ROUND(index_length / 1024 / 1024, 2) AS index_size_mb,
-        ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_size_mb
+        ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_size_mb,
+        ROUND(data_free / 1024 / 1024, 2) AS data_free_mb
       FROM information_schema.TABLES
       WHERE table_schema = DATABASE()
       ORDER BY (data_length + index_length) DESC;
     `
 
-    // Because prisma.$queryRaw returns values exactly as they come from the driver,
-    // they might be Decimal/BigInt types depending on the mysql driver.
-    // We convert them safely to Number.
-    const tables = rawTables.map(t => ({
+    const tables = rawTables.map((t) => ({
       tableName: String(t.table_name),
       rowCount: Number(t.row_count || 0),
       dataSizeMb: Number(t.data_size_mb || 0),
       indexSizeMb: Number(t.index_size_mb || 0),
       totalSizeMb: Number(t.total_size_mb || 0),
+      dataFreeMb: Number(t.data_free_mb || 0),
     }))
 
     const globalStats = tables.reduce(
@@ -49,9 +48,10 @@ export async function GET(request: Request) {
         acc.totalDataMb += t.dataSizeMb
         acc.totalIndexMb += t.indexSizeMb
         acc.totalSizeMb += t.totalSizeMb
+        acc.totalFreeMb += t.dataFreeMb
         return acc
       },
-      { totalDataMb: 0, totalIndexMb: 0, totalSizeMb: 0 }
+      { totalDataMb: 0, totalIndexMb: 0, totalSizeMb: 0, totalFreeMb: 0 }
     )
 
     return Response.json({

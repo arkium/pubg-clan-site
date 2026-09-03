@@ -1,10 +1,85 @@
 # Points à faire — PUBG Clan Site
 
-Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-08-11.
+Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-03.
 
 ---
 
 ## P1 — Bloquants / manques fonctionnels immédiats
+
+### ~~Purge de la télémétrie de géolocalisation & Suivi d'avancement par lots (`/settings/superuser/database`)~~ — ✅ Complété le 2026-09-03
+
+Résolution du timeout HTTP et de l'erreur générique lors de la purge des colonnes volumineuses `positionSamples` et `trajectorySegments` (table `SquadMatchTelemetry`) :
+
+- [x] **Éradication des timeouts HTTP & Full Table Scans dans l'API (`/api/superuser/database/purge-telemetry`) :**
+  - *Cause de l'erreur précédente :* Une boucle synchrone `while` tentait de tout purger d'un coup avec `UPDATE ... WHERE positionSamples IS NOT NULL LIMIT 100`. Comme `positionSamples` (longtext) n'est pas indexé, MySQL exécutait un scan complet de table à chaque itération, provoquant des verrous InnoDB et un dépassement de timeout HTTP (504 Gateway Timeout).
+  - *Optimisation par clé primaire (PK) :* Sélection rapide des IDs par tranche (`LIMIT 250`) puis mise à jour instantanée par index groupé `UPDATE ... WHERE id IN (...)`.
+  - *Support complet des deux colonnes :* Prise en compte de `positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL`.
+  - *Filtrage par ancienneté (`olderThanDays`) :* Paramètre optionnel (14, 30, 60, 90 jours ou 'all') calculé via `COALESCE(sourceGeneratedAt, parsedAt, createdAt) < cutoffDate` pour préserver intégralement les replays récents.
+  - *Nouvelle méthode GET :* Fournit les statistiques en direct de la table selon le seuil sélectionné (`totalMatches`, `matchesToPurge`, `purgedMatches`, `percentPurged`).
+- [x] **Suivi en direct & Sélecteur d'ancienneté dans l'interface (`DatabaseStatsPage`) :**
+  - Sélecteur à cartes d'ancienneté : **Plus de 14 jours** (Recommandé - standard PUBG), **Plus de 30 jours**, **Plus de 60 jours**, **Plus de 90 jours**, **Tous les matchs**.
+  - Affichage de 3 compteurs d'état recalculés en direct : Total matchs, Cible à purger selon le filtre, Hors cible / Déjà purgés.
+  - Exécution progressive lot par lot (250 matchs) pilotée côté client avec pause de fluidité.
+  - Barre de progression animée avec pourcentage en temps réel, nombre de matchs traités et restants.
+  - Bouton interactif d'interruption sécurisée (« Interrompre la purge ») conservant les lots déjà validés.
+  - Gestion précise des erreurs : affichage du message détaillé retourné par le serveur et bouton « Reprendre la purge » pour relancer là où l'opération s'était arrêtée.
+  - Détection automatique : bouton désactivé avec badge vert si aucun match ne correspond au seuil choisi.
+
+### ~~Synchronisation dynamique des Hubs de Paramètres (`/settings/admin`, `/settings/owner`, `/settings/superuser`) avec `nav-permissions`~~ — ✅ Complété le 2026-09-03
+
+Les trois pages Hub de paramètres affichaient des cartes statiques codées en dur, ne reflétant ni les changements de rôles, ni les réordonnancements, ni les masquages (`hidden`) configurés dans `/settings/nav-permissions`. Elles ont été rendues 100% dynamiques et pilotées par la table `NavItem` :
+
+- [x] **Hook de résolution dynamique `useSettingsHubItems` (`src/hooks/useSettingsHubItems.ts`) :**
+  - Lecture en temps réel des définitions `NavItemDef`, rôles effectifs (`roles`), ordre d'affichage (`positions` et `promotedPositions`) et libellés personnalisés (`labels`) via `useNavPermissions`.
+  - Déplacement automatique : si le rôle d'un outil est modifié (ex. promu d'Admin vers Owner ou SuperUser), sa carte bascule automatiquement sur le Hub cible correspondant (`admin-menu`, `owner-menu`, `superuser-menu`).
+  - Filtrage de sécurité par rôle : exclusion automatique des outils nécessitant un privilège supérieur et des outils marqués `hidden`.
+  - Découplage clan/global : partitionnement automatique entre outils spécifiques au clan actif (`requiresClan: true`, dépendant de `clanId`) et outils transverses globaux (`requiresClan: false`).
+- [x] **Composant de carte réutilisable `SettingsHubCard` (`src/components/settings/SettingsHubCard.tsx`) :**
+  - Mappage des icônes Lucide (`Users`, `Monitor`, `Map`, `Swords`, `Activity`, `LayoutDashboard`, `History`, `Clock`, `Database`, `ShieldAlert`…) avec palette de couleurs sémantiques.
+  - Rendu dynamique du titre et de la description configurés.
+  - Support complet des thèmes clair et sombre (`dark:bg-slate-900/50`, `dark:border-slate-800`, `dark:hover:bg-slate-900`).
+- [x] **Refonte des trois Hubs de paramètres :**
+  - `/settings/admin` (`AdminHubPage`) : affiche uniquement les outils et dictionnaires configurés pour les administrateurs.
+  - `/settings/owner` (`OwnerHubPage`) : supervision télémétrie du clan actif et infrastructure globale.
+  - `/settings/superuser` (`SuperUserHubPage`) : outils transverses de plateforme et dépannage avancé clan.
+  - Si aucun clan n'est sélectionné en amont, les outils dépendant du clan affichent un encart d'avertissement clair avec bouton de redirection vers `/clans`.
+- [x] **Enrichissement du registre et de la base de données :**
+  - Ajout de l'entrée `superuser.database` (`/settings/superuser/database`, "Base de données") dans `NAV_REGISTRY` (`src/lib/nav-permissions-registry.ts`).
+  - Synchronisation et seeding dans la table `NavItem` en base via `prisma/seed-nav-items.ts` (56 entrées actives).
+
+
+### ~~Attribution et révocation du rôle Clan Owner par le SuperUser (`/clans/[clanId]/settings/members`)~~ — ✅ Complété le 2026-09-03
+
+Déblocage complet de la gestion des rôles Owner par un SuperUser, solutionnant l'erreur bloquante *"Role not found for member clan"* :
+
+- [x] **Déblocage cross-clan dans `role-service.ts` :**
+  - Prise en charge du paramètre `options?: { isSuperUser?: boolean }` dans `assignRole` et `revokeRole`.
+  - Levée du contrôle bloquant `role.clanId !== actor.clanId` lorsque l'acteur est un SuperUser (permet à un SuperUser rattaché au clan 1 d'administrer les rôles du clan 7 ou de tout autre clan).
+  - Levée du verrou bootstrap `Owner role can only be self-assigned during bootstrap` pour les SuperUsers.
+  - Levée de l'interdiction de révocation `Owner role cannot be revoked` pour les SuperUsers.
+- [x] **Sécurisation & méthode DELETE sur l'API (`/api/clans/[clanId]/members/[memberId]/role`) :**
+  - Contrôle `isSuperUserSession(request)` transmis à `assignRole` et `revokeRole`.
+  - Autorisation pour les SuperUsers sans `activeMemberId` clanique local.
+  - Ajout de la méthode `DELETE` pour révoquer explicitement tous les rôles d'un membre et lui réattribuer automatiquement le rôle de base `Member`.
+- [x] **Interface utilisateur `RoleAssignment.tsx` & page membres :**
+  - Transmission du statut `isSuperUser` via `useAuthSession`.
+  - Les non-superusers ne voient plus l'option `Owner` dans la liste déroulante et ne peuvent pas altérer un propriétaire existant.
+  - Le SuperUser dispose d'un bouton direct rouge **« Révoquer Owner »** avec confirmation interactive sur la carte de tout membre propriétaire pour le rétrograder instantanément en membre simple.
+  - Styles de la liste déroulante et des feedbacks d'erreur/succès harmonisés avec le thème sombre (`dark:bg-slate-800`, `dark:border-slate-700`).
+
+
+### ~~Filtrage Normal / Tout & Contraste Mode Sombre sur les Awards (`/clans/[clanId]/awards`)~~ — ✅ Complété le 2026-09-03
+
+- [x] **Restriction aux modes Battle Royale Squad :**
+  - Limitation stricte des awards aux modes duo, trio et squad (`duo`, `duo-fpp`, `normal-duo`, `normal-duo-fpp`, `squad`, `squad-fpp`, `normal-squad`, `normal-squad-fpp`), exclusion des modes solo, TDM et IBR.
+- [x] **Filtre de portée Scope (`normal` vs `all`) :**
+  - `normal` : matchs officiels uniquement (`matchType: 'official'`), exclut parties personnalisées et casual/bots.
+  - `all` : ensemble des types de matchs (officiels, custom, ranked, airoyale).
+  - Segmented control avec descriptif dynamique et compteur de matchs pris en compte.
+  - Persistance dans `ClanAwardsCache` avec clés composites `${period}:${scope}` et précalcul automatique de toutes les combinaisons.
+- [x] **Contraste en Mode Sombre :**
+  - Remplacement des classes claires hardcodées par la classe du Design System `.app-panel-muted` s'adaptant automatiquement au thème (`#111827` en sombre).
+  - Typographie et badges dotés de contrastes renforcés (`dark:text-white`, `dark:text-slate-300`, `dark:bg-slate-800`).
 
 ### ~~Modernisation Ops Cron (`/settings/cron`), Purge d'historique et Documentation des tâches~~ — ✅ Complété le 2026-09-02
 

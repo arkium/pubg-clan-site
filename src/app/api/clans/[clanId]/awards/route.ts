@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server'
 
 import { requireRole } from '@/middleware/auth-permission'
-import { getCachedOrComputeClanAwards, type AwardPeriod } from '@/lib/awards-service'
+import {
+  getCachedOrComputeClanAwards,
+  type AwardPeriod,
+  type AwardScope,
+} from '@/lib/awards-service'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -11,6 +15,11 @@ function parseClanId(value: string) {
 function parsePeriod(value: string | null): AwardPeriod {
   if (value === 'month' || value === 'all') return value
   return 'week'
+}
+
+function parseScope(value: string | null): AwardScope {
+  if (value === 'all') return 'all'
+  return 'normal'
 }
 
 export async function GET(
@@ -33,8 +42,10 @@ export async function GET(
 
     const url = new URL(request.url)
     const period = parsePeriod(url.searchParams.get('period'))
+    const scope = parseScope(url.searchParams.get('scope'))
+    const force = url.searchParams.get('force') === 'true' || url.searchParams.get('force') === '1'
 
-    const awards = await getCachedOrComputeClanAwards(parsedClanId, period)
+    const awards = await getCachedOrComputeClanAwards(parsedClanId, period, scope, force)
 
     return Response.json(awards)
   } catch (error) {

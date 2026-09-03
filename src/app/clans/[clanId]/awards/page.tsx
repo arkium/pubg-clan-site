@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { Trophy } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
@@ -9,6 +9,7 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type AwardPeriod = 'week' | 'month' | 'all'
+type AwardScope = 'normal' | 'all'
 
 type AwardWinner = {
   memberId: number
@@ -27,6 +28,7 @@ type ClanAward = {
 type ClanAwardsResponse = {
   clanId: number
   period: AwardPeriod
+  scope: AwardScope
   periodKey: string
   matchCount: number
   awards: ClanAward[]
@@ -36,6 +38,11 @@ const PERIOD_OPTIONS: Array<{ value: AwardPeriod; label: string }> = [
   { value: 'week', label: 'Semaine' },
   { value: 'month', label: 'Mois' },
   { value: 'all', label: 'All Time' },
+]
+
+const SCOPE_OPTIONS: Array<{ value: AwardScope; label: string }> = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'all', label: 'Tout' },
 ]
 
 const MEDAL_BY_RANK = ['🥇', '🥈', '🥉'] as const
@@ -119,6 +126,7 @@ export default function ClanAwardsPage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
 
   const [period, setPeriod] = useState<AwardPeriod>('week')
+  const [scope, setScope] = useState<AwardScope>('normal')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -134,11 +142,15 @@ export default function ClanAwardsPage() {
   }, [clanId, router, setClanId])
 
   const loadAwards = useCallback(
-    async (currentClanId: number, currentPeriod: AwardPeriod) => {
+    async (currentClanId: number, currentPeriod: AwardPeriod, currentScope: AwardScope, force = false) => {
       try {
-        const response = await fetch(`/api/clans/${currentClanId}/awards?period=${currentPeriod}`, {
-          cache: 'no-store',
-        })
+        const forceParam = force ? '&force=true' : ''
+        const response = await fetch(
+          `/api/clans/${currentClanId}/awards?period=${currentPeriod}&scope=${currentScope}${forceParam}`,
+          {
+            cache: 'no-store',
+          }
+        )
 
         const data = (await response.json().catch(() => null)) as
           | ClanAwardsResponse
@@ -176,7 +188,7 @@ export default function ClanAwardsPage() {
 
     const run = async () => {
       setLoading(true)
-      await loadAwards(clanId, period)
+      await loadAwards(clanId, period, scope)
       if (!cancelled) {
         setLoading(false)
       }
@@ -187,7 +199,7 @@ export default function ClanAwardsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, period, loadAwards])
+  }, [clanId, period, scope, loadAwards])
 
   const handleRefresh = useCallback(async () => {
     if (!clanId) {
@@ -195,9 +207,9 @@ export default function ClanAwardsPage() {
     }
 
     setRefreshing(true)
-    await loadAwards(clanId, period)
+    await loadAwards(clanId, period, scope, true)
     setRefreshing(false)
-  }, [clanId, period, loadAwards])
+  }, [clanId, period, scope, loadAwards])
 
   if (!clanId) {
     return null
@@ -236,31 +248,66 @@ export default function ClanAwardsPage() {
         </div>
       </header>
 
-      <section className="app-panel p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Periode</p>
-        <SegmentedControl
-          options={PERIOD_OPTIONS}
-          value={period}
-          onChange={setPeriod}
-          size="sm"
-          fullWidthOnMobile
-          className="w-full sm:w-auto"
-        />
-        {!loading && payload ? (
-          <p className="mt-2 text-xs text-gray-500">
-            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
-              {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
-            </span>
-            {' '}pris en compte
-          </p>
-        ) : null}
+      <section className="app-panel space-y-4 p-4">
+        <div className="flex flex-wrap items-start gap-6">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Periode</p>
+            <SegmentedControl
+              options={PERIOD_OPTIONS}
+              value={period}
+              onChange={setPeriod}
+              size="sm"
+              fullWidthOnMobile
+              className="w-full sm:w-auto"
+            />
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Mode de calcul</p>
+            <SegmentedControl
+              options={SCOPE_OPTIONS}
+              value={scope}
+              onChange={setScope}
+              size="sm"
+              fullWidthOnMobile
+              className="w-full sm:w-auto"
+            />
+          </div>
+        </div>
+
+        <div className="app-panel-muted flex flex-col gap-2 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            {!loading && payload ? (
+              <>
+                <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 font-semibold text-gray-900 shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                  {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
+                </span>
+                <span className="font-medium text-gray-600 dark:text-slate-300">pris en compte</span>
+              </>
+            ) : (
+              <span className="text-gray-500 dark:text-slate-400">Comptage des matchs en cours...</span>
+            )}
+          </div>
+
+          <div className="text-gray-600 dark:text-slate-300 sm:text-right">
+            {scope === 'normal' ? (
+              <span>
+                <strong className="font-semibold text-gray-900 dark:text-white">Normal :</strong> Matchs officiels uniquement en duo, trio et squad (exclut casual/bots, customs et modes spéciaux).
+              </span>
+            ) : (
+              <span>
+                <strong className="font-semibold text-gray-900 dark:text-white">Tout :</strong> Tous les types de matchs en duo, trio et squad (inclut officiels, compétitifs, parties personnalisées et casual/bots).
+              </span>
+            )}
+          </div>
+        </div>
       </section>
 
       {loading ? (
-        <section className="app-panel p-4 text-sm text-gray-600">Chargement des awards...</section>
+        <section className="app-panel p-4 text-sm text-gray-600 dark:text-slate-300">Chargement des awards...</section>
       ) : null}
 
-      {error ? <section className="app-panel p-4 text-sm text-rose-800">{error}</section> : null}
+      {error ? <section className="app-panel p-4 text-sm text-rose-800 dark:text-rose-300">{error}</section> : null}
 
       {!loading && !error && payload ? (
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -271,15 +318,15 @@ export default function ClanAwardsPage() {
               <article key={award.key} className="app-panel p-4">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{award.key.replaceAll('_', ' ')}</p>
-                    <h2 className="text-lg font-semibold text-gray-900">{award.label}</h2>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{award.key.replaceAll('_', ' ')}</p>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{award.label}</h2>
                   </div>
                   <span className="text-2xl" aria-hidden="true">
                     {emoji}
                   </span>
                 </div>
 
-                <p className="text-sm text-gray-600">{award.description}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-300">{award.description}</p>
 
                 {award.top3.length > 0 ? (
                   <ol className="mt-4 overflow-hidden rounded-lg app-panel-muted">
@@ -287,14 +334,14 @@ export default function ClanAwardsPage() {
                       <li key={entry.memberId} className="flex items-center gap-3 px-3 py-2.5">
                         <span className="text-xl" aria-hidden="true">{MEDAL_BY_RANK[index]}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900">{entry.memberName}</p>
-                          <p className="text-sm font-medium text-blue-700">{formatAwardValue(award, entry.value)}</p>
+                          <p className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{entry.memberName}</p>
+                          <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{formatAwardValue(award, entry.value)}</p>
                         </div>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <div className="app-panel-muted mt-4 p-3 text-sm text-gray-600">
+                  <div className="app-panel-muted mt-4 p-3 text-sm text-gray-600 dark:text-slate-400">
                     Pas de donnees sur cette periode.
                   </div>
                 )}

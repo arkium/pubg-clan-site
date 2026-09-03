@@ -1,6 +1,18 @@
 import { prisma } from '@/lib/prisma'
 
 export type AwardPeriod = 'week' | 'month' | 'all'
+export type AwardScope = 'normal' | 'all'
+
+export const ALLOWED_AWARD_GAME_MODES = [
+  'duo',
+  'duo-fpp',
+  'normal-duo',
+  'normal-duo-fpp',
+  'squad',
+  'squad-fpp',
+  'normal-squad',
+  'normal-squad-fpp',
+]
 
 export type AwardWinner = {
   memberId: number
@@ -19,6 +31,7 @@ export type ClanAward = {
 export type ClanAwards = {
   clanId: number
   period: AwardPeriod
+  scope: AwardScope
   periodKey: string
   matchCount: number
   awards: ClanAward[]
@@ -78,7 +91,8 @@ function top3ByTotal(
 
 export async function computeClanAwards(
   clanId: number,
-  period: AwardPeriod
+  period: AwardPeriod,
+  scope: AwardScope = 'normal'
 ): Promise<ClanAwards> {
   const { startDate, endDate } = getPeriodBounds(period)
   const periodKey = getPeriodKey(period)
@@ -86,7 +100,11 @@ export async function computeClanAwards(
   const squadMembers = await prisma.squadMember.findMany({
     where: {
       member: { clanId, isActive: true },
-      squadMatch: { createdAt: { gte: startDate, lte: endDate } },
+      squadMatch: {
+        createdAt: { gte: startDate, lte: endDate },
+        gameMode: { in: ALLOWED_AWARD_GAME_MODES },
+        ...(scope === 'normal' ? { matchType: 'official' } : {}),
+      },
     },
     select: {
       memberId: true,
@@ -240,67 +258,80 @@ export async function computeClanAwards(
     },
   ]
 
-  return { clanId, period, periodKey, matchCount, awards }
+  return { clanId, period, scope, periodKey, matchCount, awards }
 }
 
 const ALL_AWARD_PERIODS: AwardPeriod[] = ['week', 'month', 'all']
+const ALL_AWARD_SCOPES: AwardScope[] = ['normal', 'all']
+
+export function getAwardCachePeriodKey(period: AwardPeriod, scope: AwardScope = 'normal'): string {
+  return `${period}:${scope}`
+}
 
 /**
- * Recalcule et met en cache les awards des 3 périodes pour un clan — appelée
- * par le cron nocturne, même principe que Clan.clanStats (syncTrackedClanStats).
+ * Recalcule et met en cache les awards pour toutes les combinaisons période / scope
+ * pour un clan — appelée par le cron nocturne.
  */
 export async function precomputeClanAwards(clanId: number): Promise<void> {
   for (const period of ALL_AWARD_PERIODS) {
-    const result = await computeClanAwards(clanId, period)
+    for (const scope of ALL_AWARD_SCOPES) {
+      const result = await computeClanAwards(clanId, period, scope)
+      const cachePeriod = getAwardCachePeriodKey(period, scope)
 
-    await prisma.clanAwardsCache.upsert({
-      where: { clanId_period: { clanId, period } },
-      update: {
-        periodKey: result.periodKey,
-        payload: result as unknown as object,
-        computedAt: new Date(),
-      },
-      create: {
-        clanId,
-        period,
-        periodKey: result.periodKey,
-        payload: result as unknown as object,
-      },
-    })
+      await prisma.clanAwardsCache.upsert({
+        where: { clanId_period: { clanId, period: cachePeriod } },
+        update: {
+          periodKey: result.periodKey,
+          payload: result as unknown as object,
+          computedAt: new Date(),
+        },
+        create: {
+          clanId,
+          period: cachePeriod,
+          periodKey: result.periodKey,
+          payload: result as unknown as object,
+        },
+      })
+    }
   }
 }
 
 /**
- * Lit le cache précalculé si présent, sinon recalcule à la volée (clan tout
- * juste créé, avant le premier passage du cron nocturne) et écrit le résultat
- * en cache pour que la prochaine lecture soit immédiate — auto-guérison sans
- * attendre le prochain passage cron, sans coût significatif puisque le calcul
- * a de toute façon déjà eu lieu pour répondre à cette requête.
+ * Lit le cache précalculé si présent, sinon recalcule à la volée et écrit le résultat
+ * en cache. Si forceRecalculate est vrai, le cache existant est contourné et mis à jour.
  */
 export async function getCachedOrComputeClanAwards(
   clanId: number,
-  period: AwardPeriod
+  period: AwardPeriod,
+  scope: AwardScope = 'normal',
+  forceRecalculate = false
 ): Promise<ClanAwards & { cached: boolean; computedAt: string | null }> {
-  const cached = await prisma.clanAwardsCache.findUnique({
-    where: { clanId_period: { clanId, period } },
-  })
+  const cachePeriod = getAwardCachePeriodKey(period, scope)
 
-  if (cached) {
-    return {
-      ...(cached.payload as unknown as ClanAwards),
-      cached: true,
-      computedAt: cached.computedAt.toISOString(),
+  if (!forceRecalculate) {
+    const cached = await prisma.clanAwardsCache.findUnique({
+      where: { clanId_period: { clanId, period: cachePeriod } },
+    })
+
+    if (cached) {
+      const payload = cached.payload as unknown as ClanAwards
+      return {
+        ...payload,
+        scope: payload.scope ?? scope,
+        cached: true,
+        computedAt: cached.computedAt.toISOString(),
+      }
     }
   }
 
-  const result = await computeClanAwards(clanId, period)
+  const result = await computeClanAwards(clanId, period, scope)
   const computedAt = new Date()
 
   await prisma.clanAwardsCache
     .upsert({
-      where: { clanId_period: { clanId, period } },
+      where: { clanId_period: { clanId, period: cachePeriod } },
       update: { periodKey: result.periodKey, payload: result as unknown as object, computedAt },
-      create: { clanId, period, periodKey: result.periodKey, payload: result as unknown as object, computedAt },
+      create: { clanId, period: cachePeriod, periodKey: result.periodKey, payload: result as unknown as object, computedAt },
     })
     .catch(() => undefined)
 

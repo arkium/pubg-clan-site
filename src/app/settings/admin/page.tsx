@@ -4,11 +4,12 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import Link from 'next/link'
-import { Users, Monitor, Map, Swords, ListPlus, Activity } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { useSettingsHubItems } from '@/hooks/useSettingsHubItems'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import SettingsHubCard from '@/components/settings/SettingsHubCard'
 
 export default function AdminHubPage() {
   const router = useRouter()
@@ -21,6 +22,8 @@ export default function AdminHubPage() {
   const canManageSettings = hasWildcard || permissions.includes('manage_settings')
   
   const isAdmin = isSuperUser || canManageMembers || canManageRoles || canManageSettings
+
+  const { clanItems, globalItems } = useSettingsHubItems('admin-menu', clanId)
 
   useEffect(() => {
     if (sessionLoading) return
@@ -47,62 +50,50 @@ export default function AdminHubPage() {
         />
         
         {/* Paramètres spécifiques au clan */}
-        <div className="mt-8">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">
-            Paramètres du clan sélectionné {clanId ? '' : '(Aucun clan sélectionné)'}
-          </h2>
-          
-          {clanId ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Link href={`/clans/${clanId}/settings/members`} className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
-                <Users className="w-8 h-8 text-blue-500 mb-3" />
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Joueurs et rôles</h3>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Gérez les membres du clan et leurs permissions d'accès.</p>
-              </Link>
-              <Link href={`/clans/${clanId}/settings/login-welcome`} className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
-                <Monitor className="w-8 h-8 text-emerald-500 mb-3" />
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Accueil login</h3>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Personnalisez l'écran d'accueil pour les joueurs non connectés.</p>
-              </Link>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900 dark:bg-amber-900/20">
-              <p className="text-amber-800 dark:text-amber-200">
-                Veuillez d'abord sélectionner un clan depuis la liste des clans pour accéder à ces paramètres.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Paramètres globaux (Dictionnaires) */}
-        <div className="mt-10">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">
-            Dictionnaires globaux
-          </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Link href="/settings/map-labels" className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
-              <Map className="w-8 h-8 text-amber-500 mb-3" />
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cartes (Maps)</h3>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Traduction et labels des cartes PUBG.</p>
-            </Link>
-            <Link href="/settings/weapon-labels" className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
-              <Swords className="w-8 h-8 text-red-500 mb-3" />
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Armes</h3>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Traduction et labels des armes.</p>
-            </Link>
-            <Link href="/settings/weapon-categories" className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
-              <ListPlus className="w-8 h-8 text-purple-500 mb-3" />
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Catégories d'armes</h3>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Groupes d'armes pour les statistiques.</p>
-            </Link>
-            <Link href="/settings/phase-labels" className="flex flex-col items-center justify-center p-6 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors text-center dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900">
-              <Activity className="w-8 h-8 text-sky-500 mb-3" />
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Phases de jeu</h3>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Labels des phases de zone bleue.</p>
-            </Link>
+        {clanItems.length > 0 ? (
+          <div className="mt-8">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">
+              Paramètres du clan sélectionné {clanId ? '' : '(Aucun clan sélectionné)'}
+            </h2>
+            
+            {clanId ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {clanItems.map((item) => (
+                  <SettingsHubCard key={item.navKey} item={item} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900 dark:bg-amber-900/20">
+                <p className="mb-3 text-amber-800 dark:text-amber-200">
+                  Veuillez d&apos;abord sélectionner un clan depuis la liste des clans pour accéder à ces paramètres ({clanItems.map((i) => i.label).join(', ')}).
+                </p>
+                <Link href="/clans" className="app-btn app-btn--sm app-btn--primary">
+                  Sélectionner un clan
+                </Link>
+              </div>
+            )}
           </div>
-        </div>
+        ) : null}
 
+        {/* Paramètres globaux */}
+        {globalItems.length > 0 ? (
+          <div className="mt-10">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">
+              Paramètres et dictionnaires globaux
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {globalItems.map((item) => (
+                <SettingsHubCard key={item.navKey} item={item} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {clanItems.length === 0 && globalItems.length === 0 ? (
+          <div className="mt-8 rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800">
+            Aucun outil d&apos;administration n&apos;est actuellement visible pour votre profil.
+          </div>
+        ) : null}
       </section>
     </main>
   )

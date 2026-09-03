@@ -480,6 +480,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'superuser',
     description: "Vérification et import manuel des derniers matchs PUBG d'un membre, tous clans confondus.",
   },
+  {
+    navKey: 'superuser.database',
+    section: 'superuser-menu',
+    label: 'Base de données',
+    hrefTemplate: '/settings/superuser/database',
+    defaultRole: 'superuser',
+    description: 'Métriques de taille des tables et stockage.',
+  },
 ]
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */

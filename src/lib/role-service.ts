@@ -287,19 +287,34 @@ export async function hasPermission(memberId: number, permission: string) {
   return state.wildcard || state.permissions.has(permission)
 }
 
-export async function assignRole(memberId: number, roleId: number, assignedBy: number) {
-  const actor = await prisma.clanMember.findUnique({
-    where: { id: assignedBy },
-    select: { id: true, clanId: true, isActive: true },
-  })
+export async function assignRole(
+  memberId: number,
+  roleId: number,
+  assignedBy?: number | null,
+  options?: { isSuperUser?: boolean }
+) {
+  const isSuperUser = options?.isSuperUser ?? false
 
-  if (!actor || !actor.isActive || !actor.clanId) {
-    throw new Error('Assigning member not found in a clan')
-  }
+  if (!isSuperUser) {
+    if (!assignedBy) {
+      throw new Error('Assigning member not found in a clan')
+    }
 
-  const canAssign = (await hasPermission(assignedBy, 'assign_roles')) || (await hasPermission(assignedBy, 'manage_roles'))
-  if (!canAssign) {
-    throw new Error('Insufficient permission to assign role')
+    const actor = await prisma.clanMember.findUnique({
+      where: { id: assignedBy },
+      select: { id: true, clanId: true, isActive: true },
+    })
+
+    if (!actor || !actor.isActive || !actor.clanId) {
+      throw new Error('Assigning member not found in a clan')
+    }
+
+    const canAssign =
+      (await hasPermission(assignedBy, 'assign_roles')) ||
+      (await hasPermission(assignedBy, 'manage_roles'))
+    if (!canAssign) {
+      throw new Error('Insufficient permission to assign role')
+    }
   }
 
   const [member, role] = await Promise.all([
@@ -317,26 +332,43 @@ export async function assignRole(memberId: number, roleId: number, assignedBy: n
     throw new Error('Member not found in a clan')
   }
 
-  if (!role || role.clanId !== member.clanId || role.clanId !== actor.clanId) {
+  if (!role || role.clanId !== member.clanId) {
     throw new Error('Role not found for member clan')
   }
 
-  if (role.name === PREDEFINED_ROLES.OWNER.name && assignedBy !== memberId) {
-    throw new Error('Owner role can only be self-assigned during bootstrap')
+  if (!isSuperUser && assignedBy) {
+    const actor = await prisma.clanMember.findUnique({
+      where: { id: assignedBy },
+      select: { clanId: true },
+    })
+    if (role.clanId !== actor?.clanId) {
+      throw new Error('Role not found for member clan')
+    }
+  }
+
+  if (role.name === PREDEFINED_ROLES.OWNER.name && !isSuperUser && assignedBy !== memberId) {
+    throw new Error('Owner role can only be assigned by a SuperUser')
   }
 
   const assigned = await prisma.clanMemberRole.upsert({
     where: { memberId_roleId: { memberId, roleId } },
-    update: { assignedBy },
-    create: { memberId, roleId, assignedBy },
+    update: { assignedBy: assignedBy ?? null },
+    create: { memberId, roleId, assignedBy: assignedBy ?? null },
   })
 
   invalidateMemberPermissionCache(memberId)
-  console.info(`[RoleAudit] Role ${roleId} assigned to member ${memberId} by ${assignedBy}`)
+  console.info(`[RoleAudit] Role ${roleId} assigned to member ${memberId} by ${assignedBy ?? 'SuperUser'}`)
   return assigned
 }
 
-export async function revokeRole(memberId: number, roleId: number, revokedBy?: number) {
+export async function revokeRole(
+  memberId: number,
+  roleId: number,
+  revokedBy?: number | null,
+  options?: { isSuperUser?: boolean }
+) {
+  const isSuperUser = options?.isSuperUser ?? false
+
   const existing = await prisma.clanMemberRole.findUnique({
     where: { memberId_roleId: { memberId, roleId } },
     include: { role: { select: { id: true, name: true } } },
@@ -346,11 +378,11 @@ export async function revokeRole(memberId: number, roleId: number, revokedBy?: n
     return null
   }
 
-  if (existing.role.name === PREDEFINED_ROLES.OWNER.name) {
-    throw new Error('Owner role cannot be revoked')
+  if (existing.role.name === PREDEFINED_ROLES.OWNER.name && !isSuperUser) {
+    throw new Error('Owner role cannot be revoked by non-SuperUser')
   }
 
-  if (revokedBy) {
+  if (!isSuperUser && revokedBy) {
     const canRevoke =
       (await hasPermission(revokedBy, 'revoke_roles')) || (await hasPermission(revokedBy, 'manage_roles'))
     if (!canRevoke) {
@@ -363,7 +395,7 @@ export async function revokeRole(memberId: number, roleId: number, revokedBy?: n
   })
 
   invalidateMemberPermissionCache(memberId)
-  console.info(`[RoleAudit] Role ${roleId} revoked from member ${memberId}${revokedBy ? ` by ${revokedBy}` : ''}`)
+  console.info(`[RoleAudit] Role ${roleId} revoked from member ${memberId}${revokedBy ? ` by ${revokedBy}` : ' by SuperUser'}`)
   return existing
 }
 

@@ -14,6 +14,7 @@ import ClanSyncPanel from '@/components/settings/ClanSyncPanel'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanOverview } from '@/hooks/useClanOverview'
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 type ClanRole = {
   id: number
@@ -114,6 +115,7 @@ export default function ClanMembersSettingsPage() {
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const { data: overviewData } = useClanOverview(clanId)
+  const { isSuperUser } = useAuthSession()
 
   const [members, setMembers] = useState<ClanMemberWithRole[]>([])
   const [roles, setRoles] = useState<ClanRole[]>([])
@@ -322,6 +324,30 @@ export default function ClanMembersSettingsPage() {
       }
 
       throw new Error(payload.error ?? 'Failed to assign role')
+    }
+
+    const data = await fetchMembersAndRoles(clanId)
+    setMembers(data.members)
+    setRoles(data.roles)
+  }
+
+  async function handleRevokeOwner(memberId: number) {
+    if (!clanId) {
+      throw new Error('Clan introuvable')
+    }
+
+    const response = await fetch(`/api/clans/${clanId}/members/${memberId}/role`, {
+      method: 'DELETE',
+    })
+
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null
+    if (!response.ok) {
+      if (response.status === 401) {
+        router.replace(`/login?redirect=${encodeURIComponent(`/clans/${clanId}/settings/members`)}`)
+        return
+      }
+
+      throw new Error(payload?.error ?? 'Échec de la révocation du rôle Owner')
     }
 
     const data = await fetchMembersAndRoles(clanId)
@@ -546,6 +572,8 @@ export default function ClanMembersSettingsPage() {
             currentRole={currentRoleOption}
             availableRoles={roles}
             onAssign={(roleId) => handleAssign(member.id, roleId)}
+            onRevokeOwner={() => handleRevokeOwner(member.id)}
+            isSuperUser={isSuperUser}
           />
         ) : (
           <span className="text-xs text-gray-500">Aucun rôle</span>
@@ -765,7 +793,11 @@ export default function ClanMembersSettingsPage() {
             {sortedMembers.map((member) => {
               const currentRole =
                 member.roles.find((role) => role.name === member.role) ?? member.roles[0]
-              const currentRoleOption = roles.find((role) => role.id === currentRole?.roleId)
+              const currentRoleOption =
+                roles.find((role) => role.id === currentRole?.roleId) ??
+                roles.find((role) => role.name.toLowerCase() === member.role.toLowerCase()) ??
+                roles.find((role) => role.name === 'Member') ??
+                roles[0]
 
               return (
                 <article

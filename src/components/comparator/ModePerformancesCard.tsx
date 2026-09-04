@@ -20,6 +20,21 @@ function formatPercent(value: number | undefined): string {
   return `${(value * 100).toFixed(1)} %`
 }
 
+const SLOT_STYLES = [
+  {
+    name: 'P1',
+    badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]',
+  },
+  {
+    name: 'P2',
+    badgeClass: 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-[0_0_8px_rgba(249,115,22,0.3)]',
+  },
+  {
+    name: 'P3',
+    badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
+  },
+]
+
 export default function ModePerformancesCard({ clans }: Props) {
   const [sortBy, setSortBy] = useState<SortType>('winRate')
 
@@ -150,24 +165,38 @@ export default function ModePerformancesCard({ clans }: Props) {
                   secondaryLeft2 = `${perf.totalKills} kill${perf.totalKills > 1 ? 's' : ''}`
                 }
                 
+                const slotIndex = clans.findIndex((c) => c.clanId === perf.clanId)
+                const slot = SLOT_STYLES[slotIndex !== -1 ? slotIndex % SLOT_STYLES.length : 0]
+
                 return (
                   <div key={perf.clanId} className={`flex items-center justify-between p-4 transition-colors ${index === 0 ? 'bg-blue-500/5' : 'bg-transparent hover:bg-gray-50/5 dark:hover:bg-gray-800/20'}`}>
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full font-black text-xs shadow-sm bg-[var(--theme-bg-base)] border border-[var(--theme-ui-border)]">
-                        {hasTrophy ? (
-                          <Trophy className="h-4 w-4 text-yellow-500" />
-                        ) : (
-                          <span className="text-[var(--theme-ui-text-muted)]">{index + 1}</span>
-                        )}
-                      </div>
-                      <div>
-                        <div className={`text-base font-black tracking-tight ${index === 0 ? 'text-[var(--theme-ui-text)]' : 'text-[var(--theme-ui-text-secondary)]'}`}>
-                          {perf.clanTag}
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                      {/* P1 / P2 / P3 Badge */}
+                      <span
+                        className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg text-xs sm:text-sm font-black tracking-wider uppercase border ${slot.badgeClass}`}
+                      >
+                        {slot.name}
+                      </span>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className={`text-base font-black tracking-tight ${index === 0 ? 'text-[var(--theme-ui-text)]' : 'text-[var(--theme-ui-text-secondary)]'}`}>
+                            {perf.clanTag}
+                          </div>
+                          {hasTrophy && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0">
+                              <Trophy className="h-3 w-3 text-yellow-500" />
+                              1er
+                            </span>
+                          )}
+                          <span className="hidden sm:inline text-xs text-[var(--theme-ui-text-muted)] truncate max-w-[130px]">
+                            {perf.clanName}
+                          </span>
                         </div>
-                        <div className="text-xs font-medium text-[var(--theme-ui-text-muted)]">
+                        <div className="text-xs font-medium text-[var(--theme-ui-text-muted)] truncate">
                           {secondaryLeft1}
                         </div>
-                        <div className="text-[10px] uppercase tracking-wider text-[var(--theme-ui-text-muted)] opacity-70">
+                        <div className="text-[10px] uppercase tracking-wider text-[var(--theme-ui-text-muted)] opacity-70 truncate">
                           {secondaryLeft2}
                         </div>
                       </div>

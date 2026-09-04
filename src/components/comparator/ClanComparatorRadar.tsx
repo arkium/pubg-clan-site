@@ -1,19 +1,43 @@
 'use client'
 
+import React, { useId, useState } from 'react'
+import { Radar } from 'lucide-react'
 import type { ClanComparatorEntry } from '@/hooks/useClanComparator'
 
-// Slots 1-3 du thème catégoriel du projet (validées all-pairs CVD en clair et sombre) —
-// voir skill dataviz, references/palette.md. Ordre fixe, jamais recyclé/attribué au hasard.
-const SERIES_COLORS = [
-  { light: '#2a78d6', dark: '#3987e5' }, // slot 1 — bleu
-  { light: '#eb6834', dark: '#d95926' }, // slot 2 — orange
-  { light: '#1baf7a', dark: '#199e70' }, // slot 3 — aqua
+const SLOT_CONFIGS = [
+  {
+    name: 'P1',
+    hex: '#3b82f6',
+    glowHex: 'rgba(59, 130, 246, 0.5)',
+    badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]',
+    textClass: 'text-blue-400',
+    bgHighlightClass: 'bg-blue-500/15',
+    ringClass: 'ring-blue-500/60',
+  },
+  {
+    name: 'P2',
+    hex: '#f97316',
+    glowHex: 'rgba(249, 115, 22, 0.5)',
+    badgeClass: 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-[0_0_8px_rgba(249,115,22,0.3)]',
+    textClass: 'text-orange-400',
+    bgHighlightClass: 'bg-orange-500/15',
+    ringClass: 'ring-orange-500/60',
+  },
+  {
+    name: 'P3',
+    hex: '#10b981',
+    glowHex: 'rgba(16, 185, 129, 0.5)',
+    badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
+    textClass: 'text-emerald-400',
+    bgHighlightClass: 'bg-emerald-500/15',
+    ringClass: 'ring-emerald-500/60',
+  },
 ]
 
 type Axis = {
   key: string
   label: string
-  values: number[] // une valeur par clan, même ordre que `clans`
+  values: number[]
   max: number
   format: (value: number) => string
 }
@@ -65,64 +89,120 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number): 
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
 }
 
-function radarPath(axes: Axis[], cx: number, cy: number, radius: number, clanIndex: number): string {
-  const n = axes.length
-  return (
-    axes
-      .map((axis, i) => {
-        const angle = (360 / n) * i
-        const value = axis.values[clanIndex]
-        const r = (value / axis.max) * radius
-        const { x, y } = polarToCartesian(cx, cy, r, angle)
-        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
-      })
-      .join(' ') + ' Z'
-  )
-}
-
 type ClanComparatorRadarProps = {
   clans: ClanComparatorEntry[]
 }
 
 export default function ClanComparatorRadar({ clans }: ClanComparatorRadarProps) {
-  if (clans.length === 0) {
-    return (
-      <section className="app-panel p-6 text-sm text-[var(--theme-ui-text-muted)]">
-        Sélectionne au moins un clan pour afficher le radar de comparaison.
-      </section>
-    )
-  }
+  const radarId = useId().replace(/:/g, '')
+  const [hoveredClanId, setHoveredClanId] = useState<number | null>(null)
+
+  if (clans.length === 0) return null
 
   const axes = buildAxes(clans)
-  const cx = 130
-  const cy = 130
-  const radius = 95
-  const n = axes.length
-  const gridLevels = [0.25, 0.5, 0.75, 1]
+  const cx = 170
+  const cy = 150
+  const radius = 100
+
+  // Build polygon points for each clan
+  const clanPolygons = clans.map((clan, clanIndex) => {
+    const points = axes.map((axis, i) => {
+      const angle = (360 / axes.length) * i
+      const value = axis.values[clanIndex]
+      const r = (value / axis.max) * radius
+      return {
+        ...polarToCartesian(cx, cy, Math.max(0, Math.min(radius, r)), angle),
+        value,
+        label: axis.label,
+        formatted: axis.format(value),
+      }
+    })
+    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ') + ' Z'
+    return {
+      clan,
+      clanIndex,
+      points,
+      pathD,
+      slot: SLOT_CONFIGS[clanIndex % SLOT_CONFIGS.length],
+    }
+  })
 
   return (
     <section className="app-panel overflow-hidden p-4 sm:p-6">
-      <h2 className="mb-4 text-lg font-semibold text-[var(--theme-ui-text)]">Profil comparé</h2>
+      {/* Section Header */}
+      <div className="flex items-start gap-2.5 mb-4 pb-3 border-b border-[var(--theme-ui-border)]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+          <Radar className="h-4 w-4" />
+        </span>
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-[var(--theme-ui-text)]">
+            Profil comparé (Radar)
+          </h2>
+          <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
+            Équilibre multidimensionnel des clans sur 5 axes tactiques majeurs (agressivité, survie, teamplay, activité, winrate).
+          </p>
+        </div>
+      </div>
 
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+      <div className="flex flex-col items-center gap-6 md:flex-row">
+        {/* SVG radar */}
         <svg
-          viewBox="0 0 260 260"
-          className="mx-auto h-auto w-full max-w-[260px] shrink-0 xl:mx-0"
-          aria-label="Radar chart comparant les clans sélectionnés"
+          viewBox="0 0 340 300"
+          className="h-64 w-64 shrink-0 sm:h-72 sm:w-72 select-none"
+          role="img"
+          aria-label="Radar comparatif des clans"
         >
-          {gridLevels.map((level) => {
-            const points = axes
+          {/* SVG Glow Filters for each slot */}
+          <defs>
+            {clans.map((_, idx) => {
+              const slot = SLOT_CONFIGS[idx % SLOT_CONFIGS.length]
+              return (
+                <filter
+                  key={`radar-glow-${idx}`}
+                  id={`radar-glow-${radarId}-${idx}`}
+                  x="-30%"
+                  y="-30%"
+                  width="160%"
+                  height="160%"
+                >
+                  <feDropShadow
+                    dx="0"
+                    dy="0"
+                    stdDeviation="4"
+                    floodColor={slot.hex}
+                    floodOpacity="0.8"
+                  />
+                </filter>
+              )
+            })}
+          </defs>
+
+          {/* Concentric Polygons (25%, 50%, 75%, 100%) */}
+          {[0.25, 0.5, 0.75, 1].map((scale) => {
+            const r = radius * scale
+            const pointsStr = axes
               .map((_, i) => {
-                const angle = (360 / n) * i
-                const { x, y } = polarToCartesian(cx, cy, radius * level, angle)
+                const angle = (360 / axes.length) * i
+                const { x, y } = polarToCartesian(cx, cy, r, angle)
                 return `${x.toFixed(1)},${y.toFixed(1)}`
               })
               .join(' ')
-            return <polygon key={level} points={points} fill="none" stroke="var(--theme-ui-border)" strokeWidth="1" />
+            return (
+              <polygon
+                key={scale}
+                points={pointsStr}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                className="text-[var(--theme-ui-border)]"
+                opacity={0.6}
+              />
+            )
           })}
 
+          {/* Radial Axis Lines */}
           {axes.map((_, i) => {
-            const angle = (360 / n) * i
+            const angle = (360 / axes.length) * i
             const { x, y } = polarToCartesian(cx, cy, radius, angle)
             return (
               <line
@@ -131,41 +211,91 @@ export default function ClanComparatorRadar({ clans }: ClanComparatorRadarProps)
                 y1={cy}
                 x2={x.toFixed(1)}
                 y2={y.toFixed(1)}
-                stroke="var(--theme-ui-border)"
+                stroke="currentColor"
                 strokeWidth="1"
+                className="text-[var(--theme-ui-border)]"
+                opacity={0.6}
               />
             )
           })}
 
-          {clans.map((clan, clanIndex) => {
-            const color = SERIES_COLORS[clanIndex % SERIES_COLORS.length]
+          {/* Radar Polygons with Hover Glow & Hit-Testing */}
+          {clanPolygons.map(({ clan, clanIndex, pathD, slot }) => {
+            const isHovered = hoveredClanId === clan.clanId
+            const isOtherHovered = hoveredClanId !== null && hoveredClanId !== clan.clanId
+
             return (
-              <path
+              <g
                 key={clan.clanId}
-                d={radarPath(axes, cx, cy, radius, clanIndex)}
-                fill={color.light}
-                className="comparator-radar-series"
-                style={{ ['--series-color-dark' as string]: color.dark }}
-                fillOpacity="0.22"
-                stroke={color.light}
-                strokeWidth="2"
-              />
+                onMouseEnter={() => setHoveredClanId(clan.clanId)}
+                onMouseLeave={() => setHoveredClanId(null)}
+                className="cursor-pointer transition-all duration-300"
+                style={{ opacity: isOtherHovered ? 0.15 : 1 }}
+              >
+                {/* Wider invisible stroke for easier hover interaction */}
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth="18"
+                />
+
+                {/* Main filled polygon & styled outline */}
+                <path
+                  d={pathD}
+                  fill={slot.hex}
+                  fillOpacity={isHovered ? 0.35 : 0.18}
+                  stroke={slot.hex}
+                  strokeWidth={isHovered ? 3.5 : 2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  filter={isHovered ? `url(#radar-glow-${radarId}-${clanIndex})` : undefined}
+                  className="transition-all duration-300 ease-out"
+                />
+              </g>
             )
           })}
 
+          {/* Vertex Nodes for each Clan */}
+          {clanPolygons.map(({ clan, points, slot }) => {
+            const isHovered = hoveredClanId === clan.clanId
+            const isOtherHovered = hoveredClanId !== null && hoveredClanId !== clan.clanId
+
+            return (
+              <g
+                key={`dots-${clan.clanId}`}
+                style={{ opacity: isOtherHovered ? 0.15 : 1 }}
+                className="transition-opacity duration-200 pointer-events-none"
+              >
+                {points.map((p, pIdx) => (
+                  <circle
+                    key={`dot-${clan.clanId}-${pIdx}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r={isHovered ? 4.5 : 3}
+                    fill={isHovered ? '#ffffff' : slot.hex}
+                    stroke={slot.hex}
+                    strokeWidth={isHovered ? 2 : 1}
+                    className="transition-all duration-200"
+                  />
+                ))}
+              </g>
+            )
+          })}
+
+          {/* Axis Labels */}
           {axes.map((axis, i) => {
-            const angle = (360 / n) * i
-            const { x, y } = polarToCartesian(cx, cy, radius + 20, angle)
+            const angle = (360 / axes.length) * i
+            const labelRadius = radius + 22
+            const { x, y } = polarToCartesian(cx, cy, labelRadius, angle)
             return (
               <text
                 key={axis.key}
                 x={x.toFixed(1)}
                 y={y.toFixed(1)}
                 textAnchor="middle"
-                dominantBaseline="middle"
-                fill="var(--theme-ui-text-muted)"
-                fontSize="10"
-                fontWeight={500}
+                dominantBaseline="central"
+                className="fill-[var(--theme-ui-text-muted)] font-sans text-[11px] font-semibold"
               >
                 {axis.label}
               </text>
@@ -173,40 +303,94 @@ export default function ClanComparatorRadar({ clans }: ClanComparatorRadarProps)
           })}
         </svg>
 
+        {/* Legend & Stats Table */}
         <div className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap gap-4 text-xs">
-            {clans.map((clan, clanIndex) => (
-              <span key={clan.clanId} className="flex items-center gap-1.5 text-[var(--theme-ui-text-secondary)]">
-                <span
-                  className="inline-block h-3 w-3 rounded-sm"
-                  style={{ backgroundColor: SERIES_COLORS[clanIndex % SERIES_COLORS.length].light, opacity: 0.85 }}
-                />
-                {clan.clanName} [{clan.clanTag}]
-              </span>
-            ))}
+          {/* Interactive Legend Buttons with P1/P2/P3 */}
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+            {clans.map((clan, clanIndex) => {
+              const slot = SLOT_CONFIGS[clanIndex % SLOT_CONFIGS.length]
+              const isHovered = hoveredClanId === clan.clanId
+              const isOtherHovered = hoveredClanId !== null && hoveredClanId !== clan.clanId
+
+              return (
+                <button
+                  key={clan.clanId}
+                  type="button"
+                  onMouseEnter={() => setHoveredClanId(clan.clanId)}
+                  onMouseLeave={() => setHoveredClanId(null)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition cursor-pointer ${
+                    isHovered
+                      ? `${slot.badgeClass} ring-2 ${slot.ringClass} shadow-md`
+                      : isOtherHovered
+                        ? 'opacity-40 border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)]'
+                        : 'border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] hover:border-slate-400'
+                  }`}
+                >
+                  <span className={`flex h-4 px-1 items-center justify-center rounded text-[10px] font-black uppercase border ${slot.badgeClass}`}>
+                    {slot.name}
+                  </span>
+                  <span className="font-mono font-bold text-[var(--theme-ui-text)]">[{clan.clanTag}]</span>
+                  <span className="text-[var(--theme-ui-text-muted)] truncate max-w-[120px]">{clan.clanName}</span>
+                </button>
+              )
+            })}
           </div>
 
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-xs">
+          {/* Interactive Comparison Table */}
+          <div className="w-full">
+            <table className="w-full table-fixed text-xs">
               <thead>
                 <tr className="text-left text-[var(--theme-ui-text-muted)]">
-                  <th className="pb-1 font-medium">Axe</th>
-                  {clans.map((clan) => (
-                    <th key={clan.clanId} className="pb-1 text-right font-medium">
-                      {clan.clanTag}
-                    </th>
-                  ))}
+                  <th
+                    className="pb-1.5 font-medium"
+                    style={{ width: clans.length === 1 ? '50%' : clans.length === 2 ? '36%' : '28%' }}
+                  >
+                    Axe
+                  </th>
+                  {clans.map((clan, clanIndex) => {
+                    const slot = SLOT_CONFIGS[clanIndex % SLOT_CONFIGS.length]
+                    const isHovered = hoveredClanId === clan.clanId
+                    const colWidth = clans.length === 1 ? '50%' : clans.length === 2 ? '32%' : '24%'
+                    return (
+                      <th
+                        key={clan.clanId}
+                        style={{ width: colWidth }}
+                        className={`pb-1.5 px-2 text-right font-medium transition-colors ${
+                          isHovered ? 'text-[var(--theme-ui-text)] font-bold' : ''
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          <span className={`inline-flex h-3.5 px-1 items-center justify-center rounded text-[9px] font-black uppercase border ${slot.badgeClass}`}>
+                            {slot.name}
+                          </span>
+                          <span className="truncate">{clan.clanTag}</span>
+                        </span>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--theme-ui-border)]">
                 {axes.map((axis) => (
                   <tr key={axis.key}>
-                    <td className="py-1 text-[var(--theme-ui-text-secondary)]">{axis.label}</td>
-                    {axis.values.map((value, clanIndex) => (
-                      <td key={clans[clanIndex].clanId} className="py-1 text-right font-semibold text-[var(--theme-ui-text)]">
-                        {axis.format(value)}
-                      </td>
-                    ))}
+                    <td className="py-1.5 text-[var(--theme-ui-text-secondary)] font-medium truncate">{axis.label}</td>
+                    {axis.values.map((value, clanIndex) => {
+                      const clan = clans[clanIndex]
+                      const isHovered = hoveredClanId === clan.clanId
+                      const slot = SLOT_CONFIGS[clanIndex % SLOT_CONFIGS.length]
+                      return (
+                        <td
+                          key={clan.clanId}
+                          className={`py-1.5 px-2 text-right transition-colors rounded ${
+                            isHovered
+                              ? `${slot.textClass} ${slot.bgHighlightClass} font-bold`
+                              : 'font-semibold text-[var(--theme-ui-text)]'
+                          }`}
+                        >
+                          {axis.format(value)}
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -237,13 +421,6 @@ export default function ClanComparatorRadar({ clans }: ClanComparatorRadarProps)
           </dl>
         </div>
       </div>
-
-      <style>{`
-        :root[data-app-theme='dark'] .comparator-radar-series {
-          fill: var(--series-color-dark) !important;
-          stroke: var(--series-color-dark) !important;
-        }
-      `}</style>
     </section>
   )
 }

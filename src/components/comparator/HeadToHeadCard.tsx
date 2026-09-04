@@ -9,9 +9,39 @@ type Props = {
   h2h: HeadToHeadStats
   clanA: ClanComparatorEntry
   clanB: ClanComparatorEntry
+  selectedClanIds?: number[]
 }
 
-export default function HeadToHeadCard({ h2h, clanA, clanB }: Props) {
+const SLOT_STYLES = [
+  {
+    name: 'P1',
+    badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]',
+    bgTint: 'bg-blue-500/10',
+    textTint: 'text-blue-500/80',
+    textColor: 'text-blue-500',
+  },
+  {
+    name: 'P2',
+    badgeClass: 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-[0_0_8px_rgba(249,115,22,0.3)]',
+    bgTint: 'bg-orange-500/10',
+    textTint: 'text-orange-500/80',
+    textColor: 'text-orange-500',
+  },
+  {
+    name: 'P3',
+    badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
+    bgTint: 'bg-emerald-500/10',
+    textTint: 'text-emerald-500/80',
+    textColor: 'text-emerald-500',
+  },
+]
+
+export default function HeadToHeadCard({ h2h, clanA, clanB, selectedClanIds }: Props) {
+  const slotAIndex = selectedClanIds ? selectedClanIds.indexOf(clanA.clanId) : 0
+  const slotBIndex = selectedClanIds ? selectedClanIds.indexOf(clanB.clanId) : 1
+  const slotA = SLOT_STYLES[slotAIndex !== -1 ? slotAIndex % SLOT_STYLES.length : 0]
+  const slotB = SLOT_STYLES[slotBIndex !== -1 ? slotBIndex % SLOT_STYLES.length : 1]
+
   if (h2h.commonMatchCount === 0) {
     return (
       <article className="app-panel-muted flex flex-col items-center justify-center rounded-xl p-8 text-center border border-[var(--theme-ui-border)]">
@@ -39,13 +69,18 @@ export default function HeadToHeadCard({ h2h, clanA, clanB }: Props) {
 
   return (
     <article className="app-panel-muted overflow-hidden rounded-xl border border-[var(--theme-ui-border)] shadow-sm">
-      {/* Header with VS */}
+      {/* Header with VS and Slot Badges */}
       <div className="relative flex items-stretch border-b border-[var(--theme-ui-border)]">
-        <div className="flex flex-1 flex-col items-center justify-center bg-blue-500/10 p-5 text-center">
-          <span className="mb-1 text-xs font-bold uppercase tracking-widest text-blue-500/80">
-            {clanA.clanName}
-          </span>
-          <span className="text-4xl font-black text-[var(--theme-ui-text)]">
+        <div className={`flex flex-1 flex-col items-center justify-center ${slotA.bgTint} p-5 text-center`}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className={`flex h-5 px-1.5 items-center justify-center rounded text-[11px] font-black uppercase border ${slotA.badgeClass}`}>
+              {slotA.name}
+            </span>
+            <span className={`text-xs font-bold uppercase tracking-widest ${slotA.textTint}`}>
+              {clanA.clanName}
+            </span>
+          </div>
+          <span className="text-3xl sm:text-4xl font-black text-[var(--theme-ui-text)]">
             {clanA.clanTag}
           </span>
         </div>
@@ -56,11 +91,16 @@ export default function HeadToHeadCard({ h2h, clanA, clanB }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center bg-orange-500/10 p-5 text-center">
-          <span className="mb-1 text-xs font-bold uppercase tracking-widest text-orange-500/80">
-            {clanB.clanName}
-          </span>
-          <span className="text-4xl font-black text-[var(--theme-ui-text)]">
+        <div className={`flex flex-1 flex-col items-center justify-center ${slotB.bgTint} p-5 text-center`}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className={`flex h-5 px-1.5 items-center justify-center rounded text-[11px] font-black uppercase border ${slotB.badgeClass}`}>
+              {slotB.name}
+            </span>
+            <span className={`text-xs font-bold uppercase tracking-widest ${slotB.textTint}`}>
+              {clanB.clanName}
+            </span>
+          </div>
+          <span className="text-3xl sm:text-4xl font-black text-[var(--theme-ui-text)]">
             {clanB.clanTag}
           </span>
         </div>
@@ -74,9 +114,9 @@ export default function HeadToHeadCard({ h2h, clanA, clanB }: Props) {
             <Trophy className="h-4 w-4" /> Meilleur Placement
           </div>
           <div className="flex items-center justify-center gap-2">
-            <span className={winDiff > 0 ? "text-3xl font-black text-blue-500" : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.matchesWonByA}</span>
+            <span className={winDiff > 0 ? `text-3xl font-black ${slotA.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.matchesWonByA}</span>
             <Minus className="h-4 w-4 text-[var(--theme-ui-text-secondary)] opacity-50" />
-            <span className={winDiff < 0 ? "text-3xl font-black text-orange-500" : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.matchesWonByB}</span>
+            <span className={winDiff < 0 ? `text-3xl font-black ${slotB.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.matchesWonByB}</span>
           </div>
           {h2h.ties > 0 && (
             <p className="mt-2 text-xs font-medium text-[var(--theme-ui-text-muted)]">
@@ -91,9 +131,9 @@ export default function HeadToHeadCard({ h2h, clanA, clanB }: Props) {
             <Skull className="h-4 w-4" /> Plus de Kills
           </div>
           <div className="flex items-center justify-center gap-2">
-            <span className={killDiffMatch > 0 ? "text-3xl font-black text-blue-500" : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.mostKillsInMatchA}</span>
+            <span className={killDiffMatch > 0 ? `text-3xl font-black ${slotA.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.mostKillsInMatchA}</span>
             <Minus className="h-4 w-4 text-[var(--theme-ui-text-secondary)] opacity-50" />
-            <span className={killDiffMatch < 0 ? "text-3xl font-black text-orange-500" : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.mostKillsInMatchB}</span>
+            <span className={killDiffMatch < 0 ? `text-3xl font-black ${slotB.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.mostKillsInMatchB}</span>
           </div>
           {h2h.mostKillsTies > 0 && (
             <p className="mt-2 text-xs font-medium text-[var(--theme-ui-text-muted)]">
@@ -108,9 +148,9 @@ export default function HeadToHeadCard({ h2h, clanA, clanB }: Props) {
             <Crosshair className="h-4 w-4" /> Kills Directs
           </div>
           <div className="flex items-center justify-center gap-2">
-            <span className={killDiff > 0 ? "text-3xl font-black text-blue-500" : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.killsAOnB}</span>
+            <span className={killDiff > 0 ? `text-3xl font-black ${slotA.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.killsAOnB}</span>
             <Minus className="h-4 w-4 text-[var(--theme-ui-text-secondary)] opacity-50" />
-            <span className={killDiff < 0 ? "text-3xl font-black text-orange-500" : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.killsBOnA}</span>
+            <span className={killDiff < 0 ? `text-3xl font-black ${slotB.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.killsBOnA}</span>
           </div>
           <p className="mt-2 text-xs font-medium text-[var(--theme-ui-text-secondary)]">
             {h2h.killsAOnB + h2h.killsBOnA === 0 

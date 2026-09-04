@@ -1,10 +1,100 @@
 # Points à faire — PUBG Clan Site
 
-Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-03.
+Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-04.
 
 ---
 
 ## P1 — Bloquants / manques fonctionnels immédiats
+
+### ~~Comparateur de clans (`/clans/comparator`) — Sélecteur Roster « Trading Cards » & Arène de Confrontation~~ — ✅ Complété le 2026-09-04
+
+Refonte complète de l'expérience de sélection des clans sur `/clans/comparator` (Proposition N°2 : *Roster Trading Cards avec Smart Filters & Battle Slots*) pour remplacer le nuage de boutons statique devenu illisible avec l'augmentation des clans suivis :
+
+- [x] **Arène de confrontation & Battle Slots (`src/components/comparator/ClanRosterSelector.tsx`) :**
+  - 3 emplacements visuels interactifs (`P1`, `P2`, `P3`) synchronisés avec la palette catégorielle du Radar et des graphiques :
+    - *Slot 1 :* Bleu (`#3b82f6`)
+    - *Slot 2 :* Orange (`#f97316`)
+    - *Slot 3 :* Émeraude / Vert (`#10b981`)
+  - **Badges `VS` esport** : insertion d'un badge centralisé lumineux `VS` entre chaque slot (P1 vs P2 vs P3) pour matérialiser la confrontation.
+  - Affichage instantané du tag `[TAG]` agrandi (`text-base sm:text-lg font-black`), du nom du clan, de l'effectif, et bouton de retrait unitaire (`✕`).
+  - Action **`🎲 Aléatoire`** : pioche 3 clans actifs au hasard pour lancer un duel surprise en un clic.
+  - Action **`Effacer`** : réinitialisation rapide de la sélection sans recharger la page.
+  - **Bouton centré de déploiement / repliement avec chevron** : placé au centre du bas de la 1ère carte pour afficher ou masquer à volonté le catalogue de cartes, économisant un maximum d'espace vertical pour le radar et les graphiques.
+- [x] **Contrôles intelligents & Filtres rapides (Smart Filters) :**
+  - **Puces de catégories prioritaires en en-tête** :
+    - *Tous* (avec compteur total de clans).
+    - *🔥 Actifs récents* (clans ayant des matchs joués dans les 30 derniers jours).
+    - *👥 Effectifs 10+* (clans avec 10 membres ou plus).
+    - *⭐ Sélectionnés* (isole les clans actuellement sélectionnés).
+  - **Bouton Loupe rétractable (`🔍 Recherche`)** : la barre de recherche textuelle s'affiche à la demande lors d'un clic sur la loupe avec autofocus immédiat, préservant une vue ultra-compacte sur une seule ligne par défaut.
+  - **Tri multicritères** : tri dynamique par dernière activité (plus récent d'abord), ordre alphabétique (A-Z), effectif (membres décroissants), ou volume total de matchs.
+- [x] **Grille de « Trading Cards » de clans (Style Esport / FUT) :**
+  - Cartes gaming interactives avec **lisibilité et typographie considérablement renforcées** :
+    - **Tag de clan mis en avant en grand format** (`font-mono text-xl sm:text-2xl font-black tracking-wide`).
+    - Nom de clan plus lisible et contrasté (`text-xs sm:text-sm font-semibold`).
+    - Métriques d'effectif (`👥 X membres`) et de matchs agrandies avec icônes rehaussées.
+    - Indicateur de récence d'activité dynamique (*« À l'instant »*, *« Il y a 2 h »*, *« Hier »*, *« Il y a 3 j »*).
+  - **Rétroaction visuelle riche** : halo lumineux et bordure aux couleurs du slot attribué (`P1`, `P2`, `P3`), micro-animation 3D au survol, et atténuation grisée élégante lorsque le plafond de 3 clans est atteint pour les clans non sélectionnés.
+- [x] **Dataviz « Performances globales — Profil ADN Multi-Axes » (`src/components/comparator/GlobalPerformancesDominance.tsx`) :**
+  - Remplacement de la grille de barres par un **graphique de télémétrie multi-axes unifié (Parallel Coordinates / Profil ADN)** :
+    - 5 axes verticaux calibrés : *Matchs*, *Winrate*, *Top 10*, *Dégâts / m.* et *Kills / m.*
+    - Trajectoires en courbes de Bézier fluides (splines SVG) aux couleurs néon de chaque clan (`P1 Bleu #3b82f6`, `P2 Orange #f97316`, `P3 Vert #10b981`).
+    - Nœuds d'intersection interactifs affichant les valeurs exactes de chaque clan et mettant en valeur le score maximal en doré.
+    - **Légende interactive & focus au survol** : survoler un clan dans la légende ou sur sa courbe amplifie sa trajectoire avec un effet de halo lumineux (glow filter) et estompe temporairement les courbes rivales pour une lecture immédiate sans surcharge.
+    - **Élimination des superpositions sur les nœuds sommitaux** : remontée des en-têtes d'axes (titre à `y=22`, indicateur Max à `y=38`, ligne de départ à `padTop=75`), et répartition géométrique stricte des étiquettes de clans (P1 décalé à gauche, P2 à droite, P3 en dessous avec protection des bords extrêmes) avec contour protecteur (`paintOrder: stroke fill`) garantissant zéro chevauchement même si plusieurs clans partagent un score identique de 100%.
+    - **Optimisation mobile & suppression du double cadre** : suppression de la boîte interne redondante (`border`, `bg`, `p-2 sm:p-4`) et de `min-w-[620px]` avec `overflow-x-auto` ; le graphique s'affiche désormais directement sur le panneau avec marges réduites (`padLeft=36`, `padRight=36`), s'adaptant à 100% de l'écran sur smartphone sans aucun défilement horizontal parasite.
+- [x] **Harmonisation transverse des en-têtes de sections (`src/app/clans/comparator/page.tsx` & `ClanComparatorRadar.tsx`) :**
+  - Généralisation de l'agencement visuel premium sur toutes les sections de la page :
+    - *Profil comparé (Radar)* : icône `Radar` (cyan) + sous-titre sur l'équilibre multidimensionnel.
+    - *Performances globales* : icône `Activity` (bleu) + sous-titre sur la signature tactique multi-axes.
+    - *Le « Derby » (Head-to-Head)* : icône `Swords` (rouge) + sous-titre sur les lobbies partagés.
+    - *Performances par mode* : icône `Users` (ambre) + sous-titre sur la spécialisation Duo / Trio / Squad.
+    - *Le « Pouls » (Activité et rythme)* : icône `HeartPulse` (rose) + sous-titre sur la santé du roster et régularité.
+    - *Le « ADN » (Style de jeu)* : icône `Dna` (violet) + sous-titre sur les hot drops, survie et entraide.
+    - *Heatmap d'activité (Punchcard)* : icône `Calendar` (indigo) + sous-titre sur les créneaux et jours de pointe.
+  - Chaque bloc bénéficie d'un badge d'icône aux couleurs du thème, d'un titre en gras, d'une courte description claire et d'une ligne de séparation épurée.
+- [x] **Harmonisation des sections « Le Pouls » & « Le ADN » (Style Leaderboard Performances par mode) (`ClanPulseCards.tsx` & `ClanDnaCards.tsx`) :**
+  - Alignement visuel et logique strict sur le composant `ModePerformancesCard` (`/clans/comparator`) :
+    - **Contrôles de tri par critères (`SegmentedControl`)** :
+      - *Le « Pouls »* : classement dynamique par *Roster actif*, *Rythme hebdo*, ou *Mode favori*.
+      - *Le « ADN »* : classement dynamique par *Hot drop*, *Survie*, ou *Revives* (avec volume total de revives et moyenne par match).
+    - **Correction de la métrique Revives / Entraide (`ClanDnaCards.tsx`)** :
+      - Affichage direct du nombre réel de réanimations (`revivesGiven`, ex: `60 revives`) et du taux par match (`0.8 / match`) au lieu d'afficher `—` lorsque la télémétrie spatiale des KO subis n'est pas indexée sur les périodes récentes (semaine/mois).
+      - Maintien du ratio KO en complément dès qu'il est disponible (`· Ratio 0.54`).
+    - **Structure de rangs unifiée (Leaderboard List)** :
+      - **Badges de slot `P1`, `P2`, `P3` identitaires** : squircle aux couleurs du slot (`P1 Bleu`, `P2 Orange`, `P3 Vert`) placé en ancrage à gauche de chaque ligne.
+      - **Trophée doré `🏆 1er`** : badge d'honneur à côté du tag de clan pour le clan dominant le critère sélectionné (+ fond subtilement surligné `bg-blue-500/5`).
+      - Colonne gauche : Tag de clan en gras avec lien direct, nom complet et 2 sous-lignes contextuelles détaillées.
+- [x] **Généralisation du design des badges de slot `P1`, `P2`, `P3` sur l'ensemble du comparateur :**
+  - Harmonisation intégrale de l'identité visuelle de confrontation (`P1 Bleu #3b82f6`, `P2 Orange #f97316`, `P3 Vert #10b981`) sur **toutes les sections** de la page :
+    - *Arène & Sélecteur (`ClanRosterSelector`)* : badges squircles néon officiels sur les 3 battle slots et les trading cards.
+    - *Performances globales (`GlobalPerformancesDominance`)* : badges `P1`, `P2`, `P3` interactifs dans la légende et trajectoires de courbes.
+    - *Profil comparé (`ClanComparatorRadar`)* : badges intégrés dans la légende et en en-tête de chaque colonne du tableau d'axes.
+    - *Le « Derby » (`HeadToHeadCard`)* : badges `P1` vs `P2` dans l'en-tête du duel et teintes de confrontation dynamiques.
+    - *Performances par mode (`ModePerformancesCard`)* : remplacement des numéros génériques par les badges `P1`, `P2`, `P3` et badge `🏆 1er`.
+    - *Le « Pouls » (`ClanPulseCards`)* : badges de slot à gauche de chaque ligne de classement et puce `🏆 1er`.
+    - *Le « ADN » (`ClanDnaCards`)* : badges de slot à gauche de chaque ligne de classement et puce `🏆 1er`.
+    - *Heatmap d'activité (`ClanActivityHeatmap`)* : boutons de légende interactifs avec état de survol (`hoveredClanId`), mise en surbrillance néon des points du clan ciblé (`boxShadow` néon et grossissement +35%), et atténuation des points des clans adverses (opacité 0.12).
+- [x] **Correction & Modernisation interactive du Radar (`src/components/comparator/ClanComparatorRadar.tsx`) :**
+  - **Correction du bug d'affichage (lignes manquantes)** : la fonction de calcul générait une commande de tracé SVG complète (`M x,y L x,y ... Z`) qui était injectée dans une balise `<polygon points="...">`. L'attribut `points` rejetant les lettres de commande `M`, `L`, `Z`, le SVG était invalidé silencieusement par le navigateur et n'affichait aucune ligne. Remplacement par `<path d="...">` avec fermeture automatique.
+  - **Interaction au survol (Hover & Focus)** :
+    - Gestion d'état `hoveredClanId` connectée à la fois aux polygones du radar, aux puces de légende et aux colonnes du tableau d'axes.
+    - **Halo néon lumineux (`feDropShadow`)** : filtre SVG dédié par clan intensifiant la lueur et la présence visuelle du clan ciblé.
+    - **Atténuation automatique** des autres clans (opacité abaissée à 0.12 - 0.15) pour isoler parfaitement l'empreinte radar du clan examiné.
+    - **Nœuds de sommets interactifs (`<circle>`)** : points lumineux pulsants aux 5 intersections des axes.
+    - **Zone de captage élargie** (`strokeWidth="18"`) transparente pour rendre le survol du radar fluide et sans à-coups.
+    - **Élimination du débordement horizontal (`overflow-x`) au survol** : suppression de `scale-105` sur les cellules `<td>` et passage du tableau en `table-fixed` avec largeurs proportionnelles garantissant 100% de la largeur du conteneur sans barre de défilement parasite ; surbrillance de colonne avec fond d'accentuation doux (`bgHighlightClass`) et texte en gras.
+  - **Suppression des styles CSS conflictuels** : retrait d'un bloc `<style>` legacy qui forçait les couleurs des séries avec `!important`.
+- [x] **Intégration page & données API (`src/app/clans/comparator/page.tsx`) :**
+  - Exploitation complète des métadonnées déjà fournies par `GET /api/clans` (`membersCount`, `matchesCount`, `lastMatchAt`, `platformShard`, `imageUrl`).
+  - Déplacement et harmonisation de la barre de période (`Semaine`, `Mois`, `Tous`) dans un conteneur dédié sous le sélecteur.
+- [x] **Documentation du Design System (`docs/ui/index.html`) — Nouveaux composants Esport & Dataviz :**
+  - Ajout des sections 17 à 21 avec aperçus interactifs (clair/sombre), snippets de code copiables et cas d'usage pour de futures pages (matchs, tournois, profils, lobbies) :
+    - *Section 17* : En-têtes de modules pédagogiques & panneaux (`.app-panel` avec carré d'icône teinté et sous-titre).
+    - *Section 18* : Slots de confrontation P1 / P2 / P3 (`.p-slot-badge`) et badge Esport `VS` (`.esport-vs-badge`).
+    - *Section 19* : Roster Trading Cards (style FUT/Esport) & Battle Slots (états vide vs assigné).
+    - *Section 20* : Dataviz Radar SVG & Trajectoires ADN (filtres néon `feDropShadow`, hover bidirectionnel, règles strictes anti-débordement `table-fixed`).
+    - *Section 21* : Listes Leaderboard par critère avec rangs ordonnés et puce d'honneur `🏆 1er` (`.app-trophy-chip`).
 
 ### ~~Observatoire des Clans, Résolution & Triage (`/settings/opponents`) — Tri, Métriques, Chargement progressif & Triage interactif~~ — ✅ Complété le 2026-09-03
 

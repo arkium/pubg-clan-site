@@ -441,6 +441,51 @@ Utilisé par `Leaderboard`, `LeaderboardStats`, `PlayerStats`.
 
 ---
 
+## Composants Télémétrie Tactique (`src/components/telemetry/`)
+
+### `DamageBodySvg`
+
+Fichier : `src/components/telemetry/DamageBodySvg.tsx`
+
+Rôle : silhouette anatomique humaine vectorielle (5 zones : `head`, `torso`, `pelvis`, `arms`, `legs`) avec gradient thermique d'impact (neutre, faible, moyen, critique) et tooltips interactifs au survol.
+
+```typescript
+type DamageBodySvgProps = {
+  damageByZone?: Partial<Record<'head' | 'torso' | 'pelvis' | 'arms' | 'legs', number>>
+  hitsByZone?: Partial<Record<'head' | 'torso' | 'pelvis' | 'arms' | 'legs', number>>
+  totalDamage?: number
+  size?: 'sm' | 'md' | 'lg' | number
+  showLabels?: boolean
+  showTooltips?: boolean
+  interactive?: boolean
+  variant?: 'received' | 'dealt'
+}
+```
+
+### `WeaponAccuracyBadge`
+
+Fichier : `src/components/telemetry/WeaponAccuracyBadge.tsx`
+
+Rôle : badge d'efficacité balistique et taux de précision au tir `(hitsLanded / shotsFired) * 100` avec paliers compétitifs PUBG et barre de progression optionnelle.
+
+```typescript
+type WeaponAccuracyBadgeProps = {
+  shotsFired: number
+  hitsLanded: number
+  weaponName?: string
+  size?: 'sm' | 'md'
+  showBar?: boolean
+}
+```
+
+### `MatchCombatTimeline`
+
+Fichier : `src/components/telemetry/MatchCombatTimeline.tsx`
+
+Rôle : journal chronologique des combats découpé par phases de zone, filtres clan/lobby et cartes d'affrontements 1v1 dépliables avec silhouette corporelle intégrée.
+
+---
+
 ## Règles de contribution
 
 Pour tout nouveau composant UI réutilisable :

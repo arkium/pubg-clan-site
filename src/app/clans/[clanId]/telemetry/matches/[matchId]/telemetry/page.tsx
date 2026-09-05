@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Server,
   Swords,
+  Sparkles,
   Upload,
   Users,
   Waves,
@@ -1169,6 +1170,27 @@ export default function TelemetryMatchDetailPage() {
 
       {!loading && !error && match && telemetry ? (
         <>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-slate-900/80 to-blue-500/15 border border-amber-500/30 text-xs shadow-sm">
+            <div className="flex items-center gap-2 text-slate-200">
+              <span className="p-1 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                <Sparkles className="w-4 h-4" />
+              </span>
+              <div>
+                <span className="font-bold text-amber-300">Nouvelle interface Débriefing Tactique disponible :</span>{' '}
+                Silhouette anatomique SVG, journal des frags/duels chronologique et carte 2D Replay style PUBG.PLUS.
+              </div>
+            </div>
+            <Link
+              href={`/clans/${clanId}/telemetry/matches/${matchId}/debrief?period=${period}${
+                fromDate ? `&fromDate=${fromDate}` : ''
+              }`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold transition-colors shrink-0"
+            >
+              <span>Ouvrir le Débriefing Tactique</span>
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+
           <section className="app-panel p-4 md:p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>

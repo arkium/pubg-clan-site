@@ -6,6 +6,44 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-04.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### ~~Débriefing Tactique 2D Replay — Résolution de l'alias de map et harmonisation de la typographie~~ — ✅ Complété le 2026-09-05
+
+Améliorations de lisibilité et fidélité cartographique sur la page de Débriefing Tactique Replay (`/clans/[clanId]/telemetry/matches/[matchId]/debrief`) :
+
+- [x] **Résolution de l'alias officiel de la map (`resolveMapName`) :**
+  - Remplacement de l'ID technique interne PUBG (`Savage_Main`, `Baltic_Main`, `Desert_Main`, `Tiger_Main`…) par le nom officiel affiché (`Sanhok`, `Erangel`, `Miramar`, `Taego`…) via `resolveMapName` de `@/lib/pubg-assets`.
+  - Application cohérente dans le fil d'Ariane (`NavigationTrail`), le titre Hero (`text-2xl md:text-3xl font-black`), et le texte alternatif de la carte satellite.
+  - Conservation de l'identifiant technique d'asset (`Savage_Main`) sous forme de badge discret à côté du mode de jeu pour audit technique sans gêner la lecture.
+- [x] **Harmonisation complète des tailles de police (Typographie & Hiérarchie) :**
+  - **Élimination des micro-polices** illisibles (`text-[10px]`, `text-[11px]`) sur les composants clés.
+  - **Hero Banner & KPIs escouade** :
+    - Titre map mis en avant en grand format (`text-2xl md:text-3xl font-black`).
+    - Noms des membres de l'escouade agrandis (`text-sm font-bold text-emerald-400`), stats associées lisibles (`text-xs text-slate-300 font-mono`).
+    - Indicateurs clés (Kills, Dégâts, Assistances, Réanimations) : labels en `text-xs uppercase font-bold tracking-wider text-slate-400` et valeurs numériques imposantes en `text-2xl font-mono font-black`.
+  - **Onglets & Navigation** :
+    - Onglets en `text-sm font-bold`, compteurs d'événements en `text-xs font-mono font-semibold`.
+    - Sélecteur de phase cartographique avec puces `text-xs font-bold font-mono px-2.5 py-1` et toggles de calques en `text-xs font-semibold`.
+    - Badge C-130 agrandi en `text-xs font-mono font-semibold text-blue-200 px-3.5 py-2`.
+  - **Tableau Roster Escouade (Onglet 3)** :
+    - En-têtes du tableau en `text-xs uppercase font-mono font-bold text-slate-300`.
+    - Noms des joueurs en `text-sm font-bold text-slate-100` avec sous-ligne assists/revives en `text-xs text-slate-400`.
+    - Badge kills en `text-sm font-bold font-mono px-2.5 py-1`.
+    - Chiffres de dégâts infligés et subis en `text-sm font-mono font-bold`.
+    - Distances à pied et en véhicule rehaussées en `text-xs font-mono text-slate-200`.
+    - Compteurs d'utilitaires (grenades, smokes, flashs) en `text-xs font-mono font-medium`.
+  - **Grille de l'Arsenal & Précision** :
+    - Titre des armes en `text-sm font-bold text-slate-100`.
+    - Dégâts et kills de chaque arme en `text-xs text-slate-400 font-mono`.
+  - **Matrice des Duels (Onglet 4)** :
+    - Noms des protagonistes (vainqueur et cible) en `text-sm font-bold`.
+    - Badges d'armes et distances rehaussés en `text-xs font-mono font-semibold`.
+- [x] **Silhouette anatomique gaming & fun (`DamageBodySvg.tsx`) — Fin des débordements et données directes :**
+  - **Look Opérateur Tactique PUBG** : Silhouette stylisée avec Casque militaire Lv.3 (fente de visière lumineuse réactive), gilet pare-balles tactique (plaques de kevlar et coutures MOLLE), ceinture d'intervention avec boucle et holster, protège-coudes, genouillères diamant et bottes de combat.
+  - **Arrière-plan HUD radar et réticules de visée** : Cercles concentriques de scanner, axes de ciblage et crochets d'angle tactiques néon.
+  - **Affichage direct des données sur la silhouette (In-Zone HUD Chips)** : Chaque zone touchée arbore désormais son badge numérique haute visibilité directement incrusté (`💥 100` / `🎯 45` sur la tête, `🛡️ 85` sur le torse, `💪 20` sur les bras, `⚡ 30` sur le bassin, `🦵 15` sur les jambes) avec teintes néon selon la criticité des dégâts.
+  - **Élimination définitive du débordement** : Suppression du carcan `width: 65px` sur le wrapper ; refonte du panneau de détail (`showLabels`) en liste verticale aérée avec icônes par zone, pourcentages d'impact et jauges contrastées dans un conteneur responsive garanti sans dépassement.
+  - **Données réelles de l'escouade** : Calcul dynamique des zones corporelles touchées (`squadDamageByZone`) à partir des événements de combat réels du match via `inferHitZones`.
+
 ### ~~Comparateur de clans (`/clans/comparator`) — Sélecteur Roster « Trading Cards » & Arène de Confrontation~~ — ✅ Complété le 2026-09-04
 
 Refonte complète de l'expérience de sélection des clans sur `/clans/comparator` (Proposition N°2 : *Roster Trading Cards avec Smart Filters & Battle Slots*) pour remplacer le nuage de boutons statique devenu illisible avec l'augmentation des clans suivis :
@@ -1212,6 +1250,187 @@ Page d'audit/debug dense (1800 lignes, 8 sections) pour un développeur inspecta
 - [x] **Bug de thème réel, corrigé dans `globals.css` (pas seulement sur cette page)** : `border-slate-100` (utilisé sur `<tr className="border-t border-slate-100">` dans quasiment tous les tableaux du site) n'était **pas** dans la liste des classes remappées par le thème — seuls `border-slate-200`/`border-slate-300` l'étaient, alors que `divide-slate-100` l'était déjà (incohérence dans la CSS d'origine). Résultat : lignes de séparation gris très clair figées, quasi blanches et visibles en thème sombre. Ajouté `.border-slate-100` aux deux règles de remap existantes (claire `body[data-app-theme]` et sombre `html[data-app-theme='dark']`), même valeur que `border-gray-100`/`border-slate-200`. Bénéficie automatiquement aux 4 fichiers du projet qui utilisaient cette classe : cette page, [matches/[matchId]/telemetry/page.tsx](../../src/app/clans/[clanId]/matches/[matchId]/telemetry/page.tsx), [nav-permissions/page.tsx](../../src/app/settings/nav-permissions/page.tsx), [phase-labels/page.tsx](../../src/app/settings/phase-labels/page.tsx)
 - [x] Tri par colonne sur le tableau "Top armes (weaponStats)" (Arme/Kills/Headshots/Damage) — en-têtes cliquables avec indicateur `↑`/`↓`, même pattern que `MatchHistory.tsx` (clic sur la même colonne inverse le sens, clic sur une autre colonne repart en `desc`). Tri appliqué avant la pagination ; reset à la page 1 sur changement de tri
 - [x] Validation : ESLint toujours 20 erreurs préexistantes (inchangé, aucune nouvelle), `tsc --noEmit` 137, `npm run test:telemetry` 55/59
+
+---
+
+### Évolution du Détail Télémétrie d'un Match — Débriefing Tactique, Combat Log & Silhouette Anatomique SVG (Inspiration PUBG.PLUS) — 🆕 Stratégie Nouvelle Page Parallèle & Plan d'Action (2026-09-05)
+
+**Stratégie de déploiement — Nouvelle Page Dédiée en Parallèle (Zéro Régression) :**
+Plutôt que de modifier directement l'ancienne page d'audit `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` (très volumineuse avec 1800 lignes de code et des outils d'audit utiles au SuperUser), la démarche retenue consiste à **créer une toute nouvelle page en parallèle** :
+- **Route de développement & d'itération :** `/clans/[clanId]/telemetry/matches/[matchId]/debrief` (ou `/analysis`).
+- **Avantages majeurs de l'approche :**
+  1. **Zéro risque de régression :** l'outil d'audit existant (resync, debug des colonnes JSON, monitoring du parser) reste 100% accessible et intact pendant tout le développement.
+  2. **Itération fluide & comparaison côte à côte :** possibilité de comparer les deux pages en simultané, d'itérer sur l'ergonomie, les silhouettes anatomiques et la timeline sans contrainte.
+  3. **Codebase moderne & modulaire :** nouvelle page découpée en petits composants légers et testables, sans hériter des avertissements ESLint préexistants de l'ancienne page.
+  4. **Bascule finale transparente :** une fois validée, la nouvelle page prendra la place de la route principale `/telemetry`, et l'ancienne vue d'audit deviendra simplement l'onglet ou la sous-route `/telemetry/audit` (pour les besoins avancés de diagnostic).
+- **Passerelle de navigation temporaire :** un bouton d'accès direct sur l'ancienne page (*« 🚀 Tester la nouvelle vue Débriefing Tactique (Bêta) »*) et un lien miroir sur la nouvelle (*« 🛠️ Vue Audit technique »*).
+
+**Contexte & Objectif :**
+La page actuelle a été initialement conçue comme un outil d'audit et de débogage technique du pipeline de parsing. L'objectif de la nouvelle page est de devenir un **Centre de Débriefing Tactique & d'Analyse Post-Match Esport** intuitif et esthétique.
+
+Ce chantier s'appuie directement sur la rétro-ingénierie de **PUBG.PLUS** et sur les données réelles du match clan de référence :
+*URL de test :* `/clans/1/telemetry/matches/cmtoouiyw8t6304b22w3f4u8y/telemetry?period=week&fromDate=2026-09-05`
+*Match testé en base :* Sanhok (`Savage_Main`), Squad, **Top 2**, 3 membres SmK engagés (`Viande_Hachee`, `TigrOo-SmK`, `CanardEnrage`), 5 frags d'équipe, 8 lancers tactiques, 94 knocks globaux, 24 réanimations et 4 851 événements de dégâts capturés.
+
+---
+
+#### 1. Rétro-Ingénierie & Analyse Exhaustive de PUBG.PLUS (Référence Technique pour le Futur)
+
+L'audit technique mené sur l'application de replay de **PUBG.PLUS** (`https://pubg.plus/en/replay`, bundle client `chunk-B2A3tpo3.js`, 286 Ko) a permis de cartographier avec exactitude leur moteur de restitution, les données collectées et leur modèle d'affichage.
+
+##### 1.1 Architecture & Arborescence des 22 Composants Découverts
+L'application de PUBG.PLUS est articulée autour de 22 composants spécialisés :
+- **Moteur de Carte & Visualisation Spatiale :**
+  - `Replay` : conteneur orchestrateur principal (état du lecteur, sélection de joueur/match, gestion du layout).
+  - `MapCanvas` : canevas interactif MapLibre GL JS / SVG (gestion du zoom, pan, centrage automatique).
+  - `MapZones` : cercles dynamiques (Safe Zone blanche, Blue Zone bleue, Red Zone / Blizzard / Sandstorm) avec minuteurs de phase.
+  - `MapTransit` : tracés de vol de l'avion initial (`Flight Path`), avion de rappel (`Revive plane`), sauts en parachute, véhicules et déplacements.
+  - `MapAssets` : icônes spatiales géolocalisées (caisses de ravitaillement airdrop, tours de transmission bluechip, balises de sauvetage, véhicules).
+  - `MapTimeline` & `MapAutoplay` : barre de défilement temporel interactive avec vitesse de lecture variable (0.5x, 1x, 2x, 4x, 8x, pause, scrubber).
+  - `MapKillFeed` : killfeed live synchronisé projeté directement sur la carte pendant la lecture.
+  - `MapPlayerBar` : bandeau contextuel du joueur ciblé (jauge de PV, jauge de boost orange, statut, armes équipées).
+  - `MapSettings` : filtres d'affichage visuel (afficher/masquer pseudos, traces de pas, numéros d'équipe, tirs, dégâts flottants).
+- **Combat, Dataviz & Analyse de Duels :**
+  - `DamageChart` : composant SVG anatomique du corps humain avec coloration dynamique des dégâts sur 5 zones corporelles.
+  - `DamageDetail` : matrice croisée détaillée des duels 1v1 (dégâts nets infligés et reçus, armure et PV restants).
+  - `TeamNumber` : badge squircle officiel coloré par identifiant d'équipe.
+- **Rosters, Événements & Télémétrie d'Équipe :**
+  - `TeamList` : panneau latéral et tableau complet des équipes avec double affichage (onglet Équipes / onglet Événements globaux).
+  - `MapRoster` : liste rapide des survivants avec état live (vivant, à terre/DBNO, dans un véhicule, en nage, éliminé).
+  - `BluechipEvents` : journal dédié aux puces de rappel (ramassage dans lootbox, coffre véhicule, réactivation à la tour).
+  - `CarePackageEvents` : journal des largages aériens (spawn, atterrissage, contenu de la caisse, premier pilleur).
+  - `EmPickupEvents` : journal d'évacuation d'urgence (instigateur du ballon, passagers embarqués, vol C-130).
+  - `WeaponStats` : tableau récapitulatif des armes (kills, headshots, dégâts, tir le plus lointain).
+  - `PlayerStats` : statistiques individuelles exhaustives (kills, assists, knockdowns, distances pied/véhicule/nage, soins/boosts).
+  - `MatchOverview` : synthèse macro du match (vainqueur, podium, météo, carte, mode).
+  - `TournamentDetail` & `TournamentList` : modules d'affichage spécifiques pour les serveurs et tournois esport.
+
+##### 1.2 Les 38 Événements de Télémétrie PUBG Officiels Traités
+PUBG.PLUS écoute et parse 38 types d'événements du flux de télémétrie officiel PUBG :
+1. *Cycle de vie du match & Connexions :* `LogPlayerCreate`, `LogPlayerLogin`, `LogPlayerLogout`, `LogMatchStart`, `LogMatchEnd`, `LogMatchDefinition`, `LogGameStatePeriodic`.
+2. *Zones & Environnement :* `LogPhaseChange` (cercles de zone), `LogSpecialZoneInCharacters` (blizzard, tempête de sable, zone rouge).
+3. *Positionnement & Mobilité :* `LogPlayerPosition`, `LogParachuteLanding`, `LogSwimStart`, `LogSwimEnd`, `LogVehicleRide`, `LogVehicleLeave`, `LogCharacterCarry` (porter un allié KO).
+4. *Événements Tactiques & Réapparition :* `LogEmPickupLiftOff` (évacuation d'urgence), `LogPlayerRevive` (réanimation), `LogCarePackageSpawn`, `LogCarePackageLand`, `LogItemPickupFromCarepackage`.
+5. *Gestion de l'Inventaire & Équipement :* `LogItemPickup`, `LogItemDrop`, `LogItemEquip`, `LogItemUnequip`, `LogItemAttach`, `LogItemDetach`, `LogItemPickupFromLootBox`, `LogItemPutToVehicleTrunk`, `LogItemPickupFromVehicleTrunk`.
+6. *Consommables & Santé :* `LogItemUse`, `LogHeal`.
+7. *Combats & Dégâts :* `LogPlayerUseThrowable` (grenades/smokes), `LogPlayerTakeDamage` (dégâts balistiques par partie du corps), `LogPlayerMakeGroggy` (knockout), `LogPlayerKillV2` / `LogPlayerKill` (éliminations), `LogArmorDestroy` (casque/gilet brisé).
+
+##### 1.3 Matrice Comparative : PUBG.PLUS vs Notre Approche PUBG Clan Site
+
+| Dimension | PUBG.PLUS | Notre Approche PUBG Clan Site | Décision & Rationale |
+|---|---|---|---|
+| **Restitution spatiale 2D** | Lecteur vidéo WebGL animé en continu (Play/Pause, 1x à 8x, 60 fps, traces de balles). | Carte satellite vectorielle statique haute résolution, filtrable par phase, avec survol synchronisé depuis le log. | **Pragmatique & Rapide :** 80% de la valeur tactique pour 10% de la complexité. Évite un moteur d'animation lourd de 50 Mo en mémoire client. |
+| **Ligne de vol avion (*Flight Path*)** | Tracé vectoriel de la trajectoire initiale du largage. | Ligne vectorielle stylisée sur la carte (`Proposition N°5`). | **Adopté :** simple à tracer et fondamental pour comprendre la répartition du drop et des rotations. |
+| **Silhouette anatomique des dégâts** | SVG anatomique du corps humain divisé en 5 zones (`Head`, `Torso`, `Pelvis`, `Arm`, `Leg`). | Composant SVG dédié `DamageBodySvg.tsx` avec gradient thermique et infobulles (`Proposition N°1`). | **Adopté à 100% :** visuel percutant, permet de démythifier un duel perdu ou réussi en un coup d'œil. |
+| **Journal des combats (*Combat Log*)** | Timeline chronologique par phases avec tireur, arme, distance, PV restants et victime. | Timeline verticale `MatchCombatTimeline.tsx` avec double onglet *Mon Escouade* vs *Tout le match* (`Proposition N°2`). | **Adopté & Amélioré :** notre filtre *Mon Escouade* évite d'être submergé par 90 joueurs inconnus. |
+| **Précision balistique (*Accuracy %*)** | Ratio touches / tirs par arme (`hitsLanded / shotsFired`). | Jauge de précision % par arme et par joueur (`Proposition N°6`). | **Adopté :** métrique déjà calculée par notre parser (`TelemetryWeaponStats`), très valorisante pour les membres. |
+| **Accessoires d'armes en temps réel** | Reconstitution continue de l'inventaire (lunettes, chargeurs, poignées seconde par seconde). | Arme responsable du tir + niveau de casque et gilet (T1/T2/T3) au moment de l'impact. | **Différé pour l'inventaire complet :** trop lourd à reconstruire seconde par seconde ; l'arme du tir et l'armure suffisent amplement. |
+| **Gestion des adversaires** | Pseudos anonymes ou tags génériques sans historique. | **Identification intelligente des clans rivaux & Némésis** via `OpponentClan` et `EncounteredPlayer`. | **🔥 Notre avantage exclusif :** affiche si l'adversaire est un rival historique, le nombre de rencontres et le passif de duels ! |
+| **Focus d'analyse** | Grand public / neutre (vue indifférenciée sur les 100 joueurs). | **Focus Escouade & Synergie Clan** (pression au drop à 250m, entraide, revives réussis, bilan duel Top 1). | **🔥 Notre avantage exclusif :** pensée spécifiquement pour le débriefing d'une équipe soudée. |
+| **Performances & Chargement** | Téléchargement client de gros fichiers JSON bruts (10–50 Mo) à chaque consultation. | Stockage SQL relationnel pré-agrégé, requêtes ciblées indexées et rendu quasi instantané. | **🔥 Notre avantage exclusif :** aucun freeze navigateur, fluidité totale sur desktop et mobile. |
+
+---
+
+#### 2. Propositions d'Évolution pour PUBG Clan Site
+
+##### Proposition N°1 : Composant SVG de Silhouette Anatomique (`DamageBodySvg.tsx`)
+Créer un composant autonome `DamageBodySvg` réutilisable à la fois en grand format (dans la fiche membre ou le débriefing d'escouade) et en popover compact (sur clic d'un duel) :
+- **Tracé SVG vectoriel premium** : silhouette stylisée claire/sombre avec 5 zones indépendantes cliquables et survolables (`head`, `torso`, `pelvis`, `arms`, `legs`).
+- **Gradients thermiques / Heatmap d'impact** : coloration dynamique de chaque zone selon le pourcentage ou la valeur absolue des dégâts (teintes bleutées en l'absence d'impact, dégradé ambre/rouge/pourpre lors de gros dégâts).
+- **Tooltips précis** : infobulle au survol indiquant les dégâts chiffrés, le nombre d'impacts et la part relative (ex: *Tête : 78 dégâts · 2 balles · 45% des dégâts totaux*).
+- **Équipement en contexte** : mini-badges superposés pour indiquer le casque et le gilet équipés lors de l'engagement.
+
+##### Proposition N°2 : Le Combat Log Interactif & Chronologique (`MatchCombatTimeline.tsx`)
+Remplacer les aperçus bruts par une timeline verticale élégante et rythmée :
+- **Bandeau de Phase de Cercle** : séparateurs horizontaux indiquant le numéro de phase (Phase 1, Phase 2...), l'état (stable vs rétrécissement actif) et le chrono écoulé.
+- **Cartes de Confrontation (Frags & DBNO)** :
+  - Ligne 1 : Horodatage `MM:SS`, Tireur (avec PV restants à l'instant `T`), icône de l'arme, distance en mètres, badge Headshot, Victime.
+  - Ligne 2 (dépliable au clic) : Confrontation 1v1 détaillée avec la silhouette `DamageBodySvg`, PV restants, dégâts réciproques et statut de l'adversaire (résolu via `OpponentClan` si clan rival connu).
+- **Filtres rapides** :
+  - Onglet `🛡️ Mon Escouade` (ne montre que les frags, knocks, revives et morts impliquant le clan).
+  - Onglet `🌐 Tout le Match` (vue panoramique de l'arène).
+  - Puces de filtrage : *Kills*, *Knockouts*, *Revives*, *Lancers / Utilitaires*, *Airdrops*.
+
+##### Proposition N°3 : Rapprochement Spatio-Temporel avec la Carte 2D
+Lier directement le Combat Log et la carte interactive existante :
+- **Survol synchronisé** : survoler un frag ou un knockout dans le Combat Log projette un marqueur pulsant sur la carte avec tracé de la ligne de visée (tireur → cible).
+- **Superposition des Cercles de Zone** : dessiner sur la carte les cercles Safe Zone (blanc) et Blue Zone (bleu) pour la phase active, en exploitant les données déjà disponibles dans `phaseSnapshots` (`safetyZoneRadiusMeters`, `poisonGasWarningRadiusMeters`, coordonnées X/Y).
+
+##### Proposition N°4 : Matrice des Dégâts & Duels 1v1 (`MatchDamageMatrix.tsx`)
+- Tableau croisé récapitulant les échanges de feu directs entre notre clan et les autres escouades (notamment l'équipe adverse ayant privé notre escouade du Top 1).
+- Bilan net des duels : qui a mis la pression, qui a concédé les dégâts critiques.
+
+##### Proposition N°5 : Trajectoire de Vol de l'Avion (*Flight Path*) sur la Carte 2D
+Ajouter sur la carte 2D la ligne directrice traversant l'île au début du match :
+- Reconstitution du cap de l'avion de largage C-130 à partir des premières coordonnées d'éjection et de parachute (`LogParachuteLanding` / premiers points `positionSamples`).
+- Tracé en ligne vectorielle élégante (pointillés lumineux ou flèche directionnelle stylisée) avec indication du sens de vol.
+- Valeur tactique : permet d'analyser en un coup d'œil la dispersion des équipes, la zone de tension sous l'axe de vol et les choix de rotation de notre escouade par rapport à la trajectoire initiale.
+
+##### Proposition N°6 : Précision Balistique & Efficacité au Tir (*Accuracy %*)
+Exploiter pleinement les métriques déjà accumulées par le parser dans `TelemetryWeaponStats` (`shotsFired` et `hitsLanded`) :
+- Calcul du taux de précision par arme : `accuracy % = Math.round((hitsLanded / shotsFired) * 100)`.
+- Intégration d'une jauge visuelle de précision dans le tableau des armes et sur la fiche de chaque joueur de l'escouade.
+- Permet de mesurer l'efficacité réelle au tir (ex: *CanardEnrage : 34% précision globale · Mini14 : 41% de touches · Beryl : 26%*) et d'enrichir le débriefing individuel au-delà des seuls frags.
+
+##### Proposition N°7 : Restructuration de la Page en 4 Onglets Thématiques
+Afin de ne pas surcharger la page et de maintenir une navigation fluide :
+1. **🎯 Débriefing & Combat Log** : Score du match (placement, podium, kills, dégâts totaux), résumé d'escouade, timeline des combats avec silhouettes anatomiques et événements tactiques.
+2. **🗺️ Carte & Trajectoires 2D** : Carte satellite haute résolution avec trajectoire de vol de l'avion (*Flight Path*), filtres par phase, positions, déplacements, lignes de mort et cercles de zone.
+3. **📊 Statistiques Détaillées** : Tableau des membres parser, ventilation des armes avec précision % (*Accuracy*), lancers d'utilitaires (MemberThrowableStat), pression au drop.
+4. **🛠️ Audit & Pipeline (Debug)** : Métadonnées du parser, statut des colonnes JSON, payloads DB bruts (téléchargement / inspection technique pour admin/superuser).
+
+---
+
+#### 3. Plan d'Implémentation Détaillé (Stratégie Nouvelle Page Parallèle)
+
+- [x] **Phase 1 — Enrichissement API & Données (`GET /api/clans/[clanId]/matches/[matchId]/telemetry`) :** ✅ Terminé
+  - [x] Joindre les `killEvents` existants du match avec résolution des membres du clan et des clans adverses (`OpponentClan`).
+  - [x] Renvoyer les tableaux `knockoutSamples`, `reviveSamples` et `throwableStats` pour alimenter le Combat Log.
+  - [x] Agréger les données `LogPlayerTakeDamage` par zone anatomique (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) pour les duels impliquant les membres du clan.
+  - [x] Exposer `shotsFired` et `hitsLanded` pour chaque arme et calculer le taux de précision balistique (`accuracyRate`).
+  - [x] Extraire les coordonnées de cap pour la trajectoire de vol initiale de l'avion (*Flight Path*).
+- [x] **Phase 2 — Composants Dataviz & Graphiques :** ✅ Terminé
+  - [x] Créer `src/components/telemetry/DamageBodySvg.tsx` (silhouette SVG 5 zones anatomiques, thème clair/sombre, infobulles de dégâts).
+  - [x] Créer `src/components/telemetry/MatchCombatTimeline.tsx` (timeline d'événements, séparateurs de phases, cartes d'échange 1v1 avec SVG dégâts).
+  - [x] Créer le composant de jauge / badge de précision balistique (`WeaponAccuracyBadge.tsx`).
+- [x] **Phase 3 — Création de la Nouvelle Page Parallèle (`/clans/[clanId]/telemetry/matches/[matchId]/debrief`) :** ✅ Terminé
+  - [x] Créer la nouvelle route dédiée `src/app/clans/[clanId]/telemetry/matches/[matchId]/debrief/page.tsx`.
+  - [x] Intégrer les 4 onglets tactiques : *🎯 Débriefing & Combat Log*, *🗺️ Carte Tactique 2D*, *📊 Escouade & Précision*, *⚔️ Matrice des Duels*.
+  - [x] Afficher la ligne de vol de l'avion (*Flight Path* C-130) et les cercles de zones géographiques sur la carte pour chaque phase sélectionnée.
+  - [x] Intégrer les métriques de précision de tir dans l'onglet Statistiques.
+  - [x] Ajouter les bandeaux de découverte et de bascule entre l'ancienne et la nouvelle vue.
+- [ ] **Phase 4 — Tests, Ajustements Utilisateur & Bascule Finale :** (En cours)
+  - [x] Tests unitaires Vitest automatisés (`src/lib/pubg-telemetry/tactical-debrief.test.ts` : 9 tests passés avec succès).
+  - [x] Compilation TypeScript globale validée à 0 erreur (`npx tsc --noEmit`).
+  - [x] **Distinction multi-clans suivis & affiliation à 3 niveaux (Actif / Suivis / Adversaires) :** ✅ Implémenté le 2026-09-05
+    - **Constat & Problématique :** Dans un match partagé (ex: match en squad mixte où des membres de `[RAF]` et de `[BOFS]` jouent ensemble ou se croisent), les joueurs d'autres clans suivis sur la plateforme apparaissaient sans distinction ou pouvaient être confondus avec des adversaires inconnus ou avec le clan actif.
+    - **Architecture API (`src/app/api/clans/[clanId]/matches/[matchId]/telemetry/route.ts`) :**
+      - Résolution de l'affiliation sur 3 niveaux via `resolvePlayer` : `'current_clan'` (clan actif consulté, ex: `[RAF]`), `'tracked_clan'` (autre clan suivi sur le site, ex: `[BOFS]`), ou `'external'` (adversaires / lobby externe).
+      - Détection automatique et exposition des autres clans suivis présents dans le match via `payload.match.otherTrackedClans` (`string[]`).
+      - Injection de `actorAffiliation`, `targetAffiliation`, `isTrackedClanActor`, `isTrackedClanTarget` sur chaque événement du Combat Log (kills, knocks, revives).
+    - **Affichage UI & Filtrage (`src/components/telemetry/MatchCombatTimeline.tsx`) :**
+      - Filtre à 3 positions dynamique : `Escouade [RAF]` (clan actif uniquement), `Clans Suivis [RAF + BOFS]` (tous les membres de clans enregistrés), `Tout le match` (l'ensemble des événements).
+      - Badges visuels distinctifs :
+        - Vert Émeraude / Gras pour le Clan Actif (`[RAF]`).
+        - Violet / Indigo avec pillule `SUIVI` pour les autres clans suivis de la plateforme (`[BOFS] SUIVI`).
+        - Ardoise neutre pour les joueurs externes du lobby PUBG.
+  - [x] **Correction de l'échelle du plan de vol C-130 et des cercles de zone :** ✅ Implémenté le 2026-09-05
+    - **Constat :** Le tracé du plan de vol de l'avion ne traversait pas la carte et semblait "trop court" (s'arrêtait à mi-chemin au niveau de Bootcamp).
+    - **Causes identifiées :**
+      1. Les parachutages tardifs (respawns de rappels de puces bleues jusqu'à 14 min de jeu) polluaient l'échantillon des atterrissages et déviaient le point final vers les tours de rappel de Bootcamp.
+      2. Le vecteur ne reliait que le premier et dernier point d'atterrissage des joueurs au lieu d'extrapoler la trajectoire continue de l'avion d'une bordure de carte à l'autre.
+      3. Une erreur de facteur 100 existait dans la projection du rayon du cercle de zone blanche (`(radius / (bounds.width / 100)) * 100`).
+    - **Corrections apportées :**
+      - Filtrage des atterrissages initiaux de l'avion (fenêtre <= 80s du début).
+      - Calcul d'intersection géométrique avec les 4 bordures de la carte pour tracer la ligne de survol complète de l'avion d'un bout à l'autre de l'île.
+      - Ajout de la fenêtre de largage active (`dropStart` / `dropEnd`) avec balises visuelles distinctes.
+      - Normalisation du cap compas aéronautique (`0° - 360°`) et rotation orientée de l'icône avion.
+      - Correction du ratio de dimensionnement des cercles de zone (`radius / bounds.width * 100`).
+  - [ ] Revue et validation utilisateur sur le match réel `cmtonisut8oru04b2vnaaxrdj` (clan RAF + BOFS) et `cmtoouiyw8t6304b22w3f4u8y`.
+  - [ ] Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`.
+  - [ ] Documenter le composant `DamageBodySvg` dans le showroom `docs/ui/index.html`.
+
+
 
 ---
 

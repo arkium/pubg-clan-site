@@ -1,8 +1,11 @@
 import { prisma } from '@/lib/prisma'
+import { updateClanQuickStats, type ClanQuickStats } from '@/lib/clan-stats-cache'
 
 /**
  * GET /api/clans
- * Récupère tous les clans actifs avec agrégats
+ * Récupère tous les clans actifs avec leurs statistiques précalculées depuis la DB.
+ * Si un clan n'a pas encore de statistiques précalculées, elles sont calculées à la volée
+ * et persistées en base de données.
  */
 export async function GET() {
   try {
@@ -17,84 +20,58 @@ export async function GET() {
             },
           },
         },
+        clanConfigs: {
+          where: { key: 'login_welcome_image_url' },
+          select: { value: true },
+        },
       },
     })
 
-    const activeMembers = await prisma.clanMember.findMany({
-      where: { isActive: true, clanId: { not: null } },
-      select: { id: true, clanId: true },
-    })
+    const clansWithStats = await Promise.all(
+      clans.map(async (clan) => {
+        const clanStatsObj =
+          clan.clanStats && typeof clan.clanStats === 'object'
+            ? (clan.clanStats as Record<string, unknown>)
+            : null
 
-    const clanConfigs = await prisma.clanConfig.findMany({
-      where: { key: 'login_welcome_image_url' },
-    })
+        let quickStats = clanStatsObj?.quickStats as ClanQuickStats | undefined
 
-    const memberClanById = new Map(activeMembers.map((member) => [member.id, member.clanId]))
-    const imageUrlByClanId = new Map(clanConfigs.map((config) => [config.clanId, config.value]))
+        // Si absent ou non calculé, calculer à la volée et persister en DB
+        if (!quickStats) {
+          try {
+            quickStats = await updateClanQuickStats(clan.id)
+          } catch (err) {
+            console.error(`[api/clans] Erreur calcul à la volée pour clan ${clan.id}:`, err)
+            quickStats = {
+              matchesCount: 0,
+              killsCount: 0,
+              winsCount: 0,
+              timePlayedSeconds: 0,
+              activeDays: 0,
+              lastMatchAt: null,
+              computedAt: new Date().toISOString(),
+            }
+          }
+        }
 
-    const matchAggregates = await prisma.match.groupBy({
-      by: ['memberId'],
-      where: { 
-        memberId: { in: activeMembers.map((member) => member.id) },
-        matchType: 'official'
-      },
-      _count: { _all: true },
-      _max: { pubgCreatedAt: true },
-    })
+        const imageUrl = clan.clanConfigs[0]?.value || null
 
-    const playerStats = await prisma.playerStats.findMany({
-      where: {
-        period: 'all-time',
-        member: { isActive: true, clanId: { not: null } },
-      },
-      select: {
-        member: { select: { clanId: true } },
-        timePlayedSeconds: true,
-        activeDays: true,
-      },
-    })
-
-    const statsByClanId = new Map<number, { matchesCount: number; lastMatchAt: Date | null; timePlayedSeconds: number; activeDays: number }>()
-    for (const aggregate of matchAggregates) {
-      const clanId = memberClanById.get(aggregate.memberId)
-      if (clanId === null || clanId === undefined) {
-        continue
-      }
-
-      const current = statsByClanId.get(clanId) ?? { matchesCount: 0, lastMatchAt: null, timePlayedSeconds: 0, activeDays: 0 }
-      current.matchesCount += aggregate._count._all
-      const aggregateLastMatch = aggregate._max.pubgCreatedAt
-      if (aggregateLastMatch && (!current.lastMatchAt || aggregateLastMatch > current.lastMatchAt)) {
-        current.lastMatchAt = aggregateLastMatch
-      }
-      statsByClanId.set(clanId, current)
-    }
-    
-    for (const ps of playerStats) {
-      if (!ps.member?.clanId) continue
-      const clanId = ps.member.clanId
-      const current = statsByClanId.get(clanId) ?? { matchesCount: 0, lastMatchAt: null, timePlayedSeconds: 0, activeDays: 0 }
-      current.timePlayedSeconds += ps.timePlayedSeconds
-      current.activeDays = Math.max(current.activeDays, ps.activeDays) // Approximation for clan active days based on max member active days
-      statsByClanId.set(clanId, current)
-    }
-
-    const clansWithStats = clans.map((clan) => {
-      const stats = statsByClanId.get(clan.id) ?? { matchesCount: 0, lastMatchAt: null, timePlayedSeconds: 0, activeDays: 0 }
-
-      return {
-        id: clan.id,
-        name: clan.name,
-        tag: clan.tag,
-        platformShard: clan.platformShard,
-        membersCount: clan._count.members,
-        matchesCount: stats.matchesCount,
-        lastMatchAt: stats.lastMatchAt ? stats.lastMatchAt.toISOString() : null,
-        timePlayedSeconds: stats.timePlayedSeconds,
-        activeDays: stats.activeDays,
-        imageUrl: imageUrlByClanId.get(clan.id) || null,
-      }
-    })
+        return {
+          id: clan.id,
+          name: clan.name,
+          tag: clan.tag,
+          platformShard: clan.platformShard,
+          membersCount: clan._count.members,
+          matchesCount: quickStats.matchesCount ?? 0,
+          killsCount: quickStats.killsCount ?? 0,
+          winsCount: quickStats.winsCount ?? 0,
+          lastMatchAt: quickStats.lastMatchAt ?? null,
+          timePlayedSeconds: quickStats.timePlayedSeconds ?? 0,
+          activeDays: quickStats.activeDays ?? 0,
+          imageUrl,
+        }
+      })
+    )
 
     return Response.json(clansWithStats)
   } catch (error) {

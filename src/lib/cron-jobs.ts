@@ -4,6 +4,7 @@ import cron, { type ScheduledTask } from 'node-cron'
 import { precomputeClanAwards } from '@/lib/awards-service'
 import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
 import { computeClanComparatorStats } from '@/lib/clan-comparator-service'
+import { updateClanQuickStats } from '@/lib/clan-stats-cache'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import {
@@ -146,6 +147,17 @@ async function syncClanWithRetry(clanId: number, clanName: string) {
         `[Cron] Syncing clan "${clanName}" (${clanId}) - attempt ${attempt}/${MAX_SYNC_ATTEMPTS}`
       )
       const result = await triggerClanSync(clanId)
+
+      if (result.importedCount > 0) {
+        try {
+          await updateClanQuickStats(clanId)
+        } catch (quickStatsError) {
+          console.warn(
+            `[Cron] Failed to update quickStats after match sync for clan "${clanName}" (${clanId}):`,
+            quickStatsError
+          )
+        }
+      }
 
       return result
     } catch (error) {
@@ -297,6 +309,15 @@ async function recalculateStatsDaily() {
           console.warn(
             `[Cron] Failed to precompute comparator cache for clan "${clan.name}" (${clan.id})`,
             comparatorCacheError
+          )
+        }
+
+        try {
+          await updateClanQuickStats(clan.id)
+        } catch (quickStatsError) {
+          console.warn(
+            `[Cron] Failed to precompute quickStats for clan "${clan.name}" (${clan.id})`,
+            quickStatsError
           )
         }
 

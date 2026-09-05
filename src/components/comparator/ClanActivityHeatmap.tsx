@@ -7,7 +7,15 @@ interface ClanActivityHeatmapProps {
   clans: ClanComparatorEntry[]
 }
 
-const DAYS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
+const DAYS = [
+  { short: 'D', label: 'Dim', full: 'Dimanche' },
+  { short: 'L', label: 'Lun', full: 'Lundi' },
+  { short: 'M', label: 'Mar', full: 'Mardi' },
+  { short: 'M', label: 'Mer', full: 'Mercredi' },
+  { short: 'J', label: 'Jeu', full: 'Jeudi' },
+  { short: 'V', label: 'Ven', full: 'Vendredi' },
+  { short: 'S', label: 'Sam', full: 'Samedi' },
+]
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
 // Couleurs par clan (jusqu'à 3 clans) — Bleu, Orange, Émeraude
@@ -96,14 +104,15 @@ export default function ClanActivityHeatmap({ clans }: ClanActivityHeatmapProps)
       </div>
 
       <div className="overflow-x-auto pb-2">
-        <div className="min-w-[380px]">
+        <div className="w-full min-w-0">
           {/* En-tête : jours */}
           <div className="flex">
-            <div className="w-9 shrink-0" />
+            <div className="w-6 sm:w-9 shrink-0" />
             <div className="flex flex-1">
               {DAYS.map((day) => (
-                <div key={day} className="flex-1 pb-2 text-center text-xs font-medium text-[var(--theme-ui-text-muted)]">
-                  {day}
+                <div key={day.label} className="flex-1 min-w-0 pb-2 text-center text-xs font-medium text-[var(--theme-ui-text-muted)]">
+                  <span className="sm:hidden font-semibold">{day.short}</span>
+                  <span className="hidden sm:inline">{day.label}</span>
                 </div>
               ))}
             </div>
@@ -113,7 +122,7 @@ export default function ClanActivityHeatmap({ clans }: ClanActivityHeatmapProps)
           <div className="flex flex-col">
             {HOURS.map((hour) => (
               <div key={hour} className="flex items-center">
-                <div className="w-9 shrink-0 pr-2 text-right text-[10px] font-medium text-[var(--theme-ui-text-muted)]">
+                <div className="w-6 sm:w-9 shrink-0 pr-1 sm:pr-2 text-right text-[10px] font-medium text-[var(--theme-ui-text-muted)]">
                   {hour % 2 === 0 ? `${hour}h` : ''}
                 </div>
                 <div className="flex flex-1">
@@ -128,8 +137,8 @@ export default function ClanActivityHeatmap({ clans }: ClanActivityHeatmapProps)
 
                     return (
                       <div
-                        key={day}
-                        className="group relative flex h-5 flex-1 items-center justify-center gap-0.5 border-t border-[var(--theme-ui-border)] first:border-l cursor-crosshair"
+                        key={day.label}
+                        className="group relative flex h-5 flex-1 min-w-0 items-center justify-center gap-0.5 border-t border-[var(--theme-ui-border)] first:border-l cursor-crosshair"
                       >
                         {cellEntries.map(({ clan, ci, count }) => {
                           const max = maxByClan[ci]
@@ -164,7 +173,7 @@ export default function ClanActivityHeatmap({ clans }: ClanActivityHeatmapProps)
                         {cellEntries.length > 0 && (
                           <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 opacity-0 transition-opacity group-hover:opacity-100">
                             <div className="whitespace-nowrap rounded-lg border border-[var(--theme-ui-border)] bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-xl backdrop-blur-md">
-                              <div className="mb-0.5 font-semibold text-slate-200">{day} à {hour}h</div>
+                              <div className="mb-0.5 font-semibold text-slate-200">{day.full} à {hour}h</div>
                               {cellEntries.map(({ clan, count, ci }) => {
                                 const slot = SLOT_STYLES[ci % SLOT_STYLES.length]
                                 const isItemHovered = hoveredClanId === clan.clanId

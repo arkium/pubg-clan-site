@@ -108,9 +108,18 @@ export default function ClanRosterSelector({
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [activeCategory, setActiveCategory] = useState<FilterCategory>('all')
   const [sortField, setSortField] = useState<SortField>('activity')
-  // Starts collapsed if clans are already selected to save vertical space, otherwise expanded
-  const [isExpanded, setIsExpanded] = useState(() => selectedClanIds.length === 0)
+  // Replié par défaut au chargement de la page
+  const [isExpanded, setIsExpanded] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const prevSelectedCountRef = useRef(selectedClanIds.length)
+
+  // Masquer automatiquement la sélection lorsque les clans requis (ex: 3) sont choisis
+  useEffect(() => {
+    if (prevSelectedCountRef.current < maxClans && selectedClanIds.length >= maxClans) {
+      setIsExpanded(false)
+    }
+    prevSelectedCountRef.current = selectedClanIds.length
+  }, [selectedClanIds.length, maxClans])
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -213,6 +222,9 @@ export default function ClanRosterSelector({
     const shuffled = [...pool].sort(() => 0.5 - Math.random())
     const picked = shuffled.slice(0, maxClans).map((c) => c.id)
     onSelectMultiple(picked)
+    if (picked.length >= maxClans) {
+      setIsExpanded(false)
+    }
   }
 
   return (
@@ -235,7 +247,7 @@ export default function ClanRosterSelector({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={handleRandomSelect}

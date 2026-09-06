@@ -268,6 +268,36 @@ WantedBy=multi-user.target
 
 ---
 
+## Configuration Reverse-Proxy Nginx
+
+L'application web écoute par défaut sur `127.0.0.1:3000`. En amont, Nginx gère le trafic HTTPS et le proxying.
+
+> **Important — Téléversement de fichiers / Bannières d'accueil** :
+> Par défaut, Nginx applique une directive `client_max_body_size 1M;`. Les téléversements d'images de bannières (jusqu'à 5 Mo autorisés par l'application) échouent avec une erreur **`413 Request Entity Too Large`** si cette limite n'est pas augmentée dans le bloc `server` ou `location` Nginx.
+> 
+> ```nginx
+> server {
+>     server_name clan.example.com;
+> 
+>     # Autoriser les uploads jusqu'à 10 Mo (bannières de clan, logos)
+>     client_max_body_size 10M;
+> 
+>     location / {
+>         proxy_pass http://127.0.0.1:3000;
+>         proxy_http_version 1.1;
+>         proxy_set_header Upgrade $http_upgrade;
+>         proxy_set_header Connection 'upgrade';
+>         proxy_set_header Host $host;
+>         proxy_cache_bypass $http_upgrade;
+>         proxy_set_header X-Real-IP $remote_addr;
+>         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+>         proxy_set_header X-Forwarded-Proto $scheme;
+>     }
+> }
+> ```
+
+---
+
 ## Migration de la base de données
 
 Ne jamais utiliser `prisma migrate deploy` directement en production sans vérification préalable.

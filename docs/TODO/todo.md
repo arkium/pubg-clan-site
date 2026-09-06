@@ -6,6 +6,31 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-04.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### ~~Accueil de connexion Clan (`/clans/[clanId]/settings/login-welcome`) — Résolution du blocage d'upload d'image (Signalement seyo187)~~ — ✅ Complété le 2026-09-06
+
+Correction complète du processus d'upload d'image d'accueil personnalisé pour les clans suite au blocage signalé par le owner **seyo187** (Clan 7, FR-Alliance-BE) :
+
+- [x] **Validation par Magic Bytes (`src/lib/upload-image-validator.ts`) :**
+  - Élimination des faux rejets 400 causés par les navigateurs Windows renvoyant `file.type` vide (`""`) ou `application/octet-stream` (notamment sur fichiers WebP ou JPEG sans type MIME enregistré dans le registre Windows).
+  - Détection binaire native des signatures : JPEG (`FF D8 FF`), PNG (`89 50 4E 47`), WebP (`RIFF...WEBP`).
+  - Validation explicite du plafond de 5 Mo avec message d'erreur en français indiquant la taille actuelle et le plafond.
+- [x] **Persistance double répertoire pour mode Next.js `standalone` :**
+  - Résolution dynamique de la racine projet pour persister les fichiers dans `public/uploads/clans/` à la racine (survit aux commandes `rm -rf .next && npm run build` de redéploiement).
+  - Écriture miroir automatique dans `.next/standalone/public/uploads/clans/` si présent pour disponibilité à chaud sans redémarrage.
+- [x] **Route de service dédiée (`src/app/uploads/clans/[fileName]/route.ts`) :**
+  - Routeur Next.js direct garantissant le service des images uploadées avec headers de cache optimisés (`public, max-age=31536000, immutable`) et protection contre le path traversal.
+- [x] **Proxy d'authentification (`src/proxy.ts`) :**
+  - Ajout de `uploads` dans les exclusions du matcher d'URL pour que les images uploadées soient publiques et s'affichent correctement pour les visiteurs non connectés sur `/login`.
+  - Autorisation sans redirection pour toutes les extensions d'images statiques (`.jpg`, `.jpeg`, `.png`, `.webp`, `.svg`, `.ico`).
+- [x] **Ergonomie et robustesse du formulaire (`/clans/[clanId]/settings/login-welcome/page.tsx`) :**
+  - Attribut `accept` élargi avec extensions explicites (`image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,image/*`) pour débloquer l'explorateur de fichiers sous Windows.
+  - Pré-validation de taille côté client (5 Mo) pour un retour d'erreur immédiat sans latence réseau.
+  - Gestion explicite des erreurs HTTP 413 (Nginx `client_max_body_size`).
+  - Instructions clarifiées et rappel visuel d'enregistrer les paramètres du clan après upload.
+- [x] **Tests de contrôle automatisés (21 tests Vitest) :**
+  - `src/lib/upload-image-validator.test.ts` (16 tests unitaires : magic bytes, types MIME alternatifs, rejet formats non supportés, validation limites).
+  - `src/lib/login-welcome-upload-routes.test.ts` (5 tests d'intégration : upload complet, gestion permissions, lecture image, 404 & path traversal).
+
 ### ~~Débriefing Tactique 2D Replay — Résolution de l'alias de map et harmonisation de la typographie~~ — ✅ Complété le 2026-09-05
 
 Améliorations de lisibilité et fidélité cartographique sur la page de Débriefing Tactique Replay (`/clans/[clanId]/telemetry/matches/[matchId]/debrief`) :

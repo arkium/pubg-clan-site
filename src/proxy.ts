@@ -58,6 +58,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  // Laisser passer sans redirection toutes les images et assets statiques
+  if (/\.(?:jpg|jpeg|png|webp|gif|svg|ico)$/i.test(pathname)) {
+    return NextResponse.next()
+  }
+
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null
 
   if (!sessionToken) {
@@ -84,6 +89,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|maps|icons|avatars).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|maps|icons|avatars|uploads).*)',
   ],
 }

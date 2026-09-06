@@ -109,6 +109,14 @@ export default function ClanLoginWelcomeSettingsPage() {
 
     if (!clanId) return
 
+    // Pré-vérification de la taille côté client (5 Mo max)
+    if (file.size > 5 * 1024 * 1024) {
+      const sizeMo = (file.size / (1024 * 1024)).toFixed(1)
+      setError(`Le fichier est trop volumineux (${sizeMo} Mo). La taille maximale autorisée est de 5 Mo.`)
+      event.target.value = ''
+      return
+    }
+
     try {
       setUploading(true)
       setError('')
@@ -125,12 +133,15 @@ export default function ClanLoginWelcomeSettingsPage() {
       const payload = await response.json().catch(() => null)
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? "Échec de l'upload")
+        if (response.status === 413) {
+          throw new Error("Le fichier dépasse la taille maximale acceptée par le serveur web (Erreur 413). Veuillez réduire la taille de l'image (max 5 Mo).")
+        }
+        throw new Error(payload?.error ?? "Échec de l'upload de l'image")
       }
 
       if (payload?.imageUrl) {
         setSettings((current) => ({ ...current, imageUrl: payload.imageUrl }))
-        setSuccess("Image téléchargée avec succès. N'oubliez pas d'enregistrer.")
+        setSuccess("Image téléchargée avec succès ! N'oubliez pas de cliquer sur « Enregistrer » ci-dessous pour valider la modification.")
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Échec de l'upload")
@@ -311,18 +322,18 @@ export default function ClanLoginWelcomeSettingsPage() {
                 />
                 
                 <label className={`app-btn app-btn--sm app-btn--secondary whitespace-nowrap cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
-                  {uploading ? 'Upload...' : 'Uploader...'}
+                  {uploading ? 'Téléversement...' : 'Uploader une image...'}
                   <input
                     type="file"
                     className="hidden"
-                    accept="image/jpeg, image/png, image/webp"
+                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,image/*"
                     onChange={handleFileUpload}
                     disabled={uploading}
                   />
                 </label>
               </div>
               <p className="text-xs font-normal text-gray-500">
-                Format recommandé : 1024x434 px (JPG, PNG ou WEBP).
+                Formats acceptés : JPG, PNG, WEBP (max 5 Mo). Résolution recommandée : 1024x434 px.
               </p>
             </div>
 

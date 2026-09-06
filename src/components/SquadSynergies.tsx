@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
+import ShowMoreToggle from '@/components/ui/ShowMoreToggle'
 
 import type { SquadSynergiesData } from '@/types/squad-matches'
 import type { ClanMatchTypeFilter, ClanTeamModeFilter, SquadPeriod } from '@/types/squad-matches'
@@ -63,9 +64,12 @@ function SynergyList({
   entries: SquadSynergiesData['topPairs']
   mode: 'duo' | 'trio' | 'squad'
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const visibleEntries = expanded ? entries : entries.slice(0, 3)
+
   return (
     <div className="app-panel overflow-hidden">
-      <header 
+      <header
         className="relative border-b border-[var(--theme-ui-border)] h-28 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url('/${mode}.jpg')` }}
       >
@@ -78,7 +82,7 @@ function SynergyList({
         <p className="text-xs italic text-gray-500">Pas encore assez de données.</p>
       ) : (
         <ul className="flex flex-col">
-          {entries.map((entry, index) => {
+          {visibleEntries.map((entry, index) => {
             return (
               <li
                 key={entry.memberIds.join(':')}
@@ -126,6 +130,9 @@ function SynergyList({
             )
           })}
         </ul>
+      )}
+      {entries.length > 3 && (
+        <ShowMoreToggle expanded={expanded} onToggle={() => setExpanded((prev) => !prev)} />
       )}
       </div>
     </div>
@@ -180,18 +187,34 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
     }
   }, [clanId, period, matchType, mode])
 
+  const [revivesExpanded, setRevivesExpanded] = useState(false)
+  const [coKillsExpanded, setCoKillsExpanded] = useState(false)
+  const [recallsExpanded, setRecallsExpanded] = useState(false)
+
   const topReviveRows = useMemo(
-    () => [...telemetryRows].sort((a, b) => b.reviveCount - a.reviveCount).slice(0, 10),
+    () =>
+      [...telemetryRows]
+        .sort((a, b) => b.reviveCount - a.reviveCount)
+        .filter((r) => r.reviveCount > 0)
+        .slice(0, 5),
     [telemetryRows]
   )
 
   const topCoKillRows = useMemo(
-    () => [...telemetryRows].sort((a, b) => b.coKillCount - a.coKillCount).slice(0, 10),
+    () =>
+      [...telemetryRows]
+        .sort((a, b) => b.coKillCount - a.coKillCount)
+        .filter((r) => r.coKillCount > 0)
+        .slice(0, 5),
     [telemetryRows]
   )
 
   const topRecallRows = useMemo(
-    () => [...telemetryRows].sort((a, b) => (b.recallCount ?? 0) - (a.recallCount ?? 0)).slice(0, 10),
+    () =>
+      [...telemetryRows]
+        .sort((a, b) => (b.recallCount ?? 0) - (a.recallCount ?? 0))
+        .filter((r) => (r.recallCount ?? 0) > 0)
+        .slice(0, 5),
     [telemetryRows]
   )
 
@@ -228,6 +251,9 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
     <section>
       <div className="mb-4">
         <h3 className="text-sm font-semibold text-gray-700">Synergies d&apos;équipe</h3>
+        <p className="mt-1 text-xs text-gray-500">
+          Duos, trios et squads les plus actifs ensemble, classés par matchs joués puis par taux de victoire.
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
@@ -247,6 +273,9 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
 
       <div className="mb-4 mt-8">
         <h3 className="text-sm font-semibold text-gray-700">Statistiques de Coopération</h3>
+        <p className="mt-1 text-xs text-gray-500">
+          Entraide entre coéquipiers mesurée via la télémétrie des matchs : revives, éliminations groupées (co-kills) et rappels de squad (recalls).
+        </p>
       </div>
       <div className="app-panel p-4">
           {telemetryLoading ? (
@@ -262,7 +291,10 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
             telemetryRows.length > 0 ? (
               <>
                 <div className="grid gap-3 grid-cols-2 sm:grid-cols-5 mb-5">
-                  <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
+                  <article
+                    className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3"
+                    title="Régularité de la coopération entre binômes : proche de 100 si les paires actives contribuent toutes autant (revives, co-kills, dégâts partagés) qu'un duo exceptionnel ; proche de 0 si la coopération repose sur un seul binôme isolé."
+                  >
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
                     <div className="relative">
                       <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-500">
@@ -332,29 +364,34 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                       </div>
                     </header>
                     <div className="bg-[var(--theme-bg-base)] p-4">
-                      {topReviveRows.filter(r => r.reviveCount > 0).length > 0 ? (
-                        <ul className="flex flex-col">
-                          {topReviveRows.filter(r => r.reviveCount > 0).map((row, index) => (
-                            <li key={`revive:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                                  {index < MEDAL_ICONS.length ? (
-                                    <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                                  ) : (
-                                    <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                                  )}
+                      {topReviveRows.length > 0 ? (
+                        <>
+                          <ul className="flex flex-col">
+                            {(revivesExpanded ? topReviveRows : topReviveRows.slice(0, 3)).map((row, index) => (
+                              <li key={`revive:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                    {index < MEDAL_ICONS.length ? (
+                                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                                    ) : (
+                                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
+                                    <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
+                                  </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
-                                  <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
-                                </div>
-                              </div>
-                              <span className="rounded bg-emerald-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-emerald-500">
-                                {row.reviveCount}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
+                                <span className="rounded bg-emerald-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-emerald-500">
+                                  {row.reviveCount}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          {topReviveRows.length > 3 && (
+                            <ShowMoreToggle expanded={revivesExpanded} onToggle={() => setRevivesExpanded((prev) => !prev)} />
+                          )}
+                        </>
                       ) : (
                         <p className="text-xs italic text-gray-500">Aucun sauvetage pour cette période.</p>
                       )}
@@ -372,29 +409,34 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                       </div>
                     </header>
                     <div className="bg-[var(--theme-bg-base)] p-4">
-                      {topCoKillRows.filter(r => r.coKillCount > 0).length > 0 ? (
-                        <ul className="flex flex-col">
-                          {topCoKillRows.filter(r => r.coKillCount > 0).map((row, index) => (
-                            <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                                  {index < MEDAL_ICONS.length ? (
-                                    <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                                  ) : (
-                                    <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                                  )}
+                      {topCoKillRows.length > 0 ? (
+                        <>
+                          <ul className="flex flex-col">
+                            {(coKillsExpanded ? topCoKillRows : topCoKillRows.slice(0, 3)).map((row, index) => (
+                              <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                    {index < MEDAL_ICONS.length ? (
+                                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                                    ) : (
+                                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
+                                    <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
+                                  </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
-                                  <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
-                                </div>
-                              </div>
-                              <span className="rounded bg-orange-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-orange-500">
-                                {row.coKillCount}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
+                                <span className="rounded bg-orange-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-orange-500">
+                                  {row.coKillCount}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          {topCoKillRows.length > 3 && (
+                            <ShowMoreToggle expanded={coKillsExpanded} onToggle={() => setCoKillsExpanded((prev) => !prev)} />
+                          )}
+                        </>
                       ) : (
                         <p className="text-xs italic text-gray-500">Aucun co-kill pour cette période.</p>
                       )}
@@ -412,29 +454,34 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                       </div>
                     </header>
                     <div className="bg-[var(--theme-bg-base)] p-4">
-                      {topRecallRows.filter(r => (r.recallCount ?? 0) > 0).length > 0 ? (
-                        <ul className="flex flex-col">
-                          {topRecallRows.filter(r => (r.recallCount ?? 0) > 0).map((row, index) => (
-                            <li key={`recall:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                                  {index < MEDAL_ICONS.length ? (
-                                    <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                                  ) : (
-                                    <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                                  )}
+                      {topRecallRows.length > 0 ? (
+                        <>
+                          <ul className="flex flex-col">
+                            {(recallsExpanded ? topRecallRows : topRecallRows.slice(0, 3)).map((row, index) => (
+                              <li key={`recall:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                                    {index < MEDAL_ICONS.length ? (
+                                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
+                                    ) : (
+                                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
+                                    <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
+                                  </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
-                                  <PlayerNameBadge name={row.memberBName} memberId={row.memberBId} />
-                                </div>
-                              </div>
-                              <span className="rounded bg-blue-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-blue-500">
-                                {row.recallCount}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
+                                <span className="rounded bg-blue-500/20 px-2.5 py-1 text-sm font-bold tabular-nums text-blue-500">
+                                  {row.recallCount}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          {topRecallRows.length > 3 && (
+                            <ShowMoreToggle expanded={recallsExpanded} onToggle={() => setRecallsExpanded((prev) => !prev)} />
+                          )}
+                        </>
                       ) : (
                         <p className="text-xs italic text-gray-500">Aucun recall pour cette période.</p>
                       )}

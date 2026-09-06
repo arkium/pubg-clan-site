@@ -1,14 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
 
-import Image from 'next/image'
 import Link from 'next/link'
 
-import { DISTINCTION_BADGE_META, isDistinctionBadgeKey, type DistinctionBadgeKey } from '@/lib/distinction-badges'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import type {
   LeaderboardKillsView,
   LeaderboardSortBy,
+  LeaderboardTeamMode,
   PlayerStatsEntry,
   WeeklyProgression,
 } from '@/types/leaderboard'
@@ -33,7 +32,8 @@ interface LeaderboardProps {
   entries: PlayerStatsEntry[]
   progression?: WeeklyProgression[]
   sortBy: LeaderboardSortBy
-  killsView: LeaderboardKillsView
+  teamMode?: LeaderboardTeamMode
+  killsView?: LeaderboardKillsView
   onSortChange: (sortBy: LeaderboardSortBy) => void
   showPerformanceDelta?: boolean
 }
@@ -42,6 +42,7 @@ export default function Leaderboard({
   entries,
   progression = [],
   sortBy,
+  teamMode = 'all',
   killsView,
   onSortChange,
   showPerformanceDelta = true,
@@ -115,7 +116,7 @@ export default function Leaderboard({
   }
 
   function getDisplayedSoloClanKills(entry: PlayerStatsEntry) {
-    return killsView === 'withSolo' ? entry.soloKills : 0
+    return entry.soloKills
   }
 
   function formatKillsPerMatch(entry: PlayerStatsEntry) {
@@ -131,7 +132,7 @@ export default function Leaderboard({
       acc.matches += entry.matchesPlayed
       acc.damage += Math.round(entry.totalDamage)
       acc.winner += entry.matchesWon
-      acc.solo += getDisplayedSoloClanKills(entry)
+      acc.solo += entry.soloKills
       acc.duo += entry.duoClanKills
       acc.trio += entry.trioClanKills
       acc.squad += entry.squadClanKills
@@ -153,91 +154,6 @@ export default function Leaderboard({
 
   const totalKpm = totals.matches > 0 ? totals.kills / totals.matches : 0
   const totalWinRate = totals.matches > 0 ? (totals.winner / totals.matches) * 100 : 0
-
-  const withMatches = entries.filter((entry) => entry.matchesPlayed > 0)
-  const withMinMatches = entries.filter((entry) => entry.matchesPlayed >= 3)
-  const kpmCandidates = withMinMatches.length > 0 ? withMinMatches : withMatches
-  const killCandidates = entries.filter((entry) => entry.totalKills > 0)
-
-  const topKiller = killCandidates.reduce<PlayerStatsEntry | null>((best, entry) => {
-    if (!best) {
-      return entry
-    }
-
-    return entry.totalKills > best.totalKills ? entry : best
-  }, null)
-
-  const topDamage = withMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
-    if (!best) {
-      return entry
-    }
-
-    return entry.totalDamage > best.totalDamage ? entry : best
-  }, null)
-
-  const bestWinRate = withMinMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
-    if (!best) {
-      return entry
-    }
-
-    return entry.winRate > best.winRate ? entry : best
-  }, null)
-
-  const maxKills = Math.max(...withMatches.map((entry) => entry.totalKills), 1)
-  const maxDamage = Math.max(...withMatches.map((entry) => entry.totalDamage), 1)
-
-  const mvp = withMatches.reduce<PlayerStatsEntry | null>((best, entry) => {
-    if (!best) {
-      return entry
-    }
-
-    const scoreEntry = entry.totalKills / maxKills + entry.totalDamage / maxDamage + entry.winRate
-    const scoreBest = best.totalKills / maxKills + best.totalDamage / maxDamage + best.winRate
-
-    return scoreEntry > scoreBest ? entry : best
-  }, null)
-
-  const bestKpm = kpmCandidates.reduce<PlayerStatsEntry | null>((best, entry) => {
-    if (!best) {
-      return entry
-    }
-
-    const currentRatio = entry.matchesPlayed > 0 ? entry.totalKills / entry.matchesPlayed : 0
-    const bestRatio = best.matchesPlayed > 0 ? best.totalKills / best.matchesPlayed : 0
-
-    return currentRatio > bestRatio ? entry : best
-  }, null)
-
-  const performerBadgeKeysByMemberId = new Map<number, DistinctionBadgeKey[]>()
-  const performerAssignments: Array<{ entry: PlayerStatsEntry | null; badgeKey: DistinctionBadgeKey }> = [
-    { entry: topKiller, badgeKey: 'top_killer' },
-    { entry: topDamage, badgeKey: 'top_damage' },
-    { entry: bestWinRate, badgeKey: 'best_wr' },
-    { entry: mvp, badgeKey: 'mvp' },
-    { entry: bestKpm, badgeKey: 'best_kpm' },
-  ]
-
-  for (const assignment of performerAssignments) {
-    if (!assignment.entry) {
-      continue
-    }
-
-    const current = performerBadgeKeysByMemberId.get(assignment.entry.memberId) ?? []
-    performerBadgeKeysByMemberId.set(assignment.entry.memberId, [...current, assignment.badgeKey])
-  }
-
-  function getRowBadgeKeys(entry: PlayerStatsEntry): DistinctionBadgeKey[] {
-    const computedBadges = performerBadgeKeysByMemberId.get(entry.memberId)
-    if (computedBadges && computedBadges.length > 0) {
-      return computedBadges
-    }
-
-    if (isDistinctionBadgeKey(entry.badgeType)) {
-      return [entry.badgeType]
-    }
-
-    return []
-  }
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
@@ -271,7 +187,6 @@ export default function Leaderboard({
             {entries.map((entry, index) => {
               const rank = index + 1
               const medal = RANK_MEDALS[rank]
-              const badgeKeys = getRowBadgeKeys(entry)
               const delta = getProgressionDelta(entry.memberId)
 
               return (
@@ -300,29 +215,9 @@ export default function Leaderboard({
                           </span>
                         )}
                       </span>
-                      <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-gray-900">
-                        <Link href={`/members/${entry.memberId}/dashboard`} className="truncate hover:text-emerald-500 transition-colors">
-                          {entry.displayName}
-                        </Link>
-                        {badgeKeys.length > 0 ? (
-                          <span className="inline-flex items-center gap-1">
-                            {badgeKeys.map((badgeKey) => {
-                              const badgeMeta = DISTINCTION_BADGE_META[badgeKey]
-
-                              return (
-                                <span
-                                  key={`${entry.id}-${badgeKey}`}
-                                  title={badgeMeta.label}
-                                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center"
-                                  aria-label={badgeMeta.label}
-                                >
-                                  <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} />
-                                </span>
-                              )
-                            })}
-                          </span>
-                        ) : null}
-                      </span>
+                      <Link href={`/members/${entry.memberId}/dashboard`} className="truncate font-semibold text-gray-900 hover:text-emerald-500 transition-colors">
+                        {entry.displayName}
+                      </Link>
                     </div>
                   </div>
 
@@ -538,7 +433,6 @@ export default function Leaderboard({
                 {entries.map((entry, index) => {
                   const rank = index + 1
                   const medal = RANK_MEDALS[rank]
-                  const badgeKeys = getRowBadgeKeys(entry)
                   const delta = getProgressionDelta(entry.memberId)
                   const rowClassName =
                     rank === 1
@@ -575,29 +469,9 @@ export default function Leaderboard({
                               </span>
                             )}
                           </span>
-                          <span className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                            <Link href={`/members/${entry.memberId}/dashboard`} className="truncate hover:text-emerald-500 transition-colors">
-                              {entry.displayName}
-                            </Link>
-                            {badgeKeys.length > 0 ? (
-                              <span className="inline-flex items-center gap-1">
-                                {badgeKeys.map((badgeKey) => {
-                                  const badgeMeta = DISTINCTION_BADGE_META[badgeKey]
-
-                                  return (
-                                    <span
-                                      key={`${entry.id}-${badgeKey}`}
-                                      title={badgeMeta.label}
-                                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center"
-                                      aria-label={badgeMeta.label}
-                                    >
-                                      <Image src={badgeMeta.iconPath} alt={badgeMeta.label} width={20} height={20} />
-                                    </span>
-                                  )
-                                })}
-                              </span>
-                            ) : null}
-                          </span>
+                          <Link href={`/members/${entry.memberId}/dashboard`} className="truncate font-semibold text-gray-900 hover:text-emerald-500 transition-colors">
+                            {entry.displayName}
+                          </Link>
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top text-right text-gray-700">

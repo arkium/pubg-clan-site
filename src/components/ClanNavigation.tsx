@@ -7,7 +7,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import NavIcon from '@/components/ui/NavIcon'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ClanSwitchModal } from '@/components/clan/ClanSwitchModal'
+import { PlayerSwitchModal } from '@/components/clan/PlayerSwitchModal'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { usePlayerStats } from '@/hooks/usePlayerStats'
@@ -182,6 +184,37 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     const stored = Number(window.sessionStorage.getItem(VIEWED_MEMBER_STORAGE_KEY))
     return Number.isInteger(stored) && stored > 0 ? stored : null
   })
+  const [isClanSwitchModalOpen, setIsClanSwitchModalOpen] = useState(false)
+  const [isPlayerSwitchModalOpen, setIsPlayerSwitchModalOpen] = useState(false)
+  const previousClanIdRef = useRef<number | null>(clanId)
+
+  // Dès que le clan change, le joueur visualisé n'est plus actif
+  useEffect(() => {
+    if (previousClanIdRef.current !== null && previousClanIdRef.current !== clanId) {
+      setViewedMemberId(null)
+      window.sessionStorage.removeItem(VIEWED_MEMBER_STORAGE_KEY)
+    }
+    previousClanIdRef.current = clanId
+  }, [clanId])
+
+  const handleSelectClan = (newClanId: number) => {
+    setClanId(newClanId, { force: true })
+    setViewedMemberId(null)
+    window.sessionStorage.removeItem(VIEWED_MEMBER_STORAGE_KEY)
+    router.push(`/clans/${newClanId}/overview`)
+  }
+
+  const handleSelectMember = (newMemberId: number | null) => {
+    if (newMemberId === null) {
+      setViewedMemberId(null)
+      window.sessionStorage.removeItem(VIEWED_MEMBER_STORAGE_KEY)
+    } else {
+      setViewedMemberId(newMemberId)
+      window.sessionStorage.setItem(VIEWED_MEMBER_STORAGE_KEY, String(newMemberId))
+      router.push(`/members/${newMemberId}/dashboard`)
+    }
+  }
+
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
@@ -1068,7 +1101,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
             <div className="w-full px-4 py-3 sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                   <button
                     ref={menuButtonRef}
                     type="button"
@@ -1086,11 +1119,14 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       />
                     </svg>
                   </button>
-                  {/* Clan Info Link */}
-                  <Link
-                    href={clanId ? `/clans/${clanId}/overview` : '/clans'}
+
+                  {/* Bouton / Carte Clan (déclenche la modale de choix de clan) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsClanSwitchModalOpen(true)}
+                    title="Cliquer pour changer de clan"
                     className={cx(
-                      "flex min-w-0 items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
+                      "group flex min-w-0 items-center gap-2 rounded-xl border px-3 py-1.5 transition-all text-left cursor-pointer",
                       appTheme === 'dark'
                         ? 'border-slate-800/80 bg-slate-900/50 hover:bg-slate-800 hover:border-slate-700'
                         : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
@@ -1099,7 +1135,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                     <img
                       src={clanImageUrl}
                       alt="Logo du clan"
-                      className="h-8 w-8 rounded-lg object-cover bg-slate-900"
+                      className="h-8 w-8 rounded-lg object-cover bg-slate-900 shrink-0"
                       onError={(event) => {
                         ;(event.currentTarget as HTMLImageElement).src = '/pubg.png'
                       }}
@@ -1118,34 +1154,60 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                         <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Session non connectée</p>
                       )}
                     </div>
-                  </Link>
+                    <ChevronsUpDown className="h-3.5 w-3.5 ml-0.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" />
+                  </button>
+
+                  {/* Bouton / Carte Joueur (placée directement à droite du clan) */}
+                  {clanId ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayerSwitchModalOpen(true)}
+                      title={viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId ? "Cliquer pour changer de joueur" : "Cliquer pour sélectionner un joueur"}
+                      className={cx(
+                        "group flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-all text-left cursor-pointer",
+                        viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
+                          ? appTheme === 'dark' 
+                            ? 'border-blue-900 bg-blue-950/50 hover:bg-blue-900/60 hover:border-blue-700' 
+                            : 'border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300'
+                          : appTheme === 'dark'
+                            ? 'border-slate-800/80 bg-slate-900/30 hover:bg-slate-800 hover:border-slate-700 text-slate-400'
+                            : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 text-slate-600'
+                      )}
+                    >
+                      <div className={cx(
+                        "flex h-6 w-6 items-center justify-center rounded shrink-0",
+                        viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
+                          ? appTheme === 'dark' ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'
+                          : appTheme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-600'
+                      )}>
+                        <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden="true"><path fill="currentColor" d="M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM5.5 7a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Zm-2 10.5c0-2.31 2.37-4.22 5.09-4.87a6.03 6.03 0 0 1 2.82 0c2.72.65 5.09 2.56 5.09 4.87v.25a.75.75 0 0 1-.75.75H4.25a.75.75 0 0 1-.75-.75v-.25Z"/></svg>
+                      </div>
+                      <div className="flex flex-col justify-center min-w-0">
+                        <span className={cx(
+                          "text-[9px] font-bold uppercase tracking-wider",
+                          viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
+                            ? appTheme === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                            : 'text-slate-400 dark:text-slate-500'
+                        )}>
+                          Joueur
+                        </span>
+                        <span className={cx(
+                          "text-xs font-bold leading-tight truncate max-w-[120px] sm:max-w-[150px]",
+                          viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
+                            ? appTheme === 'dark' ? 'text-blue-100' : 'text-blue-900'
+                            : 'text-slate-500 dark:text-slate-400'
+                        )}>
+                          {viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
+                            ? viewedMemberData.displayName
+                            : 'Choisir...'}
+                        </span>
+                      </div>
+                      <ChevronsUpDown className="h-3.5 w-3.5 ml-0.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" />
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  {/* Player Info Link */}
-                  {viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId && (
-                    <Link
-                      href={`/members/${viewedMemberId}/dashboard`}
-                      className={cx(
-                        "hidden sm:flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-colors",
-                        appTheme === 'dark' 
-                          ? 'border-blue-900 bg-blue-950/50 hover:bg-blue-900/60 hover:border-blue-700' 
-                          : 'border-blue-200 bg-blue-50 hover:bg-blue-100 hover:border-blue-300'
-                      )}
-                    >
-                      <div className={cx("flex h-6 w-6 items-center justify-center rounded", appTheme === 'dark' ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700')}>
-                        <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden="true"><path fill="currentColor" d="M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM5.5 7a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Zm-2 10.5c0-2.31 2.37-4.22 5.09-4.87a6.03 6.03 0 0 1 2.82 0c2.72.65 5.09 2.56 5.09 4.87v.25a.75.75 0 0 1-.75.75H4.25a.75.75 0 0 1-.75-.75v-.25Z"/></svg>
-                      </div>
-                      <div className="flex flex-col justify-center">
-                        <span className={cx("text-[9px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-blue-400' : 'text-blue-600')}>
-                          Joueur
-                        </span>
-                        <span className={cx("text-xs font-bold leading-tight", appTheme === 'dark' ? 'text-blue-100' : 'text-blue-900')}>
-                          {viewedMemberData.displayName}
-                        </span>
-                      </div>
-                    </Link>
-                  )}
                 </div>
               </div>
 
@@ -1257,6 +1319,24 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           </aside>
         </div>
       ) : null}
+
+      {/* Modale pour changer de clan */}
+      <ClanSwitchModal
+        isOpen={isClanSwitchModalOpen}
+        onClose={() => setIsClanSwitchModalOpen(false)}
+        currentClanId={clanId}
+        onSelectClan={handleSelectClan}
+      />
+
+      {/* Modale pour sélectionner un joueur */}
+      <PlayerSwitchModal
+        isOpen={isPlayerSwitchModalOpen}
+        onClose={() => setIsPlayerSwitchModalOpen(false)}
+        clanId={clanId}
+        clanName={clan?.name}
+        currentMemberId={viewedMemberId}
+        onSelectMember={handleSelectMember}
+      />
     </div>
   )
 }

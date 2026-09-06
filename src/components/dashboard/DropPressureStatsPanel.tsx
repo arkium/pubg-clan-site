@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 
 import { Skeleton } from '@/components/ui/Skeleton'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import ShowMoreToggle from '@/components/ui/ShowMoreToggle'
 import {
   getDropPressureRankingDisplay,
   sortDropPressureRanking,
@@ -159,6 +160,7 @@ export default function DropPressureStatsPanel({
   const [sortKey, setSortKey] = useState<DropPressureRankingSortKey>('averageNearbyOpponents250m')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [timelineMetric, setTimelineMetric] = useState<TimelineMetric>('averageNearbyOpponents250m')
+  const [rankingExpanded, setRankingExpanded] = useState(false)
   const sortedRanking = useMemo(
     () => sortDropPressureRanking(ranking, sortKey, sortDirection),
     [ranking, sortDirection, sortKey]
@@ -167,6 +169,7 @@ export default function DropPressureStatsPanel({
     sortedRanking,
     currentMemberId
   )
+  const visibleTopEntries = rankingExpanded ? topEntries : topEntries.slice(0, 3)
 
   function changeSort(nextSortKey: DropPressureRankingSortKey) {
     if (sortKey === nextSortKey) {
@@ -252,7 +255,7 @@ export default function DropPressureStatsPanel({
             <h2 className="text-sm font-bold text-white drop-shadow-md sm:text-xl md:text-2xl">Pression au drop</h2>
           </div>
           <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Joueurs présents dans un rayon de 250 m{periodLabel ? ` · ${periodLabel}` : ''}
+            Densité de joueurs (coéquipiers et adversaires) dans un rayon de 250 m à chaque atterrissage, pour évaluer la dangerosité des zones de drop{periodLabel ? ` · ${periodLabel}` : ''}
           </p>
         </div>
       </header>
@@ -273,16 +276,16 @@ export default function DropPressureStatsPanel({
         <div className="p-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {[
-            { label: 'Drops analysés', value: stats.dropCount.toLocaleString('fr-FR'), icon: MapPin, tone: 'bg-orange-500/15 text-orange-400' },
+            { label: 'Drops analysés', value: stats.dropCount.toLocaleString('fr-FR'), icon: MapPin, tone: 'bg-orange-500/15 text-orange-400', title: 'Nombre total d\'atterrissages de membres du clan pris en compte dans ces statistiques.' },
             { label: 'Matchs', value: stats.matchCount.toLocaleString('fr-FR'), icon: Target, tone: 'bg-cyan-500/15 text-cyan-400' },
-            { label: 'Joueurs proches moy.', value: formatAverage(stats.averageNearbyPlayers250m), icon: Users, tone: 'bg-blue-500/15 text-blue-400' },
-            { label: 'Adversaires moy.', value: formatAverage(stats.averageNearbyOpponents250m), icon: Users, tone: 'bg-rose-500/15 text-rose-400' },
-            { label: 'Maximum proche', value: stats.maximumNearbyPlayers250m.toLocaleString('fr-FR'), icon: Flame, tone: 'bg-amber-500/15 text-amber-400' },
-            { label: 'Hot drops', value: `${stats.hotDropShare.toFixed(1).replace('.', ',')} %`, icon: Flame, tone: 'bg-red-500/15 text-red-400' },
+            { label: 'Joueurs proches moy.', value: formatAverage(stats.averageNearbyPlayers250m), icon: Users, tone: 'bg-blue-500/15 text-blue-400', title: 'Moyenne de TOUS les joueurs (coéquipiers et adversaires confondus) présents dans un rayon de 250 m au moment du drop.' },
+            { label: 'Adversaires moy.', value: formatAverage(stats.averageNearbyOpponents250m), icon: Users, tone: 'bg-rose-500/15 text-rose-400', title: 'Moyenne des joueurs ADVERSAIRES uniquement (hors coéquipiers) présents dans un rayon de 250 m au moment du drop.' },
+            { label: 'Maximum proche', value: stats.maximumNearbyPlayers250m.toLocaleString('fr-FR'), icon: Flame, tone: 'bg-amber-500/15 text-amber-400', title: 'Le plus grand nombre de joueurs proches observé sur un seul drop.' },
+            { label: 'Hot drops', value: `${stats.hotDropShare.toFixed(1).replace('.', ',')} %`, icon: Flame, tone: 'bg-red-500/15 text-red-400', title: 'Part des drops classés "chauds" ou "très chauds" (forte densité de joueurs à proximité).' },
           ].map((item) => {
             const Icon = item.icon
             return (
-              <article key={item.label} className="app-panel-muted relative min-w-0 overflow-hidden rounded-2xl px-4 py-3">
+              <article key={item.label} className="app-panel-muted relative min-w-0 overflow-hidden rounded-2xl px-4 py-3" title={item.title}>
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
                 <div className="relative">
                   <div className={`mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg ${item.tone}`}>
@@ -323,7 +326,9 @@ export default function DropPressureStatsPanel({
             <div className="mt-6">
               <div className="mb-3">
                 <h3 className="text-sm font-semibold text-gray-900">Top 5 des joueurs</h3>
-                <p className="text-xs text-gray-500">Cliquez sur une colonne pour modifier le classement.</p>
+                <p className="text-xs text-gray-500">
+                  Classement des membres selon la pression subie aux drops (par défaut : adversaires moyens à proximité). Cliquez sur une colonne pour changer le critère de tri.
+                </p>
               </div>
               <div className="hidden md:block app-table-shell overflow-x-auto">
                 <table className="w-full text-sm">
@@ -352,7 +357,7 @@ export default function DropPressureStatsPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {topEntries.map(({ entry, rank }) => renderRankingRow(entry, rank))}
+                    {visibleTopEntries.map(({ entry, rank }) => renderRankingRow(entry, rank))}
                     {pinnedEntry && (
                       <>
                         <tr aria-hidden="true">
@@ -367,7 +372,7 @@ export default function DropPressureStatsPanel({
 
               {/* Version Mobile */}
               <div className="grid gap-3 md:hidden">
-                {[...topEntries.map(e => ({...e, pinned: false})), ...(pinnedEntry ? [{...pinnedEntry, pinned: true}] : [])].map(({ entry, rank, pinned }) => (
+                {[...visibleTopEntries.map(e => ({...e, pinned: false})), ...(pinnedEntry ? [{...pinnedEntry, pinned: true}] : [])].map(({ entry, rank, pinned }) => (
                   <article key={`${pinned ? 'pinned-' : ''}${entry.memberId}`} className={`rounded-lg border p-4 shadow-sm ${entry.memberId === currentMemberId ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-white'}`}>
                     <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3">
                       <div className="flex items-center gap-3">
@@ -413,6 +418,10 @@ export default function DropPressureStatsPanel({
                   </article>
                 ))}
               </div>
+
+              {topEntries.length > 3 && (
+                <ShowMoreToggle expanded={rankingExpanded} onToggle={() => setRankingExpanded((prev) => !prev)} />
+              )}
             </div>
           )}
         </div>

@@ -150,7 +150,7 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
     router.replace(redirectPath)
   }, [clanId, hydrated, pathname, redirectIfMissing, redirectPath, router])
 
-  const setClanId = useCallback((nextClanId: number) => {
+  const setClanId = useCallback((nextClanId: number, options?: { force?: boolean }) => {
     if (typeof window === 'undefined') {
       return false
     }
@@ -158,7 +158,7 @@ export function useSelectedClan(options?: UseSelectedClanOptions) {
     const currentClanId = parseClanId(window.localStorage.getItem(SELECTED_CLAN_STORAGE_KEY))
     const canSwitchClan = canSwitchClanFromStorage()
 
-    if (!canSwitchClan && currentClanId !== nextClanId) {
+    if (!options?.force && !canSwitchClan && currentClanId !== nextClanId) {
       return false
     }
 

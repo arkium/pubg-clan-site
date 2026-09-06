@@ -1,5 +1,8 @@
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
+
 export type LeaderboardPeriod = 'week' | 'month' | 'all'
 export type LeaderboardSortBy = 'kills' | 'damage' | 'winRate' | 'matches' | 'kpm' | 'timePlayed' | 'activeDays'
+export type LeaderboardTeamMode = 'all' | 'solo' | 'duo' | 'trio' | 'squad'
 export type LeaderboardKillsView = 'clan' | 'withSolo'
 
 export interface PlayerStatsEntry {
@@ -57,8 +60,11 @@ export interface LeaderboardResponse {
   clanId: number
   period: LeaderboardPeriod
   sortBy: LeaderboardSortBy
+  matchType?: ClanMatchTypeFilter
+  mode?: LeaderboardTeamMode
   lastUpdatedAt: string | null
   leaderboard: PlayerStatsEntry[]
   highlights: LeaderboardHighlights
   progression: WeeklyProgression[]
 }
+

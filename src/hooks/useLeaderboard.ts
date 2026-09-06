@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 import type {
-  LeaderboardKillsView,
   LeaderboardPeriod,
   LeaderboardResponse,
   LeaderboardSortBy,
+  LeaderboardTeamMode,
 } from '@/types/leaderboard'
 
 const defaultHighlights: LeaderboardResponse['highlights'] = {
@@ -32,16 +33,18 @@ function buildCacheKey(
   clanId: number,
   period: LeaderboardPeriod,
   sortBy: LeaderboardSortBy,
-  killsView: LeaderboardKillsView
+  matchType: ClanMatchTypeFilter,
+  teamMode: LeaderboardTeamMode
 ) {
-  return `v3:${clanId}:${period}:${sortBy}:${killsView}`
+  return `v4:${clanId}:${period}:${sortBy}:${matchType}:${teamMode}`
 }
 
 export function useLeaderboard(
   clanId: number | null,
   period: LeaderboardPeriod,
   sortBy: LeaderboardSortBy,
-  killsView: LeaderboardKillsView
+  matchType: ClanMatchTypeFilter = 'official',
+  teamMode: LeaderboardTeamMode = 'all'
 ) {
   const [data, setData] = useState<LeaderboardResponse>(defaultData)
   const [loading, setLoading] = useState(false)
@@ -49,8 +52,8 @@ export function useLeaderboard(
 
   const cacheKey = useMemo(() => {
     if (!clanId) return null
-    return buildCacheKey(clanId, period, sortBy, killsView)
-  }, [clanId, period, sortBy, killsView])
+    return buildCacheKey(clanId, period, sortBy, matchType, teamMode)
+  }, [clanId, period, sortBy, matchType, teamMode])
 
   useEffect(() => {
     if (!clanId || !cacheKey) return
@@ -72,7 +75,12 @@ export function useLeaderboard(
           return
         }
 
-        const params = new URLSearchParams({ period, sortBy, killsView })
+        const params = new URLSearchParams({
+          period,
+          sortBy,
+          matchType,
+          mode: teamMode,
+        })
         const response = await fetch(`/api/clans/${clanId}/leaderboard?${params.toString()}`)
         const payload = (await response.json()) as LeaderboardResponse | { error?: string }
 
@@ -104,7 +112,7 @@ export function useLeaderboard(
     return () => {
       cancelled = true
     }
-  }, [cacheKey, clanId, period, sortBy, killsView])
+  }, [cacheKey, clanId, period, sortBy, matchType, teamMode])
 
   return {
     leaderboard: clanId ? data.leaderboard : [],
@@ -115,3 +123,4 @@ export function useLeaderboard(
     error: clanId ? error : '',
   }
 }
+

@@ -2,12 +2,14 @@ import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
+import { parseClanMatchTypeFilter } from '@/lib/match-type-filter'
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 import type {
   LeaderboardHighlights,
-  LeaderboardKillsView,
   LeaderboardPeriod,
   LeaderboardResponse,
   LeaderboardSortBy,
+  LeaderboardTeamMode,
   PlayerStatsEntry,
   WeeklyProgression,
 } from '@/types/leaderboard'
@@ -31,6 +33,13 @@ function parseSortBy(value: string | null): LeaderboardSortBy {
   if (value === 'timePlayed') return 'timePlayed'
   if (value === 'activeDays') return 'activeDays'
   return 'kills'
+}
+
+function parseTeamMode(value: string | null): LeaderboardTeamMode {
+  if (value === 'solo' || value === 'duo' || value === 'trio' || value === 'squad') {
+    return value
+  }
+  return 'all'
 }
 
 function getPeriodFilter(period: LeaderboardPeriod): string {
@@ -91,6 +100,8 @@ type MatchActivityRow = {
   assists: number
   revives: number
   placement: number
+  duration: number
+  pubgCreatedAt: Date
 }
 
 type SquadMemberRow = {
@@ -100,8 +111,10 @@ type SquadMemberRow = {
   assists: number
   revives: number
   placement: number
+  timeSurvived: number
   squadMatch: {
     pubgMatchId: string
+    createdAt: Date
     _count: {
       members: number
     }
@@ -117,10 +130,6 @@ type MemberProfile = {
 type PeriodRange = {
   gte?: Date
   lte?: Date
-}
-
-function parseKillsView(value: string | null): LeaderboardKillsView {
-  return value === 'withSolo' ? 'withSolo' : 'clan'
 }
 
 function getMonthRange(year: number, month: number): { gte: Date; lte: Date } {
@@ -178,7 +187,7 @@ function getPeriodLabelParts(periodKey: string): { year: number; value: number }
   const year = Number(yearPart)
   const value = Number(valuePart)
 
-  if (!Number.isInteger(year) || !Number.isInteger(value) || (kind !== 'week' && kind !== 'month')) {
+  if (!Number.isInteger(year) || !Number.isInteger(value)) {
     return null
   }
 
@@ -218,16 +227,18 @@ function aggregateLeaderboardEntries({
   squadMembers,
   period,
   periodKey,
-  killsView,
+  teamMode,
 }: {
   members: MemberProfile[]
   matchRows: MatchActivityRow[]
   squadMembers: SquadMemberRow[]
   period: LeaderboardPeriod
   periodKey: string
-  killsView: LeaderboardKillsView
+  teamMode: LeaderboardTeamMode
 }) {
   const entriesByMember = new Map<number, PlayerStatsEntry>()
+  const memberActiveDays = new Map<number, Set<string>>()
+  const memberTimeSurvived = new Map<number, number>()
 
   for (const member of members) {
     entriesByMember.set(member.id, createEmptyStats(member, period, periodKey))
@@ -274,20 +285,36 @@ function aggregateLeaderboardEntries({
     const entry = getOrCreateEntry(row.memberId)
     groupedClanMatchKeys.add(`${row.memberId}:${row.squadMatch.pubgMatchId}`)
 
-    entry.totalKills += row.kills
-    entry.totalDamage += row.damage
-    entry.totalAssists += row.assists
-    entry.totalRevives += row.revives
-    entry.matchesPlayed += 1
-    entry.matchesWon += row.placement === 1 ? 1 : 0
-
     const clanMemberCount = row.squadMatch._count.members
-    if (clanMemberCount <= 2) {
+    const mode: 'duo' | 'trio' | 'squad' =
+      clanMemberCount <= 2 ? 'duo' : clanMemberCount === 3 ? 'trio' : 'squad'
+
+    if (mode === 'duo') {
       entry.duoClanKills += row.kills
-    } else if (clanMemberCount === 3) {
+    } else if (mode === 'trio') {
       entry.trioClanKills += row.kills
     } else {
       entry.squadClanKills += row.kills
+    }
+
+    if (teamMode === 'all' || teamMode === mode) {
+      entry.totalKills += row.kills
+      entry.totalDamage += row.damage
+      entry.totalAssists += row.assists
+      entry.totalRevives += row.revives
+      entry.matchesPlayed += 1
+      entry.matchesWon += row.placement === 1 ? 1 : 0
+
+      const dateKey = row.squadMatch.createdAt.toISOString().slice(0, 10)
+      let daySet = memberActiveDays.get(row.memberId)
+      if (!daySet) {
+        daySet = new Set<string>()
+        memberActiveDays.set(row.memberId, daySet)
+      }
+      daySet.add(dateKey)
+
+      const currTime = memberTimeSurvived.get(row.memberId) ?? 0
+      memberTimeSurvived.set(row.memberId, currTime + (row.timeSurvived || 0))
     }
   }
 
@@ -299,18 +326,26 @@ function aggregateLeaderboardEntries({
       continue
     }
 
-    entry.soloKills += row.kills
+    if (teamMode === 'solo') {
+      entry.soloKills += row.kills
+      entry.totalKills += row.kills
+      entry.totalDamage += row.damageDealt
+      entry.totalAssists += row.assists
+      entry.totalRevives += row.revives
+      entry.matchesPlayed += 1
+      entry.matchesWon += row.placement === 1 ? 1 : 0
 
-    if (killsView !== 'withSolo') {
-      continue
+      const dateKey = row.pubgCreatedAt.toISOString().slice(0, 10)
+      let daySet = memberActiveDays.get(row.memberId)
+      if (!daySet) {
+        daySet = new Set<string>()
+        memberActiveDays.set(row.memberId, daySet)
+      }
+      daySet.add(dateKey)
+
+      const currTime = memberTimeSurvived.get(row.memberId) ?? 0
+      memberTimeSurvived.set(row.memberId, currTime + (row.duration || 0))
     }
-
-    entry.totalKills += row.kills
-    entry.totalDamage += row.damageDealt
-    entry.totalAssists += row.assists
-    entry.totalRevives += row.revives
-    entry.matchesPlayed += 1
-    entry.matchesWon += row.placement === 1 ? 1 : 0
   }
 
   const entries = Array.from(entriesByMember.values()).map((entry) => {
@@ -318,6 +353,8 @@ function aggregateLeaderboardEntries({
     entry.winRate = matchesPlayed > 0 ? entry.matchesWon / matchesPlayed : 0
     entry.avgKillsPerGame = matchesPlayed > 0 ? entry.totalKills / matchesPlayed : 0
     entry.avgDamagePerGame = matchesPlayed > 0 ? entry.totalDamage / matchesPlayed : 0
+    entry.activeDays = memberActiveDays.get(entry.memberId)?.size ?? 0
+    entry.timePlayedSeconds = memberTimeSurvived.get(entry.memberId) ?? 0
     return entry
   })
 
@@ -326,7 +363,8 @@ function aggregateLeaderboardEntries({
 
 async function fetchLeaderboardActivity(
   memberIds: number[],
-  dateRange: PeriodRange | null
+  dateRange: PeriodRange | null,
+  matchType: ClanMatchTypeFilter
 ): Promise<{ matchRows: MatchActivityRow[]; squadMembers: SquadMemberRow[] }> {
   const rangeFilter = dateRange
     ? {
@@ -335,11 +373,18 @@ async function fetchLeaderboardActivity(
       }
     : null
 
+  const matchTypePrisma =
+    matchType === 'all'
+      ? undefined
+      : matchType === 'casual'
+        ? { in: ['casual', 'airoyale'] }
+        : matchType
+
   const [matchRows, squadMembers] = await Promise.all([
     prisma.match.findMany({
       where: {
         memberId: { in: memberIds },
-        matchType: 'official',
+        ...(matchTypePrisma ? { matchType: matchTypePrisma } : {}),
         ...(rangeFilter
           ? {
               pubgCreatedAt: rangeFilter,
@@ -354,13 +399,15 @@ async function fetchLeaderboardActivity(
         assists: true,
         revives: true,
         placement: true,
+        duration: true,
+        pubgCreatedAt: true,
       },
     }),
     prisma.squadMember.findMany({
       where: {
         memberId: { in: memberIds },
         squadMatch: {
-          matchType: 'official',
+          ...(matchTypePrisma ? { matchType: matchTypePrisma } : {}),
           ...(rangeFilter ? { createdAt: rangeFilter } : {}),
         },
       },
@@ -371,9 +418,11 @@ async function fetchLeaderboardActivity(
         assists: true,
         revives: true,
         placement: true,
+        timeSurvived: true,
         squadMatch: {
           select: {
             pubgMatchId: true,
+            createdAt: true,
             _count: {
               select: {
                 members: true,
@@ -387,6 +436,7 @@ async function fetchLeaderboardActivity(
 
   return { matchRows, squadMembers }
 }
+
 
 function buildHighlights(entries: PlayerStatsEntry[]): LeaderboardHighlights {
   const withMatches = entries.filter((e) => e.matchesPlayed > 0)
@@ -554,7 +604,10 @@ export async function GET(
 
     const period = parsePeriod(request.nextUrl.searchParams.get('period'))
     const sortBy = parseSortBy(request.nextUrl.searchParams.get('sortBy'))
-    const killsView = parseKillsView(request.nextUrl.searchParams.get('killsView'))
+    const matchType = parseClanMatchTypeFilter(request.nextUrl.searchParams.get('matchType'))
+    const teamMode = parseTeamMode(
+      request.nextUrl.searchParams.get('mode') ?? request.nextUrl.searchParams.get('teamMode')
+    )
     const periodKey = getPeriodFilter(period)
 
     const clan = await prisma.clan.findUnique({
@@ -607,20 +660,20 @@ export async function GET(
       },
     })
 
-    const { matchRows, squadMembers } = await fetchLeaderboardActivity(memberIds, dateRange)
+    const { matchRows, squadMembers } = await fetchLeaderboardActivity(memberIds, dateRange, matchType)
     const aggregatedLeaderboard = aggregateLeaderboardEntries({
       members: membersWithProfiles,
       matchRows,
       squadMembers,
       period,
       periodKey,
-      killsView,
+      teamMode,
     })
 
     const statsByMember = new Map(statsRows.map((row) => [row.memberId, row]))
     for (const entry of aggregatedLeaderboard) {
       const stats = statsByMember.get(entry.memberId)
-      if (stats) {
+      if (stats && entry.timePlayedSeconds === 0 && teamMode === 'all' && matchType === 'official') {
         entry.timePlayedSeconds = stats.timePlayedSeconds
         entry.activeDays = stats.activeDays
       }
@@ -660,7 +713,8 @@ export async function GET(
 
         const { matchRows: pastMatchRows, squadMembers: pastSquadMembers } = await fetchLeaderboardActivity(
           leaderboardMemberIds,
-          periodRange
+          periodRange,
+          matchType
         )
 
         const pastEntries = aggregateLeaderboardEntries({
@@ -672,7 +726,7 @@ export async function GET(
           squadMembers: pastSquadMembers,
           period,
           periodKey: periodItem,
-          killsView,
+          teamMode,
         })
 
         const periodStatsParts = getPeriodLabelParts(periodItem)
@@ -714,11 +768,14 @@ export async function GET(
       clanId: parsedClanId,
       period,
       sortBy,
+      matchType,
+      mode: teamMode,
       lastUpdatedAt: lastUpdated ? lastUpdated.toISOString() : null,
       leaderboard: sortedLeaderboard,
       highlights,
       progression,
     }
+
 
     return Response.json(payload)
   } catch (error) {

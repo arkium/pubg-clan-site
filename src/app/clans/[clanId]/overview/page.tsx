@@ -6,7 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronRight, UsersRound } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, ChevronRight, UsersRound } from 'lucide-react'
 import { getNavIcon } from '@/lib/nav-icons'
 import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -201,6 +201,19 @@ function periodTitle(period: SquadPeriod) {
   if (period === 'week') return 'Semaine'
   if (period === 'month') return 'Mois'
   return 'Tous'
+}
+
+type RosterSortKey = 'matchesPlayed' | 'wins' | 'totalKills' | 'avgDamage' | 'avgKA'
+
+function getRosterSortValue(
+  stats: { matchesPlayed: number; wins: number; totalKills: number; totalDamage: number; totalAssists: number },
+  key: RosterSortKey
+) {
+  if (key === 'matchesPlayed') return stats.matchesPlayed
+  if (key === 'wins') return stats.wins
+  if (key === 'totalKills') return stats.totalKills
+  if (key === 'avgDamage') return stats.matchesPlayed > 0 ? stats.totalDamage / stats.matchesPlayed : 0
+  return stats.matchesPlayed > 0 ? (stats.totalKills + stats.totalAssists) / stats.matchesPlayed : 0
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -449,6 +462,8 @@ export default function ClanOverviewPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<SquadPeriod>('week')
   const [selectedMatchType, setSelectedMatchType] = useState<ClanMatchTypeFilter>('official')
   const [selectedMode, setSelectedMode] = useState<ClanTeamModeFilter>('all')
+  const [rosterSortKey, setRosterSortKey] = useState<RosterSortKey>('matchesPlayed')
+  const [rosterSortDirection, setRosterSortDirection] = useState<'asc' | 'desc'>('desc')
 
   const { data: cacheData, loading: cacheLoading, error: cacheError } = useClanMatchesCache(
     clanId,
@@ -576,28 +591,37 @@ export default function ClanOverviewPage() {
         }
       })
       .sort((a, b) => {
-        if (b.stats.matchesPlayed !== a.stats.matchesPlayed) {
-          return b.stats.matchesPlayed - a.stats.matchesPlayed
-        }
-        return b.stats.totalKills - a.stats.totalKills
+        const aValue = getRosterSortValue(a.stats, rosterSortKey)
+        const bValue = getRosterSortValue(b.stats, rosterSortKey)
+        const primary = rosterSortDirection === 'desc' ? bValue - aValue : aValue - bValue
+        if (primary !== 0) return primary
+        return b.stats.matchesPlayed - a.stats.matchesPlayed
       })
-  }, [data?.roster, cacheData?.payload.byMode, selectedMode])
+  }, [data?.roster, cacheData?.payload.byMode, selectedMode, rosterSortKey, rosterSortDirection])
 
   const maxRosterMatches = performanceRoster[0]?.stats.matchesPlayed ?? 0
 
-  const memberCountGap =
-    typeof pubg?.memberCount === 'number' && typeof tracked?.membersCount === 'number'
-      ? tracked.membersCount - pubg.memberCount
-      : null
+  function changeRosterSort(nextSortKey: RosterSortKey) {
+    if (rosterSortKey === nextSortKey) {
+      setRosterSortDirection((current) => (current === 'desc' ? 'asc' : 'desc'))
+      return
+    }
+    setRosterSortKey(nextSortKey)
+    setRosterSortDirection('desc')
+  }
 
-  const trackedCoveragePct =
-    typeof pubg?.memberCount === 'number' && pubg.memberCount > 0 && typeof tracked?.membersCount === 'number'
-      ? Math.min(100, Math.round((tracked.membersCount / pubg.memberCount) * 100))
-      : null
+  function RosterSortIcon({ column }: { column: RosterSortKey }) {
+    if (rosterSortKey !== column) return <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
+    return rosterSortDirection === 'desc' ? (
+      <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+    ) : (
+      <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+    )
+  }
 
   return (
     <>
-    <div className="app-container app-main pb-0">
+    <div className="app-container px-4 pt-8">
       <NavigationTrail
         currentLabel="Vue d'ensemble"
         currentHref={`/clans/${clanId}/overview`}
@@ -617,7 +641,7 @@ export default function ClanOverviewPage() {
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Bloc 1 — Fiche PUBG officielle */}
-          <header className="app-panel relative overflow-hidden mb-6">
+          <header className="app-panel relative overflow-hidden mb-6 min-h-[300px]">
             {!pubg ? (
               <div className="p-6">
                 <h1 className="mb-2 text-base font-semibold text-gray-900">
@@ -659,37 +683,6 @@ export default function ClanOverviewPage() {
                       <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
                       Sync {fmtRelative((rawStats?.syncedAt as string | undefined) ?? null)}
                     </span>
-                  </div>
-
-                  {/* Highlights type page hero */}
-                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                    <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                      <p className="text-xs uppercase tracking-wide text-white/60">Couverture roster</p>
-                      <p className="mt-1 text-xl font-bold text-white">
-                        {trackedCoveragePct === null ? '—' : `${trackedCoveragePct}%`}
-                      </p>
-                      <p className="text-xs text-white/60">
-                        {tracked?.membersCount ?? '—'} / {pubg.memberCount ?? '—'} membres suivis
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                      <p className="text-xs uppercase tracking-wide text-white/60">Agrégats live</p>
-                      <p className="mt-1 text-xl font-bold text-white">
-                        {fmtCompactK(cacheData?.payload.globalStats.totalKills ?? 0)} kills
-                      </p>
-                      <p className="text-xs text-white/60">
-                        {fmtCompactK(cacheData?.payload.globalStats.wins ?? 0)} wins · {fmtPct(cacheData?.payload.globalStats.winRate ?? 0)} WR
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
-                      <p className="text-xs uppercase tracking-wide text-white/60">Fenêtre active</p>
-                      <p className="mt-1 text-xl font-bold text-white">{selectedPeriod === 'all' ? 'Historique complet' : periodTitle(selectedPeriod)}</p>
-                      <p className="text-xs text-white/60">
-                        {fmtNum(cacheData?.payload.globalStats.matchCount ?? 0)} matchs analysés
-                      </p>
-                    </div>
                   </div>
 
                 </div>
@@ -766,7 +759,7 @@ export default function ClanOverviewPage() {
       </DockingToolbar>
     )}
 
-    <div className="app-container app-main pt-0">
+    <div className="app-container px-4 pb-8">
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Bloc 2 — Statistiques et Analyses */}
@@ -775,11 +768,16 @@ export default function ClanOverviewPage() {
             <div className="pointer-events-none absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-emerald-500/10 blur-2xl" />
 
             <div className="relative mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Statistiques clan</h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Analyse basée sur les matchs de la période sélectionnée.
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-500">
+                  <BarChart3 className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Statistiques clan</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Agrégats du clan pour la période, le type de match et le mode sélectionnés dans le bandeau ci-dessus.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -877,7 +875,10 @@ export default function ClanOverviewPage() {
                 })()}
 
                 <div className="mb-8">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-700">Performances par mode</h3>
+                  <h3 className="text-sm font-semibold text-gray-700">Performances par mode</h3>
+                  <p className="mb-3 text-xs text-gray-500">
+                    Victoires, matchs joués et kills du clan, ventilés par taille d&apos;équipe.
+                  </p>
                   <div className="grid gap-3 md:grid-cols-3">
                     {cacheData.payload.modePerformance
                       .filter((mp) => selectedMode === 'all' || mp.mode === selectedMode)
@@ -907,7 +908,10 @@ export default function ClanOverviewPage() {
                 </div>
 
                 <div className="mb-8">
-                  <h3 className="mb-3 text-sm font-semibold text-gray-700">Awards du mode</h3>
+                  <h3 className="text-sm font-semibold text-gray-700">Awards du mode</h3>
+                  <p className="mb-3 text-xs text-gray-500">
+                    Le membre en tête sur chaque statistique clé, pour le mode d&apos;équipe sélectionné dans le bandeau.
+                  </p>
                   <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                     <TopPerformerCard
                       label="Top Fragger"
@@ -1042,7 +1046,12 @@ export default function ClanOverviewPage() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-500">
                 <UsersRound className="h-5 w-5" aria-hidden="true" />
               </div>
-              <h2 className="text-base font-semibold text-gray-900">Roster des performances</h2>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Roster des performances</h2>
+                <p className="text-sm text-gray-600">
+                  Statistiques individuelles de chaque membre suivi, pour les filtres sélectionnés dans le bandeau. Cliquez sur une colonne pour trier.
+                </p>
+              </div>
             </div>
 
             {/* Version Desktop / Tablette */}
@@ -1054,19 +1063,54 @@ export default function ClanOverviewPage() {
                       Joueur
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Matchs
+                      <button
+                        type="button"
+                        onClick={() => changeRosterSort('matchesPlayed')}
+                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
+                      >
+                        Matchs
+                        <RosterSortIcon column="matchesPlayed" />
+                      </button>
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Victoires
+                      <button
+                        type="button"
+                        onClick={() => changeRosterSort('wins')}
+                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
+                      >
+                        Victoires
+                        <RosterSortIcon column="wins" />
+                      </button>
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Kills
+                      <button
+                        type="button"
+                        onClick={() => changeRosterSort('totalKills')}
+                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
+                      >
+                        Kills
+                        <RosterSortIcon column="totalKills" />
+                      </button>
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Dégâts (Moy)
+                      <button
+                        type="button"
+                        onClick={() => changeRosterSort('avgDamage')}
+                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
+                      >
+                        Dégâts (Moy)
+                        <RosterSortIcon column="avgDamage" />
+                      </button>
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      K+A Moy.
+                      <button
+                        type="button"
+                        onClick={() => changeRosterSort('avgKA')}
+                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
+                      >
+                        K+A Moy.
+                        <RosterSortIcon column="avgKA" />
+                      </button>
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
                       Médailles

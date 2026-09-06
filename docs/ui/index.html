@@ -884,6 +884,12 @@
           <span class="num">22</span> Fenêtres modales &amp; Dialogues
         </a>
       </div>
+      <div class="docs-sidebar-group">
+        <div class="docs-sidebar-group-title">Bandeaux &amp; Barres fixes</div>
+        <a class="docs-sidebar-link" href="#sticky-toolbar" onclick="setActive(this)">
+          <span class="num">23</span> Bandeau Sticky Adaptatif
+        </a>
+      </div>
     </aside>
 
     <!-- ============================================================
@@ -4959,6 +4965,383 @@ border-gray-200  ← hardcodé</code>
             </ul>
           </div>
         </div>
+      <!-- ══════════════════════════════════════════════════════════
+           SECTION 23 — BANDEAUX STICKY & BARRES D'OUTILS ADAPTATIVES (DOCKING TOOLBAR)
+      ══════════════════════════════════════════════════════════ -->
+      <section class="docs-section" id="sticky-toolbar">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">23</span>
+          Bandeaux Sticky &amp; Barres d'Outils Adaptatives (Docking Toolbar)
+        </h2>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Concept &amp; Rôle du Composant</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1.25rem;line-height:1.6;">
+            Le <strong>Docking Toolbar Pattern</strong> réconcilie deux besoins ergonomiques majeurs :
+            <ol style="list-style:decimal;padding-left:1.5rem;margin-top:0.5rem;display:flex;flex-direction:column;gap:0.35rem;">
+              <li><strong>En haut de page (au repos) :</strong> la barre d'outils (filtres, tris, compteurs, actions) s'intègre harmonieusement dans le flux sous la bannière hero, centrée dans la grille avec des coins arrondis (<code class="docs-code">rounded-3xl</code>).</li>
+              <li><strong>Au défilement (sticky sous le header) :</strong> dès qu'elle atteint le bas du header fixe lors du scroll, elle se métamorphose en un bandeau pleine largeur (<code class="docs-code">w-full</code>) collé au header sans interstice, garantissant un accès instantané permanent aux commandes tout en laissant défiler les cartes membres en dessous avec un effet de flou élégant (<code class="docs-code">backdrop-blur-md</code>).</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Simulateur interactif -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Simulateur Interactif des Deux États</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1rem;line-height:1.6;">
+            Basculez entre les deux modes pour observer l'adaptation structurelle (largeur, bordures, arrondis, padding) :
+          </div>
+
+          <!-- Contrôle de bascule de mode -->
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <span style="font-size:0.75rem;font-weight:700;color:var(--theme-ui-text-muted);text-transform:uppercase;letter-spacing:0.05em;">État simulé :</span>
+            <div class="app-segmented-control">
+              <button
+                type="button"
+                id="btn-toolbar-resting"
+                onclick="setStickyToolbarDemoMode('resting')"
+                class="app-segmented-control__item app-segmented-control__item--sm app-segmented-control__item--active"
+              >
+                1. Au repos (Floating Card centrée)
+              </button>
+              <button
+                type="button"
+                id="btn-toolbar-docked"
+                onclick="setStickyToolbarDemoMode('docked')"
+                class="app-segmented-control__item app-segmented-control__item--sm"
+              >
+                2. Sticky (Pleine largeur sous header)
+              </button>
+            </div>
+            <span id="demo-toolbar-badge" class="app-meta-pill" style="font-size:0.7rem;border-color:rgb(59 130 246 / 0.4);color:rgb(59 130 246);">
+              Mode : Au repos (coins arrondis)
+            </span>
+          </div>
+
+          <!-- Conteneur simulateur de viewport -->
+          <div class="app-panel" style="overflow:hidden;border:1px solid var(--app-border);background:var(--page-surface);min-height:360px;position:relative;display:flex;flex-direction:column;">
+            <!-- Faux header de site fixe -->
+            <div style="height:44px;border-bottom:1px solid var(--app-border);background:var(--theme-ui-surface);display:flex;align-items:center;justify-content:space-between;padding:0 1rem;flex-shrink:0;z-index:20;">
+              <div style="display:flex;align-items:center;gap:0.5rem;">
+                <div style="width:18px;height:18px;border-radius:4px;background:rgb(37 99 235);display:flex;align-items:center;justify-content:center;color:white;font-weight:900;font-size:10px;">P</div>
+                <span style="font-size:0.75rem;font-weight:800;color:var(--theme-ui-text);letter-spacing:0.05em;">PUBG CLAN SITE</span>
+                <span style="font-size:0.65rem;color:var(--theme-ui-text-muted);margin-left:0.25rem;">[Header Fixe]</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:0.75rem;font-size:0.7rem;color:var(--theme-ui-text-muted);">
+                <span>Tableau de bord</span>
+                <span style="color:rgb(59 130 246);font-weight:600;">Membres</span>
+                <span>Matchs</span>
+              </div>
+            </div>
+
+            <!-- Fausse zone de contenu avec la toolbar -->
+            <div id="demo-toolbar-scroll-area" style="flex:1;overflow-y:auto;background:var(--background);display:flex;flex-direction:column;">
+              <!-- Fausse bannière (visible uniquement au repos pour le contexte) -->
+              <div id="demo-toolbar-hero" style="margin:1rem 1rem 0.5rem 1rem;height:64px;border-radius:0.75rem;background:linear-gradient(135deg, rgba(30,41,59,0.9), rgba(15,23,42,0.95));display:flex;align-items:center;padding:0 1.25rem;border:1px solid rgba(255,255,255,0.08);">
+                <div>
+                  <div style="font-size:0.875rem;font-weight:800;color:white;">Membres et rôles</div>
+                  <div style="font-size:0.7rem;color:rgb(148,163,184);">Gestion de l'effectif et des invitations du clan</div>
+                </div>
+              </div>
+
+              <!-- CONTENEUR DU BANDEAU (Dynamiquement modifié par le script) -->
+              <div id="demo-toolbar-wrapper" class="mx-auto w-full max-w-4xl px-4 my-3">
+                <div id="demo-toolbar-inner" class="flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/95 px-5 py-4 shadow-md backdrop-blur-md dark:border-slate-800/90 dark:bg-slate-900/95 transition-none">
+                  <!-- Ligne 1 : Compteurs, badges de rôle & boutons d'action -->
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap items-center gap-2.5">
+                      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                        37 membres du clan
+                      </p>
+                      <button
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-600 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300 cursor-pointer"
+                        title="Comparaison PUBG"
+                      >
+                        <span>85 dans PUBG</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white cursor-pointer"
+                      >
+                        Tout replier
+                      </button>
+                    </div>
+
+                    <!-- Légende des badges -->
+                    <div class="flex flex-wrap items-center gap-2.5 text-xs">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rôles :</span>
+                      <div class="flex items-center gap-1">
+                        <span class="member-role-badge member-role-badge--owner inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">O</span>
+                        <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">Owner</span>
+                      </div>
+                      <div class="flex items-center gap-1">
+                        <span class="member-role-badge member-role-badge--admin inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">A</span>
+                        <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">Admin</span>
+                      </div>
+                      <div class="flex items-center gap-1">
+                        <span class="member-role-badge member-role-badge--member inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">M</span>
+                        <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">Membre</span>
+                      </div>
+                    </div>
+
+                    <!-- Boutons & Filtres -->
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        class="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-500"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+                        <span>Comparer PUBG</span>
+                      </button>
+                      <button
+                        type="button"
+                        onclick="toggleDemoToolbarSearch()"
+                        class="inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                        id="demo-toolbar-search-btn"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        <span>Rechercher</span>
+                      </button>
+                      <div class="flex items-center gap-1">
+                        <div class="app-segmented-control">
+                          <button type="button" class="app-segmented-control__item app-segmented-control__item--xs app-segmented-control__item--active">Date</button>
+                          <button type="button" class="app-segmented-control__item app-segmented-control__item--xs">Nom</button>
+                        </div>
+                        <div class="app-segmented-control">
+                          <button type="button" class="app-segmented-control__item app-segmented-control__item--xs app-segmented-control__item--active">A-Z</button>
+                          <button type="button" class="app-segmented-control__item app-segmented-control__item--xs">Z-A</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Tiroir de recherche (Repliable) -->
+                  <div id="demo-toolbar-search-box" style="display:none;" class="flex items-center gap-3 border-t border-slate-200/80 pt-3 dark:border-slate-800">
+                    <div class="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Filtrer par nom de membre..."
+                        class="w-full rounded-2xl border border-slate-200 bg-white py-1.5 pl-9 pr-8 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                      />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </div>
+                    <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">37 résultats</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Fausse grille de cartes de membres défilante sous la toolbar -->
+              <div class="mx-auto w-full max-w-4xl px-4 pb-6 pt-2 space-y-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div class="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 font-black text-sm flex items-center justify-center border border-blue-500/20">D3</div>
+                      <div>
+                        <div class="font-bold text-xs text-slate-900 dark:text-white">D32_Official</div>
+                        <div class="text-[11px] text-amber-500 font-semibold flex items-center gap-1">Dernier match : Aujourd'hui</div>
+                      </div>
+                    </div>
+                    <span class="member-role-badge member-role-badge--owner h-5 text-[10px]">O</span>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="h-10 w-10 rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 font-black text-sm flex items-center justify-center border border-slate-300 dark:border-slate-700">BH</div>
+                      <div>
+                        <div class="font-bold text-xs text-slate-900 dark:text-white">BobHiNet</div>
+                        <div class="text-[11px] text-slate-500 font-medium flex items-center gap-1">Dernier match : -2j</div>
+                      </div>
+                    </div>
+                    <span class="member-role-badge member-role-badge--admin h-5 text-[10px]">A</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tableau comparatif des deux états -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Matrice Technique des Deux États (Classes Tailwind)</div>
+          <div class="app-table-shell" style="margin-bottom:1.5rem;overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.75rem;text-align:left;">
+              <thead class="app-table-head">
+                <tr>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Propriété</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Au repos (<code class="docs-code">isSticky === false</code>)</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Figé / Sticky (<code class="docs-code">isSticky === true</code>)</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Règle / Justification</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;">Positionnement</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">relative</code> ou flux standard</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">sticky top-[73px] lg:top-[71px] z-30</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">S'ancre précisément sous la hauteur exacte du header fixe (71px desktop, 73px mobile).</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;">Largeur Conteneur Externe</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">mx-auto w-full max-w-6xl px-4</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">w-full</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">S'étale bord à bord de l'écran en sticky pour bloquer la vue traversante sous le header.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;">Bordures Extérieures</td>
+                  <td style="padding:0.625rem 0.875rem;"><span style="color:rgb(16 185 129);font-weight:700;">Aucune sur le parent</span> (<code class="docs-code">border-none</code>)</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">border-b border-slate-200/80 dark:border-slate-800</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);"><strong>JAMAIS de <code class="docs-code">border-y</code> !</strong> Seule la bordure basse est présente pour délimiter le flux inférieur.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;">Boîte Intérieure</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">rounded-3xl border border-slate-200/90 dark:border-slate-800/90 px-5 py-4</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">mx-auto max-w-6xl w-full px-4 py-4</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Au repos c'est une carte fermée. En sticky, padding haut et bas symétrique (<code class="docs-code">py-4</code>).</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;">Marges Verticales</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">my-4 sm:my-6</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">my-0</code> (aucun espacement)</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Supprime tout jour ou trou entre le header de navigation et la barre d'outils.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;">Padding Intérieur</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">py-4</code> (16px)</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">py-4</code> (16px symétrique)</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Espace identique au-dessus et en dessous des filtres et contrôles.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Règles d'or & Erreurs à proscrire (Comment éviter le bug des lignes blanches) -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Les 5 Règles d'Or &amp; Erreurs Éliminatoires à Proscrire</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.6;">
+            <ul style="list-style:disc;padding-left:1.5rem;display:flex;flex-direction:column;gap:0.75rem;">
+              <li>
+                <strong style="color:rgb(239,68,68);">PROSCRIT (Bug des lignes blanches) :</strong>
+                Ne JAMAIS appliquer <code class="docs-code">border-y</code> sur un conteneur pleine largeur qui englobe une boîte arrondie <code class="docs-code">rounded-3xl</code>. La bordure haute et basse du parent s'étend d'un bout à l'autre de l'écran et traverse les arrondis de la boîte intérieure, produisant des traits blancs horizontaux visibles qui dépassent sur le fond sombre.
+              </li>
+              <li>
+                <strong style="color:rgb(239,68,68);">PROSCRIT :</strong>
+                Ne JAMAIS ajouter de bordure supérieure (<code class="docs-code">border-t</code>) au conteneur sticky. Le header de page possède déjà sa propre bordure basse (<code class="docs-code">border-b</code>). L'ajout d'une bordure haute crée un doublon de 2px ou une ligne parasite sous la navbar.
+              </li>
+              <li>
+                <strong style="color:rgb(239,68,68);">PROSCRIT :</strong>
+                Ne JAMAIS utiliser de transition CSS sur la géométrie (<code class="docs-code">transition-all duration-200</code>) entre l'état repos et l'état sticky. Pendant le défilement de l'utilisateur, l'interpolation de la largeur et des bordures crée un décrochage visuel et des scintillements. La bascule doit être instantanée en dissociant les deux branches dans le JSX (<code class="docs-code">isSticky ? (...) : (...)</code>).
+              </li>
+              <li>
+                <strong style="color:rgb(16 185 129);">OBLIGATOIRE :</strong>
+                Toujours détecter le seuil avec une <strong>sentinelle invisible</strong> (<code class="docs-code">&lt;div ref={sentinelRef} className="h-0 w-full pointer-events-none opacity-0" /&gt;</code>) couplée à un <code class="docs-code">IntersectionObserver</code>. Ne jamais écouter l'événement <code class="docs-code">window.onscroll</code> directement pour éviter les recalculs intempestifs et préserver 60 FPS constants.
+              </li>
+              <li>
+                <strong style="color:rgb(16 185 129);">OBLIGATOIRE :</strong>
+                Toujours conserver le conteneur intérieur centré (<code class="docs-code">mx-auto max-w-6xl px-4</code>) même lorsque le bandeau parent passe en pleine largeur (<code class="docs-code">w-full</code>). Ainsi, les boutons et textes de la barre d'outils restent rigoureusement alignés sur les cartes et tableaux situés en dessous.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Boilerplate React / Next.js -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Template Boilerplate Réutilisable (React / Next.js 16)</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:0.75rem;line-height:1.6;">
+            Modèle TypeScript complet prêt à copier pour tout nouveau bandeau de filtres, barre d'actions ou navigation secondaire :
+          </div>
+          <pre style="margin:0;padding:1rem;background:var(--app-surface-muted);border:1px solid var(--app-border);border-radius:0.75rem;overflow-x:auto;font-family:monospace;font-size:0.75rem;line-height:1.5;color:var(--theme-ui-text);"><code class="language-tsx">'use client'
+
+import React, { useState, useEffect, useRef } from 'react'
+
+export function DockingToolbarExample() {
+  const [isToolbarSticky, setIsToolbarSticky] = useState(false)
+  const toolbarSentinelRef = useRef&lt;HTMLDivElement | null&gt;(null)
+
+  useEffect(() =&gt; {
+    const sentinel = toolbarSentinelRef.current
+    if (!sentinel) return
+
+    // 58px sur desktop (hauteur navbar principale), 72px sur mobile
+    const computeOffset = () =&gt; (window.innerWidth &gt;= 1024 ? 58 : 72)
+
+    let observer = new IntersectionObserver(
+      ([entry]) =&gt; {
+        // Devient sticky dès que la sentinelle passe sous la navbar
+        setIsToolbarSticky(!entry.isIntersecting)
+      },
+      {
+        threshold: 0,
+        rootMargin: `-${computeOffset()}px 0px 0px 0px`,
+      }
+    )
+
+    observer.observe(sentinel)
+
+    const handleResize = () =&gt; {
+      observer.disconnect()
+      observer = new IntersectionObserver(
+        ([entry]) =&gt; setIsToolbarSticky(!entry.isIntersecting),
+        { threshold: 0, rootMargin: `-${computeOffset()}px 0px 0px 0px` }
+      )
+      observer.observe(sentinel)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () =&gt; {
+      observer.disconnect()
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
+  // Contenu partagé de la barre d'outils
+  const renderToolbarContent = () =&gt; (
+    &lt;div className="flex flex-wrap items-center justify-between gap-3"&gt;
+      &lt;div className="flex items-center gap-2"&gt;
+        &lt;span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"&gt;
+          Total : 37 éléments
+        &lt;/span&gt;
+      &lt;/div&gt;
+      &lt;div className="flex items-center gap-2"&gt;
+        {/* Filtres, tris, champs de recherche... */}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  )
+
+  return (
+    &lt;div className="w-full"&gt;
+      {/* 1. Sentinelle invisible positionnée juste au-dessus du bandeau */}
+      &lt;div
+        ref={toolbarSentinelRef}
+        className="h-0 w-full pointer-events-none opacity-0"
+        aria-hidden="true"
+      /&gt;
+
+      {/* 2. Rendu conditionnel strict (évite tout conflit de bordure) */}
+      {isToolbarSticky ? (
+        // Mode Sticky : Pleine largeur, bordure basse uniquement, zéro marge
+        &lt;div className="sticky top-[72px] lg:top-[58px] z-30 w-full border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95"&gt;
+          &lt;div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 pt-4 pb-3.5"&gt;
+            {renderToolbarContent()}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ) : (
+        // Mode au repos : Boîte centrée avec coins arrondis et bordure complète
+        &lt;div className="mx-auto w-full max-w-6xl px-4 my-4 sm:my-6"&gt;
+          &lt;div className="flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/95 px-5 py-4 shadow-md backdrop-blur-md dark:border-slate-800/90 dark:bg-slate-900/95"&gt;
+            {renderToolbarContent()}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      )}
+
+      {/* 3. Contenu de la page (grille de cartes, tableaux...) */}
+      &lt;div className="mx-auto w-full max-w-6xl px-4 pt-4"&gt;
+        {/* Vos cartes ici */}
+      &lt;/div&gt;
+    &lt;/div&gt;
+  )
+}</code></pre>
+        </div>
       </section>
 
       <!-- ══════════════════════════════════════════════════════════
@@ -4966,7 +5349,7 @@ border-gray-200  ← hardcodé</code>
       ══════════════════════════════════════════════════════════ -->
       <div style="margin-top:4rem;padding-top:2rem;border-top:1px solid var(--app-border);text-align:center;">
         <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);">
-          Design System — PUBG Clan Site · 22 sections · Mis à jour avec la Charte Graphique des Fenêtres Modales
+          Design System — PUBG Clan Site · 23 sections · Mis à jour avec les Bandeaux Sticky Adaptatifs
         </div>
         <div style="font-size:0.7rem;color:var(--theme-ui-text-muted);margin-top:0.375rem;">
           Basculer le thème avec le bouton en haut à droite pour valider chaque composant en clair et en sombre.
@@ -5166,6 +5549,60 @@ border-gray-200  ← hardcodé</code>
         }
         if (btnLight) {
           btnLight.className = 'app-btn app-btn--sm app-btn--primary inline-flex items-center gap-1.5';
+        }
+      }
+    }
+
+    function setStickyToolbarDemoMode(mode) {
+      const btnResting = document.getElementById('btn-toolbar-resting');
+      const btnDocked = document.getElementById('btn-toolbar-docked');
+      const hero = document.getElementById('demo-toolbar-hero');
+      const wrapper = document.getElementById('demo-toolbar-wrapper');
+      const inner = document.getElementById('demo-toolbar-inner');
+      const badge = document.getElementById('demo-toolbar-badge');
+
+      if (!wrapper || !inner) return;
+
+      if (mode === 'docked') {
+        if (btnResting) btnResting.classList.remove('app-segmented-control__item--active');
+        if (btnDocked) btnDocked.classList.add('app-segmented-control__item--active');
+        if (hero) hero.style.display = 'none';
+
+        wrapper.className = 'w-full sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 transition-none';
+        inner.className = 'mx-auto flex w-full max-w-4xl flex-col gap-3 px-4 pt-3.5 pb-3 border-none bg-transparent shadow-none rounded-none';
+
+        if (badge) {
+          badge.textContent = 'Mode : Sticky (pleine largeur, sous header, border-b seule)';
+          badge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+          badge.style.color = 'rgb(16, 185, 129)';
+        }
+      } else {
+        if (btnDocked) btnDocked.classList.remove('app-segmented-control__item--active');
+        if (btnResting) btnResting.classList.add('app-segmented-control__item--active');
+        if (hero) hero.style.display = 'flex';
+
+        wrapper.className = 'mx-auto w-full max-w-4xl px-4 my-3';
+        inner.className = 'flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/95 px-5 py-4 shadow-md backdrop-blur-md dark:border-slate-800/90 dark:bg-slate-900/95 transition-none';
+
+        if (badge) {
+          badge.textContent = 'Mode : Au repos (carte arrondie centrée)';
+          badge.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+          badge.style.color = 'rgb(59, 130, 246)';
+        }
+      }
+    }
+
+    function toggleDemoToolbarSearch() {
+      const box = document.getElementById('demo-toolbar-search-box');
+      const btn = document.getElementById('demo-toolbar-search-btn');
+      if (!box) return;
+      const isOpen = box.style.display !== 'none';
+      box.style.display = isOpen ? 'none' : 'flex';
+      if (btn) {
+        if (isOpen) {
+          btn.className = 'inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 cursor-pointer';
+        } else {
+          btn.className = 'inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white shadow-sm cursor-pointer';
         }
       }
     }

@@ -4,6 +4,8 @@ import {
   getDropPressureTimeline,
 } from '@/lib/drop-pressure-stats'
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { parseClanMatchTypeFilter } from '@/lib/match-type-filter'
+import { parseClanTeamModeFilter } from '@/lib/team-mode'
 import type { DropPressurePeriod } from '@/types/drop-pressure'
 
 function parseClanId(value: string) {
@@ -32,10 +34,12 @@ export async function GET(
   if (permissionError) return permissionError
 
   const period = parsePeriod(new URL(request.url).searchParams.get('period'))
+  const matchType = parseClanMatchTypeFilter(new URL(request.url).searchParams.get('matchType'))
+  const mode = parseClanTeamModeFilter(new URL(request.url).searchParams.get('mode'))
   const [stats, ranking, timeline] = await Promise.all([
-    getDropPressureDashboardStats({ clanId: parsedClanId, period }),
-    getDropPressureMemberRanking({ clanId: parsedClanId, period }),
-    getDropPressureTimeline({ clanId: parsedClanId }),
+    getDropPressureDashboardStats({ clanId: parsedClanId, period, matchType, mode }),
+    getDropPressureMemberRanking({ clanId: parsedClanId, period, matchType, mode }),
+    getDropPressureTimeline({ clanId: parsedClanId, matchType, mode }),
   ])
-  return Response.json({ stats, ranking, timeline, period })
+  return Response.json({ stats, ranking, timeline, period, matchType, mode })
 }

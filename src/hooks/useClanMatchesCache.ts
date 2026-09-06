@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { CachedClanMatchesPayload } from '@/lib/matches-cache-service'
-import type { SquadPeriod } from '@/types/squad-matches'
+import type { ClanMatchTypeFilter, SquadPeriod } from '@/types/squad-matches'
 
-export function useClanMatchesCache(clanId: number | null, period: SquadPeriod) {
+export function useClanMatchesCache(
+  clanId: number | null,
+  period: SquadPeriod,
+  matchType: ClanMatchTypeFilter
+) {
   const [data, setData] = useState<{
     period: SquadPeriod
     periodKey: string
@@ -21,7 +25,9 @@ export function useClanMatchesCache(clanId: number | null, period: SquadPeriod) 
       try {
         setLoading(true)
         setError('')
-        const res = await fetch(`/api/clans/${clanId}/overview/matches-stats?period=${period}`)
+        const res = await fetch(
+          `/api/clans/${clanId}/overview/matches-stats?period=${period}&matchType=${matchType}`
+        )
         const json = await res.json()
 
         if (!res.ok) {
@@ -47,7 +53,7 @@ export function useClanMatchesCache(clanId: number | null, period: SquadPeriod) 
     return () => {
       cancelled = true
     }
-  }, [clanId, period])
+  }, [clanId, period, matchType])
 
   return { data, loading, error }
 }

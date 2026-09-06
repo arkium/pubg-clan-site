@@ -188,21 +188,21 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           periodKey: 'week-2026-23',
           memberTelemetryRows: 2,
           memberWeaponRows: 2,
-          clanSynergyRows: 1,
+          clanSynergyRows: 2,
         },
         {
           period: 'month',
           periodKey: 'month-2026-06',
           memberTelemetryRows: 2,
           memberWeaponRows: 2,
-          clanSynergyRows: 1,
+          clanSynergyRows: 2,
         },
         {
           period: 'all',
           periodKey: 'all-time',
           memberTelemetryRows: 2,
           memberWeaponRows: 2,
-          clanSynergyRows: 1,
+          clanSynergyRows: 2,
         },
       ],
     })
@@ -297,6 +297,10 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
       ],
     })
 
+    // 2 membres dans le squad -> mode 'duo' ; le fixture ne fournit pas de
+    // matchType -> seul le bucket 'all' matche (voir matchTypeMatchesFilter),
+    // d'où 2 lignes : (all|duo) puis (all|all) — CLAN_SYNERGY_TEAM_MODES
+    // itère duo/trio/squad/all dans cet ordre.
     expect(firstSynergyWrites[0]).toEqual({
       data: [
         {
@@ -305,11 +309,78 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           memberBId: 102,
           period: 'week-2026-23',
           periodType: 'week',
+          matchType: 'all',
+          mode: 'duo',
+          reviveCount: 1,
+          coKillCount: 1,
+          sharedDamageEvents: 1,
+        },
+        {
+          clanId: 7,
+          memberAId: 101,
+          memberBId: 102,
+          period: 'week-2026-23',
+          periodType: 'week',
+          matchType: 'all',
+          mode: 'all',
           reviveCount: 1,
           coKillCount: 1,
           sharedDamageEvents: 1,
         },
       ],
     })
+  })
+
+  it('partitions clan synergy rows by matchType (official/casual/custom/all)', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue([
+      {
+        id: 'squad-casual-1',
+        matchType: 'casual',
+        members: [
+          {
+            member: {
+              id: 201,
+              clanId: 7,
+              pubgPlayerName: 'PlayerC',
+              pubgAccountId: 'account.c',
+            },
+          },
+          {
+            member: {
+              id: 202,
+              clanId: 7,
+              pubgPlayerName: 'PlayerD',
+              pubgAccountId: 'account.d',
+            },
+          },
+        ],
+      },
+    ])
+
+    mocks.queryRaw.mockResolvedValue([
+      {
+        squadMatchId: 'squad-casual-1',
+        memberStats: JSON.stringify([
+          { memberKey: 'account.c', kills: 1, revives: 0, recalls: 0, damageDealt: 50 },
+          { memberKey: 'account.d', kills: 1, revives: 0, recalls: 0, damageDealt: 50 },
+        ]),
+        weaponStats: JSON.stringify([]),
+      },
+    ])
+
+    const referenceDate = new Date('2026-06-03T12:00:00.000Z')
+    await recalculateTelemetryPeriodAggregatesForClan(7, referenceDate)
+
+    const weekSynergyWrite = mocks.clanSynergyCreateMany.mock.calls[0][0]
+    const combosWritten = weekSynergyWrite.data
+      .map((row: { matchType: string; mode: string }) => `${row.matchType}|${row.mode}`)
+      .sort()
+
+    // 2 membres -> mode 'duo'. La paire n'appartient qu'aux combinaisons
+    // (matchType: casual|all) × (mode: duo|all) — jamais official/custom ni trio/squad.
+    expect(combosWritten).toEqual(['all|all', 'all|duo', 'casual|all', 'casual|duo'])
+    for (const combo of weekSynergyWrite.data) {
+      expect(combo).toMatchObject({ memberAId: 201, memberBId: 202, coKillCount: 1 })
+    }
   })
 })

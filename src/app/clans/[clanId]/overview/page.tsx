@@ -20,7 +20,8 @@ import SquadSynergies from '@/components/SquadSynergies'
 import { useClanOverview } from '@/hooks/useClanOverview'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanMatchesCache } from '@/hooks/useClanMatchesCache'
-import type { SquadPeriod } from '@/types/squad-matches'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import type { ClanMatchTypeFilter, ClanTeamModeFilter, SquadPeriod } from '@/types/squad-matches'
 import type {
   DropPressureDashboardStats,
   DropPressureRankingEntry,
@@ -32,6 +33,13 @@ import type {
 const OVERVIEW_PERIOD_OPTIONS: Array<{ value: SquadPeriod; label: string }> = [
   { value: 'week', label: 'Semaine' },
   { value: 'month', label: 'Mois' },
+  { value: 'all', label: 'Tous' },
+]
+
+const MATCH_TYPE_OPTIONS: Array<{ value: ClanMatchTypeFilter; label: string }> = [
+  { value: 'official', label: 'Officiel' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'custom', label: 'Custom' },
   { value: 'all', label: 'Tous' },
 ]
 
@@ -253,7 +261,12 @@ function TopPerformerCard({
             className="mt-1 truncate text-sm font-semibold text-gray-900"
             title={performer.displayName}
           >
-            {performer.displayName}
+            <Link
+              href={`/members/${performer.memberId}/dashboard`}
+              className="transition-colors hover:text-emerald-500"
+            >
+              {performer.displayName}
+            </Link>
           </p>
           <p className="mt-1 flex items-baseline gap-1 overflow-hidden tabular-nums">
             <span className={`text-2xl font-black leading-none ${accentClasses[tone]}`}>{formatValue(performer.value)}</span>
@@ -434,11 +447,13 @@ export default function ClanOverviewPage() {
 
   const { data, loading, error } = useClanOverview(clanId)
   const [selectedPeriod, setSelectedPeriod] = useState<SquadPeriod>('week')
-  const [selectedMode, setSelectedMode] = useState<'all' | 'duo' | 'trio' | 'squad'>('all')
+  const [selectedMatchType, setSelectedMatchType] = useState<ClanMatchTypeFilter>('official')
+  const [selectedMode, setSelectedMode] = useState<ClanTeamModeFilter>('all')
 
   const { data: cacheData, loading: cacheLoading, error: cacheError } = useClanMatchesCache(
     clanId,
-    selectedPeriod
+    selectedPeriod,
+    selectedMatchType
   )
   const clanNavItems = useSectionNavItems('clan-section', clanId, null)
     .filter(item => item.navKey !== 'clan.overview')
@@ -471,7 +486,7 @@ export default function ClanOverviewPage() {
         setDropPressureLoading(true)
         setDropPressureError('')
         const response = await fetch(
-          `/api/clans/${clanId}/drop-pressure-stats?period=${selectedPeriod}`,
+          `/api/clans/${clanId}/drop-pressure-stats?period=${selectedPeriod}&matchType=${selectedMatchType}&mode=${selectedMode}`,
           { cache: 'no-store' }
         )
         const payload = (await response.json()) as {
@@ -508,7 +523,7 @@ export default function ClanOverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, selectedPeriod])
+  }, [clanId, selectedPeriod, selectedMatchType, selectedMode])
 
   if (!clanId) return null
 
@@ -545,9 +560,10 @@ export default function ClanOverviewPage() {
 
   const performanceRoster = useMemo(() => {
     if (!data?.roster) return []
+    const rosterStatsForMode = cacheData?.payload.byMode[selectedMode]?.rosterStats
     return data.roster
       .map((member) => {
-        const stats = cacheData?.payload.rosterStats.find((s) => s.memberId === member.id)
+        const stats = rosterStatsForMode?.find((s) => s.memberId === member.id)
         return {
           ...member,
           stats: stats ?? {
@@ -565,7 +581,7 @@ export default function ClanOverviewPage() {
         }
         return b.stats.totalKills - a.stats.totalKills
       })
-  }, [data?.roster, cacheData?.payload.rosterStats])
+  }, [data?.roster, cacheData?.payload.byMode, selectedMode])
 
   const maxRosterMatches = performanceRoster[0]?.stats.matchesPlayed ?? 0
 
@@ -580,7 +596,8 @@ export default function ClanOverviewPage() {
       : null
 
   return (
-    <main className="app-container app-main">
+    <>
+    <div className="app-container app-main pb-0">
       <NavigationTrail
         currentLabel="Vue d'ensemble"
         currentHref={`/clans/${clanId}/overview`}
@@ -700,7 +717,58 @@ export default function ClanOverviewPage() {
               </div>
             </section>
           )}
+        </div>
+      )}
+    </div>
 
+    {/* Bandeau de filtres (période + type de match + mode d'équipe) — filtre toutes les stats de la page.
+        Rendu via DockingToolbar pour occuper toute la largeur une fois collé au header. */}
+    {!loading && !error && data && (
+      <DockingToolbar variant="panel" maxWidthClass="app-container">
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+              {tracked?.membersCount ?? 0} membres trackés
+            </span>
+            {cacheData?.computedAt && (
+              <span>Données mises à jour le {new Date(cacheData.computedAt).toLocaleString('fr-FR')}</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <SegmentedControl
+              options={OVERVIEW_PERIOD_OPTIONS}
+              value={selectedPeriod}
+              onChange={setSelectedPeriod as any}
+              size="sm"
+              className="shrink-0"
+            />
+            <SegmentedControl
+              options={MATCH_TYPE_OPTIONS}
+              value={selectedMatchType}
+              onChange={setSelectedMatchType as any}
+              size="sm"
+              className="shrink-0"
+            />
+            <SegmentedControl
+              options={[
+                { value: 'all', label: 'Tous' },
+                { value: 'duo', label: 'Duo' },
+                { value: 'trio', label: 'Trio' },
+                { value: 'squad', label: 'Squad' },
+              ]}
+              value={selectedMode}
+              onChange={setSelectedMode as any}
+              size="sm"
+              className="shrink-0"
+            />
+          </div>
+        </div>
+      </DockingToolbar>
+    )}
+
+    <div className="app-container app-main pt-0">
+      {!loading && !error && data && (
+        <div className="space-y-6">
           {/* Bloc 2 — Statistiques et Analyses */}
           <section className="app-panel relative overflow-hidden p-6">
             <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-cyan-500/10 blur-2xl" />
@@ -708,42 +776,10 @@ export default function ClanOverviewPage() {
 
             <div className="relative mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Statistiques clan{' '}
-                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-sm font-semibold text-gray-700">
-                    {tracked?.membersCount ?? 0} membres trackés
-                  </span>
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900">Statistiques clan</h2>
                 <p className="mt-1 text-sm text-gray-600">
                   Analyse basée sur les matchs de la période sélectionnée.
                 </p>
-                {cacheData?.computedAt && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Données mises à jour le {new Date(cacheData.computedAt).toLocaleString('fr-FR')}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <SegmentedControl
-                  options={OVERVIEW_PERIOD_OPTIONS}
-                  value={selectedPeriod}
-                  onChange={setSelectedPeriod as any}
-                  size="sm"
-                  className="shrink-0"
-                />
-                <SegmentedControl
-                  options={[
-                    { value: 'all', label: 'Tous' },
-                    { value: 'duo', label: 'Duo' },
-                    { value: 'trio', label: 'Trio' },
-                    { value: 'squad', label: 'Squad' },
-                  ]}
-                  value={selectedMode}
-                  onChange={setSelectedMode as any}
-                  size="sm"
-                  className="shrink-0"
-                />
               </div>
             </div>
 
@@ -763,65 +799,89 @@ export default function ClanOverviewPage() {
 
             {!cacheLoading && cacheData && (
               <>
-                <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-                  {[
-                    {
-                      label: 'Total kills',
-                      value: fmtCompactK(cacheData.payload.globalStats.totalKills),
-                      tone: 'danger' as const,
-                      icon: 'kills' as const,
-                    },
-                    {
-                      label: 'Total wins',
-                      value: fmtCompactK(cacheData.payload.globalStats.wins),
-                      tone: 'warning' as const,
-                      icon: 'wins' as const,
-                    },
-                    {
-                      label: 'Total damage',
-                      value: fmtCompactK(cacheData.payload.globalStats.totalDamage),
-                      tone: 'success' as const,
-                      icon: 'damage' as const,
-                    },
-                    {
-                      label: 'Win rate',
-                      value: fmtPct(cacheData.payload.globalStats.winRate),
-                      tone: 'primary' as const,
-                      icon: 'rate' as const,
-                    },
-                    {
-                      label: 'Moy. K+A',
-                      value: fmtRatio(
-                        cacheData.payload.globalStats.matchCount > 0
-                          ? (cacheData.payload.globalStats.totalKills +
-                              cacheData.payload.globalStats.totalAssists) /
-                              cacheData.payload.globalStats.matchCount
-                          : 0
-                      ),
-                      tone: 'info' as const,
-                      icon: 'average' as const,
-                    },
-                    {
-                      label: 'Matches played',
-                      value: fmtCompactK(cacheData.payload.globalStats.matchCount),
-                      tone: 'neutral' as const,
-                      icon: 'matches' as const,
-                    },
-                  ].map((item) => (
-                    <ClanKpiCard
-                      key={item.label}
-                      label={item.label}
-                      value={item.value}
-                      tone={item.tone}
-                      icon={item.icon}
-                    />
-                  ))}
-                </div>
+                {(() => {
+                  const modePerformanceEntry =
+                    selectedMode === 'all'
+                      ? null
+                      : cacheData.payload.modePerformance.find((mp) => mp.mode === selectedMode) ?? null
+
+                  const displayedGlobalStats = modePerformanceEntry
+                    ? {
+                        totalKills: modePerformanceEntry.kills,
+                        totalDamage: modePerformanceEntry.damage,
+                        totalAssists: modePerformanceEntry.assists,
+                        wins: modePerformanceEntry.wins,
+                        matchCount: modePerformanceEntry.matches,
+                        winRate:
+                          modePerformanceEntry.matches > 0
+                            ? modePerformanceEntry.wins / modePerformanceEntry.matches
+                            : 0,
+                      }
+                    : cacheData.payload.globalStats
+
+                  return (
+                    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
+                      {[
+                        {
+                          label: 'Total kills',
+                          value: fmtCompactK(displayedGlobalStats.totalKills),
+                          tone: 'danger' as const,
+                          icon: 'kills' as const,
+                        },
+                        {
+                          label: 'Total wins',
+                          value: fmtCompactK(displayedGlobalStats.wins),
+                          tone: 'warning' as const,
+                          icon: 'wins' as const,
+                        },
+                        {
+                          label: 'Total damage',
+                          value: fmtCompactK(displayedGlobalStats.totalDamage),
+                          tone: 'success' as const,
+                          icon: 'damage' as const,
+                        },
+                        {
+                          label: 'Win rate',
+                          value: fmtPct(displayedGlobalStats.winRate),
+                          tone: 'primary' as const,
+                          icon: 'rate' as const,
+                        },
+                        {
+                          label: 'Moy. K+A',
+                          value: fmtRatio(
+                            displayedGlobalStats.matchCount > 0
+                              ? (displayedGlobalStats.totalKills + displayedGlobalStats.totalAssists) /
+                                  displayedGlobalStats.matchCount
+                              : 0
+                          ),
+                          tone: 'info' as const,
+                          icon: 'average' as const,
+                        },
+                        {
+                          label: 'Matches played',
+                          value: fmtCompactK(displayedGlobalStats.matchCount),
+                          tone: 'neutral' as const,
+                          icon: 'matches' as const,
+                        },
+                      ].map((item) => (
+                        <ClanKpiCard
+                          key={item.label}
+                          label={item.label}
+                          value={item.value}
+                          tone={item.tone}
+                          icon={item.icon}
+                        />
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 <div className="mb-8">
                   <h3 className="mb-3 text-sm font-semibold text-gray-700">Performances par mode</h3>
                   <div className="grid gap-3 md:grid-cols-3">
-                    {cacheData.payload.modePerformance.map((mp) => (
+                    {cacheData.payload.modePerformance
+                      .filter((mp) => selectedMode === 'all' || mp.mode === selectedMode)
+                      .map((mp) => (
                       <article key={mp.mode} className="app-panel overflow-hidden">
                         <header 
                           className="relative border-b border-[var(--theme-ui-border)] h-28 bg-cover bg-center bg-no-repeat"
@@ -959,7 +1019,7 @@ export default function ClanOverviewPage() {
 
                 {(selectedMode === 'all' || selectedMode === 'duo' || selectedMode === 'squad' || selectedMode === 'trio') && (
                   <div className="mb-4">
-                    <SquadSynergies clanId={clanId} period={selectedPeriod} synergies={cacheData.payload.byMode[selectedMode].synergies as any} />
+                    <SquadSynergies clanId={clanId} period={selectedPeriod} matchType={selectedMatchType} mode={selectedMode} synergies={cacheData.payload.byMode[selectedMode].synergies as any} />
                   </div>
                 )}
               </>
@@ -970,8 +1030,6 @@ export default function ClanOverviewPage() {
             stats={dropPressure}
             loading={dropPressureLoading}
             error={dropPressureError}
-            href={`/clans/${clanId}/drop-zones`}
-            periodLabel={periodTitle(selectedPeriod)}
             ranking={dropPressureRanking}
             timeline={dropPressureTimeline}
           />
@@ -980,21 +1038,11 @@ export default function ClanOverviewPage() {
 
           {/* Bloc 4 — Roster des performances */}
           <section className="app-panel p-6">
-            <div className="mb-5 flex flex-col gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-500">
-                  <UsersRound className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900">Roster des performances</h2>
-                  <p className="text-sm text-gray-600">
-                    {selectedPeriod === 'all' ? 'Historique complet' : periodTitle(selectedPeriod)}
-                  </p>
-                </div>
+            <div className="mb-5 flex items-center gap-3 border-b border-gray-200 pb-5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-500">
+                <UsersRound className="h-5 w-5" aria-hidden="true" />
               </div>
-              <span className="inline-flex w-fit items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-600">
-                {performanceRoster.length} membres actifs
-              </span>
+              <h2 className="text-base font-semibold text-gray-900">Roster des performances</h2>
             </div>
 
             {/* Version Desktop / Tablette */}
@@ -1184,6 +1232,7 @@ export default function ClanOverviewPage() {
           </section>
         </div>
       )}
-    </main>
+    </div>
+    </>
   )
 }

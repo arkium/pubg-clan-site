@@ -12,6 +12,46 @@ import type {
   DropPressureRankingEntry,
   DropPressureTimelinePoint,
 } from '@/types/drop-pressure'
+import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
+import { teamModeFromMemberCount } from '@/lib/team-mode'
+
+function buildMatchTypeWhere(matchType: ClanMatchTypeFilter): Prisma.DropPressureStatWhereInput {
+  if (matchType === 'official') return { squadMatch: { matchType: 'official' } }
+  if (matchType === 'casual') return { squadMatch: { matchType: { in: ['casual', 'airoyale'] } } }
+  if (matchType === 'custom') return { squadMatch: { matchType: 'custom' } }
+  return {}
+}
+
+// DropPressureStat n'a pas de colonne de mode d'équipe, et SquadMatch ne le
+// stocke pas non plus — seulement dérivable du nombre de SquadMember scopés
+// au clan (voir teamModeFromMemberCount). On résout donc dynamiquement les
+// squadMatchId correspondant au mode demandé plutôt que d'ajouter une colonne.
+export async function getSquadMatchIdsForTeamMode(
+  clanId: number,
+  mode: ClanTeamModeFilter
+): Promise<string[] | null> {
+  if (mode === 'all') return null
+
+  const matches = await prisma.squadMatch.findMany({
+    where: { members: { some: { member: { clanId, isActive: true, joinStatus: 'active' } } } },
+    select: {
+      id: true,
+      members: { where: { member: { clanId, isActive: true, joinStatus: 'active' } }, select: { id: true } },
+    },
+  })
+
+  return matches.filter((m) => teamModeFromMemberCount(m.members.length) === mode).map((m) => m.id)
+}
+
+async function buildTeamModeWhere(
+  clanId: number | undefined,
+  mode: ClanTeamModeFilter | undefined
+): Promise<Prisma.DropPressureStatWhereInput> {
+  if (!clanId || !mode || mode === 'all') return {}
+  const squadMatchIds = await getSquadMatchIdsForTeamMode(clanId, mode)
+  if (!squadMatchIds) return {}
+  return { squadMatchId: { in: squadMatchIds } }
+}
 
 function getPeriodBounds(period: DropPressurePeriod, now = new Date()) {
   if (period === 'all') return null
@@ -36,12 +76,16 @@ export async function getDropPressureDashboardStats(input: {
   period: DropPressurePeriod
   memberId?: number
   clanId?: number
+  matchType?: ClanMatchTypeFilter
+  mode?: ClanTeamModeFilter
 }): Promise<DropPressureDashboardStats> {
   const matchDate = getPeriodBounds(input.period)
   const where: Prisma.DropPressureStatWhereInput = {
     ...(input.memberId ? { memberId: input.memberId } : {}),
     ...(input.clanId ? { member: { clanId: input.clanId } } : {}),
     ...(matchDate ? { matchDate } : {}),
+    ...buildMatchTypeWhere(input.matchType ?? 'all'),
+    ...(await buildTeamModeWhere(input.clanId, input.mode)),
   }
 
   const [aggregate, opponentAggregate, hotDropCount, matchRows, levelRows] = await Promise.all([
@@ -94,11 +138,15 @@ export async function getDropPressureDashboardStats(input: {
 export async function getDropPressureMemberRanking(input: {
   clanId: number
   period: DropPressurePeriod
+  matchType?: ClanMatchTypeFilter
+  mode?: ClanTeamModeFilter
 }): Promise<DropPressureRankingEntry[]> {
   const matchDate = getPeriodBounds(input.period)
   const where: Prisma.DropPressureStatWhereInput = {
     member: { clanId: input.clanId, isActive: true },
     ...(matchDate ? { matchDate } : {}),
+    ...buildMatchTypeWhere(input.matchType ?? 'all'),
+    ...(await buildTeamModeWhere(input.clanId, input.mode)),
   }
 
   const [aggregates, hotRows] = await Promise.all([
@@ -160,6 +208,8 @@ export async function getDropPressureTimeline(input: {
   memberId?: number
   clanId?: number
   weekCount?: number
+  matchType?: ClanMatchTypeFilter
+  mode?: ClanTeamModeFilter
 }): Promise<DropPressureTimelinePoint[]> {
   const weekCount = Math.max(1, Math.min(input.weekCount ?? 8, 52))
   const now = new Date()
@@ -168,6 +218,8 @@ export async function getDropPressureTimeline(input: {
       ...(input.memberId ? { memberId: input.memberId } : {}),
       ...(input.clanId ? { member: { clanId: input.clanId, isActive: true } } : {}),
       matchDate: { gte: getDropPressureTimelineStart(now, weekCount) },
+      ...buildMatchTypeWhere(input.matchType ?? 'all'),
+      ...(await buildTeamModeWhere(input.clanId, input.mode)),
     },
     select: {
       matchDate: true,

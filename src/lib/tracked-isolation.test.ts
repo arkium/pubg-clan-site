@@ -83,7 +83,7 @@ describe('Watchlist Isolation (joinStatus: tracked)', () => {
       expect(trackedStatsCount).toBe(0)
 
       const cache = await prisma.clanMatchesCache.findUnique({
-        where: { clanId_period: { clanId: clan.id, period: 'all' } },
+        where: { clanId_period_matchType: { clanId: clan.id, period: 'all', matchType: 'all' } },
       })
       const payload = cache?.payload as unknown as {
         globalStats: { totalKills: number; totalDamage: number }

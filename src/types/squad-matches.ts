@@ -1,5 +1,9 @@
 export type SquadPeriod = 'week' | 'month' | 'month-1' | 'month-2' | 'all'
 
+export type ClanMatchTypeFilter = 'official' | 'casual' | 'custom' | 'all'
+
+export type ClanTeamModeFilter = 'all' | 'duo' | 'trio' | 'squad'
+
 export interface SquadMatchMember {
   memberId: number
   displayName: string

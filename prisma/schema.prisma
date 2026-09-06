@@ -330,11 +330,12 @@ model ClanMatchesCache {
   clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   period     String // 'week' | 'month' | 'all'
+  matchType  String @default("all") // 'official' | 'casual' | 'custom' | 'all'
   periodKey  String
   payload    Json
   computedAt DateTime @default(now())
 
-  @@unique([clanId, period])
+  @@unique([clanId, period, matchType])
   @@map("ClanMatchesCache")
 }
 
@@ -927,6 +928,8 @@ model ClanSynergyTelemetryStats {
 
   period     String
   periodType String
+  matchType  String @default("all") // 'official' | 'casual' | 'custom' | 'all'
+  mode       String @default("all") // 'duo' | 'trio' | 'squad' | 'all'
 
   reviveCount        Int @default(0)
   recallCount        Int @default(0)
@@ -936,7 +939,7 @@ model ClanSynergyTelemetryStats {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([clanId, period, memberAId, memberBId])
+  @@unique([clanId, period, matchType, mode, memberAId, memberBId])
   @@index([clanId, period])
   @@map("ClanSynergyTelemetryStats")
 }

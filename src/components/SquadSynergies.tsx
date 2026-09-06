@@ -7,11 +7,13 @@ import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 
 import type { SquadSynergiesData } from '@/types/squad-matches'
-import type { SquadPeriod } from '@/types/squad-matches'
+import type { ClanMatchTypeFilter, ClanTeamModeFilter, SquadPeriod } from '@/types/squad-matches'
 
 interface SquadSynergiesProps {
   clanId: number
   period: SquadPeriod
+  matchType: ClanMatchTypeFilter
+  mode: ClanTeamModeFilter
   synergies: SquadSynergiesData
 }
 
@@ -130,7 +132,7 @@ function SynergyList({
   )
 }
 
-export default function SquadSynergies({ clanId, period, synergies }: SquadSynergiesProps) {
+export default function SquadSynergies({ clanId, period, matchType, mode, synergies }: SquadSynergiesProps) {
   const [telemetryRows, setTelemetryRows] = useState<TelemetrySynergyRow[]>([])
   const [telemetryLoading, setTelemetryLoading] = useState(false)
   const [telemetryError, setTelemetryError] = useState('')
@@ -144,9 +146,10 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
         setTelemetryLoading(true)
         setTelemetryError('')
 
-        const response = await fetch(`/api/clans/${clanId}/telemetry/synergies?period=${period}`, {
-          cache: 'no-store',
-        })
+        const response = await fetch(
+          `/api/clans/${clanId}/telemetry/synergies?period=${period}&matchType=${matchType}&mode=${mode}`,
+          { cache: 'no-store' }
+        )
         const payload = (await response.json()) as { rows?: TelemetrySynergyRow[]; error?: string }
 
         if (!response.ok) {
@@ -175,7 +178,7 @@ export default function SquadSynergies({ clanId, period, synergies }: SquadSyner
     return () => {
       cancelled = true
     }
-  }, [clanId, period])
+  }, [clanId, period, matchType, mode])
 
   const topReviveRows = useMemo(
     () => [...telemetryRows].sort((a, b) => b.reviveCount - a.reviveCount).slice(0, 10),

@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server'
 import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import { SquadPeriod } from '@/types/squad-matches'
+import { parseClanMatchTypeFilter } from '@/lib/match-type-filter'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -33,12 +34,14 @@ export async function GET(
     if (roleError) return roleError
 
     const period = parsePeriod(request.nextUrl.searchParams.get('period'))
+    const matchType = parseClanMatchTypeFilter(request.nextUrl.searchParams.get('matchType'))
 
     const cacheEntry = await prisma.clanMatchesCache.findUnique({
       where: {
-        clanId_period: {
+        clanId_period_matchType: {
           clanId: parsedClanId,
           period,
+          matchType,
         },
       },
     })
@@ -51,6 +54,7 @@ export async function GET(
 
     return Response.json({
       period: cacheEntry.period,
+      matchType: cacheEntry.matchType,
       periodKey: cacheEntry.periodKey,
       payload: cacheEntry.payload,
       computedAt: cacheEntry.computedAt.toISOString(),

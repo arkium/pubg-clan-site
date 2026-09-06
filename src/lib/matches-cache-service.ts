@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/prisma'
-import { SquadPeriod } from '@/types/squad-matches'
+import { SquadPeriod, ClanMatchTypeFilter } from '@/types/squad-matches'
+import { matchTypeMatchesFilter } from '@/lib/match-type-filter'
+import { teamModeFromMemberCount } from '@/lib/team-mode'
+
+const CLAN_MATCH_TYPE_FILTERS: ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
 
 function getPeriodBounds(period: SquadPeriod, referenceDate = new Date()): { gte: Date; lte: Date } {
   if (period === 'week') {
@@ -37,12 +41,6 @@ function getPeriodKey(period: SquadPeriod, referenceDate = new Date()): string {
     return `week-${referenceDate.getFullYear()}-${String(week).padStart(2, '0')}`
   }
   return `month-${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, '0')}`
-}
-
-function teamModeFromMemberCount(memberCount: number) {
-  if (memberCount <= 2) return 'duo'
-  if (memberCount === 3) return 'trio'
-  return 'squad'
 }
 
 function buildWinRate(wins: number, matchesPlayed: number) {
@@ -96,6 +94,18 @@ export type CachedClanMatchesPayload = {
         assists: any[]
         revives: any[]
       }
+      rosterStats: Array<{
+        memberId: number
+        displayName: string
+        matchesPlayed: number
+        totalKills: number
+        totalDamage: number
+        totalAssists: number
+        totalRevives: number
+        averagePlacement: number
+        winRate: number
+        wins: number
+      }>
     }
   >
 }
@@ -126,23 +136,38 @@ export async function precomputeClanMatchesStats(clanId: number) {
         },
       })
 
-      const payload = processMatchesForCache(squadMatches)
+      for (const matchType of CLAN_MATCH_TYPE_FILTERS) {
+        try {
+          const filteredMatches =
+            matchType === 'all'
+              ? squadMatches
+              : squadMatches.filter((match) => matchTypeMatchesFilter(match.matchType, matchType))
 
-      await prisma.clanMatchesCache.upsert({
-        where: { clanId_period: { clanId, period } },
-        create: {
-          clanId,
-          period,
-          periodKey,
-          payload: payload as any,
-          computedAt: new Date(),
-        },
-        update: {
-          periodKey,
-          payload: payload as any,
-          computedAt: new Date(),
-        },
-      })
+          const payload = processMatchesForCache(filteredMatches)
+
+          await prisma.clanMatchesCache.upsert({
+            where: { clanId_period_matchType: { clanId, period, matchType } },
+            create: {
+              clanId,
+              period,
+              matchType,
+              periodKey,
+              payload: payload as any,
+              computedAt: new Date(),
+            },
+            update: {
+              periodKey,
+              payload: payload as any,
+              computedAt: new Date(),
+            },
+          })
+        } catch (err) {
+          console.error(
+            `[matches-cache] Failed to upsert ${period}/${matchType} for clan ${clanId}`,
+            err
+          )
+        }
+      }
     } catch (err) {
       console.error(`[matches-cache] Failed to precompute ${period} for clan ${clanId}`, err)
     }
@@ -338,7 +363,8 @@ function processMatchesForCache(matches: any[]): CachedClanMatchesPayload {
       totalAssists: p.totalAssists,
       totalRevives: p.totalRevives,
       averagePlacement: p.matchesPlayed > 0 ? p.placementTotal / p.matchesPlayed : 0,
-      winRate: buildWinRate(p.wins, p.matchesPlayed)
+      winRate: buildWinRate(p.wins, p.matchesPlayed),
+      wins: p.wins,
     }))
 
     const sortPerf = (metric: string) => [...perfList].sort((a: any, b: any) => {
@@ -360,7 +386,8 @@ function processMatchesForCache(matches: any[]): CachedClanMatchesPayload {
         winRate: sortPerf('winRate').slice(0, 5),
         assists: sortPerf('assists').slice(0, 5),
         revives: sortPerf('revives').slice(0, 5),
-      }
+      },
+      rosterStats: [...perfList].sort((a, b) => b.matchesPlayed - a.matchesPlayed),
     }
   }
 

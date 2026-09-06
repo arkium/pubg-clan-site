@@ -1,3 +1,5 @@
+import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
+
 type TelemetryScope = 'clan' | 'member' | 'global'
 
 type TelemetryMeta = {
@@ -7,6 +9,8 @@ type TelemetryMeta = {
   memberId?: number
   period?: 'week' | 'month' | 'all'
   periodKey?: string
+  matchType?: ClanMatchTypeFilter
+  mode?: ClanTeamModeFilter
   window?: '24h' | '7d' | '30d' | 'all'
   limit?: number
   count?: number

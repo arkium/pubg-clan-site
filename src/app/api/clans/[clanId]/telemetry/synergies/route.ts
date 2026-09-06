@@ -7,6 +7,8 @@ import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
+import { parseClanMatchTypeFilter } from '@/lib/match-type-filter'
+import { parseClanTeamModeFilter } from '@/lib/team-mode'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -72,6 +74,8 @@ export async function GET(
     const url = new URL(request.url)
     const period = parsePeriod(url.searchParams.get('period'))
     const periodKey = toPeriodKey(period)
+    const matchType = parseClanMatchTypeFilter(url.searchParams.get('matchType'))
+    const mode = parseClanTeamModeFilter(url.searchParams.get('mode'))
 
     const rows = await prisma.$queryRaw<
       Array<{
@@ -99,6 +103,8 @@ export async function GET(
       INNER JOIN ClanMember b ON b.id = sts.memberBId
       WHERE sts.clanId = ${parsedClanId}
         AND sts.period = ${periodKey}
+        AND sts.matchType = ${matchType}
+        AND sts.mode = ${mode}
       ORDER BY sts.reviveCount DESC, sts.coKillCount DESC, sts.sharedDamageEvents DESC
     `)
 
@@ -109,6 +115,8 @@ export async function GET(
           clanId: parsedClanId,
           period,
           periodKey,
+          matchType,
+          mode,
           count: rows.length,
         },
         {
@@ -118,6 +126,8 @@ export async function GET(
           clanId: parsedClanId,
           period,
           periodKey,
+          matchType,
+          mode,
           count: rows.length,
           rows,
         }

@@ -1,6 +1,12 @@
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
+import { matchTypeMatchesFilter } from '@/lib/match-type-filter'
+import { teamModeFromMemberCount } from '@/lib/team-mode'
+import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
+
+const CLAN_SYNERGY_MATCH_TYPES: ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
+const CLAN_SYNERGY_TEAM_MODES: ClanTeamModeFilter[] = ['duo', 'trio', 'squad', 'all']
 
 type StatsPeriod = 'week' | 'month' | 'all'
 
@@ -58,6 +64,7 @@ type SquadMatchTelemetryRow = {
   memberStats: unknown
   weaponStats: unknown
   squadMatch: {
+    matchType: string
     members: Array<{
       member: {
         id: number
@@ -462,6 +469,7 @@ async function recalculateTelemetryPeriodForClan(
     },
     select: {
       id: true,
+      matchType: true,
       members: {
         select: {
           member: {
@@ -523,13 +531,27 @@ async function recalculateTelemetryPeriodForClan(
         squadMatchId: m.id,
         memberStats: telemetry.memberStats,
         weaponStats: telemetry.weaponStats,
-        squadMatch: { members: m.members },
+        squadMatch: { members: m.members, matchType: m.matchType },
       }
     })
 
   const memberAggregates = new Map<number, MemberTelemetryAggregate>()
-  const pairAggregates = new Map<string, PairSynergyAggregate>()
   const memberWeaponAggregates = new Map<string, MemberWeaponAggregate>()
+
+  // Une Map de paires par combinaison (type de match × mode d'équipe) : 'all'
+  // reçoit toujours l'incrément sur chaque axe, plus le bucket exact du
+  // snapshot (le regroupement 'casual' inclut aussi 'airoyale', cf.
+  // matchTypeMatchesFilter ; le mode se déduit du nombre de SquadMember scopés
+  // au clan, cf. teamModeFromMemberCount).
+  const pairAggregatesByMatchType: Record<
+    ClanMatchTypeFilter,
+    Record<ClanTeamModeFilter, Map<string, PairSynergyAggregate>>
+  > = {
+    official: { duo: new Map(), trio: new Map(), squad: new Map(), all: new Map() },
+    casual: { duo: new Map(), trio: new Map(), squad: new Map(), all: new Map() },
+    custom: { duo: new Map(), trio: new Map(), squad: new Map(), all: new Map() },
+    all: { duo: new Map(), trio: new Map(), squad: new Map(), all: new Map() },
+  }
 
   for (const snapshot of snapshots) {
     const memberKeyToId = new Map<string, number>()
@@ -630,6 +652,7 @@ async function recalculateTelemetryPeriodForClan(
     }
 
     const dedupedClanMembers = Array.from(new Set(clanMemberIdsForMatch)).sort((left, right) => left - right)
+    const snapshotMode = teamModeFromMemberCount(dedupedClanMembers.length)
 
     for (let leftIndex = 0; leftIndex < dedupedClanMembers.length; leftIndex += 1) {
       for (let rightIndex = leftIndex + 1; rightIndex < dedupedClanMembers.length; rightIndex += 1) {
@@ -643,25 +666,38 @@ async function recalculateTelemetryPeriodForClan(
           continue
         }
 
-        const pairAggregate = getOrCreatePairAggregate(
-          pairAggregates,
-          buildPairKey(leftMemberId, rightMemberId)
-        )
-
-        if (leftStats.revives > 0 && rightStats.revives > 0) {
-          pairAggregate.reviveCount += 1
+        const pairKey = buildPairKey(leftMemberId, rightMemberId)
+        const applicableMatchTypes: ClanMatchTypeFilter[] = ['all']
+        for (const filter of ['official', 'casual', 'custom'] as const) {
+          if (matchTypeMatchesFilter(snapshot.squadMatch.matchType, filter)) {
+            applicableMatchTypes.push(filter)
+          }
         }
+        const applicableModes: ClanTeamModeFilter[] = ['all', snapshotMode]
 
-        if (leftStats.recalls > 0 || rightStats.recalls > 0) {
-          pairAggregate.recallCount += (leftStats.recalls + rightStats.recalls)
-        }
+        for (const matchType of applicableMatchTypes) {
+          for (const mode of applicableModes) {
+            const pairAggregate = getOrCreatePairAggregate(
+              pairAggregatesByMatchType[matchType][mode],
+              pairKey
+            )
 
-        if (leftStats.kills > 0 && rightStats.kills > 0) {
-          pairAggregate.coKillCount += 1
-        }
+            if (leftStats.revives > 0 && rightStats.revives > 0) {
+              pairAggregate.reviveCount += 1
+            }
 
-        if (leftStats.damageDealt > 0 && rightStats.damageDealt > 0) {
-          pairAggregate.sharedDamageEvents += 1
+            if (leftStats.recalls > 0 || rightStats.recalls > 0) {
+              pairAggregate.recallCount += (leftStats.recalls + rightStats.recalls)
+            }
+
+            if (leftStats.kills > 0 && rightStats.kills > 0) {
+              pairAggregate.coKillCount += 1
+            }
+
+            if (leftStats.damageDealt > 0 && rightStats.damageDealt > 0) {
+              pairAggregate.sharedDamageEvents += 1
+            }
+          }
         }
       }
     }
@@ -771,21 +807,27 @@ async function recalculateTelemetryPeriodForClan(
     matchesPlayed: row.matchesPlayed,
   }))
 
-  const clanSynergyRows = Array.from(pairAggregates.entries()).map(([pairKey, aggregate]) => {
-    const { memberAId, memberBId } = parsePairKey(pairKey)
+  const clanSynergyRows = CLAN_SYNERGY_MATCH_TYPES.flatMap((matchType) =>
+    CLAN_SYNERGY_TEAM_MODES.flatMap((mode) =>
+      Array.from(pairAggregatesByMatchType[matchType][mode].entries()).map(([pairKey, aggregate]) => {
+        const { memberAId, memberBId } = parsePairKey(pairKey)
 
-    return {
-      clanId,
-      memberAId,
-      memberBId,
-      period: periodKey,
-      periodType: period,
-      reviveCount: aggregate.reviveCount,
-      recallCount: aggregate.recallCount,
-      coKillCount: aggregate.coKillCount,
-      sharedDamageEvents: aggregate.sharedDamageEvents,
-    }
-  })
+        return {
+          clanId,
+          memberAId,
+          memberBId,
+          period: periodKey,
+          periodType: period,
+          matchType,
+          mode,
+          reviveCount: aggregate.reviveCount,
+          recallCount: aggregate.recallCount,
+          coKillCount: aggregate.coKillCount,
+          sharedDamageEvents: aggregate.sharedDamageEvents,
+        }
+      })
+    )
+  )
 
   const memberWeaponRows = Array.from(memberWeaponAggregates.entries()).map(
     ([memberWeaponKey, aggregate]) => {

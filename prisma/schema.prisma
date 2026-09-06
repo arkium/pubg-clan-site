@@ -22,6 +22,7 @@ model Clan {
   pubgCreatedAt       DateTime?
   pubgMemberCount     Int?
   pubgMembersSyncedAt DateTime?
+  lastMatchAt         DateTime?
   missingMembersCount Int       @default(0)
   isActive            Boolean   @default(true)
   createdAt           DateTime  @default(now())
@@ -45,6 +46,7 @@ model Clan {
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
+  @@index([lastMatchAt])
   @@map("Clan")
 }
 
@@ -56,6 +58,7 @@ model ClanMember {
   platformShard  String   @default("steam")
   isActive       Boolean  @default(true)
   joinStatus     String   @default("active")
+  lastMatchAt    DateTime?
   clanId         Int?
   clan           Clan?    @relation(fields: [clanId], references: [id], onDelete: SetNull)
   playerId       String?
@@ -89,6 +92,7 @@ model ClanMember {
   activeSessions            UserSession[]               @relation("SessionActiveMember")
 
   @@unique([pubgPlayerName, platformShard])
+  @@index([clanId, lastMatchAt])
   @@map("ClanMember")
 }
 

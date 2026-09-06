@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   LayoutDashboard,
   Users,
@@ -26,7 +26,8 @@ import {
   Lock,
   Globe,
   Database,
-  Key
+  Key,
+  LogIn,
 } from 'lucide-react'
 
 type Props = {
@@ -42,6 +43,11 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Les clans':
       case 'Mon clan': return <Users className={className} />
       case 'Mon compte': return <User className={className} />
+      case 'Se connecter':
+      case 'Connexion':
+      case 'Login': return <LogIn className={className} />
+      case 'Tournois':
+      case 'Gérer les tournois': return <Swords className={className} />
       case 'Comparateur': return <BarChart2 className={className} />
       case 'Ligue': return <Trophy className={className} />
 

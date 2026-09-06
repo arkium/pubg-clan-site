@@ -12,6 +12,8 @@ export default function ThemeInitializer() {
 
       document.documentElement.setAttribute('data-app-theme', nextTheme)
       document.body.setAttribute('data-app-theme', nextTheme)
+      document.documentElement.classList.toggle('dark', nextTheme === 'dark')
+      document.body.classList.toggle('dark', nextTheme === 'dark')
     } catch {
       // Ignore client storage access errors.
     }

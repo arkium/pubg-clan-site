@@ -276,6 +276,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
     document.documentElement.setAttribute('data-app-theme', appTheme)
     document.body.setAttribute('data-app-theme', appTheme)
+    document.documentElement.classList.toggle('dark', appTheme === 'dark')
+    document.body.classList.toggle('dark', appTheme === 'dark')
   }, [appTheme])
 
   const navPerms = useNavPermissions()
@@ -1009,7 +1011,12 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return <div className="flex min-h-full flex-col w-full">{children}</div>
   }
 
-  if (pathname.startsWith('/activate') || pathname.startsWith('/login') || pathname.startsWith('/reset-password')) {
+  if (
+    pathname.startsWith('/activate') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/join')
+  ) {
     return <div className="flex min-h-full flex-col w-full">{children}</div>
   }
 

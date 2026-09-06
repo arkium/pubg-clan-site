@@ -94,7 +94,7 @@ export async function POST(
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
-      select: { id: true },
+      select: { id: true, clanId: true, lastMatchAt: true },
     })
 
     if (!member) {
@@ -129,6 +129,26 @@ export async function POST(
       },
       create: importedMatchData,
     })
+
+    if (!member.lastMatchAt || importedMatchData.pubgCreatedAt > member.lastMatchAt) {
+      await prisma.clanMember.update({
+        where: { id: member.id },
+        data: { lastMatchAt: importedMatchData.pubgCreatedAt },
+      })
+    }
+
+    if (member.clanId) {
+      const clan = await prisma.clan.findUnique({
+        where: { id: member.clanId },
+        select: { lastMatchAt: true },
+      })
+      if (!clan?.lastMatchAt || importedMatchData.pubgCreatedAt > clan.lastMatchAt) {
+        await prisma.clan.update({
+          where: { id: member.clanId },
+          data: { lastMatchAt: importedMatchData.pubgCreatedAt },
+        })
+      }
+    }
 
     return Response.json(savedMatch, { status: 201 })
   } catch (error) {

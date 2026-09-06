@@ -159,6 +159,8 @@ export async function syncClanMatches(
         `Member ${member.displayName}: ${newMatchIds.length} new match(es) out of ${allMatchIds.length} total`
       )
 
+      let memberLatestMatchAt: Date | null = null
+
       for (const matchId of newMatchIds) {
         try {
           const matchDetails = await fetchMatchDetails(matchId, playerId, member.platformShard, {
@@ -233,6 +235,11 @@ export async function syncClanMatches(
             }
           }
 
+          const matchCreatedAt = new Date(matchDetails.createdAt)
+          if (!memberLatestMatchAt || matchCreatedAt > memberLatestMatchAt) {
+            memberLatestMatchAt = matchCreatedAt
+          }
+
           importedCount += 1
         } catch (err) {
           if (isMissingMatchError(err)) {
@@ -246,10 +253,43 @@ export async function syncClanMatches(
           errors.push(msg)
         }
       }
+
+      if (memberLatestMatchAt) {
+        try {
+          const currentMember = await prisma.clanMember.findUnique({
+            where: { id: member.id },
+            select: { lastMatchAt: true },
+          })
+          if (!currentMember?.lastMatchAt || memberLatestMatchAt > currentMember.lastMatchAt) {
+            await prisma.clanMember.update({
+              where: { id: member.id },
+              data: { lastMatchAt: memberLatestMatchAt },
+            })
+          }
+        } catch (updateMemberMatchErr) {
+          console.warn(`[Clan Sync] Failed to update member lastMatchAt:`, updateMemberMatchErr)
+        }
+      }
     } catch (err) {
       const msg = `Member ${member.displayName}: unexpected error — ${err instanceof Error ? err.message : String(err)}`
       errors.push(msg)
     }
+  }
+
+  try {
+    const latestClanMember = await prisma.clanMember.findFirst({
+      where: { clanId: clan.id, lastMatchAt: { not: null } },
+      orderBy: { lastMatchAt: 'desc' },
+      select: { lastMatchAt: true },
+    })
+    if (latestClanMember?.lastMatchAt) {
+      await prisma.clan.update({
+        where: { id: clan.id },
+        data: { lastMatchAt: latestClanMember.lastMatchAt },
+      })
+    }
+  } catch (clanMatchError) {
+    console.warn(`[Clan Sync] Failed to update clan lastMatchAt:`, clanMatchError)
   }
 
   const finishedAt = new Date()

@@ -13,13 +13,18 @@ import { z } from 'zod'
 /**
  * Schéma de validation pour ajouter un membre
  */
-const AddMemberSchema = z.object({
-  displayName: z.string().min(1, 'Display name is required'),
-  pubgPlayerName: z.string().min(1, 'PUBG player name is required'),
-  platformShard: z.string().default('steam'),
-  clanId: z.number().int().positive().optional(),
-  mode: z.enum(['preview', 'create']).default('create'),
-})
+const AddMemberSchema = z
+  .object({
+    displayName: z.string().trim().optional().default(''),
+    pubgPlayerName: z.string().trim().min(1, 'Le pseudo PUBG est requis'),
+    platformShard: z.string().default('steam'),
+    clanId: z.number().int().positive().optional(),
+    mode: z.enum(['preview', 'create']).default('create'),
+  })
+  .transform((data) => ({
+    ...data,
+    displayName: data.displayName && data.displayName.length > 0 ? data.displayName : data.pubgPlayerName,
+  }))
 
 /**
  * POST /api/members
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
 
     if (!pubgPlayer) {
       return Response.json(
-        { error: 'PUBG player not found' },
+        { error: 'Joueur introuvable sur les serveurs PUBG. Vérifiez l’orthographe exacte et la plateforme choisie.' },
         { status: 404 }
       )
     }
@@ -85,9 +90,33 @@ export async function POST(request: Request) {
       if (actorMember?.clanId !== resolvedClanId) {
         const superUser = await isSuperUserSession(request)
         if (!superUser) {
-          return Response.json({ error: 'Forbidden: cannot add members to another clan' }, { status: 403 })
+          return Response.json({ error: 'Non autorisé : vous ne pouvez ajouter des joueurs qu’à votre propre clan' }, { status: 403 })
         }
       }
+    }
+
+    // Vérifier si le joueur existe déjà en base
+    const existingMember = await prisma.clanMember.findFirst({
+      where: {
+        OR: [
+          { pubgPlayerName: pubgPlayer.playerName, platformShard: validated.platformShard },
+          { pubgAccountId: pubgPlayer.accountId },
+        ],
+      },
+      include: {
+        clan: {
+          select: { id: true, name: true, tag: true },
+        },
+      },
+    })
+
+    if (existingMember && existingMember.isActive && existingMember.joinStatus === 'active') {
+      return Response.json(
+        {
+          error: `Ce joueur est déjà membre actif du clan ${existingMember.clan?.name ? `"${existingMember.clan.name}"` : 'sur cette plateforme'}.`,
+        },
+        { status: 409 }
+      )
     }
 
     if (validated.mode === 'preview') {
@@ -108,27 +137,53 @@ export async function POST(request: Request) {
       })
     }
 
-    // Créer le membre du clan en base
-    const member = await prisma.clanMember.create({
-      data: {
-        displayName: validated.displayName,
-        pubgPlayerName: pubgPlayer.playerName,
-        pubgAccountId: pubgPlayer.accountId,
-        platformShard: validated.platformShard,
-        clanId: resolvedClanId,
-      },
-      include: {
-        clan: {
-          select: {
-            id: true,
-            name: true,
-            tag: true,
-            pubgClanId: true,
-            platformShard: true,
+    // Créer ou réactiver le membre du clan en base
+    const member = existingMember
+      ? await prisma.clanMember.update({
+          where: { id: existingMember.id },
+          data: {
+            displayName: validated.displayName,
+            pubgPlayerName: pubgPlayer.playerName,
+            pubgAccountId: pubgPlayer.accountId,
+            platformShard: validated.platformShard,
+            clanId: resolvedClanId,
+            isActive: true,
+            joinStatus: 'active',
           },
-        },
-      },
-    })
+          include: {
+            clan: {
+              select: {
+                id: true,
+                name: true,
+                tag: true,
+                pubgClanId: true,
+                platformShard: true,
+              },
+            },
+          },
+        })
+      : await prisma.clanMember.create({
+          data: {
+            displayName: validated.displayName,
+            pubgPlayerName: pubgPlayer.playerName,
+            pubgAccountId: pubgPlayer.accountId,
+            platformShard: validated.platformShard,
+            clanId: resolvedClanId,
+            isActive: true,
+            joinStatus: 'active',
+          },
+          include: {
+            clan: {
+              select: {
+                id: true,
+                name: true,
+                tag: true,
+                pubgClanId: true,
+                platformShard: true,
+              },
+            },
+          },
+        })
 
     await initializeDefaultRoles(resolvedClanId)
     await assignDefaultMemberRole(member.id, resolvedClanId)
@@ -143,21 +198,21 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return Response.json(
-        { error: 'Member already exists for this PUBG name and platform' },
+        { error: 'Ce joueur est déjà enregistré dans le clan pour cette plateforme.' },
         { status: 409 }
       )
     }
 
     if (error instanceof z.ZodError) {
       return Response.json(
-        { error: 'Validation error', details: error.issues },
+        { error: error.issues[0]?.message ?? 'Erreur de validation', details: error.issues },
         { status: 400 }
       )
     }
 
     console.error('Error adding member:', error)
     return Response.json(
-      { error: 'Failed to add member' },
+      { error: 'Impossible d’ajouter le joueur. Veuillez réessayer ultérieurement.' },
       { status: 500 }
     )
   }

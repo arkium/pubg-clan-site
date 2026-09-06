@@ -1,16 +1,20 @@
 import { prisma } from '@/lib/prisma'
 import { updateClanQuickStats, type ClanQuickStats } from '@/lib/clan-stats-cache'
+import { isSuperUserSession } from '@/middleware/auth-permission'
 
 /**
  * GET /api/clans
  * Récupère tous les clans actifs avec leurs statistiques précalculées depuis la DB.
- * Si un clan n'a pas encore de statistiques précalculées, elles sont calculées à la volée
- * et persistées en base de données.
+ * Pour les SuperUsers, permet d'afficher également les clans en attente de validation via ?all=true.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const wantsAll = searchParams.get('all') === 'true' || searchParams.get('status') === 'all'
+    const isSU = wantsAll ? await isSuperUserSession(request) : false
+
     const clans = await prisma.clan.findMany({
-      where: { isActive: true },
+      where: isSU ? undefined : { isActive: true },
       orderBy: { name: 'asc' },
       include: {
         _count: {
@@ -69,6 +73,7 @@ export async function GET() {
           timePlayedSeconds: quickStats.timePlayedSeconds ?? 0,
           activeDays: quickStats.activeDays ?? 0,
           imageUrl,
+          isActive: clan.isActive,
         }
       })
     )

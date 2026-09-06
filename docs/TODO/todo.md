@@ -6,6 +6,182 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-04.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### ~~Gestion compacte des membres (`/clans/[clanId]/settings/members`) — Chevron de déploiement, badges abrégés et légende~~ — ✅ Complété le 2026-09-06
+
+Optimisation de l'affichage sur la page de gestion des membres du clan pour économiser de la place à l'écran :
+- [x] **Chevron de déploiement par membre :**
+  - Ajout d'un bouton chevron interactif (`ChevronDown`) avec animation fluide de rotation (`rotate-180`).
+  - Section de gestion (changement de rôle `RoleAssignment`, invitations Discord / Email, réinitialisation et historique des 5 dernières invitations) repliée par défaut.
+  - Clic sur l'en-tête de la carte ou sur le chevron pour déplier/replier instantanément la gestion du joueur souhaité.
+  - Maintien automatique de l'état déplié si un brouillon d'invitation ou une action réseau est en cours sur ce membre.
+- [x] **Badges de rôles compacts (`O`, `A`, `M`, `★ S`) :**
+  - Abréviation élégante des badges sur chaque carte (`O` pour Owner, `A` pour Admin, `M` pour Membre, `★ S` pour SuperUser) avec infobulle explicite au survol (`title`).
+  - Gain de plus de 60px de largeur sur la colonne de droite, évitant toute troncature des pseudos (ex: "Pagiotte") et forçant la date d'adhésion sur une seule ligne (`whitespace-nowrap`).
+- [x] **Légende explicative dans la barre d'outils :**
+  - Ajout d'une légende visuelle claire en haut de page illustrant chaque pastille (`O`, `A`, `M`, `★ S`).
+- [x] **Barre de recherche instantanée par pseudo :**
+  - Bouton « Rechercher » placé à gauche du filtre Alpha/Inverse avec icône loupe.
+  - Déploiement d'une barre de saisie fluide sous la barre d'outils avec focus automatique, bouton de réinitialisation rapide (`X`) et compteur dynamique de résultats trouvés (ex: `3 / 21 membres`).
+  - État vide contextuel si aucun résultat avec bouton de réinitialisation.
+- [x] **Action globale « Tout déplier / Tout replier » :**
+  - Bouton rapide intégré dans la barre d'outils supérieure à côté du compteur de membres pour basculer l'ensemble des cartes en un seul clic.
+- [x] **Navigation profil joueur au clic sur le pseudo & avatar :** ✅ Complété le 2026-09-06
+  - Clic sur le nom du joueur ou sur son avatar redirigeant vers `/members/[id]/dashboard` avec `onClick={(e) => e.stopPropagation()}` (ne déclenche pas le tiroir accordéon).
+  - Effet interactif au survol (`hover:underline hover:text-blue-600 dark:hover:text-blue-300`).
+- [x] **Correction du mode clair sur les cartes de membres :** ✅ Complété le 2026-09-06
+  - **Avatars sans image :** Fin du texte blanc forcé sur fond blanc. Initiales désormais parfaitement visibles avec un contraste élevé (`bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100`).
+  - **En-têtes de cartes :** Remplacement du bloc noir imposé par une surface claire douce en mode clair (`bg-slate-50 border-slate-200 text-slate-900`) et préservation du dégradé sombre en mode sombre.
+  - **Tiroir et barre d'outils :** Harmonisation complète des teintes et bordures clair/sombre.
+- [x] **Nettoyage du Hero Header :** ✅ Complété le 2026-09-06
+  - Suppression des deux boutons superflus (« Ajouter » et « Changer de clan ») pour un en-tête épuré et lisible.
+- [x] **Suivi en base de données et affichage du dernier match (`lastMatchAt`) :** ✅ Complété le 2026-09-06
+  - **Base de données :** Ajout des colonnes `lastMatchAt DATETIME(3) NULL` sur `ClanMember` et `Clan` avec index de tri/recherche (`20260906150000_add_last_match_at`).
+  - **Backfill historique :** Script exécuté avec succès pour initialiser `lastMatchAt` sur 266 membres et 21 clans depuis l'historique des matchs.
+  - **Maintien automatique :** Synchronisation automatique en continu lors des imports PUBG (`matches-sync-service.ts` et `api/matches/[matchId]`).
+  - **Affichage carte :** Remplacement de la date d'inscription par l'icône de combat `Swords` et le décompte relatif en jours (`Aujourd’hui`, `-1j`, `-150j`, ou `Aucun match`) avec infobulle complète.
+  - **Filtres et tri :** Ajout des options de tri par date dans la barre d'outils (`Récents`, `Anciens`, `Alpha`, `Inverse`) pour identifier immédiatement les membres actifs ou inactifs.
+
+### Analyse d'impact : Arrêt de suivi (`DELETE /api/members/[id]`) et Transfert de clan (`PATCH /api/members/[id]`) — Documenté le 2026-09-06
+
+Analyse d'architecture et règles de gestion des statistiques lors du départ ou transfert d'un joueur :
+
+#### 1. Arrêt du suivi d'un joueur (`DELETE /api/members/[id]`) :
+- **Comportement par défaut (Soft delete) :** La fiche `ClanMember` passe à `isActive: false` (préservation des relations de base de données).
+- **Statistiques des matchs passés :**
+  - **Préservation intégrale de l'historique :** Les matchs joués en escouade (`SquadMatch`, `SquadMember`, `KillEvent`, télémétrie, dégâts, kills) restent stockés et inchangés.
+  - Les victoires et statistiques de match acquises par les coéquipiers de clan ne sont pas corrompues.
+- **Statistiques actuelles du clan :**
+  - L'ensemble des services de calcul (`stats-calculator.ts`, `cron-jobs.ts`, `ClanMatchesCache`, comparateur) appliquent un filtre d'isolation stricte : `where: { clanId, isActive: true, joinStatus: 'active' }`.
+  - Le joueur est décompté de l'effectif actif du clan (`membersCount - 1`).
+  - Le total cumulé des kills/dégâts du clan (`syncTrackedClanStats`) est recalculé sans lui.
+  - Le joueur est masqué des classements internes du clan (Top Kills, Leaderboards, MVP).
+- **Synchronisation automatique PUBG :**
+  - Le worker de récupération (`matches-sync-service.ts`) ne scrute que les membres avec `isActive: true`.
+  - La collecte automatique de ses nouvelles parties PUBG s'arrête immédiatement (économie d'appels API PUBG).
+- **Statut dans l'écosystème :**
+  - Le joueur devient soit un joueur sans clan (rattaché au clan technique `Ungrouped` / `TAG: UNG`), soit un joueur externe.
+  - S'il croise à nouveau l'escouade en match PUBG, la télémétrie le trace comme adversaire ou coéquipier externe (`EncounteredPlayer` / `Player`).
+
+#### 2. Transfert d'un joueur vers un autre clan (`PATCH /api/members/[id]`) :
+- **Droits requis :** Opération cross-clan réservée au rôle `SuperUser`.
+- **Contraintes de sécurité :**
+  - Un membre ayant le rôle `Owner` ne peut pas être transféré directement (nécessite la rétrogradation préalable).
+  - Les deux clans doivent partager la même plateforme (`platformShard`, ex: Steam ↔ Steam).
+- **Impact statistique sur l'ancien clan (Clan A) :**
+  - Déclenché via `syncTrackedClanStats(previousClanId)`.
+  - L'effectif actif diminue de 1 et les totaux globaux de carrière sont recalculés sans lui.
+  - Ses rôles dans le Clan A sont révoqués.
+- **Impact statistique sur le nouveau clan (Clan B) :**
+  - Déclenché via `syncTrackedClanStats(targetClan.id)`.
+  - L'effectif actif augmente de 1, attribution du rôle par défaut `Member`.
+  - Ses statistiques individuelles s'agrègent aux totaux du Clan B.
+
+#### 3. Éléments implémentés côté interface (UI) :
+- [x] **Bouton « Retirer du clan » / « Arrêter le suivi »** sur `/clans/[clanId]/settings/members` (panneau déplié) avec modale de confirmation expliquant la conservation de l'historique et l'exclusion des futurs calculs.
+- [x] **Bouton « Transférer de clan »** (visible pour le SuperUser uniquement) avec sélecteur déroulant des clans compatibles sur le même shard.
+- [x] **Harmonisation et charte graphique des modales (`docs/ui/index.html` Section 22) :** Imposition stricte du standard visuel issu de `/join` (bimodal complet avec `dark:bg-slate-900`, `dark:border-slate-800`, `dark:text-white`, `dark:text-slate-300`, badges 44x44, callouts de données et d'explications contextuelles, bascule interactive en direct et démo plein écran).
+- [x] **Application stricte du mode sombre aux fenêtres modales :**
+  - Classes `.app-modal-backdrop`, `.app-modal-card`, `.app-modal-inner-card`, `.app-modal-callout` et `.app-modal-select` renforcées dans `src/app/globals.css` et `docs/ui/index.html` pour garantir un fond sombre ardoise (`#0f172a`), bordure nette (`#1e293b`), typographie contrastée (`#ffffff` / `#e2e8f0` / `#94a3b8`) et fiches internes translucides (`rgba(30,41,59,0.5)`).
+  - Intégration sur la page de confirmation `/join` et sur les modales d'action de `/clans/[clanId]/settings/members` (Arrêt de suivi & Transfert de clan).
+  - Contrôle dédié dans la documentation `docs/ui/index.html` pour tester les modales en mode sombre, en mode clair ou en plein écran interactif.
+
+### ~~Cycle de vie des membres rejetés — Déblocage sur `/join` et `/members/add` (Cas Leniver)~~ — ✅ Complété le 2026-09-06
+
+Correction de l'état des joueurs dont la demande d'adhésion a été refusée (`joinStatus: 'rejected'`) :
+- [x] **Déblocage sur `/join` (`src/app/api/join/route.ts`) :**
+  - La vérification d'existence ne bloque désormais en `409 PLAYER_ALREADY_MEMBER` que les joueurs **véritablement actifs** (`isActive: true && joinStatus: 'active'`).
+  - Si une demande est en attente, renvoie `409 JOIN_REQUEST_PENDING`.
+  - Si le joueur avait été rejeté (`joinStatus: 'rejected'`) ou est inactif, la ré-adhésion est autorisée : sa fiche existante est mise à jour en `joinStatus: 'pending'` sans générer d'erreur de contrainte unique `P2002` sur `[pubgPlayerName, platformShard]`.
+- [x] **Déblocage sur `/members/add` (`src/app/api/members/route.ts`) :**
+  - Lorsqu'un administrateur ajoute manuellement un joueur précédemment rejeté, l'API ne plante plus sur `P2002 (Ce joueur est déjà enregistré...)` : elle réactive la fiche existante (`isActive: true`, `joinStatus: 'active'`, mise à jour du clan et attribution des rôles par défaut).
+- [x] **Tests automatisés :**
+  - `src/lib/member-lifecycle.test.ts` (5 tests Vitest validant la différenciation actif/rejeté, la ré-adhésion `/join`, le blocage du pending et la réactivation directe par `/members/add`). Total de **36 tests réussis**.
+
+### ~~Demandes d'adhésion en attente (`/clans/[clanId]/members/pending`) — Refonte visuelle Hero Gaming, modale in-app et ergonomie~~ — ✅ Complété le 2026-09-06
+
+Harmonisation complète de la page des demandes d'adhésion en attente avec les standards graphiques du site :
+- [x] **Hero Header Gaming avec bannière :**
+  - Remplacement de l'ancien header blanc par le grand bandeau immersif avec image `/members.jpg`, halo dégradé, titre avec accents corrects et boutons d'action rapide (*« Membres du clan »* et *« Ajouter un joueur »*).
+- [x] **Remplacement du `window.confirm` par une modale in-app dédiée :**
+  - Modale interactive avec détails du joueur (pseudo, compte PUBG, plateforme) et explication des conséquences de l'action pour approbation ou rejet.
+- [x] **Cartes membres enrichies & ergonomie :**
+  - Avatar stylisé avec puce animée, badge de plateforme (Steam, Xbox, PSN, Kakao), libellés de dates en français (`Reçue le...`).
+  - Champ de recherche instantané pour filtrer les demandes par nom ou gamertag PUBG.
+  - Compteur dynamique de demandes en attente.
+  - Toast de notification de succès (`actionSuccess`) et gestion d'erreurs enrichie.
+  - État vide immersif avec icône `ShieldCheck` et lien d'action direct.
+
+### ~~Page d'activation de compte (`/activate`) — Harmonisation visuelle, messages d'orientation et navigation de retour style `/join` & `/login`~~ — ✅ Complété le 2026-09-06
+
+Harmonisation complète de la page d'activation (`/activate`) avec les standards graphiques, les messages pédagogiques et les options de navigation de `/join` et `/login` :
+- [x] **Plein écran & footer sous la ligne de flottaison :**
+  - Ajout de `min-h-screen` sur le conteneur principal afin que la carte occupe tout l'écran visible et que le footer reste masqué au chargement initial sauf défilement.
+- [x] **Navigation supérieure et retour rapide :**
+  - Barre supérieure avec bouton retour *« Retour à l'accueil du site »* (`/clans`) et lien direct *« Espace connexion »* (`/login`).
+- [x] **Visuel d'escouade et piliers d'information :**
+  - Affichage de l'image haute définition `/squad.jpg` ou personnalisée de clan, avec les 3 points forts (Rattachement immédiat, Statistiques & Télémétrie, Vie du clan).
+- [x] **Guide d'activation & première visite :**
+  - Encart explicatif sur l'origine du jeton d'invitation, la sécurité du mot de passe et le lien direct vers `/login` en cas de compte déjà actif.
+- [x] **Formulaire et ergonomie :**
+  - Prise en charge complète du thème sombre, focus émeraude, carte d'erreur `AlertCircle`, bouton d'action `app-btn app-btn--primary` avec loader animé et bouton secondaire large `Retour à la page principale`.
+
+### ~~Page de connexion (`/login`) — Harmonisation visuelle, messages d'orientation et navigation de retour style `/join`~~ — ✅ Complété le 2026-09-06
+
+Harmonisation complète de la page de connexion (`/login`) avec les standards graphiques, les messages pédagogiques et les options de navigation de `/join` :
+- [x] **Navigation supérieure et retour rapide :**
+  - Barre supérieure avec bouton retour *« Retour à l'accueil du site »* (`/clans`) et lien direct *« Rejoindre ou créer un clan »* (`/join`).
+- [x] **Visuel d'escouade et piliers gaming :**
+  - Utilisation par défaut du visuel d'escouade haute définition (`/squad.jpg`) ou de l'image personnalisée de clan.
+  - Intégration des 3 badges de points forts (Accès centralisé, Statistiques & Télémétrie, Défis & Compétition).
+  - Préservation du logo PUBG et des personnalisations de clan (`welcome.badge`, `welcome.title`, `clanLabel`).
+- [x] **Guide d'accès & première visite :**
+  - Remplacement du texte technique vague par un encart explicatif guidé :
+    - *Membre actif* : Connexion par identifiants directs.
+    - *Invitation reçue* : Lien direct vers l'activation de compte (`/activate`).
+    - *Pas encore inscrit* : Lien direct vers le recrutement PUBG (`/join`).
+- [x] **Ergonomie du formulaire et retours d'erreurs :**
+  - Affichage des erreurs sous forme de carte stylisée avec icône `AlertCircle` et message d'aide.
+  - Modernisation des champs de formulaire avec support du mode sombre et focus states émeraude.
+  - Bouton d'action principal `app-btn app-btn--primary` avec indicateur de chargement.
+  - Bouton large `app-btn app-btn--secondary` *« Retour à la page principale »* en pied de page.
+
+### ~~Rejoindre ou créer un clan (`/join`) — Refonte visuelle style `/login` sans menu ni header et modale de confirmation en 2 étapes~~ — ✅ Complété le 2026-09-06
+
+Harmonisation de la page de recrutement et création de clan (`/join`) avec l'expérience épurée et immersive de la page `/login`, enrichie d'une validation sécurisée en 2 étapes :
+
+- [x] **Suppression des menus et de l'en-tête global (`src/components/ClanNavigation.tsx`) :**
+  - Ajout de `pathname.startsWith('/join')` dans les exceptions de rendu de `ClanNavigation` (aux côtés de `/login`, `/activate`, `/reset-password`), masquant la sidebar et le topbar.
+  - Ajout de `/join` dans les `PUBLIC_PATHS` et `PENDING_ACTIVATION_ALLOWED_PATHS` de `src/proxy.ts` pour garantir un accès public direct sans redirection.
+- [x] **Design double-colonne style `/login` (`src/app/join/page.tsx`) :**
+  - Colonne gauche visuelle avec l'image panoramique d'escouade `/squad.jpg`, dégradé sombre immersif, logo officiel PUBG et 3 piliers phares (Détection auto, Télémétrie/Stats, Défis/Progression).
+  - Colonne droite avec formulaire épuré, sélecteur de plateforme moderne et retour d'état de succès détaillé avec redirection automatique.
+  - **Suppression du cadre bleu intrusif** : Remplacé par une explication limpide du processus de validation obligatoire avant activation.
+  - **Navigation de retour vers l'accueil (`/clans`)** :
+    - Barre supérieure d'accès rapide avec bouton fléché *« Retour à l'accueil du site »* et lien vers l'espace connexion.
+    - Bouton d'action large secondaire en pied de formulaire *« Retour à la page principale »* permettant un retour en arrière immédiat sans friction.
+- [x] **Fenêtre de confirmation interactive avant de rejoindre ou créer un clan :**
+  - **Étape 1 (Prévisualisation sans mutation)** : `POST /api/join` avec `mode: 'preview'` interroge l'API PUBG pour vérifier l'existence du joueur (`searchPlayerByName`), détecte son clan officiel (`fetchPlayerClan`), et vérifie si le clan existe déjà dans la base du site.
+  - **Modale de confirmation dédiée (`src/app/join/page.tsx`)** :
+    - Affiche le gamertag PUBG officiel vérifié et la plateforme de jeu.
+    - Met en valeur le clan PUBG officiel détecté avec son tag `[TAG]`.
+    - Explicite l'action qui sera exécutée et la gouvernance requise :
+      - *Si le clan existe déjà* : Demande d'adhésion officielle transmise pour **validation par l'administrateur / Owner du clan** (statut *En attente*).
+      - *Si le clan n'existe pas encore* : Création du nouveau clan sous son nom officiel PUBG, avec **`isActive: false` (En attente de validation SuperUser)** afin de protéger la ligue contre les bots et clans non sérieux.
+    - Propose deux actions : *Annuler / Modifier* ou *Confirmer*.
+  - **Étape 2 (Exécution finale)** : `POST /api/join` avec `mode: 'join'` effectue l'inscription avec les libellés officiels de clan et affiche le panneau de confirmation de succès avec redirection automatique.
+  - **Notification & Contrôle SuperUser (`POST /api/clans/[clanId]/approve`)** :
+    - Envoi d'une notification push/in-app `clan_creation_request` aux SuperUsers via `notifyClanCreationRequest`.
+    - Endpoint dédié `POST /api/clans/[clanId]/approve` permettant au SuperUser d'approuver et d'activer le clan (`isActive: true`) et son Propriétaire (`joinStatus: 'active'`), avec notification envoyée au créateur.
+    - `GET /api/clans?all=true` permet aux SuperUsers de lister et superviser les clans en attente de validation.
+- [x] **Adaptation contextuelle des messages (Joueur existant vs Création de clan) :**
+  - Si le pseudo PUBG saisi est déjà membre d'un clan sur le site (ex: `pagiotte`), l'API renvoie un statut 409 explicite avec le code `PLAYER_ALREADY_MEMBER` : *« Le joueur "pagiotte" est déjà enregistré dans le clan "SMK". Veuillez vous connecter à votre compte pour accéder à votre espace clan. »* sans jamais mentionner la création de clan.
+  - La bannière d'erreur sur `/join` propose immédiatement un bouton direct **[Se connecter à mon compte]**.
+  - Si le joueur appartient à un clan déjà existant sur le site, la prévisualisation et la modale ciblent uniquement **l'adhésion au clan existant**, sans aucune mention de création de clan.
+  - Seuls les joueurs sans clan ou dont le clan n'est pas encore présent sur la plateforme voient les libellés de création et de validation SuperUser.
+- [x] **Tests de contrôle automatisés :**
+  - `src/lib/join-validation.test.ts` (5 tests Vitest validant le schéma, les modes `preview` et `join`, le trim et la gestion d'erreurs).
+  - `src/lib/clan-approval.test.ts` (5 tests Vitest validant l'état inactif par défaut, l'activation coordonnée et les messages d'erreurs adaptés sans fausse mention de création).
+
 ### ~~Accueil de connexion Clan (`/clans/[clanId]/settings/login-welcome`) — Résolution du blocage d'upload d'image (Signalement seyo187)~~ — ✅ Complété le 2026-09-06
 
 Correction complète du processus d'upload d'image d'accueil personnalisé pour les clans suite au blocage signalé par le owner **seyo187** (Clan 7, FR-Alliance-BE) :
@@ -30,6 +206,23 @@ Correction complète du processus d'upload d'image d'accueil personnalisé pour 
 - [x] **Tests de contrôle automatisés (21 tests Vitest) :**
   - `src/lib/upload-image-validator.test.ts` (16 tests unitaires : magic bytes, types MIME alternatifs, rejet formats non supportés, validation limites).
   - `src/lib/login-welcome-upload-routes.test.ts` (5 tests d'intégration : upload complet, gestion permissions, lecture image, 404 & path traversal).
+
+### ~~Ajout d'un joueur (`/members/add`) — Nouveau Hero Header, nom affiché optionnel et refonte UX/pédagogique~~ — ✅ Complété le 2026-09-06
+
+Refonte de la page d'ajout d'un joueur (`/members/add`) pour moderniser l'expérience utilisateur et simplifier l'intégration des membres :
+
+- [x] **Nouveau Hero Header immersif (Design System & `index.html`) :**
+  - Remplacement de l'ancien panneau neutre `SettingsPageHeader` par le Hero Banner gaming avec image de fond `/banner-members.jpg`, dégradé sombre, icône `UserPlus` et typographie responsive contrastée.
+  - Lien direct vers la liste des membres du clan actif.
+- [x] **Nom affiché optionnel avec fallback automatique :**
+  - Côté frontend (`/members/add/page.tsx`) : suppression de l'obligation de saisie (`required`), mention `Optionnel` et placeholder indicatif. Si laissé vide, le pseudo PUBG est automatiquement utilisé.
+  - Côté backend (`src/app/api/members/route.ts`) : `AddMemberSchema` transforme automatiquement un `displayName` vide ou manquant en lui assignant `pubgPlayerName`.
+  - Messages d'erreur de validation traduits et clarifiés en français.
+- [x] **Amélioration de la compréhension & Guide d'onboarding :**
+  - Panneau latéral pédagogique expliquant les 4 étapes : 1. Recherche officielle PUBG, 2. Détection du clan, 3. Validation en 2 étapes, 4. Synchronisation et assignation des rôles.
+  - Modal de confirmation enrichie avec badge de validation PUBG, affichage du nom retenu (avec précision si identique au pseudo) et détection du clan.
+- [x] **Tests de contrôle Vitest :**
+  - `src/lib/members-add.test.ts` (5 tests validant le fallback automatique de `displayName`, la conservation du nom personnalisé et le rejet des pseudos manquants).
 
 ### ~~Débriefing Tactique 2D Replay — Résolution de l'alias de map et harmonisation de la typographie~~ — ✅ Complété le 2026-09-05
 

@@ -94,7 +94,7 @@ async function sendPushNotification(memberId: number, title: string) {
   console.info(`[Notification] Push queued for member ${memberId}: ${title}`)
 }
 
-async function createNotificationForMember({
+export async function createNotificationForMember({
   memberId,
   type,
   title,
@@ -269,6 +269,43 @@ export async function notifyJoinRequest(
       })
     )
   )
+}
+
+export async function notifyClanCreationRequest(
+  clanId: number,
+  clanName: string,
+  clanTag: string,
+  creatorPlayerName: string
+) {
+  try {
+    const superUsers = await prisma.userAccount.findMany({
+      where: { isSuperUser: true },
+      include: {
+        identities: { select: { memberId: true } },
+      },
+    })
+
+    const memberIds = superUsers.flatMap((su) => su.identities.map((id) => id.memberId))
+
+    await Promise.all(
+      memberIds.map((memberId) =>
+        createNotificationForMember({
+          memberId,
+          type: 'clan_creation_request',
+          title: 'Nouveau clan en attente de validation SuperUser',
+          message: `Le clan "${clanName}" [${clanTag}] a été créé par ${creatorPlayerName} et attend votre validation SuperUser avant activation dans la ligue.`,
+          data: {
+            clanId,
+            clanName,
+            clanTag,
+            creatorPlayerName,
+          },
+        })
+      )
+    )
+  } catch (error) {
+    console.error('[notification] Failed to notify superusers about clan creation:', error)
+  }
 }
 
 export async function notifyInviteReminder(memberId: number) {

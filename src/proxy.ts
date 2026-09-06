@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
-const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/','/activate','/login','/reset-password'])
-const PUBLIC_PATHS = new Set(['/login', '/activate', '/reset-password'])
+const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join'])
+const PUBLIC_PATHS = new Set(['/login', '/activate', '/reset-password', '/join'])
 const SESSION_COOKIE_NAME = 'pubg_clan_session'
 const AUTH_DISABLED = process.env.DISABLE_AUTH_PERMISSIONS === 'true'
 
@@ -78,9 +78,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Keep /login reachable even with a stale/invalid cookie.
+  // Keep /login and /join reachable even with a stale/invalid cookie.
   // The client-side session check decides whether to keep the user logged in.
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/join') {
     return NextResponse.next()
   }
 

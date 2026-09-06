@@ -1105,8 +1105,7 @@ html[data-app-theme='dark'] :where([class*='hover:bg-amber-50']:hover) {
   background-color: rgb(120 53 15 / 0.45) !important;
 }
 
-.member-role-badge,
-.member-access-badge {
+.member-role-badge {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
@@ -1114,6 +1113,19 @@ html[data-app-theme='dark'] :where([class*='hover:bg-amber-50']:hover) {
   padding: 0.25rem 0.625rem;
   font-size: 0.75rem;
   line-height: 1rem;
+  font-weight: 700;
+}
+
+.member-access-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  border-radius: 0.25rem;
+  border: 1px solid;
+  padding: 0 0.375rem;
+  font-size: 0.625rem;
+  line-height: 1;
   font-weight: 700;
 }
 
@@ -2997,3 +3009,56 @@ html[data-app-theme='dark'] [cmdk-item][data-selected="true"] {
   from { opacity: 0; transform: translate(-50%, -48%) scale(0.96); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
+
+/* ============================================================
+   MODALES — Imposition stricte du thème sombre
+============================================================ */
+.app-modal-backdrop {
+  background-color: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(8px);
+}
+
+html[data-app-theme='dark'] .app-modal-card,
+body[data-app-theme='dark'] .app-modal-card,
+.dark .app-modal-card {
+  background-color: rgb(15 23 42) !important;
+  border-color: rgb(30 41 59) !important;
+  color: rgb(226 232 240) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75) !important;
+}
+
+html[data-app-theme='dark'] .app-modal-card h3,
+body[data-app-theme='dark'] .app-modal-card h3,
+.dark .app-modal-card h3 {
+  color: #ffffff !important;
+}
+
+html[data-app-theme='dark'] .app-modal-card .app-modal-subtitle,
+body[data-app-theme='dark'] .app-modal-card .app-modal-subtitle,
+.dark .app-modal-card .app-modal-subtitle {
+  color: rgb(148 163 184) !important;
+}
+
+html[data-app-theme='dark'] .app-modal-inner-card,
+body[data-app-theme='dark'] .app-modal-inner-card,
+.dark .app-modal-inner-card {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+html[data-app-theme='dark'] .app-modal-callout,
+body[data-app-theme='dark'] .app-modal-callout,
+.dark .app-modal-callout {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  border-color: rgb(30 41 59) !important;
+}
+
+html[data-app-theme='dark'] .app-modal-select,
+body[data-app-theme='dark'] .app-modal-select,
+.dark .app-modal-select {
+  background-color: rgb(30 41 59) !important;
+  border-color: rgb(51 65 85) !important;
+  color: rgb(248 250 252) !important;
+}
+
+

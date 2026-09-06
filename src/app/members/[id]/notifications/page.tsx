@@ -207,6 +207,7 @@ export default function NotificationsPage() {
     challenge_started: formatTypeLabel('challenge_started'),
     invite_reminder: formatTypeLabel('invite_reminder'),
     join_request: formatTypeLabel('join_request'),
+    clan_creation_request: formatTypeLabel('clan_creation_request'),
   }
 
   const typeFilterItems: MobileDropdownNavItem[] = [

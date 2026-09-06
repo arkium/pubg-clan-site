@@ -1,11 +1,97 @@
 <!DOCTYPE html>
-<html lang="fr" data-app-theme="light">
+<html lang="fr" data-app-theme="dark" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Design System — PUBG Clan Site</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+  <script>
+    // Initialisation immédiate du thème (par défaut sombre pour l'immersion PUBG)
+    (function() {
+      try {
+        const saved = localStorage.getItem('pubg_docs_theme') || 'dark';
+        document.documentElement.setAttribute('data-app-theme', saved);
+        if (saved === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <style>
+    /* ============================================================
+       MODAL THEME RULES (Standard /join)
+    ============================================================ */
+    .app-modal-backdrop {
+      background-color: rgba(2, 6, 23, 0.75);
+      backdrop-filter: blur(8px);
+    }
+    .app-modal-card {
+      border: 1px solid var(--app-border);
+      background-color: var(--app-surface);
+      box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+    }
+    html[data-app-theme='dark'] .app-modal-card,
+    body[data-app-theme='dark'] .app-modal-card,
+    [data-app-theme='dark'] .app-modal-card,
+    .dark .app-modal-card,
+    .modal-force-dark .app-modal-card {
+      background-color: rgb(15 23 42) !important;
+      border-color: rgb(30 41 59) !important;
+      color: rgb(226 232 240) !important;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75) !important;
+    }
+    html[data-app-theme='dark'] .app-modal-card h3,
+    body[data-app-theme='dark'] .app-modal-card h3,
+    .dark .app-modal-card h3,
+    .modal-force-dark .app-modal-card h3 {
+      color: #ffffff !important;
+    }
+    html[data-app-theme='dark'] .app-modal-card .app-modal-subtitle,
+    body[data-app-theme='dark'] .app-modal-card .app-modal-subtitle,
+    .dark .app-modal-card .app-modal-subtitle,
+    .modal-force-dark .app-modal-card .app-modal-subtitle {
+      color: rgb(148 163 184) !important;
+    }
+    .app-modal-inner-card {
+      border: 1px solid var(--app-border);
+      background-color: var(--theme-ui-surface-soft);
+    }
+    html[data-app-theme='dark'] .app-modal-inner-card,
+    body[data-app-theme='dark'] .app-modal-inner-card,
+    [data-app-theme='dark'] .app-modal-inner-card,
+    .dark .app-modal-inner-card,
+    .modal-force-dark .app-modal-inner-card {
+      background-color: rgba(30, 41, 59, 0.5) !important;
+      border-color: rgba(51, 65, 85, 0.8) !important;
+    }
+    .app-modal-callout {
+      border: 1px solid var(--app-border);
+      background-color: var(--theme-ui-surface-soft);
+    }
+    html[data-app-theme='dark'] .app-modal-callout,
+    body[data-app-theme='dark'] .app-modal-callout,
+    [data-app-theme='dark'] .app-modal-callout,
+    .dark .app-modal-callout,
+    .modal-force-dark .app-modal-callout {
+      background-color: rgba(15, 23, 42, 0.6) !important;
+      border-color: rgb(30 41 59) !important;
+    }
+    html[data-app-theme='dark'] .app-modal-select,
+    body[data-app-theme='dark'] .app-modal-select,
+    .dark .app-modal-select,
+    .modal-force-dark .app-modal-select {
+      background-color: rgb(30 41 59) !important;
+      border-color: rgb(51 65 85) !important;
+      color: rgb(248 250 252) !important;
+    }
+
     /* ============================================================
        CSS VARIABLES — extrait de globals.css
     ============================================================ */
@@ -790,6 +876,12 @@
         </a>
         <a class="docs-sidebar-link" href="#leaderboards" onclick="setActive(this)">
           <span class="num">21</span> Listes Leaderboard
+        </a>
+      </div>
+      <div class="docs-sidebar-group">
+        <div class="docs-sidebar-group-title">Modales &amp; Dialogues</div>
+        <a class="docs-sidebar-link" href="#modales" onclick="setActive(this)">
+          <span class="num">22</span> Fenêtres modales &amp; Dialogues
         </a>
       </div>
     </aside>
@@ -4480,7 +4572,7 @@ border-gray-200  ← hardcodé</code>
                     </th>
                   </tr>
                 </thead>
-                <tbody style="divide-y:1px solid var(--theme-ui-border);">
+                <tbody>
                   <tr style="border-bottom:1px solid var(--theme-ui-border);">
                     <td style="padding:0.375rem 0;color:var(--theme-ui-text-secondary);font-weight:500;">Agressivité</td>
                     <td style="padding:0.375rem 0.5rem;text-align:right;font-weight:700;color:rgb(59,130,246);background:rgba(59,130,246,0.1);border-radius:0.25rem;">458</td>
@@ -4586,11 +4678,295 @@ border-gray-200  ← hardcodé</code>
       </section>
 
       <!-- ══════════════════════════════════════════════════════════
+           SECTION 22 — FENÊTRES MODALES & DIALOGUES DE CONFIRMATION
+      ══════════════════════════════════════════════════════════ -->
+      <section class="docs-section" id="modales">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">22</span>
+          Fenêtres Modales &amp; Dialogues de Confirmation
+        </h2>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Charte visuelle unifiée (Standard de référence : /join)</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1.25rem;line-height:1.6;">
+            Cette charte graphique normalise l'ensemble des boîtes de dialogue et modales sur le site (confirmation d'adhésion, arrêt de suivi, transfert de clan, avertissements d'impact statistique). <strong>Toute modale doit strictement respecter ce standard</strong> pour garantir une immersion visuelle parfaite en mode clair comme en mode sombre (gaming dark theme).
+          </div>
+
+          <!-- Tableau des classes obligatoires -->
+          <div class="app-table-shell" style="margin-bottom:1.5rem;overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.75rem;text-align:left;">
+              <thead class="app-table-head">
+                <tr>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Élément</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Classes Tailwind obligatoires</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Description &amp; Rôle</th>
+                </tr>
+              </thead>
+              <tbody style="color:var(--theme-ui-text-secondary);">
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Backdrop</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Assombrissement semi-transparent et flou d'arrière-plan avec animation fluide.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Boîte / Carte</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Conteneur bimodal (blanc en clair, slate-900 profond en sombre) avec bords très arrondis (3xl).</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Badge Icône</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-{color}-500/10 text-{color}-500 border border-{color}-500/20</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Carré arrondi 44x44px avec couleur thématique (rose=danger, amber=attention/fondation, emerald=succès, sky=transfert).</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Titre &amp; Sous-titre</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">text-lg font-black text-slate-900 dark:text-white</code> / <code class="docs-code">text-xs text-slate-500 dark:text-slate-400</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Hiérarchie textuelle nette et contrastée.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Fiche données</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-slate-800/80 dark:bg-slate-800/50</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Encadré de récapitulatif pour les métriques, plateformes ou identités.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Callout explicatif</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">rounded-xl border border-slate-200/80 bg-white/60 p-3.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Explications d'impact ou conséquences statistiques détaillées.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:700;color:var(--theme-ui-text);">Boutons d'action</td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">mt-6 flex items-center justify-end gap-3</code></td>
+                  <td style="padding:0.625rem 0.875rem;">Bouton Annuler en secondaire (<code class="docs-code">app-btn--secondary</code>) et bouton principal contrasté à droite.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Contrôles interactifs du showroom de modales -->
+        <div class="docs-subsection" style="margin-bottom:1.5rem;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.25rem;border-radius:1rem;background:var(--app-surface);border:1px solid var(--app-border);">
+            <div>
+              <div style="font-size:0.8125rem;font-weight:800;color:var(--theme-ui-text);">Contrôle de rendu des modales (Bimodal complet)</div>
+              <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-top:0.125rem;">
+                Basculez le conteneur ci-dessous pour tester immédiatement le rendu en mode sombre (gaming slate-900) ou clair.
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <button
+                type="button"
+                id="btn-preview-dark"
+                onclick="setModalPreviewTheme('dark')"
+                class="app-btn app-btn--sm app-btn--primary inline-flex items-center gap-1.5"
+                style="font-size:0.75rem;"
+              >
+                <span>🌙 Aperçu Mode Sombre (PUBG)</span>
+              </button>
+              <button
+                type="button"
+                id="btn-preview-light"
+                onclick="setModalPreviewTheme('light')"
+                class="app-btn app-btn--sm app-btn--secondary inline-flex items-center gap-1.5"
+                style="font-size:0.75rem;"
+              >
+                <span>☀️ Aperçu Mode Clair</span>
+              </button>
+              <button
+                type="button"
+                onclick="openDemoModal()"
+                class="app-btn app-btn--sm inline-flex items-center gap-1.5"
+                style="background:rgb(16,185,129);color:#ffffff;border:none;font-weight:700;font-size:0.75rem;box-shadow:0 2px 8px rgba(16,185,129,0.35);"
+              >
+                <span>🚀 Tester en Plein Écran</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conteneur d'Aperçu Dynamique Bimodal -->
+        <div id="modal-preview-wrapper" class="dark modal-force-dark" style="display:flex;flex-direction:column;gap:2rem;">
+
+          <!-- Démonstration 1 : Modale de Confirmation Destructrice (Arrêt de suivi / Danger) -->
+          <div class="docs-subsection">
+            <div class="docs-subsection-title">Exemple interactif #1 — Modale d'action critique / Danger (Arrêt de suivi)</div>
+            <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.75rem;">
+              Modale déployée lors d'une action à fort impact sur les statistiques ou l'effectif du clan :
+            </div>
+
+            <div class="modal-preview-box" style="background:rgba(2,6,23,0.92);border-radius:1.5rem;padding:2rem 1.5rem;display:flex;justify-content:center;box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);border:1px solid rgba(30,41,59,0.8);">
+              <!-- Mockup Modale Danger -->
+              <div class="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+                <!-- En-tête -->
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div>
+                      <h3 class="text-lg font-black text-slate-900 dark:text-white">
+                        Arrêter le suivi de TheRealMohican ?
+                      </h3>
+                      <p class="app-modal-subtitle text-xs text-slate-500 dark:text-slate-400">
+                        Retrait du joueur de l'effectif actif du clan
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                <!-- Bloc explicatif des conséquences -->
+                <div class="app-modal-inner-card mt-5 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-slate-800/80 dark:bg-slate-800/50">
+                  <div class="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+                    <div>
+                      <strong class="text-slate-900 dark:text-emerald-300">Matchs passés &amp; télémétrie conservés :</strong>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-300">Toutes les parties passées jouées en squad, les frags et les statistiques restent intégralement enregistrés en base de données. L'historique du clan n'est pas effacé.</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500"></span>
+                    <div>
+                      <strong class="text-slate-900 dark:text-amber-300">Statistiques &amp; effectif du clan :</strong>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-300">Le joueur est retiré de l'effectif actif et des classements. Le compteur de membres et les totaux globaux du clan sont immédiatement recalculés sans lui.</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-start gap-2.5">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-rose-500"></span>
+                    <div>
+                      <strong class="text-slate-900 dark:text-rose-300">Arrêt de la collecte PUBG :</strong>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-300">Le robot cessera d'importer les futurs matchs de ce joueur pour ce clan. Ses accès utilisateur au clan sont révoqués.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Avertissement contextuel -->
+                <div class="app-modal-callout mt-4 rounded-xl border border-rose-200 bg-rose-50/90 p-3.5 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-200">
+                  <p class="font-semibold text-rose-950 dark:text-rose-100">Action irréversible sans nouvelle demande</p>
+                  <p class="mt-1 leading-relaxed text-rose-800 dark:text-rose-300">Pour réintégrer ce membre ultérieurement, une nouvelle invitation ou demande d'adhésion sera requise.</p>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div class="mt-6 flex items-center justify-end gap-3">
+                  <button type="button" class="app-btn app-btn--md app-btn--secondary">
+                    Annuler
+                  </button>
+                  <button type="button" class="app-btn app-btn--md bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-900/30 inline-flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
+                    <span>Confirmer l'arrêt du suivi</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Démonstration 2 : Modale de Transfert (Action SuperUser) -->
+          <div class="docs-subsection">
+            <div class="docs-subsection-title">Exemple interactif #2 — Modale de Transfert de Clan (Action SuperUser)</div>
+            <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);margin-bottom:0.75rem;">
+              Modale avec champ de sélection et badge d'action bleu/sky :
+            </div>
+
+            <div class="modal-preview-box" style="background:rgba(2,6,23,0.92);border-radius:1.5rem;padding:2rem 1.5rem;display:flex;justify-content:center;box-shadow:inset 0 2px 8px rgba(0,0,0,0.6);border:1px solid rgba(30,41,59,0.8);">
+              <!-- Mockup Modale Transfert -->
+              <div class="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+                <!-- En-tête -->
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-500 border border-sky-500/20">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+                    </div>
+                    <div>
+                      <h3 class="text-lg font-black text-slate-900 dark:text-white">
+                        Transférer TheRealMohican
+                      </h3>
+                      <p class="app-modal-subtitle text-xs text-slate-500 dark:text-slate-400">
+                        Déplacement vers un autre clan compatible (Steam)
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                <!-- Champ sélecteur -->
+                <div class="mt-5 space-y-1.5">
+                  <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Clan de destination :
+                  </label>
+                  <select class="app-modal-select w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                    <option>[RATZ] Les-Ratz (steam)</option>
+                    <option>[SMK] Smoke-Squad (steam)</option>
+                  </select>
+                </div>
+
+                <!-- Bloc explicatif des conséquences -->
+                <div class="app-modal-inner-card mt-4 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-slate-800/80 dark:bg-slate-800/50">
+                  <div class="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-500"></span>
+                    <div>
+                      <strong class="text-slate-900 dark:text-blue-300">Rôle dans le nouveau clan :</strong>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-300">Le joueur recevra automatiquement le rôle par défaut <strong>Membre</strong> dans son nouveau clan. Ses permissions actuelles sont révoquées.</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+                    <div>
+                      <strong class="text-slate-900 dark:text-emerald-300">Historique passé &amp; futurs matchs :</strong>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-300">Les matchs d'escouade passés restent rattachés à ce clan. Les prochaines parties jouées seront collectées pour le nouveau clan.</p>
+                    </div>
+                  </div>
+
+                  <div class="flex items-start gap-2.5">
+                    <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500"></span>
+                    <div>
+                      <strong class="text-slate-900 dark:text-amber-300">Synchronisation des deux clans :</strong>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-300">Les totaux et effectifs de l'ancien et du nouveau clan seront automatiquement recalculés à l'issue du transfert.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div class="mt-6 flex items-center justify-end gap-3">
+                  <button type="button" class="app-btn app-btn--md app-btn--secondary">
+                    Annuler
+                  </button>
+                  <button type="button" class="app-btn app-btn--md app-btn--primary inline-flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+                    <span>Confirmer le transfert</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Règles d'interdiction strictes -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Règles d'or &amp; Erreurs éliminatoires à proscrire</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.6;">
+            <ul style="list-style:disc;padding-left:1.5rem;display:flex;flex-direction:column;gap:0.5rem;">
+              <li><strong style="color:rgb(239,68,68);">PROSCRIT :</strong> Déployer une boîte modale sans les classes <code class="docs-code">dark:bg-slate-900</code> et <code class="docs-code">dark:border-slate-800</code>. Une modale blanche éclatante isolée sur fond sombre dénature l'interface et fatigue les yeux.</li>
+              <li><strong style="color:rgb(239,68,68);">PROSCRIT :</strong> Utiliser des dégradés clairs arbitraires en en-tête (<code class="docs-code">bg-gradient-to-r from-rose-50 via-white to-white</code>). L'en-tête doit rester épuré, avec l'icône encadrée en badge et le titre net.</li>
+              <li><strong style="color:rgb(239,68,68);">PROSCRIT :</strong> Oublier les variantes de contraste sombre sur le texte (<code class="docs-code">dark:text-white</code>, <code class="docs-code">dark:text-slate-300</code>, <code class="docs-code">dark:text-slate-400</code>). Un texte gris clair sur fond blanc ou gris clair devient illisible.</li>
+              <li><strong style="color:rgb(239,68,68);">PROSCRIT :</strong> Scinder le pied de page d'actions avec un bandeau opaque séparé (<code class="docs-code">bg-slate-50/50 border-t</code>). Les boutons d'action doivent s'intégrer directement au bas de la carte avec un simple <code class="docs-code">mt-6 flex items-center justify-end gap-3</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════
            FIN — pied de page de la doc
       ══════════════════════════════════════════════════════════ -->
       <div style="margin-top:4rem;padding-top:2rem;border-top:1px solid var(--app-border);text-align:center;">
         <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);">
-          Design System — PUBG Clan Site · 21 sections · Mis à jour avec les composants Esport &amp; Comparateur
+          Design System — PUBG Clan Site · 22 sections · Mis à jour avec la Charte Graphique des Fenêtres Modales
         </div>
         <div style="font-size:0.7rem;color:var(--theme-ui-text-muted);margin-top:0.375rem;">
           Basculer le thème avec le bouton en haut à droite pour valider chaque composant en clair et en sombre.
@@ -4598,6 +4974,90 @@ border-gray-200  ← hardcodé</code>
       </div>
 
     </main>
+  </div>
+
+  <!-- ============================================================
+       MODALE DE DÉMONSTRATION PLEIN ÉCRAN INTERACTIVE
+  ============================================================ -->
+  <div
+    id="fullscreen-demo-modal"
+    class="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+    style="display:none;"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="demo-modal-title"
+    onclick="handleModalBackdropClick(event)"
+  >
+    <div class="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+      <!-- En-tête -->
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div>
+            <h3 id="demo-modal-title" class="text-lg font-black text-slate-900 dark:text-white">
+              Arrêter le suivi de TheRealMohican ?
+            </h3>
+            <p class="app-modal-subtitle text-xs text-slate-500 dark:text-slate-400">
+              Démonstration plein écran conforme à la charte /join (Touche Échap pour fermer)
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick="closeDemoModal()"
+          class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+          aria-label="Fermer la fenêtre"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Fiche récapitulative des conséquences -->
+      <div class="app-modal-inner-card mt-5 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-slate-800/80 dark:bg-slate-800/50">
+        <div class="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+          <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+          <div>
+            <strong class="text-slate-900 dark:text-emerald-300">Matchs passés &amp; télémétrie conservés :</strong>
+            <p class="mt-0.5 text-slate-600 dark:text-slate-300">Toutes les parties passées jouées en squad, les frags et les statistiques restent intégralement enregistrés en base. L'historique du clan n'est pas effacé.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
+          <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500"></span>
+          <div>
+            <strong class="text-slate-900 dark:text-amber-300">Statistiques &amp; effectif du clan :</strong>
+            <p class="mt-0.5 text-slate-600 dark:text-slate-300">Le joueur est retiré de l'effectif actif et des classements. Le compteur de membres et les totaux globaux du clan sont immédiatement recalculés sans lui.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-2.5">
+          <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-rose-500"></span>
+          <div>
+            <strong class="text-slate-900 dark:text-rose-300">Arrêt de la collecte PUBG :</strong>
+            <p class="mt-0.5 text-slate-600 dark:text-slate-300">Le robot cessera d'importer les futurs matchs de ce joueur pour ce clan. Ses accès utilisateur au clan sont révoqués.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Avertissement contextuel -->
+      <div class="app-modal-callout mt-4 rounded-xl border border-rose-200 bg-rose-50/90 p-3.5 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-200">
+        <p class="font-semibold text-rose-950 dark:text-rose-100">Action irréversible sans nouvelle demande</p>
+        <p class="mt-1 leading-relaxed text-rose-800 dark:text-rose-300">Pour réintégrer ce membre ultérieurement, une nouvelle invitation ou demande d'adhésion sera requise.</p>
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="mt-6 flex items-center justify-end gap-3">
+        <button type="button" onclick="closeDemoModal()" class="app-btn app-btn--md app-btn--secondary">
+          Annuler
+        </button>
+        <button type="button" onclick="closeDemoModal()" class="app-btn app-btn--md bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-900/30 inline-flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
+          <span>Confirmer l'arrêt du suivi</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -4662,12 +5122,89 @@ border-gray-200  ← hardcodé</code>
     }
 
     function toggleTheme() {
-      const isDark = document.documentElement.getAttribute('data-app-theme') === 'dark'
+      const isDark = document.documentElement.getAttribute('data-app-theme') === 'dark' || document.documentElement.classList.contains('dark')
       const next = isDark ? 'light' : 'dark'
       document.documentElement.setAttribute('data-app-theme', next)
       document.body.setAttribute('data-app-theme', next)
-      document.getElementById('theme-label').textContent = next === 'dark' ? 'Passer en clair' : 'Passer en sombre'
+      document.documentElement.classList.toggle('dark', next === 'dark')
+      document.body.classList.toggle('dark', next === 'dark')
+      try { localStorage.setItem('pubg_docs_theme', next) } catch (e) {}
+      const lbl = document.getElementById('theme-label')
+      if (lbl) lbl.textContent = next === 'dark' ? 'Passer en clair' : 'Passer en sombre'
     }
+
+    function setModalPreviewTheme(mode) {
+      const wrapper = document.getElementById('modal-preview-wrapper');
+      const btnDark = document.getElementById('btn-preview-dark');
+      const btnLight = document.getElementById('btn-preview-light');
+      const boxes = document.querySelectorAll('.modal-preview-box');
+
+      if (mode === 'dark') {
+        if (wrapper) {
+          wrapper.className = 'dark modal-force-dark';
+        }
+        boxes.forEach(b => {
+          b.style.background = 'rgba(2,6,23,0.92)';
+          b.style.border = '1px solid rgba(30,41,59,0.8)';
+        });
+        if (btnDark) {
+          btnDark.className = 'app-btn app-btn--sm app-btn--primary inline-flex items-center gap-1.5';
+        }
+        if (btnLight) {
+          btnLight.className = 'app-btn app-btn--sm app-btn--secondary inline-flex items-center gap-1.5';
+        }
+      } else {
+        if (wrapper) {
+          wrapper.className = 'light';
+        }
+        boxes.forEach(b => {
+          b.style.background = '#f1f5f9';
+          b.style.border = '1px solid #cbd5e1';
+        });
+        if (btnDark) {
+          btnDark.className = 'app-btn app-btn--sm app-btn--secondary inline-flex items-center gap-1.5';
+        }
+        if (btnLight) {
+          btnLight.className = 'app-btn app-btn--sm app-btn--primary inline-flex items-center gap-1.5';
+        }
+      }
+    }
+
+    function openDemoModal() {
+      const modal = document.getElementById('fullscreen-demo-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeDemoModal() {
+      const modal = document.getElementById('fullscreen-demo-modal');
+      if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+    }
+
+    function handleModalBackdropClick(e) {
+      if (e.target.id === 'fullscreen-demo-modal') {
+        closeDemoModal();
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        closeDemoModal();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      const lbl = document.getElementById('theme-label');
+      if (lbl) {
+        lbl.textContent = isDark ? 'Passer en clair' : 'Passer en sombre';
+      }
+    });
 
     function setActive(el) {
       document.querySelectorAll('.docs-sidebar-link').forEach(l => l.classList.remove('active'))

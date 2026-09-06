@@ -90,6 +90,15 @@ export async function DELETE(
         displayName: true,
         isActive: true,
         clanId: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
     })
 
@@ -106,6 +115,14 @@ export async function DELETE(
     })
     if (permissionError) {
       return permissionError
+    }
+
+    const isOwner = existingMember.roles.some((entry) => entry.role.name === 'Owner')
+    if (isOwner) {
+      return Response.json(
+        { error: 'Le chef de clan (Owner) ne peut pas être retiré sans avoir préalablement réassigné son rôle.' },
+        { status: 403 }
+      )
     }
 
     const hardDelete = request.nextUrl.searchParams.get('hard') === 'true'
@@ -126,6 +143,14 @@ export async function DELETE(
       where: { id: memberId },
       data: { isActive: false },
     })
+
+    if (existingMember.clanId) {
+      try {
+        await syncTrackedClanStats(existingMember.clanId)
+      } catch (syncError) {
+        console.warn('Unable to synchronize clan stats after member deactivation:', syncError)
+      }
+    }
 
     return Response.json({
       success: true,

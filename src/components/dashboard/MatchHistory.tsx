@@ -7,6 +7,7 @@ import { ChevronRight } from 'lucide-react'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
+import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 
 import type {
   DashboardMatch,
@@ -35,6 +36,8 @@ const MODE_LABELS: Record<string, string> = {
   'duo-fpp': 'Duo FPP',
   solo: 'Solo',
   'solo-fpp': 'Solo FPP',
+  ibr: 'Intense BR',
+  tdm: 'TDM',
 }
 
 function formatMapName(name: string): string {
@@ -42,7 +45,8 @@ function formatMapName(name: string): string {
 }
 
 function formatMode(mode: string): string {
-  return MODE_LABELS[mode] ?? mode
+  const normalized = mode.toLowerCase()
+  return MODE_LABELS[normalized] ?? (normalized === 'ibr' ? 'Intense BR' : normalized === 'tdm' ? 'TDM' : mode)
 }
 
 function clanModeLabel(mode: DashboardMatch['clanMode']) {
@@ -229,8 +233,7 @@ export default function MatchHistory({
                     <div>
                       <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                         {mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}
-                        {(m.matchType === 'casual' || m.matchType === 'airoyale') && <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800 leading-none">Casual</span>}
-                        {m.matchType === 'custom' && <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 leading-none">Custom</span>}
+                        <MatchTypeBadge matchType={m.matchType} />
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">
                         {formatDate(m.pubgCreatedAt)} · {formatTime(m.pubgCreatedAt)}
@@ -331,8 +334,7 @@ export default function MatchHistory({
                           <div>
                             <div className="flex items-center gap-2">
                               {mapLabels?.[m.mapName] ?? formatMapName(m.mapName)}
-                              {(m.matchType === 'casual' || m.matchType === 'airoyale') && <span className="inline-flex items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-800 leading-none">Casual</span>}
-                              {m.matchType === 'custom' && <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-800 leading-none">Custom</span>}
+                              <MatchTypeBadge matchType={m.matchType} />
                             </div>
                             <div className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-gray-500">
                               {modeIcon ? (

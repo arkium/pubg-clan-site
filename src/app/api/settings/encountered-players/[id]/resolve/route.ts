@@ -47,7 +47,12 @@ export async function POST(
   const url = new URL(request.url)
   const forceRetry = url.searchParams.get('force') === 'retry'
 
-  const candidate = await prisma.encounteredPlayer.findUnique({ where: { id } })
+  let candidate = await prisma.encounteredPlayer.findUnique({ where: { id } })
+  if (!candidate) {
+    candidate = await prisma.encounteredPlayer.findFirst({
+      where: { OR: [{ playerId: id }, { pubgAccountId: id }] },
+    })
+  }
   if (!candidate) {
     return Response.json({ error: 'Joueur introuvable' }, { status: 404 })
   }

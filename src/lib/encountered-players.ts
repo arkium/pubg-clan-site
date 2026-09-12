@@ -65,9 +65,33 @@ export async function captureEncounteredPlayers(
   }
 
   const now = new Date()
+  const opponentAccountIds = Array.from(opponents.keys())
+
+  // Détecter si des joueurs rencontrés font déjà partie de nos clans suivis
+  const trackedMembers = await prisma.clanMember.findMany({
+    where: { pubgAccountId: { in: opponentAccountIds } },
+    select: {
+      pubgAccountId: true,
+      clan: {
+        select: {
+          pubgClanId: true,
+          name: true,
+          tag: true,
+        },
+      },
+    },
+  })
+
+  const trackedClanByAccountId = new Map(
+    trackedMembers
+      .filter((m) => Boolean(m.pubgAccountId && m.clan))
+      .map((m) => [m.pubgAccountId as string, m.clan])
+  )
 
   await Promise.all(
     Array.from(opponents.entries()).map(async ([pubgAccountId, { pubgPlayerName, wasTeammate }]) => {
+      const trackedClan = trackedClanByAccountId.get(pubgAccountId)
+
       await prisma.encounteredPlayer.upsert({
         where: { clanId_pubgAccountId: { clanId, pubgAccountId } },
         update: {
@@ -75,6 +99,14 @@ export async function captureEncounteredPlayers(
           lastSeenAt: now,
           encounterCount: { increment: 1 },
           ...(wasTeammate ? { teammateEncounterCount: { increment: 1 } } : {}),
+          ...(trackedClan
+            ? {
+                pubgClanId: trackedClan.pubgClanId,
+                pubgClanName: trackedClan.name,
+                pubgClanTag: trackedClan.tag,
+                clanResolvedAt: now,
+              }
+            : {}),
         },
         create: {
           clanId,
@@ -84,6 +116,10 @@ export async function captureEncounteredPlayers(
           firstSeenAt: now,
           lastSeenAt: now,
           teammateEncounterCount: wasTeammate ? 1 : 0,
+          pubgClanId: trackedClan?.pubgClanId ?? null,
+          pubgClanName: trackedClan?.name ?? null,
+          pubgClanTag: trackedClan?.tag ?? null,
+          clanResolvedAt: trackedClan ? now : null,
         },
       })
 
@@ -92,8 +128,19 @@ export async function captureEncounteredPlayers(
       // superadmin globale". Les lectures existantes restent sur EncounteredPlayer.
       const player = await prisma.player.upsert({
         where: { pubgAccountId_platformShard: { pubgAccountId, platformShard } },
-        update: { pubgPlayerName, lastSeenAt: now },
-        create: { pubgAccountId, pubgPlayerName, platformShard, firstSeenAt: now, lastSeenAt: now },
+        update: {
+          pubgPlayerName,
+          lastSeenAt: now,
+          ...(trackedClan ? { clanResolvedAt: now } : {}),
+        },
+        create: {
+          pubgAccountId,
+          pubgPlayerName,
+          platformShard,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          clanResolvedAt: trackedClan ? now : null,
+        },
       })
 
       await prisma.clanEncounter.upsert({

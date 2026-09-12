@@ -48,7 +48,9 @@ src/
     stats-calculator.ts       # Agrégats PlayerStats
   types/                      # Types TypeScript partagés
 
-scripts/                      # Scripts Node (worker télémétrie, batch, CLI)
+scripts/                      # Tous les scripts Node / TypeScript (worker télémétrie, batch, CLI, tests ad-hoc, backfills)
+                              # ⚠️ RÈGLE STRICTE : Tous les scripts utilitaires, de maintenance, de debug et de test
+                              # DOIVENT obligatoirement être créés et stockés dans ce dossier `scripts/` (jamais à la racine du projet).
 prisma/                       # Schéma et migrations
 docs/                         # Documentation technique (sommaire.md → index)
 ```
@@ -461,6 +463,18 @@ npm run start                        # Run production server (requires .next/sta
 npm run lint                         # Run ESLint
 npm run test:telemetry               # Run Vitest (telemetry parser tests only)
 ```
+
+### Règle d'emplacement des scripts
+
+> [!IMPORTANT]
+> **Tous les scripts doivent obligatoirement être stockés dans le répertoire `scripts/`.**  
+> Ne **JAMAIS** créer de scripts de test, de debug, de seed, de backfill ou de maintenance à la racine du projet (`/`).  
+> La racine est réservée exclusivement aux fichiers de configuration du projet (`next.config.ts`, `package.json`, `tsconfig.json`, etc.).  
+> Pour exécuter un script TypeScript ou JavaScript situé dans `scripts/` :
+> ```bash
+> npx tsx scripts/<nom-du-script>.ts
+> node scripts/<nom-du-script>.js
+> ```
 
 ### Memory Allocation
 

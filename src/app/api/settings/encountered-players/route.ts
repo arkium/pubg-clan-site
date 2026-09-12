@@ -56,6 +56,8 @@ export async function GET(request: Request) {
   const page = parsePage(url.searchParams.get('page'))
 
   const q = (url.searchParams.get('q') ?? '').trim()
+  const sortByParam = url.searchParams.get('sortBy')
+  const sortOrder: Prisma.SortOrder = url.searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc'
 
   const thresholds = {
     minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
@@ -67,71 +69,233 @@ export async function GET(request: Request) {
       ? { OR: statuses.map((status) => buildStatusWhereClause(status, thresholds)) }
       : undefined
 
-  const where: Prisma.EncounteredPlayerWhereInput = {
-    ...(statusFilter ?? {}),
-    ...(minAttempts !== null ? { resolveAttempts: { gte: minAttempts } } : {}),
-    ...(clanId !== null ? { clanId } : {}),
-    ...(q ? { pubgPlayerName: { contains: q } } : {}),
+  const andClauses: Prisma.EncounteredPlayerWhereInput[] = []
+
+  if (statusFilter) {
+    andClauses.push(statusFilter)
+  }
+  if (minAttempts !== null) {
+    andClauses.push({ resolveAttempts: { gte: minAttempts } })
+  }
+  if (clanId !== null) {
+    andClauses.push({ clanId })
+  }
+  if (q) {
+    const isContains = q.startsWith('*') || q.startsWith('%')
+    const cleanQ = isContains ? q.replace(/^[*%]+/, '').trim() : q
+    if (cleanQ) {
+      andClauses.push({
+        pubgPlayerName: isContains ? { contains: cleanQ } : { startsWith: cleanQ },
+      })
+    }
   }
 
-  const [total, rows] = await Promise.all([
-    prisma.encounteredPlayer.count({ where }),
-    prisma.encounteredPlayer.findMany({
+  const where: Prisma.EncounteredPlayerWhereInput =
+    andClauses.length > 0 ? { AND: andClauses } : {}
+
+  let orderBy: Prisma.EncounteredPlayerOrderByWithRelationInput[] = [
+    { resolveAttempts: 'desc' },
+    { encounterCount: 'desc' },
+  ]
+
+  if (sortByParam === 'totalEncounterCount' || sortByParam === 'encounterCount') {
+    orderBy = [{ encounterCount: sortOrder }]
+  } else if (sortByParam === 'resolveAttempts') {
+    orderBy = [{ resolveAttempts: sortOrder }, { encounterCount: 'desc' }]
+  } else if (sortByParam === 'lastSeenAt') {
+    orderBy = [{ lastSeenAt: sortOrder }]
+  } else if (sortByParam === 'pubgPlayerName') {
+    orderBy = [{ pubgPlayerName: sortOrder }]
+  } else if (sortByParam === 'status') {
+    orderBy = [{ clanResolvedAt: sortOrder }, { resolveAttempts: sortOrder }, { encounterCount: 'desc' }]
+  }
+
+  // Si recherche active (q) : agrégation immédiate et déduplication par joueur
+  if (q) {
+    const rawMatches = await prisma.encounteredPlayer.findMany({
       where,
-      orderBy: [{ resolveAttempts: 'desc' }, { encounterCount: 'desc' }, { lastSeenAt: 'desc' }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: { clan: { select: { tag: true, name: true } } },
-    }),
-  ])
+      include: { clan: { select: { id: true, name: true, tag: true } } },
+      orderBy: [{ encounterCount: 'desc' }, { lastSeenAt: 'desc' }],
+    })
 
-  // Nombre de clans suivis distincts ayant croisé chaque identité affichée —
-  // même logique de priorisation que le cron (voir selectPrioritizedEncounteredPlayerIdentities),
-  // ici uniquement informatif pour expliquer visuellement l'ordre de traitement.
-  const distinctClanCounts =
-    rows.length > 0
-      ? await prisma.encounteredPlayer.groupBy({
-          by: ['pubgAccountId', 'platformShard'],
-          where: {
-            OR: rows.map((row) => ({
-              pubgAccountId: row.pubgAccountId,
-              platformShard: row.platformShard,
-            })),
-          },
-          _count: { clanId: true },
-        })
-      : []
+    const playerMap = new Map<string, any>()
+    for (const row of rawMatches) {
+      let existing = playerMap.get(row.pubgAccountId)
+      if (!existing) {
+        existing = {
+          id: row.id,
+          playerId: row.playerId,
+          pubgAccountId: row.pubgAccountId,
+          platformShard: row.platformShard,
+          pubgPlayerName: row.pubgPlayerName,
+          pubgClanTag: row.pubgClanTag,
+          pubgClanName: row.pubgClanName,
+          resolveAttempts: row.resolveAttempts,
+          lastSeenAt: row.lastSeenAt,
+          totalEncounterCount: 0,
+          clans: [],
+          clanId: row.clanId,
+          clanTag: row.clan.tag,
+          clanName: row.clan.name,
+          clan: row.clan,
+          status: deriveEncounteredPlayerStatus(row, thresholds),
+        }
+        playerMap.set(row.pubgAccountId, existing)
+      }
+      existing.totalEncounterCount += row.encounterCount
+      existing.resolveAttempts = Math.max(existing.resolveAttempts, row.resolveAttempts)
+      if (row.lastSeenAt > existing.lastSeenAt) {
+        existing.lastSeenAt = row.lastSeenAt
+      }
+      if (row.pubgClanTag && !existing.pubgClanTag) {
+        existing.pubgClanTag = row.pubgClanTag
+        existing.pubgClanName = row.pubgClanName
+        existing.status = deriveEncounteredPlayerStatus(row, thresholds)
+      }
+      existing.clans.push({
+        clanId: row.clan.id,
+        clanName: row.clan.name,
+        clanTag: row.clan.tag,
+        encounterCount: row.encounterCount,
+        lastSeenAt: row.lastSeenAt.toISOString(),
+      })
+    }
 
-  const distinctClanCountByIdentity = new Map(
-    distinctClanCounts.map((group) => [
-      `${group.platformShard}:${group.pubgAccountId}`,
-      group._count.clanId,
-    ])
-  )
+    let uniquePlayers = Array.from(playerMap.values()).map((p) => ({
+      ...p,
+      distinctClanCount: p.clans.length,
+      lastSeenAt: p.lastSeenAt.toISOString(),
+    }))
 
-  return Response.json({
-    data: {
+    if (sortByParam === 'totalEncounterCount' || sortByParam === 'encounterCount') {
+      uniquePlayers.sort((a, b) =>
+        sortOrder === 'asc'
+          ? a.totalEncounterCount - b.totalEncounterCount
+          : b.totalEncounterCount - a.totalEncounterCount
+      )
+    } else if (sortByParam === 'distinctClanCount') {
+      uniquePlayers.sort((a, b) =>
+        sortOrder === 'asc'
+          ? a.distinctClanCount - b.distinctClanCount
+          : b.distinctClanCount - a.distinctClanCount
+      )
+    }
+
+    const total = uniquePlayers.length
+    const paginatedPlayers = uniquePlayers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+    const payload = {
       thresholds,
       page,
       pageSize: PAGE_SIZE,
       total,
-      players: rows.map((row) => ({
-        id: row.id,
-        playerId: row.playerId,
-        clanId: row.clanId,
-        clanTag: row.clan.tag,
-        clanName: row.clan.name,
-        pubgAccountId: row.pubgAccountId,
-        platformShard: row.platformShard,
-        pubgPlayerName: row.pubgPlayerName,
-        pubgClanTag: row.pubgClanTag,
-        pubgClanName: row.pubgClanName,
-        encounterCount: row.encounterCount,
-        resolveAttempts: row.resolveAttempts,
-        status: deriveEncounteredPlayerStatus(row, thresholds),
-        distinctClanCount: distinctClanCountByIdentity.get(`${row.platformShard}:${row.pubgAccountId}`) ?? 1,
-        lastSeenAt: row.lastSeenAt.toISOString(),
+      rows: paginatedPlayers,
+      players: paginatedPlayers,
+    }
+
+    return Response.json({
+      ...payload,
+      data: payload,
+    })
+  }
+
+  // Navigation standard (sans recherche de nom)
+  const [total, rows] = await Promise.all([
+    prisma.encounteredPlayer.count({ where }),
+    prisma.encounteredPlayer.findMany({
+      where,
+      orderBy,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: { clan: { select: { id: true, tag: true, name: true } } },
+    }),
+  ])
+
+  const accountIds = Array.from(new Set(rows.map((row) => row.pubgAccountId)))
+
+  // Récupérer toutes les rencontres des clans suivis pour chaque joueur de la page
+  const crossClanEncounters =
+    accountIds.length > 0
+      ? await prisma.encounteredPlayer.findMany({
+          where: { pubgAccountId: { in: accountIds } },
+          include: { clan: { select: { id: true, name: true, tag: true } } },
+          orderBy: { encounterCount: 'desc' },
+        })
+      : []
+
+  const encountersByAccount = new Map<string, typeof crossClanEncounters>()
+  for (const encounter of crossClanEncounters) {
+    const list = encountersByAccount.get(encounter.pubgAccountId) ?? []
+    list.push(encounter)
+    encountersByAccount.set(encounter.pubgAccountId, list)
+  }
+
+  // Déduplication au niveau de la page : un seul enregistrement par compte PUBG
+  const seenAccounts = new Set<string>()
+  const uniqueRows = rows.filter((row) => {
+    if (seenAccounts.has(row.pubgAccountId)) return false
+    seenAccounts.add(row.pubgAccountId)
+    return true
+  })
+
+  const mappedPlayers = uniqueRows.map((row) => {
+    const allClanEncounters = encountersByAccount.get(row.pubgAccountId) ?? [row]
+    const distinctClanCount = allClanEncounters.length
+    const totalEncounterCount = allClanEncounters.reduce((sum, e) => sum + e.encounterCount, 0)
+    const maxAttempts = Math.max(...allClanEncounters.map((e) => e.resolveAttempts))
+    const latestSeen = new Date(Math.max(...allClanEncounters.map((e) => e.lastSeenAt.getTime())))
+    const resolvedRow = allClanEncounters.find((e) => e.clanResolvedAt !== null)
+
+    return {
+      id: row.id,
+      playerId: row.playerId,
+      clanId: row.clanId,
+      clanTag: row.clan.tag,
+      clanName: row.clan.name,
+      clan: {
+        name: row.clan.name,
+        tag: row.clan.tag,
+      },
+      pubgAccountId: row.pubgAccountId,
+      platformShard: row.platformShard,
+      pubgPlayerName: row.pubgPlayerName,
+      pubgClanTag: resolvedRow?.pubgClanTag ?? row.pubgClanTag,
+      pubgClanName: resolvedRow?.pubgClanName ?? row.pubgClanName,
+      encounterCount: row.encounterCount,
+      totalEncounterCount,
+      distinctClanCount,
+      resolveAttempts: maxAttempts,
+      status: deriveEncounteredPlayerStatus(resolvedRow ?? row, thresholds),
+      lastSeenAt: latestSeen.toISOString(),
+      clans: allClanEncounters.map((e) => ({
+        clanId: e.clan.id,
+        clanName: e.clan.name,
+        clanTag: e.clan.tag,
+        encounterCount: e.encounterCount,
+        lastSeenAt: e.lastSeenAt.toISOString(),
       })),
-    },
+    }
+  })
+
+  if (sortByParam === 'distinctClanCount') {
+    mappedPlayers.sort((a, b) =>
+      sortOrder === 'asc'
+        ? a.distinctClanCount - b.distinctClanCount
+        : b.distinctClanCount - a.distinctClanCount
+    )
+  }
+
+  const payload = {
+    thresholds,
+    page,
+    pageSize: PAGE_SIZE,
+    total,
+    rows: mappedPlayers,
+    players: mappedPlayers,
+  }
+
+  return Response.json({
+    ...payload,
+    data: payload,
   })
 }

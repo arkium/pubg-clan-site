@@ -254,28 +254,66 @@ export default function OpponentsResolutionPage() {
           </div>
         )}
 
+        {/* Educational Callout */}
+        <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/60 p-3.5 sm:p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20 text-xs text-indigo-950 dark:text-indigo-200 flex items-start gap-3">
+          <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 leading-relaxed">
+            <p className="font-semibold text-slate-900 dark:text-slate-100">
+              💡 Rappel sur la découverte des joueurs et des clans
+            </p>
+            <p className="text-slate-600 dark:text-slate-300">
+              Le pseudo et l&apos;ID de chaque joueur sont <strong>déjà connus à 100%</strong> dès la fin des matchs. En revanche, PUBG n&apos;indique pas le clan dans les données de match. Le rôle du cron ci-dessous est d&apos;interroger l&apos;API PUBG joueur par joueur pour découvrir leur clan sans dépasser les quotas.
+            </p>
+          </div>
+        </div>
+
+        {/* Backlog Summary Highlight */}
+        {backlogData?.backlog && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wide">
+                Total des joueurs à découvrir (Clan PUBG inconnu)
+              </span>
+              <p className="text-xl sm:text-2xl font-black text-indigo-700 dark:text-indigo-300">
+                {(
+                  (backlogData.backlog.neverAttempted ?? 0) + (backlogData.backlog.retryPending ?? 0)
+                ).toLocaleString()}{' '}
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  joueurs ({Number(backlogData.backlog.neverAttempted ?? 0).toLocaleString()} jamais tentés + {Number(backlogData.backlog.retryPending ?? 0).toLocaleString()} en attente de relance)
+                </span>
+              </p>
+            </div>
+            <Link
+              href="/settings/opponents/triage"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold shadow-xs transition-colors"
+            >
+              Ouvrir le Triage des joueurs
+            </Link>
+          </div>
+        )}
+
         {/* Metric Cards Grid (Progressive Loading) */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <MetricCard
-            label="Jamais tenté"
+            label="Clans à découvrir (Jamais tenté)"
             value={
               loadingBacklog && !backlogData
                 ? '...'
                 : Number(backlogData?.backlog?.neverAttempted ?? 0).toLocaleString()
             }
-            tooltip="Joueurs croisés en match pour lesquels aucune tentative de résolution PUBG n'a encore été effectuée."
+            tooltip="Pseudos connus mais clan non encore interrogé auprès de PUBG. Joueurs croisés au moins 2 fois."
           />
           <MetricCard
-            label="Nouvel essai prévu"
+            label="Clans à relancer (Retry)"
             value={
               loadingBacklog && !backlogData
                 ? '...'
                 : Number(backlogData?.backlog?.retryPending ?? 0).toLocaleString()
             }
-            tooltip="Joueurs dont la précédente tentative a échoué (ex: rate limit temporaire ou timeout) et qui seront retentés automatiquement."
+            tooltip="Joueurs dont la précédente tentative a échoué (quota temporaire ou timeout) et qui seront retentés automatiquement."
           />
           <MetricCard
-            label="Échec définitif"
+            label="Sans réponse (Échec 5x)"
             value={
               loadingBacklog && !backlogData
                 ? '...'

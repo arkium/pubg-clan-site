@@ -1,6 +1,7 @@
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
+import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import Link from 'next/link'
 
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
@@ -220,11 +221,7 @@ export default function SquadMatchList({
 
                 <div className="flex w-full flex-wrap gap-1.5">
                   <TeamModeBadge mode={teamMode} className="shadow-sm" />
-                  {match.matchType !== 'official' ? (
-                    <span className="rounded-full border border-purple-200 bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-900">
-                      {match.matchType === 'custom' ? 'Custom' : match.matchType}
-                    </span>
-                  ) : null}
+                  <MatchTypeBadge matchType={match.matchType} size="sm" />
                   <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${resultTone(match.isWin)}`}>
                     {match.isWin ? 'Victoire' : 'Défaite'}
                   </span>

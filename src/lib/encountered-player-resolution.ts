@@ -147,6 +147,34 @@ export async function resolveOneEncounteredPlayerCandidate(
       }
     }
 
+    // Auto-découverte immédiate si ce joueur est déjà un membre officiel d'un de nos clans suivis
+    const trackedClanMember = await prisma.clanMember.findFirst({
+      where: { pubgAccountId: candidate.pubgAccountId },
+      include: { clan: true },
+    })
+
+    if (trackedClanMember?.clan) {
+      const now = new Date()
+      const { count } = await prisma.encounteredPlayer.updateMany({
+        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
+        data: {
+          clanResolvedAt: now,
+          pubgClanId: trackedClanMember.clan.pubgClanId ?? null,
+          pubgClanTag: trackedClanMember.clan.tag ?? null,
+          pubgClanName: trackedClanMember.clan.name ?? null,
+        },
+      })
+
+      const clanIdString = trackedClanMember.clan.pubgClanId ?? `clan.${trackedClanMember.clan.id}`
+      return {
+        outcome: 'resolved_with_clan',
+        pubgClanId: clanIdString,
+        pubgClanTag: trackedClanMember.clan.tag ?? null,
+        pubgClanName: trackedClanMember.clan.name ?? null,
+        updatedRowCount: count,
+      }
+    }
+
     const apiContext: PubgApiCallContext = {
       source:
         options?.source === 'manual'

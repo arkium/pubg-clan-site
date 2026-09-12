@@ -51,9 +51,9 @@ export default function OpponentsLayout({ children }: { children: React.ReactNod
   }
 
   const tabs = [
-    { name: 'Explorer', href: '/settings/opponents' },
-    { name: 'Résolution & Jobs', href: '/settings/opponents/resolution' },
-    { name: 'Triage', href: '/settings/opponents/triage' },
+    { name: 'Explorer', href: '/settings/opponents', description: 'Clans découverts' },
+    { name: 'Résolution & Jobs', href: '/settings/opponents/resolution', description: 'File d’attente & Cron' },
+    { name: 'Triage', href: '/settings/opponents/triage', description: 'Recherche & Unitaire' },
   ]
 
   return (
@@ -76,13 +76,22 @@ export default function OpponentsLayout({ children }: { children: React.ReactNod
                 <Link
                   key={tab.name}
                   href={tab.href}
-                  className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-semibold transition-colors ${
+                  className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-semibold transition-colors flex items-center gap-1.5 ${
                     isActive
                       ? 'border-indigo-500 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
                       : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
                 >
-                  {tab.name}
+                  <span>{tab.name}</span>
+                  <span
+                    className={`text-[10px] font-normal px-1.5 py-0.5 rounded-md ${
+                      isActive
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-medium'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.description}
+                  </span>
                 </Link>
               )
             })}

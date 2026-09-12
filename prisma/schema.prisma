@@ -93,6 +93,7 @@ model ClanMember {
 
   @@unique([pubgPlayerName, platformShard])
   @@index([clanId, lastMatchAt])
+  @@index([pubgAccountId], map: "idx_clan_member_pubg_account")
   @@map("ClanMember")
 }
 
@@ -143,8 +144,12 @@ model EncounteredPlayer {
   @@index([clanId, encounterCount])
   @@index([clanId, pubgClanTag])
   @@index([clanResolvedAt, encounterCount])
+  @@index([clanResolvedAt, resolveAttempts, encounterCount], map: "idx_ep_resolution")
+  @@index([clanResolvedAt, pubgClanTag], map: "idx_ep_resolved_clan")
+  @@index([lastSeenAt], map: "idx_ep_last_seen")
   @@index([clanResolvedAt, combatInteractionsCount])
   @@index([playerId])
+  @@index([pubgPlayerName], map: "idx_encountered_player_name")
   // Sert le regroupement par identité globale (priorisation cross-clan du
   // résolveur) : combien de clans distincts ont croisé ce compte, encore non
   // résolu.
@@ -185,6 +190,7 @@ model Player {
   @@unique([pubgAccountId, platformShard])
   @@index([opponentClanId])
   @@index([pubgPlayerName])
+  @@index([clanResolvedAt], map: "idx_player_clan_resolved")
   @@map("Player")
 }
 
@@ -617,6 +623,7 @@ model Match {
   createdAt DateTime @default(now())
 
   @@unique([memberId, pubgMatchId])
+  @@index([pubgMatchId], map: "idx_match_pubg_match_id")
   @@map("Match")
 }
 

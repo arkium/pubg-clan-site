@@ -1,4 +1,4 @@
-import { syncTrackedClanStats } from './src/lib/clan-service'
+import { syncTrackedClanStats } from '@/lib/clan-service'
 
 async function fix() {
   console.log("Synchronisation manuelle du clan 7...")

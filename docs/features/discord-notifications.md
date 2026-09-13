@@ -246,7 +246,9 @@ Toutes exigent `manage_settings` sur le clan.
 
 ## Tests
 
-`npx vitest run src/lib/discord` — 58 tests répartis sur 6 fichiers.
+`npx vitest run src/lib/discord` — 82 tests répartis sur 7 fichiers.
+
+Les tests de route vivent dans `src/lib/` et non à côté des routes : `vitest.config.ts` ne collecte que `src/lib/**/*.test.ts`, un fichier posé ailleurs ne serait jamais exécuté.
 
 | Fichier | Couverture |
 |---|---|
@@ -256,5 +258,6 @@ Toutes exigent `manage_settings` sur le clan.
 | `discord-tournament-embed.test.ts` | Médailles et numérotation, bonus conditionnel, MVP, bloc classement optionnel, lien de replay, bornage à 1024 caractères |
 | `discord-service.test.ts` | Chaque filtre isolément, dédoublonnage, relâchement du verrou sur échec, absorption d'une panne base |
 | `discord-tournament-service.test.ts` | Numérotation chronologique, barème de bout en bout, MVP, priorité du webhook de tournoi, 404 sur manche étrangère, aucun POST en prévisualisation |
+| `discord-route-contracts.test.ts` | Contrats des trois routes de configuration : contrôle d'accès `manage_settings`, propagation des 401/403, validation d'URL et de mention, refus divers en 400, aiguillage Top 1/Tournoi du test, 502 sur refus Discord |
 
 Le barème par manche est testé séparément dans `src/lib/tournament-service.test.ts` (`computeTournamentRoundScores`).

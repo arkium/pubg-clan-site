@@ -146,10 +146,12 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
   - Test du filtre de membres : ignoré si l'escouade a moins de membres clan que le seuil configuré.
   - Test du dédoublonnage : un deuxième appel pour le même `squadMatchId` ne produit aucun appel HTTP.
   - Test de résilience : échec d'envoi Discord → verrou relâché, aucune exception ; panne base de données → aucune exception.
-- [ ] **`src/app/api/clans/[clanId]/settings/discord/route.test.ts` :** *non écrit —* `vitest.config.ts` ne couvre que `src/lib/**/*.test.ts`, un test de route demanderait d'élargir le `include` (aucune route du projet n'est testée aujourd'hui depuis `src/app/`). La validation du payload est couverte par `discord-config.test.ts` ; le contrôle d'accès repose sur `requirePermission('manage_settings')`, identique aux autres routes de settings.
-  - Contrôle d'accès : rejet `401/403` si l'utilisateur n'a pas les droits d'administration du clan.
-  - Sauvegarde et validation du format de l'URL Webhook (doit démarrer par `https://discord.com/api/webhooks/` ou `https://discordapp.com/api/webhooks/`).
-  - Endpoint de test : validation de l'appel test vers Discord.
+- [x] **`src/lib/discord/discord-route-contracts.test.ts` (24 tests) :** contrats des trois routes de configuration. Placé dans `src/lib/` et non à côté de la route, car `vitest.config.ts` ne collecte que `src/lib/**/*.test.ts` — même convention que `route-contracts.test.ts` et `drop-pressure-route-contracts.test.ts`, qui importent eux aussi leur handler depuis `src/app/`.
+  - Contrôle d'accès : `requirePermission('manage_settings')` sur le bon `clanId`, propagation des `401` et `403`, et vérification qu'aucune écriture ni appel Discord n'a lieu quand l'accès est refusé.
+  - Validation de l'URL Webhook : rejet d'un domaine tiers, du HTTP simple et d'un chemin incomplet ; acceptation de `discord.com` et du domaine historique `discordapp.com` ; webhook vide toléré tant que le flux est désactivé, refusé dès qu'on l'active.
+  - Autres refus couverts : identifiant de rôle non numérique, seuil de membres hors 2/3/4, bloc tournoi manquant, corps de requête illisible, panne de persistance en 500.
+  - Endpoint de test : aiguillage Top 1 / Tournoi selon `kind`, `502` avec le message exact renvoyé par Discord en cas de refus, `500` sur exception inattendue.
+  - Robustesse vérifiée par mutation : en relâchant `WEBHOOK_URL_PATTERN`, les quatre tests de validation d'URL échouent bien.
 
 ##### Tests Manuels & Recette Fonctionnelle
 - [ ] **Configuration UI :**
@@ -172,6 +174,327 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
 
 ---
 
+### Refonte UI/UX des Tournois — Page Publique Globale (`/tournaments`) & Paramétrage Clan (`/clans/[clanId]/settings/tournaments`)
+
+> ⚠️ **Contrainte UI/UX obligatoire (Règles du projet & [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html))** :
+> Toute nouvelle interface ou refonte de page doit **impérativement** respecter la charte graphique documentée dans [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html). Cela inclut :
+> - L'utilisation exclusive des classes de surface du design system : `.app-panel`, `.app-table`, `.app-table-header`, `.app-table-row`, `.app-modal-card`, `.app-modal-backdrop`, `.app-modal-callout`, `.app-btn`, `.app-segmented-control`.
+> - Les tokens de thème CSS (`--theme-ui-surface`, `--theme-ui-border`, `--theme-ui-surface-soft`, etc.).
+> - Le support natif et irréprochable du **mode sombre** (`dark:bg-slate-900`, `dark:border-slate-800`, `dark:text-slate-100`, etc.) et du mode clair — aucun texte clair sur fond clair ni style inline non réactif.
+> - Des animations soignées et fluides pour les interactions (rotation de chevron à 180°, pulsation des badges « En direct », transitions de survol des lignes de tableau).
+
+#### 1. Contexte & Objectifs
+
+- **Faiblesse de la page publique `/tournaments` :**
+  - Actuellement, la page affiche une simple liste de cartes empilées avec du style clair codé en dur (`bg-white`, `border-gray-200`, `text-gray-900`), sans support propre du mode sombre.
+  - Aucune barre de recherche, aucun filtre par statut (actif vs terminé), par mode ou par carte.
+  - Les tournois terminés encombrent l'affichage au même niveau que les compétitions en direct.
+  - Absence de badges riches permettant de distinguer en un coup d'œil le clan organisateur, le format PUBG (Squad/Duo/Solo), la carte et le mode de scoring.
+- **Ergonomie de la page de gestion `/clans/[clanId]/settings/tournaments` :**
+  - Formulaire de création massif situé au-dessus de la liste des tournois, obligeant à scroller.
+  - Impossibilité de supprimer un tournoi depuis l'interface (alors que la route API `DELETE` existe déjà).
+  - Absence d'explications et d'accompagnement sur le fonctionnement des tournois.
+- **Nouveaux modes de jeu :** Permettre au Clan Owner de choisir parmi 4 modes de tournois (Inter-Clans avec options de prorata, Équipes Libres, Solo FFA, Intra-Clan) et adapter en conséquence les notifications Discord.
+
+---
+
+#### 2. Découpage fonctionnel
+
+---
+
+##### VOLET 1 : Page Publique Globale des Tournois (`/tournaments`)
+
+- [ ] **Hero Header Immersif :**
+  - Bannière visuelle avec l'image thématique `/ClanLeaderboardTable.jpg`, dégradé sombre (`from-black/90 via-black/40 to-transparent`), icône dorée `Trophy`.
+  - Titre principal `Tournois & Compétitions`, sous-titre expliquant la scène compétitive inter-clans.
+  - Compteur dynamique en badge : ex: `🔥 2 tournois en cours` et `🏆 14 tournois archivés`.
+  - Bouton d'accès rapide pour les administrateurs de clan connectés : `⚙️ Gérer les tournois de mon clan` (pointant vers `/clans/[clanId]/settings/tournaments`).
+
+- [ ] **Barre d'outils, Recherche & Filtres Dynamiques (`.app-panel`) :**
+  - **Recherche instantanée :** Barre de saisie fluide avec icône loupe, filtrant en direct sur le nom du tournoi, la description et le nom du clan organisateur, avec bouton d'effacement rapide (`X`).
+  - **Filtre de statut :** Boutons rapides / SegmentedControl : `Tous`, `🔥 En direct (Actifs)`, `⏳ À venir`, `🏁 Terminés`.
+  - **Filtres combinés :**
+    - Filtre Mode de jeu : `Tous les formats`, `Squad FPP`, `Duo`, `Solo`.
+    - Filtre Carte : `Toutes les cartes`, `Erangel`, `Miramar`, `Taego`, `Rondo`, etc.
+    - Filtre Mode de tournoi : `Tous les modes`, `Inter-Clans`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
+  - **Tri dynamique :** Par `Date (plus récents)`, `Date (plus anciens)`, `Nom (A-Z)`.
+  - **Compteur de résultats :** Badge contextuel (ex: `4 tournois trouvés sur 12`) avec bouton de réinitialisation si aucun résultat.
+
+- [ ] **Section Prioritaire : « Tournois en Direct & À Venir » (Grille de Cartes Héroïques) :**
+  - Mise en avant des compétitions actives en haut de page avec des cartes `.app-panel` riches et modernes :
+    - **Badge Statut dynamique :** Badge vert avec point pulsant (`animate-pulse`) `● EN DIRECT` pour les tournois en cours, badge bleu `À VENIR` pour ceux qui démarrent prochainement.
+    - **Badges contextuels de match :**
+      - Badge Mode PUBG (`Squad`, `Duo`, `Solo`) via le composant `TeamModeBadge`.
+      - Badge Carte avec icône ou miniature (ex: `Erangel`, `Miramar`).
+      - Badge Mode de calcul : `Inter-Clans (Partage 100%)`, `Inter-Clans (Prorata)`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
+    - **Bloc Organisateur :** Tag et nom du clan avec lien cliquable vers la page du clan (`/clans/[clanId]/overview`).
+    - **Période & Compte à rebours :** Dates formatées et temps restant (ex: `Se termine dans 3 jours`).
+    - **Bouton d'action proéminent :** Bouton `👁️ Suivre le direct / Classement` (`.app-btn--primary`) menant à `/tournaments/[tournamentId]`.
+
+- [ ] **Section « Archives des Tournois Terminés » — Accordéon avec Chevron & Tableau Triable :**
+  - **En-tête de section interactif :**
+    - Bouton bandeau `.app-panel` cliquable avec `ChevronDown` rotatif (`transition-transform duration-200 rotate-180`).
+    - Titre : `Archives des tournois terminés` accompagné d'un badge compteur discret `(N tournois)`.
+    - **Replié par défaut** si le nombre de tournois terminés est supérieur à 3, afin de privilégier la lisibilité des tournois en cours.
+  - **Tableau Interactif Triable (`.app-table`, `.app-table-header`, `.app-table-row`) :**
+    - Remplacement de la simple liste par un tableau structuré conforme à la charte graphique :
+      1. **Colonne Tournoi :** Nom du tournoi en gras, description courte et badge du mode de calcul.
+      2. **Colonne Organisateur :** Tag et nom du clan organisateur avec avatar/initiales.
+      3. **Colonne Format & Carte :** Badges compacts (Mode PUBG + Carte).
+      4. **Colonne Période :** Date de début → Date de fin avec tri possible par date.
+      5. **Colonne Vainqueur / Podium :** Badge trophée or avec le nom du clan vainqueur ou de l'équipe championne.
+      6. **Colonne Action :** Bouton d'accès au rapport complet et classement final (`.app-btn--secondary app-btn--xs`).
+    - **Tri sur les colonnes :** Flèches de tri interactives sur les en-têtes (Nom, Date, Organisateur).
+    - Lignes entièrement cliquables avec effet de survol (`hover:bg-slate-100/60 dark:hover:bg-slate-800/60`).
+
+---
+
+##### VOLET 2 : Administration du Clan (`/clans/[clanId]/settings/tournaments`)
+
+- [ ] **Navigation par 3 Onglets (`SegmentedControl`) :**
+  1. **🏆 Tournois (`tournaments`) :** Vue principale de pilotage. Contient la barre d'outils, la recherche, les tournois actifs en vue prioritaire, et les tournois archivés/brouillons en accordéon repliable avec chevron. Bouton proéminent *« + Nouveau tournoi »*.
+  2. **✏️ Créer / Modifier un tournoi (`editor`) :** Formulaire structuré en 5 blocs clairs. Bascule dynamique sur *« Modifier : {Titre} »* lors du clic sur Modifier.
+  3. **💡 Guide & Fonctionnement (`guide`) :** Centre d'aide interactif intégré au format callout.
+
+- [ ] **Barre d'outils & Gestion des Tournois du Clan :**
+  - Recherche textuelle en direct sur les tournois gérés par le clan.
+  - Filtres de statut (`Tous`, `Actifs`, `Terminés`, `Brouillons`).
+  - Section Tournois Actifs avec actions rapides : `🔄 Synchroniser PUBG`, `📢 Diffuser sur Discord`, `👁️ Voir le classement`, `✏️ Modifier`, `🗑️ Supprimer`.
+  - Section repliable avec chevron pour les tournois terminés et les brouillons.
+
+- [ ] **Formulaire Structuré en 5 Blocs :**
+  1. **Informations Générales :** Titre, description, dates de début et fin avec validation (date de fin ≥ date de début), statut (`Brouillon`, `Actif`, `Terminé`).
+  2. **Mode de Tournoi & Attribution des Points (Au choix du Clan Owner) :**
+     - Choix parmi les 4 modes : `Inter-Clans`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
+     - Si `Inter-Clans` : Choix de la règle d'escouade mixte (`Partage 100 %` ou `Prorata`).
+  3. **Format & Filtres PUBG :** Sélection du mode de jeu (Tous, Squad, Duo, Trio, Solo) et de la carte (Toutes, Erangel, etc.).
+  4. **Barème de points :** Top 1 à Top 10 préremplis, points par kill, bonus victoire, best-of N manches (`bestOfRounds`).
+  5. **Diffusion Discord :** Surcharge optionnelle du webhook Discord pour ce tournoi.
+
+- [ ] **Suppression Sécurisée d'un Tournoi :**
+  - Bouton `🗑️ Supprimer` (`.app-btn--danger`) sur chaque tournoi de la liste.
+  - Modale de confirmation sécurisée (`TournamentDeleteModal`) conforme `.app-modal-card` et `.app-modal-backdrop`.
+  - Message rassurant indiquant que les matchs PUBG bruts et les statistiques restent préservés en base de données.
+  - Appel à `DELETE /api/clans/[clanId]/tournaments/[tournamentId]`.
+
+---
+
+##### VOLET 3 : Page Détail & Classement d'un Tournoi (`/tournaments/[tournamentId]`)
+
+- [ ] **Hero Header Immersif & Statut Dynamique :**
+  - Titre principal, clan organisateur avec lien vers sa page, dates de début et fin.
+  - Badge de statut dynamique avec pulsation : `● EN DIRECT` (vert), `⏳ À VENIR` (bleu) ou `🏁 TERMINÉ` (gris).
+  - Badges contextuels :
+    - Badge du Mode de Tournoi : `Inter-Clans (100 %)`, `Inter-Clans (Prorata)`, `Équipes Libres`, `Solo FFA`, `Tournoi Interne`.
+    - Badge Format de match (`Squad FPP`, `Duo`, `Solo`) via `TeamModeBadge`.
+    - Badge Carte (`Erangel`, `Miramar`, etc.).
+    - Badge Clans participants détectés automatiquement.
+  - **Barre d'Actions Rapides Organisateur (Boutons en en-tête pour le Clan Owner / Admin) :**
+    - `🔄 Synchroniser PUBG` : Déclenche l'import immédiat des matchs récents depuis l'API PUBG sans devoir retourner dans les réglages.
+    - `📢 Diffuser sur Discord` : Ouvre instantanément la modale `TournamentBroadcastModal`.
+    - `⚙️ Paramètres du tournoi` : Raccourci vers `/clans/[clanId]/settings/tournaments`.
+
+- [ ] **Barème de Points Compact & Rétractable :**
+  - Remplacement du pavé rigide actuel par un ruban épuré et dépliable (callout `.app-modal-callout`) :
+    - Points par Kill, Bonus Top 1, limitation aux N meilleures manches (`bestOfRounds`), et grille Top 1 à Top 10.
+    - Mention explicite de la règle de partage des escouades mixtes (Partage intégral ou Prorata).
+
+- [ ] **Podium Héroïque Interactif (Top 1, 2, 3) :**
+  - Mise en avant graphique des 3 premiers du classement actuel avec couronnes/médailles or, argent, bronze, avatars/tags de clan et total de points.
+
+- [ ] **Classement Polymorphique adapté aux 4 Modes de Tournoi (`.app-table`) :**
+  - **Mode 1 : Inter-Clans (`inter_clan`) :**
+    - Tableau par Clan (Rang, Clan, Points totaux, Kills, Manches jouées, Victoires).
+    - Si règle `prorata` : affichage des points décimaux (ex: `18.5 pts`) avec infobulle explicative de la répartition.
+    - **Toggle de granularité :** Bouton à bascule `[ Cumul par Clan ]` / `[ Détail par Escouade ]` pour observer le comportement de chaque escouade au sein des clans.
+  - **Mode 2 : Équipes Libres (`custom_teams`) :**
+    - Tableau par Équipe : Nom de l'équipe, liste des joueurs avec leurs tags de clan respectifs (ex: `[SMK] Pagiotte, [ARK] Nova`), Points, Kills, Victoires.
+  - **Mode 3 : Solo FFA (`solo_ffa`) :**
+    - Leaderboard individuel des joueurs (Top 1 à N) : Rang, Joueur (avatar + pseudo + tag clan), Kills, Dégâts totaux, Meilleur placement, Points totaux.
+    - Bloc « MVP de la Compétition » mettant en avant le joueur ayant le plus de kills et dégâts.
+    - Tableau secondaire rétractable « Trophée des Clans » (somme des points marqués par les membres de chaque clan).
+  - **Mode 4 : Tournoi Interne (`intra_clan`) :**
+    - Classement des escouades internes du clan organisateur avec composition complète des coéquipiers.
+
+- [ ] **Section Manches & Matchs Comptabilisés (`Manche #N`) :**
+  - Numérotation chronologique des manches : `Manche #1`, `Manche #2`, etc.
+  - Carte de manche détaillée :
+    - Carte, heure et mode de jeu.
+    - Vainqueur de la manche (Top 1) et MVP de la manche (dégâts/kills).
+    - Récapitulatif des scores de la manche pour chaque équipe/clan.
+    - **Bouton d'accès direct au Débriefing 2D :** `🗺️ Débriefing & Replay Télémétrique` (pointant vers la page de débriefing de la manche).
+
+---
+
+##### VOLET 4 : Unification Télémétrie & Débriefing de Manche (`/matches/[matchId]/telemetry` vs `/debrief`)
+
+> **Stratégie d'Architecture : Finaliser et consolider `/clans/[clanId]/telemetry/matches/[matchId]/debrief` en priorité**
+> Plutôt que de maintenir deux pages de télémétrie divergentes (l'ancienne page monolithique de 65 Ko sur les tournois et la nouvelle page moderne de débriefing sur les clans), la stratégie retenue est de **finaliser d'abord la page de Débriefing à 4 onglets**, puis de l'exploiter pour les matchs de tournois.
+
+- [ ] **Les 4 Chantiers d'Amélioration & Finalisation du Débriefing :**
+  1. **🎮 Véritable Replay 2D interactif animé sur Carte Tactique (Inspiration PUBG.PLUS) :**
+     - **Lecteur multimédia dynamique :** Contrôles `Lecture / Pause`, barre de progression temporelle interactive (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
+     - **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
+     - **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
+       - `Mode Escouade` : notre clan / équipe et les adversaires au contact direct ou engagés en duel.
+       - `Mode Tournoi / Suivis` : l'ensemble des membres des clans suivis et équipes participantes au tournoi.
+       - `Mode Global (100 joueurs)` : vue intégrale sur tous les joueurs du lobby avec pastilles numérotées par escouade (façon PUBG.PLUS).
+     - **Suivi Caméra Automatique (*Camera Follow*) :** Clic sur un joueur ou une équipe pour centrer et verrouiller la caméra sur lui, avec suivi automatique de ses déplacements sur la carte pendant la lecture.
+     - **Animation dynamique des cercles & combats :**
+       - Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match.
+       - Effet visuel des tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log.
+  2. **🩺 Correction du décompte des impacts et Refonte Graphique de la Silhouette (`DamageBodySvg`) :**
+     - **Refonte visuelle et stylistique complète de la silhouette (Style Opérateur Tactique PUBG) :**
+       - Remplacement de la forme trapue/basique actuelle par un tracé vectoriel SVG haute fidélité, athlétique et moderne (silhouette d'opérateur militaire / Battle Royale).
+       - Découpage anatomique précis et stylé :
+         - **Casque militaire PUBG Level 3 (Spetsnaz)** avec visière blindée distincte.
+         - **Gilet pare-balles tactique (Military Vest)** avec plaques balistiques et collerette.
+         - **Bassin & ceinture utilitaire** avec étuis et démarcation nette.
+         - **Membres segmentés** (bras/avant-bras/gants tactiques, cuisses/genouillères/bottes d'intervention).
+       - Esthétique HUD holographique militaire : tracés fins, shaders/dégradés lumineux néon réactifs selon la gravité des dégâts (Rouge cramoisi létal avec glow, Orange intense, Jaune ambré, Ardoise/Cyan neutre).
+       - Réticule de visée et repères holographiques d'impacts précis au survol.
+     - **Correction mathématique du décompte des impacts corporels :**
+       - Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`.
+       - Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade.
+  3. **🗺️ Résolution et affichage garanti de l'image satellite de la carte :**
+     - Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) :
+       - `Erangel` / `Erangel (Remastered)` ↔ `Baltic_Main`
+       - `Miramar` ↔ `Desert_Main`
+       - `Sanhok` ↔ `Savage_Main`
+       - `Vikendi` ↔ `DihorOtok_Main`
+       - `Taego` ↔ `Tiger_Main`
+       - `Deston` ↔ `Kiki_Main`
+       - `Rondo` ↔ `Neon_Main`
+       - `Karakin` ↔ `Summerland_Main`
+       - `Paramo` ↔ `Chimera_Main`
+     - Garantie de chargement de l'image haute résolution `/maps/pubg/${mapKey}.webp` sans aucune erreur 404.
+  4. **👤 Noms complets de tous les joueurs (non-membres et adversaires du lobby) :**
+     - Enrichissement du mapping d'identité (`memberIdentityMap`) : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
+     - Affichage garanti du nom complet pour les adversaires inconnus, sans tronquage ni identifiant brut.
+
+- [ ] **Mode contextuel Tournoi :**
+  - Lorsque le débriefing est ouvert depuis un tournoi (`/tournaments/[tournamentId]/matches/[matchId]/telemetry` ou avec `?tournamentId=...`), la page affiche :
+    - Un bandeau en tête : `🏆 Manche #{N} du Tournoi : {Nom Tournoi}`.
+    - Le récapitulatif des points attribués lors de cette manche selon les règles du tournoi.
+    - Le lien direct de retour vers le classement général du tournoi (`/tournaments/[tournamentId]`).
+
+---
+
+##### VOLET 5 : Adaptation des Notifications Discord & Moteur de Scoring
+
+- [ ] **Générateur d'Embed Polymorphique (`discord-tournament-embed.ts`) :**
+  - Embed adapté dynamiquement selon le mode du tournoi :
+    - Mode Inter-Clans (avec note de prorata si activé).
+    - Mode Équipes Libres (nom d'équipe + membres et clans d'origine).
+    - Mode Solo FFA (leaderboard individuel et MVP dégâts/kills).
+    - Mode Tournoi Interne (classement des escouades internes du clan).
+- [ ] **Service d'orchestration (`discord-tournament-service.ts`) :**
+  - Transmission des règles et du mode au générateur d'embeds et à `computeTournamentRoundScores`.
+
+---
+
+##### VOLET 6 : Onglet « Guide & Fonctionnement »
+
+- [ ] **Fiches explicatives au format `.app-modal-callout` :**
+  1. **Comment sont capturés les matchs ?** : Parties personnalisées (`matchType: custom`).
+  2. **Règle d'or de l'organisateur :** Présence obligatoire d'un membre du clan organisateur dans le match.
+  3. **Les 4 Modes de Tournoi :** Fonctionnement des modes Inter-Clans (100% ou Prorata), Équipes Libres, Solo FFA et Intra-Clan.
+  4. **Synchronisation PUBG :** Récupération automatique ou manuelle en un clic.
+  5. **Calcul des scores :** Barème détaillé de placement, kills et victoires.
+  6. **Diffusion Discord :** Publication manche par manche avec prévisualisation.
+
+---
+
+#### 3. Spécification détaillée des 4 Modes de Tournois & Règles de Partage
+
+Le choix du mode est stocké dans le champ `rules: Json` de la table `Tournament` sous la structure suivante :
+```typescript
+type TournamentRules = {
+  mode: 'inter_clan' | 'custom_teams' | 'solo_ffa' | 'intra_clan'
+  mixedSquadRule?: 'full_share' | 'prorata' // Spécifique au mode inter_clan
+  placementPoints: Record<number, number>
+  killPoints: number
+  winBonus: number
+  bestOfRounds: number | null
+}
+```
+
+##### 1. Mode Inter-Clans (`inter_clan` — Clan vs Clan)
+- **Objectif :** Établir la suprématie entre plusieurs clans enregistrés sur la plateforme.
+- **Règles pour les escouades mixtes (au choix du Clan Owner) :**
+  - **Option 1.A — Partage intégral (`full_share`) :**
+    - Chaque clan présent dans l'escouade reçoit 100 % des points de placement de l'escouade + ses kills respectifs.
+  - **Option 1.B — Partage au prorata (`prorata`) :**
+    - Les points de placement et de victoire sont divisés au prorata de l'effectif (ex: 2 membres Clan A + 2 membres Clan B = 50 % des points de placement à chaque clan) + leurs kills respectifs.
+
+##### 2. Mode Équipes Libres / Escouades Mixtes (`custom_teams`)
+- **Objectif :** Classer des équipes de 2 à 4 joueurs fixes pouvant venir de n'importe quel clan suivi ou d'alliances inter-clans.
+- **Calcul :** La clé d'équipe est l'ensemble trié des `memberId` (`buildTeamKey`). L'équipe cumule ses points de placement, kills et victoires sous son nom d'équipe.
+- **Affichage :** Le classement affiche le nom d'équipe et la composition avec les tags de clan de chacun.
+
+##### 3. Mode Solo / Battle Royale Individuel (`solo_ffa`)
+- **Objectif :** Classement individuel joueur par joueur.
+- **Calcul :** Chaque joueur participant marque des points selon son placement final personnel et ses kills.
+- **Affichage :** Leaderboard individuel des joueurs (Top 1 à Top 100), avec affichage optionnel d'un classement dérivé par clan calculé par la somme des scores de leurs membres.
+
+##### 4. Mode Tournoi Interne au Clan (`intra_clan`)
+- **Objectif :** Scrims internes et championnats propres à un seul clan.
+- **Calcul :** Seuls les membres appartenant au clan organisateur sont éligibles. Les escouades internes du clan s'affrontent pour le titre de champion interne.
+
+---
+
+#### 4. Plan de Tests & Recette
+
+##### Tests Automatisés (Vitest — `src/lib/tournament-service.test.ts` & `src/lib/discord/`)
+- [ ] **Moteur de règles et calculs des scores (`tournament-service.test.ts`) :**
+  - **Mode Inter-Clans - Option Partage Intégral :** Vérifier que chaque clan représenté reçoit 100 % des points de placement.
+  - **Mode Inter-Clans - Option Prorata :** Vérifier la division exacte des points de placement et bonus selon la répartition des joueurs (ex: 2/4 = 50%, 1/4 = 25%).
+  - **Mode Équipes Libres :** Vérifier le regroupement par clé d'équipe indépendamment du clan.
+  - **Mode Solo FFA :** Vérifier le calcul individuel par joueur sans regroupement d'escouade.
+  - **Mode Intra-Clan :** Vérifier l'exclusion des joueurs tiers n'appartenant pas au clan organisateur.
+- [ ] **Générateur d'Embed Discord (`discord-tournament-embed.test.ts`) :**
+  - Test de rendu de l'embed pour chacun des 4 modes de tournoi.
+  - Vérification de la mention du prorata en mode Inter-Clans avec option prorata.
+  - Vérification de l'affichage des noms d'équipes et membres en mode Équipes Libres.
+  - Vérification du format leaderboard individuel en mode Solo FFA.
+  - Vérification du titre spécifique en mode Intra-Clan.
+- [ ] **Suppression :**
+  - Vérifier que la suppression d'un tournoi supprime l'enregistrement sans toucher aux `SquadMatch` ni aux membres.
+  - Vérifier le rejet 403 si un clan non organisateur tente de supprimer.
+
+##### Tests d'Intégration API (`src/lib/discord/discord-route-contracts.test.ts` & routes tournois)
+- [ ] `POST /api/clans/[clanId]/tournaments` :
+  - Validation du payload avec les nouveaux champs de mode (`mode`, `mixedSquadRule`).
+  - Validation des valeurs par défaut (`mode: 'inter_clan'`, `mixedSquadRule: 'full_share'`).
+- [ ] `DELETE /api/clans/[clanId]/tournaments/[tournamentId]` :
+  - Vérification des permissions (`manage_settings` obligatoire, SuperUser autorisé).
+  - Validation du statut 200 `{ success: true }`.
+  - Rejet 404 si le tournoi n'existe pas.
+  - Rejet 403 si `organizerClanId !== clanId`.
+
+##### Tests Manuels & Recette UI/UX (Conformité stricte [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html))
+- [ ] **Page Publique `/tournaments` :**
+  - **Conformité des classes UI :** Vérifier l'utilisation exclusive de `.app-panel`, `.app-table`, `.app-btn`, etc.
+  - **Mode Sombre / Mode Clair :** Vérifier le contraste parfait sur tous les badges, textes, cartes et en-têtes de tableau.
+  - **Barre de recherche et filtres :** Filtrage instantané lors de la frappe, interaction des filtres de statut et de mode de jeu.
+  - **Accordéon avec chevron sur les archives :** Vérifier le clic, la rotation fluide du chevron (`rotate-180`) et l'affichage du tableau.
+  - **Tri du tableau des tournois passés :** Vérifier le tri ascendant/descendant sur les colonnes Date, Nom et Organisateur.
+- [ ] **Page Paramètres `/clans/[clanId]/settings/tournaments` :**
+  - Navigation fluide entre les 3 onglets.
+  - Sélection dynamique des modes et options de prorata dans le formulaire.
+  - Modale de suppression sécurisée (`TournamentDeleteModal`) : vérification de la fermeture, de l'annulation et de l'exécution avec toast de succès.
+- [ ] **Prévisualisation Discord adaptée :**
+  - En cliquant sur *Diffuser sur Discord*, vérifier que l'aperçu correspond bien au mode choisi pour ce tournoi.
+- [ ] **Page Débriefing de Match (`/telemetry/matches/[matchId]/debrief`) :**
+  - **Silhouette Anatomique Tactique (`DamageBodySvg`) :**
+    - Vérifier le rendu esthétique haut de gamme (design opérateur militaire élancé, casque T3, gilet pare-balles, membres découpés).
+    - Vérifier les dégradés et halos néon (rouge cramoisi, orange, jaune, neutre).
+    - Vérifier la réactivité au survol de chaque zone avec l'affichage fidèle des dégâts réels et pourcentages.
+  - **Replay 2D :** Vérifier la fluidité des animations, le zoom/pan molette, le suivi de caméra et le basculement entre les 3 modes (Escouade, Tournoi, Global 100 joueurs).
+- [ ] **Thème sombre / clair :**
+  - Vérifier la parfaite lisibilité de chaque composant, bordure, bouton et texte en mode clair et en mode sombre.
+
+---
 
 ### ~~Gestion compacte des membres (`/clans/[clanId]/settings/members`) — Chevron de déploiement, badges abrégés et légende~~ — ✅ Complété le 2026-09-06
 
@@ -1811,6 +2134,25 @@ Afin de ne pas surcharger la page et de maintenir une navigation fluide :
       - Ajout de la fenêtre de largage active (`dropStart` / `dropEnd`) avec balises visuelles distinctes.
       - Normalisation du cap compas aéronautique (`0° - 360°`) et rotation orientée de l'icône avion.
       - Correction du ratio de dimensionnement des cercles de zone (`radius / bounds.width * 100`).
+  - [ ] **🎮 Véritable Replay 2D interactif animé (Inspiration PUBG.PLUS) :**
+    - **Lecteur multimédia dynamique :** Commandes Play/Pause, barre de progression temporelle (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
+    - **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
+    - **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
+      - `Mode Escouade` : notre clan / équipe et les adversaires au contact direct ou engagés en duel.
+      - `Mode Tournoi / Suivis` : l'ensemble des membres des clans suivis et équipes participantes au tournoi.
+      - `Mode Global (100 joueurs)` : vue intégrale sur tous les joueurs du lobby avec pastilles numérotées par escouade (façon PUBG.PLUS).
+    - **Suivi Caméra Automatique (*Camera Follow*) :** Clic sur un joueur ou une équipe pour centrer et verrouiller la caméra sur lui, avec suivi automatique de ses déplacements sur la carte pendant la lecture.
+    - **Animation dynamique des cercles & combats :**
+      - Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match.
+      - Événements de tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log.
+  - [ ] **🩺 Correction du décompte des impacts corporels (`DamageBodySvg`) :**
+    - Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`.
+    - Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade.
+  - [ ] **🗺️ Résolution et affichage garanti de l'image satellite de la carte :**
+    - Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) pour garantir que `/maps/pubg/${mapKey}.webp` charge toujours l'image haute résolution (ex: `Erangel` ↔ `Baltic_Main`, `Miramar` ↔ `Desert_Main`, `Sanhok` ↔ `Savage_Main`, `Taego` ↔ `Tiger_Main`, `Rondo` ↔ `Neon_Main`, etc.) sans erreur 404.
+  - [ ] **👤 Noms complets de tous les joueurs (non-membres et adversaires) :**
+    - Enrichissement de `memberIdentityMap` : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
+    - Fin des identifiants bruts ou tronqués pour les adversaires externes.
   - [ ] Revue et validation utilisateur sur le match réel `cmtonisut8oru04b2vnaaxrdj` (clan RAF + BOFS) et `cmtoouiyw8t6304b22w3f4u8y`.
   - [ ] Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`.
   - [ ] Documenter le composant `DamageBodySvg` dans le showroom `docs/ui/index.html`.

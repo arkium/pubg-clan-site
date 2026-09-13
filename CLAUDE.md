@@ -26,7 +26,7 @@
 | Tailwind CSS | 4 | Syntaxe `@import "tailwindcss"` dans globals.css |
 | Prisma | 6.19.3 | Library engine (Rust in-process), MySQL/MariaDB |
 | Node.js | 22 LTS | **Node 24 interdit** (prédev script bloque) |
-| Vitest | 2.1.9 | 210 tests — **tout `src/lib/**/*.test.ts`**, pas seulement la télémétrie |
+| Vitest | 2.1.9 | 234 tests — **tout `src/lib/**/*.test.ts`**, pas seulement la télémétrie |
 
 ## Organisation du code
 
@@ -412,10 +412,10 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 #### 9. **Vitest ne ramasse que `src/lib/**`**
 - **Issue:** `vitest.config.ts` déclare `include: ['src/lib/**/*.test.ts']`. Un test posé ailleurs
   (à côté d'une route dans `src/app/`, par exemple) n'est **jamais exécuté**, sans aucun avertissement.
-- **Conséquence:** aucune route API n'est testée aujourd'hui. Tester une route demande soit
-  d'élargir le `include`, soit de placer le test dans `src/lib/` (c'est ce que font
-  `route-contracts.test.ts` et `drop-pressure-route-contracts.test.ts`, qui importent le handler
-  `GET` depuis `src/app/`).
+- **Convention:** pour tester une route, placer le test dans `src/lib/` et importer le handler
+  depuis `src/app/` — c'est ce que font `pubg-telemetry/route-contracts.test.ts`,
+  `pubg-telemetry/drop-pressure-route-contracts.test.ts` et `discord/discord-route-contracts.test.ts`.
+  Ne pas élargir le `include` sans raison : la convention existe et fonctionne.
 - **Gotcha:** les mocks Prisma de ces tests listent les modèles un par un. Quand une route se met à
   utiliser un nouveau modèle, le mock renvoie `undefined` et le test casse loin de la cause réelle.
 

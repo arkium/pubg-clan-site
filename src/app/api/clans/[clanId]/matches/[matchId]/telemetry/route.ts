@@ -9,7 +9,12 @@ import {
 } from '@/lib/pubg-telemetry/api-contract'
 import { getPhaseLabels } from '@/lib/phase-label-service'
 import { getWeaponLabels } from '@/lib/weapon-label-service'
-import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
+import { collectLobbyAccountIds } from '@/lib/pubg-telemetry/match-replay'
+import {
+  mergeBodyZoneBreakdowns,
+  type BodyZoneBreakdown,
+} from '@/lib/pubg-telemetry/body-zones'
+import { extractSquadMates } from '@/lib/pubg-telemetry/squad-mates'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -60,110 +65,6 @@ type MatchTelemetryRow = {
   landingSamples: unknown
   telemetryCreatedAt: Date
   telemetryUpdatedAt: Date
-}
-
-function computeFlightPath(landingSamples: unknown, mapName?: string) {
-  let parsed = landingSamples
-  if (typeof parsed === 'string') {
-    try {
-      parsed = JSON.parse(parsed)
-    } catch {
-      return null
-    }
-  }
-
-  if (!Array.isArray(parsed) || parsed.length < 2) {
-    return null
-  }
-
-  const valid = parsed
-    .filter((p): p is { x: number; y: number; timestampSeconds: number } => {
-      return (
-        typeof p === 'object' &&
-        p !== null &&
-        typeof (p as Record<string, unknown>).x === 'number' &&
-        typeof (p as Record<string, unknown>).y === 'number' &&
-        typeof (p as Record<string, unknown>).timestampSeconds === 'number'
-      )
-    })
-    .sort((a, b) => a.timestampSeconds - b.timestampSeconds)
-
-  if (valid.length < 2) {
-    return null
-  }
-
-  // Filter out late respawns (Blue Chip recalls / Emergency pickups beyond initial drop window)
-  const t0 = valid[0].timestampSeconds
-  const initialLandings = valid.filter((p) => p.timestampSeconds - t0 <= 80)
-  const samplePool = initialLandings.length >= 2 ? initialLandings : valid
-
-  const k = Math.max(2, Math.floor(samplePool.length * 0.15))
-  const earliest = samplePool.slice(0, k)
-  const latest = samplePool.slice(-k)
-
-  const dropStart = {
-    x: Math.round(earliest.reduce((sum, p) => sum + p.x, 0) / earliest.length),
-    y: Math.round(earliest.reduce((sum, p) => sum + p.y, 0) / earliest.length),
-  }
-  const dropEnd = {
-    x: Math.round(latest.reduce((sum, p) => sum + p.x, 0) / latest.length),
-    y: Math.round(latest.reduce((sum, p) => sum + p.y, 0) / latest.length),
-  }
-
-  const dx = dropEnd.x - dropStart.x
-  const dy = dropEnd.y - dropStart.y
-  const angleDeg = Math.round(((Math.atan2(dy, dx) * 180) / Math.PI) * 10) / 10
-
-  // Extrapolate flight path across full map boundaries [0, width] x [0, height]
-  let entry = dropStart
-  let exit = dropEnd
-
-  if (mapName && (dx !== 0 || dy !== 0)) {
-    const bounds = getMapBounds(mapName)
-    const width = bounds.width
-    const height = bounds.height
-    const candidates: { t: number; x: number; y: number }[] = []
-
-    if (dx !== 0) {
-      const tLeft = (0 - dropStart.x) / dx
-      const yLeft = dropStart.y + tLeft * dy
-      if (yLeft >= -1000 && yLeft <= height + 1000) {
-        candidates.push({ t: tLeft, x: 0, y: Math.max(0, Math.min(height, yLeft)) })
-      }
-      const tRight = (width - dropStart.x) / dx
-      const yRight = dropStart.y + tRight * dy
-      if (yRight >= -1000 && yRight <= height + 1000) {
-        candidates.push({ t: tRight, x: width, y: Math.max(0, Math.min(height, yRight)) })
-      }
-    }
-
-    if (dy !== 0) {
-      const tTop = (0 - dropStart.y) / dy
-      const xTop = dropStart.x + tTop * dx
-      if (xTop >= -1000 && xTop <= width + 1000) {
-        candidates.push({ t: tTop, x: Math.max(0, Math.min(width, xTop)), y: 0 })
-      }
-      const tBottom = (height - dropStart.y) / dy
-      const xBottom = dropStart.x + tBottom * dx
-      if (xBottom >= -1000 && xBottom <= width + 1000) {
-        candidates.push({ t: tBottom, x: Math.max(0, Math.min(width, xBottom)), y: height })
-      }
-    }
-
-    if (candidates.length >= 2) {
-      candidates.sort((a, b) => a.t - b.t)
-      entry = { x: Math.round(candidates[0].x), y: Math.round(candidates[0].y) }
-      exit = { x: Math.round(candidates[candidates.length - 1].x), y: Math.round(candidates[candidates.length - 1].y) }
-    }
-  }
-
-  return {
-    start: entry,
-    end: exit,
-    dropStart,
-    dropEnd,
-    angleDeg,
-  }
 }
 
 type PlayerAffiliation = 'current_clan' | 'tracked_clan' | 'external'
@@ -295,7 +196,9 @@ function buildMatchCombatEvents(params: {
       targetClanTag: victim.clanTag,
       targetAffiliation: victim.affiliation,
       weaponName: k.weaponName,
-      damageReason: k.headshot ? 'HeadShot' : 'Torso',
+      // Seul le headshot est une donnée réelle sur un KillEvent : la localisation
+      // précise n'est pas persistée événement par événement.
+      damageReason: k.headshot ? 'HeadShot' : null,
       distanceMeters: Math.round((k.distance || 0) / 100),
       isClanActor: killer.isClan,
       isClanTarget: victim.isClan,
@@ -356,7 +259,7 @@ function buildMatchCombatEvents(params: {
       targetClanTag: victim.clanTag,
       targetAffiliation: victim.affiliation,
       weaponName: pair.knocker?.damageCauser || 'Arme',
-      damageReason: pair.knocker?.damageReason || 'Combat',
+      damageReason: pair.knocker?.damageReason ?? null,
       distanceMeters: dist,
       isClanActor: knocker.isClan,
       isClanTarget: victim.isClan,
@@ -607,17 +510,53 @@ export async function GET(
 
     const memberIdentityMap: Record<string, { name: string; clanTag?: string; clanId?: number }> = {}
 
-    // First populate from EncounteredPlayer
-    const encounteredPlayers = await prisma.encounteredPlayer.findMany({
-      where: { clanId: parsedClanId },
-      select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
-    })
+    const lobbyAccountIds = collectLobbyAccountIds(
+      row.memberStats,
+      row.positionSamples,
+      row.knockoutSamples,
+      row.reviveSamples,
+      killEvents.flatMap((ke) => [
+        { memberKey: ke.killerAccountId },
+        { memberKey: ke.victimAccountId },
+      ])
+    )
+
+    // Cascade de résolution : joueur croisé par un clan < identité globale < membre d'un clan suivi.
+    // Le filtre sur les comptes réellement présents évite de charger tout l'historique
+    // d'EncounteredPlayer du clan (plusieurs dizaines de milliers de lignes) à chaque appel.
+    const [encounteredPlayers, globalPlayers] = await Promise.all([
+      lobbyAccountIds.length > 0
+        ? prisma.encounteredPlayer.findMany({
+            where: { pubgAccountId: { in: lobbyAccountIds } },
+            select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
+          })
+        : Promise.resolve([]),
+      lobbyAccountIds.length > 0
+        ? prisma.player.findMany({
+            where: { pubgAccountId: { in: lobbyAccountIds } },
+            select: {
+              pubgAccountId: true,
+              pubgPlayerName: true,
+              opponentClan: { select: { tag: true } },
+            },
+          })
+        : Promise.resolve([]),
+    ])
 
     for (const p of encounteredPlayers) {
       if (p.pubgAccountId) {
         memberIdentityMap[p.pubgAccountId] = {
           name: p.pubgPlayerName,
           clanTag: p.pubgClanTag ?? undefined,
+        }
+      }
+    }
+
+    for (const p of globalPlayers) {
+      if (p.pubgAccountId) {
+        memberIdentityMap[p.pubgAccountId] = {
+          name: p.pubgPlayerName,
+          clanTag: p.opponentClan?.tag ?? memberIdentityMap[p.pubgAccountId]?.clanTag,
         }
       }
     }
@@ -679,7 +618,42 @@ export async function GET(
       reviveSamples: Array.isArray(parsedRevives) ? parsedRevives : [],
     })
 
-    const flightPath = computeFlightPath(row.landingSamples, row.mapName)
+    const parsedMemberStats: unknown = safeJsonParse(row.memberStats)
+    const clanMemberKeysLower = new Set(
+      Array.from(clanAccountIds).map((accountId) => accountId.toLowerCase())
+    )
+    const clanMemberStats = (Array.isArray(parsedMemberStats) ? parsedMemberStats : []).filter(
+      (entry): entry is Record<string, unknown> => {
+        if (!entry || typeof entry !== 'object') return false
+        const key = (entry as Record<string, unknown>).memberKey
+        return typeof key === 'string' && clanMemberKeysLower.has(key.toLowerCase())
+      }
+    )
+
+    // Coéquipiers hors clan : absents de SquadMember, présents dans memberStats.
+    const { mates: squadMates, mateStatsRows } = extractSquadMates({
+      memberStats: parsedMemberStats,
+      positionSamples: row.positionSamples,
+      clanAccountIds,
+      identities: memberIdentityMap,
+    })
+    const squadMemberStats = [...clanMemberStats, ...mateStatsRows]
+
+    // Les snapshots parsés avant l'ajout des zones anatomiques n'ont pas la clé du tout :
+    // on distingue « aucune donnée » (badge UI) de « zéro impact localisé ».
+    const bodyZonesAvailable = squadMemberStats.some(
+      (entry) => Array.isArray(entry.bodyZonesDealt) || Array.isArray(entry.bodyZonesTaken)
+    )
+
+    const squadBodyZones = {
+      available: bodyZonesAvailable,
+      dealt: mergeBodyZoneBreakdowns(
+        squadMemberStats.map((entry) => entry.bodyZonesDealt as BodyZoneBreakdown[] | undefined)
+      ),
+      taken: mergeBodyZoneBreakdowns(
+        squadMemberStats.map((entry) => entry.bodyZonesTaken as BodyZoneBreakdown[] | undefined)
+      ),
+    }
 
     const payload = {
       match: {
@@ -727,8 +701,10 @@ export async function GET(
         knockoutSamples: row.knockoutSamples,
         reviveSamples: row.reviveSamples,
         landingSamples: row.landingSamples,
-        flightPath,
+        // Plus de `flightPath` ici : son seul consommateur était l'ancienne carte tactique du
+        // débriefing. Le plan de vol exact (depuis les sauts) est servi par la route `/replay`.
         combatEvents,
+        squadBodyZones,
         createdAt: row.telemetryCreatedAt.toISOString(),
         updatedAt: row.telemetryUpdatedAt.toISOString(),
       },
@@ -756,13 +732,13 @@ export async function GET(
           isClanVictim,
         }
       }),
+      squadMates,
       throwableStats: throwableStats.map((ts) => ({
         memberId: ts.memberId,
         displayName: ts.member.displayName,
         itemId: ts.itemId,
         count: ts.count,
       })),
-      flightPath,
       combatEvents,
       weaponLabels,
       phaseLabels,

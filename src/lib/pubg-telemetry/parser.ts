@@ -1,3 +1,19 @@
+import {
+  addBodyZoneHit,
+  resolveBodyZone,
+  serializeBodyZones,
+  type BodyZoneAccumulator,
+  type BodyZoneBreakdown,
+} from './body-zones'
+import {
+  CARE_PACKAGE_EVENT_TYPES,
+  buildCarePackages,
+  collectCarePackageEvent,
+  createCarePackageAccumulator,
+  type CarePackageAccumulator,
+  type TelemetryCarePackage,
+} from './care-packages'
+
 type TelemetryEvent = Record<string, unknown>
 
 type TelemetryMemberStats = {
@@ -26,6 +42,8 @@ type TelemetryMemberStats = {
   boostsUsed: number
   maxVehicleSpeedKph: number
   weapons: TelemetryMemberWeaponStats[]
+  bodyZonesDealt?: BodyZoneBreakdown[]
+  bodyZonesTaken?: BodyZoneBreakdown[]
 }
 
 type TelemetryPositionSample = {
@@ -65,6 +83,8 @@ export type TelemetryPhaseSnapshot = {
   poisonGasWarningRadiusMeters: number
   safetyZoneX?: number
   safetyZoneY?: number
+  poisonGasWarningX?: number
+  poisonGasWarningY?: number
 }
 
 export type TelemetryKillSample = {
@@ -201,6 +221,8 @@ type TelemetryWeaponStats = {
 
 type TelemetryAccumulator = {
   memberStats: Map<string, TelemetryMemberStats>
+  memberBodyZonesDealt: Map<string, BodyZoneAccumulator>
+  memberBodyZonesTaken: Map<string, BodyZoneAccumulator>
   weaponStats: Map<string, TelemetryWeaponStats>
   memberWeaponStats: Map<string, Map<string, TelemetryMemberWeaponStats>>
   memberCircleTimings: Map<string, MemberCircleTiming>
@@ -228,6 +250,7 @@ type TelemetryAccumulator = {
   knockoutSamples: TelemetryKnockoutSample[]
   reviveSamples: TelemetryReviveSample[]
   vehicleSamples: TelemetryVehicleSample[]
+  carePackages: CarePackageAccumulator
   summary: {
     totalEvents: number
     killEvents: number
@@ -263,6 +286,13 @@ export type ParsedTelemetrySnapshot = {
     phaseChangeEvents: number
     blueZoneEvents: number
     distinctEventTypes: number
+    /**
+     * Caisses de largage. Rangées dans `summary` plutôt que dans une colonne dédiée pour
+     * éviter une migration de `SquadMatchTelemetry` : ajout additif dans une colonne JSON
+     * existante, même procédé que `memberStats[*].bodyZonesDealt`. Absent des snapshots
+     * parsés avant le 2026-09-13.
+     */
+    carePackages?: TelemetryCarePackage[]
   }
   weaponStats: TelemetryWeaponStats[]
   memberStats: TelemetryMemberStats[]
@@ -879,6 +909,8 @@ function createTelemetryAccumulator(options?: {
 }): TelemetryAccumulator {
   return {
     memberStats: new Map<string, TelemetryMemberStats>(),
+    memberBodyZonesDealt: new Map<string, BodyZoneAccumulator>(),
+    memberBodyZonesTaken: new Map<string, BodyZoneAccumulator>(),
     weaponStats: new Map<string, TelemetryWeaponStats>(),
     memberWeaponStats: new Map<string, Map<string, TelemetryMemberWeaponStats>>(),
     memberCircleTimings: new Map<string, MemberCircleTiming>(),
@@ -906,6 +938,7 @@ function createTelemetryAccumulator(options?: {
     knockoutSamples: [],
     reviveSamples: [],
     vehicleSamples: [],
+    carePackages: createCarePackageAccumulator(),
     summary: {
       totalEvents: 0,
       killEvents: 0,
@@ -953,6 +986,11 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogMatchEnd') {
     updateTeamPlacementsFromMatchEnd(event, accumulator.teamPlacements, accumulator.memberStats)
+    return
+  }
+
+  if (CARE_PACKAGE_EVENT_TYPES.has(eventType)) {
+    collectCarePackageEvent(accumulator.carePackages, event, eventType, timestampSeconds)
     return
   }
 
@@ -1174,6 +1212,21 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogPlayerTakeDamage') {
     accumulator.summary.damageEvents += 1
+
+    const bodyZone = resolveBodyZone(getFirstStringFromPaths(event, ['damageReason']))
+
+    if (victimKey) {
+      const takenZones = accumulator.memberBodyZonesTaken.get(victimKey) ?? {}
+      addBodyZoneHit(takenZones, bodyZone, damage)
+      accumulator.memberBodyZonesTaken.set(victimKey, takenZones)
+    }
+
+    if (killerKey && killerKey !== victimKey) {
+      const dealtZones = accumulator.memberBodyZonesDealt.get(killerKey) ?? {}
+      addBodyZoneHit(dealtZones, bodyZone, damage)
+      accumulator.memberBodyZonesDealt.set(killerKey, dealtZones)
+    }
+
     if (killerKey) {
       getOrCreateMemberStatsWithTeam(
         accumulator.memberStats,
@@ -1632,6 +1685,8 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       if (isNewPhase || gapOk) {
         const safeX = getFirstNumberFromPaths(event, ['gameState.safetyZonePosition.x', 'safetyZonePosition.x'])
         const safeY = getFirstNumberFromPaths(event, ['gameState.safetyZonePosition.y', 'safetyZonePosition.y'])
+        const poisonX = getFirstNumberFromPaths(event, ['gameState.poisonGasWarningPosition.x', 'poisonGasWarningPosition.x'])
+        const poisonY = getFirstNumberFromPaths(event, ['gameState.poisonGasWarningPosition.y', 'poisonGasWarningPosition.y'])
         accumulator.phaseSnapshots.push({
           isGame,
           timestampSeconds: ts,
@@ -1641,6 +1696,9 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           poisonGasWarningRadiusMeters: poisonRadius,
           ...(typeof safeX === 'number' && Number.isFinite(safeX) && typeof safeY === 'number' && Number.isFinite(safeY)
             ? { safetyZoneX: safeX, safetyZoneY: safeY }
+            : {}),
+          ...(typeof poisonX === 'number' && Number.isFinite(poisonX) && typeof poisonY === 'number' && Number.isFinite(poisonY)
+            ? { poisonGasWarningX: poisonX, poisonGasWarningY: poisonY }
             : {}),
         })
       }
@@ -1687,6 +1745,12 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
         onFootDistanceMeters: Number(member.onFootDistanceMeters.toFixed(2)),
         vehicleDistanceMeters: Number(member.vehicleDistanceMeters.toFixed(2)),
         healAmountTotal: Number(member.healAmountTotal.toFixed(2)),
+        bodyZonesDealt: serializeBodyZones(
+          accumulator.memberBodyZonesDealt.get(member.memberKey) ?? {}
+        ),
+        bodyZonesTaken: serializeBodyZones(
+          accumulator.memberBodyZonesTaken.get(member.memberKey) ?? {}
+        ),
         circleDelaySeconds: Number((circleTiming?.accumulatedOutsideSeconds ?? 0).toFixed(2)),
         circleDelayPercent:
           circleTiming && circleTiming.accumulatedObservedSeconds > 0
@@ -1733,6 +1797,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     summary: {
       ...accumulator.summary,
       distinctEventTypes: accumulator.eventTypes.size,
+      carePackages: buildCarePackages(accumulator.carePackages),
     },
     weaponStats: Array.from(accumulator.weaponStats.values()).sort((left, right) => {
       if (right.kills !== left.kills) {

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
+import { resolveBodyZone } from './body-zones'
+
 describe('Tactical Debrief Calculations & Components', () => {
   describe('Weapon Accuracy logic', () => {
     function computeAccuracy(shotsFired: number, hitsLanded: number) {
@@ -87,41 +89,26 @@ describe('Tactical Debrief Calculations & Components', () => {
   })
 
   describe('Damage Hit Zone mapping', () => {
-    function inferHitZones(damageReason?: string) {
-      if (!damageReason) {
-        return { torso: 75, pelvis: 25 }
-      }
-      const reason = damageReason.toLowerCase()
-      if (reason.includes('head')) {
-        return { head: 100 }
-      }
-      if (reason.includes('pelvis') || reason.includes('groin')) {
-        return { pelvis: 80, torso: 20 }
-      }
-      if (reason.includes('arm') || reason.includes('hand')) {
-        return { arms: 70, torso: 30 }
-      }
-      if (reason.includes('leg') || reason.includes('foot')) {
-        return { legs: 80, pelvis: 20 }
-      }
-      return { torso: 70, pelvis: 30 }
-    }
-
-    it('maps HeadShot to head zone with full lethal priority', () => {
-      const zones = inferHitZones('HeadShot')
-      expect(zones.head).toBe(100)
-      expect(zones.torso).toBeUndefined()
+    it('mappe les cinq damageReason officiels de PUBG', () => {
+      expect(resolveBodyZone('HeadShot')).toBe('head')
+      expect(resolveBodyZone('TorsoShot')).toBe('torso')
+      expect(resolveBodyZone('PelvisShot')).toBe('pelvis')
+      expect(resolveBodyZone('ArmShot')).toBe('arms')
+      expect(resolveBodyZone('LegShot')).toBe('legs')
     })
 
-    it('maps Torso to upper body', () => {
-      const zones = inferHitZones('Torso')
-      expect(zones.torso).toBe(70)
-      expect(zones.pelvis).toBe(30)
+    it('ignore la casse et les espaces', () => {
+      expect(resolveBodyZone(' headshot ')).toBe('head')
+      expect(resolveBodyZone('LEGSHOT')).toBe('legs')
     })
 
-    it('maps Leg shots appropriately', () => {
-      const zones = inferHitZones('Leg_Lower')
-      expect(zones.legs).toBe(80)
+    it('classe en "other" les dégâts non localisés plutôt que d’inventer une zone', () => {
+      expect(resolveBodyZone('NonSpecific')).toBe('other')
+      expect(resolveBodyZone('None')).toBe('other')
+      expect(resolveBodyZone('Torso')).toBe('other')
+      expect(resolveBodyZone('Leg_Lower')).toBe('other')
+      expect(resolveBodyZone(undefined)).toBe('other')
+      expect(resolveBodyZone(null)).toBe('other')
     })
   })
 })

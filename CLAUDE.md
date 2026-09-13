@@ -165,6 +165,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Badge mode équipe Duo/Trio/Squad | `TeamModeBadge` | `src/components/ui/TeamModeBadge.tsx` |
 | Badge nom de joueur | `PlayerNameBadge` | `src/components/ui/PlayerNameBadge.tsx` |
 | Menu dropdown mobile | `MobileDropdownNav` | `src/components/ui/MobileDropdownNav.tsx` |
+| Zoom d'une carte interactive `[ − \| ⊙ 1× \| + ]` | `MapZoomControl` + `@/lib/map-zoom` | `src/components/ui/MapZoomControl.tsx` — règles dans `docs/ui/index.html#zoom-carte` |
 
 **Règle :** Ne jamais réécrire ces composants inline dans une page. Ne pas écrire les classes `app-placement-badge*` directement.
 

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useId, useState } from 'react'
 
 export type BodyZoneKey = 'head' | 'torso' | 'pelvis' | 'arms' | 'legs'
 
@@ -23,6 +23,10 @@ export interface DamageBodySvgProps {
   interactive?: boolean
   className?: string
   variant?: 'received' | 'dealt'
+  /** Aucune localisation d'impact n'a été capturée par la télémétrie pour ce match. */
+  unavailable?: boolean
+  /** Message affiché à la place de la ventilation quand `unavailable` est vrai. */
+  unavailableLabel?: string
 }
 
 const ZONE_LABELS: Record<BodyZoneKey, string> = {
@@ -39,29 +43,6 @@ const ZONE_ICONS: Record<BodyZoneKey, string> = {
   pelvis: '⚡',
   arms: '💪',
   legs: '🦵',
-}
-
-/**
- * Infers anatomical body zones distribution from a PUBG damageReason string.
- */
-export function inferHitZones(damageReason?: string): Partial<Record<BodyZoneKey, number>> {
-  if (!damageReason) {
-    return { torso: 75, pelvis: 25 }
-  }
-  const reason = damageReason.toLowerCase()
-  if (reason.includes('head')) {
-    return { head: 100 }
-  }
-  if (reason.includes('pelvis') || reason.includes('groin')) {
-    return { pelvis: 80, torso: 20 }
-  }
-  if (reason.includes('arm') || reason.includes('hand')) {
-    return { arms: 70, torso: 30 }
-  }
-  if (reason.includes('leg') || reason.includes('foot')) {
-    return { legs: 80, pelvis: 20 }
-  }
-  return { torso: 70, pelvis: 30 }
 }
 
 /**
@@ -122,8 +103,13 @@ export function DamageBodySvg({
   interactive = true,
   className = '',
   variant = 'received',
+  unavailable = false,
+  unavailableLabel = 'Localisation des impacts non capturée pour ce match',
 }: DamageBodySvgProps) {
   const [hoveredZone, setHoveredZone] = useState<BodyZoneKey | null>(null)
+  // Plusieurs silhouettes cohabitent sur une même page (infligés / subis) : les
+  // identifiants SVG doivent rester uniques dans le document.
+  const svgIdPrefix = useId().replace(/:/g, '')
 
   const computedTotal =
     totalDamage ??
@@ -206,7 +192,7 @@ export function DamageBodySvg({
         >
           <defs>
             {/* Holographic grid pattern */}
-            <pattern id="tactical-hex" width="10" height="10" patternUnits="userSpaceOnUse">
+            <pattern id={`${svgIdPrefix}-tactical-hex`} width="10" height="10" patternUnits="userSpaceOnUse">
               <path
                 d="M 5 0 L 10 5 L 5 10 L 0 5 Z"
                 fill="none"
@@ -216,7 +202,7 @@ export function DamageBodySvg({
             </pattern>
 
             {/* Neon Glow Filter */}
-            <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <filter id={`${svgIdPrefix}-neon-glow`} x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="2" result="blur" />
               <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
@@ -552,11 +538,18 @@ export function DamageBodySvg({
       </div>
 
       {/* --- TACTICAL BREAKDOWN PANEL (No overflow, responsive full width) --- */}
-      {showLabels && (
+      {showLabels && unavailable && (
+        <div className="mt-3 w-full px-2.5 py-2 rounded-lg border border-slate-800 bg-slate-950/70 text-center text-xs font-semibold text-slate-400 min-w-[170px] max-w-full">
+          {unavailableLabel}
+        </div>
+      )}
+
+      {showLabels && !unavailable && (
         <div className="mt-3 w-full flex flex-col gap-1.5 min-w-[170px] max-w-full">
           {(['head', 'torso', 'pelvis', 'arms', 'legs'] as BodyZoneKey[]).map((zone) => {
             const dmg = Number(damageByZone[zone]) || 0
             if (dmg <= 0) return null
+            const hits = Number(hitsByZone[zone]) || 0
             const pct = computedTotal > 0 ? Math.round((dmg / computedTotal) * 100) : 0
             const icon = ZONE_ICONS[zone]
             const isHovered = hoveredZone === zone
@@ -576,6 +569,7 @@ export function DamageBodySvg({
                   <span className="font-semibold text-slate-200 truncate">{ZONE_LABELS[zone]}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 font-mono">
+                  {hits > 0 && <span className="text-slate-500 text-xs">{hits} touche{hits > 1 ? 's' : ''}</span>}
                   <span className="text-slate-400 text-xs">{pct}%</span>
                   <span className="font-bold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-xs">
                     {Math.round(dmg)}

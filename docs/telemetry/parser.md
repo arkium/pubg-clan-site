@@ -100,6 +100,13 @@ Effets :
 - Met à jour le tracking de cercle : calcul du temps passé hors zone bleue (`circleDelaySeconds`, `circleDelayPercent`)
 - Met à jour `onFootDistanceMeters` ou `vehicleDistanceMeters`
 
+> ⚠️ **Les positions à `t=0` ne sont pas celles de l'avion**, mais celles du spawn / de l'île d'attente — à plusieurs
+> kilomètres de l'appareil. Toute reconstitution de trajectoire doit les écarter et s'ancrer sur les sauts hors de
+> l'avion. Voir [Trajectoires replay](replay-trajectories.md).
+>
+> À noter aussi : ces échantillons couvrent **tout le lobby**, pas seulement le clan suivi, car `clanMemberKeys` est
+> vide sur le chemin de synchronisation principal.
+
 ### 6. LogGameStatePeriodically
 
 Snapshot de l'état global de la partie à intervalles réguliers.
@@ -108,7 +115,12 @@ Données extraites :
 - `numAlivePlayers`, `numAliveTeams`
 - `safetyZoneRadius`, `poisonGasWarningRadius`
 - `safetyZonePosition.x`, `safetyZonePosition.y`
+- `poisonGasWarningPosition.x`, `poisonGasWarningPosition.y` — centre du prochain cercle, ajouté en 2026-09 ; absent
+  des snapshots parses avant cette date
 - `isGame`, `timestampSeconds`
+
+Malgré le suffixe `Meters` des champs persistés, **les rayons sont en centimètres**, dans la même unité que les
+coordonnées. Voir [Trajectoires replay](replay-trajectories.md#8-cercles-de-zone).
 
 Effets :
 - Met à jour `latestZoneState` dans l'accumulateur (utilisé par `LogPlayerPosition` pour le calcul du temps hors zone)
@@ -161,6 +173,11 @@ Effets :
 - Incrémente `vehicleLeaveEvents` dans `memberStats`
 - Met à jour `maxVehicleSpeedKph` si la valeur est supérieure au max précédent pour ce joueur
 - Ajoute un `VehicleSample` (action `'leave'`) dans `vehicleSamples`
+
+> Les échantillons `leave` avec `vehicleType: 'TransportAircraft'` donnent la **position exacte de l'avion de
+> largage** à un instant précis : c'est la seule source fiable pour reconstituer sa trajectoire. Penser à borner la
+> fenêtre au largage initial, sinon l'avion de rappel de fin de partie fausse le résultat.
+> Voir [Trajectoires replay](replay-trajectories.md#5-source-exacte--les-sauts-hors-de-lavion).
 
 `maxVehicleSpeedKph` est ensuite agrégé comme `MAX` sur la période dans `MemberTelemetryStats`.
 
@@ -233,6 +250,22 @@ Note : cet événement n'est présent que dans les fichiers parsés avec le pars
 
 ---
 
+### 16. LogCarePackageSpawn, LogCarePackageLand, LogItemPickupFromCarepackage — caisses de largage
+
+Ajoutés le 2026-09-13 (`src/lib/pubg-telemetry/care-packages.ts`). Mesuré sur 3 captures réelles : 39 à 45 caisses par partie, ~10 Ko de JSON.
+
+| Événement | Données extraites | Piège |
+|---|---|---|
+| `LogCarePackageSpawn` | `itemPackage.itemPackageId`, `itemPackage.location` (point de chute visé, `z` ≈ 30 000), contenu | — |
+| `LogCarePackageLand` | mêmes champs, au sol | **émis deux fois** par caisse (rebond, `z` différent) : dédupliqué par type + distance < 5 m |
+| `LogItemPickupFromCarepackage` | `character.teamId`, `character.location`, `carePackageName` | `carePackageUniqueId` vaut **toujours 0** : rattachement à la caisse du même type la plus proche (< 30 m), déjà posée |
+
+Types reconnus (`classifyCarePackage`) : `Carapackage_RedBox_C` → `redbox` (caisse principale), `Carapackage_SmallPackage*` → `small` (caisses satellites), `*_Bluechip_C` → `bluechip`, `BP_BRDM_C` → `vehicle` (blindé largué). Contenu conservé : armes et équipement niveau 3 / ghillie uniquement.
+
+Stockage : `summary.carePackages` — **ajout additif dans la colonne JSON `summary`, sans migration**. Les matchs parsés avant le 2026-09-13 n'ont pas la clé ; il faut les re-synchroniser (moins de 14 jours) pour l'obtenir.
+
+---
+
 ## Événements disponibles mais non parsés
 
 | Événement | Données utiles | Intérêt estimé |
@@ -282,7 +315,7 @@ Les champs JSON dans `SquadMatchTelemetry` stockent les données brutes par matc
 | `reviveSamples` | Positions des revives |
 | `vehicleSamples` | Événements véhicule |
 | `phaseSnapshots` | Snapshots de l'état de la partie |
-| `summary` | Compteurs d'événements parsés |
+| `summary` | Compteurs d'événements parsés, et `carePackages` (caisses de largage, depuis le 2026-09-13) |
 
 ### Ce qui est calculé en agrégats périodiques
 

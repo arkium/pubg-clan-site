@@ -893,6 +893,12 @@
           <span class="num">24</span> ShowMoreToggle
         </a>
       </div>
+      <div class="docs-sidebar-group">
+        <div class="docs-sidebar-group-title">Cartes interactives</div>
+        <a class="docs-sidebar-link" href="#zoom-carte" onclick="setActive(this)">
+          <span class="num">25</span> Zoom cartographique
+        </a>
+      </div>
     </aside>
 
     <!-- ============================================================
@@ -5548,11 +5554,211 @@ return (
       </section>
 
       <!-- ══════════════════════════════════════════════════════════
+           SECTION 25 — ZOOM CARTOGRAPHIQUE (MapZoomControl)
+      ══════════════════════════════════════════════════════════ -->
+      <section class="docs-section" id="zoom-carte">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">25</span>
+          Zoom cartographique — MapZoomControl (standard projet)
+        </h2>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Concept &amp; Rôle du Composant</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1.25rem;line-height:1.6;">
+            <strong>Toute carte interactive du site</strong> (drop zones, positions, replay 2D, éditeur de libellés…) se zoome avec le même contrôle : un groupe horizontal <code class="docs-code">[ − | ⊙ 1× | + ]</code> ancré en haut à droite de la carte. Le bouton central affiche le zoom courant et ramène à la carte entière. Le comportement de référence est celui de la page <code class="docs-code">/clans/[clanId]/drop-zones</code>.
+            <br /><br />
+            Composant : <code class="docs-code">src/components/ui/MapZoomControl.tsx</code>. Règles de calcul partagées (paliers, bornes, sens de molette, libellé) : <code class="docs-code">src/lib/map-zoom.ts</code>, couvertes par <code class="docs-code">src/lib/map-zoom.test.ts</code>.
+            <br />
+            Utilisé par <code class="docs-code">DropZoneMapViewport.tsx</code> (drop zones clan et membre, positions clan, éditeur <code class="docs-code">/settings/map-labels</code>) et par <code class="docs-code">MatchReplay2D.tsx</code> (onglet Replay 2D du débriefing).
+          </div>
+        </div>
+
+        <!-- Simulateur interactif -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Simulateur Interactif</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1rem;line-height:1.6;">
+            Cliquez sur <strong>−</strong> / <strong>+</strong> pour avancer par paliers de ×0,5, puis sur le bouton central pour revenir à la carte entière. Les boutons se désactivent en butée. Le badge en haut à gauche illustre l'emplacement réservé aux informations contextuelles de la carte.
+          </div>
+
+          <div style="position:relative;width:100%;max-width:420px;aspect-ratio:1;overflow:hidden;border-radius:1rem;border:2px solid rgb(30 41 59);background:#020617;">
+            <img id="mzc-demo-map" src="../../public/maps/pubg/Savage_Main.webp" alt="Sanhok" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform-origin:center;transition:transform 150ms ease-out;" onerror="this.style.display='none'">
+
+            <div class="absolute left-3 top-3 z-30 inline-flex h-10 items-center gap-2 rounded border border-white/25 bg-slate-950/80 px-3 text-xs font-semibold text-white shadow-lg backdrop-blur" style="position:absolute;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" style="transform:rotate(144deg);flex-shrink:0;"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
+              <span style="font-family:monospace;">Cap C-130 : 189° S</span>
+            </div>
+
+            <div class="absolute right-3 top-3 z-40 flex h-10 items-stretch overflow-hidden rounded border border-white/25 bg-slate-950/80 text-white shadow-lg backdrop-blur" style="position:absolute;">
+              <button type="button" id="mzc-demo-out" onclick="mapZoomDemo(-1)" disabled class="flex w-10 items-center justify-center border-r border-white/15 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Réduire le zoom">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+              </button>
+              <button type="button" onclick="mapZoomDemo(0)" class="flex items-center justify-center gap-1.5 border-r border-white/15 px-2 text-xs font-semibold hover:bg-white/10" style="min-width:4rem;font-variant-numeric:tabular-nums;" aria-label="Afficher la carte entière">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+                <span id="mzc-demo-label">1×</span>
+              </button>
+              <button type="button" id="mzc-demo-in" onclick="mapZoomDemo(1)" class="flex w-10 items-center justify-center hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Augmenter le zoom">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comportement -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Comportement de référence</div>
+          <div class="app-table-shell" style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.75rem;text-align:left;">
+              <thead class="app-table-head">
+                <tr>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Interaction</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Règle</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:600;">Paliers</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Additifs de <code class="docs-code">×0,5</code> (<code class="docs-code">MAP_ZOOM_STEP</code>), de <code class="docs-code">×1</code> à <code class="docs-code">×4</code> par défaut. Un plafond plus haut est admis quand la lecture l'exige : <code class="docs-code">×8</code> sur le replay, pour séparer les joueurs d'un même bâtiment.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:600;">Molette</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Un cran = un palier, <strong>ancré sur le point situé sous le curseur</strong>. Écouteur natif <code class="docs-code">addEventListener('wheel', …, { passive: false })</code> — un <code class="docs-code">onWheel</code> React est passif et laisserait la page défiler. <code class="docs-code">preventDefault()</code> uniquement si le zoom change : en butée, la page reprend le défilement.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:600;">Bouton central</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Retour à <code class="docs-code">×1</code>, carte entière recentrée, verrou de suivi caméra libéré. Libellé formaté à la française (<code class="docs-code">1,5×</code>) par <code class="docs-code">formatMapZoom</code>.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:600;">Glisser</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Déplacement uniquement au-delà de <code class="docs-code">×1</code>, seuil de 5 px avant de considérer un glisser. La vue reste <strong>bornée à la carte</strong> : jamais de vide autour. Curseur <code class="docs-code">cursor-grab</code> / <code class="docs-code">cursor-grabbing</code> zoomé, <code class="docs-code">cursor-crosshair</code> à ×1 si un clic a un effet (sélection de joueur, pose de libellé).</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:600;">Placement</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Haut-droite (<code class="docs-code">absolute right-3 top-3 z-40</code>) d'un conteneur <code class="docs-code">relative</code>. Le coin haut-gauche est réservé aux informations et bascules propres à la carte (« Périmètres », « Cap C-130 »), avec le même gabarit <code class="docs-code">h-10 rounded border-white/25 bg-slate-950/80 backdrop-blur</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Props du composant -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Props</div>
+          <div class="app-table-shell" style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.75rem;text-align:left;">
+              <thead class="app-table-head">
+                <tr>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Prop</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Type</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Défaut</th>
+                  <th style="padding:0.625rem 0.875rem;font-weight:700;">Rôle</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">zoom</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">number</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">— (requis)</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Zoom courant, piloté par la carte.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">onZoomChange</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">(next: number) =&gt; void</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">— (requis)</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Reçoit le palier suivant ou précédent, déjà borné. La carte recentre sa vue sur le même point.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">onReset</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">() =&gt; void</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">— (requis)</td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Bouton central : carte entière.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">max</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">number</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);"><code class="docs-code">4</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Plafond propre à la carte. Doit être le même que celui passé à <code class="docs-code">stepMapZoom</code> pour la molette.</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">className</code></td>
+                  <td style="padding:0.625rem 0.875rem;"><code class="docs-code">string</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);"><code class="docs-code">''</code></td>
+                  <td style="padding:0.625rem 0.875rem;color:var(--theme-ui-text-muted);">Ajustement ponctuel — ne jamais déplacer le contrôle hors du coin haut-droit.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Règles d'or -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Règles d'Or</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.6;">
+            <ul style="list-style:disc;padding-left:1.5rem;display:flex;flex-direction:column;gap:0.75rem;">
+              <li>
+                <strong style="color:rgb(16 185 129);">OBLIGATOIRE :</strong>
+                Utiliser <code class="docs-code">&lt;MapZoomControl /&gt;</code> et les fonctions de <code class="docs-code">@/lib/map-zoom</code>. Ne jamais réécrire les boutons de zoom dans une page, ni empiler <code class="docs-code">+</code> / <code class="docs-code">−</code> verticalement.
+              </li>
+              <li>
+                <strong style="color:rgb(16 185 129);">OBLIGATOIRE :</strong>
+                Même effet au clic et à la molette (<code class="docs-code">stepMapZoom</code>). Un zoom multiplicatif à la molette et additif aux boutons donne deux cartes qui ne réagissent pas pareil.
+              </li>
+              <li>
+                <strong style="color:rgb(239,68,68);">ATTENTION MOBILE :</strong>
+                Conteneur de carte en <code class="docs-code">touch-none</code> pour que le glisser déplace la carte et non la page. Les badges du coin haut-gauche doivent laisser la place au contrôle (<code class="docs-code">max-w-[calc(100%-12rem)]</code>) et masquer leurs détails secondaires sous <code class="docs-code">sm</code>.
+              </li>
+              <li>
+                <strong style="color:rgb(234,179,8);">ÉCART CONNU :</strong>
+                <code class="docs-code">src/components/ui/InteractiveMap.tsx</code> (anciennes pages <code class="docs-code">/clans/[clanId]/matches/[matchId]/telemetry</code> et <code class="docs-code">/tournaments/[tournamentId]/matches/[matchId]/telemetry</code>) garde son propre contrôle vertical. À migrer si ces pages restent en service.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Code du composant -->
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Exemple d'Utilisation</div>
+          <pre style="margin:0;padding:1rem;background:var(--app-surface-muted);border:1px solid var(--app-border);border-radius:0.75rem;overflow-x:auto;font-family:monospace;font-size:0.75rem;line-height:1.5;color:var(--theme-ui-text);"><code class="language-tsx">import MapZoomControl from '@/components/ui/MapZoomControl'
+import { MAP_ZOOM_MIN, clampMapZoom, stepMapZoom, wheelZoomDirection } from '@/lib/map-zoom'
+
+const MAX_ZOOM = 4
+const [zoom, setZoom] = useState(MAP_ZOOM_MIN)
+
+// Molette : écouteur natif non passif, un palier par cran, ancré sous le curseur.
+useEffect(() =&gt; {
+  const element = viewportRef.current
+  if (!element) return
+  function handleWheel(event: WheelEvent) {
+    const direction = wheelZoomDirection(event.deltaY)
+    if (direction === null) return
+    const next = stepMapZoom(zoomRef.current, direction, MAX_ZOOM)
+    if (next === zoomRef.current) return   // en butée : la page défile
+    event.preventDefault()
+    applyZoomAnchoredAt(next, event.clientX, event.clientY)
+  }
+  element.addEventListener('wheel', handleWheel, { passive: false })
+  return () =&gt; element.removeEventListener('wheel', handleWheel)
+}, [])
+
+return (
+  &lt;div className="relative aspect-square overflow-hidden"&gt;
+    {/* … calques de la carte … */}
+    &lt;MapZoomControl
+      zoom={zoom}
+      max={MAX_ZOOM}
+      onZoomChange={(next) =&gt; setZoom(clampMapZoom(next, MAX_ZOOM))}
+      onReset={() =&gt; setZoom(MAP_ZOOM_MIN)}
+    /&gt;
+  &lt;/div&gt;
+)</code></pre>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════
            FIN — pied de page de la doc
       ══════════════════════════════════════════════════════════ -->
       <div style="margin-top:4rem;padding-top:2rem;border-top:1px solid var(--app-border);text-align:center;">
         <div style="font-size:0.75rem;color:var(--theme-ui-text-muted);">
-          Design System — PUBG Clan Site · 24 sections · Mis à jour avec ShowMoreToggle
+          Design System — PUBG Clan Site · 25 sections · Mis à jour avec le zoom cartographique standard (MapZoomControl)
         </div>
         <div style="font-size:0.7rem;color:var(--theme-ui-text-muted);margin-top:0.375rem;">
           Basculer le thème avec le bouton en haut à droite pour valider chaque composant en clair et en sombre.
@@ -5793,6 +5999,23 @@ return (
           badge.style.color = 'rgb(59, 130, 246)';
         }
       }
+    }
+
+    // Simulateur de la section 25 : mêmes paliers et bornes que src/lib/map-zoom.ts.
+    let mapZoomDemoValue = 1;
+    function mapZoomDemo(direction) {
+      const MIN = 1, MAX = 4, STEP = 0.5;
+      mapZoomDemoValue = direction === 0
+        ? MIN
+        : Math.max(MIN, Math.min(MAX, mapZoomDemoValue + direction * STEP));
+      const map = document.getElementById('mzc-demo-map');
+      const label = document.getElementById('mzc-demo-label');
+      const zoomOut = document.getElementById('mzc-demo-out');
+      const zoomIn = document.getElementById('mzc-demo-in');
+      if (map) map.style.transform = 'scale(' + mapZoomDemoValue + ')';
+      if (label) label.textContent = mapZoomDemoValue.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + '×';
+      if (zoomOut) zoomOut.disabled = mapZoomDemoValue <= MIN;
+      if (zoomIn) zoomIn.disabled = mapZoomDemoValue >= MAX;
     }
 
     function toggleShowMoreDemo() {

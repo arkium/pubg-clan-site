@@ -72,3 +72,5 @@ export {
   weaponTelemetryToAssetName,
   vehicleTelemetryToAssetName,
 } from './asset-url'
+
+export { MAP_ASSET_KEYS, mapAssetUrl, resolveMapAssetKey, type MapAssetKey } from './map-asset'

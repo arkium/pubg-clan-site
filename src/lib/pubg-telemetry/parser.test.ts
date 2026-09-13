@@ -642,3 +642,114 @@ describe('parseTelemetrySnapshot golden integration set', () => {
     expect(arrayResult.weaponStats[0]).toMatchObject(expected.topWeapon)
   })
 })
+
+describe('body zone capture from LogPlayerTakeDamage', () => {
+  function damageEvent(damageReason: string | undefined, damage: number) {
+    return {
+      _T: 'LogPlayerTakeDamage',
+      attacker: { accountId: 'player_attacker', name: 'Attacker', teamId: 1 },
+      victim: { accountId: 'player_victim', name: 'Victim', teamId: 2 },
+      damage,
+      damageCauserName: 'WeapM416_C',
+      ...(damageReason ? { damageReason } : {}),
+    }
+  }
+
+  it('ventile les degats infliges et subis par zone reelle', () => {
+    const result = parseTelemetrySnapshot([
+      damageEvent('HeadShot', 89),
+      damageEvent('TorsoShot', 27),
+      damageEvent('TorsoShot', 13),
+      damageEvent('LegShot', 18),
+    ])
+
+    const attacker = result.memberStats.find((entry) => entry.memberKey === 'player_attacker')
+    const victim = result.memberStats.find((entry) => entry.memberKey === 'player_victim')
+
+    expect(attacker?.bodyZonesDealt).toEqual([
+      { zone: 'head', damage: 89, hits: 1 },
+      { zone: 'torso', damage: 40, hits: 2 },
+      { zone: 'legs', damage: 18, hits: 1 },
+    ])
+    expect(victim?.bodyZonesTaken).toEqual(attacker?.bodyZonesDealt)
+    expect(victim?.bodyZonesDealt).toEqual([])
+  })
+
+  it('classe en other les degats sans localisation plutot que de les inventer', () => {
+    const result = parseTelemetrySnapshot([
+      damageEvent('NonSpecific', 12),
+      damageEvent(undefined, 8),
+    ])
+
+    const victim = result.memberStats.find((entry) => entry.memberKey === 'player_victim')
+    expect(victim?.bodyZonesTaken).toEqual([{ zone: 'other', damage: 20, hits: 2 }])
+  })
+
+  it("n'attribue pas de degats infliges sur une blessure auto-infligee", () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogPlayerTakeDamage',
+        attacker: { accountId: 'player_solo', name: 'Solo', teamId: 3 },
+        victim: { accountId: 'player_solo', name: 'Solo', teamId: 3 },
+        damage: 15,
+        damageReason: 'LegShot',
+      },
+    ])
+
+    const solo = result.memberStats.find((entry) => entry.memberKey === 'player_solo')
+    expect(solo?.bodyZonesDealt).toEqual([])
+    expect(solo?.bodyZonesTaken).toEqual([{ zone: 'legs', damage: 15, hits: 1 }])
+  })
+
+  it('expose un tableau vide et non undefined quand aucun degat n est subi', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogPlayerPosition',
+        character: { accountId: 'player_quiet', name: 'Quiet', teamId: 4, location: { x: 0, y: 0 } },
+      },
+    ])
+
+    const quiet = result.memberStats.find((entry) => entry.memberKey === 'player_quiet')
+    expect(quiet?.bodyZonesDealt).toEqual([])
+    expect(quiet?.bodyZonesTaken).toEqual([])
+  })
+})
+
+describe('parseTelemetrySnapshot — caisses de largage', () => {
+  const location = { x: 572019.75, y: 165428.65, z: 30000 }
+  const items = [
+    { itemId: 'Item_Weapon_AWM_C', category: 'Weapon' },
+    { itemId: 'Item_Ammo_300Magnum_C', category: 'Ammunition' },
+    { itemId: 'Item_Head_G_01_Lv3_C', category: 'Equipment' },
+  ]
+
+  it('range les caisses dans summary.carePackages sans compter les rebonds deux fois', () => {
+    const result = parseTelemetrySnapshot([
+      { _T: 'LogCarePackageSpawn', _D: '2026-07-04T19:10:00.000Z', itemPackage: { itemPackageId: 'Carapackage_RedBox_C', location, items } },
+      { _T: 'LogCarePackageLand', _D: '2026-07-04T19:10:56.000Z', itemPackage: { itemPackageId: 'Carapackage_RedBox_C', location: { ...location, z: -30 }, items } },
+      { _T: 'LogCarePackageLand', _D: '2026-07-04T19:10:56.200Z', itemPackage: { itemPackageId: 'Carapackage_RedBox_C', location: { ...location, z: -129 }, items } },
+      {
+        _T: 'LogItemPickupFromCarepackage',
+        _D: '2026-07-04T19:12:00.000Z',
+        character: { accountId: 'account.a', teamId: 7, location: { x: 572500, y: 165800, z: 0 } },
+        carePackageName: 'Carapackage_RedBox_C',
+        carePackageUniqueId: 0,
+      },
+    ])
+
+    const crates = result.summary.carePackages ?? []
+    expect(crates).toHaveLength(1)
+    expect(crates[0]).toMatchObject({
+      type: 'redbox',
+      x: 572020,
+      y: 165429,
+      items: ['Item_Weapon_AWM_C', 'Item_Head_G_01_Lv3_C'],
+      lootTeamIds: [7],
+    })
+    expect((crates[0].timestampSeconds ?? 0) - (crates[0].spawnTimestampSeconds ?? 0)).toBeCloseTo(56)
+  })
+
+  it('expose une liste vide quand la partie ne contient aucun largage', () => {
+    expect(parseTelemetrySnapshot(telemetrySample).summary.carePackages).toEqual([])
+  })
+})

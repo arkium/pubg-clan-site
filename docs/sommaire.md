@@ -2,7 +2,7 @@
 
 Index de toute la documentation technique du projet. Chaque doc décrit le comportement réel du code actuel.
 
-**Mise à jour :** 2026-08-02 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
+**Mise à jour :** 2026-09-13 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
 
 ---
 
@@ -57,6 +57,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Vue d'ensemble](telemetry/overview.md) | Architecture, 3 modes de sync, flux de données, tables DB produites, variables d'env, statut phases |
 | [Pipeline](telemetry/pipeline.md) | 5 étapes CDN→parse→persist, différence v1/v2, CLI batch, gestion erreurs, fichiers clés |
 | [Parser](telemetry/parser.md) | 15 événements parsés, 5 non parsés, champs partiellement utilisés, distinction JSON brut vs agrégats |
+| [Trajectoires replay](telemetry/replay-trajectories.md) | Reconstitution de l'avion de largage et du déplacement des joueurs : deux bases de temps, positions de spawn à `t=0`, sauts hors de l'avion, cercles de zone, format de piste |
 | [Worker](telemetry/worker.md) | Worker séparé, queue, mémoire 512 Mo, backpressure, dead letter, **bug Readable.toWeb() Node 22** |
 | [API — contrats](telemetry/api.md) | Contrats JSON des 30+ routes (clan analytics, queue management, member scope) |
 | [Dashboard monitoring](telemetry/dashboard.md) | Pages dashboard/errors, métriques Prometheus, pages annexes télémétrie, améliorations restantes |

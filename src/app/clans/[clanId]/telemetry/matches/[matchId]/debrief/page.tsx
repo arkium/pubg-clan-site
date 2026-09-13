@@ -1,14 +1,13 @@
 'use client'
 
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useRef, useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Crosshair,
-  MapPin,
-  Plane,
+  PlayCircle,
   Radio,
   RefreshCw,
   Shield,
@@ -29,12 +28,74 @@ import {
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
-import { getMapBounds, clamp01 } from '@/lib/pubg-telemetry/position-heatmap'
-import { resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
+import { mapAssetUrl, resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
 
-import { DamageBodySvg, BodyZoneKey, inferHitZones } from '@/components/telemetry/DamageBodySvg'
+import { DamageBodySvg, BodyZoneKey } from '@/components/telemetry/DamageBodySvg'
 import { WeaponAccuracyBadge } from '@/components/telemetry/WeaponAccuracyBadge'
 import { MatchCombatTimeline, CombatEvent } from '@/components/telemetry/MatchCombatTimeline'
+import { MatchReplay2D, type MatchReplayData } from '@/components/telemetry/MatchReplay2D'
+import {
+  summarizeBodyZones as summarizeBodyZoneTotals,
+  type BodyZone,
+  type BodyZoneBreakdown,
+} from '@/lib/pubg-telemetry/body-zones'
+import type { SquadMateStats } from '@/lib/pubg-telemetry/squad-mates'
+
+function SquadMateBadge({ clanTag }: { clanTag: string | null }) {
+  return (
+    <span
+      className="px-1.5 py-0.5 rounded bg-teal-950/70 border border-teal-800/60 text-[10px] font-bold uppercase tracking-wide text-teal-300"
+      title="Coéquipier de l'escouade qui n'est pas suivi sur le site : statistiques issues de la télémétrie."
+    >
+      {clanTag ? `[${clanTag}] ` : ''}non suivi
+    </span>
+  )
+}
+
+type SquadBodyZonesApi = {
+  squadBodyZones?: {
+    available: boolean
+    dealt: BodyZoneBreakdown[]
+    taken: BodyZoneBreakdown[]
+  }
+}
+
+const SILHOUETTE_ZONES: BodyZone[] = ['head', 'torso', 'pelvis', 'arms', 'legs']
+
+function toZoneRecord(
+  breakdown: BodyZoneBreakdown[] | undefined,
+  field: 'damage' | 'hits'
+): Record<BodyZoneKey, number> {
+  const record: Record<BodyZoneKey, number> = { head: 0, torso: 0, pelvis: 0, arms: 0, legs: 0 }
+  for (const row of breakdown ?? []) {
+    if (!SILHOUETTE_ZONES.includes(row.zone)) continue
+    record[row.zone as BodyZoneKey] = row[field]
+  }
+  return record
+}
+
+function summarizeBodyZones(breakdown: BodyZoneBreakdown[] | undefined) {
+  return {
+    damageByZone: toZoneRecord(breakdown, 'damage'),
+    hitsByZone: toZoneRecord(breakdown, 'hits'),
+    ...summarizeBodyZoneTotals(breakdown),
+  }
+}
+
+const BODY_ZONE_VIEW_COPY = {
+  dealt: {
+    title: 'Tirs infligés',
+    subtitle: 'Où l’escouade touche ses adversaires',
+    accent: 'text-emerald-400',
+    unlocalized: 'dégâts non localisés (explosifs, véhicules…)',
+  },
+  taken: {
+    title: 'Tirs subis',
+    subtitle: 'Où l’escouade est touchée',
+    accent: 'text-rose-400',
+    unlocalized: 'dégâts non localisés (zone bleue, chute, explosion)',
+  },
+} as const
 
 type TelemetryStatus = 'success' | 'failed' | 'pending'
 
@@ -71,42 +132,6 @@ type ThrowableStatApi = {
   stunCount: number
 }
 
-type FlightPathApi = {
-  start: { x: number; y: number }
-  end: { x: number; y: number }
-  dropStart?: { x: number; y: number }
-  dropEnd?: { x: number; y: number }
-  angleDeg: number
-}
-
-type TrajectorySegmentApi = {
-  memberKey: string
-  phase: number
-  fromX: number
-  fromY: number
-  toX: number
-  toY: number
-}
-
-type PositionSampleApi = {
-  memberKey: string
-  phase: number
-  x: number
-  y: number
-  timestamp?: number
-}
-
-type PhaseSnapshotApi = {
-  isGame: number
-  timestampSeconds: number
-  numAlivePlayers: number
-  numAliveTeams: number
-  safetyZoneRadiusMeters: number
-  poisonGasWarningRadiusMeters: number
-  safetyZoneX?: number
-  safetyZoneY?: number
-}
-
 type MatchTelemetryResponse = {
   ok: boolean
   data?: {
@@ -135,10 +160,11 @@ type MatchTelemetryResponse = {
       knockoutSamples: unknown
       reviveSamples: unknown
       phaseSnapshots: unknown
-      flightPath: FlightPathApi | null
     }
     killEvents?: KillEventApi[]
     throwableStats?: ThrowableStatApi[]
+    /** Coéquipiers hors clan, statistiques issues de la télémétrie (`memberStats`). */
+    squadMates?: SquadMateStats[]
     weaponLabels?: Record<string, string>
     phaseLabels?: Record<string, string>
     memberIdentityMap?: Record<string, { name: string; clanTag?: string; clanId?: number }>
@@ -160,7 +186,9 @@ function parseJson<T>(value: unknown, fallback: T): T {
 }
 
 function mapAssetPath(mapName: string) {
-  return `/maps/pubg/${mapName}.webp`
+  // Résout les alias (`Erangel_Main` → `Baltic_Main`, libellés affichés) et
+  // renvoie `null` plutôt qu'un 404 quand aucun asset n'existe.
+  return mapAssetUrl(mapName)
 }
 
 function formatTimeElapsed(seconds: number) {
@@ -179,14 +207,6 @@ function formatDateTime(value: string | undefined) {
   }).format(parsed)
 }
 
-function toMapPercent(mapName: string, x: number, y: number) {
-  const bounds = getMapBounds(mapName)
-  return {
-    x: clamp01(x / bounds.width) * 100,
-    y: clamp01(y / bounds.height) * 100,
-  }
-}
-
 export default function MatchTacticalDebriefPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -199,15 +219,17 @@ export default function MatchTacticalDebriefPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MatchTelemetryResponse['data'] | null>(null)
-  const [activeTab, setActiveTab] = useState<'combat' | 'map' | 'squad' | 'duels'>('combat')
+  // L'ancienne « Carte Tactique 2D » statique a été fusionnée dans le Replay
+  // (calques persistants, cap C-130, accès rapide aux phases).
+  const [activeTab, setActiveTab] = useState<'combat' | 'replay' | 'squad' | 'duels'>('combat')
 
-  // Map controls
-  const [selectedPhase, setSelectedPhase] = useState<number | 'all'>('all')
-  const [showFlightPath, setShowFlightPath] = useState(true)
-  const [showLandings, setShowLandings] = useState(true)
-  const [showDeaths, setShowDeaths] = useState(true)
-  const [showTrajectories, setShowTrajectories] = useState(true)
-  const [hoveredMapPoint, setHoveredMapPoint] = useState<string | null>(null)
+  // Replay 2D — chargé uniquement à l'ouverture de l'onglet (payload dédié).
+  const [replayData, setReplayData] = useState<MatchReplayData | null>(null)
+  const [replayLoading, setReplayLoading] = useState(false)
+  const [replayError, setReplayError] = useState('')
+  const [replayRetryToken, setReplayRetryToken] = useState(0)
+  const replayRequestIdRef = useRef(0)
+  const replayLoadedRef = useRef(false)
 
   useEffect(() => {
     if (!clanId || !matchId) return
@@ -244,6 +266,42 @@ export default function MatchTacticalDebriefPage() {
     }
   }, [clanId, matchId])
 
+  useEffect(() => {
+    if (activeTab !== 'replay' || !clanId || !matchId || replayLoadedRef.current) return
+
+    // Garde de fraîcheur plutôt qu'un drapeau d'annulation : sous StrictMode l'effet
+    // est joué deux fois, et un nettoyage annulerait la seule requête réellement lancée.
+    const requestId = replayRequestIdRef.current + 1
+    replayRequestIdRef.current = requestId
+    const isCurrent = () => replayRequestIdRef.current === requestId
+
+    async function loadReplay() {
+      try {
+        setReplayLoading(true)
+        setReplayError('')
+        const res = await fetch(`/api/clans/${clanId}/matches/${matchId}/replay`)
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; data?: MatchReplayData; error?: { message?: string } }
+          | null
+        if (!res.ok || !data?.ok || !data.data) {
+          throw new Error(data?.error?.message ?? `Replay indisponible pour ce match (HTTP ${res.status})`)
+        }
+        if (isCurrent()) {
+          replayLoadedRef.current = true
+          setReplayData(data.data)
+        }
+      } catch (err) {
+        if (isCurrent()) {
+          setReplayError(err instanceof Error ? err.message : 'Erreur lors du chargement du replay.')
+        }
+      } finally {
+        if (isCurrent()) setReplayLoading(false)
+      }
+    }
+
+    loadReplay()
+  }, [activeTab, clanId, matchId, replayRetryToken])
+
   const match = payload?.match
   const telemetry = payload?.telemetry
   const killEvents = payload?.killEvents ?? []
@@ -261,53 +319,6 @@ export default function MatchTacticalDebriefPage() {
     return parseJson<any[]>(telemetry?.weaponStats, [])
   }, [telemetry?.weaponStats])
 
-  const trajectorySegments = useMemo(() => {
-    return parseJson<TrajectorySegmentApi[]>(telemetry?.trajectorySegments, [])
-  }, [telemetry?.trajectorySegments])
-
-  const deathSamples = useMemo(() => {
-    return parseJson<PositionSampleApi[]>(telemetry?.deathSamples, [])
-  }, [telemetry?.deathSamples])
-
-  const landingSamples = useMemo(() => {
-    return parseJson<PositionSampleApi[]>(telemetry?.landingSamples, [])
-  }, [telemetry?.landingSamples])
-
-  const knockoutSamples = useMemo(() => {
-    return parseJson<any[]>(telemetry?.knockoutSamples, [])
-  }, [telemetry?.knockoutSamples])
-
-  const reviveSamples = useMemo(() => {
-    return parseJson<any[]>(telemetry?.reviveSamples, [])
-  }, [telemetry?.reviveSamples])
-
-  const phaseSnapshots = useMemo(() => {
-    return parseJson<PhaseSnapshotApi[]>(telemetry?.phaseSnapshots, [])
-  }, [telemetry?.phaseSnapshots])
-
-  const flightPath = telemetry?.flightPath || (payload as any)?.flightPath
-
-  // Available phases
-  const availablePhases = useMemo(() => {
-    const set = new Set<number>()
-    for (const snap of phaseSnapshots) {
-      if (snap.isGame >= 1 && Number.isInteger(snap.isGame)) {
-        set.add(snap.isGame)
-      }
-    }
-    return Array.from(set).sort((a, b) => a - b)
-  }, [phaseSnapshots])
-
-  // Current Safe Zone Circle for selected phase
-  const activeZoneSnapshot = useMemo(() => {
-    if (selectedPhase === 'all' || phaseSnapshots.length === 0) return null
-    return (
-      phaseSnapshots.find(
-        (s) => Math.floor(s.isGame) === selectedPhase && s.safetyZoneRadiusMeters > 0
-      ) || null
-    )
-  }, [phaseSnapshots, selectedPhase])
-
   // Timeline events provided directly by API, pre-resolved and paired
   const timelineEvents = useMemo<CombatEvent[]>(() => {
     const raw =
@@ -317,45 +328,74 @@ export default function MatchTacticalDebriefPage() {
     return Array.isArray(raw) ? raw : []
   }, [payload, telemetry])
 
-  // Filtered map elements
-  const filteredTrajectorySegments = useMemo(() => {
-    if (selectedPhase === 'all') return trajectorySegments
-    return trajectorySegments.filter((seg) => seg.phase === selectedPhase)
-  }, [trajectorySegments, selectedPhase])
-
-  const filteredDeaths = useMemo(() => {
-    if (selectedPhase === 'all') return deathSamples
-    return deathSamples.filter((d) => d.phase === selectedPhase)
-  }, [deathSamples, selectedPhase])
-
   // Clan roster and aggregated combat stats
   const clanKills = match?.totalKills ?? 0
   const clanDamage = Math.round(match?.totalDamage ?? 0)
   const clanAssists = match?.totalAssists ?? 0
   const clanRevives = match?.totalRevives ?? 0
 
-  // Aggregated anatomical hits suffered by squad from killEvents
-  const squadDamageByZone = useMemo(() => {
-    const clanVictims = killEvents.filter((k) => k.isClanVictim)
-    const acc: Record<BodyZoneKey, number> = { head: 0, torso: 0, pelvis: 0, arms: 0, legs: 0 }
-    if (clanVictims.length > 0) {
-      for (const ev of clanVictims) {
-        const zones = inferHitZones(ev.damageReason)
-        for (const [k, v] of Object.entries(zones)) {
-          acc[k as BodyZoneKey] += v
-        }
-      }
-    } else {
-      // If squad had no deaths, show distribution from general match duel events
-      for (const ev of killEvents) {
-        const zones = inferHitZones(ev.damageReason)
-        for (const [k, v] of Object.entries(zones)) {
-          acc[k as BodyZoneKey] += Math.round(v * 0.4)
-        }
-      }
-    }
-    return acc
-  }, [killEvents])
+  // Coéquipiers hors clan : ni dans SquadMember ni dans les totaux du match.
+  const squadMates = useMemo(() => payload?.squadMates ?? [], [payload?.squadMates])
+  const mateTotals = useMemo(
+    () =>
+      squadMates.reduce(
+        (totals, mate) => ({
+          kills: totals.kills + mate.kills,
+          damage: totals.damage + mate.damage,
+          revives: totals.revives + mate.revives,
+        }),
+        { kills: 0, damage: 0, revives: 0 }
+      ),
+    [squadMates]
+  )
+
+  const squadRows = useMemo(
+    () => [
+      ...(match?.members ?? []).map((member) => ({
+        rowKey: `member-${member.memberId}`,
+        memberId: member.memberId as number | null,
+        accountId: null as string | null,
+        displayName: member.displayName,
+        clanTag: null as string | null,
+        isMate: false,
+        kills: member.kills,
+        damage: member.damage,
+        assists: member.assists as number | null,
+        revives: member.revives,
+        recalls: 0,
+      })),
+      ...squadMates.map((mate) => ({
+        rowKey: `mate-${mate.accountId}`,
+        memberId: null,
+        accountId: mate.accountId.toLowerCase(),
+        displayName: mate.name,
+        clanTag: mate.clanTag,
+        isMate: true,
+        kills: mate.kills,
+        damage: mate.damage,
+        // La télémétrie ne compte pas les assistances.
+        assists: null,
+        revives: mate.revives,
+        recalls: mate.recalls,
+      })),
+    ],
+    [match?.members, squadMates]
+  )
+
+  // Impacts anatomiques réels de l'escouade, agrégés côté API depuis
+  // LogPlayerTakeDamage.damageReason. Absent des matchs parsés avant 2026-09-13.
+  const squadBodyZones = (telemetry as SquadBodyZonesApi | undefined)?.squadBodyZones ?? null
+  const squadBodyZonesAvailable = squadBodyZones?.available === true
+
+  // Deux lectures du même match : où l'escouade touche ses adversaires, et où elle est touchée.
+  const bodyZoneViews = useMemo(
+    () =>
+      (['dealt', 'taken'] as const).map((direction) => ({
+        direction,
+        ...summarizeBodyZones(squadBodyZones?.[direction]),
+      })),
+    [squadBodyZones]
+  )
 
   if (loading) {
     return (
@@ -438,10 +478,10 @@ export default function MatchTacticalDebriefPage() {
       {/* --- Tactical Hero Match Banner --- */}
       <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 p-5 md:p-6 shadow-xl">
         {/* Background Map Ambient Glow */}
-        {match.mapName && (
+        {mapAssetPath(match.mapName) && (
           <div className="absolute right-0 top-0 w-1/2 h-full opacity-15 pointer-events-none overflow-hidden blur-sm">
             <Image
-              src={mapAssetPath(match.mapName)}
+              src={mapAssetPath(match.mapName) as string}
               alt=""
               fill
               className="object-cover object-center"
@@ -477,7 +517,7 @@ export default function MatchTacticalDebriefPage() {
                 </span>
               </div>
 
-              {/* Clan members pills */}
+              {/* Escouade : membres suivis puis coéquipiers hors clan */}
               <div className="flex items-center gap-2 flex-wrap mt-1.5">
                 {match.members.map((m) => (
                   <div
@@ -490,24 +530,43 @@ export default function MatchTacticalDebriefPage() {
                     </span>
                   </div>
                 ))}
+                {squadMates.map((mate) => (
+                  <div
+                    key={mate.accountId}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 border border-dashed border-teal-700/70 text-xs shadow-sm"
+                    title={`${mate.name} — coéquipier non suivi${mate.clanTag ? ` [${mate.clanTag}]` : ''} · ${mate.knockouts} knock(s), ${mate.revives} réanimation(s), ${mate.recalls} rappel(s), ${mate.deaths} mort(s). Statistiques issues de la télémétrie.`}
+                  >
+                    <span className="font-bold text-sm text-teal-300">{mate.name}</span>
+                    <SquadMateBadge clanTag={mate.clanTag} />
+                    <span className="text-xs text-slate-300 font-mono font-medium ml-0.5">
+                      {mate.kills}K • {mate.damage} dmg
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Quick Squad KPI Strip */}
+          {/* Quick Squad KPI Strip — toute l'escouade, coéquipiers hors clan compris */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
             <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800/80 text-center">
               <div className="text-xs uppercase font-bold tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
                 <Skull className="w-3.5 h-3.5 text-rose-400" /> Kills Escouade
               </div>
-              <div className="mt-1 text-2xl font-mono font-black text-white">{clanKills}</div>
+              <div className="mt-1 text-2xl font-mono font-black text-white">{clanKills + mateTotals.kills}</div>
+              {squadMates.length > 0 && (
+                <div className="mt-0.5 text-xs font-mono text-slate-400">dont coéquipiers : {mateTotals.kills}</div>
+              )}
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800/80 text-center">
               <div className="text-xs uppercase font-bold tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
                 <Flame className="w-3.5 h-3.5 text-amber-400" /> Dégâts Totaux
               </div>
-              <div className="mt-1 text-2xl font-mono font-black text-amber-300">{clanDamage}</div>
+              <div className="mt-1 text-2xl font-mono font-black text-amber-300">{clanDamage + mateTotals.damage}</div>
+              {squadMates.length > 0 && (
+                <div className="mt-0.5 text-xs font-mono text-slate-400">dont coéquipiers : {mateTotals.damage}</div>
+              )}
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800/80 text-center">
@@ -515,13 +574,24 @@ export default function MatchTacticalDebriefPage() {
                 <Target className="w-3.5 h-3.5 text-cyan-400" /> Assistances
               </div>
               <div className="mt-1 text-2xl font-mono font-black text-cyan-300">{clanAssists}</div>
+              {squadMates.length > 0 && (
+                <div
+                  className="mt-0.5 text-xs font-mono text-slate-400"
+                  title="La télémétrie ne compte pas les assistances : seules celles des membres suivis sont connues."
+                >
+                  membres suivis
+                </div>
+              )}
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800/80 text-center">
               <div className="text-xs uppercase font-bold tracking-wider text-slate-400 flex items-center justify-center gap-1.5">
                 <Shield className="w-3.5 h-3.5 text-emerald-400" /> Réanimations
               </div>
-              <div className="mt-1 text-2xl font-mono font-black text-emerald-300">{clanRevives}</div>
+              <div className="mt-1 text-2xl font-mono font-black text-emerald-300">{clanRevives + mateTotals.revives}</div>
+              {squadMates.length > 0 && (
+                <div className="mt-0.5 text-xs font-mono text-slate-400">dont coéquipiers : {mateTotals.revives}</div>
+              )}
             </div>
           </div>
         </div>
@@ -547,20 +617,15 @@ export default function MatchTacticalDebriefPage() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('map')}
+          onClick={() => setActiveTab('replay')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all shrink-0 ${
-            activeTab === 'map'
-              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-sm'
+            activeTab === 'replay'
+              ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
           }`}
         >
-          <MapPin className="w-4 h-4" />
-          <span>🗺️ Carte Tactique 2D</span>
-          {flightPath && (
-            <span className="px-2 py-0.5 rounded-full bg-blue-950 text-xs font-mono font-semibold text-blue-300 border border-blue-800/60">
-              C-130
-            </span>
-          )}
+          <PlayCircle className="w-4 h-4" />
+          <span>🎮 Replay 2D</span>
         </button>
 
         <button
@@ -604,297 +669,36 @@ export default function MatchTacticalDebriefPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: 2D TACTICAL MAP                                                    */}
+      {/* TAB 2: ANIMATED 2D REPLAY                                                 */}
       {/* ========================================================================= */}
-      {activeTab === 'map' && (
+      {activeTab === 'replay' && (
         <section className="space-y-4">
-          {/* Map Controls & Phase Selector Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800">
-            {/* Phase Pills */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-300 mr-1 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-blue-400" /> Phase :
-              </span>
+          {replayLoading && <CardSkeleton className="h-96" />}
+
+          {replayError && !replayLoading && (
+            <div className="p-6 rounded-xl bg-rose-950/40 border border-rose-800 text-rose-300 text-sm font-semibold space-y-3">
+              <p>{replayError}</p>
               <button
                 type="button"
-                onClick={() => setSelectedPhase('all')}
-                className={`px-3 py-1 rounded text-xs font-bold transition-all ${
-                  selectedPhase === 'all'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-                }`}
+                onClick={() => {
+                  replayLoadedRef.current = false
+                  setReplayError('')
+                  setReplayRetryToken((token) => token + 1)
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-900/60 border border-rose-700 text-xs font-bold text-rose-100 hover:bg-rose-900 transition-colors"
               >
-                Tout le match
+                <RefreshCw className="w-3.5 h-3.5" /> Réessayer
               </button>
-              {availablePhases.map((phase) => (
-                <button
-                  key={phase}
-                  type="button"
-                  onClick={() => setSelectedPhase(phase)}
-                  className={`px-2.5 py-1 rounded text-xs font-bold font-mono transition-all ${
-                    selectedPhase === phase
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  P{phase}
-                </button>
-              ))}
             </div>
+          )}
 
-            {/* Layer Toggles */}
-            <div className="flex items-center gap-4 text-xs font-semibold text-slate-200 flex-wrap">
-              {flightPath && (
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={showFlightPath}
-                    onChange={(e) => setShowFlightPath(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-0"
-                  />
-                  <span>Avion C-130</span>
-                </label>
-              )}
-              <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={showLandings}
-                  onChange={(e) => setShowLandings(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0"
-                />
-                <span>Atterrissages</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={showTrajectories}
-                  onChange={(e) => setShowTrajectories(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-0"
-                />
-                <span>Trajectoires</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={showDeaths}
-                  onChange={(e) => setShowDeaths(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-rose-500 focus:ring-0"
-                />
-                <span>Éliminations</span>
-              </label>
+          {!replayLoading && !replayError && !replayData && (
+            <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 text-sm font-semibold">
+              Aucune donnée de replay renvoyée pour ce match.
             </div>
-          </div>
+          )}
 
-          {/* 2D Satellite Canvas & Interactive SVG */}
-          <div className="relative aspect-square max-w-4xl mx-auto overflow-hidden rounded-2xl border-2 border-slate-800 bg-slate-950 shadow-2xl">
-            {match.mapName && (
-              <Image
-                src={mapAssetPath(match.mapName)}
-                alt={`Carte ${resolveMapName(match.mapName)}`}
-                fill
-                className="object-fill brightness-90 contrast-105 select-none pointer-events-none"
-                unoptimized
-              />
-            )}
-
-            {/* Dark Vignette Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-slate-950/20 pointer-events-none" />
-
-            {/* SVG Tactical Layer */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              {/* --- 1. SAFE ZONE CIRCLE (White) --- */}
-              {activeZoneSnapshot && activeZoneSnapshot.safetyZoneX && activeZoneSnapshot.safetyZoneY && (
-                (() => {
-                  const center = toMapPercent(
-                    match.mapName,
-                    activeZoneSnapshot.safetyZoneX,
-                    activeZoneSnapshot.safetyZoneY
-                  )
-                  const bounds = getMapBounds(match.mapName)
-                  // Coordinates and radius are natively in centimeters
-                  const radiusPercent = (activeZoneSnapshot.safetyZoneRadiusMeters / bounds.width) * 100
-                  return (
-                    <circle
-                      cx={center.x}
-                      cy={center.y}
-                      r={Math.max(0.5, radiusPercent)}
-                      fill="rgba(255, 255, 255, 0.04)"
-                      stroke="#ffffff"
-                      strokeWidth="0.6"
-                      strokeDasharray="1.5, 1"
-                      className="filter drop-shadow-[0_0_8px_rgba(255,255,255,0.6)] animate-pulse"
-                    />
-                  )
-                })()
-              )}
-
-              {/* --- 2. C-130 FLIGHT PATH VECTOR --- */}
-              {showFlightPath && flightPath && (
-                (() => {
-                  const startPct = toMapPercent(match.mapName, flightPath.start.x, flightPath.start.y)
-                  const endPct = toMapPercent(match.mapName, flightPath.end.x, flightPath.end.y)
-                  const dropStartPct = (flightPath as any).dropStart
-                    ? toMapPercent(match.mapName, (flightPath as any).dropStart.x, (flightPath as any).dropStart.y)
-                    : null
-                  const dropEndPct = (flightPath as any).dropEnd
-                    ? toMapPercent(match.mapName, (flightPath as any).dropEnd.x, (flightPath as any).dropEnd.y)
-                    : null
-
-                  return (
-                    <g id="tactical-flight-path">
-                      {/* Full Traversing Flight Path Line (from map border to map border) */}
-                      <line
-                        x1={startPct.x}
-                        y1={startPct.y}
-                        x2={endPct.x}
-                        y2={endPct.y}
-                        stroke="rgba(59, 130, 246, 0.3)"
-                        strokeWidth="1.2"
-                      />
-                      <line
-                        x1={startPct.x}
-                        y1={startPct.y}
-                        x2={endPct.x}
-                        y2={endPct.y}
-                        stroke="#3b82f6"
-                        strokeWidth="0.5"
-                        strokeDasharray="2.5, 1.5"
-                        opacity="0.85"
-                      />
-
-                      {/* Active Jump Window (Highlighted drop zone between first & last jump) */}
-                      {dropStartPct && dropEndPct && (
-                        <>
-                          <line
-                            x1={dropStartPct.x}
-                            y1={dropStartPct.y}
-                            x2={dropEndPct.x}
-                            y2={dropEndPct.y}
-                            stroke="#60a5fa"
-                            strokeWidth="0.9"
-                            strokeDasharray="1.5, 1"
-                            className="drop-shadow-[0_0_4px_rgba(96,165,250,0.9)]"
-                          />
-                          {/* Drop Start Marker (Green) */}
-                          <circle
-                            cx={dropStartPct.x}
-                            cy={dropStartPct.y}
-                            r="1.0"
-                            fill="#10b981"
-                            stroke="#ffffff"
-                            strokeWidth="0.3"
-                          />
-                          {/* Drop End Marker (Amber) */}
-                          <circle
-                            cx={dropEndPct.x}
-                            cy={dropEndPct.y}
-                            r="1.0"
-                            fill="#f59e0b"
-                            stroke="#ffffff"
-                            strokeWidth="0.3"
-                          />
-                        </>
-                      )}
-
-                      {/* Airplane Entrance Point Marker */}
-                      <circle
-                        cx={startPct.x}
-                        cy={startPct.y}
-                        r="1.3"
-                        fill="#3b82f6"
-                        stroke="#ffffff"
-                        strokeWidth="0.4"
-                      />
-                      {/* Airplane Exit Point Marker */}
-                      <circle
-                        cx={endPct.x}
-                        cy={endPct.y}
-                        r="1.3"
-                        fill="#1d4ed8"
-                        stroke="#93c5fd"
-                        strokeWidth="0.4"
-                      />
-                    </g>
-                  )
-                })()
-              )}
-
-              {/* --- 3. TRAJECTORY SEGMENTS (Squad movement) --- */}
-              {showTrajectories &&
-                filteredTrajectorySegments.slice(0, 1500).map((seg, idx) => {
-                  const from = toMapPercent(match.mapName, seg.fromX, seg.fromY)
-                  const to = toMapPercent(match.mapName, seg.toX, seg.toY)
-                  return (
-                    <line
-                      key={`traj-${idx}`}
-                      x1={from.x}
-                      y1={from.y}
-                      x2={to.x}
-                      y2={to.y}
-                      stroke="rgba(245, 158, 11, 0.65)"
-                      strokeWidth="0.4"
-                      strokeLinecap="round"
-                    />
-                  )
-                })}
-
-              {/* --- 4. LANDING SAMPLES (Parachute Drop Points) --- */}
-              {showLandings &&
-                landingSamples.map((pt, idx) => {
-                  const pos = toMapPercent(match.mapName, pt.x, pt.y)
-                  return (
-                    <g
-                      key={`land-${idx}`}
-                      transform={`translate(${pos.x}, ${pos.y})`}
-                      className="cursor-pointer"
-                      onMouseEnter={() => setHoveredMapPoint(`Atterrissage: ${pt.memberKey}`)}
-                      onMouseLeave={() => setHoveredMapPoint(null)}
-                    >
-                      <circle r="1" fill="#10b981" stroke="#ffffff" strokeWidth="0.3" />
-                    </g>
-                  )
-                })}
-
-              {/* --- 5. DEATH SAMPLES (Kills / Eliminations) --- */}
-              {showDeaths &&
-                filteredDeaths.map((d, idx) => {
-                  const pos = toMapPercent(match.mapName, d.x, d.y)
-                  return (
-                    <g
-                      key={`death-${idx}`}
-                      transform={`translate(${pos.x}, ${pos.y})`}
-                      className="cursor-pointer"
-                      onMouseEnter={() => setHoveredMapPoint(`Élimination: ${d.memberKey}`)}
-                      onMouseLeave={() => setHoveredMapPoint(null)}
-                    >
-                      <circle r="1.3" fill="#ef4444" stroke="#ffffff" strokeWidth="0.4" />
-                    </g>
-                  )
-                })}
-            </svg>
-
-            {/* Hover Tooltip Overlay on Map */}
-            {hoveredMapPoint && (
-              <div className="absolute bottom-4 left-4 z-20 px-3.5 py-2 rounded-lg bg-slate-900/95 border border-slate-700 text-xs font-semibold text-white shadow-xl backdrop-blur-md">
-                {hoveredMapPoint}
-              </div>
-            )}
-
-            {/* Flight Path Badge overlay */}
-            {flightPath && showFlightPath && (
-              <div className="absolute top-4 right-4 z-10 flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-900/90 border border-blue-500/50 text-xs font-mono font-semibold text-blue-200 shadow-xl backdrop-blur-md">
-                <Plane
-                  className="w-4 h-4 text-blue-400 shrink-0"
-                  style={{ transform: `rotate(${flightPath.angleDeg - 45}deg)` }}
-                />
-                <span>Cap C-130 : {Math.round(((flightPath.angleDeg % 360) + 360) % 360)}°</span>
-              </div>
-            )}
-          </div>
+          {replayData && !replayLoading && <MatchReplay2D data={replayData} />}
         </section>
       )}
 
@@ -924,12 +728,15 @@ export default function MatchTacticalDebriefPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {match.members.map((member) => {
-                    const stats = memberStats.find(
-                      (s) =>
-                        s.memberKey?.toLowerCase().includes(member.displayName.toLowerCase()) ||
-                        memberIdentityMap[s.memberKey]?.name === member.displayName
-                    )
+                  {squadRows.map((member) => {
+                    const stats =
+                      member.accountId !== null
+                        ? memberStats.find((s) => s.memberKey?.toLowerCase() === member.accountId)
+                        : memberStats.find(
+                            (s) =>
+                              s.memberKey?.toLowerCase().includes(member.displayName.toLowerCase()) ||
+                              memberIdentityMap[s.memberKey]?.name === member.displayName
+                          )
 
                     // Calculate accuracy from member weapons if available
                     let shotsTotal = 0
@@ -947,14 +754,23 @@ export default function MatchTacticalDebriefPage() {
                     const vehicleDist = Math.round(Number(stats?.vehicleDistanceMeters) || 0)
 
                     // Throwable stats
-                    const throwables = throwableStats.find((t) => t.memberId === member.memberId)
+                    const throwables =
+                      member.memberId !== null
+                        ? throwableStats.find((t) => t.memberId === member.memberId)
+                        : undefined
 
                     return (
-                      <tr key={member.memberId} className="hover:bg-slate-800/30 transition-colors">
+                      <tr key={member.rowKey} className="hover:bg-slate-800/30 transition-colors">
                         <td className="px-3.5 py-3.5">
-                          <div className="font-bold text-slate-100 text-sm">{member.displayName}</div>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold text-sm ${member.isMate ? 'text-teal-300' : 'text-slate-100'}`}>
+                              {member.displayName}
+                            </span>
+                            {member.isMate && <SquadMateBadge clanTag={member.clanTag} />}
+                          </div>
                           <div className="text-xs text-slate-400 font-mono mt-0.5">
-                            Assists: {member.assists} • Revives: {member.revives}
+                            {member.assists !== null ? `Assists: ${member.assists} • ` : ''}Revives: {member.revives}
+                            {member.recalls > 0 ? ` • Rappels: ${member.recalls}` : ''}
                           </div>
                         </td>
 
@@ -1153,26 +969,75 @@ export default function MatchTacticalDebriefPage() {
             </div>
           </div>
 
-          {/* Squad Anatomical Damage Heatmap Overview */}
-          <div className="p-5 md:p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col md:flex-row items-center justify-around gap-8">
-            <div className="text-center md:text-left max-w-md">
+          {/* Répartition anatomique : infligés en regard des subis */}
+          <div className="p-5 md:p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-5">
+            <div className="text-center md:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-mono font-bold uppercase mb-2.5">
                 <Crosshair className="w-3.5 h-3.5" /> Analyse balistique escouade
               </div>
               <h3 className="text-lg font-bold text-white tracking-tight">
-                Répartition anatomique des tirs subis
+                Répartition anatomique des impacts
               </h3>
-              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                Visualisez les points d'impact et localisations critiques enregistrés sur les membres de l'escouade lors des affrontements décisifs. Les données de chaque zone sont affichées directement sur l'opérateur.
-              </p>
+              {squadBodyZonesAvailable ? (
+                <p className="text-xs text-slate-300 mt-2 leading-relaxed max-w-3xl">
+                  Localisations réellement enregistrées par la télémétrie (
+                  <span className="font-mono text-slate-200">LogPlayerTakeDamage</span>) : à gauche
+                  les touches portées par l&apos;escouade, à droite celles qu&apos;elle a reçues. Les
+                  dégâts qu&apos;un membre s&apos;inflige lui-même ne comptent pas comme infligés.
+                </p>
+              ) : (
+                <p className="text-xs text-amber-300/90 mt-2 leading-relaxed max-w-3xl">
+                  Ce match a été analysé avant la capture des zones d&apos;impact. Aucune
+                  répartition n&apos;est inventée ici — relancez une synchronisation télémétrie pour
+                  l&apos;obtenir (possible uniquement sur les matchs de moins de 14 jours).
+                </p>
+              )}
             </div>
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/90 shadow-xl shrink-0 w-full sm:w-auto min-w-[220px] max-w-[280px]">
-              <DamageBodySvg
-                damageByZone={squadDamageByZone}
-                size="md"
-                showLabels={true}
-                showTooltips={true}
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {bodyZoneViews.map((view) => {
+                const copy = BODY_ZONE_VIEW_COPY[view.direction]
+                return (
+                  <div
+                    key={view.direction}
+                    className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-slate-950/80 border border-slate-800/90 shadow-xl"
+                  >
+                    <div className="w-full text-center">
+                      <div className={`text-sm font-bold ${copy.accent}`}>{copy.title}</div>
+                      <div className="text-xs text-slate-400">{copy.subtitle}</div>
+                      {squadBodyZonesAvailable && view.localizedHits > 0 && (
+                        <div className="mt-1.5 text-xs font-mono text-slate-300">
+                          {view.localizedHits} touche{view.localizedHits > 1 ? 's' : ''} ·{' '}
+                          {Math.round(view.localizedDamage)} dmg
+                          {view.headHitRate !== null && ` · ${view.headHitRate} % à la tête`}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="w-full max-w-[280px]">
+                      <DamageBodySvg
+                        damageByZone={view.damageByZone}
+                        hitsByZone={view.hitsByZone}
+                        size="md"
+                        variant={view.direction === 'dealt' ? 'dealt' : 'received'}
+                        showLabels={true}
+                        showTooltips={true}
+                        unavailable={!squadBodyZonesAvailable}
+                        unavailableLabel="Zones d'impact non capturées pour ce match"
+                      />
+                    </div>
+
+                    {squadBodyZonesAvailable && view.localizedHits === 0 && (
+                      <p className="text-xs text-slate-500 text-center">Aucune touche localisée.</p>
+                    )}
+                    {squadBodyZonesAvailable && view.unlocalizedDamage > 0 && (
+                      <p className="text-xs text-slate-500 font-mono text-center">
+                        + {Math.round(view.unlocalizedDamage)} {copy.unlocalized}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </section>

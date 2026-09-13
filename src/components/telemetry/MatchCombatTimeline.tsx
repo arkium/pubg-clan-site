@@ -16,6 +16,7 @@ import {
   Users,
 } from 'lucide-react'
 import { DamageBodySvg, BodyZoneKey } from './DamageBodySvg'
+import { resolveBodyZone } from '@/lib/pubg-telemetry/body-zones'
 
 export type CombatAffiliation = 'current_clan' | 'tracked_clan' | 'external'
 
@@ -66,26 +67,25 @@ function getWeaponDisplayName(rawWeapon: string | undefined): string {
 }
 
 /**
- * Infers rough body zones based on damageReason or default lethal distribution.
+ * Localisation réelle de l'impact fatal. La télémétrie ne persiste pas la zone
+ * événement par événement : seul un headshot est une information certaine.
+ * Renvoie `null` quand la zone est inconnue, pour afficher un état explicite
+ * plutôt qu'une répartition inventée.
  */
-function inferHitZones(damageReason?: string): Partial<Record<BodyZoneKey, number>> {
-  if (!damageReason) {
-    return { torso: 75, pelvis: 25 }
-  }
-  const reason = damageReason.toLowerCase()
-  if (reason.includes('head')) {
-    return { head: 100 }
-  }
-  if (reason.includes('pelvis') || reason.includes('groin')) {
-    return { pelvis: 80, torso: 20 }
-  }
-  if (reason.includes('arm') || reason.includes('hand')) {
-    return { arms: 70, torso: 30 }
-  }
-  if (reason.includes('leg') || reason.includes('foot')) {
-    return { legs: 80, pelvis: 20 }
-  }
-  return { torso: 70, pelvis: 30 }
+function resolveEventHitZones(
+  damageReason?: string
+): Partial<Record<BodyZoneKey, number>> | null {
+  if (!damageReason) return null
+  const zone = resolveBodyZone(damageReason)
+  return zone === 'other' ? null : { [zone]: 100 }
+}
+
+const ZONE_DISPLAY_LABELS: Record<BodyZoneKey, string> = {
+  head: 'Tête',
+  torso: 'Torse',
+  pelvis: 'Bassin',
+  arms: 'Bras',
+  legs: 'Jambes',
 }
 
 export function MatchCombatTimeline({
@@ -298,7 +298,8 @@ export function MatchCombatTimeline({
                     cardBorder = 'border-purple-500/40 bg-purple-950/15 hover:border-purple-500/55'
                   }
 
-                  const hitZones = ev.damageByZone || inferHitZones(ev.damageReason)
+                  const hitZones = ev.damageByZone ?? resolveEventHitZones(ev.damageReason)
+                  const hitZonesUnavailable = !hitZones || Object.keys(hitZones).length === 0
 
                   return (
                     <div
@@ -506,11 +507,13 @@ export function MatchCombatTimeline({
                                     </span>
                                   </div>
                                 )}
-                                {ev.damageReason && (
+                                {!hitZonesUnavailable && (
                                   <div>
                                     Localisation fatale :{' '}
                                     <span className="font-mono text-rose-400 font-bold">
-                                      {ev.damageReason}
+                                      {ZONE_DISPLAY_LABELS[
+                                        Object.keys(hitZones ?? {})[0] as BodyZoneKey
+                                      ] ?? ev.damageReason}
                                     </span>
                                   </div>
                                 )}
@@ -524,10 +527,12 @@ export function MatchCombatTimeline({
                                 Impact corporel
                               </div>
                               <DamageBodySvg
-                                damageByZone={hitZones}
+                                damageByZone={hitZones ?? {}}
                                 size="sm"
                                 showTooltips={true}
                                 showLabels={true}
+                                unavailable={hitZonesUnavailable}
+                                unavailableLabel="Localisation de l'impact non enregistrée"
                               />
                             </div>
 

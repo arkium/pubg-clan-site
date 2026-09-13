@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleDashed, Focus, Info, Minus, Plus } from 'lucide-react'
+import { CircleDashed, Info } from 'lucide-react'
 import {
   forwardRef,
   useEffect,
@@ -10,6 +10,9 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+
+import MapZoomControl from '@/components/ui/MapZoomControl'
+import { MAP_ZOOM_MIN, clampMapZoom, stepMapZoom, wheelZoomDirection } from '@/lib/map-zoom'
 
 type MapFocusLocation = {
   xPct: number
@@ -30,9 +33,8 @@ type DropZoneMapViewportProps = {
   onSwipeMap?: (direction: 'prev' | 'next') => void
 }
 
-const MIN_ZOOM = 1
+const MIN_ZOOM = MAP_ZOOM_MIN
 const MAX_ZOOM = 4
-const ZOOM_STEP = 0.5
 const SWIPE_THRESHOLD_PX = 60
 
 type DragState = {
@@ -75,7 +77,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
 
     function changeZoom(nextZoom: number) {
       const viewport = viewportRef.current
-      const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom))
+      const boundedZoom = clampMapZoom(nextZoom, MAX_ZOOM)
       const centerX = viewport
         ? ((viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth) * 100
         : 50
@@ -170,12 +172,10 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       const activeViewport = viewportElement
 
       function handleWheel(event: WheelEvent) {
-        if (event.deltaY === 0) return
+        const direction = wheelZoomDirection(event.deltaY)
+        if (direction === null) return
 
-        const nextZoom = Math.max(
-          MIN_ZOOM,
-          Math.min(MAX_ZOOM, zoomRef.current + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
-        )
+        const nextZoom = stepMapZoom(zoomRef.current, direction, MAX_ZOOM)
         if (nextZoom === zoomRef.current) return
 
         const bounds = activeViewport.getBoundingClientRect()
@@ -251,38 +251,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           </div>
         </div> : null}
 
-        <div className="absolute right-3 top-3 z-40 flex h-10 items-stretch overflow-hidden rounded border border-white/25 bg-slate-950/80 text-white shadow-lg backdrop-blur">
-          <button
-            type="button"
-            onClick={() => changeZoom(zoom - ZOOM_STEP)}
-            disabled={zoom <= MIN_ZOOM}
-            className="flex w-10 items-center justify-center border-r border-white/15 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-            title="Réduire le zoom"
-            aria-label="Réduire le zoom"
-          >
-            <Minus className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={reset}
-            className="flex min-w-16 items-center justify-center gap-1.5 border-r border-white/15 px-2 text-xs font-semibold tabular-nums hover:bg-white/10"
-            title="Afficher la carte entière"
-            aria-label="Afficher la carte entière"
-          >
-            <Focus className="h-3.5 w-3.5" aria-hidden="true" />
-            {zoom.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}×
-          </button>
-          <button
-            type="button"
-            onClick={() => changeZoom(zoom + ZOOM_STEP)}
-            disabled={zoom >= MAX_ZOOM}
-            className="flex w-10 items-center justify-center hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-            title="Augmenter le zoom"
-            aria-label="Augmenter le zoom"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
+        <MapZoomControl zoom={zoom} max={MAX_ZOOM} onZoomChange={changeZoom} onReset={reset} />
       </div>
     )
   }

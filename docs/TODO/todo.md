@@ -331,20 +331,238 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
 > **Stratégie d'Architecture : Finaliser et consolider `/clans/[clanId]/telemetry/matches/[matchId]/debrief` en priorité**
 > Plutôt que de maintenir deux pages de télémétrie divergentes (l'ancienne page monolithique de 65 Ko sur les tournois et la nouvelle page moderne de débriefing sur les clans), la stratégie retenue est de **finaliser d'abord la page de Débriefing à 4 onglets**, puis de l'exploiter pour les matchs de tournois.
 
-- [ ] **Les 4 Chantiers d'Amélioration & Finalisation du Débriefing :**
-  1. **🎮 Véritable Replay 2D interactif animé sur Carte Tactique (Inspiration PUBG.PLUS) :**
-     - **Lecteur multimédia dynamique :** Contrôles `Lecture / Pause`, barre de progression temporelle interactive (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
-     - **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
-     - **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
-       - `Mode Escouade` : notre clan / équipe et les adversaires au contact direct ou engagés en duel.
-       - `Mode Tournoi / Suivis` : l'ensemble des membres des clans suivis et équipes participantes au tournoi.
-       - `Mode Global (100 joueurs)` : vue intégrale sur tous les joueurs du lobby avec pastilles numérotées par escouade (façon PUBG.PLUS).
-     - **Suivi Caméra Automatique (*Camera Follow*) :** Clic sur un joueur ou une équipe pour centrer et verrouiller la caméra sur lui, avec suivi automatique de ses déplacements sur la carte pendant la lecture.
+> **État au 2026-09-13 — les 4 chantiers techniques du débriefing sont livrés ; le « Mode contextuel Tournoi », qui
+> est la finalité de ce volet, n'est pas commencé** (voir plus bas, avec l'obstacle d'accès à lever d'abord).
+>
+> Audit préalable mené sur le match réel `cmtoouiyw8t6304b22w3f4u8y` (Sanhok, Squad TPP, Top 2, clan 1),
+> sur `cmu00zh2r2e9t04tztbp80kfk` (Erangel, 100 joueurs) et sur une capture télémétrie brute de 38,6 Mo
+> (100 joueurs, 13 428 événements de dégâts).
+> **Tout est consigné en détail dans [docs/telemetry/replay-trajectories.md](../telemetry/replay-trajectories.md)**
+> (système de coordonnées, bases de temps, reconstitution de l'avion, cercles de zone, format de piste,
+> scripts de diagnostic, limites connues).
+>
+> Cinq découvertes ont conditionné le découpage réel, différent de la proposition initiale :
+>
+> 1. **Le lobby complet est déjà en base, contrairement aux kills et aux dégâts.** `positionSamples` contient
+>    **96 acteurs distincts sur 29 équipes**, horodatés, avec `teamId` et `inVehicle`, échantillonnés toutes les 10 s.
+>    Raison : la garde `accumulator.clanMemberKeys.size === 0 || …` dans `parser.ts` laisse tout passer, et
+>    `clanMemberKeys` est vide sur le chemin de sync principal (même cause que pour le kill-feed et les lancers).
+>    Le mode « Global 100 joueurs » n'a donc demandé **aucune modification du parser ni du stockage** — l'inquiétude
+>    initiale sur le volume était infondée.
+> 2. **Deux bases de temps coexistent dans `SquadMatchTelemetry`, sans que rien ne le signale.** `positionSamples`,
+>    `trajectorySegments` et `phaseSnapshots` sont en **secondes relatives** au début du match ; `landingSamples`,
+>    `deathSamples`, `knockoutSamples`, `reviveSamples` et `KillEvent.timestampSeconds` sont en **epoch absolu**.
+>    Sans normalisation, un atterrissage se serait affiché à la seconde 1 788 628 072 d'un match de 1 385 s.
+>    Centralisé dans `toRelativeSeconds` (`match-replay.ts`), base = `SquadMatch.createdAt`.
+> 3. **Le cercle blanc (prochaine zone) n'était pas stockable.** `phaseSnapshots` ne portait que `safetyZoneX/Y`
+>    (cercle bleu courant) et le **rayon** du prochain cercle, jamais son centre. `poisonGasWarningX/Y` a été ajouté
+>    au parser — changement **additif dans une colonne JSON existante, donc sans migration Prisma** — et est désormais
+>    présent sur **170 snapshots sur 170** d'une capture réelle reparseée. Les matchs parses avant le 2026-09-13
+>    gardent `px/py = null` ; le lecteur ne dessine ce cercle que s'il existe.
+> 4. **La silhouette anatomique affichait des données entièrement inventées.** Non seulement `inferHitZones` était
+>    une heuristique en dur, mais l'API **fabriquait sa donnée d'entrée** (`damageReason: headshot ? 'HeadShot' :
+>    'Torso'`). Corrigé à la source — voir chantier 2.
+> 5. **Les positions à `t=0` ne sont pas celles de l'avion.** Elles valent le spawn / l'île d'attente, à plusieurs
+>    kilomètres de l'appareil : sur un match Erangel réel, moyenne des positions à `t=0` = `(565965, 305667)` alors
+>    que l'avion reconstitué s'y trouve en `(83000, -87000)`, hors carte au nord-ouest. Les interpoler traçait de
+>    longues diagonales fantômes et plaçait les joueurs n'importe où pendant les ~20 premières secondes.
+>    **Source exacte retenue :** les départs d'aéronef (`vehicleSamples`, `action: 'leave'` +
+>    `vehicleType: 'TransportAircraft'`), qui donnent la position réelle de l'avion à un instant précis.
+>    Sur le match testé : 99 sauts entre `t=19s` et `t=60s`, 5 725 m parcourus, soit ~140 m/s — la vitesse réelle
+>    du C-130. Chaque piste est désormais ancrée sur le saut du joueur, et les échantillons antérieurs sont écartés.
+>    Attention : il faut **borner la fenêtre au largage initial** (120 s après le premier saut), sinon l'avion de
+>    rappel de fin de partie — 109 départs d'aéronef au total, dont 10 à plus de 900 s — pollue la trajectoire.
+>
+> **Fichiers livrés :** `src/lib/pubg-assets/map-asset.ts` (+ test), `src/lib/pubg-telemetry/match-replay.ts` (+ test),
+> `src/lib/pubg-telemetry/body-zones.ts` (+ test), `src/lib/pubg-telemetry/flight-path.ts` (+ test),
+> `src/app/api/clans/[clanId]/matches/[matchId]/replay/route.ts`, `src/components/telemetry/MatchReplay2D.tsx`,
+> onglet « 🎮 Replay 2D » dans la page débriefing, doc `docs/telemetry/replay-trajectories.md`, et trois scripts de
+> validation hors HTTP sur données réelles : `scripts/inspect-match-replay.ts`, `scripts/inspect-body-zones.ts`,
+> `scripts/inspect-replay-scale.ts`.
+> Documentation existante mise à jour : entrée ajoutée dans `docs/sommaire.md`, et renvois croisés dans
+> `docs/telemetry/parser.md` sur `LogPlayerPosition`, `LogGameStatePeriodically` et `LogVehicleLeave` — dont
+> `poisonGasWarningPosition`, qui manquait à la liste des champs extraits.
+>
+> **Mesures réelles :** 96 à 100 joueurs reconstitués selon le match, 95 à 99 % de pseudos résolus,
+> 137 à 153 snapshots de zone, **131 à 154 Ko de JSON brut / 47 à 56 Ko gzip**, plan de vol passant
+> **exactement** par les points de saut (écart 0 m), ventilation anatomique **exacte à 0 près** face à `damageTaken`.
+> Validation : `tsc --noEmit` 0 erreur, ESLint **sous la baseline** (24 erreurs préexistantes contre 27 avant),
+> `npm run test:telemetry` **294 tests verts dont 60 nouveaux**.
+>
+> **Écarts assumés par rapport à la proposition initiale :**
+> - Pas de **lignes de tir vectorielles** au sens strict : la télémétrie ne persiste pas les tirs individuels
+>   (`shotSamples` est agrégé en clusters spatiaux, sans horodatage exploitable). Le lecteur trace à la place la
+>   ligne tueur → victime au moment du frag ou du knock, ce qui couvre le besoin d'analyse d'engagement.
+> - Le **plan de vol est calculé depuis les sauts** (`computeFlightPathFromJumps`), avec repli sur les atterrissages
+>   (`computeFlightPath`) si les départs d'aéronef manquent. Vérifié : la ligne passe désormais **exactement** par
+>   les points de saut (écart 0 m, cap 43,5° contre 44° mesuré) alors que la version issue des atterrissages laissait
+>   **217 m** d'écart. Le repli reste imprécis par construction — il moyenne les 15 % d'atterrissages les plus
+>   précoces et les plus tardifs, or le temps d'atterrissage dépend surtout de la distance planée, pas de la position
+>   sur la ligne de vol.
+> - Le **mode Escouade** inclut les adversaires « au contact » via un double critère : implication dans un
+>   événement des 12 dernières secondes, **ou** présence dans un rayon de 300 m d'un membre du clan.
+> - Le **Replay est un onglet distinct** de la « Carte Tactique 2D » existante, qui reste en place : l'une sert
+>   l'analyse statique par phase, l'autre la lecture chronologique. Fusionner les deux est un chantier à part.
+> - **Kill-feed dominé par les knocks** (94 knocks contre 5 kills sur le match de test) : `KillEvent` ne persiste que
+>   les frags impliquant le clan suivi, alors que `knockoutSamples` couvre tout le lobby. Comportement identique au
+>   Combat Log déjà en production, non corrigé ici. *(Corrigé pour le Replay le 2026-09-13 : les morts de `deathSamples`
+>   sans `KillEvent` sont ajoutées au journal, sans tueur — 107 morts affichées au lieu d'environ 5 sur Erangel. Le Combat
+>   Log n'est pas modifié.)*
+> - Le résolveur `resolveMapAssetKey` renvoie **`null` plutôt qu'un chemin invalide** quand aucun asset n'existe, et
+>   l'UI affiche alors une grille de repli avec un bandeau explicite au lieu d'une image cassée.
+>
+> **Deux bugs de chargement corrigés après recette (2026-09-13) :**
+> - **Squelette infini sans message sur l'onglet Replay.** `replayLoading` figurait dans le tableau de dépendances
+>   de l'effet : le `setReplayLoading(true)` initial faisait immédiatement re-tourner l'effet, dont le nettoyage
+>   posait `cancelled = true` sur **sa propre requête**. Les trois branches `if (!cancelled)` étaient alors ignorées
+>   — ni données, ni erreur, ni fin de chargement. Un simple garde par `ref` n'aurait pas suffi : **StrictMode est
+>   actif par défaut dans l'App Router** et double-invoque les effets, ce qui aurait reproduit le blocage (la
+>   première requête annulée, la seconde jamais lancée). Remplacé par un **garde de fraîcheur par identifiant de
+>   requête**, sans annulation : seule la requête la plus récente applique son résultat.
+> - **Aucun état de repli.** L'onglet pouvait rester vide si ni `loading`, ni `error`, ni `data` n'étaient posés.
+>   Ajout d'un message explicite « Aucune donnée de replay renvoyée pour ce match » et d'un bouton **Réessayer**
+>   piloté par un jeton de relance — un double `setActiveTab` aurait été fusionné par le batching React et n'aurait
+>   rien relancé.
+> - Au passage, la garde « pas de positions » de la route ne se base plus sur la liste des comptes du lobby (qui
+>   exclut les bots) mais sur le **nombre de joueurs réellement reconstitués**, pour ne pas renvoyer 404 sur un
+>   lobby entièrement composé de bots.
+
+- [~] **Les 4 Chantiers d'Amélioration & Finalisation du Débriefing :** *(code livré ; reste la resynchronisation des matchs récents et la recette navigateur)*
+  1. **🎮 Véritable Replay 2D interactif animé sur Carte Tactique (Inspiration PUBG.PLUS) :** — ✅ Livré le 2026-09-13
+     - [x] **Lecteur multimédia dynamique :** Contrôles `Lecture / Pause`, barre de progression temporelle interactive (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
+       - Rendu en `<canvas>` 2D sous `requestAnimationFrame`, avec le temps courant en `ref` et non en état React : le scrubber est piloté par manipulation directe du DOM, et un `setState` n'est déclenché qu'au changement de seconde entière (1 rendu/s à vitesse ×1, 8/s à ×8).
+     - [x] **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
+       - Caméra interne au canevas (centre normalisé + facteur d'échelle, ×1 à ×8), et non le conteneur scrollable `DropZoneMapViewport` des pages drop zones : indispensable pour le suivi caméra et le rendu 60 fps. Le zoom molette conserve le point sous le curseur.
+     - [x] **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
+       - [x] `Mode Escouade` : notre clan / équipe et les adversaires au contact direct ou engagés en duel.
+       - [x] `Mode Tournoi / Suivis` : l'ensemble des membres des clans suivis et équipes participantes au tournoi. *(Onglet masqué quand aucun autre clan suivi n'est présent dans le lobby.)*
+       - [x] `Mode Global (100 joueurs)` : vue intégrale sur tous les joueurs du lobby avec pastilles numérotées par escouade (façon PUBG.PLUS). *(Le numéro d'équipe s'affiche sous ×4, le pseudo réel au-delà.)*
+     - [x] **Suivi Caméra Automatique (*Camera Follow*) :** Clic sur un joueur ou une équipe pour centrer et verrouiller la caméra sur lui, avec suivi automatique de ses déplacements sur la carte pendant la lecture. *(Clic sur la carte dans un rayon de 16 px, ou bouton dédié dans le roster ; un glisser de carte libère automatiquement le verrou.)*
      - **Animation dynamique des cercles & combats :**
-       - Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match.
-       - Effet visuel des tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log.
-  2. **🩺 Correction du décompte des impacts et Refonte Graphique de la Silhouette (`DamageBodySvg`) :**
-     - **Refonte visuelle et stylistique complète de la silhouette (Style Opérateur Tactique PUBG) :**
+       - [x] Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match. *(Interpolation linéaire entre snapshots, assombrissement de l'extérieur de la zone jouable. Cercle blanc conditionné au reparse — voir découverte n°3.)*
+       - [~] Effet visuel des tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log. *(Éliminations, knocks et réanimations livrés avec onde de choc et croix ; lignes de tir individuelles impossibles — voir écarts.)*
+     - **Fidélité du début de partie (ajouté après recette, voir découverte n°5) :**
+       - [x] `extractInitialJumps` reconstitue le saut de chaque joueur depuis `vehicleSamples` et expose `player.jump`.
+       - [x] Chaque piste démarre sur ce saut ; les positions antérieures (spawn / île d'attente) sont écartées. **99 joueurs sur 100 ancrés**, écart 0 m à la ligne de vol.
+       - [x] `computeFlightPathFromJumps` remplace le calcul issu des atterrissages, conservé en repli.
+       - [ ] Le joueur sans saut enregistré (déconnexion avant largage) garde ses positions de spawn, faute de point d'ancrage — cas résiduel non traité.
+       - [x] ~~Reprendre la même correction sur l'onglet « Carte Tactique 2D »~~ — sans objet : l'onglet a été **fusionné dans le Replay** le 2026-09-13 (voir « Suite du 2026-09-13 » ci-dessous).
+     - **Suite du 2026-09-13 — fusion de la Carte Tactique, avion animé, zoom standard :** — ✅ Livré le 2026-09-13
+       > **Décision validée avec l'utilisateur :** l'onglet statique « 🗺️ Carte Tactique 2D » faisait doublon avec le Replay
+       > (deux cartes, deux plans de vol, deux logiques de zoom) et affichait des identifiants bruts `account.xxx` au survol,
+       > sans zoom, avec des trajectoires coupées à 1 500 segments. Il est **supprimé** et ce qu'il apportait d'unique est
+       > repris dans le Replay. Le débriefing passe à 4 onglets : Combat Log, Replay 2D, Escouade, Duels.
+       >
+       > **Bug trouvé au passage — le « Cap C-130 » était faux deux fois.** Sur le match Karakin `cmu027vpd3ftl04tzlejla0vk`,
+       > le badge affichait **312°** pour un avion qui volait au **357° (N)** :
+       > 1. source : plan de vol issu des atterrissages, faux de **45°** sur cette petite carte ;
+       > 2. convention : `angleDeg` est un angle compté depuis l'est, affiché tel quel sous le nom de cap (cap = angle + 90°) ;
+       > 3. l'icône était en plus tournée de 90° de trop (`angleDeg − 45` au lieu de `cap − 45`).
+       - [x] **Avion C-130 animé** sur la ligne de vol (`aircraftPositionAt`), avec tronçon parcouru, fenêtre de largage
+         (premier saut vert, dernier ambre) et badge « Cap C-130 : 357° N · 12/64 sautés ». Horaires extrapolés des sauts
+         (`FlightPath.timing`) : la **vitesse dépend de la carte** — 140 m/s Erangel, 71 m/s Sanhok, 48 m/s Karakin —, et
+         l'avion passe à 18-30 m (médiane) des points de saut réels, 113 m au pire (arrondi des horodatages à la seconde).
+       - [x] **Cap compas corrigé** (`compassHeadingDeg`, `compassCardinal`) et calculé depuis les sauts.
+       - [x] **Calques persistants** repris de la carte tactique, en version chronologique : « Trace complète » (trajet de
+         l'escouade depuis le saut, morts inclus), « Atterrissages », « Éliminations ». En mode Escouade, un adversaire n'a de
+         marqueur qu'après son premier échange avec l'escouade.
+       - [x] **Accès rapide** « Largage » et `P1…Pn`, qui remplacent le sélecteur de phase de la carte tactique.
+       - [x] **Zoom aligné sur `/clans/[clanId]/drop-zones`** : nouveau composant partagé `MapZoomControl`
+         (`[ − | ⊙ 1× | + ]` en haut à droite, paliers de ×0,5) et règles dans `src/lib/map-zoom.ts`, utilisés à la fois par
+         `DropZoneMapViewport` et par le Replay. Molette non passive ancrée sous le curseur (la page ne défile plus pendant
+         le zoom), glisser seulement au-delà de ×1, caméra bornée à la carte. Plafond ×8 conservé sur le Replay.
+         **Documenté comme standard projet** : `docs/ui/index.html#zoom-carte` (section 25), `docs/ui/components.md`, `CLAUDE.md`.
+       - [x] La route `/matches/[matchId]/telemetry` ne calcule ni ne renvoie plus `flightPath` (plus aucun consommateur).
+       - [ ] `InteractiveMap.tsx` (anciennes pages `/clans/[clanId]/matches/[matchId]/telemetry` et
+         `/tournaments/[tournamentId]/matches/[matchId]/telemetry`) garde son propre zoom vertical — écart au standard, à
+         migrer si ces pages restent en service.
+     - **Recette du 2026-09-13 — escouade invisible, réanimations et rappels absents :** — ✅ Corrigé le 2026-09-13
+       > **Signalement** sur `/clans/1/telemetry/matches/cmu027vpd3ftl04tzlejla0vk/debrief` (Karakin, clan 1) : on ne voit
+       > pas le nom des 4 joueurs de l'escouade, ni les réanimations ni les rappels ; après leur première mort, les joueurs
+       > ne réapparaissent plus lors d'un rappel.
+       >
+       > **Deux causes, vérifiées sur les données du match :**
+       > 1. **Une seule mort par joueur.** Le payload gardait `d` = première mort et le lecteur masquait le joueur ensuite.
+       >    Pagiotte (mort à 94 s, rappel sauté à 668 s) et SAMUELAXEII (mort à 177 s, rappel à 364 s) disparaissaient
+       >    pour tout le reste de la partie. Leurs réanimations et rappels n'avaient donc personne à afficher. Piège associé :
+       >    après une mort, la télémétrie continue d'émettre la position **figée du cadavre** (98 → 147 s), puis celle de
+       >    l'avion de rappel ; `LogPlayerUseRespawn` n'est pas persisté en échantillon.
+       > 2. **L'escouade réduite au clan.** L'équipe 1 compte 4 joueurs dont **2 seulement sont membres du clan 1**.
+       >    CdtMcKoy et dada14smc étaient classés « lobby externe » : libellé `#1` au lieu du pseudo, masqués hors combat en
+       >    mode Escouade, absents du suivi caméra. C'est dada14smc qui porte 3 des 4 réanimations de l'escouade.
+       - [x] **Vies successives** (`computeReplayLives`) : une vie s'ouvre au saut (initial ou de rappel) et se ferme à une
+         mort ; positions du cadavre et de l'avion de rappel écartées ; chaque vie bornée par le point de saut et le lieu
+         de la mort ; lecteur et traces n'interpolent jamais à travers une mort. Résultat : 7 vies pour l'escouade du match.
+       - [x] **Escouade = équipe** (`sq`) : les coéquipiers hors clan sont nommés, toujours visibles, suivis par la caméra et
+         comptés « en vie », en turquoise pour les distinguer des membres du clan (émeraude).
+       - [x] **Événements** `recall` (onde bleue « RAPPEL », « X revient par rappel » dans le journal) et morts sans
+         `KillEvent` (« X éliminé »), dédupliquées à ±2 s des frags connus.
+       - [x] **État « à terre »** (anneau ambre pointillé, « (à terre) » sur le nom) jusqu'à la réanimation ou la mort ;
+         réanimations flashées 4 s avec ligne sauveteur → relevé et libellé « RÉANIMÉ ».
+       - [x] **Journal et flashs filtrés par mode** : en mode Escouade, les knocks du lobby ne chassent plus une réanimation
+         de l'escouade. Au passage, un adversaire n'est plus « au contact » que s'il a échangé avec l'escouade — avant, n'importe
+         quel duel du lobby dans les 12 dernières secondes suffisait.
+       - [x] Tests : 10 nouveaux dans `match-replay.test.ts` (vies, cadavre écarté, coéquipiers, rappels, morts, déduplication).
+         `scripts/inspect-match-replay.ts` affiche désormais les vies et les événements de l'escouade.
+       - [ ] Recette navigateur à refaire sur ce match (voir « Tests Manuels » plus bas).
+     - **Recette du 2026-09-13 (suite) — coéquipiers non suivis, avions de rappel, caisses de largage :** — ✅ Code livré le 2026-09-13
+       > **Demandes :** (1) afficher le nom et les stats des joueurs non suivis de l'escouade dans le débriefing ;
+       > (2) tracer l'avion des rappels et le faire disparaître quand il quitte la carte ; (3) afficher les caisses de loot.
+       - [x] **Coéquipiers non suivis** (`src/lib/pubg-telemetry/squad-mates.ts`, route `/matches/[matchId]/telemetry` →
+         `squadMates`). `SquadMember` ne contient que les membres suivis ; les stats des invités viennent de `memberStats`.
+         Vérifié : pour Pagiotte et SAMUELAXEII, télémétrie et API concordent exactement ; CdtMcKoy 0 K / 30 dmg / 1 réa,
+         dada14smc 3 K / 302 dmg / 1 réa / 3 rappels déclenchés. Affichés dans le bandeau (pastille turquoise « non suivi »),
+         dans les indicateurs « escouade » (« dont coéquipiers : … »), dans le tableau de l'onglet Escouade et dans les
+         silhouettes anatomiques. **Les assistances restent celles des seuls membres suivis** : la télémétrie ne les compte pas.
+       - [x] **Avions de rappel** (`computeRecallFlights`) : reconstitués depuis embarquements et sauts, horodatages non
+         arrondis, ajustement par moindres carrés, prolongés jusqu'aux bordures. **4 vols sur le match Karakin** (86, 67, 53 et
+         28 m/s). Ligne et appareil ambre affichés **uniquement pendant le survol**, badge « Avion de rappel : cap · rappelés »,
+         raccourcis `R1…R4`.
+       - [x] **Caisses de largage** : ajout au parser de `LogCarePackageSpawn`, `LogCarePackageLand` et
+         `LogItemPickupFromCarepackage` (`care-packages.ts`), stockées dans `summary.carePackages` **sans migration**.
+         Validé sur 3 captures réelles : 39 à 45 caisses (4-5 principales), rebonds dédupliqués, pillages rattachés par
+         distance (`carePackageUniqueId` vaut toujours 0), ~10 Ko. Calque « Largages » : parachute pendant la chute, caisse
+         posée, contour une fois pillée, anneau émeraude si pillée par l'escouade, arme principale affichée à ×3.
+       - [x] Tests : `care-packages.test.ts` (6), `squad-mates.test.ts` (4), 3 dans `flight-path.test.ts`, 3 dans
+         `match-replay.test.ts`, 2 dans `parser.test.ts`. Suite : 332 tests verts (hors 3 fichiers branchés sur la base).
+       - [ ] **Re-synchroniser la télémétrie de `cmu027vpd3ftl04tzlejla0vk`** (et des matchs de moins de 14 jours) pour
+         peupler `summary.carePackages` : sans cela, le calque « Largages » reste grisé. Écriture en production — à lancer
+         par l'utilisateur via le bouton **« Resync ce match »** de la page « Audit Technique Brut »
+         (`/clans/1/telemetry/matches/<id>/telemetry`, rôle Owner, route `POST /telemetry/sync-selected`).
+         ⚠️ `npm run telemetry:batch -- --clan 1` **ne convient pas** : `getMatchesToSync` écarte tout match déjà en
+         `success` avec des `landingSamples` — il ne re-parse donc aucun match récent déjà analysé.
+       - [ ] Les caisses « de mort » (`LogItemPickupFromLootBox`) ne sont pas affichées : leur position est celle des
+         éliminations, déjà couverte par le calque « Éliminations ».
+  2. **🩺 Correction du décompte des impacts et Refonte Graphique de la Silhouette (`DamageBodySvg`) :** — ✅ Décompte corrigé le 2026-09-13
+     > **Constat de l'audit du 2026-09-13 :** le parser **ne persistait aucune zone corporelle**. `LogPlayerTakeDamage.damageReason`
+     > n'était lu que par `isHeadshotKill` (`parser.ts`) pour incrémenter un compteur de headshots ; la valeur brute
+     > (`TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`…) était jetée. `inferHitZones` était donc une **pure invention** :
+     > sur un kill sans `damageReason` exploitable, il retournait `{ torso: 75, pelvis: 25 }` en dur. Pire, l'API
+     > **fabriquait la donnée d'entrée** : `damageReason: k.headshot ? 'HeadShot' : 'Torso'` pour les kills, et
+     > `pair.knocker?.damageReason || 'Combat'` pour les knocks — alors que `TelemetryKnockoutSample` ne porte
+     > aucun `damageReason`. Toute la silhouette affichait donc une répartition entièrement synthétique.
+     >
+     > **Décision validée avec l'utilisateur :** vraies données quand elles existent, **badge « données indisponibles »
+     > sinon — aucune heuristique conservée**.
+     >
+     > **Mise en œuvre :** nouveau module `src/lib/pubg-telemetry/body-zones.ts` (résolution `damageReason` → zone,
+     > accumulation, agrégation), accumulation dans le parser sur `LogPlayerTakeDamage`, sérialisation dans
+     > `memberStats[*].bodyZonesDealt` / `bodyZonesTaken`. **Aucune migration Prisma** : c'est le même procédé que
+     > `memberStats[*].weapons`, à l'intérieur de la colonne JSON existante.
+     >
+     > **Validation sur une capture réelle de 38,6 Mo** (100 joueurs, 13 428 événements de dégâts) :
+     > la somme des dégâts ventilés par zone est **strictement égale** à la somme de `damageTaken`
+     > (écart de 0). Ventilation du lobby : tête 3 639 dmg / 128 touches, torse 5 724 / 479,
+     > bassin 1 447 / 103, bras 2 969 / 254, jambes 1 988 / 184.
+     - **Écarts assumés :**
+       - Une **6ᵉ zone `other`** a été ajoutée pour les dégâts non localisés (`NonSpecific`, `None`, zone bleue,
+         chute, explosion). Elle n'est **pas projetée sur la silhouette** mais affichée à part — sur la capture de
+         test elle représente 10 056 dmg pour 12 280 touches, essentiellement des ticks de zone bleue : la diluer
+         dans le torse aurait rendu la lecture fausse.
+       - La ventilation est **par membre et par match**, pas par événement de combat. Le duel individuel du Combat
+         Log n'affiche donc une zone que pour un headshot avéré, et l'état « Localisation de l'impact non
+         enregistrée » sinon.
+     - **Refonte visuelle et stylistique complète de la silhouette (Style Opérateur Tactique PUBG) :** — ✅ déjà livrée le 2026-09-05, non retouchée
        - Remplacement de la forme trapue/basique actuelle par un tracé vectoriel SVG haute fidélité, athlétique et moderne (silhouette d'opérateur militaire / Battle Royale).
        - Découpage anatomique précis et stylé :
          - **Casque militaire PUBG Level 3 (Spetsnaz)** avec visière blindée distincte.
@@ -354,10 +572,19 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
        - Esthétique HUD holographique militaire : tracés fins, shaders/dégradés lumineux néon réactifs selon la gravité des dégâts (Rouge cramoisi létal avec glow, Orange intense, Jaune ambré, Ardoise/Cyan neutre).
        - Réticule de visée et repères holographiques d'impacts précis au survol.
      - **Correction mathématique du décompte des impacts corporels :**
-       - Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`.
-       - Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade.
-  3. **🗺️ Résolution et affichage garanti de l'image satellite de la carte :**
-     - Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) :
+       - [x] Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`. *(`inferHitZones` supprimé du code, y compris sa copie locale dans `MatchCombatTimeline` et le test qui en dupliquait la logique.)*
+       - [x] Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade. *(Les dégâts auto-infligés ne comptent pas comme « infligés » ; seuls les `damageTaken` alimentent la silhouette de l'escouade.)*
+       - [x] Nombre de touches réel affiché à côté des dégâts et du pourcentage dans la ventilation.
+       - [ ] **Resynchroniser les matchs de moins de 14 jours** pour peupler l'historique récent : sans cela, la page
+         affiche le badge « Zones d'impact non capturées pour ce match ». *(Correction du 2026-09-13 : la commande
+         `npm run telemetry:batch -- --clan <id>` indiquée ici ne re-parse **pas** les matchs déjà analysés avec succès.
+         Utiliser « Resync ce match » sur la page « Audit Technique Brut », ou la re-synchronisation par session.)*
+       - [x] Exposer aussi `bodyZonesDealt` dans l'UI — ✅ 2026-09-13 : l'onglet Duels affiche désormais **deux silhouettes
+         côte à côte**, « Tirs infligés » et « Tirs subis », chacune avec son nombre de touches, ses dégâts localisés, sa
+         part de touches à la tête et ses dégâts non localisés à part (`summarizeBodyZones`, testé). Identifiants SVG de
+         `DamageBodySvg` rendus uniques (`useId`) pour permettre plusieurs silhouettes sur la même page.
+  3. **🗺️ Résolution et affichage garanti de l'image satellite de la carte :** — ✅ Livré le 2026-09-13
+     - [x] Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) :
        - `Erangel` / `Erangel (Remastered)` ↔ `Baltic_Main`
        - `Miramar` ↔ `Desert_Main`
        - `Sanhok` ↔ `Savage_Main`
@@ -367,12 +594,60 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
        - `Rondo` ↔ `Neon_Main`
        - `Karakin` ↔ `Summerland_Main`
        - `Paramo` ↔ `Chimera_Main`
-     - Garantie de chargement de l'image haute résolution `/maps/pubg/${mapKey}.webp` sans aucune erreur 404.
-  4. **👤 Noms complets de tous les joueurs (non-membres et adversaires du lobby) :**
-     - Enrichissement du mapping d'identité (`memberIdentityMap`) : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
-     - Affichage garanti du nom complet pour les adversaires inconnus, sans tronquage ni identifiant brut.
+     - [x] Garantie de chargement de l'image haute résolution `/maps/pubg/${mapKey}.webp` sans aucune erreur 404.
+     - **Correction du 2026-09-13 — la « cause racine » annoncée ne se produit pas sur les données réelles.**
+       Il est exact que `Erangel_Main` (présent dans `dictionaries/mapName.json`) n'a aucun fichier et que c'est
+       `Baltic_Main.webp` qui porte Erangel. Mais `SquadMatch.mapName` **ne contient que des clés techniques** :
+       vérifié en base sur les 13 978 matchs (`Baltic_Main` ×6 056, `DihorOtok_Main` ×1 327, `Savage_Main` ×1 222…),
+       aucun `Erangel_Main`. L'ancien chemin `/maps/pubg/${match.mapName}.webp` fonctionnait donc déjà pour **toutes**
+       les cartes Battle Royale. Seuls **5 matchs arcade** n'ont pas d'image (`Italy_TDM_Main` ×2, `Boardwalk_Main` ×2,
+       `PillarCompound_Main` ×1) — et aucun asset n'existe pour eux de toute façon.
+       Le résolveur reste utile **par précaution** (libellés, alias, clés d'origine incertaine) et apporte un vrai gain :
+       il renvoie `null` et le Replay affiche une grille de repli explicite au lieu d'une image cassée.
+     - **Piège annexe à connaître :** `mapImageUrl()` dans `src/lib/pubg-assets/asset-url.ts` construit un chemin
+       PNG (`${mapKey}_Low_Res.png`) qui **n'existe pas dans ce dépôt**. Ne pas l'utiliser pour les fonds de carte ;
+       passer par `mapAssetUrl()`.
+     - [ ] ~~Propager `mapAssetUrl()` aux autres pages — même bug latent~~ — **priorité basse, requalifié le 2026-09-13** :
+       il n'y a pas de bug latent sur les données actuelles (voir ci-dessus), le seul bénéfice serait un repli propre sur
+       les 5 matchs arcade. Si c'est fait un jour, la liste complète des chemins codés en dur est : les 3 anciennes pages
+       télémétrie (`/clans/[clanId]/matches/[matchId]/telemetry`, `/clans/[clanId]/telemetry/matches/[matchId]/telemetry`,
+       `/tournaments/[tournamentId]/matches/[matchId]/telemetry`), `/clans/[clanId]/stats/positions`, drop zones clan et
+       membre, heatmap kills, `/members/[id]/map-stats`, `/settings/map-labels`, `MapImage.tsx` et la vignette de
+       `discord-top1-embed.ts`.
+  4. **👤 Noms complets de tous les joueurs (non-membres et adversaires du lobby) :** — ✅ Livré le 2026-09-13
+     > **Constat de l'audit du 2026-09-13 :** `memberIdentityMap` de la route télémétrie n'était alimenté que par
+     > `EncounteredPlayer` **filtré sur le clan courant** et par le roster des clans suivis. La table `Player`
+     > (identité globale, partagée entre tous les clans) et `OpponentClan` n'étaient jamais interrogées ici.
+     > `killerRawKey` / `victimRawKey` **ne contiennent pas de pseudo** : ce sont les `memberKey` bruts
+     > (`account.xxx`), recopiés tels quels par `kill-event-persistence.ts` — cette piste de la proposition initiale
+     > était donc sans objet.
+     - [x] Cascade de résolution `EncounteredPlayer` → `Player` global → `ClanMember` implémentée sur **les deux routes**
+       (`/matches/[matchId]/replay` et `/matches/[matchId]/telemetry`) : **95 % des 96 joueurs du lobby résolus**
+       sur le match de test, contre un simple identifiant brut auparavant pour les adversaires jamais croisés par ce clan.
+     - [x] Affichage du nom complet pour les adversaires, avec repli sur les 8 premiers caractères de l'identifiant
+       et libellé « Bot » pour les clés `ai.*`.
+     - **Bug de performance corrigé au passage :** la route télémétrie chargeait **tout l'historique
+       `EncounteredPlayer` du clan** (`findMany({ where: { clanId } })`, sans borne ni limite — plusieurs dizaines de
+       milliers de lignes) à chaque affichage de page. Les deux requêtes d'identité sont désormais bornées aux comptes
+       réellement présents dans le lobby via `collectLobbyAccountIds`, et exécutées en parallèle.
+     - [ ] Résoudre les ~5 % restants : ce sont des comptes jamais croisés auparavant, absents des trois tables.
+       Les obtenir exigerait un appel à l'API PUBG par joueur inconnu, coûteux en quota (10 RPM par défaut) — à arbitrer.
 
-- [ ] **Mode contextuel Tournoi :**
+- [ ] **Mode contextuel Tournoi :** — ❌ **Non commencé** (vérifié le 2026-09-13)
+  > **L'unification annoncée par ce volet n'est donc pas faite** : seul son prérequis (finaliser le débriefing) l'est.
+  > État constaté dans le code :
+  > - la page débriefing ne lit aucun `tournamentId` ;
+  > - la page tournoi (`src/app/tournaments/[tournamentId]/page.tsx`) renvoie toujours vers l'**ancienne page monolithique**
+  >   `/tournaments/[tournamentId]/matches/[matchId]/telemetry?clanId=${match.members[0]?.clanId}` — le clan retenu est
+  >   celui du **premier membre** de la manche, choisi arbitrairement.
+  >
+  > ⚠️ **Obstacle de conception à traiter en premier — l'accès.** Les routes `/api/clans/[clanId]/matches/[matchId]/telemetry`
+  > et `/replay` sont gardées par `requireNavPermission('clan.matches')` + appartenance au clan (`ensureMemberInClan`).
+  > Un joueur d'un autre clan, s'il n'est pas SuperUser, reçoit **403** en ouvrant la télémétrie d'une manche d'un tournoi
+  > pourtant public. Brancher le débriefing sur les tournois demande une route côté tournoi
+  > (ex. `/api/tournaments/[tournamentId]/matches/[matchId]/replay`) dont le contrôle d'accès est « le match est bien
+  > attribué à ce tournoi », et non « je suis membre du clan ». Sans cela, le lien « Débriefing & Replay » du Volet 3
+  > sera cassé pour la majorité des spectateurs.
   - Lorsque le débriefing est ouvert depuis un tournoi (`/tournaments/[tournamentId]/matches/[matchId]/telemetry` ou avec `?tournamentId=...`), la page affiche :
     - Un bandeau en tête : `🏆 Manche #{N} du Tournoi : {Nom Tournoi}`.
     - Le récapitulatif des points attribués lors de cette manche selon les règles du tournoi.
@@ -491,6 +766,12 @@ type TournamentRules = {
     - Vérifier les dégradés et halos néon (rouge cramoisi, orange, jaune, neutre).
     - Vérifier la réactivité au survol de chaque zone avec l'affichage fidèle des dégâts réels et pourcentages.
   - **Replay 2D :** Vérifier la fluidité des animations, le zoom/pan molette, le suivi de caméra et le basculement entre les 3 modes (Escouade, Tournoi, Global 100 joueurs).
+    - Zoom **identique à `/clans/[clanId]/drop-zones`** : même contrôle `[ − | ⊙ 1× | + ]`, paliers ×0,5, la page ne défile pas pendant le zoom molette (mais reprend en butée), pas de déplacement à ×1, aucun vide visible autour de la carte.
+    - Avion C-130 : apparaît vers `t≈10 s`, passe sur les premiers sauteurs, disparaît en bord de carte ; badge de cap cohérent avec le sens de vol (Karakin `cmu027vpd3ftl04tzlejla0vk` → 357° N) ; « Largage » et `P1…Pn` positionnent la lecture.
+    - Calques « Trace complète », « Atterrissages », « Éliminations » dans les 3 modes de visibilité ; mobile ~400 px : badge de cap et contrôle de zoom ne se chevauchent pas.
+    - Sur `cmu027vpd3ftl04tzlejla0vk` : bandeau avec CdtMcKoy et dada14smc « non suivi » et « Kills escouade 9 (dont coéquipiers : 3) » ; avion de rappel ambre visible de 650 à 690 s puis disparu ; après re-synchronisation, caisses en chute puis posées et pillées.
+    - Sur `cmu027vpd3ftl04tzlejla0vk` : les 4 pseudos de l'escouade visibles (CdtMcKoy et dada14smc en turquoise) ; Pagiotte à terre à 89 s puis mort à 94 s, absent jusqu'au rappel, réapparaît à 668 s au point de saut sans ligne fantôme ; réanimations à 355, 450, 474 et 527 s ; rappels à 364, 666 et 668 s dans le journal.
+  - **Onglet Duels :** silhouettes « Tirs infligés » et « Tirs subis » côte à côte (empilées en mobile), badge « Zones d'impact non capturées » sur un match parsé avant le 2026-09-13.
 - [ ] **Thème sombre / clair :**
   - Vérifier la parfaite lisibilité de chaque composant, bordure, bouton et texte en mode clair et en mode sombre.
 
@@ -751,6 +1032,9 @@ Améliorations de lisibilité et fidélité cartographique sur la page de Débri
   - **Affichage direct des données sur la silhouette (In-Zone HUD Chips)** : Chaque zone touchée arbore désormais son badge numérique haute visibilité directement incrusté (`💥 100` / `🎯 45` sur la tête, `🛡️ 85` sur le torse, `💪 20` sur les bras, `⚡ 30` sur le bassin, `🦵 15` sur les jambes) avec teintes néon selon la criticité des dégâts.
   - **Élimination définitive du débordement** : Suppression du carcan `width: 65px` sur le wrapper ; refonte du panneau de détail (`showLabels`) en liste verticale aérée avec icônes par zone, pourcentages d'impact et jauges contrastées dans un conteneur responsive garanti sans dépassement.
   - **Données réelles de l'escouade** : Calcul dynamique des zones corporelles touchées (`squadDamageByZone`) à partir des événements de combat réels du match via `inferHitZones`.
+    > ⚠️ **Corrigé le 2026-09-13 :** ces zones n'étaient pas « réelles ». `inferHitZones` était une heuristique en dur
+    > et l'API lui fournissait un `damageReason` fabriqué. Remplacé par une ventilation issue de
+    > `LogPlayerTakeDamage` (`src/lib/pubg-telemetry/body-zones.ts`) — voir Volet 4, chantier 2.
 
 ### ~~Comparateur de clans (`/clans/comparator`) — Sélecteur Roster « Trading Cards » & Arène de Confrontation~~ — ✅ Complété le 2026-09-04
 

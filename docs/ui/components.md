@@ -260,7 +260,7 @@ Rôle : image de carte PUBG chargée depuis `/maps/pubg/{mapKey}.webp`. Se masqu
 
 ```typescript
 type MapImageProps = {
-  mapKey: string   // identifiant de la carte (ex: 'Erangel_Main')
+  mapKey: string   // clé technique de la carte (ex: 'Baltic_Main' pour Erangel)
   alt?: string
   className?: string
 }
@@ -271,8 +271,38 @@ Exemple :
 ```tsx
 import MapImage from '@/components/ui/MapImage'
 
-<MapImage mapKey="Erangel_Main" className="h-16 w-24" />
+<MapImage mapKey="Baltic_Main" className="h-16 w-24" />
 ```
+
+> ⚠️ `Erangel_Main` n'a **aucun fichier** dans `public/maps/pubg/` : c'est `Baltic_Main.webp` qui porte Erangel.
+> `SquadMatch.mapName` ne contient que des clés techniques, mais pour une clé d'origine incertaine
+> (libellé, alias), passer par `mapAssetUrl()` de `@/lib/pubg-assets`, qui renvoie `null` plutôt qu'un 404.
+
+---
+
+### `MapZoomControl`
+
+Fichier : `src/components/ui/MapZoomControl.tsx` — règles partagées dans `src/lib/map-zoom.ts`
+
+Rôle : **contrôle de zoom standard de toutes les cartes interactives** — groupe horizontal `[ − | ⊙ 1× | + ]` ancré en haut à droite. Comportement de référence : `/clans/[clanId]/drop-zones`. Spécification complète (molette, glisser, bornes, placement) : [`docs/ui/index.html#zoom-carte`](index.html#zoom-carte).
+
+```typescript
+type MapZoomControlProps = {
+  zoom: number
+  onZoomChange: (nextZoom: number) => void // palier ±0,5 déjà borné
+  onReset: () => void                      // bouton central : carte entière
+  max?: number                             // défaut 4 (le replay 2D monte à 8)
+  className?: string
+}
+```
+
+Règles clés :
+
+- paliers additifs de ×0,5, identiques au clic et à la molette (`stepMapZoom`) ;
+- molette via écouteur natif `{ passive: false }`, ancrée sous le curseur, `preventDefault()` seulement si le zoom change ;
+- glisser uniquement au-delà de ×1, vue bornée à la carte.
+
+Utilisé par `DropZoneMapViewport` (drop zones clan/membre, positions clan, `/settings/map-labels`) et `MatchReplay2D`.
 
 ---
 
@@ -459,8 +489,28 @@ type DamageBodySvgProps = {
   showTooltips?: boolean
   interactive?: boolean
   variant?: 'received' | 'dealt'
+  unavailable?: boolean        // aucune zone capturée : badge au lieu d'une répartition inventée
+  unavailableLabel?: string
 }
 ```
+
+Les zones proviennent de `memberStats[*].bodyZonesDealt` / `bodyZonesTaken` (parser, `LogPlayerTakeDamage`),
+agrégées par l'API en `telemetry.squadBodyZones.{dealt, taken}`. Le débriefing affiche les deux silhouettes
+côte à côte ; plusieurs instances sur une page sont sûres (identifiants SVG préfixés par `useId`).
+
+### `MatchReplay2D`
+
+Fichier : `src/components/telemetry/MatchReplay2D.tsx`
+
+Rôle : lecteur canvas du replay 2D (onglet « 🎮 Replay 2D » du débriefing) — lecture / vitesse / timeline,
+modes de visibilité Escouade / Clans suivis / Global, suivi caméra, zoom standard `MapZoomControl` (×1 à ×8),
+avion C-130 animé avec badge de cap, calques persistants (trace complète, atterrissages, éliminations) et accès
+rapide « Largage » / `P1…Pn`. Il remplace l'ancien onglet statique « Carte Tactique 2D ».
+L'escouade inclut les coéquipiers hors clan (turquoise) ; chaque joueur a des vies successives (mort puis rappel),
+un état « à terre » visible, et le journal est filtré selon le mode de visibilité. Les avions de rappel (ambre) ne
+sont dessinés que pendant leur survol ; le calque « Largages » affiche les caisses (chute, posée, pillée).
+Données : `GET /api/clans/[clanId]/matches/[matchId]/replay` ; détails dans
+[`docs/telemetry/replay-trajectories.md`](../telemetry/replay-trajectories.md).
 
 ### `WeaponAccuracyBadge`
 

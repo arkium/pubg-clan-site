@@ -12,6 +12,9 @@ vi.mock('@/lib/prisma', () => ({
     clan: {
       findMany: vi.fn(),
     },
+    cronSchedule: {
+      findUnique: vi.fn(),
+    },
     $queryRaw: vi.fn(),
   },
 }))
@@ -31,6 +34,10 @@ const mockedEnqueue = vi.mocked(enqueueTelemetryForSelectedSquadMatches)
 describe('Telemetry Recoveries Services', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Le service chaîne `.catch()` sur cet appel : sans valeur de retour, le
+    // mock renvoie undefined et la chaîne casse. Null = aucune surcharge de
+    // planification en base, donc l'expression cron par défaut s'applique.
+    mockedPrisma.cronSchedule.findUnique.mockResolvedValue(null)
   })
 
   describe('getTelemetryRecoveriesStatus', () => {

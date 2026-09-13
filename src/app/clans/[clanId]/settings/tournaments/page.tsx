@@ -1,9 +1,10 @@
 'use client'
 
-import { RefreshCw } from 'lucide-react'
+import { Megaphone, RefreshCw } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
+import TournamentBroadcastModal from '@/components/discord/TournamentBroadcastModal'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -18,6 +19,7 @@ type Tournament = {
   gameMode: string | null
   mapName: string | null
   rules: unknown
+  discordWebhookUrl: string | null
   organizerClan: { id: number; name: string } | null
   clans: Array<{ clanId: number; clan: { id: number; name: string } }>
 }
@@ -34,6 +36,7 @@ type TournamentFormState = {
   killPoints: number
   winBonus: number
   bestOfRounds: number | null
+  discordWebhookUrl: string
 }
 
 const DEFAULT_PLACEMENT_POINTS: Record<string, number> = {
@@ -118,6 +121,7 @@ function getDefaultForm(clanId: number): TournamentFormState {
     killPoints: 1,
     winBonus: 5,
     bestOfRounds: null,
+    discordWebhookUrl: '',
   }
 }
 
@@ -136,6 +140,7 @@ export default function ClanTournamentSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [syncingTournamentId, setSyncingTournamentId] = useState<string | null>(null)
   const [syncNotice, setSyncNotice] = useState<{ tone: 'progress' | 'success' | 'error'; message: string } | null>(null)
+  const [broadcastTournament, setBroadcastTournament] = useState<Tournament | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -194,6 +199,7 @@ export default function ClanTournamentSettingsPage() {
       gameMode: tournament.gameMode ?? '',
       mapName: tournament.mapName ?? '',
       status: tournament.status as TournamentFormState['status'],
+      discordWebhookUrl: tournament.discordWebhookUrl ?? '',
       ...getRulesForm(tournament.rules),
     })
   }
@@ -248,6 +254,7 @@ export default function ClanTournamentSettingsPage() {
             winBonus: form.winBonus,
             bestOfRounds: form.bestOfRounds,
           },
+          discordWebhookUrl: form.discordWebhookUrl.trim() || null,
         }),
         }
       )
@@ -500,6 +507,25 @@ export default function ClanTournamentSettingsPage() {
               </div>
             </fieldset>
 
+            <fieldset className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <legend className="px-1 text-sm font-semibold text-gray-900">Diffusion Discord</legend>
+              <label className="space-y-1 block">
+                <span className="text-sm font-medium text-gray-700">Webhook spécifique à ce tournoi (optionnel)</span>
+                <input
+                  type="url"
+                  value={form.discordWebhookUrl}
+                  maxLength={500}
+                  onChange={(event) => setForm((current) => current ? { ...current, discordWebhookUrl: event.target.value } : current)}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-blue-400"
+                  placeholder="https://discord.com/api/webhooks/..."
+                />
+              </label>
+              <p className="text-xs text-gray-500">
+                Laissez vide pour utiliser le webhook Tournoi du clan, configuré dans les paramètres
+                Discord. Utile pour un tournoi annoncé sur le serveur d&apos;un autre clan.
+              </p>
+            </fieldset>
+
             <div className="flex justify-end gap-3">
               {editingTournamentId ? <button type="button" onClick={() => { setEditingTournamentId(null); setForm(getDefaultForm(clanId)) }} className="app-btn app-btn--secondary app-btn--md">Annuler</button> : null}
               <button
@@ -545,6 +571,15 @@ export default function ClanTournamentSettingsPage() {
                       {syncingTournamentId === tournament.id ? 'Synchronisation...' : 'Synchroniser'}
                     </button>
                   ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastTournament(tournament)}
+                    className="app-btn app-btn--secondary app-btn--xs"
+                    title="Prévisualiser puis publier une manche sur Discord"
+                  >
+                    <Megaphone aria-hidden="true" />
+                    Diffuser sur Discord
+                  </button>
                   <button type="button" onClick={() => editTournament(tournament)} className="text-sm text-blue-600 hover:underline">
                     Modifier
                   </button>
@@ -557,6 +592,16 @@ export default function ClanTournamentSettingsPage() {
           ))}
         </div>
       </section>
+
+      {broadcastTournament ? (
+        <TournamentBroadcastModal
+          clanId={clanId}
+          tournamentId={broadcastTournament.id}
+          tournamentTitle={broadcastTournament.title}
+          onClose={() => setBroadcastTournament(null)}
+          onBroadcast={(message) => setSyncNotice({ tone: 'success', message })}
+        />
+      ) : null}
     </main>
   )
 }

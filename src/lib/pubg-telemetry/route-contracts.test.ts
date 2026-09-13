@@ -4,7 +4,9 @@ const mocks = vi.hoisted(() => ({
   clanMemberFindUnique: vi.fn(),
   queryRaw: vi.fn(),
   cronExecutionFindMany: vi.fn(),
+  squadMatchTelemetryFindMany: vi.fn(),
   requireRole: vi.fn(),
+  requireSameClanAsMember: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -16,11 +18,21 @@ vi.mock('@/lib/prisma', () => ({
     cronExecution: {
       findMany: mocks.cronExecutionFindMany,
     },
+    squadMatchTelemetry: {
+      findMany: mocks.squadMatchTelemetryFindMany,
+    },
   },
 }))
 
 vi.mock('@/middleware/auth-permission', () => ({
   requireRole: mocks.requireRole,
+  requireSameClanAsMember: mocks.requireSameClanAsMember,
+}))
+
+vi.mock('@/lib/weapon-label-service', () => ({
+  getWeaponLabels: vi.fn(async () => ({ WeapM416_C: 'M416' })),
+  weaponDisplayName: (weaponName: string, labels: Record<string, string>) =>
+    labels[weaponName] ?? weaponName,
 }))
 
 import { GET as getMemberWeapons } from '@/app/api/members/[id]/telemetry/weapons/route'
@@ -31,8 +43,10 @@ describe('telemetry route contracts', () => {
     mocks.clanMemberFindUnique.mockReset()
     mocks.queryRaw.mockReset()
     mocks.cronExecutionFindMany.mockReset()
+    mocks.squadMatchTelemetryFindMany.mockReset().mockResolvedValue([])
     mocks.requireRole.mockReset()
     mocks.requireRole.mockReturnValue(async () => null)
+    mocks.requireSameClanAsMember.mockReset().mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -44,13 +58,21 @@ describe('telemetry route contracts', () => {
       id: 42,
       displayName: 'Pagiotte',
       clanId: 7,
+      pubgAccountId: 'account.42',
+      pubgPlayerName: 'Pagiotte',
     })
+    // MemberWeaponStats stocke les distances en centimètres ; la route les
+    // convertit en mètres avant de répondre.
     mocks.queryRaw.mockResolvedValue([
       {
         weaponName: 'WeapM416_C',
         kills: 8,
         headshots: 3,
-        avgDistance: 41.2,
+        shotsFired: 20,
+        hitsLanded: 10,
+        avgDistance: 4120,
+        maxDistance: 0,
+        totalDamage: 900,
         matchCount: 5,
       },
     ])
@@ -77,13 +99,7 @@ describe('telemetry route contracts', () => {
           displayName: string
           clanId: number | null
         }
-        rows: Array<{
-          weaponName: string
-          kills: number
-          headshots: number
-          avgDistance: number
-          matchCount: number
-        }>
+        rows: Array<Record<string, unknown>>
         note: string | null
       }
       member: {
@@ -110,87 +126,55 @@ describe('telemetry route contracts', () => {
     expect(payload.data.rows).toEqual(payload.rows)
     expect(payload.data.rows[0]).toEqual({
       weaponName: 'WeapM416_C',
+      weaponLabel: 'M416',
       kills: 8,
       headshots: 3,
+      shotsFired: 20,
+      hitsLanded: 10,
+      accuracy: 50,
       avgDistance: 41.2,
+      // maxDistance stocké à 0 et aucun snapshot de télémétrie : rien à déduire.
+      maxDistance: null,
+      totalDamage: 900,
       matchCount: 5,
     })
     expect(payload.data.note).toBeNull()
   })
 
-  it('computes observability health, p95 metrics and alerts from cron executions', async () => {
+  // Depuis la migration vers la file telemetry_live_sync, une ligne
+  // CronExecution = un match traité par le worker, et non plus un batch
+  // daily_sync agrégé dans details.telemetrySync.
+  it('computes observability health, p95 latency and alerts from telemetry job rows', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-06-03T20:00:00.000Z'))
 
     mocks.cronExecutionFindMany.mockResolvedValue([
       {
-        id: 'run-1',
+        id: 'job-1',
         status: 'success',
         startedAt: new Date('2026-06-03T18:00:00.000Z'),
-        finishedAt: new Date('2026-06-03T18:02:00.000Z'),
-        durationMs: 120000,
-        details: {
-          telemetrySync: {
-            status: 'success',
-            scanned: 10,
-            parsed: 9,
-            failed: 0,
-            skipped: 1,
-            metrics: {
-              bytesDownloaded: 1000,
-              fetchMatchMs: 120,
-              downloadAssetMs: 300,
-              parseMs: 1200,
-              persistMs: 200,
-            },
-          },
-        },
+        finishedAt: new Date('2026-06-03T18:00:04.000Z'),
+        details: { squadMatchId: 'sm-1', pubgMatchId: 'pm-1', bytesDownloaded: 1000 },
       },
       {
-        id: 'run-2',
-        status: 'partial',
+        id: 'job-2',
+        status: 'failed',
         startedAt: new Date('2026-06-03T16:00:00.000Z'),
-        finishedAt: new Date('2026-06-03T16:04:00.000Z'),
-        durationMs: 240000,
+        finishedAt: new Date('2026-06-03T16:00:20.000Z'),
         details: {
-          telemetrySync: {
-            status: 'partial',
-            scanned: 8,
-            parsed: 4,
-            failed: 2,
-            skipped: 2,
-            metrics: {
-              bytesDownloaded: 2000,
-              fetchMatchMs: 240,
-              downloadAssetMs: 600,
-              parseMs: 4200,
-              persistMs: 350,
-            },
-          },
+          squadMatchId: 'sm-2',
+          pubgMatchId: 'pm-2',
+          bytesDownloaded: 0,
+          errorCode: 'PARSE_ERROR',
+          errorMessage: 'Unexpected token',
         },
       },
       {
-        id: 'run-3',
+        id: 'job-3',
         status: 'success',
         startedAt: new Date('2026-06-03T14:00:00.000Z'),
-        finishedAt: new Date('2026-06-03T14:05:00.000Z'),
-        durationMs: 300000,
-        details: {
-          telemetrySync: {
-            status: 'success',
-            scanned: 12,
-            parsed: 12,
-            failed: 0,
-            skipped: 0,
-            metrics: {
-              bytesDownloaded: 4000,
-              fetchMatchMs: 500,
-              downloadAssetMs: 1200,
-              parseMs: 5100,
-              persistMs: 700,
-            },
-          },
-        },
+        finishedAt: new Date('2026-06-03T14:00:06.000Z'),
+        details: { squadMatchId: 'sm-3', pubgMatchId: 'pm-3', bytesDownloaded: 4000 },
       },
     ])
 
@@ -205,7 +189,8 @@ describe('telemetry route contracts', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           clanId: 7,
-          action: 'daily_sync',
+          action: 'telemetry_live_sync',
+          status: { in: ['success', 'failed'] },
           startedAt: {
             gte: new Date('2026-05-27T20:00:00.000Z'),
           },
@@ -226,19 +211,18 @@ describe('telemetry route contracts', () => {
       data: {
         summary: {
           runs: number
-          scanned: number
-          parsed: number
+          success: number
           failed: number
-          skipped: number
+          expired: number
           bytesDownloaded: number
         }
         health: {
-          runsWithTelemetry: number
+          ratedRuns: number
           successRate: number
           failedRate: number
           thresholds: {
             failedRateMax: number
-            parseP95MaxMs: number
+            durationP95MaxMs: number
           }
           alerts: Array<{
             key: string
@@ -248,12 +232,9 @@ describe('telemetry route contracts', () => {
           }>
         }
         latency: {
-          p95: {
-            parseMs: number
-            downloadAssetMs: number
-          }
+          p95DurationMs: number
         }
-        series: Array<unknown>
+        series: Array<Record<string, unknown>>
       }
       summary: {
         runs: number
@@ -265,9 +246,7 @@ describe('telemetry route contracts', () => {
         }>
       }
       latency: {
-        p95: {
-          parseMs: number
-        }
+        p95DurationMs: number
       }
     }
 
@@ -281,25 +260,32 @@ describe('telemetry route contracts', () => {
     })
     expect(payload.data.summary).toMatchObject({
       runs: 3,
-      scanned: 30,
-      parsed: 25,
-      failed: 2,
-      skipped: 3,
-      bytesDownloaded: 7000,
+      success: 2,
+      failed: 1,
+      expired: 0,
+      bytesDownloaded: 5000,
     })
-    expect(payload.data.health.runsWithTelemetry).toBe(3)
+    expect(payload.data.health.ratedRuns).toBe(3)
     expect(payload.data.health.successRate).toBeCloseTo(66.666, 2)
     expect(payload.data.health.failedRate).toBeCloseTo(33.333, 2)
-    expect(payload.data.latency.p95.downloadAssetMs).toBe(1200)
-    expect(payload.data.latency.p95.parseMs).toBe(5100)
+    // Durées : 4 s, 20 s, 6 s → p95 dépasse le seuil de 15 s.
+    expect(payload.data.latency.p95DurationMs).toBe(20000)
     expect(payload.data.health.alerts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'failed_rate', status: 'warning' }),
-        expect.objectContaining({ key: 'parse_p95_ms', status: 'warning' }),
+        expect.objectContaining({ key: 'duration_p95_ms', status: 'warning' }),
       ])
     )
+    expect(payload.data.series[0]).toMatchObject({
+      id: 'job-1',
+      squadMatchId: 'sm-1',
+      pubgMatchId: 'pm-1',
+      status: 'success',
+      expired: false,
+      durationMs: 4000,
+    })
     expect(payload.summary.runs).toBe(payload.data.summary.runs)
     expect(payload.health.alerts).toEqual(payload.data.health.alerts)
-    expect(payload.latency.p95.parseMs).toBe(payload.data.latency.p95.parseMs)
+    expect(payload.latency.p95DurationMs).toBe(payload.data.latency.p95DurationMs)
   })
 })

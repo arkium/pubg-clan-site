@@ -26,7 +26,7 @@
 | Tailwind CSS | 4 | Syntaxe `@import "tailwindcss"` dans globals.css |
 | Prisma | 6.19.3 | Library engine (Rust in-process), MySQL/MariaDB |
 | Node.js | 22 LTS | **Node 24 interdit** (prédev script bloque) |
-| Vitest | 2.1.9 | Tests télémétrie uniquement |
+| Vitest | 2.1.9 | 210 tests — **tout `src/lib/**/*.test.ts`**, pas seulement la télémétrie |
 
 ## Organisation du code
 
@@ -39,9 +39,11 @@ src/
     settings/                 # Pages admin
   components/                 # Composants React
     ui/                       # Composants UI partagés
+    discord/                  # Aperçu d'embed + modale de diffusion tournoi
   hooks/                      # Hooks React (data fetching côté client)
   lib/                        # Logique métier
     pubg-telemetry/           # Pipeline télémétrie complet
+    discord/                  # Webhooks Discord (alertes Top 1, résultats de tournoi)
     pubg.ts                   # Client API PUBG
     cron-jobs.ts              # Orchestration cron
     clan-service.ts           # Sync clan PUBG
@@ -407,6 +409,16 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 - **Override via CLI:** Set env var `PUBG_API_RATE_LIMIT_RPM` before running worker
 - **Fallback:** If DB query fails, reads from env var
 
+#### 9. **Vitest ne ramasse que `src/lib/**`**
+- **Issue:** `vitest.config.ts` déclare `include: ['src/lib/**/*.test.ts']`. Un test posé ailleurs
+  (à côté d'une route dans `src/app/`, par exemple) n'est **jamais exécuté**, sans aucun avertissement.
+- **Conséquence:** aucune route API n'est testée aujourd'hui. Tester une route demande soit
+  d'élargir le `include`, soit de placer le test dans `src/lib/` (c'est ce que font
+  `route-contracts.test.ts` et `drop-pressure-route-contracts.test.ts`, qui importent le handler
+  `GET` depuis `src/app/`).
+- **Gotcha:** les mocks Prisma de ces tests listent les modèles un par un. Quand une route se met à
+  utiliser un nouveau modèle, le mock renvoie `undefined` et le test casse loin de la cause réelle.
+
 ## Gotchas connus
 
 ### Node.js 22 — `Readable.toWeb()` bug
@@ -461,7 +473,7 @@ npm run sync:pubg-assets             # Fetch asset labels (weapons, maps, phases
 npm run build                        # Production standalone build
 npm run start                        # Run production server (requires .next/standalone)
 npm run lint                         # Run ESLint
-npm run test:telemetry               # Run Vitest (telemetry parser tests only)
+npm run test:telemetry               # Vitest — nom historique, exécute TOUT src/lib/**/*.test.ts
 ```
 
 ### Règle d'emplacement des scripts
@@ -485,6 +497,11 @@ npm run test:telemetry               # Run Vitest (telemetry parser tests only)
 ### Database Migrations
 
 ```bash
+# Toujours AVANT d'écrire en base : affiche le SQL qui serait appliqué
+npx prisma migrate diff \
+  --from-schema-datasource prisma/schema.prisma \
+  --to-schema-datamodel prisma/schema.prisma --script
+
 # Auto-apply pending migrations (required on deploy)
 npx prisma migrate deploy
 
@@ -494,6 +511,19 @@ npx prisma migrate dev --name <description>
 # Reset DB (WARNING: deletes all data)
 npx prisma migrate reset
 ```
+
+> [!IMPORTANT]
+> **Lire le `migrate diff` avant tout `db push`.** `db push` ne fait pas qu'ajouter : il aligne la
+> base sur le schéma, donc **supprime** tout objet présent en base et absent du fichier. Ce dépôt a
+> déjà eu des colonnes et un index vivant uniquement en base — un `db push --accept-data-loss`
+> aveugle aurait effacé leurs données au passage.
+>
+> Le schéma et la base sont alignés depuis le 2026-09-13 : le `migrate diff` ci-dessus doit
+> répondre `-- This is an empty migration.`. S'il renvoie autre chose, une dérive s'est réinstallée
+> — comprendre d'où elle vient avant d'appliquer quoi que ce soit.
+>
+> Pour appliquer seulement le DDL voulu sans toucher au reste :
+> `npx prisma db execute --schema prisma/schema.prisma --file <fichier.sql>`
 
 ### Production Deployment
 

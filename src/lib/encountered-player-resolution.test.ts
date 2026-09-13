@@ -6,6 +6,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     $queryRaw: vi.fn(),
     player: { findUnique: vi.fn(), upsert: vi.fn() },
+    clanMember: { findFirst: vi.fn() },
     opponentClan: { upsert: vi.fn() },
     encounteredPlayer: { updateMany: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
   },
@@ -32,6 +33,9 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     vi.mocked(prisma.opponentClan.upsert).mockReset()
     vi.mocked(prisma.encounteredPlayer.updateMany).mockReset()
     mockedFetchPlayerClan.mockReset()
+    // Par défaut le compte croisé n'est pas un membre d'un clan suivi : les cas
+    // ci-dessous portent sur la résolution via l'API PUBG.
+    vi.mocked(prisma.clanMember.findFirst).mockReset().mockResolvedValue(null as never)
   })
 
   it('propage un cache-hit récent à toutes les lignes du compte (cross-clan), sans appel PUBG', async () => {
@@ -84,6 +88,23 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     expect(result.outcome).toBe('resolved_with_clan')
     if (result.outcome === 'resolved_with_clan') {
       expect(result.pubgClanTag).toBe('SVN')
+    }
+  })
+
+  it('auto-découvre un compte déjà membre d’un clan suivi, sans appel PUBG', async () => {
+    vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValue({
+      clan: { id: 3, pubgClanId: 'clan.tracked', tag: 'TRK', name: 'Tracked' },
+    } as never)
+    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 2 } as never)
+
+    const result = await resolveOneEncounteredPlayerCandidate(candidate)
+
+    expect(result.outcome).toBe('resolved_with_clan')
+    expect(result.updatedRowCount).toBe(2)
+    expect(mockedFetchPlayerClan).not.toHaveBeenCalled()
+    if (result.outcome === 'resolved_with_clan') {
+      expect(result.pubgClanTag).toBe('TRK')
     }
   })
 

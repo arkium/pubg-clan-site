@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails } from '@/lib/pubg'
+import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 
 export type TournamentRulesInput = {
   placementPoints?: Record<string | number, number> | null
@@ -157,6 +158,56 @@ export function groupMatchIntoTeams(
   return teams
 }
 
+export type TournamentTeamScore = {
+  placementScore: number
+  killScore: number
+  winBonus: number
+  points: number
+}
+
+export function scoreTournamentTeam(
+  team: Pick<TournamentTeam, 'bestPlacement' | 'totalKills'>,
+  rules: NormalizedTournamentRules
+): TournamentTeamScore {
+  const placementScore = rules.placementPoints[team.bestPlacement] ?? 0
+  const killScore = team.totalKills * rules.killPoints
+  const winBonus = team.bestPlacement === 1 ? rules.winBonus : 0
+
+  return { placementScore, killScore, winBonus, points: placementScore + killScore + winBonus }
+}
+
+export type TournamentRoundScore = TournamentTeamScore & {
+  clanId: number
+  bestPlacement: number
+  totalKills: number
+}
+
+/**
+ * Score d'une seule manche (un match custom), clan par clan — utilise le meme
+ * bareme que le classement general, sans la selection `bestOfRounds` qui n'a de
+ * sens que sur le cumul.
+ */
+export function computeTournamentRoundScores(
+  match: TournamentMatchLike,
+  participatingClanIds: number[],
+  rulesInput: TournamentRulesInput | NormalizedTournamentRules = {}
+): TournamentRoundScore[] {
+  const rules = normalizeTournamentRules(rulesInput)
+
+  return groupMatchIntoTeams(match, participatingClanIds)
+    .map((team) => ({
+      clanId: team.clanId,
+      bestPlacement: team.bestPlacement,
+      totalKills: team.totalKills,
+      ...scoreTournamentTeam(team, rules),
+    }))
+    .sort((left, right) => {
+      if (right.points !== left.points) return right.points - left.points
+      if (right.totalKills !== left.totalKills) return right.totalKills - left.totalKills
+      return left.bestPlacement - right.bestPlacement
+    })
+}
+
 export function computeTournamentStandings(
   matches: TournamentMatchLike[],
   participatingClanIds: number[],
@@ -170,10 +221,7 @@ export function computeTournamentStandings(
     const teams = groupMatchIntoTeams(match, participatingClanIds)
 
     for (const team of teams) {
-      const placementScore = rules.placementPoints[team.bestPlacement] ?? 0
-      const killScore = team.totalKills * rules.killPoints
-      const winBonus = team.bestPlacement === 1 ? rules.winBonus : 0
-      const points = placementScore + killScore + winBonus
+      const { points } = scoreTournamentTeam(team, rules)
 
       const key = team.key
       const aggregate = teamScores.get(key) ?? { clanId: team.clanId, entries: [] }
@@ -457,6 +505,21 @@ export type TournamentCreateInput = {
   mapName?: string | null
   status?: 'draft' | 'active' | 'finished'
   rules?: TournamentRulesInput | null
+  discordWebhookUrl?: string | null
+}
+
+function normalizeDiscordWebhookOverride(value: string | null | undefined) {
+  const trimmed = (value ?? '').trim()
+
+  if (!trimmed) return null
+
+  if (!isValidDiscordWebhookUrl(trimmed)) {
+    throw new Error(
+      'Le webhook Discord du tournoi doit commencer par https://discord.com/api/webhooks/ ou https://discordapp.com/api/webhooks/'
+    )
+  }
+
+  return trimmed
 }
 
 export type TournamentUpdateInput = Partial<TournamentCreateInput>
@@ -522,6 +585,7 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
       mapName: input.mapName?.trim() || null,
       status: input.status ?? 'draft',
       rules: normalizedRules,
+      discordWebhookUrl: normalizeDiscordWebhookOverride(input.discordWebhookUrl),
     },
     include: {
       organizerClan: { select: { id: true, name: true } },
@@ -556,6 +620,9 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
       ...(input.mapName !== undefined ? { mapName: input.mapName?.trim() || null } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(nextRules ? { rules: nextRules } : {}),
+      ...(input.discordWebhookUrl !== undefined
+        ? { discordWebhookUrl: normalizeDiscordWebhookOverride(input.discordWebhookUrl) }
+        : {}),
     },
     include: {
       organizerClan: { select: { id: true, name: true } },

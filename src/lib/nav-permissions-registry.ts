@@ -348,6 +348,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'admin',
     description: "Page d'accueil de connexion — configurable par clan.",
   },
+  {
+    navKey: 'admin.discord-notifications',
+    section: 'admin-menu',
+    label: 'Notifications Discord',
+    hrefTemplate: '/clans/:clanId/settings/discord',
+    defaultRole: 'admin',
+    description: 'Alertes Top 1 publiées sur un canal Discord via webhook — configurable par clan.',
+  },
 
   // --- Owner menu (sidebar) ---
   {

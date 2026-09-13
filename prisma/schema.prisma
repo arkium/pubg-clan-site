@@ -43,6 +43,7 @@ model Clan {
   comparatorCache           ClanComparatorCache[]
   clanEncounters            ClanEncounter[]
   organizedTournaments      Tournament[]      @relation("TournamentOrganizer")
+  discordNotifications      DiscordNotificationLog[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -191,6 +192,11 @@ model Player {
   @@index([opponentClanId])
   @@index([pubgPlayerName])
   @@index([clanResolvedAt], map: "idx_player_clan_resolved")
+  // Index compose herite, cree hors migration. Aucune requete Prisma actuelle
+  // ne filtre Player sur (clanResolvedAt, lastSeenAt) — declare ici pour
+  // aligner le schema sur la base plutot que de le laisser supprimer par un
+  // `db push`.
+  @@index([clanResolvedAt, lastSeenAt], map: "idx_player_resolved_last_seen")
   @@map("Player")
 }
 
@@ -387,6 +393,10 @@ model Tournament {
   rules  Json // baremes : placementPoints, killPoints, winBonus, bestOfRounds
   status String @default("draft") // draft | active | finished
 
+  // Surcharge facultative du webhook Discord du clan, pour un tournoi diffuse
+  // sur un serveur different de celui des annonces habituelles.
+  discordWebhookUrl String? @db.VarChar(500)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -554,6 +564,24 @@ model ClanConfig {
   @@map("ClanConfig")
 }
 
+// Journal des notifications Discord deja envoyees. La contrainte unique
+// (clanId, kind, refId) est le mecanisme de dedoublonnage : une re-sync ou un
+// recalcul qui repasse sur le meme match ne peut pas republier l'alerte.
+model DiscordNotificationLog {
+  id     Int  @id @default(autoincrement())
+  clanId Int
+  clan   Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  kind  String // top1 | tournament_round
+  refId String @db.VarChar(191)
+
+  sentAt DateTime @default(now())
+
+  @@unique([clanId, kind, refId])
+  @@index([clanId, sentAt])
+  @@map("DiscordNotificationLog")
+}
+
 model Notification {
   id       String     @id @default(cuid())
   memberId Int
@@ -612,8 +640,12 @@ model Match {
   placement    Int
   playersAlive Int
 
-  duration      Int
-  pubgCreatedAt DateTime
+  duration Int
+  // Le DEFAULT CURRENT_TIMESTAMP(3) existe en base mais n'est jamais utilise :
+  // la date vient toujours de l'API PUBG cote applicatif. Declare uniquement
+  // pour aligner le schema sur la base — ne jamais compter dessus, un match
+  // enregistre a l'heure courante fausserait toutes les periodes.
+  pubgCreatedAt DateTime @default(now())
 
   // Nombre de bots distincts (accountId préfixé ai.) dans le lobby complet du
   // match — nullable, calculé uniquement pour les matchs synchronisés depuis

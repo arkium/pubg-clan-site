@@ -25,6 +25,7 @@ import {
   Database,
   Search,
   Settings,
+  MessageSquare,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { SettingsHubItem } from '@/hooks/useSettingsHubItems'
@@ -39,6 +40,8 @@ function getCardVisual(navKey: string): {
       return { Icon: Users, color: 'text-blue-500' }
     case 'admin.login-welcome':
       return { Icon: Monitor, color: 'text-emerald-500' }
+    case 'admin.discord-notifications':
+      return { Icon: MessageSquare, color: 'text-indigo-500' }
     case 'admin.map-labels':
       return { Icon: Map, color: 'text-amber-500' }
     case 'admin.weapon-labels':

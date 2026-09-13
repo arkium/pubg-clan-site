@@ -217,9 +217,13 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           memberId: 101,
           period: 'week-2026-23',
           periodType: 'week',
-          aggressionScore: 19.67,
-          supportScore: 34,
-          zoneDisciplineScore: 85,
+          // Les trois scores sont normalisés par rapport au meilleur joueur de
+          // la période, pas sur une échelle absolue : le 101 domine
+          // l'agressivité (100) mais encaisse le seul passage en zone bleue du
+          // groupe, ce qui l'ancre à 0 sur la discipline de zone.
+          aggressionScore: 100,
+          supportScore: 100,
+          zoneDisciplineScore: 0,
           avgBlueZoneHits: 1,
           avgFirstContactPhase: 2,
           avgCircleDelaySeconds: 18,
@@ -241,8 +245,9 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           memberId: 102,
           period: 'week-2026-23',
           periodType: 'week',
-          aggressionScore: 8.93,
-          supportScore: 34,
+          aggressionScore: 41.23,
+          supportScore: 100,
+          // Aucun passage en zone bleue : c'est le joueur le plus propre.
           zoneDisciplineScore: 100,
           avgBlueZoneHits: 0,
           avgFirstContactPhase: 4,
@@ -295,6 +300,7 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           matchCount: 1,
         },
       ],
+      skipDuplicates: true,
     })
 
     // 2 membres dans le squad -> mode 'duo' ; le fixture ne fournit pas de
@@ -312,6 +318,7 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           matchType: 'all',
           mode: 'duo',
           reviveCount: 1,
+          recallCount: 0,
           coKillCount: 1,
           sharedDamageEvents: 1,
         },
@@ -324,6 +331,7 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           matchType: 'all',
           mode: 'all',
           reviveCount: 1,
+          recallCount: 0,
           coKillCount: 1,
           sharedDamageEvents: 1,
         },

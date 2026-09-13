@@ -48,6 +48,7 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
       winBonus: rules?.winBonus ?? legacyWinBonus,
       bestOfRounds: rules?.bestOfRounds ?? legacyBestOfRounds,
     },
+    discordWebhookUrl: typeof value.discordWebhookUrl === 'string' ? value.discordWebhookUrl : null,
   }
 }
 

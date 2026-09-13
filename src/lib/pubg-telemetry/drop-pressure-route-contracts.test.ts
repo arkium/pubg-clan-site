@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   getDashboardStats: vi.fn(),
   getMemberRanking: vi.fn(),
   getTimeline: vi.fn(),
-  requirePermission: vi.fn(),
+  requireNavPermission: vi.fn(),
   permissionGuard: vi.fn(),
 }))
 
@@ -15,15 +15,18 @@ vi.mock('@/lib/drop-pressure-stats', () => ({
 }))
 
 vi.mock('@/middleware/auth-permission', () => ({
-  requirePermission: mocks.requirePermission,
+  requireNavPermission: mocks.requireNavPermission,
 }))
 
 import { GET as getClanDropPressureStats } from '@/app/api/clans/[clanId]/drop-pressure-stats/route'
 
+// Valeurs par défaut de la route quand aucun paramètre de requête n'est fourni.
+const DEFAULT_FILTERS = { clanId: 7, period: 'week', matchType: 'official', mode: 'all' }
+
 describe('drop pressure route contracts', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset())
-    mocks.requirePermission.mockReturnValue(mocks.permissionGuard)
+    mocks.requireNavPermission.mockReturnValue(mocks.permissionGuard)
     mocks.permissionGuard.mockResolvedValue(null)
     mocks.getDashboardStats.mockResolvedValue({ dropCount: 12 })
     mocks.getMemberRanking.mockResolvedValue([{ memberId: 42 }])
@@ -38,7 +41,7 @@ describe('drop pressure route contracts', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({ error: 'Invalid clan id' })
-    expect(mocks.requirePermission).not.toHaveBeenCalled()
+    expect(mocks.requireNavPermission).not.toHaveBeenCalled()
     expect(mocks.getDashboardStats).not.toHaveBeenCalled()
   })
 
@@ -53,11 +56,8 @@ describe('drop pressure route contracts', () => {
     )
 
     expect(response.status).toBe(403)
-    expect(mocks.requirePermission).toHaveBeenCalledWith('manage_members')
-    expect(mocks.permissionGuard).toHaveBeenCalledWith(expect.any(Request), {
-      clanId: 7,
-      allowMissingActor: true,
-    })
+    expect(mocks.requireNavPermission).toHaveBeenCalledWith('clan.overview')
+    expect(mocks.permissionGuard).toHaveBeenCalledWith(expect.any(Request), { clanId: 7 })
     expect(mocks.getTimeline).not.toHaveBeenCalled()
   })
 
@@ -73,10 +73,13 @@ describe('drop pressure route contracts', () => {
       ranking: [{ memberId: 42 }],
       timeline: [{ period: '2026-07-27' }],
       period: 'week',
+      matchType: 'official',
+      mode: 'all',
     })
-    expect(mocks.getDashboardStats).toHaveBeenCalledWith({ clanId: 7, period: 'week' })
-    expect(mocks.getMemberRanking).toHaveBeenCalledWith({ clanId: 7, period: 'week' })
-    expect(mocks.getTimeline).toHaveBeenCalledWith({ clanId: 7 })
+    expect(mocks.getDashboardStats).toHaveBeenCalledWith(DEFAULT_FILTERS)
+    expect(mocks.getMemberRanking).toHaveBeenCalledWith(DEFAULT_FILTERS)
+    // La timeline ignore volontairement la période : elle couvre tout l'historique.
+    expect(mocks.getTimeline).toHaveBeenCalledWith({ clanId: 7, matchType: 'official', mode: 'all' })
   })
 
   it('forwards an explicit KPI period without changing timeline arguments', async () => {
@@ -85,8 +88,22 @@ describe('drop pressure route contracts', () => {
       { params: Promise.resolve({ clanId: '7' }) }
     )
 
-    expect(mocks.getDashboardStats).toHaveBeenCalledWith({ clanId: 7, period: 'all' })
-    expect(mocks.getMemberRanking).toHaveBeenCalledWith({ clanId: 7, period: 'all' })
-    expect(mocks.getTimeline).toHaveBeenCalledWith({ clanId: 7 })
+    expect(mocks.getDashboardStats).toHaveBeenCalledWith({ ...DEFAULT_FILTERS, period: 'all' })
+    expect(mocks.getMemberRanking).toHaveBeenCalledWith({ ...DEFAULT_FILTERS, period: 'all' })
+    expect(mocks.getTimeline).toHaveBeenCalledWith({ clanId: 7, matchType: 'official', mode: 'all' })
+  })
+
+  it('forwards the match type and team mode filters', async () => {
+    await getClanDropPressureStats(
+      new Request('http://localhost:3000/api/clans/7/drop-pressure-stats?matchType=custom&mode=duo'),
+      { params: Promise.resolve({ clanId: '7' }) }
+    )
+
+    expect(mocks.getDashboardStats).toHaveBeenCalledWith({
+      ...DEFAULT_FILTERS,
+      matchType: 'custom',
+      mode: 'duo',
+    })
+    expect(mocks.getTimeline).toHaveBeenCalledWith({ clanId: 7, matchType: 'custom', mode: 'duo' })
   })
 })

@@ -6,6 +6,173 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-04.
 
 ## P1 — Bloquants / manques fonctionnels immédiats
 
+### Notifications Discord automatiques — Alertes Top 1 & Résultats de Tournois dans des salons dédiés — ✅ Livré le 2026-09-13
+
+> **État au 2026-09-13 — Phases 1 (Top 1) et 2 (Tournois) livrées.**
+>
+> *Phase 1* : `src/lib/discord/` (client webhook résilient, embed Top 1, dédoublonnage, service
+> d'orchestration), page `/clans/[clanId]/settings/discord`, routes
+> `GET/PUT /api/clans/[clanId]/settings/discord` + `POST .../discord/test`, câblage dans
+> `analyzeMatchForSquads`, table `DiscordNotificationLog`. Testé de bout en bout sur un vrai
+> webhook Discord.
+>
+> *Phase 2* : `discord-tournament-embed.ts` + `discord-tournament-service.ts`, section
+> « Tournois inter-clans » dans la page de paramètres, colonne `Tournament.discordWebhookUrl`
+> pour la surcharge par tournoi, route `GET/POST /api/clans/[clanId]/tournaments/[id]/discord`
+> (prévisualisation puis diffusion confirmée), modale d'aperçu et bouton « Diffuser sur Discord »
+> dans `/clans/[clanId]/settings/tournaments`. Le barème par manche est extrait dans
+> `computeTournamentRoundScores` (tournament-service.ts) pour que la formule reste partagée avec
+> le classement général. 66 tests Vitest au total.
+>
+> **Écarts assumés par rapport à la proposition initiale**, imposés par le schéma réel :
+> - Pas de mode **Solo** ni de seuil à **1 membre** : `detectSquadFromMatchDetails` exige au moins
+>   deux membres du clan pour créer un `SquadMatch`. Modes retenus : Duo / Trio / Squad, seuil 2-4.
+> - Pas de type **Ranked/Compétitif** : les seules valeurs de `SquadMatch.matchType` en base sont
+>   `official`, `casual`, `airoyale` et `custom`. Cases retenues : Officiel (activé), Casual
+>   (activé), Matchs IA (désactivé), Custom (désactivé).
+> - La carte est envoyée en **thumbnail** (vignette d'angle) plutôt qu'en image pleine largeur,
+>   pour garder le canal lisible sur un clan qui gagne souvent. Une ligne à changer dans
+>   `discord-top1-embed.ts` si l'image pleine largeur est préférée.
+> - Retours d'UI en **bandeaux inline** (succès vert / erreur rose, avec icône) placés au contact
+>   du bouton qui les déclenche, et non en toasts flottants : le projet n'a pas de composant Toast
+>   partagé, et le bandeau affiche correctement les messages d'erreur longs renvoyés par Discord.
+> - Les aperçus in-app sont rendus par `DiscordEmbedPreview` **à partir du vrai payload** produit
+>   par les générateurs d'embed (importables côté client car purs). L'aperçu ne peut donc pas
+>   diverger du message réellement envoyé.
+> - La diffusion d'une manche est **toujours manuelle** : aucun envoi automatique de tournoi. Une
+>   rediffusion volontaire reste possible, la modale prévenant que la manche a déjà été publiée.
+
+Intégration d'un système de diffusion automatique de notifications enrichies sur Discord via Webhooks personnalisables par le Clan Owner / Administrateurs du clan (`manage_channels` ou `manage_settings`).
+
+> ⚠️ **Contrainte UI/UX obligatoire** : Toute nouvelle interface (page de paramétrage, modales de prévisualisation, toasts, cartes, formulaires) doit **impérativement** respecter la charte graphique et les composants documentés dans [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html). Cela inclut : le système de classes `.app-panel`, `.app-modal-*`, `.app-btn`, `.app-modal-callout`, les tokens CSS (`--theme-ui-*`), le support du mode sombre (`dark:bg-slate-900`, `dark:border-slate-800`, etc.), les badges 44×44, les animations de chargement et les callouts d'explication contextuelle.
+
+#### 1. Contexte & Objectifs
+
+- **Alerte Victoire (Top 1 / Chicken Dinner) :** Lorsqu'une escouade du clan remporte un match (`placement === 1`), publier instantanément un message enrichi (Embed) dans le canal Discord choisi par le Clan Owner, avec composition d'équipe, kills, dégâts et lien direct vers le match.
+- **Résultats de Tournois & Télémétrie :** Lorsque l'organisateur/owner synchronise un tournoi ou récupère la télémétrie de manche, publier le récapitulatif officiel de la manche (scores par clan, kills, points de placement, MVP) et l'actualisation du classement général dans un canal Discord dédié.
+- **Zéro infrastructure complexe :** Utilisation de l'API standard **Discord Webhooks** (aucun bot Discord à héberger ni permissions serveur invasives pour l'utilisateur).
+
+---
+
+#### 2. Découpage fonctionnel
+
+##### A. Paramétrage Clan (`/clans/[clanId]/settings/discord`)
+- [x] **Nouvelle entrée dans le Hub des paramètres (`ClanSettingsHub`) :**
+  - Ajout d'une carte « Notifications Discord » avec icône MessageSquare, description et contrôle d'accès (`canManageSettings`). Entrée `admin.discord-notifications` ajoutée au registre nav + `scripts/seed-discord-nav.ts`.
+- [x] **Page de configuration dédiée (`/clans/[clanId]/settings/discord`) :**
+  - **Section Top 1 / Chicken Dinner :**
+    - URL du Webhook Discord pour les Top 1 (ex: `https://discord.com/api/webhooks/...`).
+    - Toggle d'activation générale des alertes Top 1.
+    - Cases à cocher pour les modes de jeu : Duo / Trio / Squad (défaut: les trois activés). *Solo impossible — voir écarts ci-dessus.*
+    - Cases à cocher pour le type de match : Officiel (défaut: activé), Casual (défaut: activé), Matchs IA `airoyale` (défaut: désactivé), Custom (défaut: désactivé). *Pas de Ranked en base — voir écarts ci-dessus.*
+    - Seuil minimum de membres du clan dans l'escouade : 2, 3 ou 4 membres (défaut: **minimum 2**).
+    - Option de mention de rôle Discord : Aucune, `@here`, `@everyone`, ou ID de rôle personnalisé (ex: `<@&roleId>`).
+    - Bouton interactif **« Tester le webhook Top 1 »** : envoie un embed test sur Discord avec retour visuel immédiat (message inline de succès ou affichage clair de l'erreur Discord).
+  - **Section Tournois inter-clans :** ✅
+    - URL du Webhook Discord pour les tournois (champ distinct).
+    - Bouton rapide **« 📋 Identique au canal Top 1 »** : recopie automatiquement l'URL du webhook Top 1 en un seul clic.
+    - Toggle d'activation générale des annonces tournoi.
+    - Option de mention de rôle Discord pour les annonces de tournoi (ex: `@Tournoi`, `@everyone`, ou ID de rôle).
+    - Option d'inclure le classement général provisoire cumulé du tournoi sous le récapitulatif de la manche.
+    - Bouton interactif **« Tester le webhook Tournoi »**.
+  - **Surcharge par tournoi (Optionnel / Avancé) :** ✅
+    - Champ « Webhook spécifique à ce tournoi » dans le formulaire d'édition d'un tournoi (colonne `Tournament.discordWebhookUrl`), pour les tournois annoncés sur un autre serveur Discord. Vide = webhook Tournoi du clan.
+
+##### B. Moteur d'envoi & Templates Discord (`src/lib/discord/`)
+- [x] **Client Webhook résilient (`discord-client.ts`) :**
+  - Envoi HTTP `POST` vers l'API Webhook Discord avec timeout strict (5s).
+  - Gestion gracieuse des rate limits Discord (HTTP 429 avec backoff).
+  - Ne bloque jamais et ne fait jamais échouer la synchronisation principale PUBG en cas d'erreur réseau Discord.
+- [x] **Générateur d'Embed Top 1 (`discord-top1-embed.ts`) :**
+  - Couleur dorée Chicken Dinner (`#F1C40F`).
+  - Titre : `🍗 CHICKEN DINNER ! Top 1 pour [TAG] ClanName`
+  - Mention configurée en tête de message (optionnelle).
+  - Carte & Mode : `🗺️ Erangel — Squad FPP` + Horodatage.
+  - Composition d'escouade avec badges :
+    - 🎖️ `Pseudo1` — 7 kills · 820 dégâts · 2 assists
+    - 🎖️ `Pseudo2` — 4 kills · 410 dégâts · 1 revive
+  - Métriques globales de l'escouade : Kills totaux, dégâts cumulés, temps de survie.
+  - Image de prévisualisation de la carte (ex: `/maps/erangel.jpg`).
+  - Bouton / Lien direct vers la télémétrie et le rapport complet du match sur le site.
+- [x] **Générateur d'Embed Résultats de Tournoi (`discord-tournament-embed.ts`) :**
+  - Couleur compétitive violette / indigo (`#5865F2`).
+  - Titre : `🏆 Tournoi : {Nom du Tournoi} — Résultats Manche #{N}`
+  - Mention configurée en tête de message (optionnelle).
+  - Carte & Paramètres : `🗺️ Miramar — Mode Compétition`
+  - Tableau des scores par clan participant :
+    - 🥇 **[TAG1] Clan Alpha** : 1er (+10 pts) · 8 kills (+8 pts) = **18 pts**
+    - 🥈 **[TAG2] Clan Bravo** : 2e (+6 pts) · 5 kills (+5 pts) = **11 pts**
+    - 🥉 **[TAG3] Clan Charlie** : 3e (+5 pts) · 2 kills (+2 pts) = **7 pts**
+  - Badge MVP de la manche (Joueur ayant infligé le plus de dégâts / kills).
+  - Bloc « Classement Général Provisoire » (Top 3 ou complet).
+  - Lien direct vers la page publique du tournoi et le replay télémétrique 2D.
+- [x] **Mécanisme de dédoublonnage strict (Anti-Spam) :**
+  - Table `DiscordNotificationLog` avec contrainte unique `(clanId, kind, refId)` : le verrou est posé *avant* l'envoi et relâché uniquement si Discord refuse, pour qu'une panne réseau reste rattrapable sans jamais permettre de doublon.
+  - Garantie absolue qu'un re-calcul de statistiques ou une re-synchronisation de télémétrie ne renvoie pas une seconde fois l'alerte sur Discord.
+
+##### C. Câblage dans les flux existants & Ergonomie Tournoi
+- [x] **Flux Top 1 (`squad-detector.ts`) :**
+  - Câblé dans `analyzeMatchForSquads`, sur les deux chemins : création d'un `SquadMatch` **et** complétion d'un match déjà créé par un autre clan suivi du même lobby.
+  - Vérifie l'activation, les filtres (modes, types de match, seuil de membres) puis le dédoublonnage avant d'envoyer.
+  - L'envoi est `await`é mais ne peut jamais faire échouer la synchronisation : `notifyTop1IfEligible` ne lève jamais et le client webhook plafonne à 5 s par tentative.
+- [x] **Flux Tournoi à la demande (Bouton sur la page du tournoi) :**
+  - Bouton **« Diffuser sur Discord »** sur chaque tournoi de `/clans/[clanId]/settings/tournaments`, à côté de « Synchroniser ». Aucun envoi automatique, aucun cycle cron.
+  - `GET /api/clans/[clanId]/tournaments/[id]/discord` liste les manches comptabilisées (avec la date de diffusion précédente le cas échéant) ; `?matchId=` renvoie l'aperçu ; `POST` diffuse.
+- [x] **Modale de prévisualisation avant publication sur Discord :**
+  - Sélecteur de manche (la plus récente présélectionnée), aperçu exact de l'Embed rendu par `DiscordEmbedPreview` à partir du payload réel (scores, points calculés, MVP, classement, mention).
+  - Boutons **« Confirmer et envoyer sur Discord »** / « Annuler », avertissement si la manche a déjà été diffusée, et mention du webhook spécifique quand une surcharge de tournoi s'applique.
+
+---
+
+#### 3. Plan de Tests & Validation
+
+##### Tests Automatisés (Vitest)
+> 32 tests verts (`npx vitest run src/lib/discord`).
+
+- [x] **`src/lib/discord/discord-top1-embed.test.ts` :**
+  - Vérification de la conformité du payload JSON Discord (limites de caractères Discord : titre <= 256, champs <= 1024, max 25 champs).
+  - Validation du formatage des données joueurs (kills, damage arrondi, assists).
+  - Présence de l'URL du site et de la miniature de la carte, et omission propre quand `NEXT_PUBLIC_APP_URL` est vide.
+- [x] **`src/lib/discord/discord-client.test.ts` :** 204, 400, 404, backoff `retry_after` sur 429, abandon après second 429, panne réseau — sans jamais lever.
+- [x] **`src/lib/discord/discord-config.test.ts` :** validation de l'URL de webhook (domaines autorisés, rejet HTTP simple et domaines tiers) et normalisation défensive de la configuration stockée.
+- [x] **`src/lib/discord/discord-tournament-embed.test.ts` (13 tests) :** conformité aux limites Discord, médailles et numérotation au-delà du podium, bonus de victoire affiché seulement s'il est accordé, MVP, bloc classement général optionnel, lien de replay conditionnel, bornage à 1024 caractères.
+- [x] **`src/lib/tournament-service.test.ts` — `computeTournamentRoundScores` (5 tests) :**
+  - Calcul exact des points de manche selon les règles du tournoi (`placementPoints`, `killPoints`, `winBonus`).
+  - Tri correct des clans par points décroissants puis kills puis placement.
+  - Gestion des égalités, exclusion des clans non participants, et `bestOfRounds` volontairement ignoré (il ne s'applique qu'au cumul).
+- [x] **`src/lib/discord/discord-tournament-service.test.ts` (11 tests) :** numérotation chronologique des manches, barème appliqué de bout en bout, MVP sur les dégâts, priorité du webhook de tournoi sur celui du clan, refus sans webhook exploitable, manche étrangère au tournoi en 404, détection d'une manche déjà diffusée, aucun POST pendant la prévisualisation, journalisation après diffusion et absence de journalisation quand Discord refuse.
+- [x] **`src/lib/discord/discord-service.test.ts` :**
+  - Test du déclenchement conditionnel : envoi déclenché pour `placement === 1`, ignoré pour `placement > 1`.
+  - Test du filtre de membres : ignoré si l'escouade a moins de membres clan que le seuil configuré.
+  - Test du dédoublonnage : un deuxième appel pour le même `squadMatchId` ne produit aucun appel HTTP.
+  - Test de résilience : échec d'envoi Discord → verrou relâché, aucune exception ; panne base de données → aucune exception.
+- [ ] **`src/app/api/clans/[clanId]/settings/discord/route.test.ts` :** *non écrit —* `vitest.config.ts` ne couvre que `src/lib/**/*.test.ts`, un test de route demanderait d'élargir le `include` (aucune route du projet n'est testée aujourd'hui depuis `src/app/`). La validation du payload est couverte par `discord-config.test.ts` ; le contrôle d'accès repose sur `requirePermission('manage_settings')`, identique aux autres routes de settings.
+  - Contrôle d'accès : rejet `401/403` si l'utilisateur n'a pas les droits d'administration du clan.
+  - Sauvegarde et validation du format de l'URL Webhook (doit démarrer par `https://discord.com/api/webhooks/` ou `https://discordapp.com/api/webhooks/`).
+  - Endpoint de test : validation de l'appel test vers Discord.
+
+##### Tests Manuels & Recette Fonctionnelle
+- [ ] **Configuration UI :**
+  - Naviguer sur `/clans/[clanId]/settings/discord`, saisir un Webhook Discord réel créé sur un serveur de test.
+  - Cliquer sur *« Tester le webhook Top 1 »* : confirmer l'apparition immédiate de l'embed de test dans le canal Discord et du toast de confirmation dans l'application.
+- [ ] **Simulation Top 1 :**
+  - Importer un match avec placement 1 pour le clan : vérifier l'arrivée instantanée du message Discord avec les bons pseudos, le bon ratio de kills et le lien vers le site.
+  - Relancer la synchronisation du même match : vérifier qu'aucun message en doublon n'est expédié.
+- [ ] **Simulation Tournoi :**
+  - Ouvrir un tournoi avec des matchs custom terminés.
+  - Cliquer sur *« Synchroniser »* ou *« Diffuser sur Discord »* : vérifier la réception de la fiche récapitulative de manche avec scores conformes aux règles du tournoi.
+- [ ] **Mode Sombre / Clair :**
+  - Vérifier la parfaite lisibilité de la nouvelle page de configuration Discord sur tous les thèmes.
+- [ ] **Conformité UI/UX — Validation contre [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html) :**
+  - Vérifier que la page `/clans/[clanId]/settings/discord` utilise exclusivement les classes `.app-panel`, `.app-btn`, `.app-btn--primary`, `.app-btn--secondary` et les tokens CSS `--theme-ui-*` du projet (aucun style inline ou classe ad-hoc).
+  - Vérifier que la modale de prévisualisation Discord respecte le standard `.app-modal-card` / `.app-modal-inner-card` / `.app-modal-callout` documenté dans le guide UI (fond `dark:bg-slate-900`, bordure `dark:border-slate-800`, typographie contrastée).
+  - Vérifier que les toasts de succès/erreur (webhook test, envoi confirmé) utilisent le système de toast existant du projet (aucun `window.alert`).
+  - Vérifier que le rendu de la carte dans le hub `/clans/[clanId]/settings` est cohérent avec les cartes *Membres*, *Accueil login* et *Tournois* existantes (taille, icône, couleur, texte).
+  - Passer en revue la maquette dans `docs/ui/index.html` pour valider que les nouveaux composants y sont correctement illustrés et documentés.
+
+---
+
+
 ### ~~Gestion compacte des membres (`/clans/[clanId]/settings/members`) — Chevron de déploiement, badges abrégés et légende~~ — ✅ Complété le 2026-09-06
 
 Optimisation de l'affichage sur la page de gestion des membres du clan pour économiser de la place à l'écran :

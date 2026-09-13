@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { ResolvedPubgMatch } from '@/lib/pubg'
 import { notifySquadDetected } from '@/lib/notification-service'
+import { notifyTop1IfEligible } from '@/lib/discord/discord-service'
 
 export type SquadPeriod = 'week' | 'month'
 
@@ -368,6 +369,8 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
       })
     }
 
+    await notifyTop1IfEligible(clanId, existing.id)
+
     return prisma.squadMatch.findUnique({
       where: { id: existing.id },
       include: { members: true },
@@ -420,6 +423,7 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
 
   if (calculated) {
     await notifySquadDetected(calculated.id)
+    await notifyTop1IfEligible(clanId, calculated.id)
   }
 
   return calculated

@@ -9,6 +9,10 @@ const HARD_CAPTURE_MAX_BYTES = 50 * 1024 * 1024
 const SENSITIVE_STRING_KEYS = new Set([
   'playerId',
   'characterId',
+  // Identifiant de compte PUBG porté par character.accountId et par plusieurs
+  // évènements : sans lui, les fixtures capturées et commitées exposeraient des
+  // comptes réels alors que les pseudos, eux, sont bien anonymisés.
+  'accountId',
   'killerName',
   'victimName',
   'attackerName',

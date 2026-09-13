@@ -1,6 +1,6 @@
 # Modèle de données
 
-Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust in-process). 31 modèles au total.
+Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust in-process). 49 modèles au total (les sections ci-dessous ne détaillent que les principaux).
 
 ## Vue d'ensemble par domaine
 
@@ -62,6 +62,7 @@ Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust 
 |---|---|
 | `Notification` | Notification in-app pour un membre |
 | `NotificationPreference` | Préférences de notification par membre (email/push/in-app par type) |
+| `DiscordNotificationLog` | Journal des messages Discord déjà publiés par un clan — l'unique `(clanId, kind, refId)` est le mécanisme anti-doublon (voir [notifications Discord](../features/discord-notifications.md)) |
 
 ### Configuration et opérations
 

@@ -52,8 +52,18 @@ Client Pages ('use client', data-driven)
 API Routes (app/api/**/route.ts)
     ↓ standard Response.json(), MUST await params
 Prisma (singleton, MySQL)
-    ↓ 31 models (Clan, Member, Stats, Telemetry, etc.)
+    ↓ 49 models (Clan, Member, Stats, Telemetry, Tournament, etc.)
 ```
+
+## Schema and tests — two traps
+
+- **The Prisma schema matches the database exactly** (verified 2026-09-13). Keep it that way: run
+  `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
+  before any `db push`. It prints every statement that would run — historically this repo had
+  columns and indexes living only in the database, and a blind `db push --accept-data-loss` would
+  have dropped them along with their data.
+- **Vitest only collects `src/lib/**/*.test.ts`** (see `vitest.config.ts`). A test file placed
+  anywhere else — next to a route under `src/app/`, for instance — is silently never run.
 
 See [CLAUDE.md](CLAUDE.md) for full patterns, UI system, and gotchas.
 

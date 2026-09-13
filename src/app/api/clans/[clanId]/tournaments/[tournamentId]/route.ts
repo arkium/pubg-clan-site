@@ -39,6 +39,10 @@ function parseTournamentPayload(body: unknown): TournamentUpdateInput {
       ? value.status
       : undefined,
     rules: nextRules,
+    discordWebhookUrl:
+      typeof value.discordWebhookUrl === 'string' || value.discordWebhookUrl === null
+        ? value.discordWebhookUrl
+        : undefined,
   }
 }
 

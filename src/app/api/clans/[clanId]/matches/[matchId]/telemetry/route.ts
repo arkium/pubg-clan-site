@@ -9,7 +9,11 @@ import {
 } from '@/lib/pubg-telemetry/api-contract'
 import { getPhaseLabels } from '@/lib/phase-label-service'
 import { getWeaponLabels } from '@/lib/weapon-label-service'
-import { collectLobbyAccountIds } from '@/lib/pubg-telemetry/match-replay'
+import {
+  collectLobbyAccountIds,
+  extractRespawnEvents,
+  mergeKillFeedWithKillEvents,
+} from '@/lib/pubg-telemetry/match-replay'
 import {
   mergeBodyZoneBreakdowns,
   type BodyZoneBreakdown,
@@ -63,6 +67,8 @@ type MatchTelemetryRow = {
   knockoutSamples: unknown
   reviveSamples: unknown
   landingSamples: unknown
+  vehicleSamples: unknown
+  killFeedSamples: unknown
   telemetryCreatedAt: Date
   telemetryUpdatedAt: Date
 }
@@ -79,6 +85,8 @@ function resolvePlayer(params: {
   clanId: number
   clanTag: string
   clanAccountIds: Set<string>
+  /** Comptes de l'escouade (clan consulté + coéquipiers), en minuscules. */
+  squadAccountIds: Set<string>
   memberIdentityMap: Record<string, { name: string; clanTag?: string; clanId?: number }>
   fallbackName: string
 }): {
@@ -87,8 +95,9 @@ function resolvePlayer(params: {
   affiliation: PlayerAffiliation
   isClan: boolean
   isTrackedClan: boolean
+  isSquad: boolean
 } {
-  const { member, accountId, clanId, clanTag, clanAccountIds, memberIdentityMap, fallbackName } = params
+  const { member, accountId, clanId, clanTag, clanAccountIds, squadAccountIds, memberIdentityMap, fallbackName } = params
 
   const identity = accountId ? memberIdentityMap[accountId] : undefined
   const pClanId = member?.clanId ?? identity?.clanId
@@ -118,7 +127,22 @@ function resolvePlayer(params: {
     affiliation,
     isClan: isCurrentClan,
     isTrackedClan,
+    isSquad: isCurrentClan || Boolean(accountId && squadAccountIds.has(accountId.toLowerCase())),
   }
+}
+
+type CombatKillRecord = {
+  id: string
+  killerAccountId: string | null
+  victimAccountId: string | null
+  killerMember?: { displayName?: string | null; clanId?: number | null; clan?: { tag?: string | null } | null } | null
+  victimMember?: { displayName?: string | null; clanId?: number | null; clan?: { tag?: string | null } | null } | null
+  weaponName: string | null
+  distance: number | null
+  headshot: boolean
+  timestampSeconds: number | null
+  /** `sync` : ligne KillEvent ; `telemetry` : frag retrouvé dans le kill-feed complet. */
+  source: 'sync' | 'telemetry'
 }
 
 function buildMatchCombatEvents(params: {
@@ -126,23 +150,43 @@ function buildMatchCombatEvents(params: {
   clanTag: string
   clanId: number
   clanAccountIds: Set<string>
+  squadAccountIds: Set<string>
   memberIdentityMap: Record<string, { name: string; clanTag?: string; clanId?: number }>
   phaseSnapshots: any[]
-  killEvents: any[]
+  killRecords: CombatKillRecord[]
   knockoutSamples: any[]
   reviveSamples: any[]
+  respawnEvents: Array<{ key: string; t: number }>
 }) {
   const {
     matchStartEpoch,
     clanTag,
     clanId,
     clanAccountIds,
+    squadAccountIds,
     memberIdentityMap,
     phaseSnapshots,
-    killEvents,
+    killRecords,
     knockoutSamples,
     reviveSamples,
+    respawnEvents,
   } = params
+
+  const resolve = (
+    accountId: string | null | undefined,
+    fallbackName: string,
+    member?: CombatKillRecord['killerMember']
+  ) =>
+    resolvePlayer({
+      member,
+      accountId,
+      clanId,
+      clanTag,
+      clanAccountIds,
+      squadAccountIds,
+      memberIdentityMap,
+      fallbackName,
+    })
 
   function getPhase(elapsed: number): number {
     for (const snap of phaseSnapshots) {
@@ -157,32 +201,15 @@ function buildMatchCombatEvents(params: {
     return 1
   }
 
+  const toElapsed = (ts: number) => Math.max(0, Math.floor(ts > 100000 ? ts - matchStartEpoch : ts))
+
   const events: any[] = []
 
-  // 1. Kills
-  for (const k of killEvents) {
-    const elapsed = Math.max(
-      0,
-      Math.floor(k.timestampSeconds > 100000 ? k.timestampSeconds - matchStartEpoch : k.timestampSeconds)
-    )
-    const killer = resolvePlayer({
-      member: k.killerMember,
-      accountId: k.killerAccountId,
-      clanId,
-      clanTag,
-      clanAccountIds,
-      memberIdentityMap,
-      fallbackName: 'Inconnu',
-    })
-    const victim = resolvePlayer({
-      member: k.victimMember,
-      accountId: k.victimAccountId,
-      clanId,
-      clanTag,
-      clanAccountIds,
-      memberIdentityMap,
-      fallbackName: 'Inconnu',
-    })
+  // 1. Kills — KillEvent complétés par le kill-feed de la télémétrie
+  for (const k of killRecords) {
+    const elapsed = toElapsed(k.timestampSeconds ?? 0)
+    const killer = resolve(k.killerAccountId, 'Inconnu', k.killerMember)
+    const victim = resolve(k.victimAccountId, 'Inconnu', k.victimMember)
 
     events.push({
       id: `kill-${k.id}`,
@@ -196,7 +223,7 @@ function buildMatchCombatEvents(params: {
       targetClanTag: victim.clanTag,
       targetAffiliation: victim.affiliation,
       weaponName: k.weaponName,
-      // Seul le headshot est une donnée réelle sur un KillEvent : la localisation
+      // Seul le headshot est une donnée réelle sur un frag : la localisation
       // précise n'est pas persistée événement par événement.
       damageReason: k.headshot ? 'HeadShot' : null,
       distanceMeters: Math.round((k.distance || 0) / 100),
@@ -204,6 +231,9 @@ function buildMatchCombatEvents(params: {
       isClanTarget: victim.isClan,
       isTrackedClanActor: killer.isTrackedClan,
       isTrackedClanTarget: victim.isTrackedClan,
+      isSquadActor: killer.isSquad,
+      isSquadTarget: victim.isSquad,
+      source: k.source,
     })
   }
 
@@ -219,26 +249,9 @@ function buildMatchCombatEvents(params: {
   let knIdx = 0
   for (const [ts, pair] of knByTime.entries()) {
     knIdx++
-    const elapsed = Math.max(0, Math.floor(ts > 100000 ? ts - matchStartEpoch : ts))
-    const knockerAcc = pair.knocker?.memberKey
-    const victimAcc = pair.victim?.memberKey
-
-    const knocker = resolvePlayer({
-      accountId: knockerAcc,
-      clanId,
-      clanTag,
-      clanAccountIds,
-      memberIdentityMap,
-      fallbackName: 'Adversaire',
-    })
-    const victim = resolvePlayer({
-      accountId: victimAcc,
-      clanId,
-      clanTag,
-      clanAccountIds,
-      memberIdentityMap,
-      fallbackName: 'Cible',
-    })
+    const elapsed = toElapsed(ts)
+    const knocker = resolve(pair.knocker?.memberKey, 'Adversaire')
+    const victim = resolve(pair.victim?.memberKey, 'Cible')
 
     let dist = 0
     if (pair.knocker?.x && pair.victim?.x) {
@@ -265,6 +278,8 @@ function buildMatchCombatEvents(params: {
       isClanTarget: victim.isClan,
       isTrackedClanActor: knocker.isTrackedClan,
       isTrackedClanTarget: victim.isTrackedClan,
+      isSquadActor: knocker.isSquad,
+      isSquadTarget: victim.isSquad,
     })
   }
 
@@ -280,26 +295,9 @@ function buildMatchCombatEvents(params: {
   let rvIdx = 0
   for (const [ts, pair] of rvByTime.entries()) {
     rvIdx++
-    const elapsed = Math.max(0, Math.floor(ts > 100000 ? ts - matchStartEpoch : ts))
-    const reviverAcc = pair.reviver?.memberKey
-    const revivedAcc = pair.revived?.memberKey
-
-    const reviver = resolvePlayer({
-      accountId: reviverAcc,
-      clanId,
-      clanTag,
-      clanAccountIds,
-      memberIdentityMap,
-      fallbackName: 'Équipier',
-    })
-    const revived = resolvePlayer({
-      accountId: revivedAcc,
-      clanId,
-      clanTag,
-      clanAccountIds,
-      memberIdentityMap,
-      fallbackName: 'Équipier',
-    })
+    const elapsed = toElapsed(ts)
+    const reviver = resolve(pair.reviver?.memberKey, 'Équipier')
+    const revived = resolve(pair.revived?.memberKey, 'Équipier')
 
     events.push({
       id: `revive-${rvIdx}`,
@@ -316,8 +314,28 @@ function buildMatchCombatEvents(params: {
       isClanTarget: revived.isClan,
       isTrackedClanActor: reviver.isTrackedClan,
       isTrackedClanTarget: revived.isTrackedClan,
+      isSquadActor: reviver.isSquad,
+      isSquadTarget: revived.isSquad,
     })
   }
+
+  // 4. Rappels — retour en jeu par l'avion de rappel (saut postérieur à une mort)
+  respawnEvents.forEach((respawn, index) => {
+    const player = resolve(respawn.key, 'Joueur')
+    events.push({
+      id: `recall-${index}`,
+      type: 'recall',
+      timestamp: respawn.t,
+      phaseNumber: getPhase(respawn.t),
+      actorName: player.name,
+      actorClanTag: player.clanTag,
+      actorAffiliation: player.affiliation,
+      targetName: '',
+      isClanActor: player.isClan,
+      isTrackedClanActor: player.isTrackedClan,
+      isSquadActor: player.isSquad,
+    })
+  })
 
   events.sort((a, b) => a.timestamp - b.timestamp)
   return events
@@ -379,6 +397,8 @@ export async function GET(
         t.knockoutSamples,
         t.reviveSamples,
         t.landingSamples,
+        t.vehicleSamples,
+        t.killFeedSamples,
         t.createdAt AS telemetryCreatedAt,
         t.updatedAt AS telemetryUpdatedAt
       FROM SquadMatch sm
@@ -585,8 +605,76 @@ export async function GET(
         .filter(Boolean) as string[]
     )
 
+    const parsedMemberStats: unknown = safeJsonParse(row.memberStats)
+
+    // Coéquipiers : même équipe qu'un membre du clan consulté, mais sans ligne SquadMember
+    // pour ce clan. Leurs statistiques viennent de memberStats.
+    const { mates: rawSquadMates, mateStatsRows } = extractSquadMates({
+      memberStats: parsedMemberStats,
+      positionSamples: row.positionSamples,
+      clanAccountIds,
+      identities: memberIdentityMap,
+    })
+
+    // Un coéquipier peut être suivi dans un AUTRE clan du site (ex. un membre SMK invité par
+    // BOFS) alors que ce clan n'a pas encore synchronisé le match : il n'a donc pas de ligne
+    // SquadMember ici. Seule l'absence de toute fiche ClanMember en fait un joueur « non suivi ».
+    const mateAccountIds = rawSquadMates.map((mate) => mate.accountId)
+    const [mateClanMembers, matePlayers] =
+      mateAccountIds.length > 0
+        ? await Promise.all([
+            prisma.clanMember.findMany({
+              where: { pubgAccountId: { in: mateAccountIds } },
+              select: {
+                pubgAccountId: true,
+                displayName: true,
+                clanId: true,
+                clan: { select: { tag: true, name: true } },
+              },
+            }),
+            prisma.player.findMany({
+              where: { pubgAccountId: { in: mateAccountIds } },
+              select: { pubgAccountId: true, clanResolvedAt: true },
+            }),
+          ])
+        : [[], []]
+
+    const squadMates = rawSquadMates.map((mate) => {
+      const key = mate.accountId.toLowerCase()
+      const clanMember = mateClanMembers.find(
+        (member) => member.pubgAccountId?.toLowerCase() === key && member.clanId !== null
+      )
+      const player = matePlayers.find((entry) => entry.pubgAccountId.toLowerCase() === key)
+
+      if (clanMember?.clanId) {
+        memberIdentityMap[mate.accountId] = {
+          name: clanMember.displayName,
+          clanTag: clanMember.clan?.tag ?? undefined,
+          clanId: clanMember.clanId,
+        }
+      }
+
+      return {
+        ...mate,
+        name: clanMember?.displayName ?? mate.name,
+        clanTag: clanMember?.clan?.tag ?? mate.clanTag,
+        trackedClan: clanMember?.clanId
+          ? { id: clanMember.clanId, tag: clanMember.clan?.tag ?? null, name: clanMember.clan?.name ?? null }
+          : null,
+        /** Date de la dernière résolution du clan PUBG — le tag peut être périmé. */
+        pubgClanCheckedAt: player?.clanResolvedAt?.toISOString() ?? null,
+      }
+    })
+
+    const squadAccountIds = new Set(
+      [...clanAccountIds, ...squadMates.map((mate) => mate.accountId)].map((id) => id.toLowerCase())
+    )
+
     // Discover any other clans tracked on the platform present in this match
     const otherTrackedClansSet = new Set<string>()
+    for (const mate of squadMates) {
+      if (mate.trackedClan?.tag) otherTrackedClansSet.add(mate.trackedClan.tag)
+    }
     for (const sm of allTrackedSquadMembers) {
       if (sm.member.clanId && sm.member.clanId !== parsedClanId && sm.member.clan?.tag) {
         otherTrackedClansSet.add(sm.member.clan.tag)
@@ -605,20 +693,57 @@ export async function GET(
     const parsedPhases = safeJsonParse(row.phaseSnapshots)
     const parsedKnocks = safeJsonParse(row.knockoutSamples)
     const parsedRevives = safeJsonParse(row.reviveSamples)
+    const matchStartEpochSeconds = row.createdAt.getTime() / 1000
+
+    // Frags : les KillEvent ne couvrent que les clans ayant synchronisé ce match. Le kill-feed
+    // complet de la télémétrie (colonne killFeedSamples, 2026-09-14) comble les autres.
+    const killEventById = new Map(killEvents.map((ke) => [ke.id, ke]))
+    const killRecords: CombatKillRecord[] = mergeKillFeedWithKillEvents(
+      killEvents.map((ke) => ({
+        id: ke.id,
+        killerAccountId: ke.killerAccountId,
+        killerRawKey: ke.killerRawKey,
+        victimAccountId: ke.victimAccountId,
+        victimRawKey: ke.victimRawKey,
+        weaponName: ke.weaponName,
+        distance: ke.distance,
+        headshot: ke.headshot,
+        timestampSeconds: ke.timestampSeconds,
+      })),
+      row.killFeedSamples,
+      matchStartEpochSeconds
+    )
+      .map((kill) => {
+        const stored = killEventById.get(kill.id)
+        return {
+          id: kill.id,
+          killerAccountId: kill.killerAccountId,
+          victimAccountId: kill.victimAccountId,
+          killerMember: stored?.killerMember ?? null,
+          victimMember: stored?.victimMember ?? null,
+          weaponName: kill.weaponName,
+          distance: kill.distance,
+          headshot: kill.headshot,
+          timestampSeconds: kill.timestampSeconds,
+          source: stored ? ('sync' as const) : ('telemetry' as const),
+        }
+      })
+      .sort((left, right) => (left.timestampSeconds ?? 0) - (right.timestampSeconds ?? 0))
 
     const combatEvents = buildMatchCombatEvents({
-      matchStartEpoch: Math.floor(row.createdAt.getTime() / 1000),
+      matchStartEpoch: Math.floor(matchStartEpochSeconds),
       clanTag,
       clanId: parsedClanId,
       clanAccountIds,
+      squadAccountIds,
       memberIdentityMap,
       phaseSnapshots: Array.isArray(parsedPhases) ? parsedPhases : [],
-      killEvents,
+      killRecords,
       knockoutSamples: Array.isArray(parsedKnocks) ? parsedKnocks : [],
       reviveSamples: Array.isArray(parsedRevives) ? parsedRevives : [],
+      respawnEvents: extractRespawnEvents(row.deathSamples, row.vehicleSamples, matchStartEpochSeconds),
     })
 
-    const parsedMemberStats: unknown = safeJsonParse(row.memberStats)
     const clanMemberKeysLower = new Set(
       Array.from(clanAccountIds).map((accountId) => accountId.toLowerCase())
     )
@@ -630,13 +755,6 @@ export async function GET(
       }
     )
 
-    // Coéquipiers hors clan : absents de SquadMember, présents dans memberStats.
-    const { mates: squadMates, mateStatsRows } = extractSquadMates({
-      memberStats: parsedMemberStats,
-      positionSamples: row.positionSamples,
-      clanAccountIds,
-      identities: memberIdentityMap,
-    })
     const squadMemberStats = [...clanMemberStats, ...mateStatsRows]
 
     // Les snapshots parsés avant l'ajout des zones anatomiques n'ont pas la clé du tout :
@@ -708,30 +826,50 @@ export async function GET(
         createdAt: row.telemetryCreatedAt.toISOString(),
         updatedAt: row.telemetryUpdatedAt.toISOString(),
       },
-      killEvents: killEvents.map((ke) => {
-        const isClanKill = Boolean(ke.killerMemberId || (ke.killerAccountId && clanAccountIds.has(ke.killerAccountId)))
-        const isClanVictim = Boolean(ke.victimMemberId || (ke.victimAccountId && clanAccountIds.has(ke.victimAccountId)))
+      // Frags de l'escouade (clan consulté + coéquipiers) : KillEvent synchronisés, complétés par
+      // le kill-feed de la télémétrie. `source` permet à l'interface d'expliquer l'origine.
+      killEvents: killRecords.map((kill) => {
+        const killer = resolvePlayer({
+          member: kill.killerMember,
+          accountId: kill.killerAccountId,
+          clanId: parsedClanId,
+          clanTag,
+          clanAccountIds,
+          squadAccountIds,
+          memberIdentityMap,
+          fallbackName: 'Inconnu',
+        })
+        const victim = resolvePlayer({
+          member: kill.victimMember,
+          accountId: kill.victimAccountId,
+          clanId: parsedClanId,
+          clanTag,
+          clanAccountIds,
+          squadAccountIds,
+          memberIdentityMap,
+          fallbackName: 'Inconnu',
+        })
         return {
-          id: ke.id,
-          killerAccountId: ke.killerAccountId,
-          killerRawKey: ke.killerRawKey,
-          killerMemberId: ke.killerMemberId,
-          killerName: ke.killerMember?.displayName ?? (ke.killerAccountId ? memberIdentityMap[ke.killerAccountId]?.name : null) ?? ke.killerAccountId,
-          killerClanTag: ke.killerMember ? (isClanKill ? clanTag : null) : (ke.killerAccountId ? memberIdentityMap[ke.killerAccountId]?.clanTag : null),
-          victimAccountId: ke.victimAccountId,
-          victimRawKey: ke.victimRawKey,
-          victimMemberId: ke.victimMemberId,
-          victimName: ke.victimMember?.displayName ?? (ke.victimAccountId ? memberIdentityMap[ke.victimAccountId]?.name : null) ?? ke.victimAccountId,
-          victimClanTag: ke.victimMember ? (isClanVictim ? clanTag : null) : (ke.victimAccountId ? memberIdentityMap[ke.victimAccountId]?.clanTag : null),
-          weaponName: ke.weaponName,
-          damageCauser: ke.weaponName,
-          distance: Math.round((ke.distance || 0) / 100),
-          headshot: ke.headshot,
-          timestampSeconds: ke.timestampSeconds,
-          isClanKill,
-          isClanVictim,
+          id: kill.id,
+          killerAccountId: kill.killerAccountId,
+          killerName: killer.name,
+          killerClanTag: killer.clanTag,
+          victimAccountId: kill.victimAccountId,
+          victimName: victim.name,
+          victimClanTag: victim.clanTag,
+          weaponName: kill.weaponName,
+          damageCauser: kill.weaponName,
+          distance: Math.round((kill.distance || 0) / 100),
+          headshot: kill.headshot,
+          timestampSeconds: kill.timestampSeconds,
+          isClanKill: killer.isClan,
+          isClanVictim: victim.isClan,
+          isSquadKill: killer.isSquad,
+          isSquadVictim: victim.isSquad,
+          source: kill.source,
         }
       }),
+      killFeedAvailable: Array.isArray(safeJsonParse(row.killFeedSamples, null)),
       squadMates,
       throwableStats: throwableStats.map((ts) => ({
         memberId: ts.memberId,

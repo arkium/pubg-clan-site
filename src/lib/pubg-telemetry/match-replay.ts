@@ -367,6 +367,41 @@ export function computeReplayLives(
   return { lives, endingDeaths, respawns }
 }
 
+/**
+ * Retours en jeu par l'avion de rappel, pour les vues qui n'ont pas besoin des pistes
+ * complètes (journal de combat). Même règle que le replay : un saut d'avion postérieur
+ * à une mort rouvre une vie.
+ */
+export function extractRespawnEvents(
+  deathSamples: unknown,
+  vehicleSamples: unknown,
+  matchStartEpochSeconds: number
+): Array<{ key: string; t: number; x: number | null; y: number | null }> {
+  const deathsByKey = new Map<string, TimedPoint[]>()
+  for (const row of parseArray(deathSamples)) {
+    const key = normalizeReplayKey(row.memberKey)
+    const t = toRelativeSeconds(row.timestampSeconds, matchStartEpochSeconds)
+    if (!key || t === null) continue
+    deathsByKey.set(key, [...(deathsByKey.get(key) ?? []), { t, x: asFiniteNumber(row.x), y: asFiniteNumber(row.y) }])
+  }
+
+  const leavesByKey = new Map<string, TimedPoint[]>()
+  for (const row of parseArray(vehicleSamples)) {
+    if (!isAircraftLeave(row)) continue
+    const key = normalizeReplayKey(row.memberKey)
+    const t = toRelativeSeconds(row.timestampSeconds, matchStartEpochSeconds)
+    if (!key || t === null) continue
+    leavesByKey.set(key, [...(leavesByKey.get(key) ?? []), { t, x: asFiniteNumber(row.x), y: asFiniteNumber(row.y) }])
+  }
+
+  const respawnEvents: Array<{ key: string; t: number; x: number | null; y: number | null }> = []
+  for (const [key, deaths] of deathsByKey) {
+    const { respawns } = computeReplayLives(0, deaths, leavesByKey.get(key) ?? [])
+    for (const respawn of respawns) respawnEvents.push({ key, ...respawn })
+  }
+  return respawnEvents.sort((left, right) => left.t - right.t)
+}
+
 function isInsideLives(lives: ReplayLife[], t: number) {
   return lives.some(([start, end]) => t >= start && (end === null || t <= end))
 }
@@ -406,18 +441,77 @@ export function extractRecallAircraftPoints(
   return points
 }
 
-/** Lit `summary.carePackages`, stocké sous forme d'objet ou de chaîne JSON selon le chemin d'écriture. */
-function readCarePackages(summary: unknown): TelemetryCarePackage[] {
-  let value = summary
-  if (typeof value === 'string') {
-    try {
-      value = JSON.parse(value)
-    } catch {
-      return []
-    }
+function parseJsonValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
   }
-  const crates = value && typeof value === 'object' ? (value as { carePackages?: unknown }).carePackages : null
+}
+
+/**
+ * Caisses de largage : colonne `carePackageSamples` (2026-09-14). Repli sur
+ * `summary.carePackages`, emplacement provisoire des matchs re-parsés le 2026-09-13.
+ */
+function readCarePackages(carePackageSamples: unknown, summary: unknown): TelemetryCarePackage[] {
+  const column = parseJsonValue(carePackageSamples)
+  if (Array.isArray(column)) return column as TelemetryCarePackage[]
+  const legacy = parseJsonValue(summary)
+  const crates = legacy && typeof legacy === 'object' ? (legacy as { carePackages?: unknown }).carePackages : null
   return Array.isArray(crates) ? (crates as TelemetryCarePackage[]) : []
+}
+
+/**
+ * Complète les `KillEvent` (frags des seuls clans ayant synchronisé le match) par le
+ * kill-feed complet de la télémétrie. Un frag déjà connu — même victime à 2 s près —
+ * n'est pas dupliqué : la ligne `KillEvent` fait foi.
+ */
+export function mergeKillFeedWithKillEvents(
+  killEvents: ReplayKillEventInput[],
+  killFeedSamples: unknown,
+  matchStartEpochSeconds: number
+): ReplayKillEventInput[] {
+  const feed = parseJsonValue(killFeedSamples)
+  if (!Array.isArray(feed)) return killEvents
+
+  const knownVictimTimes = new Map<string, number[]>()
+  for (const kill of killEvents) {
+    const victim = normalizeReplayKey(kill.victimAccountId) ?? normalizeReplayKey(kill.victimRawKey)
+    const t = toPreciseRelativeSeconds(kill.timestampSeconds, matchStartEpochSeconds)
+    if (!victim || t === null) continue
+    knownVictimTimes.set(victim, [...(knownVictimTimes.get(victim) ?? []), t])
+  }
+
+  const merged = [...killEvents]
+  feed.forEach((raw, index) => {
+    if (!raw || typeof raw !== 'object') return
+    const sample = raw as Record<string, unknown>
+    const killerKey = typeof sample.killerKey === 'string' ? sample.killerKey : null
+    const victimKey = typeof sample.victimKey === 'string' ? sample.victimKey : null
+    const victim = normalizeReplayKey(victimKey)
+    const t = toPreciseRelativeSeconds(sample.timestampSeconds, matchStartEpochSeconds)
+    if (!victim || t === null) return
+
+    const alreadyKnown = (knownVictimTimes.get(victim) ?? []).some(
+      (knownT) => Math.abs(knownT - t) <= DEATH_KILL_MATCH_SECONDS
+    )
+    if (alreadyKnown) return
+
+    merged.push({
+      id: `feed-${index}`,
+      killerAccountId: killerKey,
+      killerRawKey: killerKey,
+      victimAccountId: victimKey,
+      victimRawKey: victimKey,
+      weaponName: typeof sample.weaponName === 'string' ? sample.weaponName : null,
+      distance: asFiniteNumber(sample.distance),
+      headshot: sample.headshot === true,
+      timestampSeconds: asFiniteNumber(sample.timestampSeconds),
+    })
+  })
+
+  return merged
 }
 
 export function buildMatchReplayPayload(input: {
@@ -444,8 +538,12 @@ export function buildMatchReplayPayload(input: {
   reviveSamples: unknown
   phaseSnapshots: unknown
   vehicleSamples: unknown
-  /** Colonne `summary`, qui porte `carePackages` depuis le 2026-09-13. Optionnelle. */
+  /** Colonne `carePackageSamples` (2026-09-14). Optionnelle. */
+  carePackageSamples?: unknown
+  /** Colonne `summary` : repli pour les caisses des matchs re-parsés le 2026-09-13. Optionnelle. */
   summary?: unknown
+  /** Colonne `killFeedSamples` (2026-09-14) : complète `killEvents` pour tout le lobby. Optionnelle. */
+  killFeedSamples?: unknown
   killEvents: ReplayKillEventInput[]
   flightPath: MatchReplayPayload['flightPath']
 }): MatchReplayPayload {
@@ -676,7 +774,7 @@ export function buildMatchReplayPayload(input: {
 
   const events: ReplayEvent[] = []
 
-  for (const kill of killEvents) {
+  for (const kill of mergeKillFeedWithKillEvents(killEvents, input.killFeedSamples, matchStartEpochSeconds)) {
     const t = toRelativeSeconds(kill.timestampSeconds, matchStartEpochSeconds)
     if (t === null) continue
 
@@ -826,7 +924,7 @@ export function buildMatchReplayPayload(input: {
     match.mapName
   )
 
-  const crates: ReplayCrate[] = readCarePackages(input.summary).map((crate) => {
+  const crates: ReplayCrate[] = readCarePackages(input.carePackageSamples, input.summary).map((crate) => {
     const landedAt = toRelativeSeconds(crate.timestampSeconds, matchStartEpochSeconds)
     const firstLoot = toRelativeSeconds(crate.firstLootTimestampSeconds, matchStartEpochSeconds)
     for (const t of [landedAt, firstLoot]) {

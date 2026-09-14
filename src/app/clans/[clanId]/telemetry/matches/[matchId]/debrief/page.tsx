@@ -23,6 +23,7 @@ import {
   Target,
   Clock,
   Zap,
+  Info,
 } from 'lucide-react'
 
 import PlacementBadge from '@/components/ui/PlacementBadge'
@@ -41,13 +42,54 @@ import {
 } from '@/lib/pubg-telemetry/body-zones'
 import type { SquadMateStats } from '@/lib/pubg-telemetry/squad-mates'
 
-function SquadMateBadge({ clanTag }: { clanTag: string | null }) {
+type SquadMateApi = SquadMateStats & {
+  /** Fiche ClanMember dans un autre clan du site : le joueur est suivi, simplement pas par ce clan. */
+  trackedClan?: { id: number; tag: string | null; name: string | null } | null
+  /** Dernière résolution du clan PUBG (tag potentiellement périmé). */
+  pubgClanCheckedAt?: string | null
+}
+
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short' }).format(date)
+}
+
+function SquadMateBadge({ mate }: { mate: Pick<SquadMateApi, 'clanTag' | 'trackedClan' | 'pubgClanCheckedAt'> }) {
+  const checkedOn = formatShortDate(mate.pubgClanCheckedAt)
+  if (mate.trackedClan) {
+    return (
+      <span
+        className="px-1.5 py-0.5 rounded bg-purple-950/70 border border-purple-700/60 text-[10px] font-bold uppercase tracking-wide text-purple-200"
+        title={`Coéquipier suivi dans le clan ${mate.trackedClan.name ?? mate.trackedClan.tag ?? ''} du site, qui n'a pas encore synchronisé ce match : statistiques issues de la télémétrie.`}
+      >
+        {mate.trackedClan.tag ? `[${mate.trackedClan.tag}] ` : ''}suivi
+      </span>
+    )
+  }
   return (
     <span
       className="px-1.5 py-0.5 rounded bg-teal-950/70 border border-teal-800/60 text-[10px] font-bold uppercase tracking-wide text-teal-300"
-      title="Coéquipier de l'escouade qui n'est pas suivi sur le site : statistiques issues de la télémétrie."
+      title={`Coéquipier sans fiche membre sur le site : statistiques issues de la télémétrie.${
+        mate.clanTag
+          ? ` Tag [${mate.clanTag}] = clan PUBG${checkedOn ? ` relevé le ${checkedOn}` : ''}, il peut avoir changé depuis.`
+          : ''
+      }`}
     >
-      {clanTag ? `[${clanTag}] ` : ''}non suivi
+      {mate.clanTag ? `[${mate.clanTag}] ` : ''}non suivi
+    </span>
+  )
+}
+
+function DuelSourceChip() {
+  return (
+    <span
+      className="inline-flex items-center px-1 py-px rounded border border-teal-700/60 bg-teal-950/60 text-[10px] font-bold text-teal-300 align-middle"
+      title="Frag retrouvé dans le kill-feed de la télémétrie : le clan du joueur n'avait pas synchronisé ce match."
+    >
+      télémétrie
     </span>
   )
 }
@@ -121,6 +163,10 @@ type KillEventApi = {
   victimClanTag: string | null
   isClanKill: boolean
   isClanVictim: boolean
+  /** Escouade = clan consulté + coéquipiers. Absent des anciens payloads. */
+  isSquadKill?: boolean
+  isSquadVictim?: boolean
+  source?: 'sync' | 'telemetry'
 }
 
 type ThrowableStatApi = {
@@ -164,7 +210,9 @@ type MatchTelemetryResponse = {
     killEvents?: KillEventApi[]
     throwableStats?: ThrowableStatApi[]
     /** Coéquipiers hors clan, statistiques issues de la télémétrie (`memberStats`). */
-    squadMates?: SquadMateStats[]
+    squadMates?: SquadMateApi[]
+    /** Le kill-feed complet est enregistré pour ce match (analysé après le 2026-09-14). */
+    killFeedAvailable?: boolean
     weaponLabels?: Record<string, string>
     phaseLabels?: Record<string, string>
     memberIdentityMap?: Record<string, { name: string; clanTag?: string; clanId?: number }>
@@ -304,7 +352,7 @@ export default function MatchTacticalDebriefPage() {
 
   const match = payload?.match
   const telemetry = payload?.telemetry
-  const killEvents = payload?.killEvents ?? []
+  const killEvents = useMemo(() => payload?.killEvents ?? [], [payload?.killEvents])
   const throwableStats = payload?.throwableStats ?? []
   const memberIdentityMap = payload?.memberIdentityMap ?? {}
   const clanTag = (match as any)?.clanTag || 'Clan'
@@ -349,6 +397,19 @@ export default function MatchTacticalDebriefPage() {
     [squadMates]
   )
 
+  const killFeedAvailable = payload?.killFeedAvailable === true
+  const squadKills = useMemo(
+    () => killEvents.filter((kill) => kill.isSquadKill ?? kill.isClanKill),
+    [killEvents]
+  )
+  const squadDeaths = useMemo(
+    () => killEvents.filter((kill) => kill.isSquadVictim ?? kill.isClanVictim),
+    [killEvents]
+  )
+  // Kills de l'escouade selon les statistiques du match (API pour le clan, télémétrie pour les
+  // coéquipiers) qui n'ont pas de frag détaillé : typiquement un clan non synchronisé.
+  const unlistedSquadKills = Math.max(0, clanKills + mateTotals.kills - squadKills.length)
+
   const squadRows = useMemo(
     () => [
       ...(match?.members ?? []).map((member) => ({
@@ -357,6 +418,8 @@ export default function MatchTacticalDebriefPage() {
         accountId: null as string | null,
         displayName: member.displayName,
         clanTag: null as string | null,
+        trackedClan: null as SquadMateApi['trackedClan'],
+        pubgClanCheckedAt: null as string | null,
         isMate: false,
         kills: member.kills,
         damage: member.damage,
@@ -370,6 +433,8 @@ export default function MatchTacticalDebriefPage() {
         accountId: mate.accountId.toLowerCase(),
         displayName: mate.name,
         clanTag: mate.clanTag,
+        trackedClan: mate.trackedClan ?? null,
+        pubgClanCheckedAt: mate.pubgClanCheckedAt ?? null,
         isMate: true,
         kills: mate.kills,
         damage: mate.damage,
@@ -534,10 +599,10 @@ export default function MatchTacticalDebriefPage() {
                   <div
                     key={mate.accountId}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 border border-dashed border-teal-700/70 text-xs shadow-sm"
-                    title={`${mate.name} — coéquipier non suivi${mate.clanTag ? ` [${mate.clanTag}]` : ''} · ${mate.knockouts} knock(s), ${mate.revives} réanimation(s), ${mate.recalls} rappel(s), ${mate.deaths} mort(s). Statistiques issues de la télémétrie.`}
+                    title={`${mate.name} — coéquipier ${mate.trackedClan ? `suivi dans [${mate.trackedClan.tag ?? '?'}]` : 'non suivi'} · ${mate.knockouts} knock(s), ${mate.revives} réanimation(s), ${mate.recalls} rappel(s) déclenché(s), ${mate.deaths} mort(s). Statistiques issues de la télémétrie.`}
                   >
                     <span className="font-bold text-sm text-teal-300">{mate.name}</span>
-                    <SquadMateBadge clanTag={mate.clanTag} />
+                    <SquadMateBadge mate={mate} />
                     <span className="text-xs text-slate-300 font-mono font-medium ml-0.5">
                       {mate.kills}K • {mate.damage} dmg
                     </span>
@@ -766,7 +831,7 @@ export default function MatchTacticalDebriefPage() {
                             <span className={`font-bold text-sm ${member.isMate ? 'text-teal-300' : 'text-slate-100'}`}>
                               {member.displayName}
                             </span>
-                            {member.isMate && <SquadMateBadge clanTag={member.clanTag} />}
+                            {member.isMate && <SquadMateBadge mate={member} />}
                           </div>
                           <div className="text-xs text-slate-400 font-mono mt-0.5">
                             {member.assists !== null ? `Assists: ${member.assists} • ` : ''}Revives: {member.revives}
@@ -889,42 +954,73 @@ export default function MatchTacticalDebriefPage() {
       {/* ========================================================================= */}
       {activeTab === 'duels' && (
         <section className="space-y-6">
+          {/* Légende : d'où viennent les duels */}
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-2xl bg-slate-900/40 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+            <Info className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" aria-hidden="true" />
+            <div className="space-y-1.5">
+              <p>
+                <span className="font-bold text-white">Comment les duels sont établis.</span> Un duel est un frag
+                (élimination confirmée) où le tueur ou la victime appartient à l&apos;escouade : membres{' '}
+                <span className="font-semibold text-emerald-400">[{clanTag}]</span> et coéquipiers de la même équipe{' '}
+                <span className="font-semibold text-teal-300">(turquoise)</span>. Les mises à terre ne comptent pas :
+                elles figurent dans le Combat Log.
+              </p>
+              <p>
+                Sources : les frags enregistrés lors de la synchronisation des clans suivis, puis le kill-feed complet
+                de la télémétrie pour les autres (marqués <DuelSourceChip />).
+                {killFeedAvailable
+                  ? ''
+                  : " Ce match a été analysé avant l'enregistrement du kill-feed complet : seuls les frags des clans ayant synchronisé le match apparaissent."}
+              </p>
+              {unlistedSquadKills > 0 && (
+                <p className="text-amber-300/90">
+                  {unlistedSquadKills} kill{unlistedSquadKills > 1 ? 's' : ''} de l&apos;escouade selon les statistiques du
+                  match {unlistedSquadKills > 1 ? 'ne sont pas détaillés' : "n'est pas détaillé"} ici
+                  {killFeedAvailable
+                    ? ' (écart entre statistiques et kill-feed, par exemple un frag par zone ou véhicule).'
+                    : ' — relancez « Resync ce match » depuis l’Audit Technique Brut pour les obtenir (matchs de moins de 14 jours).'}
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left: Kills landed by Squad */}
             <div className="p-4 md:p-5 rounded-2xl bg-slate-900/60 border border-slate-800">
               <h2 className="text-base font-bold text-emerald-400 mb-3.5 flex items-center gap-2">
                 <Trophy className="w-4 h-4" />
-                Duels remportés par l'escouade (+{killEvents.filter((k) => k.isClanKill).length})
+                Duels remportés par l&apos;escouade (+{squadKills.length})
               </h2>
 
               <div className="flex flex-col gap-2.5">
-                {killEvents.filter((k) => k.isClanKill).length === 0 ? (
+                {squadKills.length === 0 ? (
                   <p className="text-xs text-slate-500">Aucune élimination enregistrée.</p>
                 ) : (
-                  killEvents
-                    .filter((k) => k.isClanKill)
-                    .map((k) => (
-                      <div
-                        key={k.id}
-                        className="p-3 rounded-xl bg-emerald-950/15 border border-emerald-800/40 flex items-center justify-between text-xs gap-3"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-bold text-sm text-emerald-300 truncate">{k.killerName}</span>
-                          <span className="text-slate-500 font-mono">➔</span>
-                          <span className="text-slate-200 text-sm truncate font-medium">
-                            {k.victimClanTag && `[${k.victimClanTag}] `}
-                            {k.victimName}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0 font-mono text-xs text-slate-400">
-                          <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-semibold text-slate-300">
-                            {k.damageCauser?.replace(/^Weap/, '')}
-                          </span>
-                          {k.distance > 0 && <span className="text-slate-300 font-medium">{Math.round(k.distance)}m</span>}
-                        </div>
+                  squadKills.map((k) => (
+                    <div
+                      key={k.id}
+                      className="p-3 rounded-xl bg-emerald-950/15 border border-emerald-800/40 flex items-center justify-between text-xs gap-3"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`font-bold text-sm truncate ${k.isClanKill ? 'text-emerald-300' : 'text-teal-300'}`}>
+                          {k.killerName}
+                        </span>
+                        <span className="text-slate-500 font-mono">➔</span>
+                        <span className="text-slate-200 text-sm truncate font-medium">
+                          {k.victimClanTag && `[${k.victimClanTag}] `}
+                          {k.victimName}
+                        </span>
                       </div>
-                    ))
+
+                      <div className="flex items-center gap-2 shrink-0 font-mono text-xs text-slate-400">
+                        {k.source === 'telemetry' && <DuelSourceChip />}
+                        <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-semibold text-slate-300">
+                          {k.damageCauser?.replace(/^Weap/, '')}
+                        </span>
+                        {k.distance > 0 && <span className="text-slate-300 font-medium">{Math.round(k.distance)}m</span>}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -933,37 +1029,38 @@ export default function MatchTacticalDebriefPage() {
             <div className="p-4 md:p-5 rounded-2xl bg-slate-900/60 border border-slate-800">
               <h2 className="text-base font-bold text-rose-400 mb-3.5 flex items-center gap-2">
                 <Skull className="w-4 h-4" />
-                Duels perdus par l'escouade (-{killEvents.filter((k) => k.isClanVictim).length})
+                Duels perdus par l&apos;escouade (-{squadDeaths.length})
               </h2>
 
               <div className="flex flex-col gap-2.5">
-                {killEvents.filter((k) => k.isClanVictim).length === 0 ? (
+                {squadDeaths.length === 0 ? (
                   <p className="text-xs text-slate-500">Aucun membre éliminé.</p>
                 ) : (
-                  killEvents
-                    .filter((k) => k.isClanVictim)
-                    .map((k) => (
-                      <div
-                        key={k.id}
-                        className="p-3 rounded-xl bg-rose-950/15 border border-rose-800/40 flex items-center justify-between text-xs gap-3"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-rose-400 font-bold text-sm truncate">
-                            {k.killerClanTag && `[${k.killerClanTag}] `}
-                            {k.killerName}
-                          </span>
-                          <span className="text-slate-500 font-mono">➔</span>
-                          <span className="font-semibold text-sm text-slate-200 truncate">{k.victimName}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0 font-mono text-xs text-slate-400">
-                          <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-semibold text-slate-300">
-                            {k.damageCauser?.replace(/^Weap/, '')}
-                          </span>
-                          {k.distance > 0 && <span className="text-slate-300 font-medium">{Math.round(k.distance)}m</span>}
-                        </div>
+                  squadDeaths.map((k) => (
+                    <div
+                      key={k.id}
+                      className="p-3 rounded-xl bg-rose-950/15 border border-rose-800/40 flex items-center justify-between text-xs gap-3"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-rose-400 font-bold text-sm truncate">
+                          {k.killerClanTag && `[${k.killerClanTag}] `}
+                          {k.killerName}
+                        </span>
+                        <span className="text-slate-500 font-mono">➔</span>
+                        <span className={`font-semibold text-sm truncate ${k.isClanVictim ? 'text-slate-200' : 'text-teal-300'}`}>
+                          {k.victimName}
+                        </span>
                       </div>
-                    ))
+
+                      <div className="flex items-center gap-2 shrink-0 font-mono text-xs text-slate-400">
+                        {k.source === 'telemetry' && <DuelSourceChip />}
+                        <span className="px-2.5 py-0.5 rounded bg-slate-900 border border-slate-800 font-semibold text-slate-300">
+                          {k.damageCauser?.replace(/^Weap/, '')}
+                        </span>
+                        {k.distance > 0 && <span className="text-slate-300 font-medium">{Math.round(k.distance)}m</span>}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>

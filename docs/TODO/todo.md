@@ -519,20 +519,62 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
          28 m/s). Ligne et appareil ambre affichés **uniquement pendant le survol**, badge « Avion de rappel : cap · rappelés »,
          raccourcis `R1…R4`.
        - [x] **Caisses de largage** : ajout au parser de `LogCarePackageSpawn`, `LogCarePackageLand` et
-         `LogItemPickupFromCarepackage` (`care-packages.ts`), stockées dans `summary.carePackages` **sans migration**.
+         `LogItemPickupFromCarepackage` (`care-packages.ts`). *Stockage revu le 2026-09-14 : colonne dédiée
+         `carePackageSamples` au lieu de `summary.carePackages`, voir « Recette du 2026-09-14 » ci-dessous.*
          Validé sur 3 captures réelles : 39 à 45 caisses (4-5 principales), rebonds dédupliqués, pillages rattachés par
          distance (`carePackageUniqueId` vaut toujours 0), ~10 Ko. Calque « Largages » : parachute pendant la chute, caisse
          posée, contour une fois pillée, anneau émeraude si pillée par l'escouade, arme principale affichée à ×3.
        - [x] Tests : `care-packages.test.ts` (6), `squad-mates.test.ts` (4), 3 dans `flight-path.test.ts`, 3 dans
          `match-replay.test.ts`, 2 dans `parser.test.ts`. Suite : 332 tests verts (hors 3 fichiers branchés sur la base).
        - [ ] **Re-synchroniser la télémétrie de `cmu027vpd3ftl04tzlejla0vk`** (et des matchs de moins de 14 jours) pour
-         peupler `summary.carePackages` : sans cela, le calque « Largages » reste grisé. Écriture en production — à lancer
+         peupler `carePackageSamples` et `killFeedSamples` : sans cela, le calque « Largages » reste grisé. Écriture en production — à lancer
          par l'utilisateur via le bouton **« Resync ce match »** de la page « Audit Technique Brut »
          (`/clans/1/telemetry/matches/<id>/telemetry`, rôle Owner, route `POST /telemetry/sync-selected`).
          ⚠️ `npm run telemetry:batch -- --clan 1` **ne convient pas** : `getMatchesToSync` écarte tout match déjà en
          `success` avec des `landingSamples` — il ne re-parse donc aucun match récent déjà analysé.
        - [ ] Les caisses « de mort » (`LogItemPickupFromLootBox`) ne sont pas affichées : leur position est celle des
          éliminations, déjà couverte par le calque « Éliminations ».
+     - **Recette du 2026-09-14 — match clan 18 `cmu1k4in8auof0493sog1dm50` (BOFS, Karakin, Top 2) :** — ✅ Code livré le 2026-09-14
+       > **Signalements :** (1) rappel invisible dans le Combat Log (« Escouade » et « Tout le match ») alors que le replay
+       > le montre ; (2) les 5 kills de Pagiotte absents des duels — comment sont-ils établis ? ; (3) Pagiotte marqué
+       > « [SMK] non suivi » alors qu'il est suivi ; (4) Zimbabalooba aussi, et il a changé de clan : comment est-ce détecté ?
+       >
+       > **Constats sur les données :**
+       > - L'équipe 4 compte Kouner et skiercross (clan 18), **Pagiotte (membre du clan 1)** et **Zimbabalooba (aucune fiche
+       >   `ClanMember`, ni par compte ni par pseudo, et non favori)**. Le clan 1 n'avait **pas encore synchronisé** ce match
+       >   (pas de `SquadMember` pour lui) : Pagiotte n'était donc connu du clan 18 que par la télémétrie.
+       > - **Le rappel n'était pas celui de Pagiotte** (une seule mort, à 986 s) : ce sont skiercross et Zimbabalooba qui sont
+       >   revenus par l'avion de 511-521 s, rappel déclenché par Kouner (`recalls: 2`). Le Combat Log n'avait tout
+       >   simplement **aucun événement de rappel**, et son filtre « Escouade » ignorait les coéquipiers.
+       > - **Duels** = `KillEvent` où tueur ou victime est membre du clan consulté. `KillEvent` n'est écrit que pour les
+       >   rosters des clans ayant une ligne `SquadMember` sur le match : 4 frags seulement, tous du clan 18. Les 5 kills de
+       >   Pagiotte n'existaient que dans le kill-feed de la télémétrie, qui était jeté après filtrage.
+       - [x] **Migration additive appliquée en production le 2026-09-14** (`20260914190000_add_telemetry_kill_feed_care_packages`) :
+         colonnes JSON nullables `killFeedSamples` et `carePackageSamples` sur `SquadMatchTelemetry`. Procédure : `migrate diff`
+         vide avant, diff limité aux deux `ADD COLUMN` après édition du schéma, table de **12 Go** sur MariaDB 10.11 →
+         `ALGORITHM=INSTANT` + `lock_wait_timeout = 10` via `prisma db execute` (2 s, sans recopie), puis
+         `migrate resolve --applied`. `migrate diff` vide et `migrate status` à jour ensuite.
+         Pourquoi pas dans `summary` : 309 octets en moyenne, lus par `JSON_EXTRACT` dans 4 routes d'agrégats sur tous les
+         matchs d'une période ; le kill-feed pèse ~20 Ko et les caisses ~10 Ko par match.
+       - [x] **Kill-feed complet** persisté (`parsed.killFeedSamples`) et fusionné avec `KillEvent`
+         (`mergeKillFeedWithKillEvents`, même victime à 2 s = même frag) dans les duels, le Combat Log et le replay ; frags
+         issus de la télémétrie marqués « télémétrie ».
+       - [x] **Escouade = équipe** partout dans le débriefing : filtre « Escouade » du Combat Log, compteurs, duels
+         (`isSquadKill` / `isSquadVictim`).
+       - [x] **Rappels dans le Combat Log** (`extractRespawnEvents`) : nouveau type « Rappels », carte bleue « revient en jeu
+         par rappel ».
+       - [x] **Légendes** : Combat Log (qui compte dans l'escouade, sources des kills) et onglet Duels (définition d'un duel,
+         sources, et nombre de kills de l'escouade non détaillés quand statistiques et frags ne concordent pas).
+       - [x] **Badge de coéquipier corrigé** : recherche d'une fiche `ClanMember` pour chaque coéquipier → « [SMK] suivi »
+         (violet) si suivi dans un autre clan, « non suivi » sinon, avec la date de résolution du tag PUBG en info-bulle.
+       - [x] Tests : `match-replay.kill-feed.test.ts` (4), `squad-mates.test.ts` (+1), `parser.test.ts` et
+         `match-replay.test.ts` adaptés. 337 tests verts (hors 3 fichiers branchés sur la base).
+       - [ ] **Re-synchroniser `cmu1k4in8auof0493sog1dm50`** (« Resync ce match ») pour remplir `killFeedSamples` :
+         d'ici là, l'onglet Duels l'indique et annonce les kills non détaillés.
+       - [ ] **Redéployer** : le déploiement de production tourne avec du code plus ancien ; tant qu'il n'est pas mis à jour,
+         ses synchronisations laissent les deux nouvelles colonnes à `NULL`.
+       - [ ] **Détection des changements de clan PUBG** — plan détaillé demandé avant implémentation, voir la section
+         « Détection et signalement des changements de clan PUBG » (P2).
   2. **🩺 Correction du décompte des impacts et Refonte Graphique de la Silhouette (`DamageBodySvg`) :** — ✅ Décompte corrigé le 2026-09-13
      > **Constat de l'audit du 2026-09-13 :** le parser **ne persistait aucune zone corporelle**. `LogPlayerTakeDamage.damageReason`
      > n'était lu que par `isHeadshotKill` (`parser.ts`) pour incrémenter un compteur de headshots ; la valeur brute
@@ -633,7 +675,19 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
      - [ ] Résoudre les ~5 % restants : ce sont des comptes jamais croisés auparavant, absents des trois tables.
        Les obtenir exigerait un appel à l'API PUBG par joueur inconnu, coûteux en quota (10 RPM par défaut) — à arbitrer.
 
-- [ ] **Mode contextuel Tournoi :** — ❌ **Non commencé** (vérifié le 2026-09-13)
+   5. **📊 Enrichissement du Débriefing avec les Métriques Clés de l'ancienne page Télémétrie :**
+      - **Bilan de mobilité & exposition individuelle (`memberStats`) :**
+        - Intégration de mini-badges tactiques sur la carte de chaque joueur dans l'onglet **Escouade** :
+          - `🎯 First contact P{n}` : Phase du premier tir ou frag initié.
+          - `🏃 Pied` : Distance totale parcourue à pied (`onFootDistanceMeters`).
+          - `🚗 Véhicule` : Distance totale parcourue en véhicule (`vehicleDistanceMeters`).
+          - `⏳ Retard cercle` : Temps passé hors safe zone (`circleDelaySeconds`) et pourcentage du match hors zone (`circleDelayPercent`).
+          - `🛡️ Dégâts reçus` : Volume total de pression et dégâts subis (`damageTaken`).
+      - **Bilan des armes de la partie (`weaponStats`) :**
+        - Intégration dans l'onglet **Combat** d'un tableau synthétique triable des armes du match (Nom de l'arme résolu, Kills, Headshots, Dégâts totaux).
+      - *(Décision validée : les données brutes JSON et l'arbre de debug technique ne sont pas conservés dans le Débriefing pour garder une expérience épurée).*
+
+- [ ] **Mode contextuel Tournoi & Ruban Multi-Escouades :** — ❌ **Non commencé** (spécifié le 2026-09-14)
   > **L'unification annoncée par ce volet n'est donc pas faite** : seul son prérequis (finaliser le débriefing) l'est.
   > État constaté dans le code :
   > - la page débriefing ne lit aucun `tournamentId` ;
@@ -641,17 +695,34 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
   >   `/tournaments/[tournamentId]/matches/[matchId]/telemetry?clanId=${match.members[0]?.clanId}` — le clan retenu est
   >   celui du **premier membre** de la manche, choisi arbitrairement.
   >
-  > ⚠️ **Obstacle de conception à traiter en premier — l'accès.** Les routes `/api/clans/[clanId]/matches/[matchId]/telemetry`
-  > et `/replay` sont gardées par `requireNavPermission('clan.matches')` + appartenance au clan (`ensureMemberInClan`).
-  > Un joueur d'un autre clan, s'il n'est pas SuperUser, reçoit **403** en ouvrant la télémétrie d'une manche d'un tournoi
-  > pourtant public. Brancher le débriefing sur les tournois demande une route côté tournoi
-  > (ex. `/api/tournaments/[tournamentId]/matches/[matchId]/replay`) dont le contrôle d'accès est « le match est bien
-  > attribué à ce tournoi », et non « je suis membre du clan ». Sans cela, le lien « Débriefing & Replay » du Volet 3
-  > sera cassé pour la majorité des spectateurs.
-  - Lorsque le débriefing est ouvert depuis un tournoi (`/tournaments/[tournamentId]/matches/[matchId]/telemetry` ou avec `?tournamentId=...`), la page affiche :
-    - Un bandeau en tête : `🏆 Manche #{N} du Tournoi : {Nom Tournoi}`.
-    - Le récapitulatif des points attribués lors de cette manche selon les règles du tournoi.
-    - Le lien direct de retour vers le classement général du tournoi (`/tournaments/[tournamentId]`).
+  > ⚠️ **Obstacle de conception à traiter en premier — l'accès public des tournois :**
+  > Les routes `/api/clans/[clanId]/matches/[matchId]/telemetry` et `/replay` sont gardées par `requireNavPermission('clan.matches')` + appartenance au clan (`ensureMemberInClan`).
+  > Un joueur d'un autre clan, s'il n'est pas SuperUser, reçoit **403** en ouvrant la télémétrie d'une manche d'un tournoi pourtant public.
+  > Solution retenue :
+  > - Création de routes publiques dédiées au tournoi :
+  >   - `/api/tournaments/[tournamentId]/matches/[matchId]/telemetry`
+  >   - `/api/tournaments/[tournamentId]/matches/[matchId]/replay`
+  >   - Contrôle d'accès : vérification que le match est bien associé à une manche du tournoi (`TournamentRoundMatch`), accessible sans obligation d'appartenance au clan.
+  - **Ruban Horizontal Multi-Escouades Défilant (*Squad Focus Strip*) :**
+    - En en-tête du Débriefing de manche (sous le bandeau du tournoi), affichage d'un ruban scrollable horizontalement contenant les pastilles interactives de toutes les escouades de la manche, **triées par leur classement final (#1 à #N)** :
+      - Pastille #1 (Or) : `🏆 #1 · [TAG] Nom Clan/Team (12 kills)`
+      - Pastille #2 (Argent) : `🥈 #2 · [TAG] Nom Clan/Team (8 kills)`
+      - Pastille #3 (Bronze) : `🥉 #3 · [TAG] Nom Clan/Team (6 kills)`
+      - Pastilles #4 à #N : `#N · [TAG] Nom Clan/Team (X kills)`
+      - Pastille spéciale : `🌐 Vue Globale (Tout le match)`
+    - **Valeur par défaut intelligente :**
+      - En vue Tournoi : sélection automatique du **Top 1 de la manche** (l'escouade championne).
+      - En vue Clan : sélection automatique de l'escouade du clan courant.
+    - **Répercussion dynamique instantanée du choix d'escouade sur toute la page :**
+      - **Onglet Escouade :** Affiche immédiatement les 4 joueurs de l'escouade sélectionnée avec leurs métriques individuelles.
+      - **Silhouettes anatomiques (`DamageBodySvg`) :** Bascule automatique des tirs infligés et reçus sur l'escouade sélectionnée.
+      - **Replay 2D :** 
+        - Mise en valeur lumineuse de l'escouade choisie avec centrage/suivi caméra automatique.
+        - **Couleurs d'équipe officielles PUBG :** Respect strict des 4 couleurs officielles PUBG par joueur au sein de l'escouade (Bleu, Vert, Jaune, Orange) pour une lisibilité instantanée des coéquipiers sur la carte 2D.
+  - **Bandeau de contexte Tournoi :**
+    - `🏆 Manche #{N} du Tournoi : {Nom Tournoi}`.
+    - Récapitulatif des points de la manche attribués selon les règles du tournoi (points de placement + kills).
+    - Bouton d'action proéminent : `← Retour au Classement Général du Tournoi`.
 
 ---
 
@@ -771,7 +842,15 @@ type TournamentRules = {
     - Calques « Trace complète », « Atterrissages », « Éliminations » dans les 3 modes de visibilité ; mobile ~400 px : badge de cap et contrôle de zoom ne se chevauchent pas.
     - Sur `cmu027vpd3ftl04tzlejla0vk` : bandeau avec CdtMcKoy et dada14smc « non suivi » et « Kills escouade 9 (dont coéquipiers : 3) » ; avion de rappel ambre visible de 650 à 690 s puis disparu ; après re-synchronisation, caisses en chute puis posées et pillées.
     - Sur `cmu027vpd3ftl04tzlejla0vk` : les 4 pseudos de l'escouade visibles (CdtMcKoy et dada14smc en turquoise) ; Pagiotte à terre à 89 s puis mort à 94 s, absent jusqu'au rappel, réapparaît à 668 s au point de saut sans ligne fantôme ; réanimations à 355, 450, 474 et 527 s ; rappels à 364, 666 et 668 s dans le journal.
-  - **Onglet Duels :** silhouettes « Tirs infligés » et « Tirs subis » côte à côte (empilées en mobile), badge « Zones d'impact non capturées » sur un match parsé avant le 2026-09-13.
+  - **Ruban Multi-Escouades & Contexte Tournoi :**
+    - Vérifier le défilement horizontal fluide du ruban avec pastilles ordonnées (#1 à #N).
+    - Vérifier que le clic sur une pastille d'escouade met à jour instantanément les 4 onglets (Escouade, Combat, Duels/Silhouettes, Replay 2D).
+    - Vérifier l'accès public direct sans erreur 403 pour un spectateur ou clan tiers via la route tournoi.
+  - **Couleurs d'équipe PUBG Officielles dans le Replay 2D :**
+    - Vérifier que les 4 joueurs de l'escouade suivie portent leurs couleurs officielles respectives (Joueur 1 = Bleu, Joueur 2 = Vert, Joueur 3 = Jaune, Joueur 4 = Orange).
+  - **Métriques Mobilité & Tableau des Armes :**
+    - Vérifier la présence des mini-badges (First Contact, Pied, Véhicule, Retard cercle, Dégâts reçus) sur chaque joueur dans l'onglet Escouade.
+    - Vérifier la présence et le tri du tableau récapitulatif des armes du match dans l'onglet Combat.
 - [ ] **Thème sombre / clair :**
   - Vérifier la parfaite lisibilité de chaque composant, bordure, bouton et texte en mode clair et en mode sombre.
 
@@ -1700,6 +1779,55 @@ Contrairement aux pages drop zones, cette page ne précharge que la carte sélec
 ---
 
 ## P2 — Fonctionnalités incomplètes
+
+### Détection et signalement des changements de clan PUBG — 📐 Plan proposé le 2026-09-14, à valider avant implémentation
+
+> **Déclencheur :** sur le débriefing du clan 18, Zimbabalooba apparaît « [FADA] non suivi » alors qu'il aurait
+> changé de clan. Question : comment les changements sont-ils détectés et signalés au SuperUser ?
+
+#### Constat — état réel au 2026-09-14
+
+1. **Membres suivis (`ClanMember`) : rien d'automatique.** Le bouton « Comparer PUBG » de
+   `/clans/[clanId]/settings/members` (permission `manage_members`) appelle `syncClanMembership`
+   (`GET /api/clans/[clanId]/pubg-diff`), qui calcule à la demande `matched` / `inPubgOnly` / `inSiteOnly` /
+   `unverified`. Ce diff n'est **ni stocké, ni notifié, ni lancé par un cron**.
+2. **Joueurs croisés (`Player` / `EncounteredPlayer`) : clan PUBG résolu une seule fois.**
+   `selectPrioritizedEncounteredPlayerIdentities` ne sélectionne que `clanResolvedAt: null` ; une fois résolu, un
+   compte n'est plus jamais revu. Zimbabalooba : `FADA`, résolu le 2026-08-31, jamais réévalué.
+3. **Aucun historique** : `Player.opponentClanId` serait simplement écrasé par une nouvelle résolution.
+4. **`Notification` vise un `ClanMember`**, pas un compte SuperUser (`UserAccount`) : aucun canal d'alerte adapté.
+5. **Zimbabalooba n'a aucune fiche `ClanMember`** (ni par compte, ni par pseudo) et n'est pas favori : pour le site,
+   il n'est pas suivi. Coéquipier fréquent du clan 18 (135 parties ensemble). S'il a rejoint le clan PUBG BOFS,
+   « Comparer PUBG » du clan 18 le liste aujourd'hui dans « présents sur PUBG, absents du site ».
+
+**Volumes mesurés** : 324 membres actifs suivis, 23 clans avec `pubgClanId`, 429 773 `Player` dont 37 980 résolus,
+**1 139 coéquipiers fréquents** (≥ 10 parties partagées avec un clan suivi), 6 040 à ≥ 3. Quota PUBG par défaut :
+10 requêtes/min (`AppConfig.pubg_api_rate_limit_rpm` non défini), déjà partagé avec la résolution d'adversaires.
+
+#### Proposition
+
+1. **Rosters des clans suivis — quotidien, ~23 appels.** Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`,
+   visible dans `/settings/cron`) : `syncClanMembership` pour chaque clan, diff comparé au précédent. Nouvel écart →
+   événement. Pour les partis (`inSiteOnly`), résolution de leur nouveau clan par lot.
+2. **Coéquipiers fréquents — hebdomadaire.** Comptes ayant ≥ 10 parties partagées avec un clan suivi et une résolution
+   de plus de 7 jours : ~114 appels en lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`), ~12 min à 10 req/min,
+   la nuit. *À vérifier sur un appel réel : que l'endpoint multi-joueurs expose bien `attributes.clanId` comme
+   `fetchPlayerClan`.*
+3. **Historique — table `PlayerClanChange`** (migration additive) : `pubgAccountId`, `platformShard`, `clanMemberId?`,
+   ancien et nouveau `pubgClanId` / tag, `source` (`clan_roster` | `player_refresh`), `detectedAt`, `acknowledgedAt`,
+   `acknowledgedByUserId`. Mise à jour de `Player.opponentClanId` et de `EncounteredPlayer.pubgClan*` au passage.
+4. **Signalement SuperUser** : page `/settings/superuser/clan-changes` (changements non traités, filtres par clan), avec
+   actions « transférer le membre » (`PATCH /api/members/[id]` existant), « ajouter au clan », « ignorer » ; pastille
+   compteur dans le hub SuperUser (`nav-permissions`) ; en option, message dans un salon Discord d'administration
+   (module `src/lib/discord/` existant). **Aucune action automatique** (ni transfert, ni arrêt de suivi).
+5. **Débriefing** : l'info-bulle du tag affiche « a quitté [X] pour [Y] le … » quand un changement est connu.
+
+#### À trancher avant de coder
+
+- Seuil « coéquipier fréquent » (10 parties ?) et fréquence (quotidien pour les rosters, hebdomadaire pour les
+  coéquipiers ?).
+- Alerte Discord : oui / non, et quel salon.
+- Faut-il aussi revérifier les adversaires « favoris » (`Player.isFavorite`, `OpponentClan.isFavorite`) ?
 
 ### ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
 

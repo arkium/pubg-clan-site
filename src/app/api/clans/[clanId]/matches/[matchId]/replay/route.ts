@@ -35,6 +35,8 @@ type ReplayRow = {
   phaseSnapshots: unknown
   vehicleSamples: unknown
   summary: unknown
+  killFeedSamples: unknown
+  carePackageSamples: unknown
 }
 
 export async function GET(
@@ -75,7 +77,9 @@ export async function GET(
         t.reviveSamples,
         t.phaseSnapshots,
         t.vehicleSamples,
-        t.summary
+        t.summary,
+        t.killFeedSamples,
+        t.carePackageSamples
       FROM SquadMatch sm
       INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
       WHERE sm.id = ${matchId}
@@ -215,6 +219,8 @@ export async function GET(
       phaseSnapshots: row.phaseSnapshots,
       vehicleSamples: row.vehicleSamples,
       summary: row.summary,
+      killFeedSamples: row.killFeedSamples,
+      carePackageSamples: row.carePackageSamples,
       killEvents: killEvents as ReplayKillEventInput[],
       flightPath:
         computeFlightPathFromJumps(jumps, row.mapName) ??

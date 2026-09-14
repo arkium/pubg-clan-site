@@ -446,10 +446,8 @@ describe('buildMatchReplayPayload — avions de rappel et caisses', () => {
     expect(payload.recallFlights[0].riders).toBe(1)
   })
 
-  it('convertit les caisses de summary et repère celles pillées par l’escouade', () => {
-    const summary = JSON.stringify({
-      totalEvents: 10,
-      carePackages: [
+  it('convertit les caisses de carePackageSamples et repère celles pillées par l’escouade', () => {
+    const carePackageSamples = JSON.stringify([
         {
           type: 'redbox',
           packageId: 'Carapackage_RedBox_C',
@@ -472,14 +470,17 @@ describe('buildMatchReplayPayload — avions de rappel et caisses', () => {
           lootTeamIds: [9],
           firstLootTimestampSeconds: MATCH_START_EPOCH + 500,
         },
-      ],
-    })
+      ])
 
-    const payload = build({ ...base, summary })
+    const payload = build({ ...base, carePackageSamples })
     expect(payload.crates).toEqual([
       { k: 'redbox', sp: 264, t: 319, x: 572020, y: 165429, items: ['Item_Weapon_AWM_C'], lt: 439, sq: true },
       { k: 'small', sp: null, t: 320, x: 570100, y: 166976, items: [], lt: 500, sq: false },
     ])
+
+    // Repli : emplacement provisoire `summary.carePackages` des matchs re-parsés le 2026-09-13.
+    const legacySummary = { totalEvents: 10, carePackages: JSON.parse(carePackageSamples) }
+    expect(build({ ...base, summary: legacySummary }).crates).toHaveLength(2)
   })
 
   it('renvoie des listes vides pour un match analysé avant l’extraction', () => {

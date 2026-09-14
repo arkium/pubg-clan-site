@@ -742,6 +742,11 @@ model SquadMatchTelemetry {
   knockoutSamples    Json?
   reviveSamples      Json?
   vehicleSamples     Json?
+  /// Kill-feed complet du lobby (tueur, victime, arme, distance, headshot). `KillEvent` n'en
+  /// retient que les frags d'un clan ayant synchronisé le match. Ajouté le 2026-09-14.
+  killFeedSamples    Json?
+  /// Caisses de largage : largage, atterrissage, contenu notable, pillages. Ajouté le 2026-09-14.
+  carePackageSamples Json?
   errorCode          String?
   errorMessage       String?   @db.Text
 

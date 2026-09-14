@@ -38,6 +38,21 @@ describe('extractSquadMates', () => {
     expect(mates[1]).toMatchObject({ kills: 0, damage: 30, revives: 1 })
   })
 
+  it('retient comme coéquipier un membre suivi dans un autre clan du site', () => {
+    // Pagiotte (clan SMK) joue avec BOFS : il n'est « non suivi » que du point de vue de BOFS,
+    // la route complète ensuite trackedClan depuis ClanMember.
+    const result = extractSquadMates({
+      memberStats: [
+        { memberKey: 'account.kouner', teamId: 4, kills: 1 },
+        { memberKey: 'account.pagiotte', teamId: 4, kills: 5, damageDealt: 376 },
+      ],
+      positionSamples: [],
+      clanAccountIds: ['account.kouner'],
+      identities: { 'account.pagiotte': { name: 'pagiotte', clanTag: 'SMK' } },
+    })
+    expect(result.mates).toMatchObject([{ name: 'pagiotte', kills: 5, damage: 376, clanTag: 'SMK' }])
+  })
+
   it('ne renvoie rien sans membre du clan identifié dans le lobby', () => {
     expect(
       extractSquadMates({ memberStats, positionSamples, clanAccountIds: [], identities: {} }).mates

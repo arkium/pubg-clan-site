@@ -34,6 +34,8 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('Unknown argument `knockoutSamples`') ||
     message.includes('Unknown argument `reviveSamples`') ||
     message.includes('Unknown argument `vehicleSamples`') ||
+    message.includes('Unknown argument `killFeedSamples`') ||
+    message.includes('Unknown argument `carePackageSamples`') ||
     message.includes('summary does not exist') ||
     message.includes('weaponStats does not exist') ||
     message.includes('memberStats does not exist') ||
@@ -47,7 +49,9 @@ export function isTelemetryJsonFieldUnsupportedError(error: unknown) {
     message.includes('damageSamples does not exist') ||
     message.includes('knockoutSamples does not exist') ||
     message.includes('reviveSamples does not exist') ||
-    message.includes('vehicleSamples does not exist')
+    message.includes('vehicleSamples does not exist') ||
+    message.includes('killFeedSamples does not exist') ||
+    message.includes('carePackageSamples does not exist')
   )
 }
 
@@ -100,5 +104,7 @@ export function buildTelemetrySuccessPayloadWithJson(
     knockoutSamples: sanitizeJsonForPrisma(parsed.knockoutSamples),
     reviveSamples: sanitizeJsonForPrisma(parsed.reviveSamples),
     vehicleSamples: sanitizeJsonForPrisma(parsed.vehicleSamples),
+    killFeedSamples: sanitizeJsonForPrisma(parsed.killFeedSamples),
+    carePackageSamples: sanitizeJsonForPrisma(parsed.carePackageSamples ?? []),
   }
 }

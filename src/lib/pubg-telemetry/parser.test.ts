@@ -723,7 +723,7 @@ describe('parseTelemetrySnapshot — caisses de largage', () => {
     { itemId: 'Item_Head_G_01_Lv3_C', category: 'Equipment' },
   ]
 
-  it('range les caisses dans summary.carePackages sans compter les rebonds deux fois', () => {
+  it('produit carePackageSamples sans compter les rebonds deux fois', () => {
     const result = parseTelemetrySnapshot([
       { _T: 'LogCarePackageSpawn', _D: '2026-07-04T19:10:00.000Z', itemPackage: { itemPackageId: 'Carapackage_RedBox_C', location, items } },
       { _T: 'LogCarePackageLand', _D: '2026-07-04T19:10:56.000Z', itemPackage: { itemPackageId: 'Carapackage_RedBox_C', location: { ...location, z: -30 }, items } },
@@ -737,7 +737,9 @@ describe('parseTelemetrySnapshot — caisses de largage', () => {
       },
     ])
 
-    const crates = result.summary.carePackages ?? []
+    const crates = result.carePackageSamples ?? []
+    // Colonne dédiée depuis le 2026-09-14 : `summary` reste un petit objet de compteurs.
+    expect(result.summary).not.toHaveProperty('carePackages')
     expect(crates).toHaveLength(1)
     expect(crates[0]).toMatchObject({
       type: 'redbox',
@@ -750,6 +752,6 @@ describe('parseTelemetrySnapshot — caisses de largage', () => {
   })
 
   it('expose une liste vide quand la partie ne contient aucun largage', () => {
-    expect(parseTelemetrySnapshot(telemetrySample).summary.carePackages).toEqual([])
+    expect(parseTelemetrySnapshot(telemetrySample).carePackageSamples).toEqual([])
   })
 })

@@ -250,7 +250,7 @@ type TelemetryAccumulator = {
   knockoutSamples: TelemetryKnockoutSample[]
   reviveSamples: TelemetryReviveSample[]
   vehicleSamples: TelemetryVehicleSample[]
-  carePackages: CarePackageAccumulator
+  carePackageEvents: CarePackageAccumulator
   summary: {
     totalEvents: number
     killEvents: number
@@ -286,13 +286,6 @@ export type ParsedTelemetrySnapshot = {
     phaseChangeEvents: number
     blueZoneEvents: number
     distinctEventTypes: number
-    /**
-     * Caisses de largage. Rangées dans `summary` plutôt que dans une colonne dédiée pour
-     * éviter une migration de `SquadMatchTelemetry` : ajout additif dans une colonne JSON
-     * existante, même procédé que `memberStats[*].bodyZonesDealt`. Absent des snapshots
-     * parsés avant le 2026-09-13.
-     */
-    carePackages?: TelemetryCarePackage[]
   }
   weaponStats: TelemetryWeaponStats[]
   memberStats: TelemetryMemberStats[]
@@ -309,6 +302,11 @@ export type ParsedTelemetrySnapshot = {
   knockoutSamples: TelemetryKnockoutSample[]
   reviveSamples: TelemetryReviveSample[]
   vehicleSamples: TelemetryVehicleSample[]
+  /**
+   * Caisses de largage — colonne `SquadMatchTelemetry.carePackageSamples` (2026-09-14).
+   * Optionnel pour les snapshots reconstruits depuis la base avant cette date.
+   */
+  carePackageSamples?: TelemetryCarePackage[]
 }
 
 function getEventType(event: TelemetryEvent) {
@@ -938,7 +936,7 @@ function createTelemetryAccumulator(options?: {
     knockoutSamples: [],
     reviveSamples: [],
     vehicleSamples: [],
-    carePackages: createCarePackageAccumulator(),
+    carePackageEvents: createCarePackageAccumulator(),
     summary: {
       totalEvents: 0,
       killEvents: 0,
@@ -990,7 +988,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
   }
 
   if (CARE_PACKAGE_EVENT_TYPES.has(eventType)) {
-    collectCarePackageEvent(accumulator.carePackages, event, eventType, timestampSeconds)
+    collectCarePackageEvent(accumulator.carePackageEvents, event, eventType, timestampSeconds)
     return
   }
 
@@ -1797,7 +1795,6 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     summary: {
       ...accumulator.summary,
       distinctEventTypes: accumulator.eventTypes.size,
-      carePackages: buildCarePackages(accumulator.carePackages),
     },
     weaponStats: Array.from(accumulator.weaponStats.values()).sort((left, right) => {
       if (right.kills !== left.kills) {
@@ -1819,6 +1816,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     knockoutSamples: accumulator.knockoutSamples,
     reviveSamples: accumulator.reviveSamples,
     vehicleSamples: accumulator.vehicleSamples,
+    carePackageSamples: buildCarePackages(accumulator.carePackageEvents),
   }
 }
 

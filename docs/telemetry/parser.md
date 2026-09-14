@@ -262,7 +262,7 @@ Ajoutés le 2026-09-13 (`src/lib/pubg-telemetry/care-packages.ts`). Mesuré sur 
 
 Types reconnus (`classifyCarePackage`) : `Carapackage_RedBox_C` → `redbox` (caisse principale), `Carapackage_SmallPackage*` → `small` (caisses satellites), `*_Bluechip_C` → `bluechip`, `BP_BRDM_C` → `vehicle` (blindé largué). Contenu conservé : armes et équipement niveau 3 / ghillie uniquement.
 
-Stockage : `summary.carePackages` — **ajout additif dans la colonne JSON `summary`, sans migration**. Les matchs parsés avant le 2026-09-13 n'ont pas la clé ; il faut les re-synchroniser (moins de 14 jours) pour l'obtenir.
+Stockage : colonne **`SquadMatchTelemetry.carePackageSamples`** (migration additive `20260914190000_add_telemetry_kill_feed_care_packages`). Un premier jet du 2026-09-13 les rangeait dans `summary.carePackages` ; abandonné, car `summary` (309 octets en moyenne sur 13 760 matchs) est lu par `JSON_EXTRACT` dans les routes d'agrégats `heatmap`, `vehicles`, `circles` et `loot` sur tous les matchs d'une période — y ajouter 10 à 30 Ko par match aurait multiplié ce coût. Le replay relit encore `summary.carePackages` en repli. Les matchs parsés avant le 2026-09-14 n'ont pas de caisses : les re-synchroniser (moins de 14 jours) via « Resync ce match ».
 
 ---
 
@@ -315,7 +315,11 @@ Les champs JSON dans `SquadMatchTelemetry` stockent les données brutes par matc
 | `reviveSamples` | Positions des revives |
 | `vehicleSamples` | Événements véhicule |
 | `phaseSnapshots` | Snapshots de l'état de la partie |
-| `summary` | Compteurs d'événements parsés, et `carePackages` (caisses de largage, depuis le 2026-09-13) |
+| `killFeedSamples` | Kill-feed **complet** du lobby : tueur, victime, arme, distance, headshot (~20 Ko/match, depuis le 2026-09-14) |
+| `carePackageSamples` | Caisses de largage (~10 Ko/match, depuis le 2026-09-14) |
+| `summary` | Compteurs d'événements parsés — **à garder petit** : lu par `JSON_EXTRACT` dans les agrégats |
+
+> **`killFeedSamples` vs `KillEvent`.** `KillEvent` (`kill-event-persistence.ts`) ne retient un frag que si le tueur ou la victime appartient au roster d'un clan **ayant une ligne `SquadMember` sur ce match**, c'est-à-dire ayant déjà synchronisé la partie. Un coéquipier invité, ou membre d'un clan qui ne synchronisera le match que plus tard (cron à 2 h), n'y figure donc pas. Vérifié sur `cmu1k4in8auof0493sog1dm50` (clan 18) : Pagiotte, membre du clan 1 non encore synchronisé, a 5 kills dans `memberStats` et aucun `KillEvent`. Le débriefing et le replay fusionnent les deux sources (`mergeKillFeedWithKillEvents` : même victime à 2 s près = même frag, la ligne `KillEvent` fait foi).
 
 ### Ce qui est calculé en agrégats périodiques
 

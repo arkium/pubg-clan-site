@@ -21,13 +21,16 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
   const knockoutSamplesJson = JSON.stringify(input.parsed.knockoutSamples)
   const reviveSamplesJson = JSON.stringify(input.parsed.reviveSamples)
   const vehicleSamplesJson = JSON.stringify(input.parsed.vehicleSamples)
+  const killFeedSamplesJson = JSON.stringify(input.parsed.killFeedSamples)
+  const carePackageSamplesJson = JSON.stringify(input.parsed.carePackageSamples ?? [])
 
   const totalBytes =
     summaryJson.length + weaponStatsJson.length + memberStatsJson.length +
     positionSamplesJson.length + trajectorySegmentsJson.length +
     deathSamplesJson.length + landingSamplesJson.length + phaseSnapshotsJson.length +
     killSamplesJson.length + shotSamplesJson.length + damageSamplesJson.length +
-    knockoutSamplesJson.length + reviveSamplesJson.length + vehicleSamplesJson.length
+    knockoutSamplesJson.length + reviveSamplesJson.length + vehicleSamplesJson.length +
+    killFeedSamplesJson.length + carePackageSamplesJson.length
 
   console.info('[TelemetrySync][Sql] json-sizes', {
     squadMatchId: input.squadMatchId,
@@ -45,6 +48,8 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
     knockoutSamples: knockoutSamplesJson.length,
     reviveSamples: reviveSamplesJson.length,
     vehicleSamples: vehicleSamplesJson.length,
+    killFeedSamples: killFeedSamplesJson.length,
+    carePackageSamples: carePackageSamplesJson.length,
     totalBytes,
   })
 
@@ -66,6 +71,8 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
         knockoutSamples = ${knockoutSamplesJson},
         reviveSamples = ${reviveSamplesJson},
         vehicleSamples = ${vehicleSamplesJson},
+        killFeedSamples = ${killFeedSamplesJson},
+        carePackageSamples = ${carePackageSamplesJson},
         updatedAt = NOW()
       WHERE squadMatchId = ${input.squadMatchId}
     `

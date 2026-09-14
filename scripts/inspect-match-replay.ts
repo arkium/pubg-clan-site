@@ -63,11 +63,13 @@ async function main() {
       phaseSnapshots: unknown
       vehicleSamples: unknown
       summary: unknown
+      killFeedSamples: unknown
+      carePackageSamples: unknown
     }>
   >(
     `SELECT sm.id AS squadMatchId, sm.pubgMatchId, sm.gameMode, sm.mapName, sm.placement, sm.createdAt,
             t.positionSamples, t.deathSamples, t.landingSamples, t.knockoutSamples, t.reviveSamples,
-            t.phaseSnapshots, t.vehicleSamples, t.summary
+            t.phaseSnapshots, t.vehicleSamples, t.summary, t.killFeedSamples, t.carePackageSamples
      FROM SquadMatch sm
      INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
      WHERE sm.id = ? AND t.status = 'success'
@@ -184,6 +186,8 @@ async function main() {
     phaseSnapshots: row.phaseSnapshots,
     vehicleSamples: row.vehicleSamples,
     summary: row.summary,
+    killFeedSamples: row.killFeedSamples,
+    carePackageSamples: row.carePackageSamples,
     killEvents: killEvents as ReplayKillEventInput[],
     flightPath:
       computeFlightPathFromJumps(

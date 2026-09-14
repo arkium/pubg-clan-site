@@ -14,6 +14,8 @@ import {
   Clock,
   Swords,
   Users,
+  Plane,
+  Info,
 } from 'lucide-react'
 import { DamageBodySvg, BodyZoneKey } from './DamageBodySvg'
 import { resolveBodyZone } from '@/lib/pubg-telemetry/body-zones'
@@ -22,7 +24,8 @@ export type CombatAffiliation = 'current_clan' | 'tracked_clan' | 'external'
 
 export type CombatEvent = {
   id: string
-  type: 'kill' | 'knock' | 'revive'
+  /** `recall` : retour en jeu par l'avion de rappel (pas de cible). */
+  type: 'kill' | 'knock' | 'revive' | 'recall'
   timestamp: number // seconds from match start
   phaseNumber: number
   actorName: string
@@ -38,6 +41,11 @@ export type CombatEvent = {
   isClanTarget?: boolean
   isTrackedClanActor?: boolean
   isTrackedClanTarget?: boolean
+  /** Escouade = membres du clan consulté + coéquipiers de la même équipe, suivis ou non. */
+  isSquadActor?: boolean
+  isSquadTarget?: boolean
+  /** Kills : `sync` = KillEvent enregistré à la synchronisation, `telemetry` = retrouvé dans le kill-feed. */
+  source?: 'sync' | 'telemetry'
   // Optional detailed hit map if available
   damageByZone?: Partial<Record<BodyZoneKey, number>>
   totalDamage?: number
@@ -80,6 +88,38 @@ function resolveEventHitZones(
   return zone === 'other' ? null : { [zone]: 100 }
 }
 
+function TelemetrySourceChip() {
+  return (
+    <span
+      className="inline-flex items-center px-1 py-px rounded border border-teal-700/60 bg-teal-950/60 text-[10px] font-bold text-teal-300 align-middle"
+      title="Frag retrouvé dans le kill-feed de la télémétrie : le clan du joueur n'avait pas encore synchronisé ce match."
+    >
+      télémétrie
+    </span>
+  )
+}
+
+function SquadMateName({ name, clanTag, tracked }: { name: string; clanTag?: string | null; tracked: boolean }) {
+  return (
+    <>
+      <span
+        className="px-1.5 py-0.5 rounded border border-teal-600/60 bg-teal-950/80 text-xs font-mono text-teal-200 font-bold"
+        title={tracked ? 'Coéquipier de l’escouade, suivi dans un autre clan du site' : 'Coéquipier de l’escouade, non suivi sur le site'}
+      >
+        {clanTag ? `[${clanTag}] ` : ''}
+        {tracked ? 'SUIVI' : 'ÉQUIPIER'}
+      </span>
+      <span className="font-bold text-sm text-teal-300 truncate max-w-[140px] sm:max-w-[180px]">{name}</span>
+    </>
+  )
+}
+
+const isClanActor = (ev: CombatEvent) => Boolean(ev.isClanActor || ev.actorAffiliation === 'current_clan')
+const isClanTarget = (ev: CombatEvent) => Boolean(ev.isClanTarget || ev.targetAffiliation === 'current_clan')
+// Les anciens payloads n'ont pas les drapeaux d'escouade : on retombe alors sur le clan.
+const isSquadActor = (ev: CombatEvent) => Boolean(ev.isSquadActor ?? isClanActor(ev))
+const isSquadTarget = (ev: CombatEvent) => Boolean(ev.isSquadTarget ?? isClanTarget(ev))
+
 const ZONE_DISPLAY_LABELS: Record<BodyZoneKey, string> = {
   head: 'Tête',
   torso: 'Torse',
@@ -96,7 +136,7 @@ export function MatchCombatTimeline({
   className = '',
 }: MatchCombatTimelineProps) {
   const [filterMode, setFilterMode] = useState<'clan' | 'tracked' | 'all'>('clan')
-  const [typeFilter, setTypeFilter] = useState<'all' | 'kill' | 'knock' | 'revive'>('all')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'kill' | 'knock' | 'revive' | 'recall'>('all')
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
 
   const hasOtherTracked = otherTrackedClanTags.length > 0
@@ -106,16 +146,12 @@ export function MatchCombatTimeline({
     return events.filter((ev) => {
       // Clan filter
       if (filterMode === 'clan') {
-        const involvesCurrentClan =
-          ev.isClanActor ||
-          ev.isClanTarget ||
-          ev.actorAffiliation === 'current_clan' ||
-          ev.targetAffiliation === 'current_clan'
-        if (!involvesCurrentClan) return false
+        // « Escouade » : membres du clan ET coéquipiers de la même équipe.
+        if (!isSquadActor(ev) && !isSquadTarget(ev)) return false
       } else if (filterMode === 'tracked') {
         const involvesTracked =
-          ev.isClanActor ||
-          ev.isClanTarget ||
+          isSquadActor(ev) ||
+          isSquadTarget(ev) ||
           ev.isTrackedClanActor ||
           ev.isTrackedClanTarget ||
           ev.actorAffiliation === 'current_clan' ||
@@ -146,15 +182,11 @@ export function MatchCombatTimeline({
     return Array.from(map.entries()).sort(([a], [b]) => a - b)
   }, [filteredEvents])
 
-  const totalClanKills = events.filter(
-    (e) => e.type === 'kill' && (e.isClanActor || e.actorAffiliation === 'current_clan')
-  ).length
-  const totalClanKnocks = events.filter(
-    (e) => e.type === 'knock' && (e.isClanActor || e.actorAffiliation === 'current_clan')
-  ).length
-  const totalClanDeaths = events.filter(
-    (e) => e.type === 'kill' && (e.isClanTarget || e.targetAffiliation === 'current_clan')
-  ).length
+  const totalClanKills = events.filter((e) => e.type === 'kill' && isSquadActor(e)).length
+  const totalClanKnocks = events.filter((e) => e.type === 'knock' && isSquadActor(e)).length
+  const totalClanDeaths = events.filter((e) => e.type === 'kill' && isSquadTarget(e)).length
+  const totalSquadRecalls = events.filter((e) => e.type === 'recall' && isSquadActor(e)).length
+  const telemetryKills = events.filter((e) => e.type === 'kill' && e.source === 'telemetry').length
 
   const totalTrackedKills = events.filter(
     (e) => e.type === 'kill' && (e.isTrackedClanActor || e.actorAffiliation === 'tracked_clan')
@@ -170,11 +202,17 @@ export function MatchCombatTimeline({
             <span className="font-extrabold text-white text-base">{events.length}</span> événements
           </div>
           <div className="hidden sm:flex items-center gap-2.5 text-xs sm:text-sm font-semibold">
-            <span className="text-emerald-400 font-mono">+{totalClanKills} kills {clanTag ? `[${clanTag}]` : ''}</span>
+            <span className="text-emerald-400 font-mono">+{totalClanKills} kills escouade</span>
             <span className="text-slate-600">•</span>
             <span className="text-amber-400 font-mono">+{totalClanKnocks} knocks</span>
             <span className="text-slate-600">•</span>
             <span className="text-rose-400 font-mono">-{totalClanDeaths} morts</span>
+            {totalSquadRecalls > 0 && (
+              <>
+                <span className="text-slate-600">•</span>
+                <span className="text-sky-300 font-mono">{totalSquadRecalls} rappel{totalSquadRecalls > 1 ? 's' : ''}</span>
+              </>
+            )}
             {hasOtherTracked && totalTrackedKills > 0 && (
               <>
                 <span className="text-slate-600">•</span>
@@ -233,7 +271,7 @@ export function MatchCombatTimeline({
 
           {/* Type pills */}
           <div className="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800 text-xs sm:text-sm">
-            {(['all', 'kill', 'knock', 'revive'] as const).map((t) => (
+            {(['all', 'kill', 'knock', 'revive', 'recall'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -244,11 +282,27 @@ export function MatchCombatTimeline({
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {t === 'all' ? 'Tous' : t === 'kill' ? 'Kills' : t === 'knock' ? 'Knocks' : 'Revives'}
+                {t === 'all' ? 'Tous' : t === 'kill' ? 'Kills' : t === 'knock' ? 'Knocks' : t === 'revive' ? 'Revives' : 'Rappels'}
               </button>
             ))}
           </div>
         </div>
+      </div>
+
+      {/* --- Légende : qui compte dans l'escouade, d'où viennent les kills --- */}
+      <div className="flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900/40 border border-slate-800 text-xs text-slate-400 leading-relaxed">
+        <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
+        <p>
+          <span className="font-semibold text-slate-300">Escouade</span> : membres{' '}
+          <span className="text-emerald-400 font-semibold">{clanTag ? `[${clanTag}]` : 'du clan'}</span> et coéquipiers de
+          la même équipe, <span className="text-teal-300 font-semibold">suivis ailleurs ou non</span>. Knocks, réanimations
+          et rappels couvrent tout le lobby. Les kills viennent des frags enregistrés à la synchronisation du clan,
+          complétés par le kill-feed de la télémétrie
+          {telemetryKills > 0 ? (
+            <> ({telemetryKills} frag{telemetryKills > 1 ? 's' : ''} marqué{telemetryKills > 1 ? 's' : ''} <TelemetrySourceChip />)</>
+          ) : null}
+          .
+        </p>
       </div>
 
       {/* --- Events Timeline --- */}
@@ -276,24 +330,32 @@ export function MatchCombatTimeline({
                   const isKill = ev.type === 'kill'
                   const isKnock = ev.type === 'knock'
                   const isRevive = ev.type === 'revive'
+                  const isRecall = ev.type === 'recall'
                   const isHeadshot = ev.damageReason?.toLowerCase().includes('head')
 
-                  const isActorCurrent = ev.isClanActor || ev.actorAffiliation === 'current_clan'
-                  const isActorTracked = ev.isTrackedClanActor || ev.actorAffiliation === 'tracked_clan'
+                  const isActorCurrent = isClanActor(ev)
+                  // Coéquipier de l'escouade hors clan consulté (qu'il soit suivi ailleurs ou non).
+                  const isActorMate = !isActorCurrent && isSquadActor(ev)
+                  const isActorTracked =
+                    !isActorMate && Boolean(ev.isTrackedClanActor || ev.actorAffiliation === 'tracked_clan')
 
-                  const isTargetCurrent = ev.isClanTarget || ev.targetAffiliation === 'current_clan'
-                  const isTargetTracked = ev.isTrackedClanTarget || ev.targetAffiliation === 'tracked_clan'
+                  const isTargetCurrent = isClanTarget(ev)
+                  const isTargetMate = !isTargetCurrent && isSquadTarget(ev)
+                  const isTargetTracked =
+                    !isTargetMate && Boolean(ev.isTrackedClanTarget || ev.targetAffiliation === 'tracked_clan')
 
                   // Highlight card borders based on affiliation
                   let cardBorder = 'border-slate-800/80 hover:border-slate-700'
-                  let cardBg = 'bg-slate-900/40 hover:bg-slate-900/70'
+                  const cardBg = 'bg-slate-900/40 hover:bg-slate-900/70'
 
-                  if (isActorCurrent && isKill) {
+                  if (isSquadActor(ev) && isKill) {
                     cardBorder = 'border-emerald-500/40 bg-emerald-950/20 hover:border-emerald-500/60'
-                  } else if (isTargetCurrent && isKill) {
+                  } else if (isSquadTarget(ev) && isKill) {
                     cardBorder = 'border-rose-500/40 bg-rose-950/20 hover:border-rose-500/60'
-                  } else if (isActorCurrent && isKnock) {
+                  } else if (isSquadActor(ev) && isKnock) {
                     cardBorder = 'border-amber-500/30 bg-amber-950/15 hover:border-amber-500/50'
+                  } else if (isRecall && isSquadActor(ev)) {
+                    cardBorder = 'border-sky-500/40 bg-sky-950/20 hover:border-sky-500/60'
                   } else if (isActorTracked || isTargetTracked) {
                     cardBorder = 'border-purple-500/40 bg-purple-950/15 hover:border-purple-500/55'
                   }
@@ -308,8 +370,10 @@ export function MatchCombatTimeline({
                     >
                       {/* Main Compact Row */}
                       <div
-                        onClick={() => setExpandedEventId(isExpanded ? null : ev.id)}
-                        className="flex items-center justify-between p-3 cursor-pointer select-none gap-3"
+                        onClick={() => {
+                          if (!isRecall) setExpandedEventId(isExpanded ? null : ev.id)
+                        }}
+                        className={`flex items-center justify-between p-3 select-none gap-3 ${isRecall ? '' : 'cursor-pointer'}`}
                       >
                         {/* Left: Time & Icon Badge */}
                         <div className="flex items-center gap-2 min-w-[85px] shrink-0 font-mono text-slate-300 text-xs">
@@ -330,6 +394,11 @@ export function MatchCombatTimeline({
                               <HeartHandshake className="w-3.5 h-3.5" />
                             </span>
                           )}
+                          {isRecall && (
+                            <span className="p-1 rounded bg-sky-950 text-sky-200 border border-sky-800/60">
+                              <Plane className="w-3.5 h-3.5" />
+                            </span>
+                          )}
                         </div>
 
                         {/* Center: Action / Duel Players */}
@@ -347,6 +416,8 @@ export function MatchCombatTimeline({
                                   {ev.actorName}
                                 </span>
                               </>
+                            ) : isActorMate ? (
+                              <SquadMateName name={ev.actorName} clanTag={ev.actorClanTag} tracked={ev.actorAffiliation === 'tracked_clan'} />
                             ) : isActorTracked ? (
                               <>
                                 <span
@@ -375,7 +446,11 @@ export function MatchCombatTimeline({
                           </div>
 
                           {/* Weapon & Distance pill or Revive pill */}
-                          {isRevive ? (
+                          {isRecall ? (
+                            <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-md bg-sky-950/80 border border-sky-800/70 text-xs font-mono font-semibold text-sky-200">
+                              <span>Revient en jeu par rappel</span>
+                            </div>
+                          ) : isRevive ? (
                             <div className="flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-md bg-blue-950/80 border border-blue-800/70 text-xs font-mono font-semibold text-blue-200">
                               <span>Réanimation</span>
                             </div>
@@ -395,14 +470,15 @@ export function MatchCombatTimeline({
                                   {Math.round(ev.distanceMeters)}m
                                 </span>
                               )}
+                              {isKill && ev.source === 'telemetry' && <TelemetrySourceChip />}
                             </div>
                           )}
 
-                          <span className="text-slate-500 font-bold shrink-0">➔</span>
+                          {!isRecall && <span className="text-slate-500 font-bold shrink-0">➔</span>}
 
                           {/* Target */}
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {isTargetCurrent ? (
+                            {isRecall ? null : isTargetCurrent ? (
                               <>
                                 {ev.targetClanTag && (
                                   <span className="text-xs font-mono font-bold text-rose-400">
@@ -417,6 +493,8 @@ export function MatchCombatTimeline({
                                   {ev.targetName}
                                 </span>
                               </>
+                            ) : isTargetMate ? (
+                              <SquadMateName name={ev.targetName} clanTag={ev.targetClanTag} tracked={ev.targetAffiliation === 'tracked_clan'} />
                             ) : isTargetTracked ? (
                               <>
                                 <span
@@ -450,13 +528,15 @@ export function MatchCombatTimeline({
                         </div>
 
                         {/* Right: Expand arrow */}
-                        <div className="shrink-0 text-slate-400 hover:text-slate-200">
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </div>
+                        {!isRecall && (
+                          <div className="shrink-0 text-slate-400 hover:text-slate-200">
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Expanded Tactical Duel View */}

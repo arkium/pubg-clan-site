@@ -335,13 +335,21 @@ Les vitesses diffèrent d'un vol à l'autre ; chaque vol reste aligné (sur R3, 
 
 ### Caisses de largage
 
-Extraites par le parser dans `summary.carePackages` (voir [parser.md](parser.md), événement 16) et converties par `buildMatchReplayPayload` en `crates` : `sp` largage, `t` atterrissage, `lt` premier pillage, `sq` pillée par l'escouade. Le lecteur les dessine selon l'instant : parachute pendant la chute, caisse pleine une fois posée, contour seul une fois pillée, anneau émeraude si l'escouade l'a pillée ; nom de l'arme sous la caisse principale à partir de ×3. Couleurs : rouge (principale), ambre (satellites), bleu (puce bleue), vert (véhicule).
+Extraites par le parser dans la colonne `carePackageSamples` (voir [parser.md](parser.md), événement 16 — repli sur `summary.carePackages` pour les matchs re-parsés le 2026-09-13) et converties par `buildMatchReplayPayload` en `crates` : `sp` largage, `t` atterrissage, `lt` premier pillage, `sq` pillée par l'escouade. Le lecteur les dessine selon l'instant : parachute pendant la chute, caisse pleine une fois posée, contour seul une fois pillée, anneau émeraude si l'escouade l'a pillée ; nom de l'arme sous la caisse principale à partir de ×3. Couleurs : rouge (principale), ambre (satellites), bleu (puce bleue), vert (véhicule).
 
 > Les matchs parsés avant le 2026-09-13 n'ont pas de caisses : le calque « Largages » est alors grisé avec la raison au survol. Une re-synchronisation télémétrie (matchs de moins de 14 jours) les ajoute.
+
+### Frags de tout le lobby
+
+Le replay et le débriefing complètent les `KillEvent` par la colonne `killFeedSamples` (`mergeKillFeedWithKillEvents`). Conséquences : une mort a désormais un tueur même hors clan suivi, et les kills d'un coéquipier dont le clan n'a pas synchronisé le match apparaissent (duels, Combat Log, kill-feed du replay). Les frags issus de la télémétrie sont marqués « télémétrie » dans l'interface. Sans cette colonne (match parsé avant le 2026-09-14), on retombe sur les seuls `KillEvent` et sur les morts « X éliminé » sans tueur.
 
 ### Coéquipiers hors clan dans le débriefing
 
 La route `/matches/[matchId]/telemetry` expose `squadMates` (`squad-mates.ts`) : les joueurs de la même équipe qu'un membre du clan qui ne figurent pas dans `SquadMember`, avec leurs statistiques de `memberStats`. Pour les membres suivis, télémétrie et API concordent exactement (kills, dégâts, réanimations) ; seules les **assistances** n'existent pas côté télémétrie. Le bandeau, les indicateurs « escouade », le tableau de l'onglet Escouade et les silhouettes anatomiques les incluent désormais.
+
+Un coéquipier peut être **suivi dans un autre clan du site** sans avoir de ligne `SquadMember` pour le clan consulté (son clan n'a pas encore synchronisé le match). La route cherche donc une fiche `ClanMember` pour chaque coéquipier : `trackedClan` renseigné → badge violet « [SMK] suivi » ; aucune fiche → badge « non suivi », avec en info-bulle la date de dernière résolution du tag de clan PUBG (`Player.clanResolvedAt`), qui peut être périmé.
+
+Le Combat Log considère toute l'**escouade** (clan + coéquipiers) dans son filtre « Escouade », ajoute les **rappels** (`extractRespawnEvents`, même règle que les vies du replay) et affiche une légende sur les sources.
 
 ### Format de piste
 

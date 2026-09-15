@@ -4,6 +4,7 @@ import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamMode
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import Link from 'next/link'
 
+import { matchDebriefPath, matchTelemetryAuditPath } from '@/lib/match-links'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
@@ -20,6 +21,8 @@ interface SquadMatchListProps {
   selectedMatchIds?: string[]
   onToggleMatchSelection?: (matchId: string) => void
   telemetryFileStatusByMatchId?: Record<string, 'available' | 'missing' | 'oversized' | 'unknown'>
+  /** Ajoute un lien secondaire vers la vue d'audit technique (pages de pilotage de la télémétrie). */
+  showAuditLink?: boolean
 }
 
 function periodLabel(period: SquadPeriod) {
@@ -151,6 +154,7 @@ export default function SquadMatchList({
   selectedMatchIds,
   onToggleMatchSelection,
   telemetryFileStatusByMatchId,
+  showAuditLink = false,
 }: SquadMatchListProps) {
   const latestMatches = matches.slice(0, limit)
   const selectedIds = new Set(selectedMatchIds ?? [])
@@ -189,6 +193,7 @@ export default function SquadMatchList({
           const telemetryDataExpired =
             telemetryStatus === 'failed' &&
             isTelemetryDataExpiredError(match.telemetry?.errorCode, match.telemetry?.errorMessage)
+          const viewContext = { period, fromDate: match.createdAt.slice(0, 10) }
 
           return (
             <li
@@ -389,13 +394,33 @@ export default function SquadMatchList({
                 )
               ) : null}
 
-              <div className="mt-3">
-                <Link
-                  href={`/clans/${clanId}/telemetry/matches/${match.id}/telemetry?period=${period}&fromDate=${match.createdAt.slice(0, 10)}`}
-                  className="app-btn app-btn--sm app-btn--secondary inline-flex"
-                >
-                  Voir la telemetrie complete
-                </Link>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {/* Le débriefing exige une télémétrie parsée ; sinon la vue d'audit montre l'état du pipeline. */}
+                {telemetryStatus === 'success' ? (
+                  <>
+                    <Link
+                      href={matchDebriefPath(clanId, match.id, viewContext)}
+                      className="app-btn app-btn--sm app-btn--secondary inline-flex"
+                    >
+                      Débriefing du match
+                    </Link>
+                    {showAuditLink && (
+                      <Link
+                        href={matchTelemetryAuditPath(clanId, match.id, viewContext)}
+                        className="text-xs text-gray-500 underline-offset-2 hover:underline"
+                      >
+                        Audit technique
+                      </Link>
+                    )}
+                  </>
+                ) : (
+                  <Link
+                    href={matchTelemetryAuditPath(clanId, match.id, viewContext)}
+                    className="app-btn app-btn--sm app-btn--secondary inline-flex"
+                  >
+                    État de la télémétrie
+                  </Link>
+                )}
               </div>
             </li>
           )

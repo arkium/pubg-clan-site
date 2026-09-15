@@ -325,10 +325,15 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 18 * * *  →  Send online reminders (if enabled)
 0 8 * * 1  →  Weekly report generation
 0 8 1 * *  →  Monthly report generation
+*/30 * * * *  →  Encountered players PUBG clan resolution (two-tier selection, cached ranking)
+15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h — never deletes data)
 ```
 
 **Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.
 **Tracking:** `CronExecution` table stores execution logs.
+**Database health:** `npx tsx scripts/db-health.ts status|report` (read-only) — measured state, index review and
+pending server recommendations in [database-performance.md](docs/ops/database-performance.md). Measure before adding
+or dropping an index: `EncounteredPlayer` already carries 3× more index than data.
 
 ### Other CLI Scripts
 
@@ -492,7 +497,7 @@ npm run test:telemetry               # Vitest — nom historique, exécute TOUT 
 ### Memory Allocation
 
 - **Dev:** `--max-old-space-size=8192` (webpack cache is memory-intensive)
-- **Worker:** Capped at 512 MB (monitor via `ps aux | grep node`)
+- **Worker:** V8 heap capped at 2048 MB (`--max-old-space-size=2048`, no systemd `MemoryMax`) — measured 1.1 GB RSS in production on a shared 7.6 GB VM (see `docs/ops/database-performance.md` §4.1)
 - **Batch:** Standard (inherits from shell)
 
 ### Database Migrations

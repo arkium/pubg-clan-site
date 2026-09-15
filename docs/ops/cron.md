@@ -21,10 +21,12 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `weekly_report_auto` | `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Génère le rapport hebdomadaire pour tous les clans actifs |
 | `monthly_report_auto` | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génère le rapport mensuel pour tous les clans actifs |
 | `challenge_processing` | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges expirés |
+| `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) |
+| `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
 
-La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune aux 9 schedules.
+La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune à tous les schedules.
 
-Ces 9 schedules sont éditables sans redémarrage depuis `/settings/cron` (SuperUser) — voir la section "Schedules éditables" ci-dessous. La variable d'environnement reste le fallback si aucune valeur personnalisée n'est enregistrée en base.
+Ces schedules sont éditables sans redémarrage depuis `/settings/cron` (SuperUser) — voir la section "Schedules éditables" ci-dessous. La variable d'environnement reste le fallback si aucune valeur personnalisée n'est enregistrée en base.
 
 ---
 
@@ -84,6 +86,14 @@ Déclenché à 5 h pour tous les clans actifs.
 ### `challenge_processing` — Challenges
 
 Déclenché à minuit chaque nuit pour tous les clans actifs. Pour chaque clan : rafraîchit la progression des challenges actifs (si le clan en a), termine les challenges expirés (`endChallenge`), active les challenges `pending` dont la date de début est passée. Écrit une ligne `CronExecution` par clan actif (`details: { refreshed, endedCount, activatedCount }`).
+
+### `encountered_player_clan_resolution` — Clans des joueurs croisés
+
+Toutes les 30 min. Sélectionne un lot d'identités non résolues (`selectPrioritizedEncounteredPlayerIdentities`) puis résout leur clan PUBG ; chaque passage est tracé dans `EncounteredPlayerResolutionRun` (pas dans `CronExecution`). Depuis le 2026-09-15, la sélection se fait en deux paliers — identités avec interaction de combat, puis classement complet mis en cache 6 h — au lieu d'un regroupement de ~560 000 lignes à chaque passage (48 s → 1,8 s). Détail et mesures : [database-performance.md](database-performance.md#32-cron-de-résolution-des-adversaires--sélection-en-deux-paliers-2026-09-15).
+
+### `db_maintenance` — Maintenance nocturne
+
+À 01:15, avant `daily_sync`. Clôt en `failed` les lignes `CronExecution` et `EncounteredPlayerResolutionRun` restées `running` depuis plus de 6 h (processus arrêté en cours d'exécution), pour que les tableaux de bord ne les affichent plus « en cours ». **Ne supprime aucune donnée** : ni jobs échoués (dead letter), ni jobs en attente, ni captures de télémétrie — voir [database-performance.md](database-performance.md#34-ce-qui-nest-volontairement-pas-automatisé). Journal : `[Cron] DB maintenance — orphaned runs finalized: …`.
 
 ---
 

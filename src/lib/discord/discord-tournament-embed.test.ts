@@ -153,7 +153,7 @@ describe('buildTournamentRoundWebhookPayload', () => {
     const withoutClan = buildTournamentRoundWebhookPayload(makeInput({ telemetryClanId: null })).embeds[0]
 
     expect(withLink.description).toContain(
-      '(https://clan.example.com/tournaments/tour-1/matches/match-1/telemetry?clanId=5)'
+      '(https://clan.example.com/clans/5/telemetry/matches/match-1/debrief)'
     )
     expect(withLink.url).toBe('https://clan.example.com/tournaments/tour-1')
     expect(withoutSite.description).not.toContain('Replay 2D')

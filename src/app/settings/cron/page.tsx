@@ -183,6 +183,7 @@ const SCHEDULE_LABELS: Record<string, string> = {
   monthly_report_auto: 'Génération auto rapport mensuel',
   challenge_processing: 'Traitement des challenges',
   encountered_player_clan_resolution: 'Résolution clans joueurs rencontrés',
+  db_maintenance: 'Maintenance de la base',
 }
 
 const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
@@ -206,6 +207,8 @@ const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
     'Contrôle d\'avancement des défis de clan, validation des objectifs complétés et activation des nouveaux challenges.',
   encountered_player_clan_resolution:
     'Résolution et identification des clans des adversaires rencontrés dans les matchs récents.',
+  db_maintenance:
+    'Clôture des exécutions restées « en cours » plus de 6 h après l\'arrêt de leur processus. Ne supprime aucune donnée : ni jobs échoués, ni captures de télémétrie.',
 }
 
 // ---------------------------------------------------------------------------

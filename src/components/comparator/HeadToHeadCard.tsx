@@ -3,6 +3,7 @@ import type { ClanComparatorEntry } from '@/hooks/useClanComparator'
 import { Swords, Trophy, Crosshair, Calendar, Minus, Skull } from 'lucide-react'
 import Link from 'next/link'
 import { resolveMapName } from '@/lib/pubg-assets'
+import { matchDebriefPath } from '@/lib/match-links'
 import MapImage from '@/components/ui/MapImage'
 
 type Props = {
@@ -175,7 +176,7 @@ export default function HeadToHeadCard({ h2h, clanA, clanB, selectedClanIds }: P
             return (
               <Link
                 key={match.squadMatchId}
-                href={`/clans/${linkClanId}/matches/${match.squadMatchId}/telemetry`}
+                href={matchDebriefPath(linkClanId, match.squadMatchId)}
                 className="group relative flex items-center justify-between overflow-hidden rounded-lg bg-[var(--theme-bg-base)] p-3 shadow-sm border border-[var(--theme-ui-border)] transition-all hover:border-blue-500/50"
               >
                 {/* Background Map Image */}

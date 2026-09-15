@@ -1,0 +1,2 @@
+# Scripts exécutés sur le serveur Linux : un CRLF introduit par autocrlf casserait bash.
+*.sh text eol=lf

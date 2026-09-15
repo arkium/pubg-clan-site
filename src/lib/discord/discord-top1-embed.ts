@@ -1,4 +1,5 @@
 import type { DiscordEmbedField, DiscordWebhookPayload } from '@/lib/discord/discord-client'
+import { matchDebriefPath } from '@/lib/match-links'
 
 export const CHICKEN_DINNER_COLOR = 0xf1c40f
 
@@ -99,7 +100,7 @@ export function buildTop1WebhookPayload(input: Top1EmbedInput): DiscordWebhookPa
           MAX_TITLE_LENGTH
         ),
         ...(siteUrl
-          ? { url: `${siteUrl}/clans/${input.clanId}/matches/${input.squadMatchId}/telemetry` }
+          ? { url: `${siteUrl}${matchDebriefPath(input.clanId, input.squadMatchId)}` }
           : {}),
         color: CHICKEN_DINNER_COLOR,
         description: `🗺️ **${input.mapLabel}** — ${input.gameModeLabel}`,

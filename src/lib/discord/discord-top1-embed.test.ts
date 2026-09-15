@@ -71,7 +71,7 @@ describe('buildTop1WebhookPayload', () => {
     const payload = buildTop1WebhookPayload(makeInput())
     const [embed] = payload.embeds
 
-    expect(embed.url).toBe('https://clan.example.com/clans/7/matches/squad-match-1/telemetry')
+    expect(embed.url).toBe('https://clan.example.com/clans/7/telemetry/matches/squad-match-1/debrief')
     expect(embed.thumbnail?.url).toBe('https://clan.example.com/maps/pubg/Baltic_Main.webp')
   })
 

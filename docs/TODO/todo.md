@@ -1,10 +1,83 @@
 # Points à faire — PUBG Clan Site
 
-Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-04.
+Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-15.
 
 ---
 
 ## P1 — Bloquants / manques fonctionnels immédiats
+
+### Lot 1 — Santé de la base de données (mesurer avant d'indexer) — 🚧 Démarré le 2026-09-15
+
+> **Question de départ :** faut-il prévoir des index ? **Réponse mesurée : non, pas à l'aveugle.** Aucune requête
+> vérifiée ne manque d'index ; les vrais problèmes sont la mémoire du serveur, une requête de regroupement qu'aucun
+> index ne corrige, et une table déjà sur-indexée. Document de référence :
+> **[docs/ops/database-performance.md](../ops/database-performance.md)**.
+>
+> **État mesuré le 2026-09-15** (MariaDB 10.11, uptime 3,1 j) :
+> - `innodb_buffer_pool_size` = **128 Mo** (défaut) pour ~16 Go de données — 46,7 M lectures servies par le disque ;
+> - **314 requêtes > 10 s** (~103/jour) alors que le journal des requêtes lentes, `performance_schema` et `userstat`
+>   étaient éteints ;
+> - `EncounteredPlayer` : 1,64 M lignes, **1,1 Go d'index pour 374 Mo de données** (11 index secondaires) ;
+> - `EXPLAIN` : débriefing, replay, `KillEvent` par match et heatmap correctement indexés ; le cron de résolution des
+>   adversaires regroupait **~560 000 lignes** (table temporaire + tri) à chaque passage.
+> - Le compte applicatif détient des privilèges globaux (`SUPER`, `SHUTDOWN`, `CREATE USER` avec `GRANT OPTION`).
+
+- [x] **Mesures activées sur le serveur** (`scripts/db-health.ts enable --yes`, 2026-09-15) : journal des requêtes lentes
+  en table `mysql.slow_log` au seuil de 2 s, `userstat` pour les statistiques de lecture par index et par table.
+  Réversible (`disable --yes`), **non persistant** après un redémarrage de MariaDB. Les connexions déjà ouvertes par
+  l'application gardent leur ancien seuil de 10 s jusqu'à leur renouvellement.
+- [x] **Script `scripts/db-health.ts`** : `status` et `report` en lecture seule (requêtes lentes regroupées par forme et
+  triées par temps total, index jamais lus avec leur taille — clés étrangères signalées non supprimables —, tables les
+  plus lues) ; `enable`, `disable`, `reset-log` protégés par `--yes`.
+- [x] **Cron de résolution des adversaires : sélection en deux paliers** (`selectPrioritizedEncounteredPlayerIdentities`).
+  Palier 1 exact à chaque passage (identités avec interaction de combat, via l'index existant) ; palier 2 = classement
+  complet mis en cache 6 h et revérifié identité par identité. Mesuré en production sur les mêmes données :
+  **lot de 40 : 1,8 s au lieu de 43 s**, lot de 700 : 3,4 s après le premier calcul — **ordre strictement identique** à
+  l'ancien calcul (les 4 écarts relevés sans départage étaient des ex æquo stricts, désormais départagés par compte).
+  Seul écart assumé : une identité *sans* combat devenue prioritaire attend le recalcul du classement (6 h au plus).
+- [x] **Cron `db_maintenance`** (`15 1 * * *`, `src/lib/db-maintenance.ts`) : clôt en `failed` les exécutions restées
+  `running` plus de 6 h. Au 2026-09-15 : 32 `CronExecution` orphelines (depuis le 2026-05-30) et 21
+  `EncounteredPlayerResolutionRun` (du 2026-08-16 au 2026-09-14). **Ne supprime aucune donnée.**
+- [x] Tests : `encountered-player-resolution.test.ts` réécrit pour les deux paliers et le cache (4 cas),
+  `db-maintenance.test.ts` (2). 341 tests verts hors 3 fichiers branchés sur la base.
+- [x] Documentation : `docs/ops/database-performance.md` (nouveau), `docs/ops/cron.md` (`encountered_player_clan_resolution`,
+  qui manquait, et `db_maintenance`), `docs/sommaire.md`, `CLAUDE.md`.
+- [ ] **Déployer** : le cron `db_maintenance` et la nouvelle sélection ne tournent en production qu'après déploiement
+  (le déploiement actuel exécute du code plus ancien).
+- [ ] **2026-09-22 (J+7, couvre un lundi)** : `npx tsx scripts/db-health.ts report --days=7`, consigner le résultat dans
+  `docs/ops/database-performance.md`, puis décider des index de `EncounteredPlayer` (chevauchements structurels listés
+  §4.2 — à confirmer par les lectures réelles et par le code avant toute suppression).
+- [x] **Diagnostic serveur** (2026-09-15, lecture seule) : VM 7,6 Gio mutualisée, disque à 92 %, port 3306 ouvert à
+  Internet, comptes `smk` à droits globaux. Détail : `docs/ops/database-performance.md` §4.1 à §4.5.
+- [ ] **Privilèges `smk`** (décidé le 2026-09-15) : `REVOKE` des seuls droits globaux sur `smk@localhost` et
+  `smk@87.64.188.203` (droits par base conservés, `DATABASE_URL` inchangée), sauvegarde préalable des grants, redémarrage
+  des 4 services ; `GRANT SELECT` sur `mysql.slow_log` et `mysql.innodb_index_stats` à `smk@87.64.188.203` pour
+  `db-health report`, à retirer après le 2026-09-22. `sjlevage@'%'` et `erp@109.137.144.56` : **ne pas toucher**.
+  Sauvegarde faite (`/root/mariadb-grants-smk-2026-09-15-1810.sql`) ; `REVOKE` **à lancer par l'utilisateur**
+  (l'assistant du serveur refuse les modifications de droits), après la fin de `daily_sync`.
+- [x] **Disque** (2026-09-15) : `sftp.log` compressé (548 Mio) puis vidé + règle logrotate `proftpd-sftp` ; journal
+  systemd plafonné à 1 Go ; cache `/root/.npm` vidé. **11,7 Go libérés, disque de 92 % à 68 % (16 Go libres).**
+- [ ] **Mémoire MariaDB — après le rapport du 2026-09-22** (un redémarrage remet `INDEX_STATISTICS` à zéro) :
+  `key_buffer_size` 16M, `aria_pagecache_buffer_size` 32M, `MALLOC_ARENA_MAX=2`, `innodb_buffer_pool_size` 1G,
+  réglages de mesure dans `50-server.cnf`. Relever d'abord `memory.peak` des 4 services. Pas plus de 1 Go tant que les
+  workers gardent un tas de 2 Go sans `MemoryMax`.
+- [ ] **Exposition réseau** : 3306 ouvert à tout Internet, aucune jail fail2ban MariaDB, 2 268 connexions avortées en
+  3 jours. Pare-feu laissé en l'état (comptes Dolibarr). À étudier : jail `mysqld-auth` après lecture de
+  `CLIENT_STATISTICS`.
+- [x] **Disque local** : `.next/standalone/.telemetry-captured` supprimé le 2026-09-15 (16,76 Go) après vérification que
+  ses 672 fichiers existaient tous, à taille identique, dans `.telemetry-captured` (673 fichiers, intact). Ne jamais
+  supprimer `.telemetry-captured` lui-même sans décision : seules copies de la télémétrie au-delà des 14 jours du CDN.
+- [ ] **Cause du doublon — build local** *(requalifié le 2026-09-15 : la production n'a aucun répertoire
+  `.telemetry-captured`, le problème ne touche donc que les builds du poste de développement)*. `next build` recopie tout
+  `.telemetry-captured` dans `.next/standalone` : `fetch-files-selected/route.ts:22` est le seul `path.join(process.cwd(),
+  '.telemetry-captured')` sans `/*turbopackIgnore: true*/` (trace confirmée dans son `route.js.nft.json`). Or le
+  `server.js` standalone fait `process.chdir(__dirname)` : sans `TELEMETRY_CAPTURE_FIXTURES_DIR` absolu, le **web** lit et
+  écrit ses captures dans `.next/standalone/.telemetry-captured` (instantané du build), les **workers** dans celui de la
+  racine. Ordre : (1) vérifier sur le serveur la taille de `.next/standalone/.telemetry-captured` et la valeur de
+  `TELEMETRY_CAPTURE_FIXTURES_DIR` des 4 unités ; (2) la fixer au même chemin absolu pour les 4 services ; (3) seulement
+  ensuite ajouter le commentaire `turbopackIgnore` à la route — sans l'étape 2, le web ne verrait plus aucune capture.
+- [ ] Avant d'implémenter la « détection des changements de clan PUBG » (P2) : la sélection des coéquipiers fréquents
+  parcourrait 1,64 M lignes — prévoir un compteur pré-calculé.
 
 ### Notifications Discord automatiques — Alertes Top 1 & Résultats de Tournois dans des salons dédiés — ✅ Livré le 2026-09-13
 
@@ -686,6 +759,45 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
       - **Bilan des armes de la partie (`weaponStats`) :**
         - Intégration dans l'onglet **Combat** d'un tableau synthétique triable des armes du match (Nom de l'arme résolu, Kills, Headshots, Dégâts totaux).
       - *(Décision validée : les données brutes JSON et l'arbre de debug technique ne sont pas conservés dans le Débriefing pour garder une expérience épurée).*
+
+- [ ] **Bascule vers le débriefing et retrait des anciennes pages** — 🚧 Étape 1 (liens) livrée le 2026-09-15
+  > Quatre pages de télémétrie de match coexistent. **Seul le débriefing a le Replay 2D et le Combat Log** ; les trois
+  > autres utilisent encore `InteractiveMap` (zoom hors standard) :
+  > - `/clans/[clanId]/telemetry/matches/[matchId]/debrief` — la page cible ;
+  > - `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` — vue d'audit (resync, import, JSON brut), à conserver
+  >   comme `/telemetry/audit` selon le plan d'origine ;
+  > - `/clans/[clanId]/matches/[matchId]/telemetry` — ancienne page monolithique côté clan ;
+  > - `/tournaments/[tournamentId]/matches/[matchId]/telemetry` — ancienne page monolithique côté tournoi.
+  >
+  > Au 2026-09-15, avant l'étape 1, **aucun lien du site ne menait au débriefing**, en dehors des deux bandeaux croisés
+  > débriefing ↔ audit. Les adresses sont désormais construites par `src/lib/match-links.ts` (`matchDebriefPath`,
+  > `matchTelemetryAuditPath`, 3 tests).
+  >
+  > Vérifié avant bascule : le débriefing lit **les mêmes routes API** que les anciennes pages (garde
+  > `requireNavPermission('clan.matches')`), donc aucun changement d'accès. Aucune page n'est gardée par rôle côté client.
+  - [x] `SquadMatchList` (listes `/clans/[clanId]/matches`, sessions clan et télémétrie) : bouton « Débriefing du match »
+    quand la télémétrie est `success` ; sinon « État de la télémétrie » vers l'audit (le débriefing renvoie 404 sans
+    télémétrie). Lien secondaire « Audit technique » sur la page de session télémétrie (`showAuditLink`).
+  - [x] `MatchHistory` (tableau de bord membre, déjà filtré sur `telemetryAvailable`) et `HeadToHeadCard` (comparateur)
+  - [ ] `tournaments/[tournamentId]/page.tsx:311` → ancienne page tournoi, clan choisi arbitrairement (premier membre).
+    Laissé en l'état : l'ancienne page appelle la même route de clan que le débriefing, la bascule ne changerait donc pas
+    l'accès, mais elle perdrait le contexte tournoi — à traiter avec le « Mode contextuel Tournoi »
+  - [x] Embed Discord Top 1 → débriefing (test mis à jour)
+  - [x] Embed Discord tournoi : « ▶️ Replay 2D de la manche » mène enfin à un Replay 2D (débriefing du clan retenu, même
+    accès que l'ancienne page tournoi). Les messages déjà postés gardent l'ancienne adresse → à couvrir par la redirection
+  - [x] Débriefing : parent de repli du fil d'Ariane et lien « Retour » vers `/clans/[clanId]/matches` (accessible à tous)
+    au lieu de la page Owner `/telemetry/matches` ; message en français quand la télémétrie est absente
+    (`TELEMETRY_NOT_FOUND`)
+  - [x] Retour vers le comparateur avec sa sélection (signalé le 2026-09-15 depuis
+    `/clans/comparator?clanIds=26%2C23%2C13&period=week`) : le comparateur n'alimentait pas la pile du fil d'Ariane, et la
+    pile traitait un changement de query comme une nouvelle page. `NavigationTrail` invisible sur le comparateur +
+    déduplication par chemin dans `src/lib/nav-stack.ts` (6 tests)
+  - [ ] Recette navigateur : liste des matchs d'un clan (bouton selon l'état), tableau de bord membre, comparateur (changer
+    la sélection puis ouvrir un match : « Retour à Comparateur » doit restaurer la dernière sélection), arrivée directe
+    sur un débriefing (fil d'Ariane → « Matchs »), match sans télémétrie
+  - [ ] Une fois les liens basculés : rediriger les deux anciennes pages vers le débriefing (les liens déjà postés sur
+    Discord doivent rester valides), puis supprimer leur code et `InteractiveMap` s'il n'a plus d'usage
+  - [ ] Côté tournoi : dépend du « Mode contextuel Tournoi » ci-dessous (routes publiques, sinon 403 hors clan)
 
 - [ ] **Mode contextuel Tournoi & Ruban Multi-Escouades :** — ❌ **Non commencé** (spécifié le 2026-09-14)
   > **L'unification annoncée par ce volet n'est donc pas faite** : seul son prérequis (finaliser le débriefing) l'est.
@@ -1829,6 +1941,11 @@ Contrairement aux pages drop zones, cette page ne précharge que la carte sélec
 - Alerte Discord : oui / non, et quel salon.
 - Faut-il aussi revérifier les adversaires « favoris » (`Player.isFavorite`, `OpponentClan.isFavorite`) ?
 
+> **Contrainte de performance (mesurée le 2026-09-15)** : la sélection des coéquipiers fréquents du point 2 parcourt
+> l'intégralité de `EncounteredPlayer` (1,64 M lignes) — le même motif qui faisait durer 45 s chaque passage du cron de
+> résolution. Prévoir un compteur pré-calculé ou un palier comme dans `selectPrioritizedEncounteredPlayerIdentities`.
+> Voir [docs/ops/database-performance.md](../ops/database-performance.md).
+
 ### ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
 
 `refreshChallengeProgressForClan(clanId)` ajoutée dans `challenge-service.ts`.
@@ -2054,12 +2171,22 @@ Objectif : Afficher des indicateurs de temps de jeu et de rétention (jours acti
 
 ---
 
-### Auto-cleanup cron — Non branché
+### Auto-cleanup cron — Non branché — ⚠️ Requalifié le 2026-09-15 (voir « Lot 1 — Santé de la base », P1)
 
 Le nettoyage des fichiers `.telemetry-captured/` et des jobs `failed` anciens est disponible via `queue-cleanup` mais n'est pas déclenché automatiquement.
 
-- [ ] Ajouter un job cron nocturne qui appelle `queue-cleanup` (suppression jobs queued > 24h, jobs failed > 7j)
-- [ ] Ajouter le nettoyage des fichiers `.telemetry-captured/` de plus de 30 jours
+> **Vérification du 2026-09-15 — les trois suppressions prévues sont à écarter en l'état :**
+> - jobs `queued` > 24 h : un `telemetry:batch -- --all-matches` peut légitimement attendre plusieurs jours (0 en attente
+>   au 2026-09-15) ;
+> - jobs `failed` > 7 j : la **dead letter** affiche précisément ces jobs, elle serait vidée sans prévenir (228 échecs, tous
+>   de juin) ;
+> - captures `.telemetry-captured` > 30 j : **seules copies** de la télémétrie après les 14 jours du CDN PUBG, nécessaires
+>   pour re-parser (17 Go, 673 fichiers).
+>
+> Seule la partie non destructive est livrée : le cron **`db_maintenance`** clôt les exécutions restées `running` > 6 h.
+
+- [ ] ~~Ajouter un job cron nocturne qui appelle `queue-cleanup` (suppression jobs queued > 24h, jobs failed > 7j)~~ — remplacé par `db_maintenance` (clôture des orphelins, sans suppression)
+- [ ] ~~Ajouter le nettoyage des fichiers `.telemetry-captured/` de plus de 30 jours~~ — écarté : perte définitive de la télémétrie des matchs anciens. Alternative à étudier si le disque manque : compression gzip des captures.
 
 **Référence :** `docs/telemetry/overview.md` — section "Ce qui reste à faire"
 
@@ -2546,7 +2673,10 @@ Afin de ne pas surcharger la page et de maintenir une navigation fluide :
       - Ajout de la fenêtre de largage active (`dropStart` / `dropEnd`) avec balises visuelles distinctes.
       - Normalisation du cap compas aéronautique (`0° - 360°`) et rotation orientée de l'icône avion.
       - Correction du ratio de dimensionnement des cercles de zone (`radius / bounds.width * 100`).
-  - [ ] **🎮 Véritable Replay 2D interactif animé (Inspiration PUBG.PLUS) :**
+  > **Mise à jour du 2026-09-15 :** les quatre chantiers ci-dessous (Replay, zones corporelles, image de carte, noms) ont
+  > été livrés dans le **VOLET 4** (P1) le 2026-09-13 ; leurs cases restaient ouvertes ici. La revue utilisateur et la
+  > bascule d'URL restent ouvertes et sont suivies dans le VOLET 4, « Bascule vers le débriefing et retrait des anciennes pages ».
+  - [x] **🎮 Véritable Replay 2D interactif animé (Inspiration PUBG.PLUS) :** — livré (VOLET 4, chantier Replay)
     - **Lecteur multimédia dynamique :** Commandes Play/Pause, barre de progression temporelle (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
     - **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
     - **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
@@ -2557,16 +2687,16 @@ Afin de ne pas surcharger la page et de maintenir une navigation fluide :
     - **Animation dynamique des cercles & combats :**
       - Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match.
       - Événements de tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log.
-  - [ ] **🩺 Correction du décompte des impacts corporels (`DamageBodySvg`) :**
+  - [x] **🩺 Correction du décompte des impacts corporels (`DamageBodySvg`) :** — livré (VOLET 4, `body-zones.ts`)
     - Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`.
     - Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade.
-  - [ ] **🗺️ Résolution et affichage garanti de l'image satellite de la carte :**
+  - [x] **🗺️ Résolution et affichage garanti de l'image satellite de la carte :** — livré (VOLET 4, `map-asset.ts`)
     - Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) pour garantir que `/maps/pubg/${mapKey}.webp` charge toujours l'image haute résolution (ex: `Erangel` ↔ `Baltic_Main`, `Miramar` ↔ `Desert_Main`, `Sanhok` ↔ `Savage_Main`, `Taego` ↔ `Tiger_Main`, `Rondo` ↔ `Neon_Main`, etc.) sans erreur 404.
-  - [ ] **👤 Noms complets de tous les joueurs (non-membres et adversaires) :**
+  - [~] **👤 Noms complets de tous les joueurs (non-membres et adversaires) :** — 95 à 99 % résolus (VOLET 4) ; ~5 % de comptes jamais croisés restent ouverts
     - Enrichissement de `memberIdentityMap` : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
     - Fin des identifiants bruts ou tronqués pour les adversaires externes.
   - [ ] Revue et validation utilisateur sur le match réel `cmtonisut8oru04b2vnaaxrdj` (clan RAF + BOFS) et `cmtoouiyw8t6304b22w3f4u8y`.
-  - [ ] Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`.
+  - [ ] Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`. — détaillé lien par lien dans le VOLET 4 (inventaire du 2026-09-15)
   - [ ] Documenter le composant `DamageBodySvg` dans le showroom `docs/ui/index.html`.
 
 

@@ -8,6 +8,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
+import { matchDebriefPath } from '@/lib/match-links'
 
 import type {
   DashboardMatch,
@@ -91,7 +92,7 @@ function telemetryHref(match: DashboardMatch): string | null {
   if (!match.clanId || !match.squadMatchId || !match.telemetryAvailable) {
     return null
   }
-  return `/clans/${match.clanId}/matches/${match.squadMatchId}/telemetry`
+  return matchDebriefPath(match.clanId, match.squadMatchId)
 }
 
 interface SortKey {

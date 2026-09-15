@@ -1092,6 +1092,7 @@ export default function TelemetrySessionDatePage() {
             selectedMatchIds={selectedMatchIds}
             onToggleMatchSelection={toggleMatchSelection}
             telemetryFileStatusByMatchId={telemetryFileStatusByMatchId}
+            showAuditLink
           />
 
           <section className="mt-5 app-panel p-4">

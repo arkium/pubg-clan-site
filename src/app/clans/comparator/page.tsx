@@ -16,6 +16,7 @@ import ClanPulseCards from '@/components/comparator/ClanPulseCards'
 import ClanDnaCards from '@/components/comparator/ClanDnaCards'
 import ClanActivityHeatmap from '@/components/comparator/ClanActivityHeatmap'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useClanComparator, type ClanComparatorEntry } from '@/hooks/useClanComparator'
 import type { SquadPeriod } from '@/types/squad-matches'
 
@@ -158,8 +159,17 @@ function ComparatorContent() {
   const clanByIndex = (id: number): ClanComparatorEntry | undefined =>
     comparatorClans.find((c) => c.clanId === id)
 
+  const query = searchParams.toString()
+
   return (
     <main className="app-container app-main flex-1 space-y-4">
+      {/* Invisible ici : enregistre la sélection courante pour que le retour depuis un match la restaure. */}
+      <NavigationTrail
+        currentLabel="Comparateur"
+        currentHref={query ? `/clans/comparator?${query}` : '/clans/comparator'}
+        fallbackParent={null}
+        hidden
+      />
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/comparateurclans.jpg')`, backgroundPosition: 'center 20%' }}

@@ -21,6 +21,7 @@ import {
 } from '@/lib/encountered-player-resolution-config-service'
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
+import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import {
   fetchCurrentSeason,
@@ -72,6 +73,7 @@ const globalForCron = globalThis as typeof globalThis & {
   challengeProcessingInProgress?: boolean
   encounteredPlayerResolutionCronTask?: ScheduledTask
   encounteredPlayerResolutionInProgress?: boolean
+  dbMaintenanceCronTask?: ScheduledTask
 }
 
 function isCronWorkerEnabled() {
@@ -1018,6 +1020,17 @@ export async function processChallenges() {
   }
 }
 
+async function runDbMaintenance() {
+  try {
+    const result = await finalizeOrphanedRuns()
+    console.info(
+      `[Cron] DB maintenance — orphaned runs finalized: cronExecutions=${result.cronExecutions}, resolutionRuns=${result.resolutionRuns}`
+    )
+  } catch (error) {
+    console.error('[Cron] DB maintenance failed', error)
+  }
+}
+
 async function resolveEncounteredPlayerClans() {
   if (globalForCron.encounteredPlayerResolutionInProgress) {
     console.warn('[Cron] Encountered player clan resolution skipped — previous run still in progress')
@@ -1148,6 +1161,7 @@ export type CronScheduleKey =
   | 'clan_online_reminder'
   | 'challenge_processing'
   | 'encountered_player_clan_resolution'
+  | 'db_maintenance'
 
 type CronScheduleGlobalKey =
   | 'clanSyncCronTask'
@@ -1157,6 +1171,7 @@ type CronScheduleGlobalKey =
   | 'clanReminderCronTask'
   | 'challengeProcessingCronTask'
   | 'encounteredPlayerResolutionCronTask'
+  | 'dbMaintenanceCronTask'
 
 type CronScheduleDefinition = {
   key: CronScheduleKey
@@ -1215,6 +1230,14 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '*/30 * * * *',
     globalKey: 'encounteredPlayerResolutionCronTask',
     run: resolveEncounteredPlayerClans,
+  },
+  {
+    key: 'db_maintenance',
+    envVar: 'DB_MAINTENANCE_CRON',
+    // 01:15, avant daily_sync (02:00) : les tableaux de bord du matin sont à jour.
+    defaultExpression: '15 1 * * *',
+    globalKey: 'dbMaintenanceCronTask',
+    run: runDbMaintenance,
   },
 ]
 

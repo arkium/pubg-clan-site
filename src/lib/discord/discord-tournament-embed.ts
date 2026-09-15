@@ -1,4 +1,5 @@
 import type { DiscordEmbedField, DiscordWebhookPayload } from '@/lib/discord/discord-client'
+import { matchDebriefPath } from '@/lib/match-links'
 
 export const TOURNAMENT_COLOR = 0x5865f2
 
@@ -138,7 +139,9 @@ export function buildTournamentRoundWebhookPayload(
 
   if (siteUrl && input.telemetryClanId !== null) {
     descriptionLines.push(
-      `[▶️ Replay 2D de la manche](${siteUrl}/tournaments/${input.tournamentId}/matches/${input.squadMatchId}/telemetry?clanId=${input.telemetryClanId})`
+      // Débriefing du clan retenu : seule vue dotée du Replay 2D. Accès identique à l'ancienne page
+      // tournoi, qui interrogeait la même route API de clan.
+      `[▶️ Replay 2D de la manche](${siteUrl}${matchDebriefPath(input.telemetryClanId, input.squadMatchId)})`
     )
   }
 

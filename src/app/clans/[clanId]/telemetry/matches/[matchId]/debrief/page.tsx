@@ -220,6 +220,7 @@ type MatchTelemetryResponse = {
   }
   error?: {
     message?: string
+    code?: string
   }
 }
 
@@ -292,6 +293,13 @@ export default function MatchTacticalDebriefPage() {
         })
         const data = (await res.json().catch(() => null)) as MatchTelemetryResponse | null
         if (!res.ok || !data?.ok || !data.data?.match) {
+          // Les liens des listes, du tableau de bord et de Discord mènent ici : un match sans télémétrie
+          // parsée doit s'expliquer en français plutôt qu'afficher le message technique de l'API.
+          if (data?.error?.code === 'TELEMETRY_NOT_FOUND') {
+            throw new Error(
+              "La télémétrie de ce match n'est pas disponible : elle n'a pas encore été traitée, ou PUBG ne la conserve plus (environ 14 jours)."
+            )
+          }
           throw new Error(data?.error?.message ?? 'Impossible de charger le débriefing du match')
         }
         if (!cancelled) {
@@ -469,7 +477,7 @@ export default function MatchTacticalDebriefPage() {
           currentLabel="Débriefing Tactique"
           currentHref={`/clans/${clanId}/telemetry/matches/${matchId}/debrief`}
           fallbackParent={{
-            href: `/clans/${clanId}/telemetry/matches`,
+            href: `/clans/${clanId}/matches`,
             label: 'Matchs',
             altHref: '/clans',
           }}
@@ -487,7 +495,7 @@ export default function MatchTacticalDebriefPage() {
           currentLabel="Erreur"
           currentHref={`/clans/${clanId}/telemetry/matches/${matchId}/debrief`}
           fallbackParent={{
-            href: `/clans/${clanId}/telemetry/matches`,
+            href: `/clans/${clanId}/matches`,
             label: 'Matchs',
             altHref: '/clans',
           }}
@@ -495,7 +503,7 @@ export default function MatchTacticalDebriefPage() {
         <div className="p-6 rounded-lg bg-rose-950/40 border border-rose-800 text-rose-300">
           <p className="font-semibold">{error || 'Match introuvable.'}</p>
           <Link
-            href={`/clans/${clanId}/telemetry/matches`}
+            href={`/clans/${clanId}/matches`}
             className="mt-3 inline-flex items-center gap-1.5 text-xs text-rose-400 hover:underline"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Retour à la liste des matchs
@@ -512,7 +520,7 @@ export default function MatchTacticalDebriefPage() {
         currentLabel={`Débriefing #${match.placement} • ${resolveMapName(match.mapName)}`}
         currentHref={`/clans/${clanId}/telemetry/matches/${matchId}/debrief`}
         fallbackParent={{
-          href: `/clans/${clanId}/telemetry/matches`,
+          href: `/clans/${clanId}/matches`,
           label: 'Matchs',
           altHref: '/clans',
         }}

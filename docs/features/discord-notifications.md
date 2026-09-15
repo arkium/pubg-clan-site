@@ -141,7 +141,7 @@ Cas résiduel assumé : un crash du processus entre l'insertion et l'envoi laiss
 - Description `🗺️ Carte — Mode`
 - Champ « Escouade » : une ligne par joueur avec kills, dégâts arrondis, assists et revives (assists et revives affichés seulement s'ils sont non nuls)
 - Champs « Kills totaux », « Dégâts cumulés », « Survie » en ligne
-- Vignette de la carte (`/maps/pubg/{mapName}.webp`) et lien vers le rapport du match
+- Vignette de la carte (`/maps/pubg/{mapName}.webp`) et lien vers le débriefing du match (`/clans/{clanId}/telemetry/matches/{squadMatchId}/debrief`, construit par `matchDebriefPath` de `src/lib/match-links.ts`)
 - Pied de page : type de match et nombre de membres du clan
 
 La mention configurée part dans `content`, jamais dans l'embed — un embed ne notifie personne sur Discord.
@@ -182,7 +182,7 @@ Le MVP est le joueur des clans participants ayant infligé le plus de dégâts, 
 
 - Couleur `#5865F2`
 - Titre `🏆 Tournoi : {Titre} — Résultats Manche #{N}`
-- Description : carte, mode, et lien « ▶️ Replay 2D de la manche »
+- Description : carte, mode, et lien « ▶️ Replay 2D de la manche » vers le débriefing du clan retenu (celui du premier membre de la manche) — seule vue dotée du Replay 2D. Les messages postés avant le 2026-09-15 pointent vers l'ancienne page tournoi, qui n'en a pas.
 - Champ « Scores de la manche » : `🥇 **[TAG] Clan** : 1er (+10 pts) · 8 kills (+8 pts) = **18 pts**`, médailles pour le podium puis `#4`, `#5`…
 - Champ « ⭐ MVP de la manche »
 - Champ « Classement général provisoire » si l'option est active

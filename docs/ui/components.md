@@ -475,7 +475,7 @@ Utilisé par `Leaderboard`, `LeaderboardStats`, `PlayerStats`.
 
 ### `DamageBodySvg`
 
-Fichier : `src/components/telemetry/DamageBodySvg.tsx`
+Fichier : `src/components/telemetry/DamageBodySvg.tsx` — règles d'usage (données réelles uniquement, `unavailable`, dégâts non localisés) dans `docs/ui/index.html#silhouette-impacts`
 
 Rôle : silhouette anatomique humaine vectorielle (5 zones : `head`, `torso`, `pelvis`, `arms`, `legs`) avec gradient thermique d'impact (neutre, faible, moyen, critique) et tooltips interactifs au survol.
 

@@ -182,7 +182,7 @@ Le MVP est le joueur des clans participants ayant infligé le plus de dégâts, 
 
 - Couleur `#5865F2`
 - Titre `🏆 Tournoi : {Titre} — Résultats Manche #{N}`
-- Description : carte, mode, et lien « ▶️ Replay 2D de la manche » vers le débriefing du clan retenu (celui du premier membre de la manche) — seule vue dotée du Replay 2D. Les messages postés avant le 2026-09-15 pointent vers l'ancienne page tournoi, qui n'en a pas.
+- Description : carte, mode, et lien « ▶️ Replay 2D de la manche » vers le débriefing de manche `/tournaments/{tournamentId}/matches/{squadMatchId}` (depuis le 2026-09-16), ouvert à tout utilisateur connecté, avec le contexte du tournoi et la bande des escouades. Les messages plus anciens pointent vers `/tournaments/…/telemetry?clanId=`, redirigé vers cette page.
 - Champ « Scores de la manche » : `🥇 **[TAG] Clan** : 1er (+10 pts) · 8 kills (+8 pts) = **18 pts**`, médailles pour le podium puis `#4`, `#5`…
 - Champ « ⭐ MVP de la manche »
 - Champ « Classement général provisoire » si l'option est active

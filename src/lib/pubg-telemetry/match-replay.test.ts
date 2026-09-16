@@ -281,6 +281,25 @@ describe('buildMatchReplayPayload — ancrage sur le saut', () => {
     expect(payload.players[0].jump).toBeNull()
     expect(payload.players[0].p).toEqual([0, 565965, 305667, 0, 30, 280000, 105000, 0])
   })
+
+  it('écarte les positions d’attente d’un joueur sans saut quand le lobby a sauté', () => {
+    const payload = build({
+      vehicleSamples,
+      positionSamples: [
+        { memberKey: 'account.a', timestampSeconds: 30, x: 280000, y: 105000 },
+        // Saut non journalisé : l'île d'attente avant le largage, puis une vraie position sur la carte.
+        { memberKey: 'account.b', timestampSeconds: 0, x: 565965, y: 305667 },
+        { memberKey: 'account.b', timestampSeconds: 45, x: 290000, y: 110000 },
+        // Déconnecté avant le largage : uniquement des positions d'attente.
+        { memberKey: 'account.c', timestampSeconds: 5, x: 566000, y: 305700 },
+      ],
+    })
+
+    const byKey = new Map(payload.players.map((player) => [player.key, player]))
+    expect(byKey.get('account.b')?.p).toEqual([45, 290000, 110000, 0])
+    expect(byKey.has('account.c')).toBe(false)
+    expect(byKey.get('account.a')?.jump).toBe(20)
+  })
 })
 
 describe('computeReplayLives', () => {
@@ -474,8 +493,8 @@ describe('buildMatchReplayPayload — avions de rappel et caisses', () => {
 
     const payload = build({ ...base, carePackageSamples })
     expect(payload.crates).toEqual([
-      { k: 'redbox', sp: 264, t: 319, x: 572020, y: 165429, items: ['Item_Weapon_AWM_C'], lt: 439, sq: true },
-      { k: 'small', sp: null, t: 320, x: 570100, y: 166976, items: [], lt: 500, sq: false },
+      { k: 'redbox', sp: 264, t: 319, x: 572020, y: 165429, items: ['Item_Weapon_AWM_C'], lt: 439, sq: true, lteams: [9, 1] },
+      { k: 'small', sp: null, t: 320, x: 570100, y: 166976, items: [], lt: 500, sq: false, lteams: [9] },
     ])
 
     // Repli : emplacement provisoire `summary.carePackages` des matchs re-parsés le 2026-09-13.

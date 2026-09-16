@@ -27,6 +27,7 @@ import {
   compassHeadingDeg,
   type FlightTiming,
 } from '@/lib/pubg-telemetry/flight-path'
+import { applyReplaySquadFocus, squadColorsByIndex } from '@/lib/pubg-telemetry/replay-focus'
 
 export type ReplayAffiliation = 0 | 1 | 2
 
@@ -127,6 +128,8 @@ export type ReplayCrate = {
   items: string[]
   lt: number | null
   sq: boolean
+  /** Équipes ayant pillé la caisse (absent des payloads mis en cache avant le 2026-09-16). */
+  lteams?: number[]
 }
 
 type VisibilityMode = 'squad' | 'tracked' | 'all'
@@ -462,7 +465,28 @@ function drawCrate(
   }
 }
 
-export function MatchReplay2D({ data, className = '' }: { data: MatchReplayData; className?: string }) {
+export function MatchReplay2D({
+  data: rawData,
+  focusTeamId = null,
+  focusTag = null,
+  className = '',
+}: {
+  data: MatchReplayData
+  /** Équipe choisie dans la bande des escouades du débriefing ; `null` = escouade du clan consulté. */
+  focusTeamId?: number | null
+  focusTag?: string | null
+  className?: string
+}) {
+  const data = useMemo(
+    () => applyReplaySquadFocus(rawData, focusTeamId, focusTag),
+    [rawData, focusTeamId, focusTag]
+  )
+  const squadColors = useMemo(() => squadColorsByIndex(data.players), [data.players])
+  // Escouade suivie : couleurs d'escouade PUBG ; le reste du lobby garde les couleurs d'affiliation.
+  const colorOf = useCallback(
+    (player: ReplayPlayer) => squadColors.get(player.i) ?? playerColor(player),
+    [squadColors]
+  )
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrubberRef = useRef<HTMLInputElement>(null)
@@ -848,7 +872,7 @@ export function MatchReplay2D({ data, className = '' }: { data: MatchReplayData;
           if (!position) continue
           ctx.beginPath()
           ctx.arc(projectX(position.x), projectY(position.y), 3, 0, Math.PI * 2)
-          ctx.fillStyle = player.sq ? playerColor(player) : 'rgba(52, 211, 153, 0.55)'
+          ctx.fillStyle = player.sq ? colorOf(player) : 'rgba(52, 211, 153, 0.55)'
           ctx.fill()
           ctx.lineWidth = 1
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
@@ -983,7 +1007,7 @@ export function MatchReplay2D({ data, className = '' }: { data: MatchReplayData;
       const { player } = entry
       const px = projectX(entry.x)
       const py = projectY(entry.y)
-      const color = playerColor(player)
+      const color = colorOf(player)
       const isFollowed = player.i === followedIndex
       const isDowned = (downedByPlayer.get(player.i) ?? []).some(
         ([downStart, downEnd]) => time >= downStart && time < downEnd
@@ -1138,6 +1162,7 @@ export function MatchReplay2D({ data, className = '' }: { data: MatchReplayData;
       )
     }
   }, [
+    colorOf,
     crates,
     data.events,
     data.players,
@@ -1681,21 +1706,21 @@ export function MatchReplay2D({ data, className = '' }: { data: MatchReplayData;
 
                   {event.k === 'recall' ? (
                     <>
-                      <span style={{ color: actor ? playerColor(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
+                      <span style={{ color: actor ? colorOf(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
                       <span className="text-sky-300">revient par rappel</span>
                     </>
                   ) : event.k === 'kill' && !actor ? (
                     <>
-                      <span style={{ color: victim ? playerColor(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
+                      <span style={{ color: victim ? colorOf(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
                       <span className="text-rose-300">éliminé</span>
                     </>
                   ) : (
                     <>
-                      <span style={{ color: actor ? playerColor(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
+                      <span style={{ color: actor ? colorOf(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
                       <span className={event.k === 'revive' ? 'text-emerald-300' : 'text-slate-500'}>
                         {event.k === 'revive' ? 'réanime' : '→'}
                       </span>
-                      <span style={{ color: victim ? playerColor(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
+                      <span style={{ color: victim ? colorOf(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
                     </>
                   )}
                   {event.w && <span className="text-slate-400 font-mono">{weaponLabel(event.w)}</span>}
@@ -1732,7 +1757,7 @@ export function MatchReplay2D({ data, className = '' }: { data: MatchReplayData;
                   ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
                   : 'bg-slate-950 border-slate-800 hover:text-white'
               } ${isDead ? 'opacity-50' : ''}`}
-              style={follow === player.i ? undefined : { color: playerColor(player) }}
+              style={follow === player.i ? undefined : { color: colorOf(player) }}
             >
               {isDead ? <Skull className="w-3.5 h-3.5" /> : <Crosshair className="w-3.5 h-3.5" />}
               {player.n}

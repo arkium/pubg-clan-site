@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { matchTournamentDebriefPath } from '@/lib/match-links'
 
 type Tournament = {
   id: string
@@ -278,7 +279,6 @@ export default function TournamentDetailPage() {
             ) : (
               <div className="space-y-3">
                 {(data?.matches ?? []).map((match) => {
-                  const telemetryClanId = match.members[0]?.clanId
                   const results = summarizeMatchTeams(match, clanNames)
                   const content = (
                     <>
@@ -307,12 +307,11 @@ export default function TournamentDetailPage() {
                     </>
                   )
 
-                  return telemetryClanId ? (
-                    <Link key={match.id} href={`/tournaments/${tournamentId}/matches/${match.id}/telemetry?clanId=${telemetryClanId}`} className="app-table-shell block p-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  // Débriefing en vue tournoi : ouvert à tout utilisateur connecté, quel que soit son clan.
+                  return (
+                    <Link key={match.id} href={matchTournamentDebriefPath(tournament.id, match.id)} className="app-table-shell block p-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       {content}
                     </Link>
-                  ) : (
-                    <div key={match.id} className="app-table-shell p-4">{content}</div>
                   )
                 })}
               </div>

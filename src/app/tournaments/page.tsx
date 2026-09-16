@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { Trophy } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+
 type Tournament = {
   id: string
   title: string
@@ -65,6 +67,8 @@ export default function TournamentsPage() {
 
   return (
     <main className="app-container app-main space-y-6">
+      {/* Invisible : inscrit la liste dans la pile du fil d'Ariane, pour que « Retour » y ramène depuis un tournoi. */}
+      <NavigationTrail currentLabel="Tournois" currentHref="/tournaments" fallbackParent={null} hidden />
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('/ClanLeaderboardTable.jpg')` }}

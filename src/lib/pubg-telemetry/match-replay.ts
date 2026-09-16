@@ -105,6 +105,8 @@ export type ReplayCrate = {
   lt: number | null
   /** Pillée par l'escouade consultée. */
   sq: boolean
+  /** Équipes ayant pillé la caisse : permet de recalculer `sq` pour une autre escouade côté client. */
+  lteams: number[]
 }
 
 export type MatchReplayPayload = {
@@ -528,7 +530,8 @@ export function buildMatchReplayPayload(input: {
     createdAt: Date
   }
   matchStartEpochSeconds: number
-  currentClanId: number
+  /** Clan consulté ; `null` en vue tournoi, où l'escouade est choisie côté client. */
+  currentClanId: number | null
   currentClanTag: string | null
   identities: Map<string, ReplayIdentity>
   positionSamples: unknown
@@ -661,12 +664,21 @@ export function buildMatchReplayPayload(input: {
 
   const players: ReplayPlayer[] = []
   const lifeAnchors = new Map<string, { endingDeaths: TimedPoint[]; respawns: TimedPoint[] }>()
+  const firstJumpT = jumps.size > 0 ? Math.min(...Array.from(jumps.values()).map((jump) => jump.t)) : null
 
   for (const accum of accumulators.values()) {
     const anchors: Sample[] = []
     if (accum.jump) anchors.push({ t: accum.jump.t, x: accum.jump.x, y: accum.jump.y, v: 0 })
 
-    const candidates = [...anchors, ...accum.samples]
+    // Joueur sans saut dans un match qui en a (déconnexion avant le largage, saut non journalisé) : ses positions
+    // antérieures au premier saut du lobby sont celles de l'île d'attente. Sans ancre, on les écarte ; s'il n'a rien
+    // d'autre, il n'apparaît pas sur la carte.
+    const samples =
+      accum.jump || firstJumpT === null
+        ? accum.samples
+        : accum.samples.filter((sample) => sample.t >= firstJumpT)
+
+    const candidates = [...anchors, ...samples]
     if (candidates.length === 0) continue
 
     const start = accum.jump?.t ?? Math.min(...candidates.map((sample) => sample.t))
@@ -686,7 +698,7 @@ export function buildMatchReplayPayload(input: {
     }
 
     // Les ancres passent en premier : à horodatage égal, le point exact l'emporte.
-    const kept = [...anchors, ...accum.samples]
+    const kept = [...anchors, ...samples]
       .filter((sample) => isInsideLives(lives, sample.t))
       .sort((left, right) => left.t - right.t)
     if (kept.length === 0) continue
@@ -703,7 +715,8 @@ export function buildMatchReplayPayload(input: {
     const bot = isBotKey(accum.key)
     const clanId = identity?.clanId ?? null
 
-    const aff: ReplayAffiliation = clanId === currentClanId ? 2 : clanId !== null ? 1 : 0
+    const aff: ReplayAffiliation =
+      currentClanId !== null && clanId === currentClanId ? 2 : clanId !== null ? 1 : 0
     const lastLife = lives[lives.length - 1]
     const lands = [...accum.lands].sort((left, right) => left - right)
 
@@ -939,6 +952,7 @@ export function buildMatchReplayPayload(input: {
       items: Array.isArray(crate.items) ? crate.items : [],
       lt: firstLoot,
       sq: Array.isArray(crate.lootTeamIds) && crate.lootTeamIds.some((team) => squadTeams.has(team)),
+      lteams: Array.isArray(crate.lootTeamIds) ? crate.lootTeamIds : [],
     }
   })
 

@@ -49,6 +49,8 @@ export function extractSquadMates(input: {
   positionSamples: unknown
   clanAccountIds: Iterable<string>
   identities: Record<string, Identity>
+  /** Équipes de l'escouade, imposées (vue tournoi, escouade sans clan suivi) au lieu d'être déduites du clan. */
+  teamIds?: Iterable<number>
 }): { mates: SquadMateStats[]; mateStatsRows: Record<string, unknown>[] } {
   const clanKeys = new Set(Array.from(input.clanAccountIds, (id) => id.toLowerCase()))
   const stats = parseRows(input.memberStats)
@@ -66,10 +68,12 @@ export function extractSquadMates(input: {
     if (key && team > 0) teamByKey.set(key, team)
   }
 
-  const squadTeams = new Set<number>()
-  for (const key of clanKeys) {
-    const team = teamByKey.get(key)
-    if (team) squadTeams.add(team)
+  const squadTeams = new Set<number>(input.teamIds ?? [])
+  if (!input.teamIds) {
+    for (const key of clanKeys) {
+      const team = teamByKey.get(key)
+      if (team) squadTeams.add(team)
+    }
   }
 
   const identities = new Map<string, Identity>()

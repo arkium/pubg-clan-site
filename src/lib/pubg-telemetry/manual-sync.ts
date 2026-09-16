@@ -20,6 +20,7 @@ import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistenc
 import { persistKillEventsForMatch } from '@/lib/kill-event-persistence'
 import { persistThrowableStatsForMatch } from '@/lib/throwable-persistence'
 import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
+import { persistSafeZonePhaseStatsForMatch } from '@/lib/safe-zone-phase-stats'
 import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type ManualTelemetrySyncItemResult = {
@@ -243,6 +244,7 @@ export async function syncTelemetryForSquadMatchFromStream(
     await persistKillEventsForMatch(match.id, parsed.killFeedSamples)
     await persistThrowableStatsForMatch(match.id, parsed.throwableSamples)
     await persistPositionMetricCellsForMatch(match.id, parsed)
+    await persistSafeZonePhaseStatsForMatch(match.id, parsed.phaseSnapshots)
 
     console.info('[TelemetrySync] persist-json-done', { squadMatchId: match.id })
 
@@ -630,6 +632,7 @@ export async function syncTelemetryForSelectedSquadMatches(
       await persistKillEventsForMatch(match.id, parsed.killFeedSamples)
       await persistThrowableStatsForMatch(match.id, parsed.throwableSamples)
       await persistPositionMetricCellsForMatch(match.id, parsed)
+      await persistSafeZonePhaseStatsForMatch(match.id, parsed.phaseSnapshots)
 
       results.push({
         squadMatchId: match.id,

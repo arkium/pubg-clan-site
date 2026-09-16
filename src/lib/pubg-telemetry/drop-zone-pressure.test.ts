@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   countNearbyPlayers,
   countNearbyPlayersBreakdown,
+  dropPressureCount,
   dropPressureLevel,
+  dropPressureTooltip,
   DROP_PRESSURE_RADIUS_UNITS,
   summarizeDropPressure,
 } from '@/lib/drop-zone-pressure'
@@ -103,6 +105,41 @@ describe('drop-zone pressure', () => {
         { nearbyPlayerCount250m: 10, pressureLevel: 'hot' },
       ])
     ).toEqual({ average: 6, maximum: 10, hotDropCount: 1, hotDropShare: 50 })
+  })
+
+  it('fonde moyenne et maximum sur les adversaires quand ils sont connus', () => {
+    expect(
+      summarizeDropPressure([
+        { nearbyPlayerCount250m: 5, nearbyOpponentCount250m: 2, pressureLevel: 'calm' },
+        { nearbyPlayerCount250m: 12, nearbyOpponentCount250m: 9, pressureLevel: 'hot' },
+        { nearbyPlayerCount250m: 4, nearbyOpponentCount250m: null, pressureLevel: 'contested' },
+      ])
+    ).toMatchObject({ average: 5, maximum: 9 })
+  })
+
+  it('ne compte pas les coéquipiers dans le niveau de pression (décision du 2026-09-16)', () => {
+    const matchDate = new Date('2026-08-01T12:00:00.000Z')
+    const [row] = buildDropPressureStatRows(
+      {
+        id: 'match-2',
+        mapName: 'Baltic_Main',
+        createdAt: matchDate,
+        members: [{ memberId: 7, member: { pubgAccountId: 'account-7', pubgPlayerName: null } }],
+      },
+      [
+        { memberKey: 'account-7', teamId: 1, x: 1000, y: 1000 },
+        { memberKey: 'mate-1', teamId: 1, x: 1050, y: 1000 },
+        { memberKey: 'mate-2', teamId: 1, x: 1000, y: 1050 },
+        { memberKey: 'mate-3', teamId: 1, x: 1050, y: 1050 },
+        { memberKey: 'opponent', teamId: 2, x: 1100, y: 1100 },
+      ]
+    )
+
+    expect(row).toMatchObject({ nearbyPlayerCount250m: 4, nearbyOpponentCount250m: 1, pressureLevel: 'calm' })
+    expect(dropPressureCount({ nearbyPlayerCount: 4, nearbyOpponentCount: null })).toBe(4)
+    expect(dropPressureTooltip({ nearbyPlayerCount250m: 4, nearbyOpponentCount250m: 1 })).toBe(
+      '1 adversaire à moins de 250 m (4 joueurs)'
+    )
   })
 
   it('sorts pressure rankings by the selected metric with stable ties', () => {

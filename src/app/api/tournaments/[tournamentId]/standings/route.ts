@@ -1,3 +1,4 @@
+import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import {
   computeTournamentStandings,
@@ -5,10 +6,15 @@ import {
   getTournamentMatches,
 } from '@/lib/tournament-service'
 
+// Réservé aux utilisateurs connectés (2026-09-16) : le proxy ne protège que les pages, pas `/api`.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
+  if (!(await getSessionFromRequest(request))) {
+    return Response.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
     const { tournamentId } = await params
     const tournament = await prisma.tournament.findUnique({

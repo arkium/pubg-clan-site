@@ -18,6 +18,7 @@ import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 import {
   DROP_PRESSURE_LEVELS,
+  dropPressureTooltip,
   summarizeDropPressure,
   type DropPressureLevel,
 } from '@/lib/drop-zone-pressure'
@@ -37,6 +38,8 @@ type LandingPoint = {
   xPct: number
   yPct: number
   nearbyPlayerCount250m: number
+  /** `null` si les équipes du lobby sont inconnues : le niveau retombe alors sur tous les joueurs. */
+  nearbyOpponentCount250m?: number | null
   pressureLevel: DropPressureLevel
 }
 
@@ -955,7 +958,7 @@ export default function MemberDropZonesPage() {
                           yPct={point.yPct}
                           pressureLevel={point.pressureLevel}
                           borderColor="#ffffff"
-                          title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${formatNumber(point.nearbyPlayerCount250m)} joueur${point.nearbyPlayerCount250m > 1 ? 's' : ''} à moins de 250 m · ${pressure.label}`}
+                          title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${dropPressureTooltip(point)} · ${pressure.label}`}
                         />
                       )
                     })

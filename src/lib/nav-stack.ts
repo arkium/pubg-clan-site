@@ -39,8 +39,13 @@ export function parseNavStack(raw: string | null): NavStackEntry[] {
  *
  * Une page est identifiée par son chemin, sans la query : un rechargement, un changement de filtre
  * gardé dans l'URL (sélection du comparateur, période…) ou un libellé qui s'affine après chargement
- * **met à jour** la dernière entrée au lieu d'en empiler une nouvelle. Le lien retour d'une page
+ * **met à jour** son entrée au lieu d'en empiler une nouvelle. Le lien retour d'une page
  * suivante ramène ainsi à l'état exact que l'utilisateur a quitté.
+ *
+ * Revenir sur une page **déjà présente** dans la pile (lien « Retour », ou tout lien qui y ramène) coupe la
+ * pile à cette page, comme le bouton retour d'un navigateur. Sans cela, « Retour » empilait la page
+ * précédente par-dessus la courante, qui devenait à son tour la cible du retour : aller-retour sans fin
+ * entre deux pages (signalé le 2026-09-16 entre un tournoi et le débriefing d'une de ses manches).
  */
 export function recordNavigation(
   stack: NavStackEntry[],
@@ -48,9 +53,16 @@ export function recordNavigation(
   now: number
 ): { stack: NavStackEntry[]; previous: NavStackEntry | null } {
   const last = stack[stack.length - 1]
+  const currentPath = pathnameOf(current.href)
+  // Première occurrence : une pile construite ainsi n'a jamais de doublon ; une pile héritée de l'ancien
+  // comportement (allers-retours empilés) est nettoyée d'un coup au lieu d'un clic par boucle.
+  const existingIndex = stack.findIndex((entry) => pathnameOf(entry.href) === currentPath)
 
-  if (last && pathnameOf(last.href) === pathnameOf(current.href)) {
-    const updated = [...stack.slice(0, -1), { href: current.href, label: current.label, ts: last.ts }]
+  if (existingIndex !== -1) {
+    const updated = [
+      ...stack.slice(0, existingIndex),
+      { href: current.href, label: current.label, ts: stack[existingIndex].ts },
+    ]
     return { stack: updated, previous: updated.length >= 2 ? updated[updated.length - 2] : null }
   }
 

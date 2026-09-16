@@ -899,6 +899,12 @@
           <span class="num">25</span> Zoom cartographique
         </a>
       </div>
+      <div class="docs-sidebar-group">
+        <div class="docs-sidebar-group-title">Télémétrie</div>
+        <a class="docs-sidebar-link" href="#silhouette-impacts" onclick="setActive(this)">
+          <span class="num">26</span> Silhouette des impacts
+        </a>
+      </div>
     </aside>
 
     <!-- ============================================================
@@ -5707,8 +5713,8 @@ return (
                 Conteneur de carte en <code class="docs-code">touch-none</code> pour que le glisser déplace la carte et non la page. Les badges du coin haut-gauche doivent laisser la place au contrôle (<code class="docs-code">max-w-[calc(100%-12rem)]</code>) et masquer leurs détails secondaires sous <code class="docs-code">sm</code>.
               </li>
               <li>
-                <strong style="color:rgb(234,179,8);">ÉCART CONNU :</strong>
-                <code class="docs-code">src/components/ui/InteractiveMap.tsx</code> (anciennes pages <code class="docs-code">/clans/[clanId]/matches/[matchId]/telemetry</code> et <code class="docs-code">/tournaments/[tournamentId]/matches/[matchId]/telemetry</code>) garde son propre contrôle vertical. À migrer si ces pages restent en service.
+                <strong style="color:rgb(16 185 129);">AUCUN ÉCART :</strong>
+                L'ancien <code class="docs-code">InteractiveMap.tsx</code> et son contrôle vertical ont été supprimés le 2026-09-16 avec les anciennes pages de télémétrie d'un match, devenues des redirections vers le débriefing.
               </li>
             </ul>
           </div>
@@ -5750,6 +5756,91 @@ return (
     /&gt;
   &lt;/div&gt;
 )</code></pre>
+        </div>
+      </section>
+
+      <section class="docs-section" id="silhouette-impacts">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">26</span>
+          Silhouette des zones d'impact — DamageBodySvg
+        </h2>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Concept &amp; Rôle du Composant</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1.25rem;line-height:1.6;">
+            Silhouette SVG en <strong>5 zones</strong> (tête, torse, bassin, bras, jambes) colorée selon la part des dégâts de chaque zone, avec le nombre de touches et une info-bulle au survol. Le débriefing l'affiche deux fois côte à côte, onglet <strong>Duels</strong> : « Tirs infligés » (<code class="docs-code">variant="dealt"</code>) et « Tirs subis » (<code class="docs-code">variant="received"</code>).
+            <br /><br />
+            Composant : <code class="docs-code">src/components/telemetry/DamageBodySvg.tsx</code>. Totaux affichés sous la silhouette (dégâts localisés, touches, part à la tête, dégâts non localisés) : <code class="docs-code">summarizeBodyZones</code> dans <code class="docs-code">src/lib/pubg-telemetry/body-zones.ts</code>, couvert par <code class="docs-code">body-zones.test.ts</code>.
+            <br />
+            Source des données : <code class="docs-code">LogPlayerTakeDamage.damageReason</code> (<code class="docs-code">HeadShot</code>, <code class="docs-code">TorsoShot</code>, <code class="docs-code">PelvisShot</code>, <code class="docs-code">ArmShot</code>, <code class="docs-code">LegShot</code>), agrégé par le parser dans <code class="docs-code">bodyZonesDealt</code> / <code class="docs-code">bodyZonesTaken</code> de chaque joueur depuis le 2026-09-13.
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Propriétés</div>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;color:var(--theme-ui-text-secondary);">
+              <thead>
+                <tr style="text-align:left;border-bottom:1px solid var(--app-border);">
+                  <th style="padding:0.5rem;">Prop</th><th style="padding:0.5rem;">Type</th><th style="padding:0.5rem;">Rôle</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">damageByZone</code></td><td style="padding:0.5rem;"><code class="docs-code">Partial&lt;Record&lt;BodyZoneKey, number&gt;&gt;</code></td><td style="padding:0.5rem;">Dégâts par zone ; les couleurs suivent leur part du total.</td></tr>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">hitsByZone</code></td><td style="padding:0.5rem;"><code class="docs-code">Partial&lt;Record&lt;BodyZoneKey, number&gt;&gt;</code></td><td style="padding:0.5rem;">Nombre réel de touches, affiché à côté des dégâts.</td></tr>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">variant</code></td><td style="padding:0.5rem;"><code class="docs-code">'dealt' | 'received'</code></td><td style="padding:0.5rem;">Libellés et teinte : tirs infligés ou subis.</td></tr>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">size</code></td><td style="padding:0.5rem;"><code class="docs-code">'sm' | 'md' | 'lg' | number</code></td><td style="padding:0.5rem;">Taille de la silhouette.</td></tr>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">showLabels</code> / <code class="docs-code">showTooltips</code> / <code class="docs-code">interactive</code></td><td style="padding:0.5rem;"><code class="docs-code">boolean</code></td><td style="padding:0.5rem;">Légende, info-bulles et survol des zones.</td></tr>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">unavailable</code> / <code class="docs-code">unavailableLabel</code></td><td style="padding:0.5rem;"><code class="docs-code">boolean</code> / <code class="docs-code">string</code></td><td style="padding:0.5rem;">Match sans zones capturées : message à la place d'une silhouette vide.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Règles d'Or</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);line-height:1.6;">
+            <ul style="list-style:disc;padding-left:1.5rem;display:flex;flex-direction:column;gap:0.75rem;">
+              <li>
+                <strong style="color:rgb(16 185 129);">OBLIGATOIRE :</strong>
+                N'afficher que des zones issues de la télémétrie. L'ancienne heuristique <code class="docs-code">inferHitZones</code> inventait la répartition : ne jamais déduire une zone à partir d'un headshot ou d'un total.
+              </li>
+              <li>
+                <strong style="color:rgb(16 185 129);">OBLIGATOIRE :</strong>
+                Passer <code class="docs-code">unavailable</code> quand le match n'a pas de zones (parsé avant le 2026-09-13, ou non resynchronisé) : une silhouette vide ferait croire à zéro touche.
+              </li>
+              <li>
+                <strong style="color:rgb(234,179,8);">À AFFICHER À PART :</strong>
+                Les dégâts sans localisation (zone <code class="docs-code">other</code> : zone bleue, chute, explosion) ne vont sur aucune partie du corps ; les montrer sous la silhouette via <code class="docs-code">summarizeBodyZones</code>. Les blessures auto-infligées ne comptent pas en « infligés ».
+              </li>
+              <li>
+                <strong style="color:rgb(234,179,8);">PLUSIEURS SILHOUETTES :</strong>
+                Les identifiants SVG (dégradés, filtres) sont générés par <code class="docs-code">useId</code> : plusieurs silhouettes peuvent coexister sur une page sans se voler leurs couleurs. Ne pas les remplacer par des identifiants fixes.
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Exemple d'Utilisation</div>
+          <pre style="margin:0;padding:1rem;background:var(--app-surface-muted);border:1px solid var(--app-border);border-radius:0.75rem;overflow-x:auto;font-family:monospace;font-size:0.75rem;line-height:1.5;color:var(--theme-ui-text);"><code class="language-tsx">import { DamageBodySvg } from '@/components/telemetry/DamageBodySvg'
+import { summarizeBodyZones } from '@/lib/pubg-telemetry/body-zones'
+
+const totals = summarizeBodyZones(squadBodyZones.dealt)
+
+&lt;DamageBodySvg
+  damageByZone={damageByZone}
+  hitsByZone={hitsByZone}
+  variant="dealt"
+  size="md"
+  showLabels
+  showTooltips
+  unavailable={!bodyZonesAvailable}
+  unavailableLabel="Zones d'impact non capturées pour ce match"
+/&gt;
+{totals.unlocalizedDamage &gt; 0 &amp;&amp; (
+  &lt;p&gt;+ {Math.round(totals.unlocalizedDamage)} dégâts non localisés&lt;/p&gt;
+)}</code></pre>
         </div>
       </section>
 

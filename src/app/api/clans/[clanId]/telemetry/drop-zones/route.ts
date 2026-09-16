@@ -1,7 +1,8 @@
 import { Prisma } from '@prisma/client'
 
 import {
-  countNearbyPlayers,
+  countNearbyPlayersBreakdown,
+  dropPressureCount,
   dropPressureLevel,
   type DropPressureLevel,
   type DropPressureSample,
@@ -27,6 +28,7 @@ type LandingPoint = {
   xPct: number
   yPct: number
   nearbyPlayerCount250m: number
+  nearbyOpponentCount250m: number | null
   pressureLevel: DropPressureLevel
 }
 
@@ -91,6 +93,7 @@ function getPeriodBounds(period: TelemetryPeriod, now = new Date()) {
 
 type LandingSampleRow = {
   memberKey?: unknown
+  teamId?: unknown
   x?: unknown
   y?: unknown
 }
@@ -176,7 +179,9 @@ export async function GET(
           typeof sample.memberKey === 'string' ? sample.memberKey.trim().toLowerCase() : ''
         const x = typeof sample.x === 'number' ? sample.x : null
         const y = typeof sample.y === 'number' ? sample.y : null
-        return memberKey && x !== null && y !== null ? [{ memberKey, x, y }] : []
+        // L'équipe permet d'exclure les coéquipiers du niveau de pression.
+        const teamId = typeof sample.teamId === 'number' && Number.isInteger(sample.teamId) ? sample.teamId : undefined
+        return memberKey && x !== null && y !== null ? [{ memberKey, teamId, x, y }] : []
       })
       const accountId = row.pubgAccountId?.toLowerCase()
       const playerName = row.pubgPlayerName?.toLowerCase()
@@ -195,7 +200,7 @@ export async function GET(
           (playerName !== undefined && memberKey === playerName)
 
         if (isClanMember) {
-          const nearbyPlayerCount250m = countNearbyPlayers(pressureSamples, memberKey, x, y)
+          const pressure = countNearbyPlayersBreakdown(pressureSamples, memberKey, x, y)
           landingPoints.push({
             memberId: row.memberId,
             memberName: row.memberName,
@@ -205,8 +210,9 @@ export async function GET(
             y,
             xPct: Number(xPct.toFixed(2)),
             yPct: Number(yPct.toFixed(2)),
-            nearbyPlayerCount250m,
-            pressureLevel: dropPressureLevel(nearbyPlayerCount250m),
+            nearbyPlayerCount250m: pressure.nearbyPlayerCount,
+            nearbyOpponentCount250m: pressure.nearbyOpponentCount,
+            pressureLevel: dropPressureLevel(dropPressureCount(pressure)),
           })
         }
 

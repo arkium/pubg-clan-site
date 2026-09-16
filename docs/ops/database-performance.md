@@ -29,6 +29,10 @@ Ce document consigne l'état **mesuré** de la base MariaDB de production, les d
 | `PubgApiCallLog` | 326 956 | 63 Mo | 58 Mo | 0,9 |
 | `PositionMetricCell` | 161 553 | 24 Mo | 73 Mo | 3,0 |
 
+`SafeZonePhaseStat` (2026-09-16) évite de relire la colonne JSON `phaseSnapshots` pour le cercle moyen de la page
+Positions : ~8 lignes par match (~115 000 lignes attendues une fois rattrapée), cercle moyen du clan 1 sur Erangel
+mesuré à 70–120 ms contre 340–670 ms en lecture JSON.
+
 ### Requêtes vérifiées avec `EXPLAIN`
 
 | Requête | Plan | Verdict |
@@ -201,7 +205,7 @@ Le compte utilisé par l'application et les scripts détient des privilèges **g
 |---|---|---|
 | Prisma, `prisma migrate deploy`, `migrate diff --from-schema-datasource` | DML + DDL sur la base | oui |
 | `/api/superuser/database/optimize` (`ANALYZE TABLE`, `OPTIMIZE TABLE`) | `SELECT`, `INSERT` sur les tables | oui |
-| `information_schema.TABLES` / `COLUMNS` (page base de données, route `telemetry/positions`) | aucun (filtré sur les tables accessibles) | oui |
+| `information_schema.TABLES` (page base de données ; la route `telemetry/positions` ne lit plus `COLUMNS` depuis le 2026-09-16) | aucun (filtré sur les tables accessibles) | oui |
 | Triggers, vues, procédures, `LOCK TABLES` | — | aucune occurrence dans les migrations ni dans le code |
 | `db-health enable`, `disable` (`SET GLOBAL`) | `SUPER` | **non** → compte d'administration |
 | `db-health reset-log` (`TRUNCATE mysql.slow_log`) | `DROP` sur `mysql.slow_log` | **non** → compte d'administration |

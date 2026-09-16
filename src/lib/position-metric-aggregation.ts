@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import type { PositionMetric } from '@/lib/position-metric-cells'
+import type { RawPositionTelemetryRow } from '@/lib/position-metric-raw-aggregation'
 
 export type PositionMetricPeriodBounds = {
   startDate: Date
@@ -129,5 +130,80 @@ export async function loadAggregatedPositionMetricCells(input: {
     xIndex: row.xIndex,
     yIndex: row.yIndex,
     count: row._sum.eventCount ?? 0,
+  }))
+}
+/**
+ * Télémétrie brute d'une carte sur la période, avec les membres du clan de chaque escouade. `without_cells` : ce
+ * que la route Positions doit relire (matchs sans `PositionMetricCell`) ; `with_cells` : pour comparer les deux
+ * sources sur les mêmes matchs (`scripts/compare-position-metrics.ts`).
+ */
+export async function loadRawPositionTelemetryRows(input: {
+  clanId: number
+  mapName: string
+  bounds: PositionMetricPeriodBounds
+  coverage: 'without_cells' | 'with_cells'
+  client?: PrismaClient
+}): Promise<RawPositionTelemetryRow[]> {
+  const client = input.client ?? prisma
+  const dateFilter = input.bounds
+    ? Prisma.sql`AND sm.createdAt >= ${input.bounds.startDate} AND sm.createdAt <= ${input.bounds.endDate}`
+    : Prisma.empty
+  const coverageFilter =
+    input.coverage === 'without_cells'
+      ? Prisma.sql`AND NOT EXISTS (SELECT 1 FROM PositionMetricCell pmc WHERE pmc.squadMatchId = sm.id)`
+      : Prisma.sql`AND EXISTS (SELECT 1 FROM PositionMetricCell pmc WHERE pmc.squadMatchId = sm.id)`
+
+  // Deux étapes : sélectionner les matchs sans lire le JSON, puis lire le JSON des seuls matchs retenus. En une
+  // requête, MariaDB part de tous les matchs du clan (toutes dates), lit leurs colonnes JSON et ne filtre carte et
+  // période qu'ensuite — mesuré le 2026-09-16 : 9 s contre 3,4 à 4,7 s pour 151 matchs (clan 1, Erangel, septembre).
+  const matchIds = await client.$queryRaw<Array<{ squadMatchId: string }>>(Prisma.sql`
+    SELECT sm.id AS squadMatchId
+    FROM SquadMatch sm
+    INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
+    WHERE t.status = 'success'
+      ${dateFilter}
+      AND sm.mapName = ${input.mapName}
+      AND EXISTS (
+        SELECT 1
+        FROM SquadMember sdm
+        INNER JOIN ClanMember cm ON cm.id = sdm.memberId
+        WHERE sdm.squadMatchId = sm.id
+          AND cm.clanId = ${input.clanId}
+      )
+      ${coverageFilter}
+  `)
+  if (matchIds.length === 0) return []
+
+  const rows = await client.$queryRaw<Array<RawPositionTelemetryRow & { squadMatchId: string }>>(Prisma.sql`
+    SELECT
+      t.squadMatchId,
+      t.positionSamples,
+      t.deathSamples,
+      t.killSamples,
+      t.shotSamples,
+      t.damageSamples,
+      t.knockoutSamples,
+      t.reviveSamples,
+      t.vehicleSamples
+    FROM SquadMatchTelemetry t
+    WHERE t.squadMatchId IN (${Prisma.join(matchIds.map((row) => row.squadMatchId))})
+  `)
+  if (rows.length === 0) return []
+
+  const squadMembers = await client.squadMember.findMany({
+    where: { squadMatchId: { in: rows.map((row) => row.squadMatchId) }, member: { clanId: input.clanId } },
+    select: { squadMatchId: true, member: { select: { pubgAccountId: true, pubgPlayerName: true } } },
+  })
+  const keysByMatch = new Map<string, Set<string>>()
+  for (const entry of squadMembers) {
+    const keys = keysByMatch.get(entry.squadMatchId) ?? new Set<string>()
+    if (entry.member.pubgAccountId) keys.add(entry.member.pubgAccountId.toLowerCase())
+    if (entry.member.pubgPlayerName) keys.add(entry.member.pubgPlayerName.toLowerCase())
+    keysByMatch.set(entry.squadMatchId, keys)
+  }
+
+  return rows.map(({ squadMatchId, ...row }) => ({
+    ...row,
+    squadMemberKeys: keysByMatch.get(squadMatchId) ?? new Set<string>(),
   }))
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchDebriefPath, matchTelemetryAuditPath } from './match-links'
+import { matchDebriefPath, matchTelemetryAuditPath, matchTournamentDebriefPath } from './match-links'
 
 describe('match-links', () => {
   it('construit le lien du débriefing sans contexte', () => {
@@ -20,5 +20,13 @@ describe('match-links', () => {
 
   it('encode un identifiant inattendu plutôt que de casser le chemin', () => {
     expect(matchDebriefPath(1, 'a/b')).toBe('/clans/1/telemetry/matches/a%2Fb/debrief')
+  })
+})
+
+describe('matchTournamentDebriefPath', () => {
+  it('construit le lien du débriefing de manche', () => {
+    expect(matchTournamentDebriefPath('cmthj1d0q002tunb4hyosm3a8', 'cmthld13a00dd04aw8xu80llc')).toBe(
+      '/tournaments/cmthj1d0q002tunb4hyosm3a8/matches/cmthld13a00dd04aw8xu80llc'
+    )
   })
 })

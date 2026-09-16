@@ -820,3 +820,26 @@ describe('clanMemberKeys — zones de dégâts sans filtrer le lobby', () => {
     expect(snapshot.damageSamples).toEqual([])
   })
 })
+
+describe('classement des équipes depuis LogMatchEnd', () => {
+  it('lit character.ranking pour toutes les équipes, pas seulement la gagnante', () => {
+    const result = parseTelemetrySnapshot([
+      {
+        _T: 'LogMatchEnd',
+        characters: [
+          { character: { accountId: 'account.win', teamId: 8, ranking: 1 } },
+          { character: { accountId: 'account.second', teamId: 3, ranking: 2 } },
+          { character: { accountId: 'account.late', teamId: 5, ranking: 14 } },
+          { character: { accountId: 'account.late2', teamId: 5, ranking: 15 } },
+        ],
+        gameResultOnFinished: { results: [{ rank: 1, teamId: 8, accountId: 'account.win' }] },
+      },
+    ])
+
+    const placementOf = (key: string) => result.memberStats.find((entry) => entry.memberKey === key)?.teamPlacement
+    expect(placementOf('account.win')).toBe(1)
+    expect(placementOf('account.second')).toBe(2)
+    expect(placementOf('account.late')).toBe(14)
+    expect(placementOf('account.late2')).toBe(14)
+  })
+})

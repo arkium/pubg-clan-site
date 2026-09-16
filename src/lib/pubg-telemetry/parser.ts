@@ -803,7 +803,16 @@ function updateTeamPlacementsFromMatchEnd(
 
     for (const entry of candidate) {
       const teamId = getFirstNumberFromPaths(entry, ['teamId', 'character.teamId'])
-      const ranking = getFirstNumberFromPaths(entry, ['rank', 'ranking', 'gameResult.rank', 'gameResult.ranking'])
+      // `LogMatchEnd.characters[]` est un CharacterWrapper : le classement de chaque équipe est dans
+      // `character.ranking` (vérifié sur une capture du 2026-09-14). Sans ce chemin, seule l'équipe gagnante
+      // de `gameResultOnFinished.results` recevait un classement.
+      const ranking = getFirstNumberFromPaths(entry, [
+        'rank',
+        'ranking',
+        'character.ranking',
+        'gameResult.rank',
+        'gameResult.ranking',
+      ])
 
       if (
         typeof teamId === 'number' &&

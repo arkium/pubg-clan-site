@@ -23,7 +23,7 @@ export default function DropPressureLegend() {
             </span>
           </span>
         ))}
-        <span className="text-slate-500">Autres joueurs autour du drop suivi</span>
+        <span className="text-slate-500">Adversaires autour du drop suivi, coéquipiers exclus</span>
       </div>
     </div>
   )

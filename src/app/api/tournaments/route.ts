@@ -1,6 +1,12 @@
+import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+// Réservé aux utilisateurs connectés (2026-09-16) : le proxy ne protège que les pages, pas `/api`.
+export async function GET(request: Request) {
+  if (!(await getSessionFromRequest(request))) {
+    return Response.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   try {
     const tournaments = await prisma.tournament.findMany({
       include: {

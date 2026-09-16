@@ -125,6 +125,10 @@ Conséquences constatées en production :
 Les deux chemins de stream n'écrivaient pas non plus `PositionMetricCell` (aucune cellule après le 31/07/2026). Rattrapage :
 `npm run telemetry:position-metrics:backfill -- --missing-only`.
 
+Après chaque parsing, les trois chemins écrivent aussi `SafeZonePhaseStat` depuis `phaseSnapshots` (zone sûre moyenne par
+phase entière, pour le cercle moyen de la page Positions — `src/lib/safe-zone-phase-stats.ts`). Rattrapage des matchs
+déjà analysés : `npm run telemetry:safe-zones:backfill`.
+
 ### 6. LogGameStatePeriodically
 
 Snapshot de l'état global de la partie à intervalles réguliers.
@@ -281,6 +285,15 @@ Ajoutés le 2026-09-13 (`src/lib/pubg-telemetry/care-packages.ts`). Mesuré sur 
 Types reconnus (`classifyCarePackage`) : `Carapackage_RedBox_C` → `redbox` (caisse principale), `Carapackage_SmallPackage*` → `small` (caisses satellites), `*_Bluechip_C` → `bluechip`, `BP_BRDM_C` → `vehicle` (blindé largué). Contenu conservé : armes et équipement niveau 3 / ghillie uniquement.
 
 Stockage : colonne **`SquadMatchTelemetry.carePackageSamples`** (migration additive `20260914190000_add_telemetry_kill_feed_care_packages`). Un premier jet du 2026-09-13 les rangeait dans `summary.carePackages` ; abandonné, car `summary` (309 octets en moyenne sur 13 760 matchs) est lu par `JSON_EXTRACT` dans les routes d'agrégats `heatmap`, `vehicles`, `circles` et `loot` sur tous les matchs d'une période — y ajouter 10 à 30 Ko par match aurait multiplié ce coût. Le replay relit encore `summary.carePackages` en repli. Les matchs parsés avant le 2026-09-14 n'ont pas de caisses : les re-synchroniser (moins de 14 jours) via « Resync ce match ».
+
+### 17. LogMatchEnd — classement des équipes
+
+`memberStats[].teamPlacement` vient de `LogMatchEnd`. Structure vérifiée sur une capture réelle du 2026-09-14 :
+
+- `characters[]` : un `CharacterWrapper` **par joueur**, classement de son équipe dans `character.ranking` (et `character.individualRanking`) ;
+- `gameResultOnFinished.results[]` : **seulement l'équipe gagnante** (`rank`, `teamId`, `accountId`).
+
+Jusqu'au 2026-09-16, le parser ne cherchait `ranking` qu'à la racine de chaque entrée : seule l'équipe gagnante recevait un classement. Il lit désormais `character.ranking` ; les matchs analysés avant cette date gardent un classement partiel. Le débriefing complète alors avec `SquadMember.placement` (API PUBG) puis estime le reste d'après l'ordre des éliminations (`listMatchTeams`, `match-teams.ts`).
 
 ---
 

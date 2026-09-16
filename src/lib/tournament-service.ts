@@ -356,6 +356,62 @@ export function getTrackedTournamentClanIds(matches: TournamentMatchLike[]) {
   )
 }
 
+export type TournamentRoundContext = {
+  id: string
+  title: string
+  status: string
+  roundNumber: number
+  totalRounds: number
+  scores: Array<TournamentRoundScore & { tag: string | null; name: string | null }>
+}
+
+/**
+ * Contexte d'une manche pour le débriefing en vue tournoi : numéro de manche (#1 = la plus ancienne) et
+ * points de chaque clan participant selon le barème du tournoi. `null` si le tournoi n'existe pas ou si le
+ * match n'en est pas une manche — c'est le contrôle d'accès des routes de télémétrie des tournois.
+ */
+export async function loadTournamentRoundContext(
+  tournamentId: string,
+  squadMatchId: string
+): Promise<TournamentRoundContext | null> {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { id: true, title: true, status: true, rules: true },
+  })
+  if (!tournament) return null
+
+  const matches = [...(await getTournamentMatches(tournamentId))].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  )
+  const roundIndex = matches.findIndex((match) => match.id === squadMatchId)
+  if (roundIndex === -1) return null
+
+  const participatingClanIds = getTrackedTournamentClanIds(matches)
+  const roundScores = computeTournamentRoundScores(
+    matches[roundIndex],
+    participatingClanIds,
+    tournament.rules as TournamentRulesInput
+  )
+  const clans = await prisma.clan.findMany({
+    where: { id: { in: roundScores.map((score) => score.clanId) } },
+    select: { id: true, tag: true, name: true },
+  })
+  const clanById = new Map(clans.map((clan) => [clan.id, clan]))
+
+  return {
+    id: tournament.id,
+    title: tournament.title,
+    status: tournament.status,
+    roundNumber: roundIndex + 1,
+    totalRounds: matches.length,
+    scores: roundScores.map((score) => ({
+      ...score,
+      tag: clanById.get(score.clanId)?.tag ?? null,
+      name: clanById.get(score.clanId)?.name ?? null,
+    })),
+  }
+}
+
 export async function materializeTournamentCustomMatches(tournamentId: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },

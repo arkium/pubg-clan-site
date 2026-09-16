@@ -79,6 +79,28 @@ Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-15.
 - [ ] Avant d'implémenter la « détection des changements de clan PUBG » (P2) : la sélection des coéquipiers fréquents
   parcourrait 1,64 M lignes — prévoir un compteur pré-calculé.
 
+### Télémétrie — ordre des prochaines étapes (synthèse du 2026-09-16)
+
+Vue d'ensemble ; le détail vit dans les sections citées.
+
+1. [x] Corriger l'enregistrement des cellules de positions et le filtrage du lobby par le parser — code prêt
+   (« Modèle et alimentation », section Positions clan).
+2. [ ] **Déployer** — conditionne tout le reste : la production tourne avec du code d'avant le 13/09, et « Resync ce
+   match » y réduit le lobby.
+3. [ ] **Resynchroniser les matchs de moins de 14 jours** (urgent : chaque jour, des matchs sortent de la fenêtre du CDN)
+   via « Resync ce match » ou la resynchronisation d'une soirée — `telemetry:batch` ne re-parse pas les matchs déjà
+   analysés. Puis rattraper les cellules (`--missing-only`, ~13 000 matchs, ~1 Go : décision de stockage).
+   Dans la foulée du déploiement : `npx tsx scripts/recompute-drop-pressure-levels.ts --yes` (15 848 niveaux de
+   pression à recalculer) et `npm run telemetry:safe-zones:backfill` (~12 300 matchs, ~30 s ; clan 1 déjà fait).
+4. [x] Débriefing : bascule des liens, redirections, Mode contextuel Tournoi — code prêt (VOLET 4) ; [ ] recette navigateur.
+5. [~] Positions et zones de drop (section « Positions clan » et « Drop zones — Pression au drop ») — 2026-09-16 :
+   route Positions hybride, pression au drop sur les adversaires, zones sûres persistées (`SafeZonePhaseStat`) — code
+   prêt. Restent la recette navigateur et les décisions « Dashboards clan et membre » et « Densité en fin de zone ».
+6. [ ] Nouvelles données : objets consommés (`LogItemUse`, P3), rappels par membre, K/D direct par clan adverse (P2
+   « Adversaires »), détection des changements de clan (P2, 3 décisions en attente).
+7. [ ] Jamais vérifié en conditions réelles : match partagé entre deux clans suivis et ses `KillEvent` (« Comparateur de
+   Clans », bugs structurels n°1 et 2).
+
 ### Notifications Discord automatiques — Alertes Top 1 & Résultats de Tournois dans des salons dédiés — ✅ Livré le 2026-09-13
 
 > **État au 2026-09-13 — Phases 1 (Top 1) et 2 (Tournois) livrées.**
@@ -518,7 +540,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
        - [x] `extractInitialJumps` reconstitue le saut de chaque joueur depuis `vehicleSamples` et expose `player.jump`.
        - [x] Chaque piste démarre sur ce saut ; les positions antérieures (spawn / île d'attente) sont écartées. **99 joueurs sur 100 ancrés**, écart 0 m à la ligne de vol.
        - [x] `computeFlightPathFromJumps` remplace le calcul issu des atterrissages, conservé en repli.
-       - [ ] Le joueur sans saut enregistré (déconnexion avant largage) garde ses positions de spawn, faute de point d'ancrage — cas résiduel non traité.
+       - [x] Le joueur sans saut enregistré (déconnexion avant largage) gardait ses positions de spawn — ✅ 2026-09-16 : quand le lobby a sauté, ses positions antérieures au premier saut sont écartées ; sans autre position, il n'apparaît pas (test dans `match-replay.test.ts`). Match sans aucun saut : comportement inchangé.
        - [x] ~~Reprendre la même correction sur l'onglet « Carte Tactique 2D »~~ — sans objet : l'onglet a été **fusionné dans le Replay** le 2026-09-13 (voir « Suite du 2026-09-13 » ci-dessous).
      - **Suite du 2026-09-13 — fusion de la Carte Tactique, avion animé, zoom standard :** — ✅ Livré le 2026-09-13
        > **Décision validée avec l'utilisateur :** l'onglet statique « 🗺️ Carte Tactique 2D » faisait doublon avec le Replay
@@ -546,9 +568,8 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
          le zoom), glisser seulement au-delà de ×1, caméra bornée à la carte. Plafond ×8 conservé sur le Replay.
          **Documenté comme standard projet** : `docs/ui/index.html#zoom-carte` (section 25), `docs/ui/components.md`, `CLAUDE.md`.
        - [x] La route `/matches/[matchId]/telemetry` ne calcule ni ne renvoie plus `flightPath` (plus aucun consommateur).
-       - [ ] `InteractiveMap.tsx` (anciennes pages `/clans/[clanId]/matches/[matchId]/telemetry` et
-         `/tournaments/[tournamentId]/matches/[matchId]/telemetry`) garde son propre zoom vertical — écart au standard, à
-         migrer si ces pages restent en service.
+       - [x] ~~`InteractiveMap.tsx` garde son propre zoom vertical~~ — sans objet : composant supprimé le 2026-09-16 avec les
+         deux anciennes pages, devenues des redirections (voir « Bascule vers le débriefing »).
      - **Recette du 2026-09-13 — escouade invisible, réanimations et rappels absents :** — ✅ Corrigé le 2026-09-13
        > **Signalement** sur `/clans/1/telemetry/matches/cmu027vpd3ftl04tzlejla0vk/debrief` (Karakin, clan 1) : on ne voit
        > pas le nom des 4 joueurs de l'escouade, ni les réanimations ni les rappels ; après leur première mort, les joueurs
@@ -599,7 +620,8 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
          posée, contour une fois pillée, anneau émeraude si pillée par l'escouade, arme principale affichée à ×3.
        - [x] Tests : `care-packages.test.ts` (6), `squad-mates.test.ts` (4), 3 dans `flight-path.test.ts`, 3 dans
          `match-replay.test.ts`, 2 dans `parser.test.ts`. Suite : 332 tests verts (hors 3 fichiers branchés sur la base).
-       - [ ] **Re-synchroniser la télémétrie de `cmu027vpd3ftl04tzlejla0vk`** (et des matchs de moins de 14 jours) pour
+       - [ ] ⚠️ **Pas avant le déploiement du correctif du 2026-09-16** : jusque-là, « Resync ce match » réduit le lobby aux seuls membres suivis (replay sans adversaires) — voir « Corrigé dans le code le 2026-09-16 — deux défauts ».
+         **Re-synchroniser la télémétrie de `cmu027vpd3ftl04tzlejla0vk`** (et des matchs de moins de 14 jours) pour
          peupler `carePackageSamples` et `killFeedSamples` : sans cela, le calque « Largages » reste grisé. Écriture en production — à lancer
          par l'utilisateur via le bouton **« Resync ce match »** de la page « Audit Technique Brut »
          (`/clans/1/telemetry/matches/<id>/telemetry`, rôle Owner, route `POST /telemetry/sync-selected`).
@@ -642,7 +664,8 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
          (violet) si suivi dans un autre clan, « non suivi » sinon, avec la date de résolution du tag PUBG en info-bulle.
        - [x] Tests : `match-replay.kill-feed.test.ts` (4), `squad-mates.test.ts` (+1), `parser.test.ts` et
          `match-replay.test.ts` adaptés. 337 tests verts (hors 3 fichiers branchés sur la base).
-       - [ ] **Re-synchroniser `cmu1k4in8auof0493sog1dm50`** (« Resync ce match ») pour remplir `killFeedSamples` :
+       - [ ] ⚠️ **Pas avant le déploiement du correctif du 2026-09-16** : jusque-là, « Resync ce match » réduit le lobby aux seuls membres suivis (replay sans adversaires) — voir « Corrigé dans le code le 2026-09-16 — deux défauts ». Ce match a justement été resynchronisé le 14/09 avec l'ancien code : 2 joueurs au lieu de ~100.
+         **Re-synchroniser `cmu1k4in8auof0493sog1dm50`** (« Resync ce match ») pour remplir `killFeedSamples` :
          d'ici là, l'onglet Duels l'indique et annonce les kills non détaillés.
        - [ ] **Redéployer** : le déploiement de production tourne avec du code plus ancien ; tant qu'il n'est pas mis à jour,
          ses synchronisations laissent les deux nouvelles colonnes à `NULL`.
@@ -690,7 +713,8 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
        - [x] Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`. *(`inferHitZones` supprimé du code, y compris sa copie locale dans `MatchCombatTimeline` et le test qui en dupliquait la logique.)*
        - [x] Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade. *(Les dégâts auto-infligés ne comptent pas comme « infligés » ; seuls les `damageTaken` alimentent la silhouette de l'escouade.)*
        - [x] Nombre de touches réel affiché à côté des dégâts et du pourcentage dans la ventilation.
-       - [ ] **Resynchroniser les matchs de moins de 14 jours** pour peupler l'historique récent : sans cela, la page
+       - [ ] ⚠️ **Pas avant le déploiement du correctif du 2026-09-16** : jusque-là, « Resync ce match » réduit le lobby aux seuls membres suivis (replay sans adversaires) — voir « Corrigé dans le code le 2026-09-16 — deux défauts ».
+         **Resynchroniser les matchs de moins de 14 jours** pour peupler l'historique récent : sans cela, la page
          affiche le badge « Zones d'impact non capturées pour ce match ». *(Correction du 2026-09-13 : la commande
          `npm run telemetry:batch -- --clan <id>` indiquée ici ne re-parse **pas** les matchs déjà analysés avec succès.
          Utiliser « Resync ce match » sur la page « Audit Technique Brut », ou la re-synchronisation par session.)*
@@ -760,7 +784,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
         - Intégration dans l'onglet **Combat** d'un tableau synthétique triable des armes du match (Nom de l'arme résolu, Kills, Headshots, Dégâts totaux).
       - *(Décision validée : les données brutes JSON et l'arbre de debug technique ne sont pas conservés dans le Débriefing pour garder une expérience épurée).*
 
-- [ ] **Bascule vers le débriefing et retrait des anciennes pages** — 🚧 Étape 1 (liens) livrée le 2026-09-15
+- [ ] **Bascule vers le débriefing et retrait des anciennes pages** — 🚧 Étape 1 (liens) livrée le 2026-09-15, étape 2 (redirections, suppression) le 2026-09-16 ; reste la recette navigateur et l'accès public tournoi
   > Quatre pages de télémétrie de match coexistent. **Seul le débriefing a le Replay 2D et le Combat Log** ; les trois
   > autres utilisent encore `InteractiveMap` (zoom hors standard) :
   > - `/clans/[clanId]/telemetry/matches/[matchId]/debrief` — la page cible ;
@@ -779,9 +803,10 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
     quand la télémétrie est `success` ; sinon « État de la télémétrie » vers l'audit (le débriefing renvoie 404 sans
     télémétrie). Lien secondaire « Audit technique » sur la page de session télémétrie (`showAuditLink`).
   - [x] `MatchHistory` (tableau de bord membre, déjà filtré sur `telemetryAvailable`) et `HeadToHeadCard` (comparateur)
-  - [ ] `tournaments/[tournamentId]/page.tsx:311` → ancienne page tournoi, clan choisi arbitrairement (premier membre).
-    Laissé en l'état : l'ancienne page appelle la même route de clan que le débriefing, la bascule ne changerait donc pas
-    l'accès, mais elle perdrait le contexte tournoi — à traiter avec le « Mode contextuel Tournoi »
+  - [x] `tournaments/[tournamentId]/page.tsx` → débriefing du clan retenu (2026-09-16). Vérifié avant : l'ancienne page
+    tournoi n'affichait **aucun contexte de tournoi** (même contenu que la page clan, fil d'Ariane vers la page clan) —
+    la bascule ne perd rien. Le clan retenu reste le premier membre de la manche : à revoir avec le « Mode contextuel
+    Tournoi »
   - [x] Embed Discord Top 1 → débriefing (test mis à jour)
   - [x] Embed Discord tournoi : « ▶️ Replay 2D de la manche » mène enfin à un Replay 2D (débriefing du clan retenu, même
     accès que l'ancienne page tournoi). Les messages déjà postés gardent l'ancienne adresse → à couvrir par la redirection
@@ -795,11 +820,58 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
   - [ ] Recette navigateur : liste des matchs d'un clan (bouton selon l'état), tableau de bord membre, comparateur (changer
     la sélection puis ouvrir un match : « Retour à Comparateur » doit restaurer la dernière sélection), arrivée directe
     sur un débriefing (fil d'Ariane → « Matchs »), match sans télémétrie
-  - [ ] Une fois les liens basculés : rediriger les deux anciennes pages vers le débriefing (les liens déjà postés sur
-    Discord doivent rester valides), puis supprimer leur code et `InteractiveMap` s'il n'a plus d'usage
-  - [ ] Côté tournoi : dépend du « Mode contextuel Tournoi » ci-dessous (routes publiques, sinon 403 hors clan)
+  - [x] **Étape 2 — 2026-09-16** : les deux anciennes pages (1 804 et 1 584 lignes) sont remplacées par une redirection
+    serveur 307 vers le débriefing — `/clans/[clanId]/matches/[matchId]/telemetry` et
+    `/tournaments/[tournamentId]/matches/[matchId]/telemetry?clanId=` (sans `clanId` valide → page du tournoi). Les liens
+    déjà publiés sur Discord restent valides. Supprimés, faute d'autre usage vérifié : `InteractiveMap.tsx` et
+    `WeaponStatsTable.tsx`. `isGameLabel` reste utilisé par la vue d'audit.
+  - [x] Adresses conservées : le débriefing reste sur `/debrief` et l'audit sur `/telemetry` — **le plan d'origine** (servir
+    le débriefing sur `/telemetry` et déplacer l'audit sur `/telemetry/audit`) **n'est pas repris** : il casserait les liens
+    publiés depuis le 2026-09-15 pour un simple changement de nom, sans gain pour l'utilisateur.
+  - [ ] Recette navigateur de l'étape 2 : ouvrir une ancienne adresse clan et une ancienne adresse tournoi (avec et sans
+    `clanId`) → arrivée sur le débriefing ou la page du tournoi
+  - [x] Côté tournoi : accès ouvert à **tout utilisateur connecté** (décision du 2026-09-16) — voir ci-dessous. La page
+    d'un tournoi, les messages Discord de tournoi et l'ancienne adresse `/tournaments/[id]/matches/[matchId]/telemetry`
+    mènent désormais à `/tournaments/[tournamentId]/matches/[matchId]`.
 
-- [ ] **Mode contextuel Tournoi & Ruban Multi-Escouades :** — ❌ **Non commencé** (spécifié le 2026-09-14)
+- [x] **Mode contextuel Tournoi & Ruban Multi-Escouades :** — ✅ **Livré le 2026-09-16** (code ; recette navigateur à faire)
+  > **Réalisation :**
+  > - **Accès** : `GET /api/tournaments/[tournamentId]/matches/[matchId]/telemetry` et `/replay`, session obligatoire (tout
+  >   compte connecté), 404 si le match n'est pas une manche du tournoi (`loadTournamentRoundContext`). Page
+  >   `/tournaments/[tournamentId]/matches/[matchId]`. `/api/tournaments` et `/standings` vérifient aussi la session : le
+  >   proxy ne couvre pas `/api`, ces deux routes étaient **lisibles sans compte** jusqu'ici.
+  > - **Une seule vue** : `MatchDebriefView` (`src/components/telemetry/`) sert la vue clan et la vue tournoi ; le calcul
+  >   serveur est partagé (`match-debrief-payload.ts`, `match-replay-loader.ts`). Les deux routes clan sont réduites à
+  >   un appel.
+  > - **Équipe mise en avant** au lieu d'un clan : `?teamId=`, défaut = équipe du clan (vue clan) ou équipe la mieux
+  >   classée (vue tournoi). Bande des escouades triée par classement, médailles 🥇🥈🥉, `[TAG] clan (N kills)` ; deux
+  >   escouades d'un même clan sont distinguées par leur premier joueur. Tout suit la sélection : bandeau, indicateurs,
+  >   Combat Log, onglet Escouade, duels, silhouettes, Replay.
+  > - **Bandeau tournoi** : manche N/total, points de chaque clan (placement + kills + bonus), retour au classement.
+  > - **Replay** : l'escouade suivie est recalculée côté client (`replay-focus.ts`), caisses pillées comprises
+  >   (`lteams`) ; couleurs bleu, vert, jaune, orange attribuées dans l'**ordre alphabétique** des pseudos — la télémétrie
+  >   ne donne pas le numéro de slot PUBG.
+  > - **Classement des équipes** (trouvé en implémentant) : le parser ne lisait le classement que de l'équipe gagnante —
+  >   `LogMatchEnd.characters[].character.ranking` était ignoré. Corrigé pour les prochaines analyses ; pour les matchs en
+  >   base, repli sur `SquadMember.placement` (API PUBG) puis estimation d'après l'ordre des éliminations, signalée `~#N`.
+  > - **Bug corrigé au passage** : dans une manche où un clan aligne deux escouades (cas réel « Tournoi SMK », manche 2),
+  >   l'appartenance « escouade » se jugeait sur le clan — l'escouade à 0 kill affichait 2 duels gagnés. Elle se juge
+  >   désormais sur les comptes de l'équipe mise en avant.
+  > - Vérifié hors HTTP sur données réelles (`scripts/inspect-match-debrief.ts`) : Karakin clan 1 inchangé (9 kills dont 3
+  >   des coéquipiers, 6 duels gagnés / 4 perdus) ; manche « Tournoi SMK » : escouade 1 → 0 kill, 0/2 ; escouade 2 → 2 kills,
+  >   2/0. Tests : `match-teams.test.ts` (5), `replay-focus.test.ts` (3), `parser.test.ts` (+1), `match-links.test.ts` (+1).
+  >
+  > **Écarts assumés :** pas de pastille « 🌐 Vue Globale » (le Combat Log a son filtre « Tout le match » et le Replay son
+  > mode « Global ») ; pas de centrage caméra automatique au changement d'escouade (le suivi reste au clic sur un joueur) ;
+  > le classement général des clans reste calculé par clan, pas par escouade (règle existante du moteur de tournoi).
+  - [x] Fil d'Ariane en boucle entre un tournoi et une de ses manches (signalé le 2026-09-16) : « Retour » empilait la
+    page précédente au lieu de revenir en arrière — défaut général de `NavigationTrail`, antérieur au mode tournoi.
+    Revenir sur une page déjà dans la pile la coupe désormais à cette page (`nav-stack.ts`, 2 tests), et `/tournaments`
+    s'inscrit dans la pile
+  - [ ] Recette navigateur : page d'un tournoi → manche → bandeau, bande des escouades, changement d'escouade (indicateurs,
+    Combat Log, duels, silhouettes, Replay et couleurs), accès avec un compte d'un autre clan, ancienne adresse Discord
+  >
+  > *Spécification d'origine (2026-09-14), conservée pour référence :*
   > **L'unification annoncée par ce volet n'est donc pas faite** : seul son prérequis (finaliser le débriefing) l'est.
   > État constaté dans le code :
   > - la page débriefing ne lit aucun `tournamentId` ;
@@ -1785,7 +1857,13 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 - [x] Ajouter un script CLI de backfill avec filtres `--clan`, `--limit` et reprise contrôlée
 - [x] Backfiller les `1 284` télémétries du clan 1 sans supprimer les JSON sources (`161 900` cellules)
 - [x] Vérifier qu'un second backfill ne modifie pas le nombre de cellules persistées (`161 900` avant/après)
-- [ ] Comparer les agrégats persistés avec la route actuelle sur plusieurs cartes, membres, phases et métriques
+- [x] Comparer les agrégats persistés avec la route actuelle — ✅ 2026-09-16, `scripts/compare-position-metrics.ts` (lecture
+  seule). Clan 1, Erangel, juillet, 243 matchs : **0 cellule différente** sur les 10 métriques de combat (kills, morts,
+  knocks, réanimations, véhicules, tirs, dégâts). Seules `position`/`rotation` manquent au calcul brut (purge de
+  géolocalisation ; la page n'affiche plus les rotations). **Écart trouvé et corrigé** : le calcul brut comptait tout
+  membre du clan présent dans le lobby, donc aussi ceux d'une autre escouade du clan dans la même partie (+2 à +4 % sur
+  kills, knocks, véhicules), comptés deux fois ; il se limite désormais aux membres de l'escouade du match, comme les
+  cellules.
 - [x] Mesurer le volume, la durée et le stockage : environ `139 s`, `161 900` lignes, `97,4 MiB` (`24,1 MiB` données + `73,3 MiB` index)
 
 ##### API et performances
@@ -1795,10 +1873,16 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 - [x] Créer un service partagé d'agrégation des cellules par période, carte, membre, phase et métrique
 - [x] Migrer `GET /api/clans/[clanId]/telemetry/positions` vers `PositionMetricCell`
 - [x] Conserver temporairement un fallback vers les JSON tant que le backfill n'est pas complet
-- [ ] Supprimer le fallback et le cache mémoire lorsque les données persistées sont validées
-- [ ] Vérifier que les filtres et le Top 5 restent identiques avant/après migration
+- [x] ~~Supprimer le fallback et le cache mémoire lorsque les données persistées sont validées~~ — requalifié le
+  2026-09-16 : le repli est devenu **hybride par match** (cellules pour les matchs qui en ont, télémétrie brute pour les
+  autres, `loadRawPositionTelemetryRows` + `aggregateRawPositionRows`). Il ne coûte plus rien une fois tous les matchs
+  couverts, et corrige l'affichage partiel silencieux (une période contenant des matchs couverts ignorait les autres).
+  Cache de 5 min conservé.
+- [x] Vérifier que les filtres et le Top 5 restent identiques — cellules identiques entre les deux sources (Top 5 calculé
+  côté client depuis ces cellules) ; filtres membre + plage tactique couverts par les tests
 - [x] Mesurer un premier chargement à froid inférieur à une seconde sur la période hebdomadaire (`692 ms`, cache vide)
-- [ ] Ajouter des tests de route ou de service couvrant les semaines vides et les filtres combinés
+- [x] Tests de service : `position-metric-raw-aggregation.test.ts` (4) — rôles et pondérations, filtres membre + plage
+  combinés, période vide, fusion des cartes
 
 ##### Optimisations complémentaires — lenteur résiduelle (2026-08-08)
 
@@ -1807,8 +1891,24 @@ Malgré la migration vers `PositionMetricCell`, `GET /api/clans/[clanId]/telemet
 - [x] Mettre en cache en mémoire (process) le résultat des deux vérifications `information_schema.COLUMNS` au lieu de les requêter à chaque appel — le schéma ne change pas entre deux requêtes (`getColumnPresence()` dans `route.ts`)
 - [x] Dédupliquer le double appel à `loadPositionMetricCatalog` — remplacé par `loadPositionMetricMapSummary` (résumé des cartes, appelé une fois) et `loadPositionMetricMemberPhaseBreakdown` (membres/phases, appelé une seule fois avec la carte réellement sélectionnée), la requête d'agrégat par carte n'est plus dupliquée
 - [x] Éviter le scan complet de `SquadMatchTelemetry JOIN SquadMatch` sur toute la carte sélectionnée quand `hasPersistedData` est vrai et qu'aucun filtre de phase n'est actif (`needsRawRows`) — cette requête ne sert qu'à `phaseSnapshots` pour l'overlay de zone de sécurité
-- [ ] Limiter la requête `phaseSnapshots` (quand nécessaire) aux colonnes utiles au lieu de sélectionner potentiellement tout l'historique du match
-- [ ] Mesurer le temps de réponse avant/après sur `/clans/1/stats/positions` (période semaine et tous) pour valider le gain
+- [x] Requête `phaseSnapshots` — ✅ 2026-09-16, **mesure contre-intuitive** : l'agréger en SQL (`JSON_TABLE`) est plus
+  lent (2,5–3,2 s) que la lecture JSON (1,8–2,1 s ; clan 1, Erangel, 623 matchs), résultat identique à 1e-12 près. Vraie
+  cause de lenteur trouvée par `EXPLAIN` : MariaDB partait de **tous** les matchs du clan et lisait leurs colonnes JSON
+  avant de filtrer carte et période. Lecture en deux étapes (identifiants sans JSON, puis JSON des seuls matchs
+  retenus) pour le cercle moyen et la télémétrie brute.
+- [x] Zones sûres persistées par phase — ✅ 2026-09-16 : table `SafeZonePhaseStat` (migration
+  `20260916200000_add_safe_zone_phase_stat`, appliquée en production), une ligne par match et par phase entière avec
+  les sommes x / y / rayon en pourcentage de la carte (une ligne `phase = 0` vide marque un match sans zone
+  exploitable). Écrite par les trois chemins de synchronisation (`persistSafeZonePhaseStatsForMatch`). La route
+  additionne les lignes persistées et relit le JSON des seuls matchs non couverts : même moyenne qu'avant.
+  - [x] Validation (`scripts/compare-safe-zone-overlay.ts`, clan 1, Erangel) : écart **0** sur les trois plages,
+    juillet et année entière ; cercle moyen **340–670 ms → 70–120 ms**.
+  - [x] Rattrapage du clan 1 : 2 128 matchs, 16 610 lignes, 4,6 s (`npm run telemetry:safe-zones:backfill -- --clan 1`).
+  - [ ] Rattrapage des autres clans **après déploiement** (~12 300 matchs) : `npm run telemetry:safe-zones:backfill`.
+    Avant, la production n'écrit pas encore la table ; les matchs non couverts restent lus depuis le JSON.
+- [x] Mesures du 2026-09-16 (base de production, hors HTTP) : télémétrie brute d'Erangel, clan 1 — juillet (243 matchs)
+  **8,4 s → 1,2 s** avec la lecture en deux étapes ; septembre (151 matchs sans cellules) **9 s → 3,4–4,7 s**. Cellules
+  persistées : 0,65 s pour les 243 matchs de juillet — le rattrapage des cellules reste le vrai levier.
 
 ##### Dashboards clan et membre
 
@@ -1873,8 +1973,17 @@ La première phase valide le principe à partir des `landingSamples` déjà stoc
 - [x] Vérifier par le code que les filtres de portée, joueur, carte et ville recalculent les indicateurs
 - [x] Ajouter des tests unitaires pour la frontière des 250 m, la déduplication, les seuils et les agrégats
 - [x] Valider ESLint, les diagnostics TypeScript et le build de production
-- [ ] Valider les résultats sur plusieurs matchs réels en comparant les points proches sur la carte
-- [ ] Ajuster et valider les seuils de pression à partir de la distribution observée
+- [x] Valider sur les matchs réels — ✅ 2026-09-16, **36 516 drops** depuis juin : le niveau compte **tous** les joueurs à
+  moins de 250 m, coéquipiers compris (2,0 à 2,7 en moyenne par drop). Résultat : « Calme » ne concerne que 15,5 % des
+  drops (9,9 % en escouade de 4), « Contesté » 52,9 %. Sur les adversaires seuls (`nearbyOpponentCount250m`, renseigné
+  sur 100 % des drops) : médiane 3, p75 6, p90 11 — Calme 44,3 %, Contesté 35,8 %, Hot 17,0 %, Très chaud 2,9 %.
+- [x] **Décision** : fonder le niveau sur les adversaires seuls — ✅ 2026-09-16, seuils inchangés.
+  `dropPressureCount` (`nearbyOpponentCount ?? nearbyPlayerCount`) alimente `dropPressureLevel`, la persistance, les
+  deux routes `drop-zones` (points : `nearbyOpponentCount250m`) et les moyennes / maximums de `summarizeDropPressure`.
+  Infobulle « 1 adversaire à moins de 250 m (4 joueurs) », légende « coéquipiers exclus ». Tests : +2.
+  - [ ] **Après déploiement** : `npx tsx scripts/recompute-drop-pressure-levels.ts --yes` — simulation du 2026-09-16 :
+    15 848 lignes changent ; Calme 15,4 % → 44,2 %, Contesté 52,8 % → 35,9 %, Hot 26,3 % → 17,1 %, Très chaud
+    5,5 % → 2,9 %. Lancé avant, les synchronisations de la production réécriraient l'ancien niveau.
 - [ ] Vérifier les rendus desktop/mobile et les thèmes clair/sombre sur les deux pages
 
 ### Drop zones — Changement de carte au swipe (mobile)
@@ -2722,8 +2831,8 @@ Afin de ne pas surcharger la page et de maintenir une navigation fluide :
     - Enrichissement de `memberIdentityMap` : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
     - Fin des identifiants bruts ou tronqués pour les adversaires externes.
   - [ ] Revue et validation utilisateur sur le match réel `cmtonisut8oru04b2vnaaxrdj` (clan RAF + BOFS) et `cmtoouiyw8t6304b22w3f4u8y`.
-  - [ ] Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`. — détaillé lien par lien dans le VOLET 4 (inventaire du 2026-09-15)
-  - [ ] Documenter le composant `DamageBodySvg` dans le showroom `docs/ui/index.html`.
+  - [x] ~~Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`.~~ — bascule faite autrement le 2026-09-16 : liens et anciennes pages redirigés vers `/debrief`, adresses conservées (voir VOLET 4)
+  - [x] Documenter le composant `DamageBodySvg` dans le showroom `docs/ui/index.html` — ✅ 2026-09-16, section 26 `#silhouette-impacts`
 
 
 
@@ -2827,6 +2936,10 @@ Développé le 2026-08-04 après lecture de [awards-service.ts](../../src/lib/aw
 ---
 
 ## Résumé — Ce qui reste à faire (au 2026-06-23)
+
+> ⚠️ **Obsolète (constaté le 2026-09-16)** — ne plus s'y fier : lancers livrés, `rideDistance` et arme en main
+> abandonnés après investigation, cache des awards livré, suppression des captures et nettoyage automatique écartés
+> (voir P2 « Auto-cleanup cron »). L'état à jour de la télémétrie est dans P1 « Télémétrie — ordre des prochaines étapes ».
 
 ### Tâches ouvertes par priorité
 

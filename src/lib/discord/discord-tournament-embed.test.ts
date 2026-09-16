@@ -147,18 +147,17 @@ describe('buildTournamentRoundWebhookPayload', () => {
     ).toBe(false)
   })
 
-  it('ajoute le lien de replay uniquement avec une URL de site et un clan de telemetrie', () => {
+  it('ajoute le lien vers le débriefing de manche dès qu’une URL de site est configurée', () => {
     const withLink = buildTournamentRoundWebhookPayload(makeInput()).embeds[0]
     const withoutSite = buildTournamentRoundWebhookPayload(makeInput({ siteUrl: '' })).embeds[0]
+    // Vue tournoi : le lien ne dépend plus d'un clan choisi arbitrairement.
     const withoutClan = buildTournamentRoundWebhookPayload(makeInput({ telemetryClanId: null })).embeds[0]
 
-    expect(withLink.description).toContain(
-      '(https://clan.example.com/clans/5/telemetry/matches/match-1/debrief)'
-    )
+    expect(withLink.description).toContain('(https://clan.example.com/tournaments/tour-1/matches/match-1)')
     expect(withLink.url).toBe('https://clan.example.com/tournaments/tour-1')
     expect(withoutSite.description).not.toContain('Replay 2D')
     expect(withoutSite.url).toBeUndefined()
-    expect(withoutClan.description).not.toContain('Replay 2D')
+    expect(withoutClan.description).toContain('Replay 2D')
   })
 
   it('place la mention dans le content', () => {

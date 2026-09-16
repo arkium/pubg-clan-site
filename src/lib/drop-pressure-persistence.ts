@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client'
 
 import {
   countNearbyPlayersBreakdown,
+  dropPressureCount,
   dropPressureLevel,
   type DropPressureSample,
 } from '@/lib/drop-zone-pressure'
@@ -104,7 +105,7 @@ export function buildDropPressureStatRows(
       matchDate: match.createdAt,
       nearbyPlayerCount250m: pressure.nearbyPlayerCount,
       nearbyOpponentCount250m: pressure.nearbyOpponentCount,
-      pressureLevel: dropPressureLevel(pressure.nearbyPlayerCount),
+      pressureLevel: dropPressureLevel(dropPressureCount(pressure)),
     }]
   })
 }

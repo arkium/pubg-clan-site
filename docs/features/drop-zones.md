@@ -60,18 +60,25 @@ Le filtre par ville limite les points affichés et reconstruit la heatmap à par
 
 ### Pression au drop
 
-Chaque drop suivi est comparé aux autres `landingSamples` du même match. Les joueurs sont dédupliqués par `memberKey`, le joueur suivi est exclu, puis les joueurs situés à moins de `250 m` (`25 000` unités PUBG) sont comptés.
+Chaque drop suivi est comparé aux autres `landingSamples` du même match. Les joueurs sont dédupliqués par `memberKey`, le joueur suivi est exclu, puis les joueurs situés à moins de `250 m` (`25 000` unités PUBG) sont comptés deux fois : tous les joueurs, et les seuls adversaires (`teamId` différent de celui du joueur suivi).
 
-Le marqueur unique remplace l'ancien point et son remplissage indique le niveau provisoire :
+Le marqueur unique remplace l'ancien point et son remplissage indique le niveau, calculé sur les **adversaires** (repli sur tous les joueurs quand les équipes sont inconnues, `dropPressureCount`) :
 
-| Niveau | Joueurs proches | Couleur |
+| Niveau | Adversaires proches | Couleur |
 |---|---:|---|
 | Calme | 0–2 | Vert |
 | Contesté | 3–7 | Jaune |
 | Hot drop | 8–15 | Orange |
 | Très chaud | 16+ | Rouge |
 
-Sur la page clan, le contour du marqueur conserve la couleur du membre. L'infobulle expose le membre, la ville, le nombre de joueurs proches et le niveau. Les indicateurs affichent la pression moyenne, le maximum et la part de hot drops selon la période et les filtres actifs. Le Top 5 des villes ajoute sa pression moyenne et son taux de hot drops.
+> **Pourquoi les adversaires (décision du 2026-09-16)** : sur 36 516 drops réels, compter tous les joueurs incluait
+> les coéquipiers (2,0 à 2,7 par drop, une escouade atterrit groupée) et ne laissait que 15,5 % de drops « Calme »
+> (9,9 % en escouade de 4). Sur les adversaires seuls, avec les mêmes seuils : Calme 44,2 %, Contesté 35,9 %, Hot
+> 17,1 %, Très chaud 2,9 %. Les niveaux déjà stockés se recalculent avec
+> `npx tsx scripts/recompute-drop-pressure-levels.ts` (simulation, puis `--yes` pour écrire) — à lancer après le
+> déploiement du code, sinon les synchronisations réécrivent l'ancien niveau.
+
+Sur la page clan, le contour du marqueur conserve la couleur du membre. L'infobulle expose le membre, la ville, le nombre d'adversaires proches (et, entre parenthèses, de joueurs) et le niveau. Les indicateurs affichent la pression moyenne (en adversaires), le maximum et la part de hot drops selon la période et les filtres actifs. Le Top 5 des villes ajoute sa pression moyenne et son taux de hot drops.
 
 Ces valeurs sont actuellement calculées à la volée depuis les JSON existants. Les seuils doivent être calibrés avec plusieurs matchs réels avant toute persistance ou agrégation historique dédiée.
 
@@ -125,7 +132,7 @@ Les valeurs `xPct`/`yPct` s'utilisent directement en CSS `left`/`top` sur une im
 
 ## Persistance de la pression au drop
 
-Chaque drop d'un membre suivi est persisté dans `DropPressureStat` avec une contrainte unique sur le couple `(squadMatchId, memberId)`. La ligne conserve la carte, les coordonnées, la date du match, le nombre total de joueurs à moins de 250 m, le nombre d'adversaires identifié par `teamId` et le niveau de pression.
+Chaque drop d'un membre suivi est persisté dans `DropPressureStat` avec une contrainte unique sur le couple `(squadMatchId, memberId)`. La ligne conserve la carte, les coordonnées, la date du match, le nombre total de joueurs à moins de 250 m, le nombre d'adversaires identifié par `teamId` et le niveau de pression (dérivé du nombre d'adversaires).
 
 Les nouveaux parsings remplacent transactionnellement les lignes du match. L'historique existant se reconstruit de manière idempotente avec :
 

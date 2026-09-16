@@ -44,6 +44,34 @@ describe('recordNavigation', () => {
     expect(stack[1].label).toBe('Débriefing #4 • Deston')
   })
 
+  it('revenir sur une page déjà visitée coupe la pile : plus d’aller-retour sans fin', () => {
+    const visit = (stack: NavStackEntry[], href: string) => recordNavigation(stack, { href, label: href }, 1)
+
+    let state = visit([], '/tournaments')
+    state = visit(state.stack, '/tournaments/t1')
+    state = visit(state.stack, '/tournaments/t1/matches/m1')
+    expect(state.previous?.href).toBe('/tournaments/t1')
+
+    // « Retour à Tournoi » : on revient à t1, dont le retour doit mener à la liste, pas au débriefing.
+    state = visit(state.stack, '/tournaments/t1')
+    expect(state.stack.map((entry) => entry.href)).toEqual(['/tournaments', '/tournaments/t1'])
+    expect(state.previous?.href).toBe('/tournaments')
+
+    state = visit(state.stack, '/tournaments')
+    expect(state.stack.map((entry) => entry.href)).toEqual(['/tournaments'])
+    expect(state.previous).toBeNull()
+  })
+
+  it('nettoie d’un coup une pile héritée des allers-retours de l’ancien comportement', () => {
+    const polluted = ['/tournaments', '/tournaments/t1', '/tournaments/t1/matches/m1', '/tournaments/t1', '/tournaments/t1/matches/m1']
+      .map((href) => entry(href))
+
+    const { stack, previous } = recordNavigation(polluted, { href: '/tournaments/t1', label: 'Tournoi' }, 9)
+
+    expect(stack.map((item) => item.href)).toEqual(['/tournaments', '/tournaments/t1'])
+    expect(previous?.href).toBe('/tournaments')
+  })
+
   it('distingue deux matchs différents (le chemin change)', () => {
     const { stack, previous } = recordNavigation(
       [entry('/clans/1/telemetry/matches/abc/debrief')],

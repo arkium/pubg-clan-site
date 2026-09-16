@@ -201,7 +201,11 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 |---|---|---|---|---|
 | GET | `/api/clans/[clanId]/matches` | `requireNavPermission('clan.matches')` | ✅ Pertinent | Matchs squad du clan (sessions, synergies, top performers) — voir [Matchs](../features/matches.md) |
 | POST | `/api/clans/[clanId]/sync-matches` | `requireRole(['Owner'])` (bypass si appel cron interne) | ⚠️ Admin web uniquement | Sync matchs PUBG pour tous les membres actifs — voir [Matchs](../features/matches.md) |
-| GET | `/api/clans/[clanId]/matches/[matchId]/telemetry` | `requireNavPermission('clan.matches')` | ✅ Pertinent | Détail télémétrie d'un match précis (scope clan) — non documenté ailleurs, détail ci-dessous |
+| GET | `/api/clans/[clanId]/matches/[matchId]/telemetry` | `requireNavPermission('clan.matches')` | ✅ Pertinent | Débriefing d'un match (scope clan), `?teamId=` pour une autre escouade — détail ci-dessous |
+| GET | `/api/clans/[clanId]/matches/[matchId]/replay` | `requireNavPermission('clan.matches')` | ✅ Pertinent | Replay 2D d'un match (scope clan) — voir [Trajectoires replay](../telemetry/replay-trajectories.md) |
+| GET | `/api/tournaments/[tournamentId]/matches/[matchId]/telemetry` | Session (tout utilisateur connecté) + match = manche du tournoi | ✅ Pertinent | Débriefing d'une manche, `?teamId=` ; ajoute `tournament` (manche, points par clan) |
+| GET | `/api/tournaments/[tournamentId]/matches/[matchId]/replay` | Session + match = manche du tournoi | ✅ Pertinent | Replay 2D d'une manche, sans clan mis en avant (escouade choisie côté client) |
+| GET | `/api/tournaments`, `/api/tournaments/[tournamentId]/standings` | Session (depuis le 2026-09-16 ; auparavant **aucune**) | ✅ Pertinent | Liste des tournois, classement et manches |
 | GET | `/api/members/[id]/matches` | `requireSameClanAsMember` | ✅ Pertinent | Historique matchs membre ou détection de matchs récents non importés — voir [Matchs](../features/matches.md) |
 | GET | `/api/matches/[matchId]` | Aucun (query `shard`/`playerId` requis) | ✅ Pertinent | Détail d'un match PUBG pour import — voir [Matchs](../features/matches.md) |
 | POST | `/api/matches/[matchId]` | Aucun (body `memberId`/`shard`/`playerId`) | ✅ Pertinent | Importe un match en base pour un membre — voir [Matchs](../features/matches.md) |
@@ -213,7 +217,16 @@ Non documenté ailleurs — variante clan-scope du détail télémétrie (à dis
 - **Path params :** `clanId`, `matchId` (= `squadMatchId`).
 - **Réponse (`buildTelemetrySuccessResponse`) :** `{ success, meta, data: { match: { id, pubgMatchId, gameMode, mapName, placement, createdAt, totalKills/Damage/Assists/Revives, members[] }, telemetry: { status, attemptCount, lastAttemptAt, nextRetryAt, parserVersion, parsedAt, sourceGeneratedAt, contentLength, bytesDownloaded, errorCode, errorMessage, summary, weaponStats, memberStats, positionSamples, trajectorySegments, deathSamples, phaseSnapshots, createdAt, updatedAt }, weaponLabels, phaseLabels, memberIdentityMap }, legacy: <même objet> }`.
 - **Erreurs :** `400` clan/match id invalide, `404` (`TELEMETRY_NOT_FOUND`) si aucune télémétrie liée à ce match pour ce clan.
-- Implémentation : requête SQL brute joignant `SquadMatch`/`SquadMatchTelemetry`, filtrée par appartenance au clan via `SquadMember`/`ClanMember`.
+- Implémentation : `loadMatchDebriefPayload` (`src/lib/pubg-telemetry/match-debrief-payload.ts`), partagé avec la route tournoi. Requête SQL brute joignant `SquadMatch`/`SquadMatchTelemetry`, filtrée par appartenance au clan via `SquadMember`/`ClanMember` (`accessClanId`).
+- **Équipe mise en avant (2026-09-16)** : tout le débriefing (membres, coéquipiers, drapeaux « escouade » des frags et du Combat Log, zones d'impact) se calcule autour d'une équipe du lobby. Par défaut l'équipe du clan consulté ; `?teamId=` en choisit une autre. Dès qu'une équipe est connue, l'appartenance se juge sur ses **comptes**, pas sur le clan : dans une manche où un clan aligne deux escouades, les frags de l'autre escouade ne comptent pas. `data.match` ajoute `clanTag` (tag de l'équipe mise en avant), `otherTrackedClans`, `teams[]` (`teamId`, `placement`, `placementEstimated`, `kills`, `tag`, `clanName`, `trackedClanId`, `players`) et `focus` (`teamId`, `clanId`, `tag`, `clanName`) ; `placement` et `members` sont ceux de l'équipe mise en avant.
+- **Classement des équipes** : `teamPlacement` de la télémétrie (toutes les équipes pour les matchs analysés après le 2026-09-16, voir [Parser](../telemetry/parser.md)), sinon `SquadMember.placement` des membres suivis (API PUBG), sinon estimation d'après l'ordre des éliminations (`placementEstimated: true`).
+
+### Détail — `GET /api/tournaments/[tournamentId]/matches/[matchId]/telemetry`
+
+Même payload que la route clan, sans restriction de clan, plus `data.tournament` : `{ id, title, status, roundNumber, totalRounds, scores[] }` (`scores` = `computeTournamentRoundScores` + `tag`/`name` du clan). Sans `teamId`, l'équipe la mieux classée de la manche est mise en avant.
+
+- **Accès (décision du 2026-09-16)** : tout utilisateur connecté, quel que soit son clan. `401` sans session ; `404` (`TOURNAMENT_ROUND_NOT_FOUND`) si le match n'est pas une manche du tournoi (`loadTournamentRoundContext`, `src/lib/tournament-service.ts`).
+- **Pourquoi la session est vérifiée dans la route** : le proxy (`src/proxy.ts`) exclut `/api` de son `matcher` — il ne redirige que les pages. Toute route API qui ne vérifie pas elle-même la session est lisible sans compte (cas de `/api/tournaments` et `/standings` jusqu'au 2026-09-16).
 
 ---
 

@@ -242,6 +242,8 @@ export function parseStoredPositionSnapshot(row: Record<keyof StoredPositionSnap
 export async function backfillPositionMetricCells(input: {
   clanId?: number
   limit?: number
+  /** Ne traite que les matchs sans aucune cellule (rattrapage des synchronisations qui ne les écrivaient pas). */
+  missingOnly?: boolean
   client?: PrismaClient
 } = {}) {
   const client = input.client ?? prisma
@@ -269,6 +271,9 @@ export async function backfillPositionMetricCells(input: {
         t.damageSamples IS NOT NULL
       )
       ${clanFilter}
+      ${input.missingOnly
+        ? Prisma.sql`AND NOT EXISTS (SELECT 1 FROM PositionMetricCell c WHERE c.squadMatchId = t.squadMatchId)`
+        : Prisma.empty}
     ORDER BY sm.createdAt ASC
     LIMIT ${limit}
   `)

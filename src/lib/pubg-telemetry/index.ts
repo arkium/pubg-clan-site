@@ -13,6 +13,8 @@ import { prisma } from '@/lib/prisma'
 import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistence'
 import { persistKillEventsForMatch } from '@/lib/kill-event-persistence'
 import { persistThrowableStatsForMatch } from '@/lib/throwable-persistence'
+import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
+import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type SyncTelemetryForSquadMatchInput = {
   squadMatchId: string
@@ -187,10 +189,17 @@ export async function syncTelemetryForSquadMatch(
       bytes: downloaded.contentLength ?? undefined,
     })
 
+    // Sans ces clés, le parser ne calcule ni zones de tirs ni zones de dégâts (vides d'août à septembre 2026).
+    const trackedMembers = await prisma.squadMember.findMany({
+      where: { squadMatchId: input.squadMatchId },
+      select: { member: { select: { pubgAccountId: true, pubgPlayerName: true } } },
+    })
+
     const parseStartedAt = Date.now()
     const { snapshot: parsed, bytesRead } = await parseTelemetrySnapshotFromStream(
       downloaded.stream,
-      input.maxAssetSizeBytes
+      input.maxAssetSizeBytes,
+      { clanMemberKeys: buildClanMemberKeys(trackedMembers.map((entry) => entry.member)) }
     )
     parseMs = Date.now() - parseStartedAt
     logTelemetryStep({
@@ -276,6 +285,7 @@ export async function syncTelemetryForSquadMatch(
     await persistDropPressureStatsForMatch(input.squadMatchId, parsed.landingSamples)
     await persistKillEventsForMatch(input.squadMatchId, parsed.killFeedSamples)
     await persistThrowableStatsForMatch(input.squadMatchId, parsed.throwableSamples)
+    await persistPositionMetricCellsForMatch(input.squadMatchId, parsed)
 
     logTelemetryStep({
       step: 'complete',

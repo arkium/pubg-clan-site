@@ -20,6 +20,7 @@ import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistenc
 import { persistKillEventsForMatch } from '@/lib/kill-event-persistence'
 import { persistThrowableStatsForMatch } from '@/lib/throwable-persistence'
 import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
+import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type ManualTelemetrySyncItemResult = {
   squadMatchId: string
@@ -186,19 +187,8 @@ export async function syncTelemetryForSquadMatchFromStream(
   }
 
   try {
-    const resolvedClanMemberKeys: Set<string> | undefined = (() => {
-      if (input.clanMemberKeys) return input.clanMemberKeys
-      const keys = new Set<string>()
-      for (const entry of match.members) {
-        if (entry.member.pubgAccountId) {
-          keys.add(entry.member.pubgAccountId.toLowerCase())
-        }
-        if (entry.member.pubgPlayerName) {
-          keys.add(entry.member.pubgPlayerName.toLowerCase())
-        }
-      }
-      return keys.size > 0 ? keys : undefined
-    })()
+    const resolvedClanMemberKeys =
+      input.clanMemberKeys ?? buildClanMemberKeys(match.members.map((entry) => entry.member))
 
     const { snapshot: parsedRaw, bytesRead } = await parseTelemetrySnapshotFromStream(
       input.stream,
@@ -574,20 +564,10 @@ export async function syncTelemetryForSelectedSquadMatches(
         }
       }
 
-      const clanMemberKeys = new Set<string>()
-      for (const entry of match.members) {
-        if (entry.member.pubgAccountId) {
-          clanMemberKeys.add(entry.member.pubgAccountId.toLowerCase())
-        }
-        if (entry.member.pubgPlayerName) {
-          clanMemberKeys.add(entry.member.pubgPlayerName.toLowerCase())
-        }
-      }
-
       const { snapshot: parsed, bytesRead } = await parseTelemetrySnapshotFromStream(
         streamForParsing,
         maxAssetSizeBytes,
-        { clanMemberKeys: clanMemberKeys.size > 0 ? clanMemberKeys : undefined }
+        { clanMemberKeys: buildClanMemberKeys(match.members.map((entry) => entry.member)) }
       )
 
       const successBasePayload = buildTelemetrySuccessBasePayload({
@@ -649,6 +629,7 @@ export async function syncTelemetryForSelectedSquadMatches(
       await persistDropPressureStatsForMatch(match.id, parsed.landingSamples)
       await persistKillEventsForMatch(match.id, parsed.killFeedSamples)
       await persistThrowableStatsForMatch(match.id, parsed.throwableSamples)
+      await persistPositionMetricCellsForMatch(match.id, parsed)
 
       results.push({
         squadMatchId: match.id,

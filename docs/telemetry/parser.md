@@ -104,8 +104,26 @@ Effets :
 > kilomètres de l'appareil. Toute reconstitution de trajectoire doit les écarter et s'ancrer sur les sauts hors de
 > l'avion. Voir [Trajectoires replay](replay-trajectories.md).
 >
-> À noter aussi : ces échantillons couvrent **tout le lobby**, pas seulement le clan suivi, car `clanMemberKeys` est
-> vide sur le chemin de synchronisation principal.
+> À noter aussi : ces échantillons couvrent **tout le lobby**, pas seulement le clan suivi — comme les véhicules, kills,
+> knocks et réanimations. Le Replay 2D, les sauts et les avions de rappel en dépendent.
+
+### Option `clanMemberKeys` — zones de tirs et de dégâts uniquement
+
+Depuis le 2026-09-16, `clanMemberKeys` (comptes et pseudos des membres suivis du match, construits par
+`buildClanMemberKeys` dans `clan-member-keys.ts`) ne sert **qu'à** calculer `shotSamples` et `damageSamples` pour ces
+joueurs ; sans clés, ces deux colonnes restent vides. Les trois chemins de synchronisation la fournissent.
+
+Avant cette date, la même option **filtrait aussi** positions, véhicules, kills, knocks et réanimations sur le seul clan.
+Conséquences constatées en production :
+
+| Chemin | Clés fournies | Effet avant correction |
+|---|---|---|
+| `syncTelemetryForSquadMatch` (stream, cron et worker) | non | lobby complet, mais **aucune zone de tirs ni de dégâts** (0 match sur 7 282 en août 2026) |
+| `syncTelemetryForSelectedSquadMatches` (« Resync ce match ») | oui | zones présentes, mais **lobby réduit aux membres suivis** : replay sans adversaires, sans sauts ni avions |
+| `syncTelemetryForSquadMatchFromStream` (fichier local, tests d'avant le stream) | oui | idem |
+
+Les deux chemins de stream n'écrivaient pas non plus `PositionMetricCell` (aucune cellule après le 31/07/2026). Rattrapage :
+`npm run telemetry:position-metrics:backfill -- --missing-only`.
 
 ### 6. LogGameStatePeriodically
 

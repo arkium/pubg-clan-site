@@ -16,8 +16,9 @@ function readPositiveInteger(flag: string) {
 async function main() {
   const clanId = readPositiveInteger('--clan')
   const limit = readPositiveInteger('--limit')
-  const result = await backfillPositionMetricCells({ clanId, limit })
-  console.info('[PositionMetricBackfill]', { clanId: clanId ?? 'all', ...result })
+  const missingOnly = process.argv.includes('--missing-only')
+  const result = await backfillPositionMetricCells({ clanId, limit, missingOnly })
+  console.info('[PositionMetricBackfill]', { clanId: clanId ?? 'all', missingOnly, ...result })
 }
 
 main()

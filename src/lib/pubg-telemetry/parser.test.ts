@@ -755,3 +755,68 @@ describe('parseTelemetrySnapshot — caisses de largage', () => {
     expect(parseTelemetrySnapshot(telemetrySample).carePackageSamples).toEqual([])
   })
 })
+
+describe('clanMemberKeys — zones de dégâts sans filtrer le lobby', () => {
+  // Un membre suivi (member_a) et un adversaire (opponent_b) : positions, sortie d'avion, knock, dégâts croisés.
+  const lobbyEvents = [
+    { _T: 'LogPlayerPosition', elapsedTime: 5, character: { accountId: 'member_a', teamId: 1, location: { x: 100, y: 200 } } },
+    { _T: 'LogPlayerPosition', elapsedTime: 5, character: { accountId: 'opponent_b', teamId: 2, location: { x: 300, y: 400 } } },
+    {
+      _T: 'LogVehicleLeave',
+      character: { accountId: 'opponent_b', teamId: 2, location: { x: 310, y: 410 } },
+      vehicle: { vehicleType: 'TransportAircraft' },
+    },
+    {
+      _T: 'LogPlayerMakeGroggy',
+      attacker: { accountId: 'opponent_b', teamId: 2, location: { x: 300, y: 400 } },
+      victim: { accountId: 'member_a', teamId: 1, location: { x: 100, y: 200 } },
+    },
+    {
+      _T: 'LogPlayerTakeDamage',
+      attacker: { accountId: 'member_a', teamId: 1, location: { x: 100, y: 200 } },
+      victim: { accountId: 'opponent_b', teamId: 2, location: { x: 300, y: 400 } },
+      damage: 30,
+      damageCauserName: 'WeapM416_C',
+    },
+    {
+      _T: 'LogPlayerTakeDamage',
+      attacker: { accountId: 'opponent_b', teamId: 2, location: { x: 300, y: 400 } },
+      victim: { accountId: 'member_a', teamId: 1, location: { x: 100, y: 200 } },
+      damage: 25,
+      damageCauserName: 'WeapAK47_C',
+    },
+  ]
+
+  async function parse(clanMemberKeys?: Set<string>) {
+    const stream = createTelemetryStreamFromChunks([JSON.stringify(lobbyEvents)])
+    const { snapshot } = await parseTelemetrySnapshotFromStream(stream, 1024 * 1024, { clanMemberKeys })
+    return snapshot
+  }
+
+  it('garde tout le lobby quand les clés du clan sont fournies (régression « Resync ce match »)', async () => {
+    const snapshot = await parse(new Set(['member_a']))
+
+    expect(new Set(snapshot.positionSamples.map((sample) => sample.memberKey))).toEqual(new Set(['member_a', 'opponent_b']))
+    expect(snapshot.vehicleSamples.map((sample) => sample.memberKey)).toEqual(['opponent_b'])
+    expect(snapshot.knockoutSamples.map((sample) => `${sample.memberKey}:${sample.role}`).sort()).toEqual([
+      'member_a:victim',
+      'opponent_b:knocker',
+    ])
+  })
+
+  it('ne calcule les zones de dégâts que pour les membres suivis', async () => {
+    const snapshot = await parse(new Set(['member_a']))
+
+    expect(snapshot.damageSamples.map((sample) => `${sample.memberKey}:${sample.role}`).sort()).toEqual([
+      'member_a:attacker',
+      'member_a:victim',
+    ])
+  })
+
+  it('sans clés : lobby complet mais aucune zone de dégâts (cause des colonnes vides d’août 2026)', async () => {
+    const snapshot = await parse()
+
+    expect(new Set(snapshot.positionSamples.map((sample) => sample.memberKey)).size).toBe(2)
+    expect(snapshot.damageSamples).toEqual([])
+  })
+})

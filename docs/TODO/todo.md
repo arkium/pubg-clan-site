@@ -1577,7 +1577,7 @@ Cette tâche visait à transformer la page `Overview` en un véritable dashboard
 - [x] Vérifier quels matchs en DB ont `parserVersion = 'v1'`
 - [x] Lancer le backfill depuis les fichiers `.telemetry-captured/` encore présents
 - [x] Vérifier après exécution que `MemberWeaponStats` est complet
-- [ ] Supprimer les fichiers capturés obsolètes une fois le backfill terminé
+- [ ] ~~Supprimer les fichiers capturés obsolètes une fois le backfill terminé~~ — **à ne pas faire** (requalifié le 2026-09-16) : ces captures sont les seules copies de la télémétrie au-delà des 14 jours du CDN PUBG, et servent à re-parser les nouvelles colonnes (voir P2 « Auto-cleanup cron »). Elles n'existent que sur le poste de développement.
 
 **Référence :** `docs/telemetry/ops.md` — section Backfill v1 → v2
 
@@ -1751,6 +1751,32 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 - [x] Couvrir les métriques `position`, `rotation`, `kill`, `shot`, `damage_dealt`, `damage_taken`, `knockout_dealt`, `knockout_taken`, `revive_given`, `revive_received`, `vehicle` et `death`
 - [x] Pondérer correctement les tirs et dégâts avec leur champ `count`
 - [ ] Alimenter les cellules dans la même transaction que la persistance télémétrique du match
+- [x] 🐞 **Corrigé dans le code le 2026-09-16 — deux défauts de synchronisation, trouvés en analysant le todo.**
+  1. **Plus aucune cellule écrite depuis le 31/07.** `persistPositionMetricCellsForMatch` n'était appelée que par
+     `syncTelemetryForSquadMatchFromStream` — malgré son nom, le **chemin fichier local** (import, resync depuis
+     `.telemetry-captured`), qui servait aux tests avant le stream et n'est pas utilisé en production. Les deux chemins
+     de stream ne l'appelaient pas : `syncTelemetryForSquadMatch` (cron `job.ts`, worker) et
+     `syncTelemetryForSelectedSquadMatches` (« Resync ce match »). Mesuré : 2026-07 → 690 matchs sur 977 ; **2026-08 → 0
+     sur 7 282 ; 2026-09 → 0 sur 5 577**. Effet sur `/clans/[clanId]/stats/positions` : dès qu'une cellule existe sur la
+     période (`hasPersistedData`), le repli JSON est coupé → une période qui englobe juillet n'affichait **que les
+     anciens matchs**, sans avertissement.
+  2. **`clanMemberKeys` avait deux rôles opposés dans le parser.** Sans clés (sync automatique) : lobby complet mais
+     **aucune zone de tirs ni de dégâts** (`damageSamples` vide sur 7 282 matchs d'août). Avec clés (« Resync ce match »,
+     fichier local) : zones présentes mais **positions, véhicules, kills, knocks et réanimations réduits aux membres
+     suivis** — le replay perd adversaires, sauts et avions. Constaté sur `cmu1k4in8auof0493sog1dm50` (resync du 14/09 à
+     20:10) : 2 joueurs au lieu de 98 à 100.
+  - Correctif : le parser garde **toujours** tout le lobby ; les clés ne servent plus qu'aux zones de tirs et de dégâts
+    et sont fournies par les trois chemins (`buildClanMemberKeys`, `clan-member-keys.ts`) ; cellules écrites sur les deux
+    chemins de stream. Tests : 3 dans `parser.test.ts`, 2 dans `clan-member-keys.test.ts`. Doc : `docs/telemetry/parser.md`.
+- [ ] **Déployer ce correctif avant toute resynchronisation** — d'ici là, « Resync ce match » continue de réduire le lobby.
+- [ ] **Resynchroniser les matchs de moins de 14 jours** après déploiement : restaure le lobby de
+  `cmu1k4in8auof0493sog1dm50` (seul match récent touché) et remplit zones de tirs/dégâts, `killFeedSamples`,
+  `carePackageSamples` et zones d'impact.
+- [ ] **Rattraper les cellules** : `npm run telemetry:position-metrics:backfill -- --missing-only` (option ajoutée le
+  2026-09-16) → **13 156 matchs** au 2026-09-16, la nuit (la seule sélection prend ~70 s sur la base de production).
+  Limites : sans resync, ces matchs n'auront ni tirs ni dégâts (colonnes vides à la source) ; la purge de géolocalisation
+  a vidé les positions des matchs de plus de 14 jours (464 / 7 282 en août) → `position`/`rotation` absentes pour eux,
+  kills, knocks, réanimations, morts et véhicules intacts.
 - [x] Supprimer puis recréer uniquement les cellules du match traité afin de garantir l'idempotence
 - [x] Ajouter des tests unitaires pour la grille, les phases, les rôles et les poids, puis valider le remplacement idempotent sur la base
 

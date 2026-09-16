@@ -95,11 +95,9 @@ export type TelemetryKillSample = {
   y: number
 }
 
-// Raw killer/victim pair for every LogPlayerKill event in the match — unfiltered
-// (unlike killSamples/deathSamples, which only track clan members' own
-// positions). Relevance to a tracked clan is resolved later, at persistence
-// time, by matching killerKey/victimKey against the full clan roster — not
-// here, since clanMemberKeys is usually empty on the main sync path.
+// Raw killer/victim pair for every LogPlayerKill event in the match — unfiltered,
+// like every lobby-wide sample. Relevance to a tracked clan is resolved later, at
+// persistence time, by matching killerKey/victimKey against the full clan roster.
 export type TelemetryKillFeedSample = {
   killerKey: string | null
   victimKey: string | null
@@ -239,6 +237,11 @@ type TelemetryAccumulator = {
   landingSamples: TelemetryPositionSample[]
   phaseSnapshots: TelemetryPhaseSnapshot[]
   minPositionSampleIntervalSeconds: number
+  /**
+   * Joueurs suivis dont on calcule les zones de tirs et de dégâts (`shotSamples`, `damageSamples`) :
+   * vide = aucune zone. Ne filtre **rien d'autre** — positions, véhicules, kills, knocks et réanimations
+   * couvrent toujours le lobby entier, dont le Replay 2D et la reconstitution des avions ont besoin.
+   */
   clanMemberKeys: Set<string>
   shotClusterRadiusUnits: number
   damageClusterRadiusUnits: number
@@ -1006,20 +1009,15 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         killerStats.firstKillPhase = Math.max(1, accumulator.currentPhase)
       }
 
-      const isClanKiller =
-        accumulator.clanMemberKeys.size === 0 ||
-        accumulator.clanMemberKeys.has(killerKey.toLowerCase())
-      if (isClanKiller) {
-        const killerLocation = getKillerLocation(event)
-        if (killerLocation) {
-          accumulator.killSamples.push({
-            memberKey: killerKey,
-            phase: samplePhase,
-            timestampSeconds,
-            x: killerLocation.x,
-            y: killerLocation.y,
-          })
-        }
+      const killerLocation = getKillerLocation(event)
+      if (killerLocation) {
+        accumulator.killSamples.push({
+          memberKey: killerKey,
+          phase: samplePhase,
+          timestampSeconds,
+          x: killerLocation.x,
+          y: killerLocation.y,
+        })
       }
     }
     if (victimKey) {
@@ -1110,39 +1108,29 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         accumulator.teamPlacements
       ).revives += 1
 
-      const isClanReviver =
-        accumulator.clanMemberKeys.size === 0 ||
-        accumulator.clanMemberKeys.has(reviveKey.toLowerCase())
-      if (isClanReviver) {
-        const reviverLocation = getReviverLocation(event)
-        if (reviverLocation) {
-          accumulator.reviveSamples.push({
-            memberKey: reviveKey,
-            role: 'reviver',
-            phase: samplePhase,
-            timestampSeconds,
-            x: reviverLocation.x,
-            y: reviverLocation.y,
-          })
-        }
+      const reviverLocation = getReviverLocation(event)
+      if (reviverLocation) {
+        accumulator.reviveSamples.push({
+          memberKey: reviveKey,
+          role: 'reviver',
+          phase: samplePhase,
+          timestampSeconds,
+          x: reviverLocation.x,
+          y: reviverLocation.y,
+        })
       }
     }
     if (victimKey) {
-      const isClanRevived =
-        accumulator.clanMemberKeys.size === 0 ||
-        accumulator.clanMemberKeys.has(victimKey.toLowerCase())
-      if (isClanRevived) {
-        const revivedLocation = getVictimLocation(event)
-        if (revivedLocation) {
-          accumulator.reviveSamples.push({
-            memberKey: victimKey,
-            role: 'revived',
-            phase: samplePhase,
-            timestampSeconds,
-            x: revivedLocation.x,
-            y: revivedLocation.y,
-          })
-        }
+      const revivedLocation = getVictimLocation(event)
+      if (revivedLocation) {
+        accumulator.reviveSamples.push({
+          memberKey: victimKey,
+          role: 'revived',
+          phase: samplePhase,
+          timestampSeconds,
+          x: revivedLocation.x,
+          y: revivedLocation.y,
+        })
       }
     }
     return
@@ -1170,39 +1158,29 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
         accumulator.teamPlacements
       ).knockouts += 1
 
-      const isClanKnocker =
-        accumulator.clanMemberKeys.size === 0 ||
-        accumulator.clanMemberKeys.has(killerKey.toLowerCase())
-      if (isClanKnocker) {
-        const knockerLocation = getKillerLocation(event)
-        if (knockerLocation) {
-          accumulator.knockoutSamples.push({
-            memberKey: killerKey,
-            role: 'knocker',
-            phase: samplePhase,
-            timestampSeconds,
-            x: knockerLocation.x,
-            y: knockerLocation.y,
-          })
-        }
+      const knockerLocation = getKillerLocation(event)
+      if (knockerLocation) {
+        accumulator.knockoutSamples.push({
+          memberKey: killerKey,
+          role: 'knocker',
+          phase: samplePhase,
+          timestampSeconds,
+          x: knockerLocation.x,
+          y: knockerLocation.y,
+        })
       }
     }
     if (victimKey) {
-      const isClanVictim =
-        accumulator.clanMemberKeys.size === 0 ||
-        accumulator.clanMemberKeys.has(victimKey.toLowerCase())
-      if (isClanVictim) {
-        const victimLocation = getVictimLocation(event)
-        if (victimLocation) {
-          accumulator.knockoutSamples.push({
-            memberKey: victimKey,
-            role: 'victim',
-            phase: samplePhase,
-            timestampSeconds,
-            x: victimLocation.x,
-            y: victimLocation.y,
-          })
-        }
+      const victimLocation = getVictimLocation(event)
+      if (victimLocation) {
+        accumulator.knockoutSamples.push({
+          memberKey: victimKey,
+          role: 'victim',
+          phase: samplePhase,
+          timestampSeconds,
+          x: victimLocation.x,
+          y: victimLocation.y,
+        })
       }
     }
     return
@@ -1482,22 +1460,17 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
       }
 
       if (eventType !== 'LogVehicleDestroy') {
-        const isClanActor =
-          accumulator.clanMemberKeys.size === 0 ||
-          accumulator.clanMemberKeys.has(actorKey.toLowerCase())
-        if (isClanActor) {
-          const vehicleLocation = getCharacterLocation(event)
-          if (vehicleLocation) {
-            accumulator.vehicleSamples.push({
-              memberKey: actorKey,
-              action: eventType === 'LogVehicleRide' ? 'ride' : 'leave',
-              vehicleType: getVehicleType(event),
-              phase: samplePhase,
-              timestampSeconds,
-              x: vehicleLocation.x,
-              y: vehicleLocation.y,
-            })
-          }
+        const vehicleLocation = getCharacterLocation(event)
+        if (vehicleLocation) {
+          accumulator.vehicleSamples.push({
+            memberKey: actorKey,
+            action: eventType === 'LogVehicleRide' ? 'ride' : 'leave',
+            vehicleType: getVehicleType(event),
+            phase: samplePhase,
+            timestampSeconds,
+            x: vehicleLocation.x,
+            y: vehicleLocation.y,
+          })
         }
       }
     }
@@ -1574,16 +1547,11 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
           ? movementContext.inVehicle
           : previous?.inVehicle ?? false
 
-        const isPositionClanMember =
-          accumulator.clanMemberKeys.size === 0 ||
-          accumulator.clanMemberKeys.has(actorKey.toLowerCase())
-
         const shouldSamplePosition =
-          isPositionClanMember &&
-          (tracking.lastSampleTimestampSeconds === null ||
+          tracking.lastSampleTimestampSeconds === null ||
           (typeof timestampSeconds === 'number' &&
             Number.isFinite(timestampSeconds) &&
-            timestampSeconds >= tracking.lastSampleTimestampSeconds + accumulator.minPositionSampleIntervalSeconds))
+            timestampSeconds >= tracking.lastSampleTimestampSeconds + accumulator.minPositionSampleIntervalSeconds)
 
         if (shouldSamplePosition) {
           accumulator.positionSamples.push({

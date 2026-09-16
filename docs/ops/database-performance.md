@@ -30,7 +30,7 @@ Ce document consigne l'état **mesuré** de la base MariaDB de production, les d
 | `PositionMetricCell` | 161 553 | 24 Mo | 73 Mo | 3,0 |
 
 `SafeZonePhaseStat` (2026-09-16) évite de relire la colonne JSON `phaseSnapshots` pour le cercle moyen de la page
-Positions : ~8 lignes par match (~115 000 lignes attendues une fois rattrapée), cercle moyen du clan 1 sur Erangel
+Positions : ~8 lignes par match (113 602 lignes pour 14 485 matchs après le rattrapage du 2026-09-16), cercle moyen du clan 1 sur Erangel
 mesuré à 70–120 ms contre 340–670 ms en lecture JSON.
 
 ### Requêtes vérifiées avec `EXPLAIN`

@@ -85,13 +85,19 @@ Vue d'ensemble ; le détail vit dans les sections citées.
 
 1. [x] Corriger l'enregistrement des cellules de positions et le filtrage du lobby par le parser — code prêt
    (« Modèle et alimentation », section Positions clan).
-2. [ ] **Déployer** — conditionne tout le reste : la production tourne avec du code d'avant le 13/09, et « Resync ce
-   match » y réduit le lobby.
-3. [ ] **Resynchroniser les matchs de moins de 14 jours** (urgent : chaque jour, des matchs sortent de la fenêtre du CDN)
-   via « Resync ce match » ou la resynchronisation d'une soirée — `telemetry:batch` ne re-parse pas les matchs déjà
-   analysés. Puis rattraper les cellules (`--missing-only`, ~13 000 matchs, ~1 Go : décision de stockage).
-   Dans la foulée du déploiement : `npx tsx scripts/recompute-drop-pressure-levels.ts --yes` (15 848 niveaux de
-   pression à recalculer) et `npm run telemetry:safe-zones:backfill` (~12 300 matchs, ~30 s ; clan 1 déjà fait).
+2. [x] **Déployer** — ✅ constaté le 2026-09-16 : les parsings de production de 19:57 UTC écrivent `PositionMetricCell`
+   et `SafeZonePhaseStat`, ce que l'ancien code ne faisait sur aucun chemin de stream.
+3. [ ] **Resynchroniser les matchs de moins de 14 jours** (urgent : chaque jour, des matchs sortent de la fenêtre du CDN).
+   Aucun chemin existant ne convient à ce volume (4 999 matchs au 2026-09-16, 21 clans) : le cron et « Synchroniser
+   les matchs » (`/settings/cron`) ne reprennent que les matchs sans télémétrie réussie, `telemetry:batch` relit des
+   fichiers capturés que le serveur n'a pas, et le « Direct Sync » d'une soirée plafonne à 50 matchs par clic.
+   → `scripts/enqueue-recent-telemetry-resync.ts` : simulation par défaut, `--yes` met en file `telemetry_live_sync`
+   du plus ancien au plus récent (~9 h de worker, ~343 Mo de cellules), `--report` pour l'avancement. Un échec
+   (télémétrie expirée) repasse un match en `failed` sans effacer ses données : `--restore-downgraded --since <lancement>`.
+   Les nouveaux matchs de la soirée attendent derrière la file. La resynchronisation écrit les cellules de ces matchs ;
+   restent les plus anciens (`telemetry:position-metrics:backfill -- --missing-only`, décision de stockage).
+   ✅ Faits sur le serveur le 2026-09-16 : recalcul des niveaux de pression au drop (15 873 lignes) et rattrapage des
+   zones sûres (12 357 matchs, 96 992 lignes, 36 s).
 4. [x] Débriefing : bascule des liens, redirections, Mode contextuel Tournoi — code prêt (VOLET 4) ; [ ] recette navigateur.
 5. [~] Positions et zones de drop (section « Positions clan » et « Drop zones — Pression au drop ») — 2026-09-16 :
    route Positions hybride, pression au drop sur les adversaires, zones sûres persistées (`SafeZonePhaseStat`) — code
@@ -1904,8 +1910,9 @@ Malgré la migration vers `PositionMetricCell`, `GET /api/clans/[clanId]/telemet
   - [x] Validation (`scripts/compare-safe-zone-overlay.ts`, clan 1, Erangel) : écart **0** sur les trois plages,
     juillet et année entière ; cercle moyen **340–670 ms → 70–120 ms**.
   - [x] Rattrapage du clan 1 : 2 128 matchs, 16 610 lignes, 4,6 s (`npm run telemetry:safe-zones:backfill -- --clan 1`).
-  - [ ] Rattrapage des autres clans **après déploiement** (~12 300 matchs) : `npm run telemetry:safe-zones:backfill`.
-    Avant, la production n'écrit pas encore la table ; les matchs non couverts restent lus depuis le JSON.
+  - [x] Rattrapage de tous les clans — ✅ 2026-09-16 sur le serveur : 12 357 matchs, 96 992 lignes, 36 s. Contrôle
+    en base : 14 485 matchs couverts (113 602 lignes, dont 51 marqueurs sans zone), **0** match `success` sans ligne ;
+    les nouveaux parsings écrivent la table. Le relais JSON de la route ne sert plus qu'en cas d'écriture manquée.
 - [x] Mesures du 2026-09-16 (base de production, hors HTTP) : télémétrie brute d'Erangel, clan 1 — juillet (243 matchs)
   **8,4 s → 1,2 s** avec la lecture en deux étapes ; septembre (151 matchs sans cellules) **9 s → 3,4–4,7 s**. Cellules
   persistées : 0,65 s pour les 243 matchs de juillet — le rattrapage des cellules reste le vrai levier.
@@ -1981,9 +1988,9 @@ La première phase valide le principe à partir des `landingSamples` déjà stoc
   `dropPressureCount` (`nearbyOpponentCount ?? nearbyPlayerCount`) alimente `dropPressureLevel`, la persistance, les
   deux routes `drop-zones` (points : `nearbyOpponentCount250m`) et les moyennes / maximums de `summarizeDropPressure`.
   Infobulle « 1 adversaire à moins de 250 m (4 joueurs) », légende « coéquipiers exclus ». Tests : +2.
-  - [ ] **Après déploiement** : `npx tsx scripts/recompute-drop-pressure-levels.ts --yes` — simulation du 2026-09-16 :
-    15 848 lignes changent ; Calme 15,4 % → 44,2 %, Contesté 52,8 % → 35,9 %, Hot 26,3 % → 17,1 %, Très chaud
-    5,5 % → 2,9 %. Lancé avant, les synchronisations de la production réécriraient l'ancien niveau.
+  - [x] Recalcul des niveaux stockés — ✅ 2026-09-16 sur le serveur (`recompute-drop-pressure-levels.ts --yes`) :
+    15 873 lignes sur 36 784 ; Calme 15,4 % → 44,2 %, Contesté 52,8 % → 35,9 %, Hot 26,3 % → 17,0 %, Très chaud
+    5,5 % → 2,9 %. Contrôle en base : **0** ligne dont le niveau diffère du calcul sur les adversaires.
 - [ ] Vérifier les rendus desktop/mobile et les thèmes clair/sombre sur les deux pages
 
 ### Drop zones — Changement de carte au swipe (mobile)

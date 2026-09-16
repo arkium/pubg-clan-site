@@ -74,9 +74,8 @@ Le marqueur unique remplace l'ancien point et son remplissage indique le niveau,
 > **Pourquoi les adversaires (décision du 2026-09-16)** : sur 36 516 drops réels, compter tous les joueurs incluait
 > les coéquipiers (2,0 à 2,7 par drop, une escouade atterrit groupée) et ne laissait que 15,5 % de drops « Calme »
 > (9,9 % en escouade de 4). Sur les adversaires seuls, avec les mêmes seuils : Calme 44,2 %, Contesté 35,9 %, Hot
-> 17,1 %, Très chaud 2,9 %. Les niveaux déjà stockés se recalculent avec
-> `npx tsx scripts/recompute-drop-pressure-levels.ts` (simulation, puis `--yes` pour écrire) — à lancer après le
-> déploiement du code, sinon les synchronisations réécrivent l'ancien niveau.
+> 17,0 %, Très chaud 2,9 %. Les niveaux déjà stockés ont été recalculés en production le 2026-09-16 (15 873 lignes)
+> avec `npx tsx scripts/recompute-drop-pressure-levels.ts --yes` ; sans `--yes`, le script ne fait qu'une simulation.
 
 Sur la page clan, le contour du marqueur conserve la couleur du membre. L'infobulle expose le membre, la ville, le nombre d'adversaires proches (et, entre parenthèses, de joueurs) et le niveau. Les indicateurs affichent la pression moyenne (en adversaires), le maximum et la part de hot drops selon la période et les filtres actifs. Le Top 5 des villes ajoute sa pression moyenne et son taux de hot drops.
 

@@ -177,6 +177,22 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Cartographie des événements de combat et d’équipe via télémétrie — API /telemetry/positions.',
   },
   {
+    navKey: 'clan.items',
+    section: 'clan-section',
+    label: 'Objets consommés',
+    hrefTemplate: '/clans/:clanId/stats/items',
+    defaultRole: 'none',
+    description: 'Soins, boosts, carburant et gadgets consommés par le clan — API /telemetry/item-use.',
+  },
+  {
+    navKey: 'clan.zone-closures',
+    section: 'clan-section',
+    label: 'Fin de zone',
+    hrefTemplate: '/clans/:clanId/stats/zone-closures',
+    defaultRole: 'none',
+    description: 'Densité des positions d’arrivée à chaque fermeture de cercle — API /telemetry/zone-closures.',
+  },
+  {
     navKey: 'clan.drop-zones',
     section: 'clan-section',
     label: 'Drop zones',
@@ -241,6 +257,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     hrefTemplate: '/members/:memberId/weapons',
     defaultRole: 'none',
     description: "Stats armes du joueur.",
+  },
+  {
+    navKey: 'member.items',
+    section: 'member-section',
+    label: 'Objets consommés',
+    hrefTemplate: '/members/:memberId/items',
+    defaultRole: 'none',
+    description: 'Soins, boosts, carburant et gadgets consommés par le membre — API /members/[id]/item-use.',
   },
   {
     navKey: 'member.nemesis',

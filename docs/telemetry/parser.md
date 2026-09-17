@@ -125,9 +125,20 @@ Conséquences constatées en production :
 Les deux chemins de stream n'écrivaient pas non plus `PositionMetricCell` (aucune cellule après le 31/07/2026). Rattrapage :
 `npm run telemetry:position-metrics:backfill -- --missing-only`.
 
-Après chaque parsing, les trois chemins écrivent aussi `SafeZonePhaseStat` depuis `phaseSnapshots` (zone sûre moyenne par
-phase entière, pour le cercle moyen de la page Positions — `src/lib/safe-zone-phase-stats.ts`). Rattrapage des matchs
-déjà analysés : `npm run telemetry:safe-zones:backfill`.
+Après chaque parsing, les trois chemins écrivent aussi :
+
+- `SafeZonePhaseStat` depuis `phaseSnapshots` (zone sûre moyenne par phase entière, pour le cercle moyen de la page
+  Positions — `src/lib/safe-zone-phase-stats.ts`). Rattrapage : `npm run telemetry:safe-zones:backfill`.
+- `ZoneClosurePosition` depuis `phaseSnapshots` + `positionSamples` + `deathSamples` (position d'arrivée de chaque
+  membre en vie à chaque fermeture de cercle — `src/lib/zone-closure-positions.ts`, voir
+  [Fin de zone](../features/fin-de-zone.md)). Rattrapage : `npm run telemetry:zone-closures:backfill`, limité aux
+  matchs qui ont encore leurs positions brutes.
+- `MemberItemUseStat` depuis `itemUseSamples` (soins, boosts, carburant, gadgets — `src/lib/item-use-persistence.ts`,
+  voir [Objets consommés](../features/objets-consommes.md)). Aucun rattrapage possible : les échantillons ne sont pas
+  stockés dans `SquadMatchTelemetry`, seuls les matchs analysés après le 2026-09-17 ont ce détail.
+
+Depuis le 2026-09-17, `boostsUsed` se calcule sur `item.subCategory === 'Boost'` et non plus sur une détection par
+sous-chaîne de l'`itemId` ; les valeurs déjà stockées gardent l'ancien calcul.
 
 ### 6. LogGameStatePeriodically
 

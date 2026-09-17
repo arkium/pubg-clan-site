@@ -18,6 +18,8 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import TeamPlayCompositionsCard from '@/components/member/TeamPlayCompositionsCard'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
+import CityInsightsPanel from '@/components/dashboard/CityInsightsPanel'
+import type { CityInsights } from '@/types/city-insights'
 import type {
   DashboardMatchSortDirection,
   DashboardMatchSortKey,
@@ -212,6 +214,9 @@ export default function DashboardPage() {
   const [selectedComparisonPeriod, setSelectedComparisonPeriod] =
     useState<TelemetryComparisonPeriod>('week')
   const [botKillCount, setBotKillCount] = useState<number | null>(null)
+  const [cityInsights, setCityInsights] = useState<CityInsights | null>(null)
+  const [cityInsightsLoading, setCityInsightsLoading] = useState(false)
+  const [cityInsightsError, setCityInsightsError] = useState('')
   const MATCH_LIMIT = 10
 
   const { data, loading, error } = usePlayerDashboard(memberId, period)
@@ -219,6 +224,40 @@ export default function DashboardPage() {
     data: matchData,
     loading: matchLoading,
   } = usePlayerMatches(memberId, matchPeriod, MATCH_LIMIT, matchOffset, matchSortKey, matchSortDir)
+
+  useEffect(() => {
+    if (!memberId) return
+    let cancelled = false
+
+    async function loadCityInsights() {
+      try {
+        setCityInsightsLoading(true)
+        setCityInsightsError('')
+        const response = await fetch(`/api/members/${memberId}/city-insights?period=${period}`, { cache: 'no-store' })
+        const payload = (await response.json()) as { insights?: CityInsights; error?: string }
+        if (cancelled) return
+        if (response.ok && payload.insights) {
+          setCityInsights(payload.insights)
+          return
+        }
+        setCityInsights(null)
+        setCityInsightsError(payload.error ?? 'Indicateurs de villes indisponibles.')
+      } catch {
+        if (!cancelled) {
+          setCityInsights(null)
+          setCityInsightsError('Indicateurs de villes indisponibles.')
+        }
+      } finally {
+        if (!cancelled) setCityInsightsLoading(false)
+      }
+    }
+
+    void loadCityInsights()
+
+    return () => {
+      cancelled = true
+    }
+  }, [memberId, period])
 
   useEffect(() => {
     if (!memberId) {
@@ -493,6 +532,15 @@ export default function DashboardPage() {
           ranking={dropPressureRanking}
           timeline={dropPressureTimeline}
           currentMemberId={memberId}
+        />
+
+        <CityInsightsPanel
+          insights={cityInsights}
+          loading={cityInsightsLoading}
+          error={cityInsightsError}
+          periodLabel={period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Tous'}
+          positionsHref={clanId ? `/clans/${clanId}/stats/positions` : undefined}
+          scope="member"
         />
 
         <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

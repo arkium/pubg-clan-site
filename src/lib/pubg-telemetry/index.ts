@@ -13,8 +13,10 @@ import { prisma } from '@/lib/prisma'
 import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistence'
 import { persistKillEventsForMatch } from '@/lib/kill-event-persistence'
 import { persistThrowableStatsForMatch } from '@/lib/throwable-persistence'
+import { persistItemUseStatsForMatch } from '@/lib/item-use-persistence'
 import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
 import { persistSafeZonePhaseStatsForMatch } from '@/lib/safe-zone-phase-stats'
+import { persistZoneClosurePositionsForMatch } from '@/lib/zone-closure-positions'
 import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type SyncTelemetryForSquadMatchInput = {
@@ -286,8 +288,10 @@ export async function syncTelemetryForSquadMatch(
     await persistDropPressureStatsForMatch(input.squadMatchId, parsed.landingSamples)
     await persistKillEventsForMatch(input.squadMatchId, parsed.killFeedSamples)
     await persistThrowableStatsForMatch(input.squadMatchId, parsed.throwableSamples)
+    await persistItemUseStatsForMatch(input.squadMatchId, parsed.itemUseSamples)
     await persistPositionMetricCellsForMatch(input.squadMatchId, parsed)
     await persistSafeZonePhaseStatsForMatch(input.squadMatchId, parsed.phaseSnapshots)
+    await persistZoneClosurePositionsForMatch(input.squadMatchId, parsed)
 
     logTelemetryStep({
       step: 'complete',

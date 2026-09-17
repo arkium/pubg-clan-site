@@ -38,6 +38,9 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Armes](features/weapons.md) | Stats armes télémétrie (MemberWeaponStats) + Weapon Mastery carrière (MemberWeaponMastery) |
 | [Season stats](features/season-stats.md) | Stats ranked/normal par saison, tier, cron daily, contrats GET/POST |
 | [Zones de drop](features/drop-zones.md) | LogParachuteLanding, grille 40×40, normalisation xPct/yPct, contrat API, limitation backfill |
+| [Objets consommés](features/objets-consommes.md) | Soins, boosts, carburant et gadgets réellement utilisés : source `LogItemUse`, table `MemberItemUseStat`, pages clan et membre |
+| [Fin de zone](features/fin-de-zone.md) | Positions d'arrivée à chaque fermeture de cercle : détection des fermetures, bandes centre/bord/hors zone, biais de survie, page et rattrapage |
+| [Villes et zones de combat](features/positions-villes.md) | Indicateurs de villes des tableaux de bord clan et membre : familles de métriques, rattachement des cellules aux villes, comparaison au clan, lien préfiltré, limite de données |
 
 ### Fonctionnalités sociales
 

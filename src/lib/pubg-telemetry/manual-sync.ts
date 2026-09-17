@@ -19,8 +19,10 @@ import { prisma } from '@/lib/prisma'
 import { persistDropPressureStatsForMatch } from '@/lib/drop-pressure-persistence'
 import { persistKillEventsForMatch } from '@/lib/kill-event-persistence'
 import { persistThrowableStatsForMatch } from '@/lib/throwable-persistence'
+import { persistItemUseStatsForMatch } from '@/lib/item-use-persistence'
 import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
 import { persistSafeZonePhaseStatsForMatch } from '@/lib/safe-zone-phase-stats'
+import { persistZoneClosurePositionsForMatch } from '@/lib/zone-closure-positions'
 import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type ManualTelemetrySyncItemResult = {
@@ -243,8 +245,10 @@ export async function syncTelemetryForSquadMatchFromStream(
     await persistDropPressureStatsForMatch(match.id, parsed.landingSamples)
     await persistKillEventsForMatch(match.id, parsed.killFeedSamples)
     await persistThrowableStatsForMatch(match.id, parsed.throwableSamples)
+    await persistItemUseStatsForMatch(match.id, parsed.itemUseSamples)
     await persistPositionMetricCellsForMatch(match.id, parsed)
     await persistSafeZonePhaseStatsForMatch(match.id, parsed.phaseSnapshots)
+    await persistZoneClosurePositionsForMatch(match.id, parsed)
 
     console.info('[TelemetrySync] persist-json-done', { squadMatchId: match.id })
 
@@ -631,8 +635,10 @@ export async function syncTelemetryForSelectedSquadMatches(
       await persistDropPressureStatsForMatch(match.id, parsed.landingSamples)
       await persistKillEventsForMatch(match.id, parsed.killFeedSamples)
       await persistThrowableStatsForMatch(match.id, parsed.throwableSamples)
+      await persistItemUseStatsForMatch(match.id, parsed.itemUseSamples)
       await persistPositionMetricCellsForMatch(match.id, parsed)
       await persistSafeZonePhaseStatsForMatch(match.id, parsed.phaseSnapshots)
+      await persistZoneClosurePositionsForMatch(match.id, parsed)
 
       results.push({
         squadMatchId: match.id,

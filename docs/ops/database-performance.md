@@ -236,6 +236,20 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
 - **Inventaire du 2026-09-15** : `/var/lib` 18 Go (MariaDB), **`/var/log` 11 Go**, `/home` 4,2 Go (application 1,6 Go), `/usr` 3,3 Go, `/root` 2,8 Go, `/swapfile` 4 Go. Récupérable sans perte de données : **`/var/log/proftpd/sftp.log` 7,4 Go** (jamais tourné, contrairement à `proftpd.log`), **journal systemd 3,3 Go**, **`/root/.npm` 2,5 Go** (cache).
 - **Nettoyage fait le 2026-09-15 : 11,7 Go libérés, disque à 68 % (16 Go libres).** `sftp.log` compressé en `sftp.log-20260915.gz` (548 Mio) puis vidé, règle `/etc/logrotate.d/proftpd-sftp` créée (hebdomadaire, 8 rotations, `copytruncate`) ; journal systemd plafonné par `/etc/systemd/journald.conf.d/90-size.conf` (`SystemMaxUse=1G`) ; cache `/root/.npm` vidé (résidu d'une commande manuelle : l'application appartient à `smk`). L'avertissement sur `OPTIMIZE TABLE SquadMatchTelemetry` reste valable : 14 Go à reconstruire pour 16 Go libres.
 - Observation hors site : `sftp.log` n'avait jamais tourné depuis le 26/01/2025 (74,8 M lignes). Contenu protocolaire normal, sans échec d'authentification, mais ~12 000 sessions sur les 200 000 dernières lignes, toutes d'un client « Go » (synchronisation ou sauvegarde automatisée probable) — à confirmer par l'hébergeur.
+- **Mesure du 2026-09-17 : 75 %, 13 Go libres** (36 Go utilisés sur 48). 3 Go consommés en deux jours : croissance
+  normale, resynchronisation des 4 989 matchs récents et cellules de positions (`PositionMetricCell` 97 → 639 Mo).
+  Base `pubg_clan_smk` 19,2 Go, dont `SquadMatchTelemetry` 16,1 Go pour 15 270 lignes (~1,06 Mo par ligne ; un
+  parsing du nouveau code écrit ~1,45 Mo de JSON, dont **94 % pour `positionSamples` + `trajectorySegments`**).
+- **Projection** : 367 matchs analysés par jour en moyenne sur 30 jours → **~0,4 à 0,55 Go par jour**, soit 12 à 16 Go
+  par mois. Au rythme actuel, le disque passe 90 % vers **début octobre** et se remplit vers la mi-octobre. Le rattrapage
+  des cellules des 8 172 matchs anciens (~800 Mo) ne pèse que deux jours de croissance ; la vraie question est la
+  **rétention du JSON brut**.
+- **Décision en attente — rétention** : `/settings/superuser/database` sait déjà vider `positionSamples` et
+  `trajectorySegments` au-delà de N jours (`UPDATE … SET NULL`, pages réutilisées par InnoDB sans reconstruction).
+  Ces colonnes servent au replay 2D, mais aussi au débriefing (`match-debrief-payload.ts`, `match-teams.ts`,
+  `squad-mates.ts`), à la page Positions pour les matchs sans cellules et au rattrapage des cellules : **rattraper les
+  cellules avant toute purge**, puis choisir la durée pendant laquelle replay et débriefing complets restent
+  disponibles. Ordre de grandeur : ~40 jours de matchs tiennent aujourd'hui dans 16 Go.
 - Hypothèse écartée : la production **n'a aucun répertoire `.telemetry-captured`** ; le doublon de 16,76 Go sous `.next/standalone` n'existait que sur le poste de développement (supprimé le 2026-09-15).
 
 ### 4.5 Exposition réseau

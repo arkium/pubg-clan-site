@@ -36,6 +36,7 @@ model Clan {
   cronExecutions            CronExecution[]
   clanConfigs               ClanConfig[]
   positionMetricCells       PositionMetricCell[]
+  zoneClosurePositions      ZoneClosurePosition[]
   encounteredPlayers        EncounteredPlayer[]
   killEvents                KillEvent[]
   awardsCache               ClanAwardsCache[]
@@ -77,9 +78,11 @@ model ClanMember {
   memberTelemetryStats      MemberTelemetryStats[]
   dropPressureStats         DropPressureStat[]
   positionMetricCells       PositionMetricCell[]
+  zoneClosurePositions      ZoneClosurePosition[]
   killEventsAsKiller        KillEvent[]                 @relation("KillEventKiller")
   killEventsAsVictim        KillEvent[]                 @relation("KillEventVictim")
   throwableStats            MemberThrowableStat[]
+  itemUseStats              MemberItemUseStat[]
   telemetrySynergyAsMemberA ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberA")
   telemetrySynergyAsMemberB ClanSynergyTelemetryStats[] @relation("TelemetrySynergyMemberB")
   notifications             Notification[]
@@ -673,6 +676,8 @@ model SquadMatch {
   dropPressureStats   DropPressureStat[]
   positionMetricCells PositionMetricCell[]
   safeZonePhaseStats  SafeZonePhaseStat[]
+  itemUseStats        MemberItemUseStat[]
+  zoneClosurePositions ZoneClosurePosition[]
   killEvents          KillEvent[]
   throwableStats      MemberThrowableStat[]
 
@@ -779,6 +784,41 @@ model SafeZonePhaseStat {
   @@map("SafeZonePhaseStat")
 }
 
+/// Position d'arrivée d'un membre à chaque fermeture de zone (dernier échantillon connu avant l'instant où `isGame`
+/// redevient entier). Une ligne par membre, match et fermeture ; les membres morts avant la fermeture n'en ont pas.
+/// Persistée au parsing pour survivre à la purge de `positionSamples`.
+model ZoneClosurePosition {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  clanId       Int
+  clan         Clan       @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  memberId     Int
+  member       ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  mapName   String
+  matchDate DateTime
+  /// Phase qui commence à la fermeture (2 à 9) : le cercle stable est celui de cette phase.
+  phase     Int
+
+  xIndex        Int
+  yIndex        Int
+  xPercent      Float
+  yPercent      Float
+  /// Distance au centre du nouveau cercle, divisée par son rayon : < 0,5 centre, <= 1 bord intérieur, > 1 hors zone.
+  distanceRatio Float
+  zoneBand      String
+  /// Joueurs encore en vie dans le lobby à cette fermeture (`numAlivePlayers`).
+  survivorCount Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([squadMatchId, memberId, phase])
+  @@index([clanId, matchDate, mapName, phase])
+  @@index([memberId, matchDate])
+  @@map("ZoneClosurePosition")
+}
+
 model DropPressureStat {
   id           String     @id @default(cuid())
   squadMatchId String
@@ -833,6 +873,30 @@ model PositionMetricCell {
 // Compteur de lancers (grenades, molotov, fumigènes, flashbangs...) par match
 // et par membre suivi, depuis LogPlayerUseThrowable. Remplacement idempotent
 // (delete+recreate) par squadMatchId, comme DropPressureStat/KillEvent.
+/// Objets consommés (`LogItemUse`, catégorie `Use`) par match et par membre suivi : soins, boosts, carburant,
+/// gadgets. Le détail par objet vient de `LogItemUse` et non de `LogHeal`, dont l'`itemId` est vide en production.
+/// Remplacement idempotent à chaque reparse du match.
+model MemberItemUseStat {
+  id           String     @id @default(cuid())
+  squadMatchId String
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  memberId     Int
+  member       ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  itemId      String
+  category    String
+  subCategory String
+  count       Int
+  matchDate   DateTime
+
+  createdAt DateTime @default(now())
+
+  @@unique([squadMatchId, memberId, itemId])
+  @@index([memberId, matchDate])
+  @@index([subCategory, matchDate])
+  @@map("MemberItemUseStat")
+}
+
 model MemberThrowableStat {
   id           String     @id @default(cuid())
   squadMatchId String

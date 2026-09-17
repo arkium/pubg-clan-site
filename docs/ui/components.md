@@ -454,6 +454,8 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 | `ProgressionChart` | `src/components/dashboard/ProgressionChart.tsx` | Graphe d'évolution d'une métrique |
 | `WeaponCategoryPeriodFilter` | `src/components/WeaponCategoryPeriodFilter.tsx` | Filtre période pour les stats armes par catégorie |
 | `MemberLifetimeStatsPanel` | `src/components/MemberLifetimeStatsPanel.tsx` | Panneau stats lifetime d'un membre |
+| `ItemUsePanel` | `src/components/telemetry/ItemUsePanel.tsx` | Objets consommés : indicateurs, répartition par famille, top objets (cartes mobile + tableau desktop, `ItemIcon`), classement des membres en portée clan. Prop `scope` = `clan` ou `member`. Voir [Objets consommés](../features/objets-consommes.md) |
+| `CityInsightsPanel` | `src/components/dashboard/CityInsightsPanel.tsx` | Villes et zones de combat : Top 5 commutable (présence, kills, dégâts, réanimations), ville favorite, évolution 8 semaines, lien préfiltré vers la page Positions. Props `scope` = `clan` ou `member` (ajoute la colonne de comparaison au clan). Voir [Villes et zones de combat](../features/positions-villes.md) |
 
 ---
 

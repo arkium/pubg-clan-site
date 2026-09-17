@@ -87,7 +87,16 @@ Vue d'ensemble ; le détail vit dans les sections citées.
    (« Modèle et alimentation », section Positions clan).
 2. [x] **Déployer** — ✅ constaté le 2026-09-16 : les parsings de production de 19:57 UTC écrivent `PositionMetricCell`
    et `SafeZonePhaseStat`, ce que l'ancien code ne faisait sur aucun chemin de stream.
-3. [ ] **Resynchroniser les matchs de moins de 14 jours** (urgent : chaque jour, des matchs sortent de la fenêtre du CDN).
+3. [x] **Resynchroniser les matchs de moins de 14 jours** — ✅ 4 989 matchs mis en file le 2026-09-16 vers 20:44 UTC,
+   file vide le 17/09. Contrôle du 2026-09-17 : **0** match de la fenêtre encore analysé avec l'ancien code, **0** match
+   repassé en `failed` (aucune télémétrie expirée, y compris ceux du 02/09). Sur 5 177 matchs resynchronisés : zones de
+   dégâts et zones sûres 100 %, cellules 5 176, zones de tirs 5 126 (les 51 autres : 0 kill du clan, tir jamais
+   enregistré). Moins de 20 atterrissages : 94 matchs, tous en arcade, custom ou event (TDM sans saut) — normal.
+   Un job interrompu (« Server has closed the connection » à 01:43 UTC, MariaDB non redémarrée) : JSON écrit mais
+   pas les cellules → remis en file et repris le 17/09 (196 cellules). Restent 8 172 matchs plus anciens sans cellules. Stockage : `PositionMetricCell` 97 Mo → 639 Mo (1,1 M lignes, ~170
+   cellules par match, plus que les 117 estimées), `SquadMatchTelemetry` 16,1 Go. Disque le 17/09 : 75 %, 13 Go libres.
+   [ ] **Rétention du JSON brut à décider avant début octobre** : ~0,4 à 0,55 Go de télémétrie par jour, disque à 90 %
+   vers début octobre au rythme actuel — détail et contraintes dans `docs/ops/database-performance.md` §4.4.
    Aucun chemin existant ne convient à ce volume (4 999 matchs au 2026-09-16, 21 clans) : le cron et « Synchroniser
    les matchs » (`/settings/cron`) ne reprennent que les matchs sans télémétrie réussie, `telemetry:batch` relit des
    fichiers capturés que le serveur n'a pas, et le « Direct Sync » d'une soirée plafonne à 50 matchs par clic.
@@ -102,8 +111,9 @@ Vue d'ensemble ; le détail vit dans les sections citées.
 5. [~] Positions et zones de drop (section « Positions clan » et « Drop zones — Pression au drop ») — 2026-09-16 :
    route Positions hybride, pression au drop sur les adversaires, zones sûres persistées (`SafeZonePhaseStat`) — code
    prêt. Restent la recette navigateur et les décisions « Dashboards clan et membre » et « Densité en fin de zone ».
-6. [ ] Nouvelles données : objets consommés (`LogItemUse`, P3), rappels par membre, K/D direct par clan adverse (P2
-   « Adversaires »), détection des changements de clan (P2, 3 décisions en attente).
+6. [~] Nouvelles données : objets consommés (`LogItemUse`) — ✅ livré le 2026-09-17 (`MemberItemUseStat`, pages clan
+   et membre, doc `docs/features/objets-consommes.md`) ; restent les rappels par membre, le K/D direct par clan
+   adverse (P2 « Adversaires ») et la détection des changements de clan (P2, 3 décisions en attente).
 7. [ ] Jamais vérifié en conditions réelles : match partagé entre deux clans suivis et ses `KillEvent` (« Comparateur de
    Clans », bugs structurels n°1 et 2).
 
@@ -626,7 +636,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
          posée, contour une fois pillée, anneau émeraude si pillée par l'escouade, arme principale affichée à ×3.
        - [x] Tests : `care-packages.test.ts` (6), `squad-mates.test.ts` (4), 3 dans `flight-path.test.ts`, 3 dans
          `match-replay.test.ts`, 2 dans `parser.test.ts`. Suite : 332 tests verts (hors 3 fichiers branchés sur la base).
-       - [ ] ⚠️ **Pas avant le déploiement du correctif du 2026-09-16** : jusque-là, « Resync ce match » réduit le lobby aux seuls membres suivis (replay sans adversaires) — voir « Corrigé dans le code le 2026-09-16 — deux défauts ».
+       - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite.
          **Re-synchroniser la télémétrie de `cmu027vpd3ftl04tzlejla0vk`** (et des matchs de moins de 14 jours) pour
          peupler `carePackageSamples` et `killFeedSamples` : sans cela, le calque « Largages » reste grisé. Écriture en production — à lancer
          par l'utilisateur via le bouton **« Resync ce match »** de la page « Audit Technique Brut »
@@ -670,7 +680,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
          (violet) si suivi dans un autre clan, « non suivi » sinon, avec la date de résolution du tag PUBG en info-bulle.
        - [x] Tests : `match-replay.kill-feed.test.ts` (4), `squad-mates.test.ts` (+1), `parser.test.ts` et
          `match-replay.test.ts` adaptés. 337 tests verts (hors 3 fichiers branchés sur la base).
-       - [ ] ⚠️ **Pas avant le déploiement du correctif du 2026-09-16** : jusque-là, « Resync ce match » réduit le lobby aux seuls membres suivis (replay sans adversaires) — voir « Corrigé dans le code le 2026-09-16 — deux défauts ». Ce match a justement été resynchronisé le 14/09 avec l'ancien code : 2 joueurs au lieu de ~100.
+       - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite. Ce match a justement été resynchronisé le 14/09 avec l'ancien code : 2 joueurs au lieu de ~100.
          **Re-synchroniser `cmu1k4in8auof0493sog1dm50`** (« Resync ce match ») pour remplir `killFeedSamples` :
          d'ici là, l'onglet Duels l'indique et annonce les kills non détaillés.
        - [ ] **Redéployer** : le déploiement de production tourne avec du code plus ancien ; tant qu'il n'est pas mis à jour,
@@ -719,7 +729,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
        - [x] Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`. *(`inferHitZones` supprimé du code, y compris sa copie locale dans `MatchCombatTimeline` et le test qui en dupliquait la logique.)*
        - [x] Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade. *(Les dégâts auto-infligés ne comptent pas comme « infligés » ; seuls les `damageTaken` alimentent la silhouette de l'escouade.)*
        - [x] Nombre de touches réel affiché à côté des dégâts et du pourcentage dans la ventilation.
-       - [ ] ⚠️ **Pas avant le déploiement du correctif du 2026-09-16** : jusque-là, « Resync ce match » réduit le lobby aux seuls membres suivis (replay sans adversaires) — voir « Corrigé dans le code le 2026-09-16 — deux défauts ».
+       - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite.
          **Resynchroniser les matchs de moins de 14 jours** pour peupler l'historique récent : sans cela, la page
          affiche le badge « Zones d'impact non capturées pour ce match ». *(Correction du 2026-09-13 : la commande
          `npm run telemetry:batch -- --clan <id>` indiquée ici ne re-parse **pas** les matchs déjà analysés avec succès.
@@ -1791,18 +1801,38 @@ Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas ét�
 
 Objectif : montrer où les membres encore en vie terminent leurs rotations lorsque chaque rétrécissement prend fin et que le nouveau cercle devient stable. Cette vue mesure des positions d'arrivée, pas une densité d'événements de combat.
 
-- [ ] Définir précisément une fin de zone depuis les transitions `isGame x.5 → x+1` des instantanés télémétriques
-- [ ] Associer à chaque fin de zone le dernier échantillon de position connu de chaque membre encore en vie
-- [ ] Compter au maximum une position par membre, par match et par fin de zone afin d'éviter les biais d'échantillonnage
-- [ ] Exclure les membres morts avant la fermeture et afficher le nombre de survivants, de matchs et de fermetures observés
-- [ ] Agréger les positions d'arrivée sur la grille `40 × 40` et permettre la comparaison `Début`, `Milieu` et `Fin de partie`
-- [ ] Classer chaque position par rapport au nouveau cercle stable : centre, bord intérieur ou hors zone
-- [ ] Ajouter un Top 5 des villes ou secteurs d'arrivée en réutilisant les périmètres cartographiques configurés
-- [ ] Permettre les filtres par période, carte, joueur et plage tactique sans mélanger plusieurs observations d'un même joueur à une fermeture
-- [ ] Évaluer une métrique persistée dédiée et un backfill depuis les JSON sources avant d'étendre `PositionMetricCell`
-- [ ] Vérifier sur plusieurs matchs l'association temporelle entre fermeture, position joueur et cercle de référence
-- [ ] Documenter le biais de survie : les phases tardives représentent uniquement les membres encore vivants
-- [ ] Valider la lisibilité, les faibles échantillons et les rendus desktop/mobile avant exposition dans les dashboards
+Livré le 2026-09-17 — page `/clans/[clanId]/stats/zone-closures`, doc `docs/features/fin-de-zone.md`.
+
+- [x] Fin de zone définie depuis les transitions `x.5 → x+1` — vérifié sur des matchs réels : à `isGame = 2`,
+  `safetyZoneRadius` reprend le `poisonGasWarningRadius` de `isGame = 1`, donc la zone sûre de cet instantané est le
+  nouveau cercle stable. La phase 1 est exclue (zone sûre = carte entière).
+- [x] Dernier échantillon connu de chaque membre avant la fermeture, ignoré au-delà de 180 s
+  (`MAX_POSITION_AGE_SECONDS`) : plus vieux, il ne dit plus où était le joueur.
+- [x] Une position au maximum par membre, match et fermeture — contrainte unique
+  `(squadMatchId, memberId, phase)` en base.
+- [x] Membres morts avant la fermeture exclus (sur `deathSamples.phase`, car leur `timestampSeconds` est un
+  horodatage absolu). La page affiche observations, fermetures, matchs, joueurs et survivants moyens du lobby.
+- [x] Agrégation sur la grille 40 × 40 et filtre de plage tactique (`Début` 1–2, `Milieu` 3–4, `Fin` 5–8) : la phase
+  enregistrée est celle qui commence, donc les mêmes plages que `PositionMetricCell`.
+- [x] Classement par rapport au nouveau cercle : `center` (≤ 0,5 rayon), `edge` (≤ 1), `outside` (> 1), avec le ratio
+  moyen par fermeture.
+- [x] Top 5 des secteurs d'arrivée, en réutilisant les périmètres de villes (`buildCityGrid`).
+- [x] Filtres période, carte, joueur et plage tactique — aucune double observation possible grâce à la contrainte unique.
+- [x] **Décision** : métrique persistée dédiée (`ZoneClosurePosition`, migration `20260917180000_add_zone_closure_position`
+  appliquée en production) plutôt qu'une extension de `PositionMetricCell` — les lignes survivent à la purge des
+  positions brutes, et le calcul à la volée exigerait de relire les JSON à chaque affichage. Backfill :
+  `npm run telemetry:zone-closures:backfill` (limité aux matchs qui ont encore leurs positions).
+- [x] Association temporelle vérifiée sur plusieurs matchs (`scripts/inspect-zone-closures.ts`) : coéquipiers au même
+  endroit, ratio cohérent d'une fermeture à l'autre, et un match sans aucune ligne s'explique — l'escouade était morte
+  en phase 1.5, avant la première fermeture.
+- [x] Biais de survie documenté dans la page et dans `docs/features/fin-de-zone.md` : sur le clan 1, **un tiers des
+  matchs** ne produit aucune ligne (escouade éliminée avant la première fermeture, vers la 10ᵉ minute).
+- [x] Faibles échantillons : avertissement explicite en dessous de 20 observations. Tests : 5 dans
+  `zone-closure-positions.test.ts`. Mesure du 2026-09-17, clan 1 : 718 positions, 343 fermetures, 87 matchs sur
+  Erangel, résumé complet en 132 ms ; centre 19 %, bord 54 %, hors zone 28 %.
+- [ ] Recette navigateur : lisibilité de la carte, thèmes clair/sombre, rendus desktop et mobile.
+- [ ] Rattrapage des autres clans après déploiement : `npm run telemetry:zone-closures:backfill`.
+- [ ] Exposition dans les tableaux de bord à décider une fois la page éprouvée.
 
 #### Phase 2 — Persistance des métriques de positions
 
@@ -1846,12 +1876,13 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
   - Correctif : le parser garde **toujours** tout le lobby ; les clés ne servent plus qu'aux zones de tirs et de dégâts
     et sont fournies par les trois chemins (`buildClanMemberKeys`, `clan-member-keys.ts`) ; cellules écrites sur les deux
     chemins de stream. Tests : 3 dans `parser.test.ts`, 2 dans `clan-member-keys.test.ts`. Doc : `docs/telemetry/parser.md`.
-- [ ] **Déployer ce correctif avant toute resynchronisation** — d'ici là, « Resync ce match » continue de réduire le lobby.
-- [ ] **Resynchroniser les matchs de moins de 14 jours** après déploiement : restaure le lobby de
-  `cmu1k4in8auof0493sog1dm50` (seul match récent touché) et remplit zones de tirs/dégâts, `killFeedSamples`,
-  `carePackageSamples` et zones d'impact.
+- [x] **Déployer ce correctif avant toute resynchronisation** — ✅ 2026-09-16 en fin de journée.
+- [x] **Resynchroniser les matchs de moins de 14 jours** — ✅ 4 989 matchs les 16 et 17/09
+  (`scripts/enqueue-recent-telemetry-resync.ts`), voir la synthèse « Télémétrie — ordre des prochaines étapes ».
 - [ ] **Rattraper les cellules** : `npm run telemetry:position-metrics:backfill -- --missing-only` (option ajoutée le
-  2026-09-16) → **13 156 matchs** au 2026-09-16, la nuit (la seule sélection prend ~70 s sur la base de production).
+  2026-09-16) → **8 172 matchs** restants au 2026-09-17 (~800 Mo estimés à ~170 cellules par match), la nuit (la seule
+  sélection prend ~70 s sur la base de production). **À faire avant toute purge du JSON brut** : le backfill relit
+  `positionSamples`.
   Limites : sans resync, ces matchs n'auront ni tirs ni dégâts (colonnes vides à la source) ; la purge de géolocalisation
   a vidé les positions des matchs de plus de 14 jours (464 / 7 282 en août) → `position`/`rotation` absentes pour eux,
   kills, knocks, réanimations, morts et véhicules intacts.
@@ -1919,14 +1950,29 @@ Malgré la migration vers `PositionMetricCell`, `GET /api/clans/[clanId]/telemet
 
 ##### Dashboards clan et membre
 
-- [ ] Définir les KPI réellement utiles : événements en ville, ville favorite, zone de combat favorite et part du Top 5
-- [ ] Ajouter un Top 5 des villes commutable entre présence, kills, dégâts et revives sur le dashboard clan
-- [ ] Ajouter une carte miniature ou un lien préfiltré vers la page Positions sans dupliquer la heatmap complète
-- [ ] Ajouter une évolution sur les huit dernières semaines avec conservation des semaines vides
-- [ ] Ajouter au dashboard membre ses trois villes principales, sa zone de combat favorite et ses parts de kills/dégâts par ville
-- [ ] Comparer les métriques du membre avec la moyenne du clan uniquement lorsque l'échantillon est suffisant
-- [ ] Réutiliser les composants de podium, tableau et graphique déjà employés pour la pression au drop
+- [x] Définir les KPI réellement utiles — ✅ 2026-09-17 : ville principale, zone de combat favorite (kills + dégâts
+  infligés cumulés), part hors villes configurées et nombre de matchs couverts.
+- [x] Ajouter un Top 5 des villes commutable entre présence, kills, dégâts et revives sur le dashboard clan
+  (`CityInsightsPanel`, `GET /api/clans/[clanId]/city-insights`, filtres période / type de match / mode du tableau de bord).
+- [x] Lien préfiltré vers la page Positions plutôt qu'une heatmap dupliquée : la page accepte désormais
+  `?map=&view=&period=` (`useSearchParams` + `Suspense`), le bouton « Voir sur la carte » ouvre la carte principale
+  sur la métrique affichée.
+- [x] Évolution sur huit semaines, semaines vides conservées — une semaine sans barre est explicitement décrite
+  comme « aucun match analysé, ou positions purgées ».
+- [x] Dashboard membre : trois villes principales et plus (Top 5), zone de combat favorite, parts par ville pour
+  présence, kills, dégâts et réanimations (`GET /api/members/[id]/city-insights`).
+- [x] Comparaison avec le clan seulement si l'échantillon suffit : 25 événements côté membre, 100 côté clan
+  (`MEMBER_COMPARISON_MIN_EVENTS`, `CLAN_COMPARISON_MIN_EVENTS`), sinon la colonne affiche `—`.
+- [x] Réutilisation des composants de la pression au drop : `SegmentedControl`, médailles, `app-table-shell`,
+  mêmes conventions de panneau.
+- [x] Tests : 6 dans `city-insights.test.ts` (rattachement des cellules aux villes, classement et parts, zone de
+  combat, semaines vides, seuils de comparaison). Contrôle sur données réelles :
+  `npx tsx scripts/inspect-city-insights.ts 1 month [memberId]` — clan 1 sur septembre, 303 matchs, Pochinki en tête
+  (12,7 % des passages en ville), 740 ms de chargement (3 s sur « Tous »).
 - [ ] Vérifier les thèmes clair/sombre et les rendus desktop/mobile sur les deux dashboards
+- [ ] **Limite de données connue** : les positions des matchs de plus de ~3 semaines ayant été purgées, l'évolution
+  8 semaines est creuse avant le 31/08 et le panneau l'annonce (`dataStart`). Les métriques de combat des matchs plus
+  anciens reviendront avec le rattrapage des cellules.
 
 ### Maîtrise armes (carrière) — Champs API mal mappés
 
@@ -2402,19 +2448,23 @@ Demandé le 2026-08-16, en prolongement de l'ajout des icônes manquantes (`publ
 
 **Bug de casse déjà corrigé au passage (2026-08-16) :** l'`itemId` télémétrie du vélo de montagne est `Item_Mountainbike_C` (« b » minuscule) mais l'asset du repo officiel est `Item_MountainBike_C.png` (« B » majuscule) — invisible sur Windows/macOS (FS insensible à la casse) mais aurait cassé silencieusement en prod Linux. Corrigé via une table d'alias dans `itemIconUrl()` ([asset-url.ts](../../src/lib/pubg-assets/asset-url.ts)).
 
-- [ ] Nouvelle table `MemberItemUseStat` (`squadMatchId`, `memberId`, `itemId`, `category`, `subCategory`, `count`, `matchDate`), unique sur `[squadMatchId, memberId, itemId]` — même schéma que `MemberThrowableStat` (migration `20260804150000_add_member_throwable_stat`), remplacement idempotent par match reparsé.
-- [ ] Capturer les échantillons dans le parser (`parser.ts`, bloc `LogItemUse` ~ligne 1347) : pousser `{actorKey, itemId, category, subCategory}` dans un nouveau tableau `itemUseSamples` de l'accumulateur, **sans filtrer** sur `category === 'Use'` à ce stade (garder tout, filtrer à la persistance) — même raison que pour les lancers : `clanMemberKeys` est vide sur le chemin de sync principal, la résolution contre le roster se fait à la persistance.
-- [ ] Remplacer la détection par sous-chaîne de `boostsUsed` (parser.ts ~lignes 1353–1357) par un test sur `item.subCategory === 'Boost'` — plus robuste, aligné sur les enums déjà présents dans `src/lib/pubg-assets/enums/item/{category,subCategory}.json`.
-- [ ] Créer `item-use-persistence.ts` sur le modèle de `throwable-persistence.ts` : résoudre chaque `actorKey` contre tout le roster clan (pas seulement la squad détectée), écrire les lignes `MemberItemUseStat` en ne conservant que `category === 'Use'`.
-- [ ] Brancher la persistance sur les 3 chemins de sync existants (`pubg-telemetry/index.ts` + les 2 points de `manual-sync.ts`), juste après `persistThrowableStatsForMatch`.
-- [ ] Route API `GET /api/members/[id]/item-use` (cumul lifetime, `groupBy` Prisma sur `itemId`) sur le modèle de `GET /api/members/[id]/throwables` ; envisager aussi `GET /api/clans/[clanId]/telemetry/item-use` si la page clan agrège par clan et pas seulement par membre.
-- [ ] **Page dédiée** (contrairement aux lancers, qui n'ont qu'une section sur `/members/[id]/weapons`) : `/members/[id]/items` et/ou `/clans/[clanId]/stats/items` — répartition Heal vs Boost vs Fuel vs Gadget, top objets utilisés par joueur, icône via `ItemIcon` (déjà créé, `src/components/ui/ItemIcon.tsx`) + libellé via `resolveItemName()` (`src/lib/pubg-assets/index.ts`). Suivre les conventions du projet : `app-container`/`app-main`, `ClanSectionNav`, cartes mobile + tableau desktop comme `/clans/[clanId]/stats/weapons`.
-- [ ] Vérifier après ajout de tout nouvel `itemId` apparu en prod (nouvelle saison, nouvel objet) qu'il est bien couvert par `npm run sync:pubg-assets -- --items` — sinon l'icône se dégrade silencieusement vers `null` (comportement `ItemIcon` déjà en place, pas un bug bloquant).
-- [ ] **Tests parser** : un event `LogItemUse` par `subCategory` (Heal/Boost/Fuel/Gadget) doit produire un échantillon avec le bon `itemId`/`category`/`subCategory` ; un `LogHeal` sans `itemId` ne doit pas produire de faux échantillon "Heal" ; un item hors catégorie `Use` (ex. `Ammunition`, observé dans les captures réelles) ne doit pas apparaître dans les agrégats "objets consommés" une fois le filtre de persistance appliqué.
-- [ ] **Tests service de persistance** : remplacement idempotent par match (comme `throwable-persistence.test.ts`), résolution `memberId` depuis `actorKey` contre le roster clan complet, filtrage `category !== 'Use'` exclu.
-- [ ] **Tests route API** : cumul lifetime correct, tri par `count`, comportement sur un membre sans aucune donnée.
-- [ ] Valider ESLint et TypeScript sur tous les fichiers touchés.
-- [ ] Vérifier par un vrai resync (comme pour les lancers le 2026-08-04) que les compteurs par item correspondent à une lecture manuelle de quelques événements `LogItemUse` d'un match réel.
+Livré le 2026-09-17 — doc `docs/features/objets-consommes.md`.
+
+- [x] Nouvelle table `MemberItemUseStat` (`squadMatchId`, `memberId`, `itemId`, `category`, `subCategory`, `count`, `matchDate`), unique sur `[squadMatchId, memberId, itemId]` — migration `20260917200000_add_member_item_use_stat`, **appliquée en production**, remplacement idempotent par match reparsé.
+- [x] Échantillons `itemUseSamples` capturés dans le parser, sans filtre de catégorie.
+- [x] `boostsUsed` calculé sur `item.subCategory === 'Boost'`. ⚠️ Les valeurs déjà stockées gardent l'ancien calcul par sous-chaîne : pas de recalcul possible sans resynchroniser les matchs.
+- [x] `item-use-persistence.ts` : résolution contre tout le roster du clan, filtre `category === 'Use'`, sous-catégorie manquante rangée sous `Unknown`.
+- [x] Persistance branchée sur les 3 chemins de synchronisation, juste après les lancers.
+- [x] Routes `GET /api/members/[id]/item-use` et `GET /api/clans/[clanId]/telemetry/item-use` (`?period=week|month|all`), agrégation commune dans `src/lib/item-use-stats.ts` : familles, objets et classement des membres.
+- [x] **Deux pages dédiées** : `/clans/[clanId]/stats/items` et `/members/[id]/items`, panneau commun `ItemUsePanel` (indicateurs, répartition par famille, top objets en cartes mobile et tableau desktop, classement des membres côté clan). Entrées de navigation `clan.items` et `member.items` créées en base (`scripts/seed-item-use-nav.ts`).
+- [x] Couverture des icônes vérifiée sur les objets réellement observés : seul `Item_BulletproofShield_C` (bouclier pliable) n'a pas d'icône, le libellé reste correct. Relancer `npm run sync:pubg-assets -- --items` après chaque saison.
+- [x] **Tests parser** : un échantillon par sous-catégorie, `LogHeal` sans `itemId` sans effet, `Ammunition` capturé mais écarté à la persistance.
+- [x] **Tests persistance** : regroupement par membre et objet, résolution par identifiant de compte ou pseudo, filtrage de catégorie, JSON stocké en chaîne.
+- [x] **Tests routes** (5, `item-use-route-contracts.test.ts`) : identifiant invalide, permission clan, période inconnue ramenée à « tous », garde `requireSameClanAsMember`, membre sans donnée.
+- [x] ESLint et TypeScript propres sur tous les fichiers touchés ; 398 tests au vert.
+- [x] Vérifié sur une capture réelle de 28 Mo (`scripts/inspect-item-use.ts`) : **1 356 événements comptés à la main, 1 356 échantillons produits par le parser**, dont 476 de catégorie `Use` (le reste : munitions). Familles observées : Heal, Boost, Fuel, Gadget.
+- [ ] Recette navigateur des deux pages (thèmes clair/sombre, mobile).
+- [ ] ⚠️ Aucun rattrapage possible : les échantillons ne sont pas stockés dans `SquadMatchTelemetry`. Seuls les matchs analysés après le déploiement auront le détail par objet.
 
 **Effort estimé :** comparable aux lancers pour l'extraction/persistance (2–4h), plus le temps d'une page dédiée complète (mobile + desktop, contrairement à la simple section ajoutée pour les lancers) et ses tests — plutôt 1 jour complet.
 

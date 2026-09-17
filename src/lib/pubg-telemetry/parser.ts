@@ -114,6 +114,17 @@ export type TelemetryThrowableSample = {
   itemId: string | null
 }
 
+/**
+ * Objet consomme (`LogItemUse`). Capture sans filtre : `clanMemberKeys` est vide sur le chemin de synchronisation
+ * principal, la resolution contre le roster se fait a la persistance, qui ne garde que `category === 'Use'`.
+ */
+export type TelemetryItemUseSample = {
+  actorKey: string | null
+  itemId: string | null
+  category: string | null
+  subCategory: string | null
+}
+
 export type TelemetryShotCluster = {
   memberKey: string
   weaponName: string | null
@@ -248,6 +259,7 @@ type TelemetryAccumulator = {
   killSamples: TelemetryKillSample[]
   killFeedSamples: TelemetryKillFeedSample[]
   throwableSamples: TelemetryThrowableSample[]
+  itemUseSamples: TelemetryItemUseSample[]
   shotClusters: Map<string, ShotClusterAccum>
   damageClusters: Map<string, DamageClusterAccum>
   knockoutSamples: TelemetryKnockoutSample[]
@@ -300,6 +312,7 @@ export type ParsedTelemetrySnapshot = {
   killSamples: TelemetryKillSample[]
   killFeedSamples: TelemetryKillFeedSample[]
   throwableSamples: TelemetryThrowableSample[]
+  itemUseSamples: TelemetryItemUseSample[]
   shotSamples: TelemetryShotCluster[]
   damageSamples: TelemetryDamageCluster[]
   knockoutSamples: TelemetryKnockoutSample[]
@@ -943,6 +956,7 @@ function createTelemetryAccumulator(options?: {
     killSamples: [],
     killFeedSamples: [],
     throwableSamples: [],
+    itemUseSamples: [],
     shotClusters: new Map<string, ShotClusterAccum>(),
     damageClusters: new Map<string, DamageClusterAccum>(),
     knockoutSamples: [],
@@ -1384,33 +1398,39 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogItemUse') {
     accumulator.summary.itemUseEvents += 1
-    if (actorKey) {
-      const itemId = getFirstStringFromPaths(event, ['item.itemId', 'itemId'])
-      if (itemId) {
-        const lower = itemId.toLowerCase()
-        const isBoost =
-          lower.includes('boost') ||
-          lower.includes('energy') ||
-          lower.includes('adrenaline') ||
-          lower.includes('painkiller')
-        if (isBoost) {
-          getOrCreateMemberStatsWithTeam(
-            accumulator.memberStats,
-            actorKey,
-            actorTeamId,
-            accumulator.teamPlacements
-          ).boostsUsed += 1
-        }
-        
-        const isRecall = lower.includes('bluechip')
-        if (isRecall) {
-          getOrCreateMemberStatsWithTeam(
-            accumulator.memberStats,
-            actorKey,
-            actorTeamId,
-            accumulator.teamPlacements
-          ).recalls += 1
-        }
+    const itemId = getFirstStringFromPaths(event, ['item.itemId', 'itemId'])
+    const itemCategory = getFirstStringFromPaths(event, ['item.category', 'category'])
+    const itemSubCategory = getFirstStringFromPaths(event, ['item.subCategory', 'subCategory'])
+
+    if (actorKey || itemId) {
+      accumulator.itemUseSamples.push({
+        actorKey: actorKey ?? null,
+        itemId: itemId ?? null,
+        category: itemCategory ?? null,
+        subCategory: itemSubCategory ?? null,
+      })
+    }
+
+    if (actorKey && itemId) {
+      // `item.subCategory` vient de la telemetrie : plus fiable que l'ancienne detection par sous-chaine de
+      // l'itemId, qui ratait les nouveaux objets et attrapait tout identifiant contenant « boost ».
+      if (itemSubCategory === 'Boost') {
+        getOrCreateMemberStatsWithTeam(
+          accumulator.memberStats,
+          actorKey,
+          actorTeamId,
+          accumulator.teamPlacements
+        ).boostsUsed += 1
+      }
+
+      // Les rappels n'ont pas de sous-categorie dediee : le transmetteur bluechip reste reconnu par son itemId.
+      if (itemId.toLowerCase().includes('bluechip')) {
+        getOrCreateMemberStatsWithTeam(
+          accumulator.memberStats,
+          actorKey,
+          actorTeamId,
+          accumulator.teamPlacements
+        ).recalls += 1
       }
     }
     return
@@ -1788,6 +1808,7 @@ function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTel
     killSamples: accumulator.killSamples,
     killFeedSamples: accumulator.killFeedSamples,
     throwableSamples: accumulator.throwableSamples,
+    itemUseSamples: accumulator.itemUseSamples,
     shotSamples,
     damageSamples,
     knockoutSamples: accumulator.knockoutSamples,

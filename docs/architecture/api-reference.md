@@ -317,7 +317,15 @@ Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/a
 | GET | `/loot` | `requireRole(['Owner'])` | ✅ Pertinent | Économie de loot (pickups/drops/équipements) — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/vehicles` | `requireRole(['Owner'])` | ✅ Pertinent | Stats véhicules par membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/drop-zones` | `requireNavPermission('clan.drop-zones')` | ✅ Pertinent | Points d'atterrissage + heatmap 40×40 — voir [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) |
+| GET | `/item-use` | `requireNavPermission('clan.items')` | ✅ Pertinent | Objets consommés par le clan, par famille, par objet et par membre (`?period=week\|month\|all`) — voir [Objets consommés](../features/objets-consommes.md) |
+| GET | `/zone-closures` | `requireNavPermission('clan.zone-closures')` | ✅ Pertinent | Positions d'arrivée à chaque fermeture de cercle (`?period=`, `?map=`, `?memberId=`, `?phase=`) — voir [Fin de zone](../features/fin-de-zone.md) |
 | GET | `/sync-batch-manual` | `requireRole(['Owner'])` | ❌ Interne/dev | État de la queue de traitement — voir [Télémétrie API](../telemetry/api.md) |
+
+En dehors de `telemetry/`, le tableau de bord clan lit aussi :
+
+| Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
+|---|---|---|---|---|
+| GET | `/api/clans/[clanId]/city-insights` | `requireNavPermission('clan.overview')` | ✅ Pertinent | Villes et zones de combat du clan (Top 5 par métrique, ville favorite, évolution 8 semaines) — `?period=week\|month\|month-1\|month-2\|all`, `?matchType=`, `?mode=`. Lu dans `PositionMetricCell`, voir [Positions et villes](../features/positions-villes.md) |
 | POST | `/sync-batch-manual` | `requireRole(['Owner'])` | ❌ Interne/dev | Enqueue/traite des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/resync-files-queue` | `requireRole(['Owner'])` | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/resync-files-queue` | `requireRole(['Owner'])` | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
@@ -360,8 +368,10 @@ Non documenté dans [Télémétrie API](../telemetry/api.md) (absent de la liste
 | GET | `/api/members/[id]/telemetry/playstyle` | `requireSameClanAsMember` | ✅ Pertinent | Profil de jeu du membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/api/members/[id]/telemetry/circles` | `requireSameClanAsMember` | ✅ Pertinent | Métriques cercles du membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/api/members/[id]/telemetry/drop-zones` | `requireSameClanAsMember` | ✅ Pertinent | Points d'atterrissage du membre — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/api/members/[id]/item-use` | `requireSameClanAsMember` | ✅ Pertinent | Objets consommés du membre — voir [Objets consommés](../features/objets-consommes.md) |
+| GET | `/api/members/[id]/city-insights` | `requireSameClanAsMember` | ✅ Pertinent | Villes du membre et comparaison avec le clan — voir [Positions et villes](../features/positions-villes.md) |
 
-Contrairement au scope clan, ces 4 routes utilisent uniformément `requireSameClanAsMember` (session + même clan que le membre ciblé, ou SuperUser) — pas de permission nav ni de restriction Owner.
+Contrairement au scope clan, ces routes utilisent uniformément `requireSameClanAsMember` (session + même clan que le membre ciblé, ou SuperUser) — pas de permission nav ni de restriction Owner.
 
 ---
 

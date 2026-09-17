@@ -82,6 +82,8 @@ La colonne **Position** est un simple numéro d'ordre séquentiel (1, 2, 3…) d
 | 19 | `/clans/[clanId]/stats/weapons/categories`    | ▸▸▸ Catégories d'armes | Owner (état actuel) / Tous (cible) |
 | 20 | `/clans/[clanId]/stats/heatmap-kills`         | ▸▸ Heatmap des kills | Owner (état actuel) / Tous (cible) |
 | 21 | `/clans/[clanId]/stats/positions`             | ▸▸ Cartographie tactique | Owner (état actuel) / Tous (cible) |
+| 21b | `/clans/[clanId]/stats/zone-closures`        | ▸▸ Fin de zone (2026-09-17) | Tous |
+| 21c | `/clans/[clanId]/stats/items`                | ▸▸ Objets consommés (2026-09-17) | Tous |
 | 22 | `/clans/[clanId]/leaderboard`                 | ▸▸ Classement des membres | Tous |
 | 23 | `/clans/[clanId]/awards`                      | ▸▸ Awards / distinctions | Tous |
 | 24 | `/clans/[clanId]/challenges`                  | ▸▸ Challenges | Tous |
@@ -303,6 +305,9 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/stats/weapons/categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/zone-closures` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats/items` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/members/[id]/items` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | `/clans/[clanId]/leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/awards` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/challenges` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |

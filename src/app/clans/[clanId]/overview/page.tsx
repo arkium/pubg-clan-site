@@ -15,6 +15,7 @@ import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
+import CityInsightsPanel from '@/components/dashboard/CityInsightsPanel'
 import TopPerformers from '@/components/TopPerformers'
 import SquadSynergies from '@/components/SquadSynergies'
 import { useClanOverview } from '@/hooks/useClanOverview'
@@ -27,6 +28,7 @@ import type {
   DropPressureRankingEntry,
   DropPressureTimelinePoint,
 } from '@/types/drop-pressure'
+import type { CityInsights } from '@/types/city-insights'
 
 
 
@@ -477,6 +479,9 @@ export default function ClanOverviewPage() {
   const [dropPressureTimeline, setDropPressureTimeline] = useState<DropPressureTimelinePoint[]>([])
   const [dropPressureLoading, setDropPressureLoading] = useState(false)
   const [dropPressureError, setDropPressureError] = useState('')
+  const [cityInsights, setCityInsights] = useState<CityInsights | null>(null)
+  const [cityInsightsLoading, setCityInsightsLoading] = useState(false)
+  const [cityInsightsError, setCityInsightsError] = useState('')
 
 
 
@@ -491,6 +496,43 @@ export default function ClanOverviewPage() {
 
 
 
+
+  useEffect(() => {
+    if (!clanId) return
+    let cancelled = false
+
+    async function loadCityInsights() {
+      try {
+        setCityInsightsLoading(true)
+        setCityInsightsError('')
+        const response = await fetch(
+          `/api/clans/${clanId}/city-insights?period=${selectedPeriod}&matchType=${selectedMatchType}&mode=${selectedMode}`,
+          { cache: 'no-store' }
+        )
+        const payload = (await response.json()) as { insights?: CityInsights; error?: string }
+        if (cancelled) return
+        if (response.ok && payload.insights) {
+          setCityInsights(payload.insights)
+          return
+        }
+        setCityInsights(null)
+        setCityInsightsError(payload.error ?? 'Indicateurs de villes indisponibles.')
+      } catch {
+        if (!cancelled) {
+          setCityInsights(null)
+          setCityInsightsError('Indicateurs de villes indisponibles.')
+        }
+      } finally {
+        if (!cancelled) setCityInsightsLoading(false)
+      }
+    }
+
+    void loadCityInsights()
+
+    return () => {
+      cancelled = true
+    }
+  }, [clanId, selectedPeriod, selectedMatchType, selectedMode])
 
   useEffect(() => {
     if (!clanId) return
@@ -1036,6 +1078,14 @@ export default function ClanOverviewPage() {
             error={dropPressureError}
             ranking={dropPressureRanking}
             timeline={dropPressureTimeline}
+          />
+
+          <CityInsightsPanel
+            insights={cityInsights}
+            loading={cityInsightsLoading}
+            error={cityInsightsError}
+            periodLabel={`${OVERVIEW_PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label ?? ''} · ${MATCH_TYPE_OPTIONS.find((option) => option.value === selectedMatchType)?.label ?? ''}`}
+            positionsHref={`/clans/${clanId}/stats/positions`}
           />
 
 

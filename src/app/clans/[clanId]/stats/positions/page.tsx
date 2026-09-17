@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import { Compass } from 'lucide-react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import DropZoneMapViewport, {
@@ -127,6 +128,14 @@ const VIEW_OPTIONS_BY_CATEGORY: Record<HeatmapCategory, Array<{ value: HeatmapVi
 const DEFAULT_VIEW_BY_CATEGORY: Record<HeatmapCategory, HeatmapView> = {
   combat: 'kill',
   equipe: 'revive',
+}
+
+/** Catégorie portant chaque vue : sert aux liens préfiltrés venant des tableaux de bord. */
+function categoryForView(view: string): HeatmapCategory | null {
+  for (const [category, options] of Object.entries(VIEW_OPTIONS_BY_CATEGORY)) {
+    if (options.some((option) => option.value === view)) return category as HeatmapCategory
+  }
+  return null
 }
 
 type RoleOption = { value: HeatmapRole; label: string }
@@ -368,17 +377,28 @@ function fetchPositions(url: string) {
   return request
 }
 
-export default function ClanPositionsHeatmapPage() {
+function ClanPositionsHeatmapContent() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
-  const [period, setPeriod] = useState<TelemetryPeriod>('week')
-  const [mapName, setMapName] = useState('')
+  // Lien préfiltré depuis les tableaux de bord (`?map=&view=&period=`) : sert d'état initial, les filtres de la
+  // page prennent le relais ensuite.
+  const linkedView = searchParams.get('view')
+  const linkedCategory = linkedView ? categoryForView(linkedView) : null
+  const linkedPeriod = searchParams.get('period')
+
+  const [period, setPeriod] = useState<TelemetryPeriod>(
+    linkedPeriod === 'month' || linkedPeriod === 'all' ? linkedPeriod : 'week'
+  )
+  const [mapName, setMapName] = useState(searchParams.get('map') ?? '')
   const [memberKey, setMemberKey] = useState('')
   const [phase, setPhase] = useState<TacticalPhase>('all')
-  const [category, setCategory] = useState<HeatmapCategory>('combat')
-  const [view, setView] = useState<HeatmapViewSelection>('kill')
+  const [category, setCategory] = useState<HeatmapCategory>(linkedCategory ?? 'combat')
+  const [view, setView] = useState<HeatmapViewSelection>(
+    linkedCategory && linkedView ? (linkedView as HeatmapView) : 'kill'
+  )
   const [role, setRole] = useState<HeatmapRole>('a')
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [showLocationBoundaries, setShowLocationBoundaries] = useState(true)
@@ -1040,5 +1060,13 @@ export default function ClanPositionsHeatmapPage() {
         </section>
       ) : null}
     </main>
+  )
+}
+
+export default function ClanPositionsHeatmapPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClanPositionsHeatmapContent />
+    </Suspense>
   )
 }

@@ -108,9 +108,10 @@ Vue d'ensemble ; le détail vit dans les sections citées.
    ✅ Faits sur le serveur le 2026-09-16 : recalcul des niveaux de pression au drop (15 873 lignes) et rattrapage des
    zones sûres (12 357 matchs, 96 992 lignes, 36 s).
 4. [x] Débriefing : bascule des liens, redirections, Mode contextuel Tournoi — code prêt (VOLET 4) ; [ ] recette navigateur.
-5. [~] Positions et zones de drop (section « Positions clan » et « Drop zones — Pression au drop ») — 2026-09-16 :
-   route Positions hybride, pression au drop sur les adversaires, zones sûres persistées (`SafeZonePhaseStat`) — code
-   prêt. Restent la recette navigateur et les décisions « Dashboards clan et membre » et « Densité en fin de zone ».
+5. [~] Positions et zones de drop — route Positions hybride, pression au drop sur les adversaires, zones sûres
+   persistées (2026-09-16), puis indicateurs de villes sur les deux tableaux de bord et page « Fin de zone »
+   (2026-09-17, `docs/features/positions-villes.md` et `fin-de-zone.md`). Reste la recette navigateur, le rattrapage
+   `telemetry:zone-closures:backfill` des autres clans et la décision d'exposer la fin de zone dans les dashboards.
 6. [~] Nouvelles données : objets consommés (`LogItemUse`) — ✅ livré le 2026-09-17 (`MemberItemUseStat`, pages clan
    et membre, doc `docs/features/objets-consommes.md`) ; restent les rappels par membre, le K/D direct par clan
    adverse (P2 « Adversaires ») et la détection des changements de clan (P2, 3 décisions en attente).
@@ -315,13 +316,19 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
 
 ##### VOLET 1 : Page Publique Globale des Tournois (`/tournaments`)
 
-- [ ] **Hero Header Immersif :**
+> **VOLET 1 livré le 2026-09-17** — page réécrite (`src/app/tournaments/page.tsx`), résumé serveur
+> `src/lib/tournament-overview.ts` (état affiché dérivé des dates, manches, participants, vainqueur calculé comme
+> sur la page de détail), filtres isolés et testés dans `src/lib/tournament-list-filters.ts` (8 tests).
+> Manque encore le badge « mode de calcul » (Inter-Clans, Équipes Libres, Solo FFA, Intra-Clan) : le champ n'existe
+> pas sur `Tournament`, c'est le VOLET 2 qui l'introduit.
+
+- [x] **Hero Header Immersif :**
   - Bannière visuelle avec l'image thématique `/ClanLeaderboardTable.jpg`, dégradé sombre (`from-black/90 via-black/40 to-transparent`), icône dorée `Trophy`.
   - Titre principal `Tournois & Compétitions`, sous-titre expliquant la scène compétitive inter-clans.
   - Compteur dynamique en badge : ex: `🔥 2 tournois en cours` et `🏆 14 tournois archivés`.
   - Bouton d'accès rapide pour les administrateurs de clan connectés : `⚙️ Gérer les tournois de mon clan` (pointant vers `/clans/[clanId]/settings/tournaments`).
 
-- [ ] **Barre d'outils, Recherche & Filtres Dynamiques (`.app-panel`) :**
+- [x] **Barre d'outils, Recherche & Filtres Dynamiques (`.app-panel`) :**
   - **Recherche instantanée :** Barre de saisie fluide avec icône loupe, filtrant en direct sur le nom du tournoi, la description et le nom du clan organisateur, avec bouton d'effacement rapide (`X`).
   - **Filtre de statut :** Boutons rapides / SegmentedControl : `Tous`, `🔥 En direct (Actifs)`, `⏳ À venir`, `🏁 Terminés`.
   - **Filtres combinés :**
@@ -331,7 +338,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
   - **Tri dynamique :** Par `Date (plus récents)`, `Date (plus anciens)`, `Nom (A-Z)`.
   - **Compteur de résultats :** Badge contextuel (ex: `4 tournois trouvés sur 12`) avec bouton de réinitialisation si aucun résultat.
 
-- [ ] **Section Prioritaire : « Tournois en Direct & À Venir » (Grille de Cartes Héroïques) :**
+- [x] **Section Prioritaire : « Tournois en Direct & À Venir » (Grille de Cartes Héroïques) :**
   - Mise en avant des compétitions actives en haut de page avec des cartes `.app-panel` riches et modernes :
     - **Badge Statut dynamique :** Badge vert avec point pulsant (`animate-pulse`) `● EN DIRECT` pour les tournois en cours, badge bleu `À VENIR` pour ceux qui démarrent prochainement.
     - **Badges contextuels de match :**
@@ -342,7 +349,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
     - **Période & Compte à rebours :** Dates formatées et temps restant (ex: `Se termine dans 3 jours`).
     - **Bouton d'action proéminent :** Bouton `👁️ Suivre le direct / Classement` (`.app-btn--primary`) menant à `/tournaments/[tournamentId]`.
 
-- [ ] **Section « Archives des Tournois Terminés » — Accordéon avec Chevron & Tableau Triable :**
+- [x] **Section « Archives des Tournois Terminés » — Accordéon avec Chevron & Tableau Triable :**
   - **En-tête de section interactif :**
     - Bouton bandeau `.app-panel` cliquable avec `ChevronDown` rotatif (`transition-transform duration-200 rotate-180`).
     - Titre : `Archives des tournois terminés` accompagné d'un badge compteur discret `(N tournois)`.
@@ -683,8 +690,8 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
        - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite. Ce match a justement été resynchronisé le 14/09 avec l'ancien code : 2 joueurs au lieu de ~100.
          **Re-synchroniser `cmu1k4in8auof0493sog1dm50`** (« Resync ce match ») pour remplir `killFeedSamples` :
          d'ici là, l'onglet Duels l'indique et annonce les kills non détaillés.
-       - [ ] **Redéployer** : le déploiement de production tourne avec du code plus ancien ; tant qu'il n'est pas mis à jour,
-         ses synchronisations laissent les deux nouvelles colonnes à `NULL`.
+       - [x] **Redéployer** — ✅ 2026-09-16 : la production écrit de nouveau les deux colonnes, vérifié sur les parsings
+         de 19:57 UTC.
        - [ ] **Détection des changements de clan PUBG** — plan détaillé demandé avant implémentation, voir la section
          « Détection et signalement des changements de clan PUBG » (P2).
   2. **🩺 Correction du décompte des impacts et Refonte Graphique de la Silhouette (`DamageBodySvg`) :** — ✅ Décompte corrigé le 2026-09-13
@@ -1831,7 +1838,14 @@ Livré le 2026-09-17 — page `/clans/[clanId]/stats/zone-closures`, doc `docs/f
   `zone-closure-positions.test.ts`. Mesure du 2026-09-17, clan 1 : 718 positions, 343 fermetures, 87 matchs sur
   Erangel, résumé complet en 132 ms ; centre 19 %, bord 54 %, hors zone 28 %.
 - [ ] Recette navigateur : lisibilité de la carte, thèmes clair/sombre, rendus desktop et mobile.
-- [ ] Rattrapage des autres clans après déploiement : `npm run telemetry:zone-closures:backfill`.
+- [x] Rattrapage de tous les clans — ✅ 2026-09-17 : 5 879 matchs traités en 6 min 12, **39 324 lignes** pour
+  4 401 matchs, 22 clans, 284 membres, 20 Mo en base. Répartition : centre 18,9 %, bord 57,2 %, hors zone 23,9 %
+  (ratio moyen 0,32 / 0,79 / 1,55) ; 10 584 observations en phase 2 jusqu'à 598 en phase 9.
+  Les 1 478 matchs sans aucune ligne sont ceux où l'escouade est morte avant la première fermeture — ils seront
+  re-scannés à chaque exécution du rattrapage, sans jamais produire de ligne.
+- [ ] ⚠️ **Le code n'est pas encore déployé** : les lignes des matchs parsés à 20:09 UTC ont été écrites par le
+  rattrapage à 20:20, pas au moment de l'analyse. Tant que les services tournent avec l'ancien code, chaque nouveau
+  match exige un nouveau passage du rattrapage.
 - [ ] Exposition dans les tableaux de bord à décider une fois la page éprouvée.
 
 #### Phase 2 — Persistance des métriques de positions

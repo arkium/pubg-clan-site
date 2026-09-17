@@ -1,5 +1,5 @@
 import { getSessionFromRequest } from '@/lib/auth-session'
-import { prisma } from '@/lib/prisma'
+import { listTournamentOverviews } from '@/lib/tournament-overview'
 
 // Réservé aux utilisateurs connectés (2026-09-16) : le proxy ne protège que les pages, pas `/api`.
 export async function GET(request: Request) {
@@ -8,21 +8,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const tournaments = await prisma.tournament.findMany({
-      include: {
-        organizerClan: { select: { id: true, name: true } },
-      },
-      orderBy: [
-        { status: 'asc' },
-        { startDate: 'desc' },
-      ],
-    })
-    return Response.json({ tournaments })
+    return Response.json({ tournaments: await listTournamentOverviews() })
   } catch (error) {
     console.error('Error fetching tournaments:', error)
-    return Response.json(
-      { error: 'Failed to fetch tournaments' },
-      { status: 500 }
-    )
+    return Response.json({ error: 'Failed to fetch tournaments' }, { status: 500 })
   }
 }

@@ -2,12 +2,18 @@ import { gameModeDisplayName } from '@/lib/game-mode-label-service'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
 import {
-  computeTournamentRoundScores,
-  computeTournamentStandings,
+  computeTournamentModeStandings,
   getTournamentForClan,
   getTournamentMatches,
   getTrackedTournamentClanIds,
+  normalizeTournamentRules,
 } from '@/lib/tournament-service'
+import {
+  buildRoundViews,
+  buildStandingViews,
+  type ClanDirectory,
+  type MemberDirectory,
+} from '@/lib/tournament-standings-view'
 
 import { sendDiscordWebhook, type DiscordWebhookPayload } from '@/lib/discord/discord-client'
 import { isValidDiscordWebhookUrl, renderDiscordMention } from '@/lib/discord/discord-config'
@@ -46,10 +52,10 @@ function clanLabel(clan: { name: string; tag: string } | undefined, clanId: numb
 
 function findMvp(
   match: TournamentMatch,
-  participatingClanIds: number[],
+  eligibleClanIds: number[],
   labels: Map<number, string>
 ): TournamentRoundMvp | null {
-  const allowed = new Set(participatingClanIds)
+  const allowed = new Set(eligibleClanIds)
   const candidates = match.members.filter(
     (member) => member.member.clanId !== null && allowed.has(member.member.clanId)
   )
@@ -120,17 +126,20 @@ export async function prepareTournamentRoundBroadcast(
 
   const match = matches[roundIndex]
   const participatingClanIds = getTrackedTournamentClanIds(matches)
-  const roundScores = computeTournamentRoundScores(match, participatingClanIds, tournament.rules as Record<string, unknown>)
+  const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
+  const memberIds = [...new Set(matches.flatMap((entry) => entry.members.map((row) => row.memberId)))]
 
-  if (roundScores.length === 0) {
-    throw new DiscordTournamentError('Aucun clan suivi n’est classé sur cette manche.')
-  }
-
-  const [clans, mapLabels, sentLog] = await Promise.all([
+  const [clans, clanMembers, mapLabels, sentLog] = await Promise.all([
     prisma.clan.findMany({
-      where: { id: { in: participatingClanIds } },
+      where: { id: { in: [...new Set([...participatingClanIds, tournament.organizerClanId])] } },
       select: { id: true, name: true, tag: true },
     }),
+    memberIds.length > 0
+      ? prisma.clanMember.findMany({
+          where: { id: { in: memberIds } },
+          select: { id: true, displayName: true, clanId: true },
+        })
+      : Promise.resolve([]),
     getMapLabels(),
     prisma.discordNotificationLog.findUnique({
       where: {
@@ -145,18 +154,39 @@ export async function prepareTournamentRoundBroadcast(
   ])
 
   const clansById = new Map(clans.map((clan) => [clan.id, clan]))
-  const labels = new Map(
-    participatingClanIds.map((id) => [id, clanLabel(clansById.get(id), id)])
+  const labels = new Map(clans.map((clan) => [clan.id, clanLabel(clansById.get(clan.id), clan.id)]))
+
+  const clanDirectory: ClanDirectory = Object.fromEntries(
+    clans.map((clan) => [clan.id, { name: clan.name, tag: clan.tag }])
+  )
+  const memberDirectory: MemberDirectory = Object.fromEntries(
+    clanMembers.map((member) => [member.id, { displayName: member.displayName, clanId: member.clanId }])
   )
 
+  // Même découpage que la page de détail : le participant est un clan, une équipe ou un joueur selon le mode.
+  const round = buildRoundViews(
+    [match],
+    participatingClanIds,
+    rules,
+    clanDirectory,
+    memberDirectory,
+    tournament.organizerClanId
+  )[0]
+
+  if (!round || round.scores.length === 0) {
+    throw new DiscordTournamentError('Aucun participant suivi n’est classé sur cette manche.')
+  }
+
   const standings = tournamentSettings.includeStandings
-    ? computeTournamentStandings(matches, participatingClanIds, tournament.rules as Record<string, unknown>).map(
-        (standing) => ({
-          clanLabel: labels.get(standing.clanId) ?? `Clan #${standing.clanId}`,
-          totalPoints: standing.totalPoints,
-          totalKills: standing.totalKills,
-        })
-      )
+    ? buildStandingViews(
+        computeTournamentModeStandings(matches, participatingClanIds, rules, tournament.organizerClanId),
+        clanDirectory,
+        memberDirectory
+      ).map((standing) => ({
+        label: standing.label,
+        totalPoints: standing.totalPoints,
+        totalKills: standing.totalKills,
+      }))
     : null
 
   const payload = buildTournamentRoundWebhookPayload({
@@ -169,11 +199,24 @@ export async function prepareTournamentRoundBroadcast(
     mapLabel: match.mapName ? mapDisplayName(match.mapName, mapLabels) : 'Carte inconnue',
     gameModeLabel: match.gameMode ? gameModeDisplayName(match.gameMode) : 'Mode inconnu',
     playedAt: new Date(match.createdAt),
-    results: roundScores.map((score) => ({
-      ...score,
-      clanLabel: labels.get(score.clanId) ?? `Clan #${score.clanId}`,
+    mode: rules.mode,
+    mixedSquadRule: rules.mixedSquadRule,
+    results: round.scores.map((score) => ({
+      label: score.label,
+      bestPlacement: score.bestPlacement,
+      totalKills: score.totalKills,
+      placementScore: score.placementScore,
+      killScore: score.killScore,
+      winBonus: score.winBonus,
+      points: score.points,
+      memberLabels: score.memberLabels,
     })),
-    mvp: findMvp(match, participatingClanIds, labels),
+    // En scrims internes, le MVP ne peut venir que du clan organisateur.
+    mvp: findMvp(
+      match,
+      rules.mode === 'intra_clan' ? [tournament.organizerClanId] : participatingClanIds,
+      labels
+    ),
     standings,
     mention: renderDiscordMention(tournamentSettings.mention),
     siteUrl: getSiteBaseUrl(),
@@ -261,10 +304,11 @@ export async function sendDiscordTournamentTestMessage(clanId: number, webhookUr
     mapLabel: 'Miramar',
     gameModeLabel: 'Squad FPP',
     playedAt: new Date(),
+    mode: 'inter_clan',
+    mixedSquadRule: 'full_share',
     results: [
       {
-        clanId,
-        clanLabel: label,
+        label,
         bestPlacement: 1,
         totalKills: 8,
         placementScore: 15,
@@ -273,8 +317,7 @@ export async function sendDiscordTournamentTestMessage(clanId: number, webhookUr
         points: 28,
       },
       {
-        clanId: 0,
-        clanLabel: '[BRV] Clan Bravo',
+        label: '[BRV] Clan Bravo',
         bestPlacement: 2,
         totalKills: 5,
         placementScore: 12,
@@ -286,8 +329,8 @@ export async function sendDiscordTournamentTestMessage(clanId: number, webhookUr
     mvp: { displayName: 'Joueur1', clanLabel: label, kills: 6, damage: 940 },
     standings: tournamentSettings.includeStandings
       ? [
-          { clanLabel: label, totalPoints: 28, totalKills: 8 },
-          { clanLabel: '[BRV] Clan Bravo', totalPoints: 17, totalKills: 5 },
+          { label, totalPoints: 28, totalKills: 8 },
+          { label: '[BRV] Clan Bravo', totalPoints: 17, totalKills: 5 },
         ]
       : null,
     mention: renderDiscordMention(tournamentSettings.mention),

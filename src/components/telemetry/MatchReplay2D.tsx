@@ -96,6 +96,8 @@ export type MatchReplayData = {
   zones: ReplayZone[]
   events: ReplayEvent[]
   flightPath: {
+    /** Payloads mis en cache avant le 2026-09-18 : champ absent, l'axe est alors supposé venir des sauts. */
+    source?: 'jumps' | 'landings'
     start: { x: number; y: number }
     end: { x: number; y: number }
     dropStart: { x: number; y: number } | null
@@ -1643,6 +1645,14 @@ export function MatchReplay2D({
               <span className="font-mono tabular-nums whitespace-nowrap">
                 Cap C-130 : {String(heading).padStart(3, '0')}° {compassCardinal(heading)}
               </span>
+              {flight.source === 'landings' ? (
+                <span
+                  className="whitespace-nowrap rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200"
+                  title="Cet axe est déduit des points d’atterrissage : l’appareil n’a pas été suivi directement."
+                >
+                  axe estimé
+                </span>
+              ) : null}
               {aircraftInFlight && jumpers.length > 0 && (
                 <span className="hidden sm:inline font-mono tabular-nums text-slate-400 whitespace-nowrap">
                   · {jumpedCount}/{jumpers.length} sautés

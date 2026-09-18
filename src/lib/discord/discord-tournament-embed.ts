@@ -1,5 +1,6 @@
 import type { DiscordEmbedField, DiscordWebhookPayload } from '@/lib/discord/discord-client'
 import { matchTournamentDebriefPath } from '@/lib/match-links'
+import type { MixedSquadRule, TournamentMode } from '@/lib/tournament-service'
 
 export const TOURNAMENT_COLOR = 0x5865f2
 
@@ -10,15 +11,44 @@ const MAX_FOOTER_LENGTH = 2048
 
 const RANK_MEDALS = ['🥇', '🥈', '🥉']
 
-export type TournamentRoundClanResult = {
-  clanId: number
-  clanLabel: string
+/**
+ * Résultat d'un participant sur une manche. Le participant est un clan, une équipe ou un joueur selon le mode du
+ * tournoi : l'embed ne connaît que son libellé, déjà résolu par le service.
+ */
+export type TournamentRoundParticipantResult = {
+  label: string
   bestPlacement: number
   totalKills: number
   placementScore: number
   killScore: number
   winBonus: number
   points: number
+  /** Composition, affichée sous le libellé pour une équipe ou une escouade interne. */
+  memberLabels?: string[]
+}
+
+/** Vocabulaire et intitulés propres à chaque mode. */
+const MODE_WORDING: Record<TournamentMode, { roundField: string; standingsField: string; participants: string }> = {
+  inter_clan: {
+    roundField: 'Scores de la manche',
+    standingsField: 'Classement général provisoire',
+    participants: 'clan(s) classé(s)',
+  },
+  custom_teams: {
+    roundField: 'Scores de la manche (équipes)',
+    standingsField: 'Classement général des équipes',
+    participants: 'équipe(s) classée(s)',
+  },
+  solo_ffa: {
+    roundField: 'Classement de la manche (joueurs)',
+    standingsField: 'Classement général individuel',
+    participants: 'joueur(s) classé(s)',
+  },
+  intra_clan: {
+    roundField: 'Scores de la manche (escouades internes)',
+    standingsField: 'Classement interne provisoire',
+    participants: 'escouade(s) classée(s)',
+  },
 }
 
 export type TournamentRoundMvp = {
@@ -29,7 +59,7 @@ export type TournamentRoundMvp = {
 }
 
 export type TournamentStandingLine = {
-  clanLabel: string
+  label: string
   totalPoints: number
   totalKills: number
 }
@@ -44,7 +74,10 @@ export type TournamentRoundEmbedInput = {
   mapLabel: string
   gameModeLabel: string
   playedAt: Date
-  results: TournamentRoundClanResult[]
+  /** Mode du tournoi : change le vocabulaire de l'embed, pas sa structure. */
+  mode: TournamentMode
+  mixedSquadRule: MixedSquadRule
+  results: TournamentRoundParticipantResult[]
   mvp: TournamentRoundMvp | null
   /** null masque le bloc « Classement general provisoire ». */
   standings: TournamentStandingLine[] | null
@@ -68,7 +101,7 @@ function rankPrefix(index: number) {
   return RANK_MEDALS[index] ?? `#${index + 1}`
 }
 
-function formatResultLine(result: TournamentRoundClanResult, index: number) {
+function formatResultLine(result: TournamentRoundParticipantResult, index: number) {
   const parts = [
     `${formatPlacement(result.bestPlacement)} (+${formatPoints(result.placementScore)} pts)`,
     `${result.totalKills} kills (+${formatPoints(result.killScore)} pts)`,
@@ -78,7 +111,7 @@ function formatResultLine(result: TournamentRoundClanResult, index: number) {
     parts.push(`bonus +${formatPoints(result.winBonus)}`)
   }
 
-  return `${rankPrefix(index)} **${result.clanLabel}** : ${parts.join(' · ')} = **${formatPoints(result.points)} pts**`
+  return `${rankPrefix(index)} **${result.label}** : ${parts.join(' · ')} = **${formatPoints(result.points)} pts**`
 }
 
 /**
@@ -105,9 +138,10 @@ export function buildTournamentRoundWebhookPayload(
   input: TournamentRoundEmbedInput
 ): DiscordWebhookPayload {
   const siteUrl = input.siteUrl.replace(/\/+$/, '')
+  const wording = MODE_WORDING[input.mode] ?? MODE_WORDING.inter_clan
   const fields: DiscordEmbedField[] = [
     {
-      name: 'Scores de la manche',
+      name: wording.roundField,
       value: joinBoundedLines(input.results.map(formatResultLine), MAX_FIELD_VALUE_LENGTH),
     },
   ]
@@ -124,11 +158,11 @@ export function buildTournamentRoundWebhookPayload(
 
   if (input.standings) {
     fields.push({
-      name: 'Classement général provisoire',
+      name: wording.standingsField,
       value: joinBoundedLines(
         input.standings.map(
           (line, index) =>
-            `${rankPrefix(index)} **${line.clanLabel}** — ${formatPoints(line.totalPoints)} pts · ${line.totalKills} kills`
+            `${rankPrefix(index)} **${line.label}** — ${formatPoints(line.totalPoints)} pts · ${line.totalKills} kills`
         ),
         MAX_FIELD_VALUE_LENGTH
       ),
@@ -136,6 +170,11 @@ export function buildTournamentRoundWebhookPayload(
   }
 
   const descriptionLines = [`🗺️ **${input.mapLabel}** — ${input.gameModeLabel}`]
+
+  // Le prorata produit des points décimaux : sans cette note, un lecteur croirait à une erreur de calcul.
+  if (input.mode === 'inter_clan' && input.mixedSquadRule === 'prorata') {
+    descriptionLines.push('⚖️ Escouades mixtes : placement et bonus partagés au prorata de l’effectif de chaque clan.')
+  }
 
   if (siteUrl) {
     descriptionLines.push(
@@ -158,7 +197,7 @@ export function buildTournamentRoundWebhookPayload(
         fields,
         footer: {
           text: truncate(
-            `Manche ${input.roundNumber}/${input.totalRounds} · ${input.results.length} clan(s) classé(s)`,
+            `Manche ${input.roundNumber}/${input.totalRounds} · ${input.results.length} ${wording.participants}`,
             MAX_FOOTER_LENGTH
           ),
         },

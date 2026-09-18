@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Search, Settings, Trophy, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Info, Search, Settings, Trophy, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import TournamentGuide from '@/components/tournaments/TournamentGuide'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge, { type TeamMode } from '@/components/ui/TeamModeBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -128,6 +129,7 @@ export default function TournamentsPage() {
   const [sort, setSort] = useState<SortKey>('recent')
   const [archiveSort, setArchiveSort] = useState<SortKey>('recent')
   const [archivesOpen, setArchivesOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
 
   // Fige l'instant de rendu : les compteurs « dans 3 jours » ne doivent pas bouger d'une ligne à l'autre.
   const now = useMemo(() => new Date(), [])
@@ -403,6 +405,25 @@ export default function TournamentsPage() {
           </div>
         </section>
       ) : null}
+
+      <section className="space-y-3">
+        <button
+          type="button"
+          onClick={() => setGuideOpen((open) => !open)}
+          aria-expanded={guideOpen}
+          className="app-panel flex w-full items-center justify-between gap-3 p-4 text-left"
+        >
+          <span className="flex items-center gap-2">
+            <Info className="h-5 w-5 text-sky-500" aria-hidden />
+            <h2 className="text-base font-semibold text-gray-900">Comment fonctionne un tournoi ?</h2>
+          </span>
+          <ChevronDown
+            className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${guideOpen ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+        {guideOpen ? <TournamentGuide showHeader={false} /> : null}
+      </section>
 
       {archives.length > 0 ? (
         <section className="space-y-3">

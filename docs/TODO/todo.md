@@ -104,7 +104,7 @@ Vue d'ensemble ; le détail vit dans les sections citées.
    du plus ancien au plus récent (~9 h de worker, ~343 Mo de cellules), `--report` pour l'avancement. Un échec
    (télémétrie expirée) repasse un match en `failed` sans effacer ses données : `--restore-downgraded --since <lancement>`.
    Les nouveaux matchs de la soirée attendent derrière la file. La resynchronisation écrit les cellules de ces matchs ;
-   restent les plus anciens (`telemetry:position-metrics:backfill -- --missing-only`, décision de stockage).
+   les plus anciens ont été rattrapés le 2026-09-17 (voir « Modèle et alimentation »).
    ✅ Faits sur le serveur le 2026-09-16 : recalcul des niveaux de pression au drop (15 873 lignes) et rattrapage des
    zones sûres (12 357 matchs, 96 992 lignes, 36 s).
 4. [x] Débriefing : bascule des liens, redirections, Mode contextuel Tournoi — code prêt (VOLET 4) ; [ ] recette navigateur.
@@ -369,18 +369,22 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
 
 ##### VOLET 2 : Administration du Clan (`/clans/[clanId]/settings/tournaments`)
 
-- [ ] **Navigation par 3 Onglets (`SegmentedControl`) :**
+> **VOLET 2 livré le 2026-09-18** — page d'administration réécrite, moteur des 4 modes (`tournament-service.ts`),
+> filtres réalignés (`tournament-filters.ts`), modale de suppression. Doc : `docs/features/tournois.md`.
+> **Trois incohérences trouvées et corrigées au passage**, détaillées sous les cases.
+
+- [x] **Navigation par 3 Onglets (`SegmentedControl`) :**
   1. **🏆 Tournois (`tournaments`) :** Vue principale de pilotage. Contient la barre d'outils, la recherche, les tournois actifs en vue prioritaire, et les tournois archivés/brouillons en accordéon repliable avec chevron. Bouton proéminent *« + Nouveau tournoi »*.
   2. **✏️ Créer / Modifier un tournoi (`editor`) :** Formulaire structuré en 5 blocs clairs. Bascule dynamique sur *« Modifier : {Titre} »* lors du clic sur Modifier.
   3. **💡 Guide & Fonctionnement (`guide`) :** Centre d'aide interactif intégré au format callout.
 
-- [ ] **Barre d'outils & Gestion des Tournois du Clan :**
+- [x] **Barre d'outils & Gestion des Tournois du Clan :** recherche, filtre de statut, tournois actifs en cartes avec les cinq actions, accordéon pour brouillons et tournois terminés.
   - Recherche textuelle en direct sur les tournois gérés par le clan.
   - Filtres de statut (`Tous`, `Actifs`, `Terminés`, `Brouillons`).
   - Section Tournois Actifs avec actions rapides : `🔄 Synchroniser PUBG`, `📢 Diffuser sur Discord`, `👁️ Voir le classement`, `✏️ Modifier`, `🗑️ Supprimer`.
   - Section repliable avec chevron pour les tournois terminés et les brouillons.
 
-- [ ] **Formulaire Structuré en 5 Blocs :**
+- [x] **Formulaire Structuré en 5 Blocs :**
   1. **Informations Générales :** Titre, description, dates de début et fin avec validation (date de fin ≥ date de début), statut (`Brouillon`, `Actif`, `Terminé`).
   2. **Mode de Tournoi & Attribution des Points (Au choix du Clan Owner) :**
      - Choix parmi les 4 modes : `Inter-Clans`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
@@ -389,7 +393,20 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
   4. **Barème de points :** Top 1 à Top 10 préremplis, points par kill, bonus victoire, best-of N manches (`bestOfRounds`).
   5. **Diffusion Discord :** Surcharge optionnelle du webhook Discord pour ce tournoi.
 
-- [ ] **Suppression Sécurisée d'un Tournoi :**
+  **Incohérences trouvées en implémentant (2026-09-18), toutes corrigées :**
+  1. `normalizeTournamentRules` ne conservait que le barème : le mode choisi aurait été **silencieusement perdu** à
+     l'enregistrement. Les routes `POST` et `PATCH` filtraient elles aussi les champs de `rules`.
+  2. Le moteur ne savait calculer qu'un classement par clan. `computeTournamentModeStandings` produit désormais une
+     ligne par participant selon le mode (clan, équipe ou joueur), `computeTournamentStandings` restant la vue clan.
+     ⚠️ L'**affichage** du classement reste celui par clan : son adaptation aux modes est le VOLET 3.
+  3. Le formulaire proposait des cartes en nom d'affichage (« Erangel ») et des modes inexistants (« squad »,
+     « trio ») alors que les matchs personnalisés stockent `Baltic_Main` et `normal-squad` : **un tournoi ainsi
+     filtré ne retenait aucune manche, sans message**. Corrigé par `tournament-filters.ts`, appliqué aussi côté
+     serveur pour réparer les tournois déjà enregistrés à leur prochaine sauvegarde.
+  4. Régression attrapée par les tests existants : le partage au prorata s'appliquait aussi au score de manche,
+     sans avoir été choisi.
+
+- [x] **Suppression Sécurisée d'un Tournoi :** `TournamentDeleteModal`, message rassurant sur les données conservées, appel à la route `DELETE` existante.
   - Bouton `🗑️ Supprimer` (`.app-btn--danger`) sur chaque tournoi de la liste.
   - Modale de confirmation sécurisée (`TournamentDeleteModal`) conforme `.app-modal-card` et `.app-modal-backdrop`.
   - Message rassurant indiquant que les matchs PUBG bruts et les statistiques restent préservés en base de données.
@@ -399,7 +416,12 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
 
 ##### VOLET 3 : Page Détail & Classement d'un Tournoi (`/tournaments/[tournamentId]`)
 
-- [ ] **Hero Header Immersif & Statut Dynamique :**
+> **VOLET 3 livré le 2026-09-18** — page de détail réécrite, payload de classement enrichi
+> (`src/lib/tournament-standings-view.ts`, 13 tests), colonne Dégâts ajoutée au moteur pour le mode solo.
+> Doc : `docs/features/tournois.md`. Non fait : les **avatars** du podium et du classement solo, l'avatar vivant sur
+> `UserAccount` via `MemberIdentity`, hors du périmètre du classement.
+
+- [x] **Hero Header Immersif & Statut Dynamique :**
   - Titre principal, clan organisateur avec lien vers sa page, dates de début et fin.
   - Badge de statut dynamique avec pulsation : `● EN DIRECT` (vert), `⏳ À VENIR` (bleu) ou `🏁 TERMINÉ` (gris).
   - Badges contextuels :
@@ -412,15 +434,15 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
     - `📢 Diffuser sur Discord` : Ouvre instantanément la modale `TournamentBroadcastModal`.
     - `⚙️ Paramètres du tournoi` : Raccourci vers `/clans/[clanId]/settings/tournaments`.
 
-- [ ] **Barème de Points Compact & Rétractable :**
+- [x] **Barème de Points Compact & Rétractable :** ruban dépliable, grille Top 1–10, mention explicite de la règle d'escouade mixte.
   - Remplacement du pavé rigide actuel par un ruban épuré et dépliable (callout `.app-modal-callout`) :
     - Points par Kill, Bonus Top 1, limitation aux N meilleures manches (`bestOfRounds`), et grille Top 1 à Top 10.
     - Mention explicite de la règle de partage des escouades mixtes (Partage intégral ou Prorata).
 
-- [ ] **Podium Héroïque Interactif (Top 1, 2, 3) :**
+- [x] **Podium Héroïque Interactif (Top 1, 2, 3) :** médailles or/argent/bronze, libellé du participant, points, kills et victoires. Sans avatars (voir ci-dessus).
   - Mise en avant graphique des 3 premiers du classement actuel avec couronnes/médailles or, argent, bronze, avatars/tags de clan et total de points.
 
-- [ ] **Classement Polymorphique adapté aux 4 Modes de Tournoi (`.app-table`) :**
+- [x] **Classement Polymorphique adapté aux 4 Modes de Tournoi (`.app-table`) :** points décimaux et infobulle en prorata, bascule cumul/escouade en inter-clans, colonne Dégâts et trophée des clans rétractable en solo, composition affichée pour les équipes et les scrims internes.
   - **Mode 1 : Inter-Clans (`inter_clan`) :**
     - Tableau par Clan (Rang, Clan, Points totaux, Kills, Manches jouées, Victoires).
     - Si règle `prorata` : affichage des points décimaux (ex: `18.5 pts`) avec infobulle explicative de la répartition.
@@ -434,7 +456,7 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
   - **Mode 4 : Tournoi Interne (`intra_clan`) :**
     - Classement des escouades internes du clan organisateur avec composition complète des coéquipiers.
 
-- [ ] **Section Manches & Matchs Comptabilisés (`Manche #N`) :**
+- [x] **Section Manches & Matchs Comptabilisés (`Manche #N`) :** numérotation chronologique, carte et heure, vainqueur (au placement, pas aux points), MVP de la manche, score par participant, lien vers le débriefing 2D.
   - Numérotation chronologique des manches : `Manche #1`, `Manche #2`, etc.
   - Carte de manche détaillée :
     - Carte, heure et mode de jeu.
@@ -935,20 +957,41 @@ Intégration d'un système de diffusion automatique de notifications enrichies s
 
 ##### VOLET 5 : Adaptation des Notifications Discord & Moteur de Scoring
 
-- [ ] **Générateur d'Embed Polymorphique (`discord-tournament-embed.ts`) :**
+> **VOLET 5 livré le 2026-09-18** — embed et orchestration alignés sur les 4 modes, tests étendus (+8).
+> Doc : `docs/features/tournois.md` et `docs/features/discord-notifications.md`.
+> **Incohérence trouvée** : tout l'embed était typé « par clan » (`clanId`, `clanLabel`). Le participant est
+> désormais générique (`label`), ce qui a imposé de mettre à jour l'aperçu des paramètres Discord et le message de
+> test. **Piège rencontré** : le mock Prisma du test de service ne listait pas `clanMember`, le nouveau modèle lu
+> par l'orchestration — l'erreur tombait loin de sa cause, exactement le gotcha documenté dans CLAUDE.md.
+
+- [x] **Générateur d'Embed Polymorphique (`discord-tournament-embed.ts`) :** intitulés, pied de page et vocabulaire
+  adaptés aux 4 modes, note explicite quand le partage au prorata est actif.
   - Embed adapté dynamiquement selon le mode du tournoi :
     - Mode Inter-Clans (avec note de prorata si activé).
     - Mode Équipes Libres (nom d'équipe + membres et clans d'origine).
     - Mode Solo FFA (leaderboard individuel et MVP dégâts/kills).
     - Mode Tournoi Interne (classement des escouades internes du clan).
-- [ ] **Service d'orchestration (`discord-tournament-service.ts`) :**
-  - Transmission des règles et du mode au générateur d'embeds et à `computeTournamentRoundScores`.
+- [x] **Service d'orchestration (`discord-tournament-service.ts`) :** règles normalisées transmises au générateur,
+  scores de manche et classement calculés par `buildRoundViews` / `computeTournamentModeStandings` — donc exactement
+  les mêmes chiffres que la page de détail. En scrims internes, le MVP est restreint au clan organisateur.
 
 ---
 
 ##### VOLET 6 : Onglet « Guide & Fonctionnement »
 
-- [ ] **Fiches explicatives au format `.app-modal-callout` :**
+> **VOLET 6 livré le 2026-09-18** — guide extrait dans une source unique (`src/lib/tournament-guide.ts`, 7 tests)
+> et rendu par un composant partagé (`TournamentGuide`).
+> **Deux écarts assumés par rapport à la demande :**
+> 1. **Sept fiches au lieu de six** : les escouades mixtes ont leur propre fiche plutôt qu'un paragraphe noyé dans
+>    celle des modes — c'est la règle qui surprend le plus, avec ses points décimaux.
+> 2. **Le guide est aussi public**, en accordéon replié sur `/tournaments` : la demande le plaçait seulement dans
+>    l'administration, mais les questions « qu'est-ce qui compte ? » et « pourquoi ce score ? » viennent des joueurs,
+>    pas de l'organisateur.
+>
+> **Incohérence corrigée** : les descriptions de modes étaient dupliquées entre le formulaire de création et le
+> guide. Elles viennent maintenant du même fichier, et un test échoue si un mode du moteur n'y est pas décrit.
+
+- [x] **Fiches explicatives au format `.app-modal-callout` :**
   1. **Comment sont capturés les matchs ?** : Parties personnalisées (`matchType: custom`).
   2. **Règle d'or de l'organisateur :** Présence obligatoire d'un membre du clan organisateur dans le match.
   3. **Les 4 Modes de Tournoi :** Fonctionnement des modes Inter-Clans (100% ou Prorata), Équipes Libres, Solo FFA et Intra-Clan.
@@ -1893,10 +1936,12 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 - [x] **Déployer ce correctif avant toute resynchronisation** — ✅ 2026-09-16 en fin de journée.
 - [x] **Resynchroniser les matchs de moins de 14 jours** — ✅ 4 989 matchs les 16 et 17/09
   (`scripts/enqueue-recent-telemetry-resync.ts`), voir la synthèse « Télémétrie — ordre des prochaines étapes ».
-- [ ] **Rattraper les cellules** : `npm run telemetry:position-metrics:backfill -- --missing-only` (option ajoutée le
-  2026-09-16) → **8 172 matchs** restants au 2026-09-17 (~800 Mo estimés à ~170 cellules par match), la nuit (la seule
-  sélection prend ~70 s sur la base de production). **À faire avant toute purge du JSON brut** : le backfill relit
-  `positionSamples`.
+- [x] **Rattraper les cellules** — ✅ 2026-09-17 : `npm run telemetry:position-metrics:backfill -- --missing-only`,
+  **8 172 matchs traités, 263 208 cellules écrites**. Contrôle : **0 match `success` sans cellule** sur les 14 972.
+  Coût réel bien inférieur à l'estimation : `PositionMetricCell` 639 → **773 Mo** (+134 Mo, contre ~800 Mo estimés),
+  soit 32 cellules par match ancien contre 170 pour un match récent — leurs positions et tirs avaient été purgés ou
+  n'avaient jamais été capturés. Métriques dominantes sur les matchs d'avant le 25/08 : véhicules (74 768),
+  positions (64 691), rotations (62 676), puis mises à terre, morts et kills. Base totale : 19,4 Go.
   Limites : sans resync, ces matchs n'auront ni tirs ni dégâts (colonnes vides à la source) ; la purge de géolocalisation
   a vidé les positions des matchs de plus de 14 jours (464 / 7 282 en août) → `position`/`rotation` absentes pour eux,
   kills, knocks, réanimations, morts et véhicules intacts.

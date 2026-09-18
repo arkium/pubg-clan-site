@@ -1,8 +1,25 @@
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails } from '@/lib/pubg'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
+import { normalizeTournamentGameMode, normalizeTournamentMapName } from '@/lib/tournament-filters'
+
+/**
+ * Mode de tournoi, choisi par le clan organisateur et stocké dans `Tournament.rules` :
+ * - `inter_clan` : clans en compétition, une ligne de classement par clan ;
+ * - `custom_teams` : équipes fixes, éventuellement inter-clans, une ligne par équipe ;
+ * - `solo_ffa` : classement individuel, une ligne par joueur ;
+ * - `intra_clan` : scrims internes, une ligne par escouade du clan organisateur.
+ */
+export type TournamentMode = 'inter_clan' | 'custom_teams' | 'solo_ffa' | 'intra_clan'
+
+/** Escouade mixte en mode inter-clans : chaque clan marque tout, ou au prorata de son effectif. */
+export type MixedSquadRule = 'full_share' | 'prorata'
+
+export const TOURNAMENT_MODES: TournamentMode[] = ['inter_clan', 'custom_teams', 'solo_ffa', 'intra_clan']
 
 export type TournamentRulesInput = {
+  mode?: string | null
+  mixedSquadRule?: string | null
   placementPoints?: Record<string | number, number> | null
   killPoints?: number | string | null
   winBonus?: number | string | null
@@ -10,6 +27,8 @@ export type TournamentRulesInput = {
 }
 
 export type NormalizedTournamentRules = {
+  mode: TournamentMode
+  mixedSquadRule: MixedSquadRule
   placementPoints: Record<number, number>
   killPoints: number
   winBonus: number
@@ -24,6 +43,8 @@ type TournamentMemberRow = {
   }
   kills: number
   placement: number
+  /** Dégâts infligés, utilisés par le MVP de manche et le classement solo. Absent des fixtures de test. */
+  damage?: number
 }
 
 type TournamentMatchLike = {
@@ -42,6 +63,8 @@ export type TournamentTeam = {
   members: TournamentMemberRow[]
   bestPlacement: number
   totalKills: number
+  /** Part de l'escouade PUBG détenue par ce clan (1 quand l'escouade est mono-clan). */
+  placementShare: number
 }
 
 export type TournamentStanding = {
@@ -99,6 +122,8 @@ export function normalizeTournamentRules(
         : null
 
   return {
+    mode: TOURNAMENT_MODES.includes(input?.mode as TournamentMode) ? (input!.mode as TournamentMode) : 'inter_clan',
+    mixedSquadRule: input?.mixedSquadRule === 'prorata' ? 'prorata' : 'full_share',
     placementPoints,
     killPoints: asNumber(input?.killPoints, 0),
     winBonus: asNumber(input?.winBonus, 0),
@@ -135,6 +160,7 @@ export function groupMatchIntoTeams(
 
   const teams: TournamentTeam[] = []
   const seen = new Set<string>()
+  const trackedMemberCount = [...byClan.values()].reduce((sum, members) => sum + members.length, 0)
 
   for (const [clanId, members] of [...byClan.entries()].sort((left, right) => left[0] - right[0])) {
     const memberIds = [...new Set(members.map((member) => member.memberId))].sort((left, right) => left - right)
@@ -152,6 +178,7 @@ export function groupMatchIntoTeams(
       members,
       bestPlacement,
       totalKills,
+      placementShare: trackedMemberCount > 0 ? members.length / trackedMemberCount : 1,
     })
   }
 
@@ -166,12 +193,15 @@ export type TournamentTeamScore = {
 }
 
 export function scoreTournamentTeam(
-  team: Pick<TournamentTeam, 'bestPlacement' | 'totalKills'>,
+  team: Pick<TournamentTeam, 'bestPlacement' | 'totalKills'> & { placementShare?: number },
   rules: NormalizedTournamentRules
 ): TournamentTeamScore {
-  const placementScore = rules.placementPoints[team.bestPlacement] ?? 0
+  // `placementShare` < 1 en mode inter-clans au prorata : une escouade 2 + 2 partage placement et bonus en deux.
+  // Les kills ne sont jamais partagés, ils sont déjà comptés joueur par joueur.
+  const share = typeof team.placementShare === 'number' && team.placementShare > 0 ? team.placementShare : 1
+  const placementScore = (rules.placementPoints[team.bestPlacement] ?? 0) * share
   const killScore = team.totalKills * rules.killPoints
-  const winBonus = team.bestPlacement === 1 ? rules.winBonus : 0
+  const winBonus = (team.bestPlacement === 1 ? rules.winBonus : 0) * share
 
   return { placementScore, killScore, winBonus, points: placementScore + killScore + winBonus }
 }
@@ -199,7 +229,11 @@ export function computeTournamentRoundScores(
       clanId: team.clanId,
       bestPlacement: team.bestPlacement,
       totalKills: team.totalKills,
-      ...scoreTournamentTeam(team, rules),
+      // Le partage au prorata ne s'applique que s'il a été choisi : sinon chaque clan marque tout le placement.
+      ...scoreTournamentTeam(
+        { ...team, placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1 },
+        rules
+      ),
     }))
     .sort((left, right) => {
       if (right.points !== left.points) return right.points - left.points
@@ -221,7 +255,10 @@ export function computeTournamentStandings(
     const teams = groupMatchIntoTeams(match, participatingClanIds)
 
     for (const team of teams) {
-      const { points } = scoreTournamentTeam(team, rules)
+      const { points } = scoreTournamentTeam(
+        { ...team, placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1 },
+        rules
+      )
 
       const key = team.key
       const aggregate = teamScores.get(key) ?? { clanId: team.clanId, entries: [] }
@@ -269,6 +306,169 @@ export function computeTournamentStandings(
   }))
 
   return finalStandings.sort((left, right) => {
+    if (right.totalPoints !== left.totalPoints) return right.totalPoints - left.totalPoints
+    if (right.totalKills !== left.totalKills) return right.totalKills - left.totalKills
+    if (left.bestPlacement !== right.bestPlacement) {
+      if (left.bestPlacement === null) return 1
+      if (right.bestPlacement === null) return -1
+      return left.bestPlacement - right.bestPlacement
+    }
+    return 0
+  })
+}
+
+/**
+ * Participant d'un classement, selon le mode : un clan, une équipe fixe, ou un joueur.
+ * Le moteur ne manipule que des identifiants ; les noms sont résolus à la lecture, côté route.
+ */
+export type TournamentParticipant =
+  | { kind: 'clan'; clanId: number }
+  | { kind: 'team'; memberIds: number[]; clanIds: number[] }
+  | { kind: 'player'; memberId: number; clanId: number | null }
+
+export type TournamentModeStanding = {
+  key: string
+  participant: TournamentParticipant
+  totalPoints: number
+  totalKills: number
+  /** Dégâts cumulés du participant : affichés en mode solo, où ils départagent vraiment les joueurs. */
+  totalDamage: number
+  matchesPlayed: number
+  wins: number
+  bestPlacement: number | null
+  averagePlacement: number
+}
+
+type ModeEntry = {
+  key: string
+  participant: TournamentParticipant
+  bestPlacement: number
+  totalKills: number
+  totalDamage: number
+  placementShare: number
+}
+
+/**
+ * Découpe une manche en participants selon le mode choisi. Une escouade mixte produit une entrée par clan en
+ * inter-clans, mais une seule entrée d'équipe en `custom_teams` : c'est tout l'intérêt de ce mode.
+ */
+export function groupMatchByMode(
+  match: TournamentMatchLike,
+  participatingClanIds: number[],
+  rules: NormalizedTournamentRules,
+  organizerClanId?: number
+): ModeEntry[] {
+  if (rules.mode === 'inter_clan') {
+    return groupMatchIntoTeams(match, participatingClanIds).map((team) => ({
+      key: `clan:${team.clanId}`,
+      participant: { kind: 'clan', clanId: team.clanId },
+      bestPlacement: team.bestPlacement,
+      totalKills: team.totalKills,
+      totalDamage: team.members.reduce((sum, member) => sum + (member.damage ?? 0), 0),
+      placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1,
+    }))
+  }
+
+  const allowed = new Set(participatingClanIds)
+  const eligible = (match.members ?? []).filter((member) => {
+    const clanId = member?.member.clanId
+    if (clanId === null || clanId === undefined) return false
+    // Scrims internes : seuls les membres du clan organisateur concourent.
+    if (rules.mode === 'intra_clan') return organizerClanId !== undefined && clanId === organizerClanId
+    return allowed.has(clanId)
+  })
+
+  if (eligible.length === 0) return []
+
+  if (rules.mode === 'solo_ffa') {
+    return eligible.map((member) => ({
+      key: `player:${member.memberId}`,
+      participant: { kind: 'player', memberId: member.memberId, clanId: member.member.clanId },
+      bestPlacement: member.placement,
+      totalKills: member.kills,
+      totalDamage: member.damage ?? 0,
+      placementShare: 1,
+    }))
+  }
+
+  // `custom_teams` et `intra_clan` : l'escouade elle-même est le participant, identifiée par ses membres.
+  const memberIds = [...new Set(eligible.map((member) => member.memberId))].sort((left, right) => left - right)
+  const clanIds = [...new Set(eligible.map((member) => member.member.clanId).filter((id): id is number => id !== null))].sort(
+    (left, right) => left - right
+  )
+
+  return [
+    {
+      key: `team:${buildTeamKey(memberIds)}`,
+      participant: { kind: 'team', memberIds, clanIds },
+      bestPlacement: eligible.reduce((min, member) => Math.min(min, member.placement), Number.MAX_SAFE_INTEGER),
+      totalKills: eligible.reduce((sum, member) => sum + member.kills, 0),
+      totalDamage: eligible.reduce((sum, member) => sum + (member.damage ?? 0), 0),
+      placementShare: 1,
+    },
+  ]
+}
+
+/**
+ * Classement générique, quel que soit le mode. `computeTournamentStandings` reste la vue par clan, utilisée
+ * partout où le classement est affiché clan par clan (inter-clans).
+ */
+export function computeTournamentModeStandings(
+  matches: TournamentMatchLike[],
+  participatingClanIds: number[],
+  rulesInput: TournamentRulesInput | NormalizedTournamentRules = {},
+  organizerClanId?: number
+): TournamentModeStanding[] {
+  const rules = normalizeTournamentRules(rulesInput)
+  const byParticipant = new Map<string, { participant: TournamentParticipant; entries: Array<{ points: number; totalKills: number; totalDamage: number; bestPlacement: number }> }>()
+
+  for (const match of matches) {
+    for (const entry of groupMatchByMode(match, participatingClanIds, rules, organizerClanId)) {
+      const { points } = scoreTournamentTeam(entry, rules)
+      const aggregate = byParticipant.get(entry.key) ?? { participant: entry.participant, entries: [] }
+      aggregate.entries.push({
+        points,
+        totalKills: entry.totalKills,
+        totalDamage: entry.totalDamage,
+        bestPlacement: entry.bestPlacement,
+      })
+      byParticipant.set(entry.key, aggregate)
+    }
+  }
+
+  const standings: TournamentModeStanding[] = []
+  for (const [key, aggregate] of byParticipant) {
+    const selected =
+      rules.bestOfRounds !== null && rules.bestOfRounds !== undefined
+        ? [...aggregate.entries].sort((left, right) => right.points - left.points).slice(0, rules.bestOfRounds)
+        : aggregate.entries
+
+    const standing: TournamentModeStanding = {
+      key,
+      participant: aggregate.participant,
+      totalPoints: 0,
+      totalKills: 0,
+      totalDamage: 0,
+      matchesPlayed: selected.length,
+      wins: 0,
+      bestPlacement: null,
+      averagePlacement: 0,
+    }
+
+    for (const entry of selected) {
+      standing.totalPoints += entry.points
+      standing.totalKills += entry.totalKills
+      standing.totalDamage += entry.totalDamage
+      standing.wins += entry.bestPlacement === 1 ? 1 : 0
+      standing.bestPlacement =
+        standing.bestPlacement === null ? entry.bestPlacement : Math.min(standing.bestPlacement, entry.bestPlacement)
+      standing.averagePlacement += entry.bestPlacement
+    }
+    standing.averagePlacement = selected.length > 0 ? standing.averagePlacement / selected.length : 0
+    standings.push(standing)
+  }
+
+  return standings.sort((left, right) => {
     if (right.totalPoints !== left.totalPoints) return right.totalPoints - left.totalPoints
     if (right.totalKills !== left.totalKills) return right.totalKills - left.totalKills
     if (left.bestPlacement !== right.bestPlacement) {
@@ -332,7 +532,11 @@ export async function getTournamentMatches(tournamentId: string) {
             clan: { isActive: true },
           },
         },
-        include: {
+        select: {
+          memberId: true,
+          kills: true,
+          damage: true,
+          placement: true,
           member: {
             select: {
               id: true,
@@ -637,8 +841,8 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
       description: input.description?.trim() || null,
       startDate,
       endDate,
-      gameMode: input.gameMode?.trim() || null,
-      mapName: input.mapName?.trim() || null,
+      gameMode: normalizeTournamentGameMode(input.gameMode),
+      mapName: normalizeTournamentMapName(input.mapName),
       status: input.status ?? 'draft',
       rules: normalizedRules,
       discordWebhookUrl: normalizeDiscordWebhookOverride(input.discordWebhookUrl),
@@ -672,8 +876,8 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
       ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
       ...(input.startDate ? { startDate: new Date(input.startDate) } : {}),
       ...(input.endDate ? { endDate: new Date(input.endDate) } : {}),
-      ...(input.gameMode !== undefined ? { gameMode: input.gameMode?.trim() || null } : {}),
-      ...(input.mapName !== undefined ? { mapName: input.mapName?.trim() || null } : {}),
+      ...(input.gameMode !== undefined ? { gameMode: normalizeTournamentGameMode(input.gameMode) } : {}),
+      ...(input.mapName !== undefined ? { mapName: normalizeTournamentMapName(input.mapName) } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(nextRules ? { rules: nextRules } : {}),
       ...(input.discordWebhookUrl !== undefined

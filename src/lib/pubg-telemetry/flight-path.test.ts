@@ -54,6 +54,44 @@ describe('computeRecallFlights', () => {
   })
 })
 
+describe('axe déduit des atterrissages — garde-fou', () => {
+  /**
+   * Cas réel : match de tournoi sur Paramo (2026-08-31), quatre joueurs sautés en 4 s, atterrissages en grappe.
+   * L'axe extrapolé donnait -69° au lieu des -33° réels, tracés d'un bord à l'autre de la carte.
+   */
+  const clusteredParamoLandings = [
+    { x: 156066, y: 174246, timestampSeconds: 1788199193.82 },
+    { x: 163192, y: 174386, timestampSeconds: 1788199194.74 },
+    { x: 165054, y: 158203, timestampSeconds: 1788199196.213 },
+    { x: 166486, y: 157880, timestampSeconds: 1788199198.274 },
+  ]
+
+  it('refuse un axe extrapolé depuis une grappe d’atterrissages', () => {
+    expect(computeFlightPath(clusteredParamoLandings, 'Chimera_Main')).toBeNull()
+  })
+
+  it('accepte le même écart sur une grande carte, où il reste significatif', () => {
+    const spread = [
+      { x: 100000, y: 100000, timestampSeconds: 10 },
+      { x: 500000, y: 480000, timestampSeconds: 40 },
+    ]
+    const path = computeFlightPath(spread, 'Baltic_Main')
+    expect(path).not.toBeNull()
+    expect(path?.source).toBe('landings')
+  })
+
+  it('marque la provenance de l’axe : sauts ou atterrissages', () => {
+    const fromJumps = computeFlightPathFromJumps(
+      [
+        { t: 10, x: 100000, y: 100000 },
+        { t: 40, x: 500000, y: 480000 },
+      ],
+      'Baltic_Main'
+    )
+    expect(fromJumps?.source).toBe('jumps')
+  })
+})
+
 describe('computeFlightPathFromJumps', () => {
   it('oriente la trajectoire du premier vers le dernier saut', () => {
     const path = computeFlightPathFromJumps([

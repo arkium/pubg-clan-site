@@ -189,9 +189,25 @@ L'ordre temporel des sauts suit exactement la progression de l'appareil : l'orie
 
 ### 6.2 `computeFlightPath` — repli sur les atterrissages
 
-Utilisé uniquement si les départs d'aéronef manquent (snapshot ancien, parser v1). Moyenne les 15 % d'atterrissages les plus précoces et les plus tardifs pour en déduire un axe.
+Utilisé uniquement si les départs d'aéronef manquent (snapshot ancien, parser v1). Moyenne les extrémités
+(15 % des atterrissages les plus précoces et les plus tardifs, au moins un de chaque côté et jamais les mêmes points
+des deux côtés) pour en déduire un axe.
 
 **Cette méthode est imprécise par construction** : le moment d'atterrissage dépend surtout de la distance planée par chaque joueur, pas de sa position sur la ligne de vol. Un joueur qui saute tôt et plane loin atterrit tard.
+
+#### Garde-fou : pas d'axe plutôt qu'un faux axe (2026-09-18)
+
+Le repli ne publie plus d'axe quand les largages couvrent **moins de 15 % de la largeur de la carte**
+(`MIN_LANDING_BASELINE_RATIO`). Une escouade qui saute groupée ne dit rien de la ligne de vol, et l'erreur est
+d'autant plus visible que la carte est petite.
+
+Cas mesuré, match de tournoi Paramo `cmthld13a00dd04aw8xu80llc` (2026-08-31) : quatre joueurs sautés en 4 s
+atterrissent en grappe sur **174 m, soit 5,7 % de la carte**. Le repli déduisait un axe à **−69,3°** alors que les
+sauts réels donnent **−32,6°**. Une droite tirée d'un bord à l'autre de la carte à partir de ce bruit est pire
+qu'aucune droite.
+
+Le plan de vol porte maintenant sa provenance (`source: 'jumps' | 'landings'`), et le replay signale un axe de repli
+par une pastille « axe estimé » à côté du cap.
 
 ### 6.3 Comparaison mesurée
 

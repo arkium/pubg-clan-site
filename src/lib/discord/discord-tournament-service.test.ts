@@ -6,6 +6,9 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     clanConfig: { findUnique: vi.fn() },
     clan: { findUnique: vi.fn(), findMany: vi.fn() },
+    // Depuis les modes de tournoi, le service résout aussi les pseudos : sans ce modèle, le mock renvoie
+    // `undefined` et l'erreur tombe loin de sa cause (gotcha documenté dans CLAUDE.md).
+    clanMember: { findMany: vi.fn() },
     discordNotificationLog: { findUnique: vi.fn(), findMany: vi.fn(), upsert: vi.fn() },
   },
 }))
@@ -70,7 +73,9 @@ const ROUND_TWO = {
   members: [member(1, 5, 6, 1, 950), member(2, 7, 2, 4, 310)],
 }
 
-function arrange(options: { tournamentWebhookUrl?: string | null; clanWebhookUrl?: string } = {}) {
+function arrange(
+  options: { tournamentWebhookUrl?: string | null; clanWebhookUrl?: string; rules?: Record<string, unknown> } = {}
+) {
   vi.mocked(prisma.clanConfig.findUnique).mockResolvedValue({
     value: JSON.stringify({
       ...DEFAULT_DISCORD_SETTINGS,
@@ -87,7 +92,13 @@ function arrange(options: { tournamentWebhookUrl?: string | null; clanWebhookUrl
     title: 'Coupe inter-clans',
     organizerClanId: CLAN_ID,
     discordWebhookUrl: options.tournamentWebhookUrl ?? null,
-    rules: { placementPoints: { 1: 10, 2: 6 }, killPoints: 1, winBonus: 0, bestOfRounds: null },
+    rules: {
+      placementPoints: { 1: 10, 2: 6 },
+      killPoints: 1,
+      winBonus: 0,
+      bestOfRounds: null,
+      ...(options.rules ?? {}),
+    },
   } as never)
 
   vi.mocked(getTournamentMatches).mockResolvedValue([ROUND_TWO, ROUND_ONE] as never)
@@ -95,6 +106,10 @@ function arrange(options: { tournamentWebhookUrl?: string | null; clanWebhookUrl
   vi.mocked(prisma.clan.findMany).mockResolvedValue([
     { id: 5, name: 'Alpha', tag: 'ALP' },
     { id: 7, name: 'Bravo', tag: 'BRV' },
+  ] as never)
+  vi.mocked(prisma.clanMember.findMany).mockResolvedValue([
+    { id: 1, displayName: 'Alpha', clanId: 5 },
+    { id: 2, displayName: 'Bravo', clanId: 7 },
   ] as never)
   vi.mocked(prisma.discordNotificationLog.findUnique).mockResolvedValue(null as never)
   vi.mocked(prisma.discordNotificationLog.upsert).mockResolvedValue({} as never)
@@ -188,6 +203,52 @@ describe('prepareTournamentRoundBroadcast', () => {
     await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
 
     expect(sendDiscordWebhook).not.toHaveBeenCalled()
+  })
+})
+
+describe('diffusion selon le mode du tournoi', () => {
+  it('classe les joueurs un par un et adapte les intitulés en mode solo', async () => {
+    arrange({ rules: { mode: 'solo_ffa' } })
+
+    const { payload } = await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
+    const [embed] = payload.embeds
+
+    expect(embed.fields![0].name).toBe('Classement de la manche (joueurs)')
+    expect(embed.fields![0].value).toContain('[ALP] Alpha')
+    expect(embed.fields![0].value).toContain('[BRV] Bravo')
+    expect(embed.footer?.text).toContain('2 joueur(s) classé(s)')
+  })
+
+  it('regroupe l’escouade en une seule ligne en mode équipes libres', async () => {
+    arrange({ rules: { mode: 'custom_teams' } })
+
+    const { payload } = await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
+    const [embed] = payload.embeds
+
+    expect(embed.fields![0].name).toBe('Scores de la manche (équipes)')
+    expect(embed.footer?.text).toContain('1 équipe(s) classée(s)')
+    expect(embed.fields![0].value).toContain('[ALP] Alpha, [BRV] Bravo')
+  })
+
+  it('ne retient que le clan organisateur, MVP compris, en scrims internes', async () => {
+    arrange({ rules: { mode: 'intra_clan' } })
+
+    const { payload } = await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
+    const [embed] = payload.embeds
+    const mvpField = embed.fields!.find((field) => field.name.includes('MVP'))
+
+    expect(embed.fields![0].name).toBe('Scores de la manche (escouades internes)')
+    expect(embed.fields![0].value).toContain('[ALP] Alpha')
+    expect(embed.fields![0].value).not.toContain('Bravo')
+    // Joueur2 (clan 7) fait pourtant plus de dégâts : il ne concourt pas dans un tournoi interne.
+    expect(mvpField?.value).toContain('Joueur1')
+  })
+
+  it('annonce le partage au prorata dans l’embed', async () => {
+    arrange({ rules: { mixedSquadRule: 'prorata' } })
+
+    const { payload } = await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
+    expect(payload.embeds[0].description).toContain('prorata')
   })
 })
 

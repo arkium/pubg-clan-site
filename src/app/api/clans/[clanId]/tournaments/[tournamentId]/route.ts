@@ -18,6 +18,8 @@ function parseTournamentPayload(body: unknown): TournamentUpdateInput {
 
   const nextRules = value.rules && typeof value.rules === 'object'
     ? {
+        mode: (value.rules as { mode?: string | null }).mode ?? null,
+        mixedSquadRule: (value.rules as { mixedSquadRule?: string | null }).mixedSquadRule ?? null,
         placementPoints:
           'placementPoints' in (value.rules as Record<string, unknown>)
             ? ((value.rules as { placementPoints?: Record<string, number> }).placementPoints ?? null)

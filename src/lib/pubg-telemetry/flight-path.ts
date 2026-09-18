@@ -17,6 +17,11 @@ export type FlightTiming = {
 }
 
 export type FlightPath = {
+  /**
+   * D'où vient l'axe : `jumps` = positions réelles de l'appareil au moment des sauts (fiable),
+   * `landings` = axe déduit des points d'atterrissage, donc approximatif.
+   */
+  source: 'jumps' | 'landings'
   start: { x: number; y: number }
   end: { x: number; y: number }
   dropStart: { x: number; y: number }
@@ -36,12 +41,23 @@ type LandingPoint = { x: number; y: number; timestampSeconds: number }
 const INITIAL_DROP_WINDOW_SECONDS = 80
 
 /**
+ * Part minimale de la carte que doivent couvrir les points de largage pour qu'un axe déduit des
+ * **atterrissages** soit publié.
+ *
+ * Mesuré le 2026-09-18 sur un match Paramo de tournoi : quatre joueurs sautés en 4 s atterrissent en grappe sur
+ * 174 m, soit 5,7 % de la carte. L'axe extrapolé donnait -69°, contre -33° pour l'axe réel reconstitué depuis les
+ * sauts : une droite tracée d'un bord à l'autre à partir de ce bruit est pire que pas de droite du tout.
+ */
+const MIN_LANDING_BASELINE_RATIO = 0.15
+
+/**
  * Prolonge l'axe passant par deux points de largage jusqu'aux bordures de la carte.
  */
 function extendToMapBorders(
   dropStart: { x: number; y: number },
   dropEnd: { x: number; y: number },
-  mapName?: string
+  mapName: string | undefined,
+  source: FlightPath['source']
 ): FlightPath {
   const dx = dropEnd.x - dropStart.x
   const dy = dropEnd.y - dropStart.y
@@ -88,7 +104,7 @@ function extendToMapBorders(
     }
   }
 
-  return { start: entry, end: exit, dropStart, dropEnd, angleDeg, timing: null }
+  return { source, start: entry, end: exit, dropStart, dropEnd, angleDeg, timing: null }
 }
 
 /** Projection signée d'un point sur l'axe orienté `origin → origin + unit`. */
@@ -123,7 +139,7 @@ export function computeFlightPathFromJumps(
   if (dropStart.x === dropEnd.x && dropStart.y === dropEnd.y) return null
 
   return withFlightTiming(
-    extendToMapBorders(dropStart, dropEnd, mapName),
+    extendToMapBorders(dropStart, dropEnd, mapName, 'jumps'),
     sorted[0].t,
     sorted[sorted.length - 1].t
   )
@@ -209,7 +225,7 @@ export function computeRecallFlights(points: AircraftPoint[], mapName?: string):
       x: Math.round(meanX + vx * (t - meanT)),
       y: Math.round(meanY + vy * (t - meanT)),
     })
-    const path = withFlightTiming(extendToMapBorders(at(tMin), at(tMax), mapName), tMin, tMax)
+    const path = withFlightTiming(extendToMapBorders(at(tMin), at(tMax), mapName, 'jumps'), tMin, tMax)
     if (!path.timing) continue
 
     flights.push({
@@ -292,7 +308,12 @@ export function computeFlightPath(landingSamples: unknown, mapName?: string): Fl
   )
   const samplePool = initialLandings.length >= 2 ? initialLandings : valid
 
-  const sliceSize = Math.max(2, Math.floor(samplePool.length * 0.15))
+  // Les 15 % extrêmes sont moyennés pour lisser le bruit, mais jamais au point que les deux extrémités se
+  // recouvrent : avec deux ou trois atterrissages, chaque extrémité se réduit à un point.
+  const sliceSize = Math.max(
+    1,
+    Math.min(Math.floor(samplePool.length * 0.15), Math.floor(samplePool.length / 2))
+  )
   const earliest = samplePool.slice(0, sliceSize)
   const latest = samplePool.slice(-sliceSize)
 
@@ -305,5 +326,12 @@ export function computeFlightPath(landingSamples: unknown, mapName?: string): Fl
     y: Math.round(latest.reduce((sum, point) => sum + point.y, 0) / latest.length),
   }
 
-  return extendToMapBorders(dropStart, dropEnd, mapName)
+  // Garde-fou : une grappe d'atterrissages ne dit rien de l'axe réel. Mieux vaut aucun plan de vol qu'un faux.
+  const baseline = Math.hypot(dropEnd.x - dropStart.x, dropEnd.y - dropStart.y)
+  const mapWidth = getMapBounds(mapName ?? '').width
+  if (baseline < mapWidth * MIN_LANDING_BASELINE_RATIO) {
+    return null
+  }
+
+  return extendToMapBorders(dropStart, dropEnd, mapName, 'landings')
 }

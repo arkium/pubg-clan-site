@@ -146,6 +146,13 @@ Cas résiduel assumé : un crash du processus entre l'insertion et l'envoi laiss
 
 La mention configurée part dans `content`, jamais dans l'embed — un embed ne notifie personne sur Discord.
 
+### Adaptation au mode du tournoi (2026-09-18)
+
+Le participant d'une manche n'est plus forcément un clan : selon le mode, c'est une équipe, un joueur ou une escouade
+interne. L'embed ne connaît que son libellé, déjà résolu par le service, et adapte ses intitulés et son pied de page.
+Quand le partage au prorata est actif, une ligne l'annonce, faute de quoi les points décimaux ressembleraient à une
+erreur. Détail des modes : [Tournois](tournois.md).
+
 ---
 
 ## Flux 2 — Résultats de tournoi
@@ -225,7 +232,7 @@ Toutes exigent `manage_settings` sur le clan.
 | `src/lib/discord/discord-config-service.ts` | Lecture / écriture dans `ClanConfig` |
 | `src/lib/discord/discord-client.ts` | POST webhook résilient |
 | `src/lib/discord/discord-top1-embed.ts` | Générateur d'embed Top 1 (pur) |
-| `src/lib/discord/discord-tournament-embed.ts` | Générateur d'embed résultats de manche (pur) |
+| `src/lib/discord/discord-tournament-embed.ts` | Générateur d'embed résultats de manche (pur), **adapté au mode du tournoi** depuis le 2026-09-18 |
 | `src/lib/discord/discord-service.ts` | Filtres, verrou, orchestration Top 1 |
 | `src/lib/discord/discord-tournament-service.ts` | Scores, MVP, classement, prévisualisation et diffusion de manche |
 | `src/components/discord/DiscordEmbedPreview.tsx` | Rendu in-app d'un payload Discord |
@@ -255,7 +262,7 @@ Les tests de route vivent dans `src/lib/` et non à côté des routes : `vitest.
 | `discord-config.test.ts` | Validation d'URL, normalisation défensive, indépendance des deux blocs, rendu des mentions |
 | `discord-client.test.ts` | 204 / 400 / 404, backoff sur 429, abandon après second 429, panne réseau — sans jamais lever |
 | `discord-top1-embed.test.ts` | Limites Discord, troncature du titre, agrégats, lien et vignette conditionnels, mention dans `content` |
-| `discord-tournament-embed.test.ts` | Médailles et numérotation, bonus conditionnel, MVP, bloc classement optionnel, lien de replay, bornage à 1024 caractères |
+| `discord-tournament-embed.test.ts` | Médailles et numérotation, bonus conditionnel, MVP, bloc classement optionnel, lien de replay, bornage à 1024 caractères, **intitulés par mode et note de prorata** |
 | `discord-service.test.ts` | Chaque filtre isolément, dédoublonnage, relâchement du verrou sur échec, absorption d'une panne base |
 | `discord-tournament-service.test.ts` | Numérotation chronologique, barème de bout en bout, MVP, priorité du webhook de tournoi, 404 sur manche étrangère, aucun POST en prévisualisation |
 | `discord-route-contracts.test.ts` | Contrats des trois routes de configuration : contrôle d'accès `manage_settings`, propagation des 401/403, validation d'URL et de mention, refus divers en 400, aiguillage Top 1/Tournoi du test, 502 sur refus Discord |

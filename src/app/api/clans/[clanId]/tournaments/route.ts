@@ -17,6 +17,8 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
   const value = (body ?? {}) as Record<string, unknown>
   const rules = value.rules && typeof value.rules === 'object'
     ? value.rules as {
+        mode?: string | null
+        mixedSquadRule?: string | null
         placementPoints?: Record<string, number>
         killPoints?: number | string | null
         winBonus?: number | string | null
@@ -43,6 +45,9 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
       ? value.status
       : 'draft',
     rules: {
+      // Le mode et la règle d'escouade mixte sont validés par `normalizeTournamentRules`.
+      mode: rules?.mode ?? null,
+      mixedSquadRule: rules?.mixedSquadRule ?? null,
       placementPoints: rules?.placementPoints ?? null,
       killPoints: rules?.killPoints ?? legacyKillPoints,
       winBonus: rules?.winBonus ?? legacyWinBonus,

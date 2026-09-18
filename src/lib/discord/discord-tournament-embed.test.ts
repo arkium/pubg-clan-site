@@ -19,10 +19,11 @@ function makeInput(overrides: Partial<TournamentRoundEmbedInput> = {}): Tourname
     mapLabel: 'Miramar',
     gameModeLabel: 'Squad FPP',
     playedAt: new Date('2026-09-13T18:00:00.000Z'),
+    mode: 'inter_clan',
+    mixedSquadRule: 'full_share',
     results: [
       {
-        clanId: 5,
-        clanLabel: '[ALP] Clan Alpha',
+        label: '[ALP] Clan Alpha',
         bestPlacement: 1,
         totalKills: 8,
         placementScore: 10,
@@ -31,8 +32,7 @@ function makeInput(overrides: Partial<TournamentRoundEmbedInput> = {}): Tourname
         points: 18,
       },
       {
-        clanId: 7,
-        clanLabel: '[BRV] Clan Bravo',
+        label: '[BRV] Clan Bravo',
         bestPlacement: 2,
         totalKills: 5,
         placementScore: 6,
@@ -41,8 +41,7 @@ function makeInput(overrides: Partial<TournamentRoundEmbedInput> = {}): Tourname
         points: 11,
       },
       {
-        clanId: 9,
-        clanLabel: '[CHR] Clan Charlie',
+        label: '[CHR] Clan Charlie',
         bestPlacement: 3,
         totalKills: 2,
         placementScore: 5,
@@ -53,14 +52,77 @@ function makeInput(overrides: Partial<TournamentRoundEmbedInput> = {}): Tourname
     ],
     mvp: { displayName: 'Alpha', clanLabel: '[ALP] Clan Alpha', kills: 6, damage: 941.6 },
     standings: [
-      { clanLabel: '[ALP] Clan Alpha', totalPoints: 45, totalKills: 14 },
-      { clanLabel: '[BRV] Clan Bravo', totalPoints: 31, totalKills: 11 },
+      { label: '[ALP] Clan Alpha', totalPoints: 45, totalKills: 14 },
+      { label: '[BRV] Clan Bravo', totalPoints: 31, totalKills: 11 },
     ],
     mention: '',
     siteUrl: 'https://clan.example.com',
     ...overrides,
   }
 }
+
+describe('embed selon le mode du tournoi', () => {
+  it('adapte les intitulés et le décompte du pied de page', () => {
+    const wording = {
+      inter_clan: ['Scores de la manche', 'clan(s) classé(s)', 'Classement général provisoire'],
+      custom_teams: ['Scores de la manche (équipes)', 'équipe(s) classée(s)', 'Classement général des équipes'],
+      solo_ffa: ['Classement de la manche (joueurs)', 'joueur(s) classé(s)', 'Classement général individuel'],
+      intra_clan: [
+        'Scores de la manche (escouades internes)',
+        'escouade(s) classée(s)',
+        'Classement interne provisoire',
+      ],
+    } as const
+
+    for (const [mode, [roundField, participants, standingsField]] of Object.entries(wording)) {
+      const [embed] = buildTournamentRoundWebhookPayload(
+        makeInput({ mode: mode as keyof typeof wording })
+      ).embeds
+
+      expect(embed.fields![0].name).toBe(roundField)
+      expect(embed.footer?.text).toContain(participants)
+      expect(embed.fields!.find((field) => field.name === standingsField)).toBeDefined()
+    }
+  })
+
+  it('annonce le partage au prorata, qui explique les points décimaux', () => {
+    const [prorata] = buildTournamentRoundWebhookPayload(
+      makeInput({
+        mixedSquadRule: 'prorata',
+        results: [{ label: '[ALP] Clan Alpha', bestPlacement: 1, totalKills: 3, placementScore: 7.5, killScore: 3, winBonus: 2.5, points: 13 }],
+      })
+    ).embeds
+
+    expect(prorata.description).toContain('prorata')
+    expect(prorata.fields![0].value).toContain('+7.5 pts')
+
+    const [fullShare] = buildTournamentRoundWebhookPayload(makeInput()).embeds
+    expect(fullShare.description).not.toContain('prorata')
+  })
+
+  it('ne mentionne jamais le prorata hors du mode inter-clans', () => {
+    const [embed] = buildTournamentRoundWebhookPayload(
+      makeInput({ mode: 'solo_ffa', mixedSquadRule: 'prorata' })
+    ).embeds
+    expect(embed.description).not.toContain('prorata')
+  })
+
+  it('classe des joueurs en mode solo, avec le même format de ligne', () => {
+    const [embed] = buildTournamentRoundWebhookPayload(
+      makeInput({
+        mode: 'solo_ffa',
+        results: [
+          { label: '[ALP] Alpha', bestPlacement: 1, totalKills: 6, placementScore: 10, killScore: 6, winBonus: 4, points: 20 },
+          { label: '[BRV] Bravo', bestPlacement: 2, totalKills: 2, placementScore: 6, killScore: 2, winBonus: 0, points: 8 },
+        ],
+      })
+    ).embeds
+
+    const lines = embed.fields![0].value.split(String.fromCharCode(10))
+    expect(lines[0]).toBe('🥇 **[ALP] Alpha** : 1er (+10 pts) · 6 kills (+6 pts) · bonus +4 = **20 pts**')
+    expect(lines[1]).toContain('[BRV] Bravo')
+  })
+})
 
 describe('buildTournamentRoundWebhookPayload', () => {
   it('produit un embed conforme aux limites Discord', () => {
@@ -107,8 +169,7 @@ describe('buildTournamentRoundWebhookPayload', () => {
     const results = [
       ...makeInput().results,
       {
-        clanId: 11,
-        clanLabel: '[DLT] Clan Delta',
+        label: '[DLT] Clan Delta',
         bestPlacement: 8,
         totalKills: 0,
         placementScore: 1,
@@ -169,8 +230,7 @@ describe('buildTournamentRoundWebhookPayload', () => {
 
   it('borne les scores a 1024 caracteres sur un tournoi tres fourni', () => {
     const results = Array.from({ length: 60 }, (_, index) => ({
-      clanId: index,
-      clanLabel: `[T${index}] Clan au nom particulierement long ${index}`,
+      label: `[T${index}] Clan au nom particulierement long ${index}`,
       bestPlacement: index + 1,
       totalKills: 3,
       placementScore: 1,

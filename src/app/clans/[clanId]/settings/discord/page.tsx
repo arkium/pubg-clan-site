@@ -310,10 +310,12 @@ export default function ClanDiscordSettingsPage() {
       mapLabel: 'Miramar',
       gameModeLabel: 'Squad FPP',
       playedAt: SAMPLE_PLAYED_AT,
+      // Aperçu du mode historique : les autres modes changent le vocabulaire, pas la structure de l'embed.
+      mode: 'inter_clan',
+      mixedSquadRule: 'full_share',
       results: [
         {
-          clanId: clanId ?? 0,
-          clanLabel: label,
+          label,
           bestPlacement: 1,
           totalKills: 8,
           placementScore: 15,
@@ -322,8 +324,7 @@ export default function ClanDiscordSettingsPage() {
           points: 28,
         },
         {
-          clanId: 0,
-          clanLabel: '[BRV] Clan Bravo',
+          label: '[BRV] Clan Bravo',
           bestPlacement: 2,
           totalKills: 5,
           placementScore: 12,
@@ -335,14 +336,14 @@ export default function ClanDiscordSettingsPage() {
       mvp: { displayName: 'Joueur1', clanLabel: label, kills: 6, damage: 940 },
       standings: tournament.includeStandings
         ? [
-            { clanLabel: label, totalPoints: 45, totalKills: 14 },
-            { clanLabel: '[BRV] Clan Bravo', totalPoints: 31, totalKills: 11 },
+            { label, totalPoints: 45, totalKills: 14 },
+            { label: '[BRV] Clan Bravo', totalPoints: 31, totalKills: 11 },
           ]
         : null,
       mention: renderDiscordMention(tournament.mention),
       siteUrl: '',
     })
-  }, [clanId, clanName, clanTag, tournament.includeStandings, tournament.mention])
+  }, [clanName, clanTag, tournament.includeStandings, tournament.mention])
 
   if (loading || (authenticated && canManageSettings && !dataLoaded)) {
     return (

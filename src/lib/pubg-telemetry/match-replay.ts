@@ -131,6 +131,8 @@ export type MatchReplayPayload = {
   zones: ReplayZone[]
   events: ReplayEvent[]
   flightPath: {
+    /** `jumps` : positions réelles de l'appareil. `landings` : axe approché depuis les atterrissages. */
+    source: 'jumps' | 'landings'
     start: { x: number; y: number }
     end: { x: number; y: number }
     dropStart: { x: number; y: number } | null

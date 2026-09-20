@@ -2664,7 +2664,7 @@ Le cron tourne dès cette nuit à **01 h 45**, en mode `observe`. Séquence pré
 > Tant que `clan_lifecycle_mode` vaut `observe`, **aucun `clanId` n'est modifié**, quel que soit le nombre de
 > confirmations atteint. Le passage en `apply` est la seule décision qui engage.
 
-#### Chantier 2 — Promotion : un joueur d'UNG dont le clan est détecté
+#### ✅ Chantier 2 — Promotion : un joueur d'UNG dont le clan est détecté — livré le 2026-09-20
 
 **Objectif :** un joueur parqué dans UNG qui rejoint ou crée un clan PUBG doit sortir d'UNG vers son vrai clan,
 sans que cela ouvre une porte dérobée à la validation SuperUser.
@@ -2680,21 +2680,30 @@ sans que cela ouvre une porte dérobée à la validation SuperUser.
 > quelqu'un vers un clan en attente **arrêterait silencieusement** de le suivre. D'où le découpage ci-dessous : on
 > déplace librement vers un clan déjà validé (cas A), jamais vers un clan qui ne l'est pas (cas B).
 
-- [ ] **Traitement des promotions** : se branche directement sur les événements `PlayerClanChange` générés par le cron quotidien du Chantier 1, lorsque le clan source est un clan système (`Ungrouped`).
-- [ ] **Cas A — clan détecté déjà suivi et actif** → **déplacement automatique**. Aucun clan n'est créé, la cible a
-      déjà passé la validation : le risque bot est nul. Écrire un `PlayerClanChange`
-      (`source: 'ungrouped_promotion'`, `status: 'applied'`), notifier le SuperUser et l'Owner du clan cible
-- [ ] **Cas B — clan détecté absent de la base, ou présent mais `isActive: false`** → **création en attente,
-      aucun déplacement**. Créer le clan via `upsertTrackedClanFromPubg` avec `isActive: false`, appeler
-      `notifyClanCreationRequest` (existant), écrire un `PlayerClanChange` en `status: 'pending'`
-- [ ] **Cas C — aucun clan détecté** → ne rien faire, le joueur reste dans UNG. C'est un état normal, pas une erreur
-- [ ] **Application à l'approbation** : étendre `POST /api/clans/[clanId]/approve` — à l'activation du clan,
-      appliquer les `PlayerClanChange` en attente pointant vers ce `pubgClanId` (déplacer les membres UNG concernés,
-      passer les lignes en `applied`). Alternative : bouton dédié sur la page `/settings/superuser/clan-changes`
-- [ ] **Garde-fou** : un membre `Owner` d'UNG peut être promu — l'exception `isUngroupedOwner` existe déjà et doit
-      être re-clée sur `isSystem` au chantier 0
-- [ ] **Interrupteur** `AppConfig.ungrouped_auto_promote` (défaut : activé) — ne gouverne **que** le cas A ; le cas B
-      reste manuel quelle que soit sa valeur
+- [x] **Traitement intégré au passage du chantier 1** plutôt que branché après coup : le cron dispose déjà des
+      observations et de l'état confirmé, un second parcours aurait dupliqué la logique de confirmation
+- [x] **Cas A — clan détecté déjà suivi et actif** → déplacement automatique avec
+      `source: 'ungrouped_promotion'` (et non `auto_transfer`, réservé aux mouvements entre clans suivis)
+- [x] **Cas B — clan détecté absent de la base** → `createPendingClanForDetection()` crée le clan
+      **`isActive: false`**, écrit un `PlayerClanChange` en `status: 'pending'` par membre concerné, et **ne
+      déplace personne**. Les demandes sont dédupliquées par identifiant PUBG : dix membres partis vers le même
+      clan ne produisent qu'une demande et qu'un appel API
+- [x] **Cas C — aucun clan détecté** → le joueur reste dans UNG, sans écart enregistré : c'est l'état attendu
+- [x] **Application à l'approbation** — [`pending-promotions.ts`](../../src/lib/clan-lifecycle/pending-promotions.ts),
+      appelé par `POST /api/clans/[clanId]/approve`. Idempotent, et **clôt sans déplacer** les lignes devenues
+      caduques (membre retiré entre-temps, ou déjà rattaché). La réponse de la route liste les joueurs rattachés
+- [x] **Garde-fou Owner** : l'exception a été re-clée sur `isSystem` au chantier 0
+- [x] **Interrupteur `ungrouped_auto_promote`** : ne gouverne **que** le cas A. Désactivé, le joueur reste dans UNG
+      sans que la détection s'arrête
+- [x] Tests : [`promotion.test.ts`](../../src/lib/clan-lifecycle/promotion.test.ts), **8 tests** couvrant les trois
+      cas, l'interrupteur, la déduplication et les trois issues de l'application différée.
+      **Vérifié en neutralisant le garde-fou** : créer le clan `isActive: true` fait rougir le test
+
+> **Écart assumé — `upsertTrackedClanFromPubg` n'est pas réutilisé.** `clan-service.ts` tire `server-only` par la
+> chaîne `stats-calculator` → `notification-service` → `email-service`, ce qui rendrait le passage inutilisable
+> depuis un script `tsx` (celui de mise en service, notamment). La création passe donc par `fetchPubgClanById` +
+> un `prisma.clan.create` explicite. `notifyClanCreationRequest` est appelé en **import dynamique** dans un
+> try/catch : la notification in-app part depuis le cron Next, et son absence sous `tsx` ne bloque rien.
 
 #### ✅ Chantier 3 — Rétrogradation : un Owner peut basculer un de ses membres vers UNG — livré le 2026-09-20
 
@@ -2940,6 +2949,12 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
 - [ ] Adapter `encountered-player-resolution.test.ts` au nouveau `where` du raccourci
 - [ ] Étendre `tracked-isolation.test.ts` au clan système
 
+> **⚠️ Le piège s'est réalisé pendant le chantier 2 (2026-09-20).** Ajouter un seul appel —
+> `getUngroupedAutoPromote()` — a fait tomber **10 tests** de `membership-sync.test.ts` avec
+> « No export is defined on the mock », alors que le code était correct. Le mock du module de configuration
+> listait ses exports un par un, exactement comme les mocks Prisma. Même remède : compléter le mock **dans le
+> même lot** que le code.
+>
 > **Piège des mocks Prisma (déjà documenté dans CLAUDE.md).** Les tests de contrats listent les modèles **un par
 > un** — par exemple `prisma: { clanMember: {...}, cronExecution: {...} }`
 > ([route-contracts.test.ts:12-25](../../src/lib/pubg-telemetry/route-contracts.test.ts#L12-L25)). Dès qu'une route
@@ -2959,8 +2974,9 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
 - [ ] **Chantier 1** — un écart « clan inconnu » produit `auto_demotion` + un déplacement vers UNG ; un écart
       « autre clan suivi » produit `auto_transfer` ; aucun écart ne produit rien ; le lot de 10 est respecté et le
       plafond par passage tient
-- [ ] **Chantier 2** — cas A applique, cas B crée le clan en attente **sans déplacer**, cas C ne touche à rien,
-      et l'approbation du clan déclenche bien le déplacement différé
+- [x] **Chantier 2** — [`promotion.test.ts`](../../src/lib/clan-lifecycle/promotion.test.ts), **8 tests** :
+      les trois cas, l'interrupteur `ungrouped_auto_promote`, la déduplication des demandes, et les trois
+      issues de l'application différée. **Vérifiés en neutralisant le garde-fou** `isActive: false`
 - [x] **Chantier 3** — [`member-clan-move-permissions.test.ts`](../../src/lib/member-clan-move-permissions.test.ts),
       **8 tests**, vérifiés en neutralisant le correctif. Utilise `vi.hoisted()` pour les mocks, comme
       `route-contracts.test.ts` — sans quoi `vi.mock` est hoisté au-dessus des déclarations et le fichier ne
@@ -3187,7 +3203,7 @@ parfaitement normale.
 | 3 | ✅ **3 — Owner → UNG** | **Livré et activé le 2026-09-20.** Migration `PlayerClanChange` en production, API, UI, 8 tests, clan cible créé |
 | 4 | 🟡 **Sûreté d'exécution A à E** | **A, B, C et D livrés le 2026-09-20.** Reste **E** (sémantique d'annulation), qui va avec le journal du chantier 5 |
 | 5 | ✅ **1 — Synchronisation quotidienne** | **Livré le 2026-09-20** : service, cron, notification Discord (webhook configuré et testé), page des mutations, 54 tests. **Premier passage réel réussi en mode `observe`** (346 membres, 35 appels, 13 écarts) |
-| 6 | **2 — Promotion UNG → clan** | Se branche sur les événements du chantier 1 : ne peut pas passer avant lui |
+| 6 | ✅ **2 — Promotion UNG → clan** | **Livré le 2026-09-20** : cas A/B/C intégrés au passage, application différée à l'approbation, 8 tests |
 | 7 | **5 — Page unique + purge d'UNG** | Rend exploitables les événements des chantiers 1 à 3 et comble le trou de validation des clans ; sans elle, UNG grossit sans recours |
 | 8 | **4 — Email de contact `/join`** | Indépendant du reste, à caler quand le flux de validation sera stabilisé ; la route `reject` qu'il crée est consommée par l'onglet « Clans en attente » du chantier 5 |
 

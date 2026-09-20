@@ -1,3 +1,5 @@
+import { getSessionFromRequest } from '@/lib/auth-session'
+import { applyPendingPromotionsForClan } from '@/lib/clan-lifecycle/pending-promotions'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { createNotificationForMember } from '@/lib/notification-service'
@@ -47,6 +49,17 @@ export async function POST(
       data: { isActive: true },
     })
 
+    // Chantier 2 : le clan vient d'entrer dans la ligue, les mouvements que le cron
+    // avait laisses en attente peuvent maintenant s'appliquer. Hors transaction de
+    // l'activation : un echec ici ne doit pas empecher le clan d'exister.
+    let appliedPromotions: Awaited<ReturnType<typeof applyPendingPromotionsForClan>> = []
+    try {
+      const session = await getSessionFromRequest(request)
+      appliedPromotions = await applyPendingPromotionsForClan(parsedClanId, session?.userId ?? null)
+    } catch (promotionError) {
+      console.error('[clan-approve] Failed to apply pending promotions:', promotionError)
+    }
+
     // Activer le(s) membre(s) Owner en attente
     const ownerMember = clan.members.find((m) =>
       m.roles.some((r) => r.role.name === 'Owner')
@@ -74,15 +87,23 @@ export async function POST(
       }).catch((err: unknown) => console.error('[clan-approve] Error notifying owner:', err))
     }
 
+    const promotionSuffix =
+      appliedPromotions.length > 0
+        ? ` ${appliedPromotions.length} joueur(s) en attente y ont été rattachés : ${appliedPromotions
+            .map((p) => p.memberName)
+            .join(', ')}.`
+        : ''
+
     return Response.json({
       success: true,
-      message: `Le clan "${updatedClan.name}" a été validé et activé avec succès dans la ligue.`,
+      message: `Le clan "${updatedClan.name}" a été validé et activé avec succès dans la ligue.${promotionSuffix}`,
       clan: {
         id: updatedClan.id,
         name: updatedClan.name,
         tag: updatedClan.tag,
         isActive: updatedClan.isActive,
       },
+      appliedPromotions,
     })
   } catch (error) {
     console.error('Error approving clan:', error)

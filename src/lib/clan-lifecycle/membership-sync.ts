@@ -9,7 +9,9 @@ import {
   getClanLifecycleMode,
   getConfirmationsRequired,
   getMaxMovesRatioPercent,
+  getUngroupedAutoPromote,
 } from '@/lib/clan-lifecycle/config'
+import { fetchPubgClanById } from '@/lib/pubg'
 import {
   evaluateCircuitBreaker,
   evaluateConfirmations,
@@ -73,6 +75,8 @@ export type MembershipSyncSummary = {
   movementsApplied: number
   circuitBreakerTripped: boolean
   movesRatioPercent: number
+  /** Clans inconnus detectes et crees en attente de validation SuperUser (chantier 2, cas B). */
+  pendingClanRequests: number
   message?: string
   /**
    * Mouvements retenus par le passage. Expose pour que l'appelant puisse notifier
@@ -175,6 +179,87 @@ function observationToState(newPubgClanId: string | null): ClanIdState {
   return newPubgClanId ? { kind: 'has_clan', clanId: newPubgClanId } : { kind: 'no_clan' }
 }
 
+/**
+ * Cas B du chantier 2 : un clan detecte n'existe pas cote site.
+ *
+ * On le cree **inactif**, exactement comme `/join` le fait pour une demande de
+ * creation : un clan n'entre dans la ligue que sur validation SuperUser. Les
+ * membres concernes ne sont PAS deplaces ici — leur mouvement est enregistre en
+ * `pending` et sera applique a l'approbation du clan.
+ */
+async function createPendingClanForDetection(
+  request: { pubgClanId: string; shard: string; members: ScannedMember[] },
+  runId: string,
+  source: string
+) {
+  // Une demande peut deja exister depuis un passage precedent.
+  const existing = await prisma.clan.findFirst({
+    where: { pubgClanId: request.pubgClanId, platformShard: request.shard },
+    select: { id: true, isActive: true },
+  })
+
+  if (existing) {
+    return false
+  }
+
+  const pubgClan = await fetchPubgClanById(request.pubgClanId, request.shard, {
+    source: `clan-lifecycle-${source}`,
+  })
+
+  if (!pubgClan) {
+    return false
+  }
+
+  const created = await prisma.clan.create({
+    data: {
+      name: pubgClan.name ?? request.pubgClanId,
+      tag: pubgClan.tag ?? '???',
+      platformShard: request.shard,
+      pubgClanId: request.pubgClanId,
+      isActive: false,
+    },
+    select: { id: true, name: true, tag: true },
+  })
+
+  // Mouvements differes : appliques quand le SuperUser validera le clan.
+  for (const member of request.members) {
+    await recordPlayerClanChange(prisma, {
+      clanMemberId: member.id,
+      pubgAccountId: member.pubgAccountId,
+      platformShard: member.platformShard,
+      previousClanId: member.clanId,
+      previousPubgClanId: member.clanPubgId,
+      previousPubgClanTag: member.clanTag,
+      newClanId: created.id,
+      newPubgClanId: request.pubgClanId,
+      newPubgClanTag: created.tag,
+      source: PLAYER_CLAN_CHANGE_SOURCES.ungroupedPromotion,
+      status: PLAYER_CLAN_CHANGE_STATUSES.pending,
+      runId,
+    })
+  }
+
+  // Notification in-app aux SuperUsers. Import dynamique : `notification-service`
+  // tire `server-only` par `email-service`, donc l'import statique casserait les
+  // scripts `tsx`. Un echec ici ne doit rien annuler.
+  try {
+    const { notifyClanCreationRequest } = await import('@/lib/notification-service')
+    await notifyClanCreationRequest(
+      created.id,
+      created.name,
+      created.tag,
+      request.members[0]?.displayName ?? 'detection automatique'
+    )
+  } catch (error) {
+    console.warn(
+      '[ClanLifecycle] Notification de creation de clan indisponible',
+      error instanceof Error ? error.message : error
+    )
+  }
+
+  return true
+}
+
 export async function runMembershipSyncPass(
   options: MembershipSyncOptions = {}
 ): Promise<MembershipSyncSummary> {
@@ -196,6 +281,7 @@ export async function runMembershipSyncPass(
     movementsApplied: 0,
     circuitBreakerTripped: false,
     movesRatioPercent: 0,
+    pendingClanRequests: 0,
     movements: [],
   }
 
@@ -213,10 +299,11 @@ export async function runMembershipSyncPass(
     }
   }
 
-  const [mode, confirmationsRequired, maxRatioPercent] = await Promise.all([
+  const [mode, confirmationsRequired, maxRatioPercent, autoPromote] = await Promise.all([
     getClanLifecycleMode(),
     getConfirmationsRequired(),
     getMaxMovesRatioPercent(),
+    getUngroupedAutoPromote(),
   ])
 
   const run = await prisma.clanLifecycleRun.create({
@@ -266,6 +353,9 @@ export async function runMembershipSyncPass(
     )
 
     const planned: PlannedMovement[] = []
+    // Chantier 2, cas B : clans detectes mais absents de la base. Dedupliques par
+    // identifiant PUBG — plusieurs membres peuvent partir vers le meme clan.
+    const pendingClanRequests = new Map<string, { pubgClanId: string; shard: string; members: ScannedMember[] }>()
 
     for (const [accountId, state] of states) {
       const member = byAccount.get(accountId)
@@ -325,23 +415,49 @@ export async function runMembershipSyncPass(
       // au parking plutot que vers une cible tiree au sort par le dernier appel.
       const destination = evaluateConfirmations(observations, confirmationsRequired)
 
+      const destinationPubgClanId =
+        destination.shouldAct && destination.confirmedState?.kind === 'has_clan'
+          ? destination.confirmedState.clanId
+          : null
+
       let target: { id: number; tag: string | null; pubgClanId: string | null } | undefined
       let movementSource: PlayerClanChangeSource = PLAYER_CLAN_CHANGE_SOURCES.autoDemotion
 
-      if (
-        destination.shouldAct &&
-        destination.confirmedState?.kind === 'has_clan' &&
-        discrepancy.targetKind === 'tracked'
-      ) {
-        target = clanByPubgId.get(`${member.platformShard}:${destination.confirmedState.clanId}`)
-        if (target) {
-          movementSource = PLAYER_CLAN_CHANGE_SOURCES.autoTransfer
+      if (destinationPubgClanId) {
+        const trackedTarget = clanByPubgId.get(`${member.platformShard}:${destinationPubgClanId}`)
+
+        if (trackedTarget) {
+          // Cas A du chantier 2 : la cible est deja suivie et validee, le risque
+          // d'introduire un clan indesirable est nul.
+          target = trackedTarget
+          movementSource = member.clanIsSystem
+            ? PLAYER_CLAN_CHANGE_SOURCES.ungroupedPromotion
+            : PLAYER_CLAN_CHANGE_SOURCES.autoTransfer
+        } else {
+          // Cas B : clan inconnu. On ne cree jamais un clan actif automatiquement —
+          // ce serait contourner la validation SuperUser de `/join`. On enregistre
+          // une demande, traitee apres la boucle.
+          const existing = pendingClanRequests.get(destinationPubgClanId)
+          if (existing) {
+            existing.members.push(member)
+          } else {
+            pendingClanRequests.set(destinationPubgClanId, {
+              pubgClanId: destinationPubgClanId,
+              shard: member.platformShard,
+              members: [member],
+            })
+          }
         }
+      }
+
+      // Promotion depuis le parking : gouvernee par son propre interrupteur, pour
+      // pouvoir laisser les joueurs dans UNG sans couper la detection.
+      if (target && member.clanIsSystem && !autoPromote) {
+        continue
       }
 
       if (!target) {
         // Destination instable, clan non suivi, ou joueur sans clan : le parking.
-        // Le chantier 2 proposera la creation du clan detecte quand il se stabilisera.
         target = systemClanByShard.get(member.platformShard)
         movementSource = PLAYER_CLAN_CHANGE_SOURCES.autoDemotion
       }
@@ -364,6 +480,22 @@ export async function runMembershipSyncPass(
         targetPubgClanId: target.pubgClanId,
         source: movementSource,
       })
+    }
+
+    // --- Chantier 2, cas B : creation des clans detectes, en attente de validation.
+    for (const request of pendingClanRequests.values()) {
+      try {
+        const created = await createPendingClanForDetection(request, run.id, source)
+        if (created) {
+          summary.pendingClanRequests += 1
+        }
+      } catch (error) {
+        console.warn(
+          '[ClanLifecycle] Impossible de creer le clan detecte',
+          request.pubgClanId,
+          error instanceof Error ? error.message : error
+        )
+      }
     }
 
     summary.movementsPlanned = planned.length

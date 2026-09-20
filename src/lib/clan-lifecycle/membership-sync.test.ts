@@ -22,6 +22,10 @@ const mocks = vi.hoisted(() => ({
   getMode: vi.fn(),
   getConfirmations: vi.fn(),
   getMaxRatio: vi.fn(),
+  getAutoPromote: vi.fn(),
+  fetchClanById: vi.fn(),
+  clanFindFirst: vi.fn(),
+  clanCreate: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => {
@@ -38,7 +42,7 @@ vi.mock('@/lib/prisma', () => {
         updateMany: vi.fn(),
       },
       clanMember: { findMany: mocks.memberFindMany, update: mocks.memberUpdate },
-      clan: { findMany: mocks.clanFindMany },
+      clan: { findMany: mocks.clanFindMany, findFirst: mocks.clanFindFirst, create: mocks.clanCreate },
       playerClanChange: {
         findMany: mocks.changeFindMany,
         updateMany: mocks.changeUpdateMany,
@@ -54,10 +58,19 @@ vi.mock('@/lib/clan-lifecycle/clan-state', async (importOriginal) => {
   return { ...actual, fetchPlayersClanStates: mocks.fetchStates }
 })
 
+// Les mocks listent les exports un par un : tout export utilise par le code teste
+// doit figurer ici, sinon vitest leve « No export is defined on the mock ».
 vi.mock('@/lib/clan-lifecycle/config', () => ({
   getClanLifecycleMode: mocks.getMode,
   getConfirmationsRequired: mocks.getConfirmations,
   getMaxMovesRatioPercent: mocks.getMaxRatio,
+  getUngroupedAutoPromote: mocks.getAutoPromote,
+}))
+
+vi.mock('@/lib/pubg', () => ({ fetchPubgClanById: mocks.fetchClanById }))
+
+vi.mock('@/lib/notification-service', () => ({
+  notifyClanCreationRequest: vi.fn(async () => undefined),
 }))
 
 import { describeDiscrepancy, runMembershipSyncPass } from '@/lib/clan-lifecycle/membership-sync'
@@ -115,6 +128,10 @@ beforeEach(() => {
   mocks.getMode.mockResolvedValue('apply')
   mocks.getConfirmations.mockResolvedValue(3)
   mocks.getMaxRatio.mockResolvedValue(10)
+  mocks.getAutoPromote.mockResolvedValue(true)
+  mocks.clanFindFirst.mockResolvedValue(null)
+  mocks.clanCreate.mockResolvedValue({ id: 999, name: 'X', tag: 'X' })
+  mocks.fetchClanById.mockResolvedValue(null)
 })
 
 describe('describeDiscrepancy — comparaison état observé / clan du site', () => {

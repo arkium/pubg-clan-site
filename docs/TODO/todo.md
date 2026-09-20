@@ -1143,6 +1143,10 @@ Optimisation de l'affichage sur la page de gestion des membres du clan pour éco
 
 ### Analyse d'impact : Arrêt de suivi (`DELETE /api/members/[id]`) et Transfert de clan (`PATCH /api/members/[id]`) — Documenté le 2026-09-06
 
+> 🔗 **Regroupé le 2026-09-20 :** le suivi du clan d'un joueur (protection d'`Ungrouped`, détection des
+> changements, promotion depuis UNG, rétrogradation par l'Owner) est traité dans une seule section —
+> « Cycle de vie du clan d'un joueur » en **P2**.
+
 Analyse d'architecture et règles de gestion des statistiques lors du départ ou transfert d'un joueur :
 
 #### 1. Arrêt du suivi d'un joueur (`DELETE /api/members/[id]`) :
@@ -2139,59 +2143,281 @@ Contrairement aux pages drop zones, cette page ne précharge que la carte sélec
 
 ## P2 — Fonctionnalités incomplètes
 
-### Détection et signalement des changements de clan PUBG — 📐 Plan proposé le 2026-09-14, à valider avant implémentation
+### Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 
-> **Déclencheur :** sur le débriefing du clan 18, Zimbabalooba apparaît « [FADA] non suivi » alors qu'il aurait
-> changé de clan. Question : comment les changements sont-ils détectés et signalés au SuperUser ?
+> **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des
+> changements de clan PUBG » du 2026-09-14. Elle y ajoute trois chantiers apparus à l'usage (cas Vvila). Les entrées
+> éparses qui traitaient d'un bout du sujet renvoient désormais ici : « Suivre ce clan » (section *Observatoire des
+> Clans, Résolution & Triage*) et « Analyse d'impact : Arrêt de suivi et Transfert de clan » (P1).
 
-#### Constat — état réel au 2026-09-14
+#### Vue d'ensemble du circuit
 
-1. **Membres suivis (`ClanMember`) : rien d'automatique.** Le bouton « Comparer PUBG » de
-   `/clans/[clanId]/settings/members` (permission `manage_members`) appelle `syncClanMembership`
-   (`GET /api/clans/[clanId]/pubg-diff`), qui calcule à la demande `matched` / `inPubgOnly` / `inSiteOnly` /
-   `unverified`. Ce diff n'est **ni stocké, ni notifié, ni lancé par un cron**.
-2. **Joueurs croisés (`Player` / `EncounteredPlayer`) : clan PUBG résolu une seule fois.**
-   `selectPrioritizedEncounteredPlayerIdentities` ne sélectionne que `clanResolvedAt: null` ; une fois résolu, un
-   compte n'est plus jamais revu. Zimbabalooba : `FADA`, résolu le 2026-08-31, jamais réévalué.
-3. **Aucun historique** : `Player.opponentClanId` serait simplement écrasé par une nouvelle résolution.
-4. **`Notification` vise un `ClanMember`**, pas un compte SuperUser (`UserAccount`) : aucun canal d'alerte adapté.
-5. **Zimbabalooba n'a aucune fiche `ClanMember`** (ni par compte, ni par pseudo) et n'est pas favori : pour le site,
-   il n'est pas suivi. Coéquipier fréquent du clan 18 (135 parties ensemble). S'il a rejoint le clan PUBG BOFS,
-   « Comparer PUBG » du clan 18 le liste aujourd'hui dans « présents sur PUBG, absents du site ».
+```mermaid
+graph TD
+    classDef system fill:#2d3748,stroke:#4fd1c5,stroke-width:2px,color:#fff
+    classDef active fill:#2b6cb0,stroke:#63b3ed,stroke-width:2px,color:#fff
+    classDef review fill:#c05621,stroke:#fbd38d,stroke-width:2px,color:#fff
+    classDef inactive fill:#718096,stroke:#a0aec0,stroke-width:2px,color:#fff
 
-**Volumes mesurés** : 324 membres actifs suivis, 23 clans avec `pubgClanId`, 429 773 `Player` dont 37 980 résolus,
-**1 139 coéquipiers fréquents** (≥ 10 parties partagées avec un clan suivi), 6 040 à ≥ 3. Quota PUBG par défaut :
-10 requêtes/min (`AppConfig.pubg_api_rate_limit_rpm` non défini), déjà partagé avec la résolution d'adversaires.
+    Player([Joueur PUBG inconnu])
+    ClanActif[[Clan Suivi Actif]]:::active
+    UNG{{"Clan Système 'Ungrouped'"}}:::system
+    Inactif([Suivi Arrêté / Inactif]):::inactive
+    SU_Queue((File d'attente SU /settings/superuser/clan-changes)):::review
+    NewClan[[Nouveau Clan en attente isActive: false]]:::review
 
-#### Proposition
+    %% Entrée sur le site
+    Player -- "Demande via /join" --> SU_Queue
+    SU_Queue -- "SU valide l'intégration (📩 Notif Email)" --> ClanActif
+    SU_Queue -- "SU refuse l'intégration (📩 Notif Email)" --> Inactif
 
-1. **Rosters des clans suivis — quotidien, ~23 appels.** Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`,
-   visible dans `/settings/cron`) : `syncClanMembership` pour chaque clan, diff comparé au précédent. Nouvel écart →
-   événement. Pour les partis (`inSiteOnly`), résolution de leur nouveau clan par lot.
-2. **Coéquipiers fréquents — hebdomadaire.** Comptes ayant ≥ 10 parties partagées avec un clan suivi et une résolution
-   de plus de 7 jours : ~114 appels en lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`), ~12 min à 10 req/min,
-   la nuit. *À vérifier sur un appel réel : que l'endpoint multi-joueurs expose bien `attributes.clanId` comme
-   `fetchPlayerClan`.*
-3. **Historique — table `PlayerClanChange`** (migration additive) : `pubgAccountId`, `platformShard`, `clanMemberId?`,
-   ancien et nouveau `pubgClanId` / tag, `source` (`clan_roster` | `player_refresh`), `detectedAt`, `acknowledgedAt`,
-   `acknowledgedByUserId`. Mise à jour de `Player.opponentClanId` et de `EncounteredPlayer.pubgClan*` au passage.
-4. **Signalement SuperUser** : page `/settings/superuser/clan-changes` (changements non traités, filtres par clan), avec
-   actions « transférer le membre » (`PATCH /api/members/[id]` existant), « ajouter au clan », « ignorer » ; pastille
-   compteur dans le hub SuperUser (`nav-permissions`) ; en option, message dans un salon Discord d'administration
-   (module `src/lib/discord/` existant). **Aucune action automatique** (ni transfert, ni arrêt de suivi).
-5. **Débriefing** : l'info-bulle du tag affiche « a quitté [X] pour [Y] le … » quand un changement est connu.
+    %% Actions Owner (Chantier 3)
+    ClanActif -- "Owner : Basculer vers UNG (Garde le suivi actif)" --> UNG
+
+    %% Actions SuperUser
+    ClanActif -- "SuperUser : Arrêter le suivi (Stoppe la synchronisation)" --> Inactif
+
+    %% Détections par le Cron Quotidien (Chantiers 1 & 2 unifiés)
+    ClanActif -- "Cron détecte: Départ vers clan inconnu ou null ⭐ BASCULE AUTO (🔔 Notif Discord)" --> UNG
+    ClanActif -- "Cron détecte: Transfert vers autre clan suivi ⭐ TRANSFERT AUTO (🔔 Notif Discord)" --> ClanActif
+    
+    UNG -- "Cron détecte: Rejoint un clan suivi ⭐ PROMOTION AUTO (Cas A) (🔔 Notif Discord)" --> ClanActif
+    UNG -- "Cron détecte: Rejoint un clan non suivi Création en attente (Cas B) (🔔 Notif Discord)" --> NewClan
+    UNG -- "Cron détecte: Toujours sans clan (Cas C)" --> UNG
+
+    %% Résolutions SuperUser
+    NewClan -- "SU valide la création du clan (📩 Notif Email)" --> ClanActif
+```
+
+#### Déclencheurs
+
+1. **Zimbabalooba — 2026-09-14.** Sur le débriefing du clan 18, il apparaît « [FADA] non suivi » alors qu'il aurait
+   changé de clan. Aucune fiche `ClanMember`, coéquipier fréquent du clan 18 (135 parties). Question d'origine :
+   comment les changements sont-ils détectés et signalés au SuperUser ?
+2. **Vvila — 2026-09-20.** Membre actif du clan 1 (D32/SMK, `ClanMember` id 11, 250 matchs en escouade, 387 kills).
+   Il a quitté SMK et créé son propre clan. Vérifié le 2026-09-20 : l'API PUBG ne renvoie **aucun clan** pour son
+   compte (`attributes.clanId: null`), alors que le site l'affiche toujours SMK partout, y compris sur les lignes
+   `EncounteredPlayer` des clans 17, 18, 24 et 179. Aucun mécanisme ne détecte ni ne signale ce départ.
+
+#### Constat — état réel du code au 2026-09-20
+
+| Mécanisme | État vérifié |
+|---|---|
+| Diff roster PUBG ([`syncClanMembership`](../../src/lib/clan-service.ts#L357)) | Existe, mais **uniquement à la demande** via le bouton « Comparer PUBG » de `/clans/[clanId]/settings/members`. Ni stocké, ni notifié, absent de [`CRON_SCHEDULE_DEFINITIONS`](../../src/lib/cron-jobs.ts#L1184) |
+| Résolution de clan des joueurs croisés | Ne sélectionne que `clanResolvedAt: null` ([encountered-player-resolution.ts:64](../../src/lib/encountered-player-resolution.ts#L64)) — **une fois résolu, un compte n'est jamais réévalué** |
+| Raccourci « membre suivi » | [encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301) fait `findFirst({ where: { pubgAccountId } })` **sans filtre `isActive`** et tamponne le clan du site sans appeler l'API. Un membre parti — ou même désactivé — reste donc étiqueté avec son ancien clan indéfiniment |
+| Historique de changement | Aucun — `Player.opponentClanId` est écrasé par la résolution suivante |
+| Canal d'alerte SuperUser | `Notification` vise un `ClanMember`, pas un `UserAccount` |
+| Clan technique `Ungrouped` | Créé à la volée par [`getOrCreateUngroupedClan`](../../src/lib/clan-service.ts#L135), **jamais protégé** (voir bug ci-dessous). Mesuré le 2026-09-20 : **aucune ligne `Ungrouped` en base, tous shards confondus** |
+
+**Volumes mesurés** : 324 membres actifs suivis, 26 clans steam actifs, 23 clans avec `pubgClanId`, 429 773 `Player`
+dont 37 980 résolus, **1 139 coéquipiers fréquents** (≥ 10 parties partagées avec un clan suivi), 6 040 à ≥ 3.
+Quota PUBG par défaut : 10 requêtes/min (`AppConfig.pubg_api_rate_limit_rpm` non défini), déjà partagé avec la
+résolution d'adversaires.
+
+##### 🔴 Bug bloquant découvert le 2026-09-20 — `Ungrouped` se fait renommer tout seul
+
+[`resolvePubgClanForLocalClan`](../../src/lib/clan-service.ts#L186) : quand un clan n'a **pas** de `pubgClanId` — ce
+qui est la définition même d'`Ungrouped` — la fonction boucle sur ses membres actifs et retourne **le clan PUBG du
+premier membre qui en a un**. [`syncTrackedClanStats`](../../src/lib/clan-service.ts#L304) écrit ensuite ce résultat
+directement sur le clan : `name`, `tag` et `pubgClanId`.
+
+Ce fallback est légitime pour un vrai clan pas encore résolu. Sur un clan technique, il est destructeur :
+
+1. Un joueur sans clan est parqué dans `Ungrouped`.
+2. Il rejoint (ou crée) un clan PUBG.
+3. Le cron quotidien itère sur `{ isActive: true }` **sans exclusion** ([cron-jobs.ts:695](../../src/lib/cron-jobs.ts#L695))
+   et appelle `syncTrackedClanStats` sur chaque clan ([cron-jobs.ts:777](../../src/lib/cron-jobs.ts#L777)).
+4. `Ungrouped` est **renommé en son clan à lui**, avec son `pubgClanId` — et devient un clan suivi normal contenant
+   tous les joueurs sans clan.
+
+Deux issues, toutes deux mauvaises, selon que le clan détecté existe déjà en base :
+
+- **Il n'existe pas** → le renommage réussit, `Ungrouped` est détourné. `getOrCreateUngroupedClan` cherche
+  `name: 'Ungrouped'` + `pubgClanId: null` : il ne le retrouve plus et en **crée un deuxième**.
+- **Il existe déjà** → `@@unique([name, platformShard])` (et `@@unique([pubgClanId, platformShard])`) font échouer
+  l'`update` en `P2002`, et le cron quotidien remonte une erreur de stats à chaque passage.
+
+Le transfert de membre déclenche lui-même `syncTrackedClanStats(targetClan.id)`
+([members/[id]/route.ts:289](../../src/app/api/members/[id]/route.ts#L289)) : si l'API rend un clan à cet instant,
+`Ungrouped` est renommé **dès le clic**, sans attendre le cron.
+
+Aggravant : l'appartenance au clan technique n'est identifiée nulle part par un marqueur, seulement par la
+comparaison de chaîne `name === 'Ungrouped'`, recopiée dans **5 endroits** —
+[ClanSelector.tsx:155](../../src/components/ClanSelector.tsx#L155), [:181](../../src/components/ClanSelector.tsx#L181),
+[:444](../../src/components/ClanSelector.tsx#L444), [comparator/page.tsx:90](../../src/app/clans/comparator/page.tsx#L90),
+[members/[id]/route.ts:236](../../src/app/api/members/[id]/route.ts#L236). Le renommage casse donc ces 5 garde-fous
+en même temps.
+
+---
+
+#### Chantier 0 — Faire d'`Ungrouped` un clan système protégé — ⛔ bloquant, à livrer en premier
+
+**Décision :** `Ungrouped` (`TAG: UNG`) est un **clan système**, réservé aux joueurs sans clan qu'on veut continuer à
+suivre et à ceux en transition entre deux clans. Il ne doit jamais être renommé, ni absorbé par un clan PUBG, ni
+apparaître dans les classements.
+
+- [ ] Ajouter `isSystem Boolean @default(false)` au modèle `Clan` (migration **additive**) — l'identité du clan
+      technique devient un marqueur, plus un nom comparé par chaîne
+- [ ] `resolvePubgClanForLocalClan` : court-circuiter sur `clan.isSystem` → retourner `{ clan, pubgClan: null }`
+      **avant** la boucle sur les membres, jamais de fallback « clan du premier membre »
+- [ ] `syncTrackedClanStats` : ne jamais écrire `name` / `tag` / `pubgClanId` sur un clan système (ceinture et
+      bretelles, même si le point précédent suffit)
+- [ ] `upsertTrackedClanFromPubg` : ajouter `isSystem: false` au `findFirst`, pour qu'un clan PUBG réellement nommé
+      « Ungrouped » ne puisse pas absorber le clan technique
+- [ ] `getOrCreateUngroupedClan` : clé de recherche sur `isSystem: true` + `platformShard`, plus sur le nom ;
+      création avec `isSystem: true`
+- [ ] Interdire le renommage d'un clan système côté API **et** côté UI (paramètres de clan), avec message explicite
+- [ ] Remplacer les 5 comparaisons `name === 'Ungrouped'` par `isSystem` — dont l'exception
+      `isUngroupedOwner` de [members/[id]/route.ts:236](../../src/app/api/members/[id]/route.ts#L236), qui autorise
+      déjà à sortir un `Owner` du clan technique et reste nécessaire pour le chantier 2
+- [ ] Exclure les clans système de `runDailyClanSync` (aucun roster PUBG à synchroniser) tout en **conservant** la
+      synchronisation des matchs de leurs membres — c'est tout l'intérêt d'UNG
+- [ ] Script de marquage des `Ungrouped` existants dans `scripts/` — **no-op attendu** (aucun en base au 2026-09-20),
+      à garder pour les autres environnements
+- [ ] Tests dans `src/lib/` (convention Vitest du dépôt) : un clan système ne change pas de nom après
+      `syncTrackedClanStats` alors qu'un de ses membres a un clan PUBG
+
+#### Chantier 1 — Détection et signalement des changements de clan *(plan du 2026-09-14, inchangé sur le fond)*
+
+- [ ] **Synchronisation de l'appartenance de tous les joueurs suivis — quotidien, ~35 appels.** *(Remplace la vérification des rosters de clan, car l'API PUBG ne renvoie pas la liste des membres).* Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`, visible dans `/settings/cron`) : itère sur tous les `ClanMember` actifs du site (clans suivis + `Ungrouped`), par lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`). Compare le `clanId` PUBG avec le clan actuel sur le site.
+- [ ] Tout écart déclenche une action immédiate pour protéger la continuité du suivi et la justesse des agrégats :
+  - **Départ vers un clan non suivi ou aucun clan** : Le joueur est **basculé automatiquement vers `Ungrouped`**. Son suivi continue, mais il ne pollue plus les stats de son ancien clan. (Si le nouveau clan existe sur PUBG, une demande de création de clan est générée en parallèle via le flux du Chantier 2).
+  - **Transfert vers un autre clan suivi actif** : Le joueur y est **transféré automatiquement**.
+- [ ] Dans tous les cas, un événement `PlayerClanChange` est généré (statut `applied`) pour garder l'historique et notifier le SuperUser, mais **l'action n'attend pas de validation humaine**.
+- [ ] **Historique public des mutations** : Ajouter un bouton en bas de la page `/clans` menant à une page publique listant tous les événements de mutations. Cela permet de rendre transparents les changements automatiques.
+- [ ] **Notification Discord** : Envoyer un message au canal d'administration Discord pour chaque `PlayerClanChange` généré automatiquement par le Cron (évite les changements silencieux).
+- [ ] **Coéquipiers fréquents — hebdomadaire.** Comptes ayant ≥ 10 parties partagées avec un clan suivi et une
+      résolution de plus de 7 jours : ~114 appels en lots de 10
+      (`/shards/{shard}/players?filter[playerIds]=…`), ~12 min à 10 req/min, la nuit.
+      *À vérifier sur un appel réel : que l'endpoint multi-joueurs expose bien `attributes.clanId` comme
+      `fetchPlayerClan`.*
+- [ ] **Signalement SuperUser** : page `/settings/superuser/clan-changes` (changements non traités, filtres par
+      clan), actions « transférer le membre » (`PATCH /api/members/[id]`), « ajouter au clan », « ignorer » ;
+      pastille compteur dans le hub SuperUser (`nav-permissions`) ; en option, message Discord d'administration
+      (module `src/lib/discord/`). **Aucune action automatique** sur ce chantier
+- [ ] **Débriefing** : l'info-bulle du tag affiche « a quitté [X] pour [Y] le … » quand un changement est connu
+- [ ] **Corriger le raccourci « membre suivi »** ([encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301)) :
+      ajouter `isActive: true` et `joinStatus: 'active'` au `findFirst`, pour qu'un membre non suivi retombe sur
+      l'appel API PUBG au lieu de rester tamponné avec son ancien clan
+      *(reporté volontairement par l'utilisateur le 2026-09-20, à reprendre ici)*
+
+> **Contrainte de performance (mesurée le 2026-09-15)** : la sélection des coéquipiers fréquents parcourt
+> l'intégralité d'`EncounteredPlayer` (1,64 M lignes) — le même motif qui faisait durer 45 s chaque passage du cron
+> de résolution. Prévoir un compteur pré-calculé ou un palier comme dans
+> `selectPrioritizedEncounteredPlayerIdentities`. Voir [database-performance.md](../ops/database-performance.md).
+
+#### Chantier 2 — Promotion : un joueur d'UNG dont le clan est détecté
+
+**Objectif :** un joueur parqué dans UNG qui rejoint ou crée un clan PUBG doit sortir d'UNG vers son vrai clan,
+sans que cela ouvre une porte dérobée à la validation SuperUser.
+
+> **Tension à respecter :** `/join` crée volontairement tout nouveau clan en `isActive: false` en attente de
+> validation SuperUser, « afin de protéger la ligue contre les bots et clans non sérieux » (voir la section `/join`
+> en P1). Une création + un déplacement entièrement automatiques contourneraient ce garde-fou. De plus
+> `PATCH /api/members/[id]` refuse déjà une cible `isActive: false` (`Target clan not found`), et `runDailyClanSync`
+> n'itère que sur les clans actifs : déplacer quelqu'un vers un clan en attente **arrêterait silencieusement** de le
+> suivre. D'où le découpage en trois cas ci-dessous.
+
+- [ ] **Traitement des promotions** : se branche directement sur les événements `PlayerClanChange` générés par le cron quotidien du Chantier 1, lorsque le clan source est un clan système (`Ungrouped`).
+- [ ] **Cas A — clan détecté déjà suivi et actif** → **déplacement automatique**. Aucun clan n'est créé, la cible a
+      déjà passé la validation : le risque bot est nul. Écrire un `PlayerClanChange`
+      (`source: 'ungrouped_promotion'`, `status: 'applied'`), notifier le SuperUser et l'Owner du clan cible
+- [ ] **Cas B — clan détecté absent de la base, ou présent mais `isActive: false`** → **création en attente,
+      aucun déplacement**. Créer le clan via `upsertTrackedClanFromPubg` avec `isActive: false`, appeler
+      `notifyClanCreationRequest` (existant), écrire un `PlayerClanChange` en `status: 'pending'`
+- [ ] **Cas C — aucun clan détecté** → ne rien faire, le joueur reste dans UNG. C'est un état normal, pas une erreur
+- [ ] **Application à l'approbation** : étendre `POST /api/clans/[clanId]/approve` — à l'activation du clan,
+      appliquer les `PlayerClanChange` en attente pointant vers ce `pubgClanId` (déplacer les membres UNG concernés,
+      passer les lignes en `applied`). Alternative : bouton dédié sur la page `/settings/superuser/clan-changes`
+- [ ] **Garde-fou** : un membre `Owner` d'UNG peut être promu — l'exception `isUngroupedOwner` existe déjà et doit
+      être re-clée sur `isSystem` au chantier 0
+- [ ] **Interrupteur** `AppConfig.ungrouped_auto_promote` (défaut : activé) — ne gouverne **que** le cas A ; le cas B
+      reste manuel quelle que soit sa valeur
+- [ ] Tests dans `src/lib/` : cas A applique, cas B crée en attente sans déplacer, cas C ne touche à rien,
+      l'approbation du clan déclenche bien le déplacement différé
+
+#### Chantier 3 — Rétrogradation : un Owner peut basculer un de ses membres vers UNG
+
+**Objectif :** permettre à un Owner de constater « ce joueur n'est plus dans mon clan » sans passer par le
+SuperUser, et sans arrêter de le suivre.
+
+Aujourd'hui, l'**arrêt de suivi (`DELETE /api/members/[id]`)** pouvait être réalisé par un Owner. Pour éviter la perte d'historique et l'arrêt brutal des stats, l'usage de ce `DELETE` doit être **strictement réservé au SuperUser**.
+Le seul pouvoir d'un Owner pour se séparer d'un membre devient de le "Basculer vers UNG" (`PATCH`). L'exception proposée ci-dessous est donc la seule action de sortie autorisée pour un Owner.
+
+- [ ] Autoriser `PATCH /api/members/[id]` sous `requirePermission('manage_members')` sur le clan **actuel** du
+      membre — et non `requireSuperUser` — **uniquement** quand `validated.clanId` est le clan système du même
+      `platformShard`. Toute autre cible reste SuperUser
+- [ ] Conserver les règles existantes : un `Owner` ne peut pas être déplacé, plateformes identiques, cible active
+      (UNG l'est)
+- [ ] Écrire un `PlayerClanChange` (`source: 'manual_demotion'`, `triggeredByUserId`) pour tracer qui a basculé qui
+- [ ] **UI** `/clans/[clanId]/settings/members` : troisième bouton à côté de « Arrêter le suivi » et « Transférer de
+      clan », avec une modale (charte `docs/ui/index.html` §22) expliquant la différence entre les trois gestes
+- [ ] Tests dans `src/lib/` : un Owner peut basculer vers UNG, ne peut pas viser un autre clan, ne peut pas
+      basculer un autre Owner
+
+**Différence entre les trois gestes — à afficher dans la modale et à documenter :**
+
+| Geste | `ClanMember` | Sync PUBG | Agrégats du clan | Historique rattaché à |
+|---|---|---|---|---|
+| **Arrêter le suivi** (SuperUser, `DELETE`) | `isActive: false`, `clanId` inchangé | **arrêtée** | retiré | le clan d'origine, réactivable |
+| **Basculer vers UNG** (Owner, `PATCH`) | `isActive: true`, `clanId` → clan système | **maintenue** | retiré | **UNG** |
+| **Transférer de clan** (SuperUser, `PATCH`) | `clanId` → cible | maintenue | retiré de A, ajouté à B | le clan cible |
+
+> ⚠️ **Les trois gestes retirent le membre des agrégats du clan.** `recalculateStatsForClan` filtre sur
+> `{ clanId, isActive: true, joinStatus: 'active' }` ([stats-calculator.ts:244](../../src/lib/stats-calculator.ts#L244)),
+> et `syncTrackedClanStats` sur `member: { clanId, isActive: true }` : un simple arrêt de suivi suffit déjà à sortir
+> le joueur des totaux cumulés, des leaderboards et des awards.
+>
+> La différence réelle porte sur le **rattachement**. Un déplacement re-parente la fiche `ClanMember`, donc toutes
+> les vues qui joignent par `member.clanId` réattribuent l'intégralité de son passé au nouveau clan — pour Vvila,
+> 250 matchs en escouade, 387 kills et 55 314 dégâts. `KillEvent.clanId` étant une colonne figée à l'écriture
+> ([schema.prisma:926](../../prisma/schema.prisma#L926)), les vues basées sur la télémétrie continuent elles de le
+> rattacher au clan d'origine : les deux familles de vues divergent après un déplacement. À trancher si cette
+> divergence doit être corrigée (backfill de `KillEvent.clanId`) ou simplement documentée.
+
+#### Modèle de données
+
+- [ ] `Clan.isSystem Boolean @default(false)` — migration **additive** (chantier 0)
+- [ ] Table `PlayerClanChange` — migration **additive** (chantiers 1, 2, 3) :
+      `pubgAccountId`, `platformShard`, `clanMemberId?`, `previousPubgClanId?` / `previousPubgClanTag?`,
+      `newPubgClanId?` / `newPubgClanTag?`, `detectedClanId?` (FK `Clan` quand le clan existe côté site),
+      `source` (`clan_roster` | `player_refresh` | `ungrouped_promotion` | `manual_demotion`),
+      `status` (`pending` | `applied` | `ignored`), `detectedAt`, `appliedAt?`, `acknowledgedAt?`,
+      `acknowledgedByUserId?`, `triggeredByUserId?`
+- [ ] Mise à jour de `Player.opponentClanId` et d'`EncounteredPlayer.pubgClan*` au passage de chaque détection
+
+#### Chantier 4 — Demande de création de clan (`/join`) : Contact et Notifications
+
+- [ ] **Formulaire `/join`** : Exiger la saisie d'une adresse email de contact pour le propriétaire lors de la demande d'intégration d'un nouveau clan.
+- [ ] **Notification de décision** : Lors de l'acceptation ou du refus de la demande par le SuperUser (via `/api/clans/[clanId]/approve` ou `reject`), envoyer une notification automatique par email au créateur avec la décision.
+
+> **Rappel procédure (voir AGENTS.md) :** lancer
+> `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
+> **avant** toute écriture en base — il doit répondre `-- This is an empty migration.` au départ, puis ne montrer que
+> les `ADD COLUMN` / `CREATE TABLE` voulus. Ne jamais faire de `db push` aveugle sur cette base : c'est la production.
+
+#### Ordre d'implémentation proposé
+
+| Ordre | Chantier | Pourquoi ce rang |
+|---|---|---|
+| 1 | **0 — UNG protégé** | Bloquant : tant qu'UNG peut être détourné, y parquer quelqu'un est dangereux |
+| 2 | **3 — Owner → UNG** | Autonome, peu risqué, débloque immédiatement le cas Vvila |
+| 3 | **2 — Promotion UNG → clan** | Dépend de 0 (marqueur `isSystem`) et de la table `PlayerClanChange` |
+| 4 | **1 — Détection globale** | Le plus gros et le plus coûteux en quota PUBG ; à faire une fois le socle posé |
 
 #### À trancher avant de coder
 
 - Seuil « coéquipier fréquent » (10 parties ?) et fréquence (quotidien pour les rosters, hebdomadaire pour les
-  coéquipiers ?).
-- Alerte Discord : oui / non, et quel salon.
+  coéquipiers ?) — *ouvert depuis le 2026-09-14*
+- Alerte Discord : oui / non, et quel salon — *ouvert depuis le 2026-09-14*
 - Faut-il aussi revérifier les adversaires « favoris » (`Player.isFavorite`, `OpponentClan.isFavorite`) ?
-
-> **Contrainte de performance (mesurée le 2026-09-15)** : la sélection des coéquipiers fréquents du point 2 parcourt
-> l'intégralité de `EncounteredPlayer` (1,64 M lignes) — le même motif qui faisait durer 45 s chaque passage du cron de
-> résolution. Prévoir un compteur pré-calculé ou un palier comme dans `selectPrioritizedEncounteredPlayerIdentities`.
-> Voir [docs/ops/database-performance.md](../ops/database-performance.md).
+  — *ouvert depuis le 2026-09-14*
+- Cas A du chantier 2 : déplacement vraiment automatique, ou toujours une confirmation SuperUser ?
+- UNG est aujourd'hui **filtré** du sélecteur de clan et du comparateur. Un membre d'UNG a-t-il droit à une page de
+  clan, ou UNG reste-t-il invisible côté joueur et consultable seulement par le SuperUser ?
+- Un seul clan système par `platformShard` (impliqué par `@@unique([name, platformShard])`) — à confirmer
+- Divergence `KillEvent.clanId` après déplacement : backfill ou documentation ?
 
 ### ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
 
@@ -2362,6 +2588,10 @@ Objectif : rendre le clic sur une ligne utile en place au lieu de naviguer hors 
   - "Suivre ce clan" au niveau du groupe → onboarding complet comme nouveau clan suivi (désactivé, infobulle mentionnant explicitement que c'est un chantier distinct de l'ajout de membre, à documenter séparément avant implémentation — réutiliser `src/lib/clan-service.ts`/`src/app/api/join/route.ts` plutôt qu'un nouveau mécanisme)
 - [x] Badge "Membre de `<clan>`" quand le joueur est déjà un `ClanMember` actif ailleurs, au lieu du bouton désactivé
 - [x] Limite de 50 joueurs par clan adverse côté API, indicateur "+" si atteinte
+
+> 🔗 **Regroupé le 2026-09-20 :** le suivi du clan d'un joueur (protection d'`Ungrouped`, détection des
+> changements, promotion depuis UNG, rétrogradation par l'Owner) est traité dans une seule section —
+> « Cycle de vie du clan d'un joueur » en **P2**.
 
 **Vérification navigateur** (session partagée, superuser connecté) :
 - [x] Accordéon tableau 1 : membre existant + 4 candidats détectés affichés correctement pour `FR-Alliance-BE`

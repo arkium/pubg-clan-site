@@ -117,7 +117,7 @@ export default function ClansPage() {
     <main className="app-container app-main">
       <header
         className="sticky top-20 z-30 mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat transition-all duration-500 ease-in-out sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('${hoveredClan?.imageUrl || '/clan_banner.jpg'}')`, backgroundPosition: 'center 35%' }}
+        style={{ backgroundImage: `url('${hoveredClan?.imageUrl || '/banner-frenchchicken-gg.jpg'}')`, backgroundPosition: 'center 35%' }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-[#0b0f19]/80 to-transparent transition-opacity duration-500 ease-in-out" />
         <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">

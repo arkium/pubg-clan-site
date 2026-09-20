@@ -9,17 +9,35 @@
  * script est donc un no-op attendu. Il reste necessaire pour les autres
  * environnements et pour toute base plus ancienne.
  *
+ * Peut aussi CREER le clan technique d'un shard qui n'en a pas encore
+ * (`--create <shard>`) : sans lui, le bouton « Sortir du clan » du chantier 3 ne
+ * s'affiche jamais, puisque PATCH /api/members/[id] exige que la cible existe deja.
+ *
  * Mode SEC par defaut : liste ce qui serait fait sans rien ecrire.
  * Ajouter `--apply` pour appliquer reellement.
  *
  * Usage :
- *   npx tsx scripts/mark-system-clans.ts            # simulation
- *   npx tsx scripts/mark-system-clans.ts --apply    # application
+ *   npx tsx scripts/mark-system-clans.ts                        # simulation
+ *   npx tsx scripts/mark-system-clans.ts --apply                # marquage
+ *   npx tsx scripts/mark-system-clans.ts --create steam --apply # creation
  */
 
 import { prisma } from '@/lib/prisma'
+import { UNGROUPED_CLAN_NAME, UNGROUPED_CLAN_TAG } from '@/lib/system-clan'
 
 const APPLY = process.argv.includes('--apply')
+
+function parseCreateShard() {
+  const index = process.argv.indexOf('--create')
+  if (index === -1) return null
+  const shard = process.argv[index + 1]
+  if (!shard || shard.startsWith('--')) {
+    throw new Error('--create attend un shard, par exemple : --create steam')
+  }
+  return shard
+}
+
+const CREATE_SHARD = parseCreateShard()
 
 async function main() {
   console.log('='.repeat(84))
@@ -93,6 +111,62 @@ async function main() {
   } else if (candidates.length > 0) {
     console.log('\nSimulation : relancer avec --apply pour ecrire.')
   }
+
+  if (!CREATE_SHARD) {
+    return
+  }
+
+  console.log(`\n--- Creation du clan technique pour le shard « ${CREATE_SHARD} » ---`)
+
+  const existingForShard = await prisma.clan.findFirst({
+    where: { platformShard: CREATE_SHARD, isSystem: true },
+    select: { id: true, name: true, tag: true },
+  })
+
+  if (existingForShard) {
+    console.log(
+      `  Deja present : #${existingForShard.id} [${existingForShard.tag}] ${existingForShard.name} — rien a faire.`
+    )
+    return
+  }
+
+  // Collision possible sur @@unique([name, platformShard]) : un vrai clan PUBG
+  // pourrait deja porter ce nom sur ce shard.
+  const nameCollision = await prisma.clan.findFirst({
+    where: { platformShard: CREATE_SHARD, name: UNGROUPED_CLAN_NAME },
+    select: { id: true, pubgClanId: true },
+  })
+
+  if (nameCollision) {
+    console.log(
+      `  [!] Un clan nomme « ${UNGROUPED_CLAN_NAME} » existe deja sur ce shard (#${nameCollision.id}, ` +
+        `pubgClanId=${nameCollision.pubgClanId ?? 'null'}). Creation annulee — a resoudre a la main.`
+    )
+    return
+  }
+
+  if (!APPLY) {
+    console.log(
+      `  Simulation : creerait [${UNGROUPED_CLAN_TAG}] ${UNGROUPED_CLAN_NAME} ` +
+        `(shard ${CREATE_SHARD}, isSystem=true, isActive=true).`
+    )
+    console.log('  Relancer avec --apply pour ecrire.')
+    return
+  }
+
+  const created = await prisma.clan.create({
+    data: {
+      name: UNGROUPED_CLAN_NAME,
+      tag: UNGROUPED_CLAN_TAG,
+      platformShard: CREATE_SHARD,
+      isSystem: true,
+    },
+    select: { id: true, name: true, tag: true, platformShard: true, isSystem: true, isActive: true },
+  })
+
+  console.log(`\n[OK] Clan technique cree : #${created.id} [${created.tag}] ${created.name}`)
+  console.log(`     shard=${created.platformShard} isSystem=${created.isSystem} isActive=${created.isActive}`)
+  console.log('     Le bouton « Sortir du clan » devient disponible pour les membres de ce shard.')
 }
 
 main()

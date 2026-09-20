@@ -1,9 +1,14 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { getSessionFromRequest } from '@/lib/auth-session'
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
+import {
+  PLAYER_CLAN_CHANGE_SOURCES,
+  recordPlayerClanChange,
+} from '@/lib/player-clan-change'
 import { requirePermission, requireSuperUser, requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
@@ -110,9 +115,11 @@ export async function DELETE(
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const permissionError = await requirePermission('manage_members')(request, {
-      clanId: existingMember.clanId,
-    })
+    // Chantier 3 : l'arret de suivi coupe la synchronisation PUBG et fait disparaitre
+    // le joueur de l'ecosysteme — c'est desormais une decision SuperUser. Un Owner
+    // qui veut se separer d'un membre le bascule vers le clan systeme (PATCH), ce qui
+    // garde le suivi actif et laisse une trace dans PlayerClanChange.
+    const permissionError = await requireSuperUser(request)
     if (permissionError) {
       return permissionError
     }
@@ -178,12 +185,6 @@ export async function PATCH(
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    // Déplacer un membre entre clans = opération cross-clan → SuperUser uniquement
-    const permissionError = await requireSuperUser(request)
-    if (permissionError) {
-      return permissionError
-    }
-
     const body = await request.json()
     const validated = MoveMemberClanSchema.parse(body)
 
@@ -196,10 +197,13 @@ export async function PATCH(
           isActive: true,
           clanId: true,
           platformShard: true,
+          pubgAccountId: true,
           clan: {
             select: {
               name: true,
+              tag: true,
               isSystem: true,
+              pubgClanId: true,
             },
           },
           roles: {
@@ -221,6 +225,8 @@ export async function PATCH(
           tag: true,
           platformShard: true,
           isActive: true,
+          isSystem: true,
+          pubgClanId: true,
         },
       }),
     ])
@@ -231,6 +237,23 @@ export async function PATCH(
 
     if (!targetClan || !targetClan.isActive) {
       return Response.json({ error: 'Target clan not found' }, { status: 404 })
+    }
+
+    // Déplacer un membre est une opération cross-clan, donc SuperUser par défaut.
+    // Exception étroite du chantier 3 : basculer un de ses propres membres vers le
+    // clan système du même shard reste ouvert à un Owner (permission
+    // `manage_members` sur le clan ACTUEL du membre). C'est la seule action de
+    // sortie qui lui reste depuis que `DELETE` est réservé au SuperUser, et elle est
+    // moins définitive puisque le suivi PUBG continue.
+    const isDemotionToSystemClan =
+      targetClan.isSystem && targetClan.platformShard === member.platformShard
+
+    const permissionError = isDemotionToSystemClan && member.clanId
+      ? await requirePermission('manage_members')(request, { clanId: member.clanId })
+      : await requireSuperUser(request)
+
+    if (permissionError) {
+      return permissionError
     }
 
     const isOwner = member.roles.some((entry) => entry.role.name === 'Owner')
@@ -265,7 +288,11 @@ export async function PATCH(
     }
 
     const previousClanId = member.clanId
+    const actorSession = await getSessionFromRequest(request)
 
+    // Le mouvement et sa trace sont ecrits ensemble : un mouvement sans trace serait
+    // invisible dans le journal, une trace sans mouvement serait un faux positif
+    // (« Surete d'execution » C du todo).
     await prisma.$transaction(async (tx) => {
       await tx.clanMember.update({
         where: { id: member.id },
@@ -274,6 +301,22 @@ export async function PATCH(
 
       await tx.clanMemberRole.deleteMany({
         where: { memberId: member.id },
+      })
+
+      await recordPlayerClanChange(tx, {
+        clanMemberId: member.id,
+        pubgAccountId: member.pubgAccountId,
+        platformShard: member.platformShard,
+        previousClanId,
+        newClanId: targetClan.id,
+        previousPubgClanId: member.clan?.pubgClanId ?? null,
+        previousPubgClanTag: member.clan?.tag ?? null,
+        newPubgClanId: targetClan.pubgClanId ?? null,
+        newPubgClanTag: targetClan.tag,
+        source: isDemotionToSystemClan
+          ? PLAYER_CLAN_CHANGE_SOURCES.manualDemotion
+          : PLAYER_CLAN_CHANGE_SOURCES.manualTransfer,
+        triggeredByUserId: actorSession?.userId ?? null,
       })
     })
 

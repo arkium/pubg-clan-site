@@ -49,6 +49,8 @@ model Clan {
   clanEncounters            ClanEncounter[]
   organizedTournaments      Tournament[]      @relation("TournamentOrganizer")
   discordNotifications      DiscordNotificationLog[]
+  clanChangesAsPrevious     PlayerClanChange[]          @relation("PlayerClanChangePrevious")
+  clanChangesAsNew          PlayerClanChange[]          @relation("PlayerClanChangeNew")
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -98,6 +100,7 @@ model ClanMember {
   identities                MemberIdentity[]
   sentInvites               MemberInvite[]              @relation("InviteSender")
   activeSessions            UserSession[]               @relation("SessionActiveMember")
+  clanChanges               PlayerClanChange[]
 
   @@unique([pubgPlayerName, platformShard])
   @@index([clanId, lastMatchAt])
@@ -324,6 +327,61 @@ model EncounteredPlayerResolutionRun {
   @@index([startedAt])
   @@index([status, startedAt])
   @@map("EncounteredPlayerResolutionRun")
+}
+
+// Journal des changements de clan d'un joueur — cycle de vie du clan d'un joueur
+// (docs/TODO/todo.md, section P2). Trace chaque mouvement, qu'il soit automatique
+// (cron de synchronisation d'appartenance) ou manuel (bascule par un Owner), et
+// permet de l'annuler : previousClanId/newClanId portent les clans du SITE, seuls
+// utilisables pour un revert, là où previousPubgClan*/newPubgClan* gardent ce que
+// l'API PUBG a réellement renvoyé au moment de la détection.
+model PlayerClanChange {
+  id String @id @default(cuid())
+
+  pubgAccountId String?
+  platformShard String  @default("steam")
+
+  clanMemberId Int?
+  clanMember   ClanMember? @relation(fields: [clanMemberId], references: [id], onDelete: SetNull)
+
+  previousClanId Int?
+  previousClan   Clan? @relation("PlayerClanChangePrevious", fields: [previousClanId], references: [id], onDelete: SetNull)
+
+  newClanId Int?
+  newClan   Clan? @relation("PlayerClanChangeNew", fields: [newClanId], references: [id], onDelete: SetNull)
+
+  previousPubgClanId  String?
+  previousPubgClanTag String?
+  newPubgClanId       String?
+  newPubgClanTag      String?
+
+  // player_sync | auto_demotion | auto_transfer | ungrouped_promotion
+  // | player_refresh | manual_demotion | manual_revert
+  source String
+  // observed | pending | applied | ignored | reverted
+  status String @default("applied")
+
+  // Rattachement au passage de cron qui a produit la ligne — indispensable au
+  // revert par lot d'un mauvais passage.
+  runId String?
+
+  detectedAt DateTime  @default(now())
+  appliedAt  DateTime?
+
+  acknowledgedAt       DateTime?
+  acknowledgedByUserId Int?
+  // Non nul pour les sources manuelles — journal d'audit, même convention que
+  // EncounteredPlayerResolutionRun.triggeredByUserId (pas de relation).
+  triggeredByUserId    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, detectedAt])
+  @@index([clanMemberId])
+  @@index([runId])
+  @@index([pubgAccountId, platformShard])
+  @@map("PlayerClanChange")
 }
 
 // Précalcul des awards clan par période, même principe que Clan.clanStats :

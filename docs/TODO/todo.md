@@ -2481,9 +2481,20 @@ apparaître dans les classements.
       `runTelemetryBatchForClan` et `syncTrackedClanStats`. Aucun roster n'y est synchronisé, donc rien à exclure,
       et **la synchronisation des matchs des membres d'UNG continue**, ce qui est le but. `syncClanMembership`
       refuse désormais un clan système avec un message explicite au lieu du trompeur « Clan has no PUBG clan ID »
-- [x] Script de marquage [`mark-system-clans.ts`](../../scripts/mark-system-clans.ts), mode simulation par défaut
+- [x] Script [`mark-system-clans.ts`](../../scripts/mark-system-clans.ts), mode simulation par défaut
       (`--apply` pour écrire), avec garde-fou si plusieurs clans techniques existaient sur un même shard.
       **Exécuté le 2026-09-20 : 0 candidat, 0 déjà marqué — no-op confirmé**
+- [x] **Clan technique créé en production le 2026-09-20 : `#201 [UNG] Ungrouped`** (shard `steam`,
+      `isSystem: true`, `isActive: true`, `pubgClanId: null`, 0 membre). Sans lui, le bouton « Sortir du clan »
+      du chantier 3 ne s'affichait pour personne, puisque `PATCH /api/members/[id]` exige une cible existante et
+      qu'aucun chemin de ce chantier n'appelle `getOrCreateUngroupedClan`.
+      Option `--create <shard>` ajoutée au script : simulation par défaut, idempotente (relancée, elle répond
+      « Deja present »), et elle **refuse de créer** si un clan porte déjà ce nom sur le shard — la collision
+      `@@unique([name, platformShard])` du risque J est donc traitée
+- [x] Constantes `UNGROUPED_CLAN_NAME` / `UNGROUPED_CLAN_TAG` extraites dans
+      [`system-clan.ts`](../../src/lib/system-clan.ts), module feuille sans dépendance : `clan-service.ts` tire
+      `server-only` par la chaîne `stats-calculator` → `notification-service`, donc reste inutilisable depuis un
+      script `tsx`. `clan-service` les ré-exporte, rien n'est dupliqué
 
 #### Chantier 1 — Détection et signalement des changements de clan *(refondu le 2026-09-20 : rosters abandonnés, actions automatiques)*
 
@@ -2564,7 +2575,7 @@ sans que cela ouvre une porte dérobée à la validation SuperUser.
 - [ ] **Interrupteur** `AppConfig.ungrouped_auto_promote` (défaut : activé) — ne gouverne **que** le cas A ; le cas B
       reste manuel quelle que soit sa valeur
 
-#### Chantier 3 — Rétrogradation : un Owner peut basculer un de ses membres vers UNG
+#### ✅ Chantier 3 — Rétrogradation : un Owner peut basculer un de ses membres vers UNG — livré le 2026-09-20
 
 **Objectif :** permettre à un Owner de constater « ce joueur n'est plus dans mon clan » sans passer par le
 SuperUser, et sans arrêter de le suivre.
@@ -2584,18 +2595,33 @@ deux usages : l'**immédiateté**, et les cas où l'API PUBG ne dit pas la véri
 compte renvoie `clanId: null` alors qu'il a créé un clan. Ce n'est donc pas un doublon du cron, mais l'override
 manuel du même chemin.
 
-- [ ] Autoriser `PATCH /api/members/[id]` sous `requirePermission('manage_members')` sur le clan **actuel** du
-      membre — et non `requireSuperUser` — **uniquement** quand `validated.clanId` est le clan système du même
-      `platformShard`. Toute autre cible reste SuperUser
-- [ ] Conserver les règles existantes : un `Owner` ne peut pas être déplacé, plateformes identiques, cible active
-      (UNG l'est)
-- [ ] **Réserver `DELETE /api/members/[id]` au SuperUser** : remplacer `requirePermission('manage_members')` par
-      `requireSuperUser` ([members/[id]/route.ts:113](../../src/app/api/members/[id]/route.ts#L113)), masquer le
-      bouton « Arrêter le suivi » pour les Owners sur `/clans/[clanId]/settings/members`, et expliquer le report
-      vers « Basculer vers UNG » dans la modale
-- [ ] Écrire un `PlayerClanChange` (`source: 'manual_demotion'`, `triggeredByUserId`) pour tracer qui a basculé qui
-- [ ] **UI** `/clans/[clanId]/settings/members` : troisième bouton à côté de « Arrêter le suivi » et « Transférer de
-      clan », avec une modale (charte `docs/ui/index.html` §22) expliquant la différence entre les trois gestes
+- [x] `PATCH /api/members/[id]` bascule sur `requirePermission('manage_members')` **du clan actuel du membre**
+      quand la cible est le clan système du même shard, et reste `requireSuperUser` dans tous les autres cas.
+      La décision de permission a dû être **déplacée après le chargement** du membre et du clan cible : on ne peut
+      pas savoir quelle règle appliquer avant de connaître `targetClan.isSystem`
+- [x] Règles existantes conservées : un `Owner` ne peut pas être déplacé, plateformes identiques, cible active.
+      Un shard différent fait retomber sur `requireSuperUser`, donc l'exception ne peut pas servir de contournement
+- [x] **`DELETE /api/members/[id]` réservé au SuperUser** — `requirePermission('manage_members')` remplacé par
+      `requireSuperUser`, et le bouton « Arrêter le suivi » n'est plus rendu pour un Owner
+- [x] `PlayerClanChange` écrit **dans la même transaction** que le mouvement
+      ([members/[id]/route.ts](../../src/app/api/members/[id]/route.ts)) — applique la règle C de « Sûreté
+      d'exécution » dès maintenant. Les effets dérivés (`syncTrackedClanStats`, rôles) restent hors transaction
+- [x] Service dédié [`player-clan-change.ts`](../../src/lib/player-clan-change.ts) : constantes de `source` et
+      `status`, `recordPlayerClanChange(tx, …)` qui accepte un client de transaction, et `appliedAt` renseigné
+      seulement quand le statut vaut `applied`
+- [x] **UI** `/clans/[clanId]/settings/members` : troisième bouton **« Sortir du clan »** (ambre, icône `LogOut`),
+      visible dès qu'un clan système existe pour le shard du membre. Modale à la charte expliquant **les trois
+      gestes côte à côte** et l'effet sur les statistiques. Le chargement de la liste des clans n'est plus réservé
+      au SuperUser — un Owner a besoin de connaître le clan système de son shard
+- [x] Tests : [`member-clan-move-permissions.test.ts`](../../src/lib/member-clan-move-permissions.test.ts),
+      **8 tests**. Bascule acceptée sous `manage_members` sans SuperUser ; SuperUser exigé pour toute autre cible ;
+      un Owner ne peut pas être basculé ; shard différent rejeté ; refus du middleware respecté ; `manual_demotion`
+      écrit avec `triggeredByUserId` ; `manual_transfer` distingué ; `DELETE` refusé à un non-SuperUser.
+      **Vérifié en neutralisant l'exception de permission** : 2 tests passent au rouge
+
+> **Écart constaté à l'implémentation — une valeur de `source` manquait.** Le plan prévoyait `manual_demotion`
+> pour la bascule d'un Owner, mais **rien** pour le transfert cross-clan d'un SuperUser, qui existait pourtant déjà
+> avant ces chantiers. Valeur `manual_transfer` ajoutée à l'énumération (8 valeurs au lieu de 7).
 
 **Différence entre les trois gestes — à afficher dans la modale et à documenter :**
 
@@ -2724,7 +2750,9 @@ cet onglet, sans redéploiement.
 
 - [x] `Clan.isSystem Boolean @default(false)` — migration `20260920120000_add_clan_is_system`, appliquée en
       production le 2026-09-20
-- [ ] Table `PlayerClanChange` — migration **additive** (chantiers 1, 2, 3) :
+- [x] Table `PlayerClanChange` — migration `20260920140000_add_player_clan_change`, **appliquée en production le
+      2026-09-20**. Purement additive : un `CREATE TABLE`, trois clés étrangères, aucun `ALTER` sur l'existant.
+      `migrate diff` vide avant et après. Champs réellement créés :
       `pubgAccountId`, `platformShard`, `clanMemberId?`, `previousPubgClanId?` / `previousPubgClanTag?`,
       `newPubgClanId?` / `newPubgClanTag?`, `detectedClanId?` (FK `Clan` quand le clan existe côté site),
       `source` (valeurs ci-dessous), `status` (`observed` | `pending` | `applied` | `ignored` | `reverted`),
@@ -2753,6 +2781,7 @@ chantier 1 :
 | `ungrouped_promotion` | Cron (chantier 2, cas A) | Sortie d'UNG vers un clan suivi |
 | `player_refresh` | Passe hebdomadaire coéquipiers | Aucune — hors membres suivis |
 | `manual_demotion` | Owner (chantier 3) | Bascule manuelle vers UNG |
+| `manual_transfer` | SuperUser (chantier 3) | Transfert manuel entre clans suivis — **valeur ajoutée à l'implémentation**, elle manquait au plan |
 | `manual_revert` | SuperUser (journal des mutations) | Annulation d'un mouvement précédent |
 
 `clan_roster` est supprimé : les rosters de clan n'existent plus côté API PUBG (voir le constat).
@@ -2811,8 +2840,10 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
       plafond par passage tient
 - [ ] **Chantier 2** — cas A applique, cas B crée le clan en attente **sans déplacer**, cas C ne touche à rien,
       et l'approbation du clan déclenche bien le déplacement différé
-- [ ] **Chantier 3** — un Owner peut basculer vers UNG, ne peut pas viser un autre clan, ne peut pas basculer un
-      autre Owner, et **ne peut plus appeler `DELETE`**
+- [x] **Chantier 3** — [`member-clan-move-permissions.test.ts`](../../src/lib/member-clan-move-permissions.test.ts),
+      **8 tests**, vérifiés en neutralisant le correctif. Utilise `vi.hoisted()` pour les mocks, comme
+      `route-contracts.test.ts` — sans quoi `vi.mock` est hoisté au-dessus des déclarations et le fichier ne
+      collecte aucun test
 - [ ] **Chantier 4** — `JoinRequestSchema` rejette un email absent ou malformé ; `contactEmail` est bien repris
       dans `UserAccount.email` à l'activation ; `reject` laisse la fiche en `joinStatus: 'rejected'`
 - [ ] **Chantier 5** — sélection des candidats à l'archivage au seuil configuré, archivage en masse idempotent,
@@ -2998,8 +3029,8 @@ parfaitement normale.
 | 0 | ✅ **Prérequis n°1 — spike `filter[playerIds]`** | **Fait le 2026-09-20.** Volumétrie validée (33 appels/jour), mais a mis au jour l'instabilité de `attributes.clanId` : voir le risque K |
 | 0 bis | ✅ **Mesure d'instabilité à grande échelle** | **Fait le 2026-09-20** : 5 % d'instabilité, désalignement d'API écarté, N=3 proposé. **Reste la mesure multi-jours** pour confirmer N (`npm run clanid:instability`) |
 | 1 | **Modèle de données** | `Clan.isSystem` et `PlayerClanChange` : les deux migrations additives conditionnent tous les chantiers suivants |
-| 2 | ✅ **0 — UNG protégé** | **Livré le 2026-09-20.** Migration en production, 8 tests, no-op de marquage confirmé |
-| 3 | **3 — Owner → UNG** | Autonome une fois le socle posé ; débloque immédiatement le cas Vvila |
+| 2 | ✅ **0 — UNG protégé** | **Livré le 2026-09-20.** Migration en production, 8 tests, clan technique `#201 [UNG]` créé sur `steam` |
+| 3 | ✅ **3 — Owner → UNG** | **Livré et activé le 2026-09-20.** Migration `PlayerClanChange` en production, API, UI, 8 tests, clan cible créé |
 | 4 | **Sûreté d'exécution A à E** | Les garde-fous se livrent **avec** le chantier 1, pas après : ce sont eux qui empêchent un passage de déplacer toute la ligue par erreur |
 | 5 | **1 — Synchronisation quotidienne** | Conditionné par le prérequis `filter[playerIds]` ; **produit les événements `PlayerClanChange` dont le chantier 2 se nourrit**. Première mise en service **obligatoirement en mode `observe`** |
 | 6 | **2 — Promotion UNG → clan** | Se branche sur les événements du chantier 1 : ne peut pas passer avant lui |

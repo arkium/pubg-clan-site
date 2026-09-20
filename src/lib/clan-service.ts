@@ -10,6 +10,9 @@ import {
   type PubgClan,
 } from '@/lib/pubg'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
+import { UNGROUPED_CLAN_NAME, UNGROUPED_CLAN_TAG } from '@/lib/system-clan'
+
+export { UNGROUPED_CLAN_NAME, UNGROUPED_CLAN_TAG }
 
 function toJsonInput(value: unknown) {
   return value as Prisma.InputJsonValue
@@ -134,9 +137,6 @@ export async function ensureTrackedClanForPlayer(playerId: string, platformShard
     return null
   }
 }
-
-export const UNGROUPED_CLAN_NAME = 'Ungrouped'
-export const UNGROUPED_CLAN_TAG = 'UNG'
 
 /**
  * Clan technique du shard : parking des joueurs sans clan qu'on continue de suivre.

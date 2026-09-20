@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowRightLeft, ChevronDown, Loader2, Search, Swords, Users, UserX, X } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, ChevronDown, Loader2, LogOut, Search, Swords, Users, UserX, X } from 'lucide-react'
 
 import RoleAssignment from '@/components/RoleAssignment'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -185,9 +185,11 @@ export default function ClanMembersSettingsPage() {
   const [isPubgDiffModalOpen, setIsPubgDiffModalOpen] = useState(false)
   const [memberToRemove, setMemberToRemove] = useState<ClanMemberWithRole | null>(null)
   const [memberToTransfer, setMemberToTransfer] = useState<ClanMemberWithRole | null>(null)
+  // Chantier 3 : bascule vers le clan systeme, ouverte aux Owners.
+  const [memberToDemote, setMemberToDemote] = useState<ClanMemberWithRole | null>(null)
   const [selectedTargetClanId, setSelectedTargetClanId] = useState<number | null>(null)
   const [availableClans, setAvailableClans] = useState<
-    Array<{ id: number; name: string; tag: string; platformShard: string }>
+    Array<{ id: number; name: string; tag: string; platformShard: string; isSystem: boolean }>
   >([])
   const [actionSubmitting, setActionSubmitting] = useState(false)
 
@@ -382,8 +384,8 @@ export default function ClanMembersSettingsPage() {
   }, [])
 
   useEffect(() => {
-    if (!isSuperUser) return
-
+    // Charge aussi pour un Owner : il lui faut le clan systeme de son shard pour
+    // proposer la bascule du chantier 3.
     let cancelled = false
     async function loadClans() {
       try {
@@ -394,6 +396,7 @@ export default function ClanMembersSettingsPage() {
             name: string
             tag: string
             platformShard: string
+            isSystem?: boolean
           }>
           if (!cancelled && Array.isArray(data)) {
             setAvailableClans(
@@ -402,6 +405,7 @@ export default function ClanMembersSettingsPage() {
                 name: c.name,
                 tag: c.tag,
                 platformShard: c.platformShard,
+                isSystem: Boolean(c.isSystem),
               }))
             )
           }
@@ -414,7 +418,7 @@ export default function ClanMembersSettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [isSuperUser])
+  }, [])
 
   async function handleConfirmRemoveMember() {
     if (!memberToRemove || !clanId) return
@@ -432,6 +436,41 @@ export default function ClanMembersSettingsPage() {
         'success'
       )
       setMemberToRemove(null)
+      const refreshed = await fetchMembersAndRoles(clanId)
+      setMembers(refreshed.members)
+      setRoles(refreshed.roles)
+    } catch (err) {
+      showCopyToast(err instanceof Error ? err.message : 'Erreur inconnue', 'error')
+    } finally {
+      setActionSubmitting(false)
+    }
+  }
+
+  async function handleConfirmDemoteMember() {
+    if (!memberToDemote || !clanId) return
+    const systemClan = availableClans.find(
+      (c) => c.isSystem && (!memberToDemote.platformShard || c.platformShard === memberToDemote.platformShard)
+    )
+    if (!systemClan) {
+      showCopyToast("Aucun clan technique n'existe encore pour cette plateforme.", 'error')
+      return
+    }
+    try {
+      setActionSubmitting(true)
+      const res = await fetch(`/api/members/${memberToDemote.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ clanId: systemClan.id }),
+      })
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      if (!res.ok) {
+        throw new Error(data?.error || 'Echec de la bascule vers le clan technique')
+      }
+      showCopyToast(
+        `${memberToDemote.name} a ete bascule vers [${systemClan.tag}] ${systemClan.name}. Son suivi PUBG continue.`,
+        'success'
+      )
+      setMemberToDemote(null)
       const refreshed = await fetchMembersAndRoles(clanId)
       setMembers(refreshed.members)
       setRoles(refreshed.roles)
@@ -712,6 +751,11 @@ export default function ClanMembersSettingsPage() {
     currentRoleOption: ClanRole | undefined
   ) {
     const isMemberBusy = memberActionLoading?.memberId === member.id
+    // Clan technique du shard de ce membre — absent tant qu'aucun joueur sans clan
+    // n'a ete parque, auquel cas le bouton de sortie ne s'affiche pas.
+    const systemClanForMember = availableClans.find(
+      (c) => c.isSystem && (!member.platformShard || c.platformShard === member.platformShard)
+    )
     const isEmailBusy = isMemberBusy && memberActionLoading?.action === 'email'
     const isDiscordBusy = isMemberBusy && memberActionLoading?.action === 'discord'
     const canResetInvitation = member.recentInvites.length > 0 || Boolean(member.pendingInvite)
@@ -892,24 +936,50 @@ export default function ClanMembersSettingsPage() {
               </button>
             ) : null}
 
-            <button
-              type="button"
-              onClick={() => setMemberToRemove(member)}
-              disabled={isMemberBusy || member.role.toLowerCase() === 'owner'}
-              title={
-                member.role.toLowerCase() === 'owner'
-                  ? 'Le propriétaire (Owner) ne peut pas être retiré sans réassigner son rôle d’abord.'
-                  : 'Arrêter le suivi de ce joueur pour ce clan'
-              }
-              className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                member.role.toLowerCase() === 'owner'
-                  ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                  : 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50'
-              }`}
-            >
-              <UserX className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Arrêter le suivi</span>
-            </button>
+            {/* Chantier 3 : seule action de sortie ouverte a un Owner. Le joueur reste
+                suivi, son historique reste consultable, et la bascule est tracee. */}
+            {systemClanForMember ? (
+              <button
+                type="button"
+                onClick={() => setMemberToDemote(member)}
+                disabled={isMemberBusy || member.role.toLowerCase() === 'owner'}
+                title={
+                  member.role.toLowerCase() === 'owner'
+                    ? 'Le propriétaire (Owner) ne peut pas être basculé. Réassignez d’abord son rôle.'
+                    : `Sortir ce joueur du clan sans arrêter son suivi — il rejoint [${systemClanForMember.tag}] ${systemClanForMember.name}`
+                }
+                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                  member.role.toLowerCase() === 'owner'
+                    ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
+                    : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/50'
+                }`}
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Sortir du clan</span>
+              </button>
+            ) : null}
+
+            {/* Chantier 3 : l'arret de suivi coupe la synchronisation PUBG — SuperUser only. */}
+            {isSuperUser ? (
+              <button
+                type="button"
+                onClick={() => setMemberToRemove(member)}
+                disabled={isMemberBusy || member.role.toLowerCase() === 'owner'}
+                title={
+                  member.role.toLowerCase() === 'owner'
+                    ? 'Le propriétaire (Owner) ne peut pas être retiré sans réassigner son rôle d’abord.'
+                    : 'Arrêter le suivi de ce joueur — la synchronisation PUBG s’arrête'
+                }
+                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                  member.role.toLowerCase() === 'owner'
+                    ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
+                    : 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50'
+                }`}
+              >
+                <UserX className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Arrêter le suivi</span>
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1451,6 +1521,126 @@ export default function ClanMembersSettingsPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Modal Sortir du clan (bascule vers le clan systeme) — chantier 3 */}
+      {memberToDemote ? (() => {
+        const systemClan = availableClans.find(
+          (c) => c.isSystem && (!memberToDemote.platformShard || c.platformShard === memberToDemote.platformShard)
+        )
+        return (
+          <div
+            className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="demote-member-title"
+          >
+            <div className="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-500">
+                    <LogOut className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 id="demote-member-title" className="text-lg font-black text-slate-900 dark:text-white">
+                      Sortir {memberToDemote.name} du clan ?
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Le joueur reste suivi, il rejoint le clan technique
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMemberToDemote(null)}
+                  disabled={actionSubmitting}
+                  className="rounded-xl p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  aria-label="Fermer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="app-modal-inner-card mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                  {memberToDemote.name} quitte l&apos;effectif de ce clan et rejoint{' '}
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    [{systemClan?.tag ?? 'UNG'}] {systemClan?.name ?? 'Ungrouped'}
+                  </span>
+                  , le clan technique qui regroupe les joueurs sans clan que l&apos;on continue de suivre.
+                </p>
+              </div>
+
+              <div className="app-modal-callout mt-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Les trois façons de faire sortir un joueur
+                </p>
+                <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                  <li className="flex gap-2">
+                    <LogOut className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+                    <span>
+                      <span className="font-semibold text-slate-900 dark:text-white">Sortir du clan</span> — ce que
+                      vous faites ici. La synchronisation PUBG <span className="font-semibold">continue</span>, le
+                      joueur reste visible, et la bascule est tracée. Réversible.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <ArrowRightLeft className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" aria-hidden="true" />
+                    <span>
+                      <span className="font-semibold text-slate-900 dark:text-white">Changer de clan</span> —
+                      réservé au SuperUser : déplace le joueur vers un autre clan suivi.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <UserX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" aria-hidden="true" />
+                    <span>
+                      <span className="font-semibold text-slate-900 dark:text-white">Arrêter le suivi</span> —
+                      réservé au SuperUser : la synchronisation PUBG <span className="font-semibold">s&apos;arrête</span>
+                      , le joueur disparaît de l&apos;écosystème.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="app-modal-callout mt-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <span className="font-bold">Effet sur les statistiques :</span> ses matchs passés restent en base,
+                  mais ils ne comptent plus dans les totaux, classements et awards de ce clan — comme pour tout
+                  départ.
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setMemberToDemote(null)}
+                  disabled={actionSubmitting}
+                  className="app-btn app-btn--md app-btn--secondary"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmDemoteMember()}
+                  disabled={actionSubmitting || !systemClan}
+                  className="app-btn app-btn--md inline-flex items-center gap-2 bg-amber-600 font-bold text-white shadow-lg shadow-amber-900/30 hover:bg-amber-500"
+                >
+                  {actionSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <span>Traitement...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
+                      <span>Confirmer la sortie</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })() : null}
 
       {/* Modal Transférer vers un autre clan */}
       {memberToTransfer ? (() => {

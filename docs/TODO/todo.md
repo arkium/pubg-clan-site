@@ -2258,15 +2258,80 @@ en même temps.
 
 ---
 
-#### ⛔ Prérequis n°1 — Vérifier `filter[playerIds]` avant tout chiffrage
+#### ✅ Prérequis n°1 — `filter[playerIds]` vérifié le 2026-09-20 — ⚠️ résultat qui invalide une hypothèse centrale
 
-> **Pourquoi c'est le tout premier travail à faire.** Deux choses en dépendent, et elles sont de nature différente :
+> ### 🔴 Résultat du spike — `attributes.clanId` n'est **pas stable** et ne peut pas déclencher d'action seule
+>
+> Scripts : [`check-pubg-player-ids-filter.ts`](../../scripts/check-pubg-player-ids-filter.ts),
+> [`check-pubg-endpoints-disagreement.ts`](../../scripts/check-pubg-endpoints-disagreement.ts),
+> [`check-pubg-clanid-stability.ts`](../../scripts/check-pubg-clanid-stability.ts). Exécutés le 2026-09-20 entre
+> 11 h 48 et 11 h 51 UTC, hors fenêtres de cron. Lecture seule (seules des lignes `PubgApiCallLog` ont été écrites).
+>
+> **Quatre appels consécutifs sur les mêmes comptes, en ~30 secondes :**
+>
+> | Compte | p1 | p2 | p3 | p4 | Stable ? |
+> |---|---|---|---|---|---|
+> | Vvila | `clan.5bb7…` | `clan.5bb7…` | `clan.5bb7…` | `""` | **NON** |
+> | pagiotte | `""` | `clan.5bb7…` | `clan.5bb7…` | `clan.5bb7…` | **NON** |
+> | Viande_Hachee | `clan.b4c3…` | `clan.b4c3…` | `clan.b4c3…` | `clan.b4c3…` | oui |
+> | TigrOo-SmK | `""` | `""` | `""` | `""` | oui |
+>
+> **Deux comptes sur quatre changent de valeur d'un appel à l'autre**, en basculant entre « aucun clan » (`""`) et
+> `clan.5bb720900d544585a4abf276e4c5c159` — soit **KeepMoveSurvive [KMS]**, le clan suivi n°180. Les deux endpoints
+> sont touchés : à 11 h 50, le lot disait Vvila `""` / pagiotte KMS, et l'appel unitaire disait exactement
+> l'inverse **au même instant**.
+>
+> **Conséquence directe : le chantier 1 tel qu'écrit produirait des mouvements erronés en continu.** « Tout écart
+> déclenche une action immédiate » est intenable sur un champ qui se contredit en trente secondes. Les
+> confirmations multiples cessent d'être un filet de sécurité pour devenir **le mécanisme central** — et elles
+> doivent être espacées dans le temps (jours), pas en passages rapprochés.
+>
+> **Correction sur le cas Vvila :** le diagnostic du 2026-09-20 (« l'API ne lui renvoie aucun clan ») reposait sur
+> **un seul** appel unitaire. Le lot le place dans **KMS, un clan déjà suivi (n°180)**. Il n'a donc probablement
+> pas créé un clan invisible : il a rejoint KMS. À reconfirmer sur plusieurs jours avant d'agir — ce qui est
+> exactement la règle que le spike vient de rendre obligatoire.
+
+##### Réponses aux cinq questions
+
+| # | Question | Réponse mesurée |
+|---|---|---|
+| 1 | Multi-valeurs accepté ? | **Oui**, `filter[playerIds]` avec valeurs séparées par des virgules |
+| 2 | Taille de lot maximale ? | **10, avec troncature silencieuse.** Un lot de 20 ou 50 renvoie `200 OK` et… **10 joueurs**. Aucune erreur, aucun avertissement |
+| 3 | `clanId` exposé comme sur `GET /players/{id}` ? | **Oui**, même champ `attributes.clanId`. `relationships.clan` est **absent des deux endpoints** — le repli par relations de `fetchPlayerClan` ne se déclenche jamais ici |
+| 4 | Joueur sans clan : `null`, `""` ou absent ? | **`""` (chaîne vide)**, jamais `null`, jamais absent. Le cas « champ absent » du risque A ne se produit pas sur cet endpoint |
+| 5 | `playerId` invalide dans le lot ? | **Silencieusement omis**, le reste du lot réussit en `200 OK` |
+
+> **Les réponses 2 et 5 créent le même piège** : un compte peut manquer dans la réponse soit parce qu'il est
+> invalide, soit parce que le lot dépassait 10. Dans les deux cas, interpréter « absent de la réponse » comme
+> « n'a plus de clan » **déplacerait des membres à tort**. Le code doit vérifier que chaque `playerId` demandé est
+> bien présent dans la réponse, et traiter toute absence comme `unknown`.
+
+##### Ce que le spike change dans le plan
+
+- [ ] **Plafonner les lots à 10** en dur, avec une assertion : `ids.length <= 10`, sinon découper. Ne jamais se fier
+      au fait que l'API « accepte » un lot plus grand — elle tronque sans le dire
+- [ ] **Vérifier la complétude de chaque réponse** : tout `playerId` demandé et absent de la réponse devient
+      `unknown`, jamais « sans clan »
+- [ ] **Revoir le volume** : 324 membres ÷ 10 = **33 appels/jour**, conforme à l'estimation initiale (~35).
+      Ce point-là est validé
+- [ ] **Traiter `""` comme « sans clan » mais jamais comme une certitude** : c'est précisément la valeur qui
+      clignote. Exiger N confirmations espacées avant toute bascule vers UNG
+- [x] **Relancer sur un échantillon plus large** → fait le 2026-09-20, voir « Rang 0 bis » : **5 % d'instabilité**
+      sur 40 comptes, et non 50 %. Le chiffre de 2 sur 4 était bien un artefact d'échantillon
+- [x] **Rouvrir la question du mécanisme si l'instabilité se confirme** → **non nécessaire** : à 5 %, concentrée
+      sur des comptes en transition, et sans désalignement d'API, le mécanisme joueur-par-joueur reste le bon.
+      Le repli sur `Clan.pubgMemberCount` reste documenté dans la table de décision mais n'est plus la piste
+      privilégiée
+
+---
+
+> **Pourquoi c'était le tout premier travail à faire.** Deux choses en dépendent, et elles sont de nature différente :
 > le **dimensionnement** du chantier 1 (~35 appels/jour ou 324 ?) et, bien plus grave, le **risque A** de la section
 > « Sûreté d'exécution » — si cet endpoint n'expose pas `clanId` de la même façon que `fetchPlayerClan`, le cron
 > interprète une absence de champ comme « ce joueur n'a plus de clan » et bascule toute la ligue dans `Ungrouped`.
 > Tant que ce point n'est pas levé, **le chantier 1 ne doit pas être commencé**.
 
-**État des lieux :** `filter[playerIds]` n'est utilisé **nulle part** dans le dépôt. Le seul filtre multi-valeurs
+**État des lieux avant le spike :** `filter[playerIds]` n'était utilisé **nulle part** dans le dépôt. Le seul filtre multi-valeurs
 pratiqué est `filter[playerNames]`, avec **une seule valeur**, dans `searchPlayerByName`
 ([pubg.ts:537-545](../../src/lib/pubg.ts#L537-L545)). Tout ce que le plan avance sur les lots de 10 est donc une
 hypothèse non testée.
@@ -2301,7 +2366,7 @@ hypothèse non testée.
 
 | Résultat | Conséquence sur le plan |
 |---|---|
-| ✅ Lots de 10+ acceptés, `clanId` présent et sémantique identique, absence de clan explicite | Le chantier 1 tient tel qu'écrit : ~35 appels/jour. Le garde-fou `unknown` reste utile en défense mais n'est plus le seul rempart |
+| ✅ **← CAS OBSERVÉ (partiellement)** Lots de 10 acceptés, `clanId` présent, absence de clan explicite (`""`) | La **volumétrie** tient : 33 appels/jour. Mais le spike a révélé un problème que cette table n'anticipait pas — **l'instabilité du champ** — qui impose de revoir le déclenchement, pas le dimensionnement |
 | ⚠️ Lots acceptés mais **champ `clanId` absent quand le joueur n'a pas de clan** | Le chantier 1 tient sur la volumétrie, mais le **risque A devient certain** : `unknown` + confirmations + coupe-circuit deviennent non négociables |
 | ⚠️ Lots acceptés mais `clanId` **jamais** exposé sur cet endpoint | L'endpoint ne sert qu'à détecter *qu'un joueur existe*. Il faut retomber sur `fetchPlayerClan` unitaire → **324 appels/jour, ~32 min à 10 RPM**. Chantier 1 à redimensionner : cadence réduite, ou sélection par palier comme `selectPrioritizedEncounteredPlayerIdentities` |
 | ⚠️ Taille de lot < 10 (ex. 5) | Recalculer : 324 / taille réelle. À 5, ~65 appels/jour — encore acceptable |
@@ -2312,42 +2377,131 @@ hypothèse non testée.
 - [ ] Le spike est **en lecture seule** : aucune écriture en base, aucun `PlayerClanChange`. Il consomme seulement
       quelques appels du quota partagé, à lancer hors des fenêtres de cron (02 h – 05 h)
 
-#### Chantier 0 — Faire d'`Ungrouped` un clan système protégé — ⛔ bloquant, à livrer en premier
+#### ✅ Rang 0 bis — Mesure d'instabilité à grande échelle — fait le 2026-09-20
+
+Script : [`measure-pubg-clanid-instability.ts`](../../scripts/measure-pubg-clanid-instability.ts),
+enregistré sous **`npm run clanid:instability [nbPassages]`**. Observations accumulées en NDJSON dans
+`.telemetry-captured/clanid-stability/` (dossier gitignoré), pour agréger des relances sur plusieurs jours.
+Lecture seule hors `PubgApiCallLog`.
+
+**Protocole :** 40 comptes actifs de clans suivis × 6 passages, lots de 10 — puis un test de position sur 10
+comptes interrogés dans trois ordres différents. 27 appels PUBG.
+
+##### Résultat 1 — l'instabilité est marginale, pas généralisée
+
+**2 comptes sur 40 (5,0 %)**, et non 50 % comme le laissait croire l'échantillon de 4 du premier spike.
+
+| Joueur | Clan site | Séquence observée sur 6 passages |
+|---|---|---|
+| pagiotte | SMK | `KMS` → `KMS` → `""` → `KMS` → `KMS` → `KMS` |
+| Vvila | SMK | `KMS` → `KMS` → `KMS` → `KMS` → `""` → `""` |
+
+Les 38 autres comptes sont parfaitement stables, tous clans confondus (BDXX, BEE, FR, KMS, MTFR, RATZ).
+
+##### Résultat 2 — ce n'est **pas** un défaut d'alignement de l'API *(résultat négatif important)*
+
+Le test de position donne **8/10 stables**, et les deux exceptions sont… exactement pagiotte et Vvila. La valeur
+suit donc bien le **compte**, jamais sa **position** dans le lot. L'hypothèse d'un désalignement entre `id` et
+`attributes` est écartée : le mécanisme joueur-par-joueur reste valide.
+
+##### Résultat 3 — le clignotement ressemble à une transition de clan en cours
+
+Les deux comptes instables sont dans le **même clan site (SMK)** et clignotent vers **la même cible (KMS,
+clan suivi n°180)**. Ce n'est pas du bruit aléatoire : c'est le profil d'un changement de clan récent en cours de
+propagation dans les caches PUBG. Hypothèse à confirmer en relançant le script sur plusieurs jours — si elle est
+juste, le clignotement se stabilise de lui-même et N observations concordantes le filtrent parfaitement.
+
+##### Résultat 4 — il existe aussi des **écarts stables**, et ce sont les vrais cas d'usage
+
+Deux membres SMK renvoient `""` de façon **parfaitement stable** sur les 6 passages : **TigrOo-SmK** et
+**Thetyne**. Le site les croit dans SMK, PUBG dit qu'ils n'ont plus de clan. Ce sont exactement les cas que le
+chantier 1 doit détecter, et ils ne posent aucun problème de fiabilité.
+
+##### 🔴 Conséquence non anticipée — le coupe-circuit à 10 % se déclencherait au premier passage
+
+Sur l'échantillon, **4 comptes sur 40 (10 %)** seraient candidats à un mouvement : 2 écarts stables et 2 en
+transition. C'est exactement le seuil proposé pour le coupe-circuit du risque A — il **sauterait dès le premier
+passage réel**.
+
+C'est logique et il fallait s'y attendre : le site n'a jamais détecté de changement de clan, donc la dérive
+accumulée depuis des mois se présente d'un coup. Le coupe-circuit protège d'un emballement, pas d'un rattrapage
+initial légitime.
+
+- [ ] Ne pas relever le seuil : c'est le **mode `observe`** qui absorbe le premier passage. On observe, on vérifie
+      la liste à la main, on applique, et seulement ensuite le coupe-circuit à 10 % prend son sens sur le régime
+      permanent
+- [ ] Documenter cette séquence de mise en service : `observe` → revue manuelle du rattrapage → `apply` →
+      coupe-circuit actif
+
+##### Ce qui reste à mesurer
+
+- [ ] **Relancer `npm run clanid:instability` à plusieurs heures d'intervalle, sur plusieurs jours.** Six passages
+      en trois minutes ne calibrent pas N pour un cron **quotidien** : les caches PUBG ne bougent pas à cette
+      échelle. Seule une accumulation multi-jours dit combien de passages quotidiens concordants sont nécessaires
+- [ ] Vérifier l'hypothèse du résultat 3 : pagiotte et Vvila se stabilisent-ils sur KMS ? Si oui, le site doit les
+      transférer vers le clan 180 — et le cas « Vvila a créé son clan » est définitivement clos
+- [ ] Étendre l'échantillon aux 324 membres pour mesurer le volume réel du rattrapage initial (33 appels, une seule
+      passe suffit)
+
+> **Valeur de N proposée en attendant : 3 passages quotidiens concordants.** Sur les séquences observées, N=2
+> aurait déclenché à tort pour Vvila (deux `""` consécutifs en fin de série) ; N=3 ne déclenche pour aucun des deux
+> comptes en transition. À confirmer sur la mesure multi-jours.
+
+#### ✅ Chantier 0 — `Ungrouped` est un clan système protégé — livré le 2026-09-20
 
 **Décision :** `Ungrouped` (`TAG: UNG`) est un **clan système**, réservé aux joueurs sans clan qu'on veut continuer à
 suivre et à ceux en transition entre deux clans. Il ne doit jamais être renommé, ni absorbé par un clan PUBG, ni
 apparaître dans les classements.
 
-- [ ] Ajouter `isSystem Boolean @default(false)` au modèle `Clan` (migration **additive**) — l'identité du clan
-      technique devient un marqueur, plus un nom comparé par chaîne
-- [ ] `resolvePubgClanForLocalClan` : court-circuiter sur `clan.isSystem` → retourner `{ clan, pubgClan: null }`
-      **avant** la boucle sur les membres, jamais de fallback « clan du premier membre »
-- [ ] `syncTrackedClanStats` : ne jamais écrire `name` / `tag` / `pubgClanId` sur un clan système (ceinture et
-      bretelles, même si le point précédent suffit)
-- [ ] `upsertTrackedClanFromPubg` : ajouter `isSystem: false` au `findFirst`, pour qu'un clan PUBG réellement nommé
-      « Ungrouped » ne puisse pas absorber le clan technique
-- [ ] `getOrCreateUngroupedClan` : clé de recherche sur `isSystem: true` + `platformShard`, plus sur le nom ;
-      création avec `isSystem: true`
-- [ ] Interdire le renommage d'un clan système côté API **et** côté UI (paramètres de clan), avec message explicite
-- [ ] Remplacer les 5 comparaisons `name === 'Ungrouped'` par `isSystem` — dont l'exception
-      `isUngroupedOwner` de [members/[id]/route.ts:236](../../src/app/api/members/[id]/route.ts#L236), qui autorise
-      déjà à sortir un `Owner` du clan technique et reste nécessaire pour le chantier 2
-- [ ] Exclure les clans système de `runDailyClanSync` (aucun roster PUBG à synchroniser) tout en **conservant** la
-      synchronisation des matchs de leurs membres — c'est tout l'intérêt d'UNG
-- [ ] Script de marquage des `Ungrouped` existants dans `scripts/` — **no-op attendu** (aucun en base au 2026-09-20),
-      à garder pour les autres environnements
+- [x] `Clan.isSystem Boolean @default(false)` — migration `20260920120000_add_clan_is_system`, **appliquée en
+      production le 2026-09-20** via `prisma migrate deploy`. Procédure respectée : `migrate diff` vide avant,
+      un seul `ADD COLUMN` après édition du schéma, `migrate diff` vide de nouveau après application
+- [x] `resolvePubgClanForLocalClan` court-circuite sur `clan.isSystem` **avant** la boucle sur les membres
+      ([clan-service.ts:197-202](../../src/lib/clan-service.ts#L197-L202)) — c'est le correctif du bug
+- [x] `syncTrackedClanStats` n'écrit `name` / `tag` / `pubgClanId` que si `canAdoptPubgIdentity` — ceinture et
+      bretelles indépendante du point précédent, et le test le prouve : neutraliser le court-circuit fait
+      échouer un test mais pas l'autre
+- [x] `upsertTrackedClanFromPubg` filtre sur `isSystem: false` : un vrai clan PUBG nommé « Ungrouped » ne peut
+      plus absorber le parking
+- [x] `getOrCreateUngroupedClan` cherche sur `isSystem: true` + `platformShard`, et crée avec `isSystem: true`.
+      Constantes `UNGROUPED_CLAN_NAME` / `UNGROUPED_CLAN_TAG` exportées
+- [x] **Interdire le renommage — vérifié, il n'y avait rien à interdire.** Aucune route n'expose de renommage de
+      clan : les seuls écrivains de `Clan.name` / `tag` / `pubgClanId` sont `upsertTrackedClanFromPubg` et
+      `syncTrackedClanStats`, tous deux désormais bridés. Les autres `prisma.clan.update` du dépôt
+      (`cron/opponent-stats`, `matches/[matchId]`, `clan-stats-cache`, `matches-sync-service`, `approve`)
+      n'écrivent ni nom ni tag — vérifié un par un
+- [x] Les 5 comparaisons `name === 'Ungrouped'` remplacées par `isSystem` :
+      [ClanSelector.tsx](../../src/components/ClanSelector.tsx) (×3, dont le badge « S »),
+      [comparator/page.tsx](../../src/app/clans/comparator/page.tsx),
+      et `isUngroupedOwner` → `isSystemClanOwner` dans
+      [members/[id]/route.ts](../../src/app/api/members/[id]/route.ts). `isSystem` est exposé par
+      `GET /api/clans` et ajouté aux types `Clan` et `ClanSummary`
+- [x] **Roster : c'est `syncClanMembership` qui est gardé, pas `runDailyClanSync`.** Vérification faite :
+      le cron quotidien n'appelle jamais `syncClanMembership` — il enchaîne `triggerClanSync` (matchs),
+      `runTelemetryBatchForClan` et `syncTrackedClanStats`. Aucun roster n'y est synchronisé, donc rien à exclure,
+      et **la synchronisation des matchs des membres d'UNG continue**, ce qui est le but. `syncClanMembership`
+      refuse désormais un clan système avec un message explicite au lieu du trompeur « Clan has no PUBG clan ID »
+- [x] Script de marquage [`mark-system-clans.ts`](../../scripts/mark-system-clans.ts), mode simulation par défaut
+      (`--apply` pour écrire), avec garde-fou si plusieurs clans techniques existaient sur un même shard.
+      **Exécuté le 2026-09-20 : 0 candidat, 0 déjà marqué — no-op confirmé**
 
 #### Chantier 1 — Détection et signalement des changements de clan *(refondu le 2026-09-20 : rosters abandonnés, actions automatiques)*
 
-> ⛔ **Prérequis bloquant — voir « Prérequis n°1 — Vérifier `filter[playerIds]` » en tête de section.** Tant que le
-> spike n'a pas été exécuté et son résultat reporté ici, ce chantier ne démarre pas : ni sa volumétrie (~35 appels
-> ou 324 ?) ni son risque principal (bascule massive sur champ absent) ne sont connus.
+> ⛔ **Le spike du prérequis n°1 a été exécuté le 2026-09-20 et il change ce chantier.** La volumétrie est
+> validée : lots de 10, **33 appels/jour**. Mais `attributes.clanId` **clignote** — 2 comptes sur 4 ont renvoyé des
+> valeurs contradictoires en trente secondes (risque **K** de « Sûreté d'exécution »). La règle « tout écart
+> déclenche une action immédiate » est donc **caduque en l'état** : elle devient « N observations stables et
+> concordantes déclenchent l'action ». Ce chantier ne démarre pas avant la mesure d'instabilité à grande échelle
+> (rang 0 bis de l'ordre d'implémentation).
 
-- [ ] ⛔ **Garde-fou « champ absent ≠ pas de clan »** — *bloquant, voir « Sûreté d'exécution »*. Sans lui, une
-      réponse API partielle bascule toute la ligue dans UNG en un passage
-- [ ] ⛔ **Mode observation obligatoire avant la première activation** — *bloquant, voir « Sûreté d'exécution »*
-- [ ] **Synchronisation de l'appartenance de tous les joueurs suivis — quotidien, ~35 appels.** *(Remplace la vérification des rosters de clan, car l'API PUBG ne renvoie pas la liste des membres).* Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`, visible dans `/settings/cron`) : itère sur tous les `ClanMember` actifs du site (clans suivis + `Ungrouped`), par lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`). Compare le `clanId` PUBG avec le clan actuel sur le site.
-- [ ] Tout écart déclenche une action immédiate pour protéger la continuité du suivi et la justesse des agrégats :
+- [ ] ⛔ **Garde-fou anti-clignotement** — *bloquant, voir « Sûreté d'exécution » K*. N observations stables et
+      concordantes avant toute action ; le compteur repart de zéro à la moindre divergence
+- [ ] ⛔ **Vérification de complétude des lots** — *bloquant*. Lots plafonnés à 10 en dur (au-delà, l'API **tronque
+      silencieusement**), et tout `playerId` demandé mais absent de la réponse devient `unknown`, jamais « sans clan »
+- [ ] ⛔ **Mode observation obligatoire avant la première activation** — *bloquant, voir « Sûreté d'exécution » B*
+- [ ] **Synchronisation de l'appartenance de tous les joueurs suivis — quotidien, 33 appels** *(mesuré : 324 membres ÷ lots de 10)*. *(Remplace la vérification des rosters de clan, car l'API PUBG ne renvoie pas la liste des membres).* Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`, visible dans `/settings/cron`) : itère sur tous les `ClanMember` actifs du site (clans suivis + `Ungrouped`), par lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`). Compare le `clanId` PUBG avec le clan actuel sur le site.
+- [ ] ~~Tout écart déclenche une action immédiate~~ → **N observations stables et concordantes** déclenchent
+      l'action (risque K). Une seule observation ne suffit jamais. Les deux issues restent inchangées :
   - **Départ vers un clan non suivi ou aucun clan** : Le joueur est **basculé automatiquement vers `Ungrouped`**. Son suivi continue, mais il ne pollue plus les stats de son ancien clan. (Si le nouveau clan existe sur PUBG, une demande de création de clan est générée en parallèle via le flux du Chantier 2).
   - **Transfert vers un autre clan suivi actif** : Le joueur y est **transféré automatiquement**.
 
@@ -2537,7 +2691,7 @@ cet onglet, sans redéploiement.
 |---|---|---|
 | `clan_lifecycle_mode` | `observe` (écrit les événements sans rien appliquer) ou `apply` — voir « Sûreté d'exécution » B | **`observe`** |
 | `clan_lifecycle_max_moves_ratio` | Coupe-circuit : part maximale de l'effectif déplaçable en un passage — voir « Sûreté d'exécution » A | `10` (%) |
-| `clan_lifecycle_confirmations_required` | Passages concordants exigés avant d'agir sur une disparition de clan | `2` |
+| `clan_lifecycle_confirmations_required` | Passages **quotidiens** concordants exigés avant d'agir | **`3`** *(mesuré rang 0 bis : N=2 aurait déclenché à tort)* |
 | `clan_lifecycle_discord_webhook_url` | Salon Discord d'administration recevant les `PlayerClanChange` automatiques | vide — aucune notification tant qu'il n'est pas renseigné |
 | `clan_lifecycle_discord_mention` | Mention associée (`none` / `here` / `everyone` / `role`) | `none` |
 | `ungrouped_archive_after_days` | Seuil d'inactivité déclenchant la proposition d'archivage | `90` |
@@ -2568,7 +2722,8 @@ cet onglet, sans redéploiement.
 
 #### Modèle de données
 
-- [ ] `Clan.isSystem Boolean @default(false)` — migration **additive** (chantier 0)
+- [x] `Clan.isSystem Boolean @default(false)` — migration `20260920120000_add_clan_is_system`, appliquée en
+      production le 2026-09-20
 - [ ] Table `PlayerClanChange` — migration **additive** (chantiers 1, 2, 3) :
       `pubgAccountId`, `platformShard`, `clanMemberId?`, `previousPubgClanId?` / `previousPubgClanTag?`,
       `newPubgClanId?` / `newPubgClanTag?`, `detectedClanId?` (FK `Clan` quand le clan existe côté site),
@@ -2643,9 +2798,14 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
 
 ##### Nouveaux tests par chantier
 
-- [ ] **Chantier 0** — un clan système ne change ni de nom, ni de tag, ni de `pubgClanId` après
-      `syncTrackedClanStats`, alors qu'un de ses membres a bien un clan PUBG (c'est le bug du 2026-09-20) ;
-      `getOrCreateUngroupedClan` retrouve le clan par `isSystem` même s'il a été renommé à la main en base
+- [x] **Chantier 0** — [`system-clan-protection.test.ts`](../../src/lib/system-clan-protection.test.ts),
+      **8 tests**. Couvre : aucune interrogation de l'API PUBG pour un clan système ; ni `name`, ni `tag`, ni
+      `pubgClanId` écrits ; les stats continuent d'être mises à jour ; un clan **ordinaire** adopte bien son
+      identité PUBG (test de non-régression) ; `getOrCreateUngroupedClan` retrouve le clan renommé à la main ;
+      création avec `isSystem: true` ; `upsertTrackedClanFromPubg` exclut les clans système ; `syncClanMembership`
+      refuse avec le bon message.
+      **Vérifié en neutralisant le correctif** : le test « n'interroge jamais l'API PUBG » passe au rouge, donc il
+      teste bien quelque chose — contrairement aux 4 fichiers à divergence silencieuse signalés plus haut
 - [ ] **Chantier 1** — un écart « clan inconnu » produit `auto_demotion` + un déplacement vers UNG ; un écart
       « autre clan suivi » produit `auto_transfer` ; aucun écart ne produit rien ; le lot de 10 est respecté et le
       plafond par passage tient
@@ -2706,7 +2866,7 @@ notifications Discord et ajoutent une page d'administration : **aucun de ces doc
 > c'est la partie du plan qui peut faire le plus de dégâts invisibles. Les chantiers 0 et 3 ne sont pas concernés :
 > petits, synchrones, sans automatisme.
 
-##### 🔴 A — « Champ absent » et « pas de clan » sont aujourd'hui indistinguables
+##### 🟠 A — « Champ absent » et « pas de clan » sont indistinguables *(rétrogradé après le spike — voir K)*
 
 [`resolveClanIdFromPlayerAttributes`](../../src/lib/pubg.ts#L502-L510) s'appuie sur
 [`pickString`](../../src/lib/pubg.ts#L402-L410), qui renvoie `null` **dans les deux cas** : joueur réellement sans
@@ -2804,6 +2964,27 @@ Aucune vue d'ensemble n'existe aujourd'hui, alors que tout partage le même quot
 - [ ] Le passage de `DELETE /api/members/[id]` au SuperUser est une rupture front/API : livrer l'UI qui masque le
       bouton **avant ou avec** le changement de permission, sinon l'Owner reçoit un 403 sans explication
 
+##### 🔴 K — `attributes.clanId` clignote — **mesuré le 2026-09-20, risque n°1 du chantier 1**
+
+Le spike du prérequis n°1 l'''a établi sur données réelles : **2 comptes sur 4** ont renvoyé une valeur différente
+entre quatre appels consécutifs en trente secondes, basculant entre `""` et `clan.5bb7…` (KMS). Les deux endpoints
+sont touchés, et ils se contredisent parfois **au même instant**.
+
+C'''est plus grave que le risque A : là où A supposait un champ absent (qui ne se produit pas sur cet endpoint), K
+constate une valeur **explicite et fausse**. Aucun garde-fou de forme ne la détecte — elle ressemble à une réponse
+parfaitement normale.
+
+- [ ] **Ne jamais agir sur une seule observation**, quelle que soit sa forme. La confirmation multiple n'''est plus un
+      filet de sécurité, c'''est le mécanisme de déclenchement lui-même
+- [ ] **Espacer les confirmations dans le temps** (jours, pas passages rapprochés) : quatre appels en trente
+      secondes ont suffi à produire la contradiction, donc N passages du même cron quotidien est le bon rythme
+- [ ] **Exiger la stabilité, pas la répétition** : ne déclencher que si les N dernières observations sont
+      *identiques entre elles*, et repartir de zéro à la moindre divergence
+- [ ] **Journaliser chaque observation** même sans action, pour mesurer le taux de clignotement en production et
+      ajuster N — l'''échantillon de 4 comptes est trop petit pour fixer le seuil
+- [ ] **Tests** : une séquence d'''observations contradictoires ne déclenche **aucun** mouvement ; une séquence
+      stable de N observations le déclenche ; une divergence au N-ième passage remet le compteur à zéro
+
 ##### 🟡 J — Collision de nom sur le clan technique
 
 - [ ] `@@unique([name, platformShard])` : si un vrai clan PUBG s'appelle « Ungrouped », `upsertTrackedClanFromPubg`
@@ -2814,9 +2995,10 @@ Aucune vue d'ensemble n'existe aujourd'hui, alors que tout partage le même quot
 
 | Ordre | Chantier | Pourquoi ce rang |
 |---|---|---|
-| 0 | **Prérequis n°1 — spike `filter[playerIds]`** | Lecture seule, quelques appels, une heure de travail. Conditionne la volumétrie **et** le risque A du chantier 1 : à faire avant même de décider du reste |
+| 0 | ✅ **Prérequis n°1 — spike `filter[playerIds]`** | **Fait le 2026-09-20.** Volumétrie validée (33 appels/jour), mais a mis au jour l'instabilité de `attributes.clanId` : voir le risque K |
+| 0 bis | ✅ **Mesure d'instabilité à grande échelle** | **Fait le 2026-09-20** : 5 % d'instabilité, désalignement d'API écarté, N=3 proposé. **Reste la mesure multi-jours** pour confirmer N (`npm run clanid:instability`) |
 | 1 | **Modèle de données** | `Clan.isSystem` et `PlayerClanChange` : les deux migrations additives conditionnent tous les chantiers suivants |
-| 2 | **0 — UNG protégé** | Bloquant : tant qu'UNG peut être détourné, y parquer quelqu'un est dangereux |
+| 2 | ✅ **0 — UNG protégé** | **Livré le 2026-09-20.** Migration en production, 8 tests, no-op de marquage confirmé |
 | 3 | **3 — Owner → UNG** | Autonome une fois le socle posé ; débloque immédiatement le cas Vvila |
 | 4 | **Sûreté d'exécution A à E** | Les garde-fous se livrent **avec** le chantier 1, pas après : ce sont eux qui empêchent un passage de déplacer toute la ligue par erreur |
 | 5 | **1 — Synchronisation quotidienne** | Conditionné par le prérequis `filter[playerIds]` ; **produit les événements `PlayerClanChange` dont le chantier 2 se nourrit**. Première mise en service **obligatoirement en mode `observe`** |

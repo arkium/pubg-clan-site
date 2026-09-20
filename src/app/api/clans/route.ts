@@ -74,6 +74,7 @@ export async function GET(request: Request) {
           activeDays: quickStats.activeDays ?? 0,
           imageUrl,
           isActive: clan.isActive,
+          isSystem: clan.isSystem,
         }
       })
     )

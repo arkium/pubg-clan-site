@@ -199,6 +199,7 @@ export async function PATCH(
           clan: {
             select: {
               name: true,
+              isSystem: true,
             },
           },
           roles: {
@@ -233,8 +234,10 @@ export async function PATCH(
     }
 
     const isOwner = member.roles.some((entry) => entry.role.name === 'Owner')
-    const isUngroupedOwner = isOwner && member.clan?.name === 'Ungrouped'
-    if (isOwner && !isUngroupedOwner) {
+    // Un Owner du clan technique peut en sortir : ce role n'y a pas de sens, il
+    // n'est qu'un artefact du parking. Ailleurs, un Owner doit etre retrograde avant.
+    const isSystemClanOwner = isOwner && member.clan?.isSystem === true
+    if (isOwner && !isSystemClanOwner) {
       return Response.json(
         { error: 'Owner member cannot be moved to another clan' },
         { status: 403 }

@@ -30,6 +30,8 @@ export type ClanSummary = {
   timePlayedSeconds?: number
   activeDays?: number
   imageUrl?: string | null
+  /** Clan technique du site (parking des joueurs sans clan) — voir chantier 0. */
+  isSystem?: boolean
 }
 
 interface ClanRosterSelectorProps {

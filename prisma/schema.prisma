@@ -25,6 +25,10 @@ model Clan {
   lastMatchAt         DateTime?
   missingMembersCount Int       @default(0)
   isActive            Boolean   @default(true)
+  // Clan technique du site (ex. "Ungrouped" / UNG) : parking des joueurs sans clan
+  // qu'on continue de suivre. Un clan systeme n'est jamais renomme ni absorbe par
+  // un clan PUBG — voir docs/TODO/todo.md, chantier 0 du cycle de vie de clan.
+  isSystem            Boolean   @default(false)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

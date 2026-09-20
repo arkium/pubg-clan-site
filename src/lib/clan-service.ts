@@ -66,11 +66,14 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
   const existingClan = await prisma.clan.findFirst({
     where: {
       platformShard,
+      // Un clan systeme ne peut jamais etre absorbe par un clan PUBG, meme si ce
+      // dernier porte le meme nom (ex. un vrai clan nomme "Ungrouped").
+      isSystem: false,
       OR: [
         { pubgClanId: pubgClan.id },
-        { 
+        {
           pubgClanId: null,
-          name: pubgClan.name 
+          name: pubgClan.name
         },
       ],
     },
@@ -132,12 +135,21 @@ export async function ensureTrackedClanForPlayer(playerId: string, platformShard
   }
 }
 
+export const UNGROUPED_CLAN_NAME = 'Ungrouped'
+export const UNGROUPED_CLAN_TAG = 'UNG'
+
+/**
+ * Clan technique du shard : parking des joueurs sans clan qu'on continue de suivre.
+ *
+ * La recherche porte sur `isSystem`, jamais sur le nom : un clan systeme renomme a
+ * la main en base doit rester retrouvable, sinon un second parking serait cree en
+ * silence (bug du 2026-09-20, voir docs/TODO/todo.md chantier 0).
+ */
 export async function getOrCreateUngroupedClan(platformShard: string) {
   const existing = await prisma.clan.findFirst({
     where: {
       platformShard,
-      name: 'Ungrouped',
-      pubgClanId: null,
+      isSystem: true,
     },
   })
 
@@ -147,9 +159,10 @@ export async function getOrCreateUngroupedClan(platformShard: string) {
 
   return prisma.clan.create({
     data: {
-      name: 'Ungrouped',
-      tag: 'UNG',
+      name: UNGROUPED_CLAN_NAME,
+      tag: UNGROUPED_CLAN_TAG,
       platformShard,
+      isSystem: true,
     },
   })
 }
@@ -163,6 +176,7 @@ async function resolvePubgClanForLocalClan(clanId: number) {
       tag: true,
       platformShard: true,
       pubgClanId: true,
+      isSystem: true,
       members: {
         where: { isActive: true },
         orderBy: { id: 'asc' },
@@ -178,6 +192,13 @@ async function resolvePubgClanForLocalClan(clanId: number) {
 
   if (!clan) {
     return null
+  }
+
+  // Un clan systeme n'a par definition pas de pubgClanId : sans ce court-circuit,
+  // la boucle ci-dessous renverrait le clan PUBG du premier membre qui en a un, et
+  // syncTrackedClanStats renommerait le parking en ce clan-la.
+  if (clan.isSystem) {
+    return { clan, pubgClan: null }
   }
 
   if (clan.pubgClanId) {
@@ -301,10 +322,15 @@ export async function syncTrackedClanStats(clanId: number) {
     },
   }
 
+  // Ceinture et bretelles : resolvePubgClanForLocalClan renvoie deja pubgClan null
+  // pour un clan systeme, mais on ne veut sous aucune condition que son identite
+  // soit reecrite depuis l'API PUBG.
+  const canAdoptPubgIdentity = Boolean(pubgClan) && !clan.isSystem
+
   const updatedClan = await prisma.clan.update({
     where: { id: clan.id },
     data: {
-      ...(pubgClan
+      ...(canAdoptPubgIdentity && pubgClan
         ? {
             name: pubgClan.name,
             tag: pubgClan.tag,
@@ -360,6 +386,7 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
     select: {
       pubgClanId: true,
       platformShard: true,
+      isSystem: true,
       members: {
         where: { isActive: true },
         select: {
@@ -373,6 +400,14 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
 
   if (!clan) {
     throw new Error('Clan not found')
+  }
+
+  // Un clan systeme n'a pas de contrepartie PUBG : il n'y a aucun roster a comparer.
+  // Message explicite pour ne pas laisser croire a une synchro manquante.
+  if (clan.isSystem) {
+    throw new Error(
+      "Ce clan est un clan technique du site (parking des joueurs sans clan) : il n'a pas de roster PUBG a comparer."
+    )
   }
 
   if (!clan.pubgClanId) {

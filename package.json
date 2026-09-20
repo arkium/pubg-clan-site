@@ -29,7 +29,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:telemetry": "vitest run",
-    "sync:pubg-assets": "tsx scripts/sync-pubg-assets.ts"
+    "sync:pubg-assets": "tsx scripts/sync-pubg-assets.ts",
+    "clanid:instability": "tsx scripts/measure-pubg-clanid-instability.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

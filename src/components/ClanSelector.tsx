@@ -18,6 +18,8 @@ export interface Clan {
   timePlayedSeconds?: number
   activeDays?: number
   imageUrl?: string | null
+  /** Clan technique du site (parking des joueurs sans clan) — voir chantier 0. */
+  isSystem?: boolean
 }
 
 interface ClanSelectorProps {
@@ -152,7 +154,7 @@ export default function ClanSelector({
 
     let visibleClans = clans
     if (!isSuperUser) {
-      visibleClans = visibleClans.filter((clan) => clan.name !== 'Ungrouped')
+      visibleClans = visibleClans.filter((clan) => !clan.isSystem)
     }
 
     const matching = normalizedQuery
@@ -178,7 +180,7 @@ export default function ClanSelector({
   }, [clans, query, sortKey, isSuperUser])
 
   const summaryStats = useMemo(() => {
-    const tracked = clans.filter((c) => c.name !== 'Ungrouped')
+    const tracked = clans.filter((c) => !c.isSystem)
     let totalMembers = 0
     let totalMatches = 0
     let totalPlaytimeSeconds = 0
@@ -441,7 +443,7 @@ export default function ClanSelector({
                       <p className="truncate text-base font-semibold text-white drop-shadow-md">
                         {clan.name}
                       </p>
-                      {clan.name === 'Ungrouped' && (
+                      {clan.isSystem && (
                         <span
                           className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-violet-900 text-[10px] font-bold text-violet-200 ring-1 ring-violet-500"
                           title="Groupe système réservé aux Superusers"

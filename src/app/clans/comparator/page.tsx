@@ -87,7 +87,7 @@ function ComparatorContent() {
           const list = Array.isArray(json) ? json : []
           setClans(
             list
-              .filter((c: ClanSummary) => c.name !== 'Ungrouped')
+              .filter((c: ClanSummary) => !c.isSystem)
               .map((c: ClanSummary) => ({
                 id: c.id,
                 name: c.name,

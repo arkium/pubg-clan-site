@@ -2159,35 +2159,41 @@ graph TD
     classDef review fill:#c05621,stroke:#fbd38d,stroke-width:2px,color:#fff
     classDef inactive fill:#718096,stroke:#a0aec0,stroke-width:2px,color:#fff
 
-    Player([Joueur PUBG inconnu])
-    ClanActif[[Clan Suivi Actif]]:::active
+    Player(["Joueur PUBG inconnu"])
+    ClanActif[["Clan Suivi Actif"]]:::active
     UNG{{"Clan Système 'Ungrouped'"}}:::system
-    Inactif([Suivi Arrêté / Inactif]):::inactive
-    SU_Queue((File d'attente SU /settings/superuser/clan-changes)):::review
-    NewClan[[Nouveau Clan en attente isActive: false]]:::review
+    Inactif(["Suivi arrêté — SuperUser uniquement"]):::inactive
+    Rejete(["joinStatus: rejected — ré-adhésion possible"]):::inactive
+    OwnerQueue(("Validation par l'Owner du clan")):::review
+    NewClan[["Nouveau clan en attente (isActive: false)"]]:::review
 
-    %% Entrée sur le site
-    Player -- "Demande via /join" --> SU_Queue
-    SU_Queue -- "SU valide l'intégration (📩 Notif Email)" --> ClanActif
-    SU_Queue -- "SU refuse l'intégration (📩 Notif Email)" --> Inactif
+    %% Entrée sur le site — DEUX flux distincts, deux validateurs différents
+    Player -- "/join : le clan est déjà suivi" --> OwnerQueue
+    Player -- "/join : le clan n'existe pas encore" --> NewClan
+    OwnerQueue -- "Owner valide la demande" --> ClanActif
+    OwnerQueue -- "Owner refuse" --> Rejete
+    NewClan -- "SuperUser valide la création (📩 Email)" --> ClanActif
+    NewClan -- "SuperUser refuse (📩 Email)" --> Rejete
 
-    %% Actions Owner (Chantier 3)
-    ClanActif -- "Owner : Basculer vers UNG (Garde le suivi actif)" --> UNG
+    %% Actions manuelles
+    ClanActif -- "Owner : basculer vers UNG (garde le suivi actif)" --> UNG
+    ClanActif -- "SuperUser : arrêter le suivi (stoppe la synchronisation)" --> Inactif
+    UNG -- "SuperUser : archiver — N jours sans match (chantier 5)" --> Inactif
+    Inactif -- "SuperUser : réactiver" --> UNG
 
-    %% Actions SuperUser
-    ClanActif -- "SuperUser : Arrêter le suivi (Stoppe la synchronisation)" --> Inactif
-
-    %% Détections par le Cron Quotidien (Chantiers 1 & 2 unifiés)
-    ClanActif -- "Cron détecte: Départ vers clan inconnu ou null ⭐ BASCULE AUTO (🔔 Notif Discord)" --> UNG
-    ClanActif -- "Cron détecte: Transfert vers autre clan suivi ⭐ TRANSFERT AUTO (🔔 Notif Discord)" --> ClanActif
-    
-    UNG -- "Cron détecte: Rejoint un clan suivi ⭐ PROMOTION AUTO (Cas A) (🔔 Notif Discord)" --> ClanActif
-    UNG -- "Cron détecte: Rejoint un clan non suivi Création en attente (Cas B) (🔔 Notif Discord)" --> NewClan
-    UNG -- "Cron détecte: Toujours sans clan (Cas C)" --> UNG
-
-    %% Résolutions SuperUser
-    NewClan -- "SU valide la création du clan (📩 Notif Email)" --> ClanActif
+    %% Détections par le cron quotidien (chantiers 1 & 2)
+    ClanActif -- "Cron : départ vers clan inconnu ou aucun clan ⭐ BASCULE AUTO (🔔 Discord)" --> UNG
+    ClanActif -- "Cron : transfert vers un autre clan suivi ⭐ TRANSFERT AUTO (🔔 Discord)" --> ClanActif
+    UNG -- "Cron : rejoint un clan suivi ⭐ PROMOTION AUTO — cas A (🔔 Discord)" --> ClanActif
+    UNG -- "Cron : rejoint un clan non suivi — cas B, création en attente (🔔 Discord)" --> NewClan
+    UNG -- "Cron : toujours sans clan — cas C" --> UNG
 ```
+
+> **Lecture :** ce diagramme décrit l'**état cible**, pas le code actuel. Deux corrections apportées le 2026-09-20 :
+> (1) l'entrée par `/join` suit **deux chemins avec deux validateurs différents** — rejoindre un clan déjà suivi est
+> validé par l'**Owner du clan** (`notifyJoinRequest`), seule la **création d'un clan** passe par le SuperUser
+> (`notifyClanCreationRequest`) ; (2) un refus mène à `joinStatus: 'rejected'`, un état distinct de « inactif » qui
+> **autorise la ré-adhésion** (voir « Cycle de vie des membres rejetés » en P1).
 
 #### Déclencheurs
 
@@ -2203,7 +2209,8 @@ graph TD
 
 | Mécanisme | État vérifié |
 |---|---|
-| Diff roster PUBG ([`syncClanMembership`](../../src/lib/clan-service.ts#L357)) | Existe, mais **uniquement à la demande** via le bouton « Comparer PUBG » de `/clans/[clanId]/settings/members`. Ni stocké, ni notifié, absent de [`CRON_SCHEDULE_DEFINITIONS`](../../src/lib/cron-jobs.ts#L1184) |
+| Diff roster PUBG ([`syncClanMembership`](../../src/lib/clan-service.ts#L357)) | 🔴 **Mort en pratique — testé en live le 2026-09-20.** `GET /shards/steam/clans/{id}/members` renvoie **404** (l'endpoint n'existe pas) et le repli `fetchPubgClanById` renvoie `memberCount: 14` mais **aucun `memberIds`**. `pubgMembers` est donc vide : `matched: []`, `inPubgOnly: []`, `inSiteOnly: tous les membres actifs`, `incompleteRelationships: true`. Le front le sait déjà et masque la liste des départs ([ClanSyncPanel.tsx:110](../../src/components/settings/ClanSyncPanel.tsx#L110), [:149](../../src/components/settings/ClanSyncPanel.tsx#L149)) au profit d'un avertissement ([:136](../../src/components/settings/ClanSyncPanel.tsx#L136)). **« Comparer PUBG » n'affiche plus rien d'exploitable** — c'est ce qui justifie la bascule du chantier 1 vers une synchronisation joueur par joueur |
+| Compte de membres PUBG (`Clan.pubgMemberCount`) | Seul signal de roster encore disponible, 1 appel par clan. Mesuré le 2026-09-20 sur D32 : **14 côté PUBG contre 18 membres actifs suivis**. Un écart de compte suffit à détecter qu'il s'est passé quelque chose — complément bon marché aux ~35 appels joueur par joueur |
 | Résolution de clan des joueurs croisés | Ne sélectionne que `clanResolvedAt: null` ([encountered-player-resolution.ts:64](../../src/lib/encountered-player-resolution.ts#L64)) — **une fois résolu, un compte n'est jamais réévalué** |
 | Raccourci « membre suivi » | [encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301) fait `findFirst({ where: { pubgAccountId } })` **sans filtre `isActive`** et tamponne le clan du site sans appeler l'API. Un membre parti — ou même désactivé — reste donc étiqueté avec son ancien clan indéfiniment |
 | Historique de changement | Aucun — `Player.opponentClanId` est écrasé par la résolution suivante |
@@ -2251,6 +2258,60 @@ en même temps.
 
 ---
 
+#### ⛔ Prérequis n°1 — Vérifier `filter[playerIds]` avant tout chiffrage
+
+> **Pourquoi c'est le tout premier travail à faire.** Deux choses en dépendent, et elles sont de nature différente :
+> le **dimensionnement** du chantier 1 (~35 appels/jour ou 324 ?) et, bien plus grave, le **risque A** de la section
+> « Sûreté d'exécution » — si cet endpoint n'expose pas `clanId` de la même façon que `fetchPlayerClan`, le cron
+> interprète une absence de champ comme « ce joueur n'a plus de clan » et bascule toute la ligue dans `Ungrouped`.
+> Tant que ce point n'est pas levé, **le chantier 1 ne doit pas être commencé**.
+
+**État des lieux :** `filter[playerIds]` n'est utilisé **nulle part** dans le dépôt. Le seul filtre multi-valeurs
+pratiqué est `filter[playerNames]`, avec **une seule valeur**, dans `searchPlayerByName`
+([pubg.ts:537-545](../../src/lib/pubg.ts#L537-L545)). Tout ce que le plan avance sur les lots de 10 est donc une
+hypothèse non testée.
+
+##### Le spike à écrire
+
+- [ ] Créer `scripts/check-pubg-player-ids-filter.ts` (**dans `scripts/`**, règle stricte du dépôt), en réutilisant
+      `queuedPubgGet` ([pubg.ts:36](../../src/lib/pubg.ts#L36)) pour passer par la file et le quota plutôt que
+      d'appeler l'API en direct — le but est aussi de mesurer le comportement réel sous throttle
+- [ ] Construire l'appel sur le modèle exact de `searchPlayerByName` :
+      `GET /shards/{shard}/players` avec `params: { 'filter[playerIds]': ids.join(',') }`
+- [ ] Alimenter le script depuis la base, avec des comptes dont on **connaît déjà la réponse unitaire** :
+      des membres actifs de clans suivis (clan attendu **non nul**) **et** le compte de Vvila
+      (`account.4878a647b0974b0eb2f53e58aae53623`, clan attendu **nul** au 2026-09-20). Sans ce témoin à clan nul,
+      on ne peut pas distinguer les deux cas qui nous intéressent
+
+##### Les cinq mesures à produire
+
+| # | Question | Pourquoi elle compte |
+|---|---|---|
+| 1 | L'endpoint accepte-t-il plusieurs `playerIds` ? | Si non, tout le chantier 1 retombe à 1 appel par joueur |
+| 2 | **Quelle taille de lot maximale** avant `4xx` ? | Dimensionne le cron. Tester 1, 5, 10, 20, 50 et noter où ça casse |
+| 3 | Chaque élément porte-t-il `attributes.clanId` **avec la même sémantique** que `GET /players/{id}` ? | **C'est la mesure critique.** Comparer champ à champ avec `fetchPlayerClan` sur les mêmes comptes |
+| 4 | Un joueur **sans clan** renvoie-t-il `clanId: null`, `clanId: ""`, ou **pas de champ du tout** ? | Détermine si le garde-fou `unknown` du risque A est indispensable — et il l'est sauf si l'API distingue explicitement |
+| 5 | Un `playerId` inconnu ou invalide dans le lot fait-il échouer **tout le lot** ? | Un compte supprimé côté PUBG ne doit pas faire tomber les 9 autres en silence |
+
+- [ ] Journaliser la **réponse brute** d'au moins un lot dans le rapport du script : c'est la seule preuve
+      exploitable pour trancher les points 3 et 4, et elle devra être recopiée dans ce todo
+- [ ] Vérifier au passage le coût réel en quota : 1 lot = 1 appel facturé, ou 1 appel par joueur du lot ?
+
+##### Table de décision — ce que chaque résultat implique
+
+| Résultat | Conséquence sur le plan |
+|---|---|
+| ✅ Lots de 10+ acceptés, `clanId` présent et sémantique identique, absence de clan explicite | Le chantier 1 tient tel qu'écrit : ~35 appels/jour. Le garde-fou `unknown` reste utile en défense mais n'est plus le seul rempart |
+| ⚠️ Lots acceptés mais **champ `clanId` absent quand le joueur n'a pas de clan** | Le chantier 1 tient sur la volumétrie, mais le **risque A devient certain** : `unknown` + confirmations + coupe-circuit deviennent non négociables |
+| ⚠️ Lots acceptés mais `clanId` **jamais** exposé sur cet endpoint | L'endpoint ne sert qu'à détecter *qu'un joueur existe*. Il faut retomber sur `fetchPlayerClan` unitaire → **324 appels/jour, ~32 min à 10 RPM**. Chantier 1 à redimensionner : cadence réduite, ou sélection par palier comme `selectPrioritizedEncounteredPlayerIdentities` |
+| ⚠️ Taille de lot < 10 (ex. 5) | Recalculer : 324 / taille réelle. À 5, ~65 appels/jour — encore acceptable |
+| ❌ `filter[playerIds]` non supporté | Le chantier 1 doit être repensé entièrement. Repli possible : surveiller `Clan.pubgMemberCount` (1 appel par clan, ~23/jour) pour détecter *qu'un roster a bougé*, puis ne résoudre unitairement que les membres des clans qui ont changé |
+
+- [ ] **Reporter le résultat dans ce todo** — remplacer le prérequis bloquant du chantier 1 par les chiffres réels,
+      et lever ou confirmer le risque A en conséquence
+- [ ] Le spike est **en lecture seule** : aucune écriture en base, aucun `PlayerClanChange`. Il consomme seulement
+      quelques appels du quota partagé, à lancer hors des fenêtres de cron (02 h – 05 h)
+
 #### Chantier 0 — Faire d'`Ungrouped` un clan système protégé — ⛔ bloquant, à livrer en premier
 
 **Décision :** `Ungrouped` (`TAG: UNG`) est un **clan système**, réservé aux joueurs sans clan qu'on veut continuer à
@@ -2275,15 +2336,27 @@ apparaître dans les classements.
       synchronisation des matchs de leurs membres — c'est tout l'intérêt d'UNG
 - [ ] Script de marquage des `Ungrouped` existants dans `scripts/` — **no-op attendu** (aucun en base au 2026-09-20),
       à garder pour les autres environnements
-- [ ] Tests dans `src/lib/` (convention Vitest du dépôt) : un clan système ne change pas de nom après
-      `syncTrackedClanStats` alors qu'un de ses membres a un clan PUBG
 
-#### Chantier 1 — Détection et signalement des changements de clan *(plan du 2026-09-14, inchangé sur le fond)*
+#### Chantier 1 — Détection et signalement des changements de clan *(refondu le 2026-09-20 : rosters abandonnés, actions automatiques)*
 
+> ⛔ **Prérequis bloquant — voir « Prérequis n°1 — Vérifier `filter[playerIds]` » en tête de section.** Tant que le
+> spike n'a pas été exécuté et son résultat reporté ici, ce chantier ne démarre pas : ni sa volumétrie (~35 appels
+> ou 324 ?) ni son risque principal (bascule massive sur champ absent) ne sont connus.
+
+- [ ] ⛔ **Garde-fou « champ absent ≠ pas de clan »** — *bloquant, voir « Sûreté d'exécution »*. Sans lui, une
+      réponse API partielle bascule toute la ligue dans UNG en un passage
+- [ ] ⛔ **Mode observation obligatoire avant la première activation** — *bloquant, voir « Sûreté d'exécution »*
 - [ ] **Synchronisation de l'appartenance de tous les joueurs suivis — quotidien, ~35 appels.** *(Remplace la vérification des rosters de clan, car l'API PUBG ne renvoie pas la liste des membres).* Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`, visible dans `/settings/cron`) : itère sur tous les `ClanMember` actifs du site (clans suivis + `Ungrouped`), par lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`). Compare le `clanId` PUBG avec le clan actuel sur le site.
 - [ ] Tout écart déclenche une action immédiate pour protéger la continuité du suivi et la justesse des agrégats :
   - **Départ vers un clan non suivi ou aucun clan** : Le joueur est **basculé automatiquement vers `Ungrouped`**. Son suivi continue, mais il ne pollue plus les stats de son ancien clan. (Si le nouveau clan existe sur PUBG, une demande de création de clan est générée en parallèle via le flux du Chantier 2).
   - **Transfert vers un autre clan suivi actif** : Le joueur y est **transféré automatiquement**.
+
+> **Tranché le 2026-09-20 — le transfert automatique n'est validé par personne, et c'est assumé.** Déplacer un
+> membre re-parente l'intégralité de son historique vers le clan cible (250 matchs, 387 kills et 55 314 dégâts
+> dans le cas Vvila), sans que l'Owner du clan de départ ni celui du clan d'arrivée n'aient à l'approuver. La
+> notification Discord **informe mais ne bloque pas** : c'est la contrepartie acceptée de la justesse des agrégats,
+> qui prime sur la validation humaine. Le filet de sécurité est l'action « annuler » du journal des mutations
+> (chantier 5), qui remet le membre dans son clan précédent.
 - [ ] Dans tous les cas, un événement `PlayerClanChange` est généré (statut `applied`) pour garder l'historique et notifier le SuperUser, mais **l'action n'attend pas de validation humaine**.
 - [ ] **Historique public des mutations** : Ajouter un bouton en bas de la page `/clans` menant à une page publique listant tous les événements de mutations. Cela permet de rendre transparents les changements automatiques.
 - [ ] **Notification Discord** : Envoyer un message au canal d'administration Discord pour chaque `PlayerClanChange` généré automatiquement par le Cron (évite les changements silencieux).
@@ -2292,10 +2365,8 @@ apparaître dans les classements.
       (`/shards/{shard}/players?filter[playerIds]=…`), ~12 min à 10 req/min, la nuit.
       *À vérifier sur un appel réel : que l'endpoint multi-joueurs expose bien `attributes.clanId` comme
       `fetchPlayerClan`.*
-- [ ] **Signalement SuperUser** : page `/settings/superuser/clan-changes` (changements non traités, filtres par
-      clan), actions « transférer le membre » (`PATCH /api/members/[id]`), « ajouter au clan », « ignorer » ;
-      pastille compteur dans le hub SuperUser (`nav-permissions`) ; en option, message Discord d'administration
-      (module `src/lib/discord/`). **Aucune action automatique** sur ce chantier
+- [ ] **Journal des mutations** : onglet « Mutations » de la page unique du chantier 5 — **journal a posteriori**,
+      pas file d'attente, puisque les mouvements sont déjà appliqués par le cron
 - [ ] **Débriefing** : l'info-bulle du tag affiche « a quitté [X] pour [Y] le … » quand un changement est connu
 - [ ] **Corriger le raccourci « membre suivi »** ([encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301)) :
       ajouter `isActive: true` et `joinStatus: 'active'` au `findFirst`, pour qu'un membre non suivi retombe sur
@@ -2312,12 +2383,16 @@ apparaître dans les classements.
 **Objectif :** un joueur parqué dans UNG qui rejoint ou crée un clan PUBG doit sortir d'UNG vers son vrai clan,
 sans que cela ouvre une porte dérobée à la validation SuperUser.
 
-> **Tension à respecter :** `/join` crée volontairement tout nouveau clan en `isActive: false` en attente de
-> validation SuperUser, « afin de protéger la ligue contre les bots et clans non sérieux » (voir la section `/join`
-> en P1). Une création + un déplacement entièrement automatiques contourneraient ce garde-fou. De plus
-> `PATCH /api/members/[id]` refuse déjà une cible `isActive: false` (`Target clan not found`), et `runDailyClanSync`
-> n'itère que sur les clans actifs : déplacer quelqu'un vers un clan en attente **arrêterait silencieusement** de le
-> suivre. D'où le découpage en trois cas ci-dessous.
+> **Tension à respecter — le garde-fou porte sur la création de clan, pas sur le déplacement de membre.**
+> Depuis la refonte du chantier 1, déplacer un membre est automatique et assumé. Ce qui reste gardé, c'est
+> l'**entrée d'un nouveau clan dans la ligue** : `/join` crée volontairement tout nouveau clan en `isActive: false`
+> en attente de validation SuperUser, « afin de protéger la ligue contre les bots et clans non sérieux » (voir la
+> section `/join` en P1). Créer un clan automatiquement contournerait ce garde-fou.
+>
+> Deux contraintes techniques verrouillent d'ailleurs le sujet : `PATCH /api/members/[id]` refuse déjà une cible
+> `isActive: false` (`Target clan not found`), et `runDailyClanSync` n'itère que sur les clans actifs — déplacer
+> quelqu'un vers un clan en attente **arrêterait silencieusement** de le suivre. D'où le découpage ci-dessous : on
+> déplace librement vers un clan déjà validé (cas A), jamais vers un clan qui ne l'est pas (cas B).
 
 - [ ] **Traitement des promotions** : se branche directement sur les événements `PlayerClanChange` générés par le cron quotidien du Chantier 1, lorsque le clan source est un clan système (`Ungrouped`).
 - [ ] **Cas A — clan détecté déjà suivi et actif** → **déplacement automatique**. Aucun clan n'est créé, la cible a
@@ -2334,27 +2409,39 @@ sans que cela ouvre une porte dérobée à la validation SuperUser.
       être re-clée sur `isSystem` au chantier 0
 - [ ] **Interrupteur** `AppConfig.ungrouped_auto_promote` (défaut : activé) — ne gouverne **que** le cas A ; le cas B
       reste manuel quelle que soit sa valeur
-- [ ] Tests dans `src/lib/` : cas A applique, cas B crée en attente sans déplacer, cas C ne touche à rien,
-      l'approbation du clan déclenche bien le déplacement différé
 
 #### Chantier 3 — Rétrogradation : un Owner peut basculer un de ses membres vers UNG
 
 **Objectif :** permettre à un Owner de constater « ce joueur n'est plus dans mon clan » sans passer par le
 SuperUser, et sans arrêter de le suivre.
 
-Aujourd'hui, l'**arrêt de suivi (`DELETE /api/members/[id]`)** pouvait être réalisé par un Owner. Pour éviter la perte d'historique et l'arrêt brutal des stats, l'usage de ce `DELETE` doit être **strictement réservé au SuperUser**.
-Le seul pouvoir d'un Owner pour se séparer d'un membre devient de le "Basculer vers UNG" (`PATCH`). L'exception proposée ci-dessous est donc la seule action de sortie autorisée pour un Owner.
+Aujourd'hui l'**arrêt de suivi (`DELETE /api/members/[id]`)** est accessible à un Owner via la permission
+`manage_members` ([members/[id]/route.ts:113](../../src/app/api/members/[id]/route.ts#L113)). **Décision : ce
+`DELETE` devient strictement SuperUser**, et « Basculer vers UNG » devient la seule action de sortie d'un Owner.
+
+**Motif** — ce n'est *pas* une question de perte d'historique : l'encadré ⚠️ plus bas montre que `DELETE` est au
+contraire le seul geste qui **ne re-parente pas** la fiche (`clanId` inchangé). Le vrai motif est la **continuité
+du suivi** : `DELETE` coupe la synchronisation PUBG, donc fait disparaître le joueur de l'écosystème sans décision
+SuperUser. En canalisant les Owners vers UNG, toute sortie reste suivie, tracée par un `PlayerClanChange`, et
+réversible.
+
+**Articulation avec le chantier 1** — le cron basculera de toute façon vers UNG sous 24 h. Le bouton Owner garde
+deux usages : l'**immédiateté**, et les cas où l'API PUBG ne dit pas la vérité — exactement le cas Vvila, dont le
+compte renvoie `clanId: null` alors qu'il a créé un clan. Ce n'est donc pas un doublon du cron, mais l'override
+manuel du même chemin.
 
 - [ ] Autoriser `PATCH /api/members/[id]` sous `requirePermission('manage_members')` sur le clan **actuel** du
       membre — et non `requireSuperUser` — **uniquement** quand `validated.clanId` est le clan système du même
       `platformShard`. Toute autre cible reste SuperUser
 - [ ] Conserver les règles existantes : un `Owner` ne peut pas être déplacé, plateformes identiques, cible active
       (UNG l'est)
+- [ ] **Réserver `DELETE /api/members/[id]` au SuperUser** : remplacer `requirePermission('manage_members')` par
+      `requireSuperUser` ([members/[id]/route.ts:113](../../src/app/api/members/[id]/route.ts#L113)), masquer le
+      bouton « Arrêter le suivi » pour les Owners sur `/clans/[clanId]/settings/members`, et expliquer le report
+      vers « Basculer vers UNG » dans la modale
 - [ ] Écrire un `PlayerClanChange` (`source: 'manual_demotion'`, `triggeredByUserId`) pour tracer qui a basculé qui
 - [ ] **UI** `/clans/[clanId]/settings/members` : troisième bouton à côté de « Arrêter le suivi » et « Transférer de
       clan », avec une modale (charte `docs/ui/index.html` §22) expliquant la différence entre les trois gestes
-- [ ] Tests dans `src/lib/` : un Owner peut basculer vers UNG, ne peut pas viser un autre clan, ne peut pas
-      basculer un autre Owner
 
 **Différence entre les trois gestes — à afficher dans la modale et à documenter :**
 
@@ -2376,48 +2463,402 @@ Le seul pouvoir d'un Owner pour se séparer d'un membre devient de le "Basculer 
 > rattacher au clan d'origine : les deux familles de vues divergent après un déplacement. À trancher si cette
 > divergence doit être corrigée (backfill de `KillEvent.clanId`) ou simplement documentée.
 
+#### Chantier 4 — Demande de création de clan (`/join`) : contact et notifications
+
+- [ ] **Formulaire `/join`** : exiger une adresse email de contact du propriétaire lors de la demande d'intégration
+      d'un nouveau clan. `JoinRequestSchema` ([join/route.ts:9](../../src/app/api/join/route.ts#L9)) ne porte
+      aujourd'hui que `pubgPlayerName`, `platformShard` et `mode` — le champ est entièrement à créer (schéma Zod,
+      UI, stockage)
+- [ ] **Stocker l'email sur `ClanMember.contactEmail`** — *tranché le 2026-09-20*, voir l'encadré ci-dessous
+- [ ] **Créer `POST /api/clans/[clanId]/reject`** — **la route n'existe pas** : `src/app/api/clans/[clanId]/`
+      ne contient que `approve`. Doit refuser le clan, notifier, et laisser le demandeur en `joinStatus: 'rejected'`
+      (état qui autorise la ré-adhésion, voir « Cycle de vie des membres rejetés » en P1)
+- [ ] **Notification de décision** : à l'acceptation comme au refus, envoyer un email au créateur via
+      [email-service.ts](../../src/lib/email-service.ts) (`sendEmail`, déjà en place)
+- [ ] **Prévoir le cas SMTP non configuré** : `SMTP_URL` est optionnel (voir CLAUDE.md) et `email-service` bascule
+      alors en mode `stub`. La décision doit rester visible dans l'UI SuperUser même quand aucun email ne part
+- [ ] **Reprendre l'email à l'activation** : quand l'Owner active son compte, `ClanMember.contactEmail` doit
+      pré-remplir `UserAccount.email` et l'invitation (`MemberInvite.email`), pour ne pas redemander la même
+      information deux fois
+
+> **Où stocker l'email — tranché le 2026-09-20 : `ClanMember.contactEmail String?` (nullable).**
+>
+> Le motif retenu est que le contact doit être rattaché au **pseudo du joueur qui fait la demande**, et
+> `ClanMember` est la seule table qui porte déjà `pubgPlayerName` à ce stade du flux. Les deux alternatives ont été
+> écartées :
+> - **`UserAccount.email`** — impossible : `passwordHash` est **non nullable** et `email` est `@unique`
+>   ([schema.prisma:410-413](../../prisma/schema.prisma#L410-L413)). Il faudrait créer un compte sans mot de passe
+>   avant toute validation, donc inventer un état de compte fantôme pour chaque demande, y compris les refusées.
+> - **`Clan.contactEmail`** — perdrait le lien avec le pseudo : un clan peut recevoir plusieurs demandes, et rien
+>   n'indiquerait plus *qui* a laissé cette adresse.
+>
+> Cycle de vie : saisi sur `/join` → porté par la fiche `ClanMember` pendant toute la phase `pending` → sert à
+> notifier l'acceptation ou le refus → repris comme `UserAccount.email` à l'activation. Une demande refusée garde
+> son email sur une fiche en `joinStatus: 'rejected'`, ce qui permet de la recontacter en cas de ré-adhésion.
+> `contactEmail` reste nullable : les membres créés autrement (ajout manuel, sync clan) n'en ont pas.
+
+#### Chantier 5 — Page SuperUser unique « Cycle de vie des clans » + purge d'UNG
+
+**Décision du 2026-09-20 :** toute la thématique est regroupée sur **une seule page SuperUser**, au lieu de
+l'éparpiller entre une page de mutations, une UI de purge et la validation des clans. Nom proposé :
+`/settings/clan-lifecycle`.
+
+> **Constat qui justifie le regroupement (vérifié le 2026-09-20) :** il n'existe **aucune page** pour valider les
+> clans en attente. `GET /api/clans?all=true` expose bien les clans inactifs aux SuperUsers
+> ([clans/route.ts:13-17](../../src/app/api/clans/route.ts#L13-L17)) et `POST /api/clans/[clanId]/approve` existe,
+> mais rien ne les relie côté interface : un clan créé par `/join` en `isActive: false` n'est visible nulle part.
+> Le regroupement ne fait donc pas que ranger — il **comble un trou fonctionnel déjà présent**.
+
+- [ ] **Onglet « Mutations »** — journal des `PlayerClanChange`, a posteriori. Filtres par clan, par `source` et par
+      `status` ; actions « annuler » (remet le membre dans son clan précédent et écrit une ligne inverse) et
+      « acquitter » (`acknowledgedAt`, `acknowledgedByUserId`)
+- [ ] **Onglet « Clans en attente »** — liste des `Clan` en `isActive: false`, avec le demandeur, son
+      `pubgPlayerName`, son `contactEmail` et la date. Actions « approuver » (`POST .../approve`, existant) et
+      « refuser » (`POST .../reject`, **à créer au chantier 4**). L'approbation déclenche les déplacements différés
+      du cas B (chantier 2)
+- [ ] **Onglet « Ungrouped »** — effectif du clan système, trié par `lastMatchAt` croissant, avec le nombre de
+      jours d'inactivité et le coût quotidien en appels PUBG que représente l'ensemble
+- [ ] **Onglet « Paramètres »** — *tous* les réglages de la thématique au même endroit (voir le bloc dédié
+      ci-dessous) : salon Discord d'administration, règle d'archivage d'UNG, interrupteurs d'automatisation
+- [ ] **Onglet « Santé »** — dernier passage du cron, appels PUBG consommés sur 24 h, backlog restant, taille
+      d'UNG dans le temps. Alimenté par `CronExecution`, cohérent avec `/settings/cron`
+- [ ] Entrée dans `nav-permissions-registry.ts` (`section: 'superuser-menu'`, `defaultRole: 'superuser'`) **puis
+      `npx tsx prisma/seed-nav-items.ts`** — le menu lit la table `NavItem` en base, pas le registre : sans ce seed
+      l'entrée n'apparaît jamais (piège déjà rencontré, voir la section « Vue cross-clans SuperUser »)
+- [ ] Pastille compteur dans le hub SuperUser : mutations non acquittées **+** clans en attente
+
+##### Onglet « Paramètres » — tout est réglable depuis l'UI, rien en dur
+
+**Décision du 2026-09-20 :** aucun de ces réglages ne doit être une constante de code ni une variable
+d'environnement. Tous vivent dans `AppConfig` (même mécanique que `pubg_api_rate_limit_rpm`) et s'éditent depuis
+cet onglet, sans redéploiement.
+
+| Clé `AppConfig` | Réglage | Défaut proposé |
+|---|---|---|
+| `clan_lifecycle_mode` | `observe` (écrit les événements sans rien appliquer) ou `apply` — voir « Sûreté d'exécution » B | **`observe`** |
+| `clan_lifecycle_max_moves_ratio` | Coupe-circuit : part maximale de l'effectif déplaçable en un passage — voir « Sûreté d'exécution » A | `10` (%) |
+| `clan_lifecycle_confirmations_required` | Passages concordants exigés avant d'agir sur une disparition de clan | `2` |
+| `clan_lifecycle_discord_webhook_url` | Salon Discord d'administration recevant les `PlayerClanChange` automatiques | vide — aucune notification tant qu'il n'est pas renseigné |
+| `clan_lifecycle_discord_mention` | Mention associée (`none` / `here` / `everyone` / `role`) | `none` |
+| `ungrouped_archive_after_days` | Seuil d'inactivité déclenchant la proposition d'archivage | `90` |
+| `ungrouped_auto_archive` | Archive sans validation humaine au-delà du seuil | `false` |
+| `ungrouped_auto_promote` | Promotion automatique du cas A (chantier 2) | `true` |
+
+- [ ] **Salon Discord — global, pas par clan.** La configuration Discord actuelle est **par clan**
+      (`getDiscordSettings(clanId)`, [discord-config-service.ts:11](../../src/lib/discord/discord-config-service.ts#L11))
+      et ne convient pas : les mutations concernent toute la ligue. D'où une clé `AppConfig` dédiée. **Réutiliser**
+      `isValidDiscordWebhookUrl`, `normalizeWebhookUrl` et `renderDiscordMention`
+      ([discord-config.ts](../../src/lib/discord/discord-config.ts)) plutôt que de revalider une URL à la main
+- [ ] **Affichage de la date d'archivage** : pour chaque membre d'UNG, la page montre `lastMatchAt`, le nombre de
+      jours d'inactivité et **la date à laquelle il deviendra candidat** (`lastMatchAt + seuil`). Changer le seuil
+      recalcule les dates à l'écran avant enregistrement, pour voir qui bascule avant de valider
+- [ ] **Bouton « Tester le webhook »** envoyant un message de contrôle, comme sur la configuration Discord par clan
+- [ ] Garde-fou : webhook vide = aucune notification, et la page le signale explicitement plutôt que d'échouer en
+      silence
+
+**Règle d'archivage d'UNG** — répond au risque « UNG ne se vide jamais » :
+
+- [ ] Le cron quotidien **marque les candidats** (membre d'un clan système, `lastMatchAt` plus ancien que le seuil
+      ou nul) mais **n'archive rien tout seul** tant que `ungrouped_auto_archive` est `false` : la page les
+      présente, le SuperUser archive en un clic, en masse ou à l'unité
+- [ ] Archiver = `isActive: false` + `archivedAt` + `archivedReason: 'ungrouped_inactive'`. Effet immédiat : plus
+      de synchronisation de matchs, plus d'appel de promotion quotidien — c'est le mécanisme de maîtrise du coût API
+- [ ] **Réversible** : un bouton « réactiver » remet le membre dans UNG en `isActive: true`. S'il rejoue et croise
+      un clan suivi, il reste de toute façon visible via `EncounteredPlayer` / `Player`
+
 #### Modèle de données
 
 - [ ] `Clan.isSystem Boolean @default(false)` — migration **additive** (chantier 0)
 - [ ] Table `PlayerClanChange` — migration **additive** (chantiers 1, 2, 3) :
       `pubgAccountId`, `platformShard`, `clanMemberId?`, `previousPubgClanId?` / `previousPubgClanTag?`,
       `newPubgClanId?` / `newPubgClanTag?`, `detectedClanId?` (FK `Clan` quand le clan existe côté site),
-      `source` (`clan_roster` | `player_refresh` | `ungrouped_promotion` | `manual_demotion`),
-      `status` (`pending` | `applied` | `ignored`), `detectedAt`, `appliedAt?`, `acknowledgedAt?`,
-      `acknowledgedByUserId?`, `triggeredByUserId?`
+      `source` (valeurs ci-dessous), `status` (`observed` | `pending` | `applied` | `ignored` | `reverted`),
+      `detectedAt`, `appliedAt?`, `acknowledgedAt?`, `acknowledgedByUserId?`, `triggeredByUserId?`,
+      `runId?` (rattachement au passage de cron, indispensable au revert par lot)
+- [ ] **Table de run du cycle de vie** — migration **additive**, calquée sur `EncounteredPlayerResolutionRun` :
+      `status` (`running` | `success` | `failed` | `aborted`), compteurs (candidats, `unknown`, écartés faute de
+      confirmation, mouvements prévus, mouvements appliqués), `circuitBreakerTripped`, durée. **Pas
+      `CronExecution`**, dont le `clanId` est obligatoire alors que ce cron est global
+- [ ] Compteur de confirmations consécutives sur `Player` (ou porté par l'événement `observed`) — voir « Sûreté
+      d'exécution » A
 - [ ] Mise à jour de `Player.opponentClanId` et d'`EncounteredPlayer.pubgClan*` au passage de chaque détection
+- [ ] **`ClanMember.contactEmail String?`** — migration **additive** (chantier 4), voir la justification ci-dessous
+- [ ] `ClanMember.archivedAt DateTime?` + `ClanMember.archivedReason String?` — migration **additive**
+      (chantier 5) : trace *quand* et *pourquoi* un membre d'UNG a été archivé, sans quoi `isActive: false` ne
+      distingue pas une purge d'un arrêt de suivi ordinaire
 
-#### Chantier 4 — Demande de création de clan (`/join`) : Contact et Notifications
+**Valeurs de `source`** — révisées le 2026-09-20 après l'abandon des rosters et l'ajout des actions automatiques du
+chantier 1 :
 
-- [ ] **Formulaire `/join`** : Exiger la saisie d'une adresse email de contact pour le propriétaire lors de la demande d'intégration d'un nouveau clan.
-- [ ] **Notification de décision** : Lors de l'acceptation ou du refus de la demande par le SuperUser (via `/api/clans/[clanId]/approve` ou `reject`), envoyer une notification automatique par email au créateur avec la décision.
+| Valeur | Émise par | Action sur le membre |
+|---|---|---|
+| `player_sync` | Cron quotidien (chantier 1) | Aucune — écart constaté sans mouvement |
+| `auto_demotion` | Cron quotidien (chantier 1) | Bascule automatique vers UNG |
+| `auto_transfer` | Cron quotidien (chantier 1) | Transfert automatique entre clans suivis |
+| `ungrouped_promotion` | Cron (chantier 2, cas A) | Sortie d'UNG vers un clan suivi |
+| `player_refresh` | Passe hebdomadaire coéquipiers | Aucune — hors membres suivis |
+| `manual_demotion` | Owner (chantier 3) | Bascule manuelle vers UNG |
+| `manual_revert` | SuperUser (journal des mutations) | Annulation d'un mouvement précédent |
+
+`clan_roster` est supprimé : les rosters de clan n'existent plus côté API PUBG (voir le constat).
 
 > **Rappel procédure (voir AGENTS.md) :** lancer
 > `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
 > **avant** toute écriture en base — il doit répondre `-- This is an empty migration.` au départ, puis ne montrer que
 > les `ADD COLUMN` / `CREATE TABLE` voulus. Ne jamais faire de `db push` aveugle sur cette base : c'est la production.
 
+#### Tests de contrôle
+
+**Référence mesurée le 2026-09-20 :** `npm run test:telemetry` → **472 tests verts, 1 ignoré, 64 fichiers**, 4,3 s.
+C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs dans ce fichier est périmé.)*
+
+> **Convention Vitest du dépôt — à respecter sans exception.** `vitest.config.ts` déclare
+> `include: ['src/lib/**/*.test.ts']`. Un test posé à côté d'une route sous `src/app/` **n'est jamais exécuté**, sans
+> le moindre avertissement. Pour tester une route, le fichier va dans `src/lib/` et importe le handler depuis
+> `src/app/` — c'est ce que font déjà `pubg-telemetry/route-contracts.test.ts` et
+> `discord/discord-route-contracts.test.ts`.
+
+##### 🔴 Tests existants à adapter — dont quatre qui ne casseront pas, et c'est le problème
+
+| Fichier | Impact | Pourquoi |
+|---|---|---|
+| [join-validation.test.ts](../../src/lib/join-validation.test.ts) | ⚠️ **Divergence silencieuse** | Le fichier **recopie `JoinRequestSchema` en dur** au lieu de l'importer. Ajouter `contactEmail` (chantier 4) laissera le test **vert contre une copie périmée** : il ne validera plus rien du vrai schéma |
+| [members-add.test.ts](../../src/lib/members-add.test.ts) | ⚠️ **Divergence silencieuse** | Même motif, assumé par un commentaire dans le fichier : « Schéma testé à l'identique de `src/app/api/members/route.ts` ». Toute évolution du schéma réel passe inaperçue |
+| [clan-approval.test.ts](../../src/lib/clan-approval.test.ts) | ⚠️ **Divergence silencieuse** | N'exécute aucun code de production : il assertie sur des littéraux écrits à la main. L'extension de `approve` (déplacements différés du cas B) ne sera pas couverte |
+| [member-lifecycle.test.ts](../../src/lib/member-lifecycle.test.ts) | ⚠️ **Divergence silencieuse** | Réimplémente la logique actif/rejeté dans le test. Le passage de `DELETE` au SuperUser (chantier 3) ne s'y verra pas |
+| [encountered-player-resolution.test.ts](../../src/lib/encountered-player-resolution.test.ts) | 🔧 **Cassera vraiment** | Mocke `clanMember: { findFirst }`. Le correctif du raccourci (chantier 1) ajoute `isActive` / `joinStatus` au `where` : les assertions sur l'appel doivent suivre |
+| [tracked-isolation.test.ts](../../src/lib/tracked-isolation.test.ts) | 🔧 **À étendre** | Seul test branché sur la **vraie base** : il crée un `Clan` et des `ClanMember`. `Clan.isSystem` a un défaut, donc rien ne casse — mais c'est l'endroit naturel pour prouver qu'un clan système est exclu des agrégats |
+
+- [ ] **Décider du sort des 4 fichiers à divergence silencieuse** : soit ils importent le vrai schéma / la vraie
+      fonction, soit ils sont supprimés. Un test vert qui ne teste rien est pire que pas de test — il donne une
+      fausse assurance au moment exact où le schéma change
+- [ ] Adapter `encountered-player-resolution.test.ts` au nouveau `where` du raccourci
+- [ ] Étendre `tracked-isolation.test.ts` au clan système
+
+> **Piège des mocks Prisma (déjà documenté dans CLAUDE.md).** Les tests de contrats listent les modèles **un par
+> un** — par exemple `prisma: { clanMember: {...}, cronExecution: {...} }`
+> ([route-contracts.test.ts:12-25](../../src/lib/pubg-telemetry/route-contracts.test.ts#L12-L25)). Dès qu'une route
+> touchée par ces chantiers utilisera `playerClanChange`, le mock renverra `undefined` et le test cassera **loin de
+> la cause réelle**. À ajouter à chaque mock concerné en même temps que le code.
+
+##### Nouveaux tests par chantier
+
+- [ ] **Chantier 0** — un clan système ne change ni de nom, ni de tag, ni de `pubgClanId` après
+      `syncTrackedClanStats`, alors qu'un de ses membres a bien un clan PUBG (c'est le bug du 2026-09-20) ;
+      `getOrCreateUngroupedClan` retrouve le clan par `isSystem` même s'il a été renommé à la main en base
+- [ ] **Chantier 1** — un écart « clan inconnu » produit `auto_demotion` + un déplacement vers UNG ; un écart
+      « autre clan suivi » produit `auto_transfer` ; aucun écart ne produit rien ; le lot de 10 est respecté et le
+      plafond par passage tient
+- [ ] **Chantier 2** — cas A applique, cas B crée le clan en attente **sans déplacer**, cas C ne touche à rien,
+      et l'approbation du clan déclenche bien le déplacement différé
+- [ ] **Chantier 3** — un Owner peut basculer vers UNG, ne peut pas viser un autre clan, ne peut pas basculer un
+      autre Owner, et **ne peut plus appeler `DELETE`**
+- [ ] **Chantier 4** — `JoinRequestSchema` rejette un email absent ou malformé ; `contactEmail` est bien repris
+      dans `UserAccount.email` à l'activation ; `reject` laisse la fiche en `joinStatus: 'rejected'`
+- [ ] **Chantier 5** — sélection des candidats à l'archivage au seuil configuré, archivage en masse idempotent,
+      réactivation, **un membre archivé ne consomme plus d'appel PUBG** ; webhook vide = aucune notification et
+      aucune exception ; la date de candidature affichée suit le seuil
+- [ ] **Transverse** — un `PlayerClanChange` est écrit pour chacune des 7 valeurs de `source`, et l'action
+      « annuler » du journal restaure bien le `clanId` précédent
+- [ ] **Sûreté d'exécution** — les garde-fous doivent être testés avant tout, ce sont eux qui protègent :
+      une réponse API **sans le champ `clanId`** produit `unknown` et **ne déplace personne** (A) ; une seule
+      confirmation ne suffit pas à déclencher une bascule (A) ; un passage dépassant le ratio est marqué `aborted`
+      **sans aucun mouvement appliqué** (A) ; en mode `observe` les événements sont écrits et aucun `clanId` ne
+      change (B) ; un échec de notification Discord n'annule pas un mouvement déjà écrit (C) ; rejouer un passage
+      interrompu ne crée ni doublon d'événement ni double mouvement (D) ; annuler un événement périmé est refusé (E)
+
+#### Documentation à produire
+
+**Constat :** la documentation du dépôt décrit « le comportement réel du code actuel » (en-tête de
+[sommaire.md](../sommaire.md)). Ces six chantiers modifient le modèle de données, les permissions, les crons, les
+notifications Discord et ajoutent une page d'administration : **aucun de ces documents ne peut rester en l'état.**
+
+- [ ] **Créer `docs/features/cycle-de-vie-clan.md`** — document dédié, le sujet est trop large pour tenir dans
+      `clans.md` : clan système `Ungrouped`, détection quotidienne des changements, promotion, rétrogradation,
+      archivage, journal des mutations, et les trois gestes de sortie avec leurs conséquences sur les agrégats
+- [ ] **`docs/sommaire.md`** — ligne d'index vers le nouveau document + date de mise à jour de l'en-tête
+- [ ] **`docs/features/clans.md`** — flux `/join` enrichi de l'email de contact, existence du clan système, et les
+      trois chemins de sortie d'un membre
+- [ ] **`docs/architecture/data-model.md`** — annoncé « 49 modèles » : passe à **50** avec `PlayerClanChange`, plus
+      les 4 nouveaux champs (`Clan.isSystem`, `ClanMember.contactEmail`, `archivedAt`, `archivedReason`)
+- [ ] **`docs/architecture/api-reference.md`** — nouvelles routes : `POST /api/clans/[clanId]/reject`, routes de la
+      page du chantier 5, et **changement de permission** de `DELETE /api/members/[id]` (Owner → SuperUser)
+- [ ] **Documenter les garde-fous de sûreté** dans `cycle-de-vie-clan.md` : mode `observe` vs `apply`, sens de
+      l'état `unknown`, coupe-circuit de volumétrie et procédure de revert par lot — ce sont les mécanismes qu'un
+      exploitant doit comprendre avant de basculer en `apply`
+- [ ] **`docs/ops/cron.md`** — nouveau cron de synchronisation d'appartenance : horaire, coût en appels PUBG,
+      interaction avec le quota partagé, et ce qu'il déclenche automatiquement
+- [ ] **`docs/ops/settings.md`** — annoncé « 7 pages `/settings/*` » : passe à **8** avec `/settings/clan-lifecycle`,
+      dont l'onglet « Paramètres » et les 5 clés `AppConfig`
+- [ ] **`docs/ops/nav-permissions.md`** — nouvelle entrée `superuser-menu` et rappel du `seed-nav-items.ts`
+- [ ] **`docs/features/discord-notifications.md`** — le webhook d'administration est **global** (`AppConfig`), à
+      distinguer explicitement des webhooks par clan déjà documentés
+- [ ] **`CLAUDE.md`** — table « Scheduled Jobs » à compléter avec le nouveau cron
+- [ ] **`docs/ui/index.html`** — la modale à trois choix du chantier 3 doit rejoindre le catalogue (charte §22)
+
+> **Règle retenue :** la documentation est mise à jour **dans le même lot que le code**, chantier par chantier, pas
+> en rattrapage à la fin. Un chantier dont la doc n'est pas à jour n'est pas terminé.
+
+#### Sûreté d'exécution — éviter les erreurs silencieuses et les faux positifs
+
+> **Pourquoi cette section.** Les chantiers ci-dessus décrivent *quoi* construire. Celle-ci décrit *comment
+> l'exécuter sans rien casser en silence* — le chantier 1 mute le `clanId` de 324 membres sans validation humaine,
+> c'est la partie du plan qui peut faire le plus de dégâts invisibles. Les chantiers 0 et 3 ne sont pas concernés :
+> petits, synchrones, sans automatisme.
+
+##### 🔴 A — « Champ absent » et « pas de clan » sont aujourd'hui indistinguables
+
+[`resolveClanIdFromPlayerAttributes`](../../src/lib/pubg.ts#L502-L510) s'appuie sur
+[`pickString`](../../src/lib/pubg.ts#L402-L410), qui renvoie `null` **dans les deux cas** : joueur réellement sans
+clan, ou champ absent de la réponse. `fetchPlayerClan` propage ce `null` sans nuance.
+
+Or le chantier 1 décrète « aucun clan → bascule automatique vers UNG ». Une réponse partielle, un changement de
+schéma côté PUBG, ou un endpoint multi-joueurs qui n'expose pas `clanId` — **le prérequis justement non vérifié** —
+bascule donc toute la ligue dans UNG en un passage, sans lever d'erreur, avec 324 notifications Discord.
+
+> C'est aussi l'angle mort du diagnostic Vvila : on a conclu « sans clan » parce que l'API renvoie `null`. Rien ne
+> prouve qu'elle n'omet pas simplement le champ.
+
+- [ ] Renvoyer un résultat à **trois états** au lieu d'un `string | null` : `has_clan` / `no_clan` / `unknown`
+      (champ absent, réponse inattendue, erreur réseau). `unknown` ne déclenche **jamais** d'action
+- [ ] **N passages concordants avant d'agir** sur une disparition de clan (proposition : 2, donc 48 h). Stocker le
+      compteur sur `Player` ou dans l'événement `observed`, et le remettre à zéro dès qu'un passage contredit
+- [ ] **Coupe-circuit de volumétrie** : si un passage veut déplacer plus de `clan_lifecycle_max_moves_ratio` % de
+      l'effectif suivi (proposition : 10 %), il **n'applique rien**, marque le run `aborted` et alerte. Un vrai
+      événement de masse reste alors possible, mais seulement sur décision humaine
+- [ ] Tracer dans le run : nombre d'`unknown`, nombre de candidats écartés faute de confirmation, et si le
+      coupe-circuit s'est déclenché
+
+##### 🔴 B — Mode observation obligatoire avant la première activation
+
+- [ ] Ajouter un état `observed` à `PlayerClanChange.status` : l'événement est écrit, **aucun mouvement n'est
+      appliqué**
+- [ ] `AppConfig.clan_lifecycle_mode` = `observe` | `apply` (**défaut : `observe`**), réglable depuis l'onglet
+      « Paramètres ». Le passage à `apply` est une décision explicite, prise après comparaison
+- [ ] L'onglet « Mutations » affiche les lignes `observed` comme « ce qui aurait été fait », pour confronter à la
+      réalité avant de basculer
+- [ ] Critère de sortie proposé : plusieurs jours consécutifs sans faux positif constaté
+
+##### 🟠 C — Frontière transactionnelle
+
+- [ ] Le déplacement du membre **et** l'écriture de son `PlayerClanChange` dans une même `prisma.$transaction`.
+      Sinon : mouvement sans trace (silencieux) ou trace sans mouvement (faux positif dans le journal)
+- [ ] Les effets dérivés — `syncTrackedClanStats` des deux clans, notification Discord — restent **hors**
+      transaction et doivent être rejouables : un échec Discord ne doit jamais annuler un mouvement déjà écrit
+
+##### 🟠 D — Verrou de run et reprise
+
+Les crons existants se protègent avec un **booléen en mémoire** ([cron-jobs.ts:64-75](../../src/lib/cron-jobs.ts#L64-L75)).
+Ça ne protège ni d'un second process (web + worker), ni d'un crash en milieu de lot.
+
+- [ ] Table de run dédiée, sur le modèle exact d'[`EncounteredPlayerResolutionRun`](../../prisma/schema.prisma#L281)
+      (`status: running | success | failed | aborted`, compteurs, durée) — **et non `CronExecution`, dont le
+      `clanId` est obligatoire** ([schema.prisma:1243](../../prisma/schema.prisma#L1243)) alors que ce cron est global
+- [ ] Refus de démarrer si un run `running` existe déjà, et fermeture des runs bloqués par `runDbMaintenance`,
+      comme le fait déjà le ménage à 6 h
+- [ ] **Reprise idempotente** : rejouer un passage interrompu ne doit produire aucun doublon d'événement ni de
+      mouvement — la comparaison porte sur l'état courant, pas sur un curseur
+
+##### 🟠 E — Sémantique d'« annuler »
+
+- [ ] Définir le comportement quand plusieurs événements se sont succédé sur le même membre (A→B puis B→UNG) :
+      seul le **dernier événement appliqué** est annulable, les précédents s'affichent comme périmés
+- [ ] Une annulation **n'efface rien** : elle écrit une ligne inverse (`source: 'manual_revert'`) et marque
+      l'originale `reverted`
+- [ ] Refuser l'annulation si le `clanId` courant du membre ne correspond plus à celui que l'événement a posé —
+      sinon on restaure un état faux
+
+##### 🟡 F — `isActive: false` porte déjà trois sens
+
+Adhésion en attente ([join/route.ts:200](../../src/app/api/join/route.ts#L200)), membre rejeté
+([reject/route.ts:53](../../src/app/api/clans/[clanId]/members/[memberId]/reject/route.ts#L53)), arrêt de suivi
+([members/[id]/route.ts:144](../../src/app/api/members/[id]/route.ts#L144)). L'archivage en ajoute un quatrième.
+
+- [ ] Auditer les requêtes existantes qui filtrent `isActive: false` **sans** qualifier par `joinStatus` avant
+      d'introduire `archivedReason`, pour ne pas mélanger archivés, rejetés et retirés dans les mêmes vues
+- [ ] Trancher si `archivedReason` suffit ou s'il faut un `memberState` explicite — la seconde option est plus
+      propre mais touche beaucoup plus de code
+
+##### 🟡 G — Critères d'acceptation et retour arrière
+
+- [ ] Définir ce qu'est un passage réussi : nombre d'`unknown` sous un seuil, coupe-circuit non déclenché, écart
+      entre mouvements prévus et appliqués nul
+- [ ] Script de **revert par lot** dans `scripts/` : rejouer à l'envers tous les `PlayerClanChange` d'un run donné.
+      Sans lui, un mauvais passage se rattrape à la main sur 324 membres
+
+##### 🟡 H — Budget d'appels PUBG consolidé
+
+Aucune vue d'ensemble n'existe aujourd'hui, alors que tout partage le même quota de 10 RPM.
+
+- [ ] Établir le budget réel : ~35 (chantier 1) + 1 par membre d'UNG et par jour (chantier 2) + ~114 hebdomadaires
+      (coéquipiers) + la résolution d'adversaires déjà en place
+- [ ] Définir une **priorité entre files** : la sync de matchs et la télémétrie ne doivent pas être affamées par le
+      cycle de vie. À arbitrer dans `api-throttle`
+- [ ] Afficher la consommation par file dans l'onglet « Santé »
+
+##### 🟡 I — Ordre de déploiement
+
+- [ ] Le script de marquage `isSystem` doit s'exécuter **avant** la livraison du nouveau
+      `getOrCreateUngroupedClan` : dans l'ordre inverse, la recherche par `isSystem` ne trouve rien et crée un
+      second clan technique
+- [ ] Le passage de `DELETE /api/members/[id]` au SuperUser est une rupture front/API : livrer l'UI qui masque le
+      bouton **avant ou avec** le changement de permission, sinon l'Owner reçoit un 403 sans explication
+
+##### 🟡 J — Collision de nom sur le clan technique
+
+- [ ] `@@unique([name, platformShard])` : si un vrai clan PUBG s'appelle « Ungrouped », `upsertTrackedClanFromPubg`
+      échoue en `P2002` et la sync du clan casse silencieusement. Prévoir un nom réservé non ambigu pour le clan
+      système, ou intercepter explicitement la collision
+
 #### Ordre d'implémentation proposé
 
 | Ordre | Chantier | Pourquoi ce rang |
 |---|---|---|
-| 1 | **0 — UNG protégé** | Bloquant : tant qu'UNG peut être détourné, y parquer quelqu'un est dangereux |
-| 2 | **3 — Owner → UNG** | Autonome, peu risqué, débloque immédiatement le cas Vvila |
-| 3 | **2 — Promotion UNG → clan** | Dépend de 0 (marqueur `isSystem`) et de la table `PlayerClanChange` |
-| 4 | **1 — Détection globale** | Le plus gros et le plus coûteux en quota PUBG ; à faire une fois le socle posé |
+| 0 | **Prérequis n°1 — spike `filter[playerIds]`** | Lecture seule, quelques appels, une heure de travail. Conditionne la volumétrie **et** le risque A du chantier 1 : à faire avant même de décider du reste |
+| 1 | **Modèle de données** | `Clan.isSystem` et `PlayerClanChange` : les deux migrations additives conditionnent tous les chantiers suivants |
+| 2 | **0 — UNG protégé** | Bloquant : tant qu'UNG peut être détourné, y parquer quelqu'un est dangereux |
+| 3 | **3 — Owner → UNG** | Autonome une fois le socle posé ; débloque immédiatement le cas Vvila |
+| 4 | **Sûreté d'exécution A à E** | Les garde-fous se livrent **avec** le chantier 1, pas après : ce sont eux qui empêchent un passage de déplacer toute la ligue par erreur |
+| 5 | **1 — Synchronisation quotidienne** | Conditionné par le prérequis `filter[playerIds]` ; **produit les événements `PlayerClanChange` dont le chantier 2 se nourrit**. Première mise en service **obligatoirement en mode `observe`** |
+| 6 | **2 — Promotion UNG → clan** | Se branche sur les événements du chantier 1 : ne peut pas passer avant lui |
+| 7 | **5 — Page unique + purge d'UNG** | Rend exploitables les événements des chantiers 1 à 3 et comble le trou de validation des clans ; sans elle, UNG grossit sans recours |
+| 8 | **4 — Email de contact `/join`** | Indépendant du reste, à caler quand le flux de validation sera stabilisé ; la route `reject` qu'il crée est consommée par l'onglet « Clans en attente » du chantier 5 |
+
+> **Corrigé le 2026-09-20 :** les chantiers 1 et 2 étaient inversés. Depuis que le chantier 2 « se branche
+> directement sur les événements `PlayerClanChange` générés par le cron quotidien du chantier 1 », il ne peut plus
+> être livré avant lui.
 
 #### À trancher avant de coder
 
-- Seuil « coéquipier fréquent » (10 parties ?) et fréquence (quotidien pour les rosters, hebdomadaire pour les
-  coéquipiers ?) — *ouvert depuis le 2026-09-14*
-- Alerte Discord : oui / non, et quel salon — *ouvert depuis le 2026-09-14*
+**Ouvert :**
+
+- **Valeurs par défaut des réglages** (90 jours d'inactivité, `ungrouped_auto_promote` activé,
+  `ungrouped_auto_archive` désactivé, coupe-circuit à 10 % de l'effectif, 2 passages concordants) : ce sont des **propositions**, à confirmer à l'usage. Toutes sont éditables
+  depuis l'onglet « Paramètres », donc ajustables sans redéploiement ni migration.
+- Seuil « coéquipier fréquent » (10 parties ?) et fréquence de la passe hebdomadaire — *ouvert depuis le 2026-09-14*
 - Faut-il aussi revérifier les adversaires « favoris » (`Player.isFavorite`, `OpponentClan.isFavorite`) ?
   — *ouvert depuis le 2026-09-14*
-- Cas A du chantier 2 : déplacement vraiment automatique, ou toujours une confirmation SuperUser ?
 - UNG est aujourd'hui **filtré** du sélecteur de clan et du comparateur. Un membre d'UNG a-t-il droit à une page de
   clan, ou UNG reste-t-il invisible côté joueur et consultable seulement par le SuperUser ?
 - Un seul clan système par `platformShard` (impliqué par `@@unique([name, platformShard])`) — à confirmer
 - Divergence `KillEvent.clanId` après déplacement : backfill ou documentation ?
+
+**Tranché le 2026-09-20 (conservé pour mémoire) :**
+
+- ~~Purge d'UNG : faut-il une règle d'archivage ?~~ → **oui**, archivage après N jours sans match (défaut proposé :
+  90), piloté depuis la page SuperUser unique — **chantier 5**. Le cron marque les candidats, le SuperUser archive.
+- ~~Transfert automatique entre clans suivis : qui l'approuve ?~~ → **personne, et c'est assumé**. Discord informe
+  sans bloquer ; le filet de sécurité est l'action « annuler » du journal des mutations.
+- ~~Où stocker l'email de contact du chantier 4 ?~~ → **`ClanMember.contactEmail`**, parce que le contact doit
+  rester rattaché au pseudo du joueur demandeur. `UserAccount` est impossible (`passwordHash` non nullable) et
+  `Clan` perdrait le lien avec le pseudo.
+- ~~Cas A du chantier 2 : déplacement automatique ou confirmation SuperUser ?~~ → **automatique**, décidé par la
+  refonte du chantier 1 (aucune validation humaine sur les mouvements de membres).
+- ~~Alerte Discord : oui / non, et quel salon ?~~ → **oui**, imposée par le chantier 1 pour chaque
+  `PlayerClanChange` automatique. Le salon n'est **pas figé dans le code** : il se paramètre depuis l'onglet
+  « Paramètres » de la page du chantier 5 (`AppConfig.clan_lifecycle_discord_webhook_url`).
+- ~~Fréquence de vérification des rosters de clan~~ → **sans objet** : l'API PUBG ne renvoie pas les rosters
+  (404 vérifié le 2026-09-20), la vérification se fait joueur par joueur.
 
 ### ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
 

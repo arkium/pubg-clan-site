@@ -5,6 +5,8 @@ import { precomputeClanAwards } from '@/lib/awards-service'
 import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
 import { computeClanComparatorStats } from '@/lib/clan-comparator-service'
 import { updateClanQuickStats } from '@/lib/clan-stats-cache'
+import { notifyLifecyclePass } from '@/lib/clan-lifecycle/discord-notifier'
+import { closeStaleLifecycleRuns, runMembershipSyncPass } from '@/lib/clan-lifecycle/membership-sync'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
 import {
@@ -73,6 +75,9 @@ const globalForCron = globalThis as typeof globalThis & {
   challengeProcessingInProgress?: boolean
   encounteredPlayerResolutionCronTask?: ScheduledTask
   encounteredPlayerResolutionInProgress?: boolean
+  // Pas de booleen d'execution ici : le verrou du cycle de vie est en base
+  // (ClanLifecycleRun), pour tenir entre plusieurs process.
+  clanLifecycleMembershipSyncCronTask?: ScheduledTask
   dbMaintenanceCronTask?: ScheduledTask
 }
 
@@ -680,6 +685,48 @@ async function syncSeasonStatsDaily() {
   }
 }
 
+/**
+ * Passage quotidien de synchronisation d'appartenance (chantier 1 du cycle de vie
+ * de clan). Le verrou de concurrence est en base, dans ClanLifecycleRun, et non un
+ * booleen en memoire : le web et le worker sont deux process distincts.
+ */
+async function runClanLifecycleMembershipSync() {
+  const summary = await runMembershipSyncPass({ source: 'cron' })
+
+  const detail =
+    `mode=${summary.mode} membres=${summary.membersScanned} appels=${summary.apiCalls} ` +
+    `ecarts=${summary.discrepanciesFound} en-attente=${summary.awaitingConfirmation} ` +
+    `prevus=${summary.movementsPlanned} appliques=${summary.movementsApplied}`
+
+  if (summary.status === 'skipped') {
+    console.warn('[Cron] Clan lifecycle membership sync skipped:', summary.message)
+    return
+  }
+
+  if (summary.status === 'failed') {
+    console.error('[Cron] Clan lifecycle membership sync failed:', summary.message)
+    return
+  }
+
+  if (summary.circuitBreakerTripped) {
+    console.warn(`[Cron] Clan lifecycle membership sync ABORTED — ${detail} | ${summary.message}`)
+    return
+  }
+
+  console.info(`[Cron] Clan lifecycle membership sync done — ${detail}`)
+
+  // Hors du chemin critique : la notification ne doit jamais faire echouer un
+  // passage dont les mouvements sont deja ecrits.
+  try {
+    const notified = await notifyLifecyclePass(summary, summary.movements)
+    if (!notified.sent && notified.reason === 'failed') {
+      console.warn('[Cron] Clan lifecycle Discord notification failed:', notified.error)
+    }
+  } catch (error) {
+    console.warn('[Cron] Clan lifecycle Discord notification threw:', error)
+  }
+}
+
 async function runDailyClanSync() {
   if (globalForCron.clanSyncInProgress) {
     console.warn('[Cron] Daily clan sync skipped because a previous run is still in progress')
@@ -1023,8 +1070,12 @@ export async function processChallenges() {
 async function runDbMaintenance() {
   try {
     const result = await finalizeOrphanedRuns()
+    // Les passages du cycle de vie ont leur propre table de run : ils ne sont pas
+    // couverts par finalizeOrphanedRuns, et un passage reste bloque empecherait
+    // tous les suivants de demarrer (verrou en base).
+    const staleLifecycleRuns = await closeStaleLifecycleRuns()
     console.info(
-      `[Cron] DB maintenance — orphaned runs finalized: cronExecutions=${result.cronExecutions}, resolutionRuns=${result.resolutionRuns}`
+      `[Cron] DB maintenance — orphaned runs finalized: cronExecutions=${result.cronExecutions}, resolutionRuns=${result.resolutionRuns}, lifecycleRuns=${staleLifecycleRuns}`
     )
   } catch (error) {
     console.error('[Cron] DB maintenance failed', error)
@@ -1161,9 +1212,11 @@ export type CronScheduleKey =
   | 'clan_online_reminder'
   | 'challenge_processing'
   | 'encountered_player_clan_resolution'
+  | 'clan_lifecycle_membership_sync'
   | 'db_maintenance'
 
 type CronScheduleGlobalKey =
+  | 'clanLifecycleMembershipSyncCronTask'
   | 'clanSyncCronTask'
   | 'statsRecalcCronTask'
   | 'lifetimeStatsSyncCronTask'
@@ -1230,6 +1283,16 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '*/30 * * * *',
     globalKey: 'encounteredPlayerResolutionCronTask',
     run: resolveEncounteredPlayerClans,
+  },
+  {
+    // Synchronisation de l'appartenance de clan des membres suivis. Place a 01h45,
+    // juste avant daily_sync (02h00) : les mouvements sont appliques avant que les
+    // agregats du matin ne soient recalcules, donc les stats partent du bon clan.
+    key: 'clan_lifecycle_membership_sync',
+    envVar: 'CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON',
+    defaultExpression: '45 1 * * *',
+    globalKey: 'clanLifecycleMembershipSyncCronTask',
+    run: runClanLifecycleMembershipSync,
   },
   {
     key: 'db_maintenance',

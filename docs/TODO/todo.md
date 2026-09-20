@@ -2308,10 +2308,10 @@ en même temps.
 
 ##### Ce que le spike change dans le plan
 
-- [ ] **Plafonner les lots à 10** en dur, avec une assertion : `ids.length <= 10`, sinon découper. Ne jamais se fier
-      au fait que l'API « accepte » un lot plus grand — elle tronque sans le dire
-- [ ] **Vérifier la complétude de chaque réponse** : tout `playerId` demandé et absent de la réponse devient
-      `unknown`, jamais « sans clan »
+- [x] **Lots plafonnés à 10** — `fetchPlayersClanStates()` **lève** au-delà plutôt que de tronquer en silence,
+      et `chunkAccountIds()` découpe en amont
+- [x] **Complétude vérifiée** : tout `playerId` demandé et absent de la réponse devient `unknown`, jamais
+      « sans clan » — c'est ce qui arrive à un compte invalide, silencieusement omis par l'API
 - [ ] **Revoir le volume** : 324 membres ÷ 10 = **33 appels/jour**, conforme à l'estimation initiale (~35).
       Ce point-là est validé
 - [ ] **Traiter `""` comme « sans clan » mais jamais comme une certitude** : c'est précisément la valeur qui
@@ -2433,13 +2433,62 @@ initial légitime.
 - [ ] Documenter cette séquence de mise en service : `observe` → revue manuelle du rattrapage → `apply` →
       coupe-circuit actif
 
+##### Seconde mesure du 2026-09-20 (14 h 14) — l'hypothèse « transition en cours » est **infirmée**
+
+Deuxième passage lancé deux heures après le premier, mêmes 40 comptes. **540 observations cumulées** dans le
+fichier NDJSON.
+
+| | Passage 12 h 17 | Passage 14 h 14 |
+|---|---|---|
+| Comptes instables | 2/40 (5,0 %) | 2/40 (5,0 %) |
+| Lesquels | pagiotte, Vvila | pagiotte, Vvila |
+| Test de position | 8/10 suivent le compte | 9/10 |
+
+**Exactement les mêmes deux comptes, deux heures plus tard.** Le clignotement ne s'est pas résorbé : ce n'est donc
+pas la propagation d'un changement récent, comme je l'avais supposé. Le résultat de position (9/10, seul Vvila
+dévie) confirme au passage, une seconde fois, qu'il ne s'agit pas d'un désalignement de l'API.
+
+Sur les **12 observations cumulées** de chacun des deux comptes :
+
+| Compte | Clan site | Contredisent le site | Répartition | Plus longue série `""` |
+|---|---|---|---|---|
+| pagiotte | SMK | **12/12** | KMS ×9, `""` ×3 | 2 |
+| Vvila | SMK | **12/12** | KMS ×9, `""` ×3 | 2 |
+
+##### 🔴 Ce que cette mesure a révélé — un défaut dans ma règle de confirmation
+
+**Le départ est certain, c'est la destination qui clignote.** Les deux comptes contredisent leur clan enregistré
+**12 fois sur 12** : ils ont bel et bien quitté SMK. Ce qui varie, c'est seulement *où ils sont allés* — KMS ou
+« aucun clan ».
+
+La règle « N observations identiques » écrite plus haut exigeait la stabilité de la **destination**. Appliquée
+telle quelle, elle produit un résultat **arbitraire** : selon la valeur sur laquelle tombent les N derniers
+appels, le même compte partirait vers KMS ou vers le parking, au hasard du tirage. Et tant que ça clignote, le
+joueur reste faussement affiché dans SMK.
+
+**Correction retenue — décision en deux niveaux :**
+
+- [x] **Niveau 1, le départ** — `evaluateDepartureConfirmation()` : « ce joueur est-il encore dans son clan
+      enregistré ? ». Binaire, donc stable même pour un compte qui clignote. C'est ce niveau qui autorise un
+      mouvement
+- [x] **Niveau 2, la destination** — `evaluateConfirmations()` : n'est utilisée que si elle est *elle aussi*
+      stable. Sinon le joueur va au **parking**, qui est précisément fait pour les transitions
+- [x] Conséquence concrète : Vvila et pagiotte seraient parqués dans UNG (sûr, réversible, suivi maintenu), puis
+      promus vers KMS par le chantier 2 quand leur destination se stabilisera
+
+> **N=3 tient sur ces données** : la plus longue série `""` consécutive observée est de **2**, sur 12 mesures par
+> compte. Réserve inchangée — ce sont des passages rapprochés, pas des passages quotidiens, et rien ne dit que le
+> bruit soit indépendant d'un jour sur l'autre.
+
 ##### Ce qui reste à mesurer
 
-- [ ] **Relancer `npm run clanid:instability` à plusieurs heures d'intervalle, sur plusieurs jours.** Six passages
-      en trois minutes ne calibrent pas N pour un cron **quotidien** : les caches PUBG ne bougent pas à cette
-      échelle. Seule une accumulation multi-jours dit combien de passages quotidiens concordants sont nécessaires
-- [ ] Vérifier l'hypothèse du résultat 3 : pagiotte et Vvila se stabilisent-ils sur KMS ? Si oui, le site doit les
-      transférer vers le clan 180 — et le cas « Vvila a créé son clan » est définitivement clos
+- [~] **Relancer `npm run clanid:instability` à plusieurs heures d'intervalle** — deux passages faits le
+      2026-09-20 (12 h 17 et 14 h 14). **Reste la mesure sur plusieurs jours** : six passages en trois minutes ne
+      calibrent pas N pour un cron quotidien, et rien ne dit que le bruit soit indépendant d'un jour sur l'autre
+- [x] ~~Vérifier si pagiotte et Vvila se stabilisent sur KMS~~ → **non, pas après 2 h**. Mais la question est
+      devenue secondaire : leur **départ** de SMK est confirmé 12/12, ce qui suffit à les parquer dans UNG. Le cas
+      « Vvila a créé son clan » est clos — il est très probablement dans **KMS (clan suivi n°180)**, mais c'est le
+      chantier 2 qui tranchera, quand la destination sera stable
 - [ ] Étendre l'échantillon aux 324 membres pour mesurer le volume réel du rattrapage initial (33 appels, une seule
       passe suffit)
 
@@ -2496,7 +2545,7 @@ apparaître dans les classements.
       `server-only` par la chaîne `stats-calculator` → `notification-service`, donc reste inutilisable depuis un
       script `tsx`. `clan-service` les ré-exporte, rien n'est dupliqué
 
-#### Chantier 1 — Détection et signalement des changements de clan *(refondu le 2026-09-20 : rosters abandonnés, actions automatiques)*
+#### ✅ Chantier 1 — Détection et signalement des changements de clan — livré le 2026-09-20, en observation
 
 > ⛔ **Le spike du prérequis n°1 a été exécuté le 2026-09-20 et il change ce chantier.** La volumétrie est
 > validée : lots de 10, **33 appels/jour**. Mais `attributes.clanId` **clignote** — 2 comptes sur 4 ont renvoyé des
@@ -2505,11 +2554,69 @@ apparaître dans les classements.
 > concordantes déclenchent l'action ». Ce chantier ne démarre pas avant la mesure d'instabilité à grande échelle
 > (rang 0 bis de l'ordre d'implémentation).
 
-- [ ] ⛔ **Garde-fou anti-clignotement** — *bloquant, voir « Sûreté d'exécution » K*. N observations stables et
-      concordantes avant toute action ; le compteur repart de zéro à la moindre divergence
-- [ ] ⛔ **Vérification de complétude des lots** — *bloquant*. Lots plafonnés à 10 en dur (au-delà, l'API **tronque
-      silencieusement**), et tout `playerId` demandé mais absent de la réponse devient `unknown`, jamais « sans clan »
-- [ ] ⛔ **Mode observation obligatoire avant la première activation** — *bloquant, voir « Sûreté d'exécution » B*
+- [x] ⛔ **Garde-fou anti-clignotement** — câblé en **deux niveaux** (départ puis destination), voir la correction
+      de conception du 2026-09-20 plus haut
+- [x] ⛔ **Vérification de complétude des lots** — `fetchPlayersClanStates()` lève au-delà de 10 et marque
+      `unknown` tout compte absent de la réponse
+- [x] ⛔ **Mode observation** — `shouldApplyMovements()` consulté avant toute écriture ; défaut `observe`
+- [x] **Service du passage livré** — [`clan-lifecycle/membership-sync.ts`](../../src/lib/clan-lifecycle/membership-sync.ts) :
+      chargement des membres actifs de clans actifs (clans suivis **et** clan technique), lots de 10 par shard,
+      comparaison, observations, confirmations, coupe-circuit, application transactionnelle, journal de run
+- [x] **Stockage des observations tranché** : une ligne `PlayerClanChange` en `observed` **seulement quand un écart
+      est constaté**, et un passage conforme **clôt** la série (`ignored`). Évite 324 écritures par jour quand rien
+      ne bouge, tout en gardant la remise à zéro exigée par le garde-fou A
+- [x] **Cron enregistré** : clé `clan_lifecycle_membership_sync`, variable
+      `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON`, défaut **`45 1 * * *`** — quinze minutes avant `daily_sync` (02 h 00),
+      pour que les mouvements soient appliqués **avant** le recalcul des agrégats du matin, donc que les stats
+      partent du bon clan. Libellé et description ajoutés à `/settings/cron`
+- [x] **Fermeture des passages bloqués** branchée sur `runDbMaintenance` (`closeStaleLifecycleRuns`) : la table de
+      run étant le verrou, un passage resté `running` empêcherait tous les suivants de démarrer
+- [x] **Notification Discord** — [`clan-lifecycle/discord-notifier.ts`](../../src/lib/clan-lifecycle/discord-notifier.ts),
+      webhook **global** (`AppConfig`), embed distinguant application / observation / coupe-circuit, liste bornée à
+      15 mouvements pour rester sous la limite Discord. Appelée **hors du chemin critique** : le service expose ses
+      mouvements et c'est le cron qui notifie, donc un échec Discord ne peut pas annuler un mouvement déjà écrit
+- [x] **Historique des mutations** — page [`/clans/mutations`](../../src/app/clans/mutations/page.tsx) +
+      route [`GET /api/clan-lifecycle/mutations`](../../src/app/api/clan-lifecycle/mutations/route.ts), paginée,
+      filtrable par clan. Bouton ajouté en bas de `/clans`
+- [x] **Webhook Discord configuré en production le 2026-09-20** et validé par un message de contrôle (HTTP 204).
+      Posé via `npx tsx scripts/set-clan-lifecycle-config.ts --webhook "<url>" --test`
+- [x] Setters de configuration livrés ([`config.ts`](../../src/lib/clan-lifecycle/config.ts)) : mode,
+      confirmations, coupe-circuit, seuil d'archivage, interrupteurs, webhook. Chaque setter borne sa valeur comme
+      le getter correspondant, et l'URL passe par `isValidDiscordWebhookUrl`, partagée avec la configuration
+      Discord par clan — pas de seconde règle de validation qui pourrait diverger
+
+> **Portée de la page « publique » — précisée à l'implémentation.** Le plan disait « page publique ». `/clans`
+> exige déjà une session, et exposer les mouvements de joueurs à l'internet ouvert serait un choix de
+> confidentialité que le plan n'a jamais discuté. Retenu : **visible par tout membre connecté**, ce qui remplit
+> l'objectif de transparence interne. Seuls les mouvements réellement survenus (`applied`, `reverted`) sont
+> exposés ; les lignes `observed` et `ignored` sont du bruit de détection et restent réservées au journal
+> SuperUser du chantier 5. À rouvrir si tu veux réellement une page anonyme.
+
+##### ✅ Premier passage réel — 2026-09-20 à 14 h 27, en mode observation
+
+Lancé via `npx tsx scripts/run-clan-lifecycle-sync.ts` (mode `observe`, donc **aucun mouvement appliqué**).
+
+| Mesure | Valeur |
+|---|---|
+| Membres examinés | **346** |
+| Appels PUBG | **35** — conforme à l'estimation de 33 |
+| États `has_clan` / `no_clan` / `unknown` | 337 / 9 / **0** |
+| Écarts détectés | **13 (3,8 %)** |
+| En attente de confirmation | 13 — normal, une seule observation chacun |
+| Mouvements appliqués | 0 |
+| Durée | 254 s (borné par le quota de 10 req/min) |
+
+**Les 13 écarts :** Pagiotte et Vvila (SMK → KMS, clan suivi), WESTEN88 (BOFS) et Jtetape (TNT) vers des clans
+**non suivis**, et 9 joueurs sans clan — TigrOo-SmK, Thetyne (SMK), Gavache, Nevro-974 (FR), RICKAR--0,
+barracuda73540, Akuhnamatata, MAX-BR (BF), Uranovx (BEE).
+
+> **Le coupe-circuit à 10 % ne sautera pas au premier passage, contrairement à ce que je craignais.** Cette crainte
+> venait d'un échantillon de 40 comptes où 4 bougeaient (10 % pile). Sur la population réelle de 346 membres, le
+> rattrapage initial ne représente que **3,8 %** — confortablement sous le seuil. Le mode observation reste
+> néanmoins la bonne façon de démarrer : il permet de relire ces 13 lignes avant d'autoriser le moindre mouvement.
+
+> **Zéro état `unknown` sur ce passage** : l'API était parfaitement saine pendant les 35 appels. C'est une bonne
+> nouvelle, mais ça ne dit rien de sa stabilité dans la durée — voir le clignotement mesuré sur Pagiotte et Vvila.
 - [ ] **Synchronisation de l'appartenance de tous les joueurs suivis — quotidien, 33 appels** *(mesuré : 324 membres ÷ lots de 10)*. *(Remplace la vérification des rosters de clan, car l'API PUBG ne renvoie pas la liste des membres).* Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`, visible dans `/settings/cron`) : itère sur tous les `ClanMember` actifs du site (clans suivis + `Ungrouped`), par lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`). Compare le `clanId` PUBG avec le clan actuel sur le site.
 - [ ] ~~Tout écart déclenche une action immédiate~~ → **N observations stables et concordantes** déclenchent
       l'action (risque K). Une seule observation ne suffit jamais. Les deux issues restent inchangées :
@@ -2542,6 +2649,20 @@ apparaître dans les classements.
 > l'intégralité d'`EncounteredPlayer` (1,64 M lignes) — le même motif qui faisait durer 45 s chaque passage du cron
 > de résolution. Prévoir un compteur pré-calculé ou un palier comme dans
 > `selectPrioritizedEncounteredPlayerIdentities`. Voir [database-performance.md](../ops/database-performance.md).
+
+#### 🚦 Mise en service du chantier 1 — état au 2026-09-20
+
+Le cron tourne dès cette nuit à **01 h 45**, en mode `observe`. Séquence prévue, telle que documentée dans
+« Sûreté d'exécution » B :
+
+- [x] Passage 1 (manuel, 14 h 27) — 13 écarts observés, aucun mouvement
+- [ ] Passages 2 et 3 (crons des deux nuits suivantes) — les écarts persistants atteindront N=3
+- [ ] **Relire les écarts confirmés à la main** avant toute application
+- [ ] Basculer en `apply` : `npx tsx scripts/set-clan-lifecycle-config.ts --mode apply`
+- [ ] Vérifier le premier passage en `apply` : notification Discord reçue, mouvements conformes à la revue
+
+> Tant que `clan_lifecycle_mode` vaut `observe`, **aucun `clanId` n'est modifié**, quel que soit le nombre de
+> confirmations atteint. Le passage en `apply` est la seule décision qui engage.
 
 #### Chantier 2 — Promotion : un joueur d'UNG dont le clan est détecté
 
@@ -2851,7 +2972,11 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
       aucune exception ; la date de candidature affichée suit le seuil
 - [ ] **Transverse** — un `PlayerClanChange` est écrit pour chacune des 7 valeurs de `source`, et l'action
       « annuler » du journal restaure bien le `clanId` précédent
-- [ ] **Sûreté d'exécution** — les garde-fous doivent être testés avant tout, ce sont eux qui protègent :
+- [~] **Sûreté d'exécution** — **54 tests livrés le 2026-09-20** :
+      [`safety.test.ts`](../../src/lib/clan-lifecycle/safety.test.ts) (29, fonctions pures),
+      [`membership-sync.test.ts`](../../src/lib/clan-lifecycle/membership-sync.test.ts) (16, passage complet) et
+      [`discord-notifier.test.ts`](../../src/lib/clan-lifecycle/discord-notifier.test.ts) (9, dont le webhook non
+      configuré qui ne doit ni lever ni notifier). Couvrent A, B, C et D. Reste **E**. Couverture visée :
       une réponse API **sans le champ `clanId`** produit `unknown` et **ne déplace personne** (A) ; une seule
       confirmation ne suffit pas à déclencher une bascule (A) ; un passage dépassant le ratio est marqué `aborted`
       **sans aucun mouvement appliqué** (A) ; en mode `observe` les événements sont écrits et aucun `clanId` ne
@@ -2877,8 +3002,9 @@ notifications Discord et ajoutent une page d'administration : **aucun de ces doc
 - [ ] **Documenter les garde-fous de sûreté** dans `cycle-de-vie-clan.md` : mode `observe` vs `apply`, sens de
       l'état `unknown`, coupe-circuit de volumétrie et procédure de revert par lot — ce sont les mécanismes qu'un
       exploitant doit comprendre avant de basculer en `apply`
-- [ ] **`docs/ops/cron.md`** — nouveau cron de synchronisation d'appartenance : horaire, coût en appels PUBG,
-      interaction avec le quota partagé, et ce qu'il déclenche automatiquement
+- [ ] **`docs/ops/cron.md`** — nouveau cron `clan_lifecycle_membership_sync` (`45 1 * * *`,
+      `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON`) : **35 appels et ~255 s mesurés** sur 346 membres, placement avant
+      `daily_sync`, modes `observe`/`apply`, et fermeture des passages bloqués par `runDbMaintenance`
 - [ ] **`docs/ops/settings.md`** — annoncé « 7 pages `/settings/*` » : passe à **8** avec `/settings/clan-lifecycle`,
       dont l'onglet « Paramètres » et les 5 clés `AppConfig`
 - [ ] **`docs/ops/nav-permissions.md`** — nouvelle entrée `superuser-menu` et rappel du `seed-nav-items.ts`
@@ -2891,6 +3017,21 @@ notifications Discord et ajoutent une page d'administration : **aucun de ces doc
 > en rattrapage à la fin. Un chantier dont la doc n'est pas à jour n'est pas terminé.
 
 #### Sûreté d'exécution — éviter les erreurs silencieuses et les faux positifs
+
+> ### ✅ Socle livré le 2026-09-20 — module [`src/lib/clan-lifecycle/`](../../src/lib/clan-lifecycle/)
+>
+> Les garde-fous **A** et **B** sont codés et testés **avant** le cron qui les consommera, conformément au rang 4
+> de l'ordre d'implémentation. Trois fichiers : `clan-state.ts` (résolution à trois états, lots plafonnés),
+> `safety.ts` (confirmations et coupe-circuit, **fonctions pures**), `config.ts` (les 8 clés `AppConfig`).
+>
+> [`safety.test.ts`](../../src/lib/clan-lifecycle/safety.test.ts) — **24 tests**, vérifiés en neutralisant les
+> gardes. Le plus important couvre le cas qui m'avait échappé à la première écriture : **N réponses dégradées
+> d'affilée sont « identiques » entre elles**, donc la règle de stabilité seule les prendrait pour une
+> confirmation et basculerait le joueur sur du vide. Deux gardes complémentaires l'empêchent, et il faut
+> neutraliser **les deux** pour faire rougir le test.
+>
+> Restent à câbler avec le chantier 1 : C (frontière transactionnelle, déjà appliquée sur le chemin manuel du
+> chantier 3), D (verrou de run), E (sémantique d'annulation).
 
 > **Pourquoi cette section.** Les chantiers ci-dessus décrivent *quoi* construire. Celle-ci décrit *comment
 > l'exécuter sans rien casser en silence* — le chantier 1 mute le `clanId` de 324 membres sans validation humaine,
@@ -2910,22 +3051,34 @@ bascule donc toute la ligue dans UNG en un passage, sans lever d'erreur, avec 32
 > C'est aussi l'angle mort du diagnostic Vvila : on a conclu « sans clan » parce que l'API renvoie `null`. Rien ne
 > prouve qu'elle n'omet pas simplement le champ.
 
-- [ ] Renvoyer un résultat à **trois états** au lieu d'un `string | null` : `has_clan` / `no_clan` / `unknown`
-      (champ absent, réponse inattendue, erreur réseau). `unknown` ne déclenche **jamais** d'action
-- [ ] **N passages concordants avant d'agir** sur une disparition de clan (proposition : 2, donc 48 h). Stocker le
-      compteur sur `Player` ou dans l'événement `observed`, et le remettre à zéro dès qu'un passage contredit
-- [ ] **Coupe-circuit de volumétrie** : si un passage veut déplacer plus de `clan_lifecycle_max_moves_ratio` % de
-      l'effectif suivi (proposition : 10 %), il **n'applique rien**, marque le run `aborted` et alerte. Un vrai
-      événement de masse reste alors possible, mais seulement sur décision humaine
+- [x] Résultat à **trois états** livré — [`clan-lifecycle/clan-state.ts`](../../src/lib/clan-lifecycle/clan-state.ts) :
+      `has_clan` / `no_clan` / `unknown`, avec quatre raisons distinctes d'incertitude (`field_absent`,
+      `missing_from_response`, `unexpected_type`, `request_failed`). `readClanIdState()` est pure et testable sans
+      réseau. Une panne d'appel marque **tout le lot** `unknown` au lieu de conclure
+- [x] **N passages concordants** livré — `evaluateConfirmations()` dans
+      [`clan-lifecycle/safety.ts`](../../src/lib/clan-lifecycle/safety.ts), fonction **pure**. Exige *la stabilité,
+      pas la répétition* : les N dernières observations doivent être identiques **entre elles**, et une seule
+      incertitude remet la série à zéro. Les deux cas réels du 2026-09-20 sont des tests : la série de Vvila ne
+      déclenche pas à N=3 mais aurait déclenché à N=2, celle de pagiotte déclenche correctement
+- [ ] **Choisir le support de stockage des observations** — reste ouvert. Piste privilégiée : n'écrire une ligne
+      `PlayerClanChange` en `observed` que lorsqu'un écart est constaté, et lire les N dernières pour ce compte.
+      Évite une colonne dédiée et 324 écritures par jour quand rien ne bouge
+- [x] **Coupe-circuit de volumétrie** livré — `evaluateCircuitBreaker()`, pure. Ne saute jamais quand aucun
+      mouvement n'est prévu, ni exactement au seuil : c'est le dépassement qui déclenche. Le marquage `aborted` du
+      run et l'alerte restent à câbler avec le cron (chantier 1)
 - [ ] Tracer dans le run : nombre d'`unknown`, nombre de candidats écartés faute de confirmation, et si le
       coupe-circuit s'est déclenché
 
 ##### 🔴 B — Mode observation obligatoire avant la première activation
 
-- [ ] Ajouter un état `observed` à `PlayerClanChange.status` : l'événement est écrit, **aucun mouvement n'est
-      appliqué**
-- [ ] `AppConfig.clan_lifecycle_mode` = `observe` | `apply` (**défaut : `observe`**), réglable depuis l'onglet
-      « Paramètres ». Le passage à `apply` est une décision explicite, prise après comparaison
+- [x] État `observed` présent dans `PlayerClanChange.status` (migration du 2026-09-20) et dans les constantes de
+      [`player-clan-change.ts`](../../src/lib/player-clan-change.ts) — `appliedAt` reste nul tant que le statut
+      n'est pas `applied`
+- [x] `AppConfig.clan_lifecycle_mode` livré — [`clan-lifecycle/config.ts`](../../src/lib/clan-lifecycle/config.ts),
+      **défaut `observe`**. Tout ce qui n'est pas explicitement `apply` reste en observation, et une base
+      indisponible retombe sur les valeurs par défaut, qui sont toutes les plus prudentes
+- [x] `shouldApplyMovements(mode, breaker)` : n'applique que si le mode vaut `apply` **et** que le coupe-circuit
+      n'a pas sauté
 - [ ] L'onglet « Mutations » affiche les lignes `observed` comme « ce qui aurait été fait », pour confronter à la
       réalité avant de basculer
 - [ ] Critère de sortie proposé : plusieurs jours consécutifs sans faux positif constaté
@@ -2942,11 +3095,12 @@ bascule donc toute la ligue dans UNG en un passage, sans lever d'erreur, avec 32
 Les crons existants se protègent avec un **booléen en mémoire** ([cron-jobs.ts:64-75](../../src/lib/cron-jobs.ts#L64-L75)).
 Ça ne protège ni d'un second process (web + worker), ni d'un crash en milieu de lot.
 
-- [ ] Table de run dédiée, sur le modèle exact d'[`EncounteredPlayerResolutionRun`](../../prisma/schema.prisma#L281)
-      (`status: running | success | failed | aborted`, compteurs, durée) — **et non `CronExecution`, dont le
-      `clanId` est obligatoire** ([schema.prisma:1243](../../prisma/schema.prisma#L1243)) alors que ce cron est global
-- [ ] Refus de démarrer si un run `running` existe déjà, et fermeture des runs bloqués par `runDbMaintenance`,
-      comme le fait déjà le ménage à 6 h
+- [x] Table `ClanLifecycleRun` — migration `20260920160000_add_clan_lifecycle_run`, **appliquée en production le
+      2026-09-20**. Calquée sur `EncounteredPlayerResolutionRun`, avec `mode`, `circuitBreakerTripped`,
+      `movesRatioPercent` et les compteurs d'états. **Pas `CronExecution`**, dont le `clanId` est obligatoire
+- [x] **Verrou en base** : `runMembershipSyncPass()` refuse de démarrer si un run `running` existe, et renvoie
+      `status: 'skipped'`. `closeStaleLifecycleRuns()` ferme les passages bloqués — reste à brancher sur
+      `runDbMaintenance`
 - [ ] **Reprise idempotente** : rejouer un passage interrompu ne doit produire aucun doublon d'événement ni de
       mouvement — la comparaison porte sur l'état courant, pas sur un curseur
 
@@ -3031,8 +3185,8 @@ parfaitement normale.
 | 1 | **Modèle de données** | `Clan.isSystem` et `PlayerClanChange` : les deux migrations additives conditionnent tous les chantiers suivants |
 | 2 | ✅ **0 — UNG protégé** | **Livré le 2026-09-20.** Migration en production, 8 tests, clan technique `#201 [UNG]` créé sur `steam` |
 | 3 | ✅ **3 — Owner → UNG** | **Livré et activé le 2026-09-20.** Migration `PlayerClanChange` en production, API, UI, 8 tests, clan cible créé |
-| 4 | **Sûreté d'exécution A à E** | Les garde-fous se livrent **avec** le chantier 1, pas après : ce sont eux qui empêchent un passage de déplacer toute la ligue par erreur |
-| 5 | **1 — Synchronisation quotidienne** | Conditionné par le prérequis `filter[playerIds]` ; **produit les événements `PlayerClanChange` dont le chantier 2 se nourrit**. Première mise en service **obligatoirement en mode `observe`** |
+| 4 | 🟡 **Sûreté d'exécution A à E** | **A, B, C et D livrés le 2026-09-20.** Reste **E** (sémantique d'annulation), qui va avec le journal du chantier 5 |
+| 5 | ✅ **1 — Synchronisation quotidienne** | **Livré le 2026-09-20** : service, cron, notification Discord (webhook configuré et testé), page des mutations, 54 tests. **Premier passage réel réussi en mode `observe`** (346 membres, 35 appels, 13 écarts) |
 | 6 | **2 — Promotion UNG → clan** | Se branche sur les événements du chantier 1 : ne peut pas passer avant lui |
 | 7 | **5 — Page unique + purge d'UNG** | Rend exploitables les événements des chantiers 1 à 3 et comble le trou de validation des clans ; sans elle, UNG grossit sans recours |
 | 8 | **4 — Email de contact `/join`** | Indépendant du reste, à caler quand le flux de validation sera stabilisé ; la route `reject` qu'il crée est consommée par l'onglet « Clans en attente » du chantier 5 |

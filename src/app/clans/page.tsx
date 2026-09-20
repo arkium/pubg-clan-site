@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Users } from 'lucide-react'
+import Link from 'next/link'
+import { History, Users } from 'lucide-react'
 
 import ClanSelector, { type Clan } from '@/components/ClanSelector'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -141,6 +142,17 @@ export default function ClansPage() {
         onRetry={() => setRetryToken((token) => token + 1)}
         isSuperUser={isSuperUser}
       />
+
+      {/* Chantier 1 : les mouvements automatiques ne doivent jamais etre silencieux. */}
+      <div className="mt-8 flex justify-center">
+        <Link
+          href="/clans/mutations"
+          className="app-panel-muted inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+        >
+          <History className="h-4 w-4" aria-hidden="true" />
+          Historique des mouvements de clan
+        </Link>
+      </div>
     </main>
   )
 }

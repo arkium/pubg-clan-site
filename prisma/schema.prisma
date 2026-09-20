@@ -329,6 +329,53 @@ model EncounteredPlayerResolutionRun {
   @@map("EncounteredPlayerResolutionRun")
 }
 
+// Passage du cron de synchronisation d'appartenance — cycle de vie du clan d'un
+// joueur (docs/TODO/todo.md, section P2, garde-fou D de « Surete d'execution »).
+//
+// Table dediee plutot que CronExecution, dont le clanId est obligatoire alors que
+// ce cron est global. Sert aussi de verrou : un passage refuse de demarrer si un
+// autre est encore `running`, et de point de rattachement au revert par lot via
+// PlayerClanChange.runId.
+model ClanLifecycleRun {
+  id String @id @default(cuid())
+
+  // cron | manual
+  source String @default("cron")
+  // running | success | failed | aborted
+  status String @default("running")
+  // observe | apply — mode effectif au moment du passage
+  mode String @default("observe")
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  membersScanned   Int @default(0)
+  apiCalls         Int @default(0)
+  statesHasClan    Int @default(0)
+  statesNoClan     Int @default(0)
+  statesUnknown    Int @default(0)
+
+  discrepanciesFound   Int @default(0)
+  // Ecarts vus mais pas encore confirmes N fois — ils n'ont produit aucun mouvement.
+  awaitingConfirmation Int @default(0)
+  movementsPlanned     Int @default(0)
+  movementsApplied     Int @default(0)
+
+  circuitBreakerTripped Boolean @default(false)
+  movesRatioPercent     Float?
+
+  triggeredByUserId Int?
+  errorMessage      String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, startedAt])
+  @@index([startedAt])
+  @@map("ClanLifecycleRun")
+}
+
 // Journal des changements de clan d'un joueur — cycle de vie du clan d'un joueur
 // (docs/TODO/todo.md, section P2). Trace chaque mouvement, qu'il soit automatique
 // (cron de synchronisation d'appartenance) ou manuel (bascule par un Owner), et

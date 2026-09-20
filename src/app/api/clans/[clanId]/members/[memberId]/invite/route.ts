@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
 import { createMemberInvite, revokeActiveMemberInvite } from '@/lib/auth-service'
+import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
@@ -45,8 +46,17 @@ export async function POST(
       )
     }
 
+    // Chantier 4 : si le membre a laisse un email de contact sur /join, il sert de
+    // valeur par defaut — inutile de lui redemander la meme information.
+    const memberContact = await prisma.clanMember.findUnique({
+      where: { id: parsedMemberId },
+      select: { contactEmail: true },
+    })
+
+    const resolvedEmail = validated.data.email ?? memberContact?.contactEmail ?? undefined
+
     const shouldSendEmail = validated.data.sendEmail !== false
-    if (shouldSendEmail && !validated.data.email) {
+    if (shouldSendEmail && !resolvedEmail) {
       return Response.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
@@ -62,7 +72,7 @@ export async function POST(
     const invite = await createMemberInvite({
       clanId: parsedClanId,
       memberId: parsedMemberId,
-      email: validated.data.email,
+      email: resolvedEmail,
       invitedByUserId: session?.userId ?? null,
       invitedByMemberId: actorMemberId,
       sendEmail: validated.data.sendEmail,

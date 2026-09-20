@@ -81,7 +81,7 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
-| POST | `/api/join` | Session (cookie), pas de rôle clan requis | ✅ Pertinent | Rejoint un clan existant (pending) ou en crée un nouveau (Owner) — voir [Clans](../features/clans.md) |
+| POST | `/api/join` | Session (cookie), pas de rôle clan requis | ✅ Pertinent | Rejoint un clan existant (pending) ou en crée un nouveau (Owner) — voir [Clans](../features/clans.md). **`contactEmail` exigé uniquement pour une création de clan** |
 
 ---
 
@@ -257,6 +257,29 @@ Même payload que la route clan, sans restriction de clan, plus `data.tournament
 | GET | `/api/clans/[clanId]/reports/[reportId]/export` | `requireNavPermission('clan.reports')` | ✅ Pertinent | Export HTML/PDF/JSON (`?format=`) — voir [Rapports](../features/reports.md) |
 
 > **Historique :** `challenges` (liste + détail + leaderboard) et `reports` (détail + export) n'appliquaient auparavant aucun contrôle de rôle. Un `requireNavPermission` a été ajouté (2026-07-05), réutilisant les clés nav existantes `clan.challenges` / `clan.reports` des pages web correspondantes.
+
+---
+
+## Cycle de vie des clans — `/api/settings/clan-lifecycle/*`, `/api/clan-lifecycle/*`
+
+Voir [Cycle de vie du clan](../features/cycle-de-vie-clan.md).
+
+| Méthode | Chemin | Auth | Pertinence mobile | Description |
+|---|---|---|---|---|
+| GET | `/api/clan-lifecycle/mutations` | Session | ✅ Pertinent | Historique public des mouvements (`applied`, `reverted` seulement), paginé |
+| GET | `/api/settings/clan-lifecycle` | SuperUser | ❌ | Réglages + santé du dernier passage + compteurs des onglets, en une requête |
+| PATCH | `/api/settings/clan-lifecycle` | SuperUser | ❌ | Modifie les réglages. Le webhook n'est jamais renvoyé en clair |
+| GET | `/api/settings/clan-lifecycle/mutations` | SuperUser | ❌ | Journal complet, **tous statuts**, filtrable |
+| POST | `/api/settings/clan-lifecycle/mutations` | SuperUser | ❌ | `revert` (409 si l'état s'y oppose) ou `acknowledge` — ce dernier est libellé « Marquer comme vu » dans l'UI et ne modifie aucune donnée métier |
+| GET | `/api/settings/clan-lifecycle/ungrouped` | SuperUser | ❌ | Effectif du parking. `?thresholdDays=N` simule un autre seuil |
+| POST | `/api/settings/clan-lifecycle/ungrouped` | SuperUser | ❌ | `archive` (en masse) ou `reactivate` |
+| GET | `/api/settings/clan-lifecycle/pending-clans` | SuperUser | ❌ | Clans en attente avec demandeur, contact et promotions différées |
+| POST | `/api/clans/[clanId]/approve` | SuperUser | ❌ | Active le clan **et applique les mouvements en attente** |
+| POST | `/api/clans/[clanId]/reject` | SuperUser | ❌ | Refuse la demande, passe le demandeur en `rejected`, clôt les mouvements en attente |
+
+> **`DELETE /api/members/[id]` est passé au SuperUser** le 2026-09-20 (il était ouvert à `manage_members`).
+> `PATCH /api/members/[id]` s'ouvre en revanche à un Owner **uniquement** quand la cible est le clan technique
+> du même shard.
 
 ---
 

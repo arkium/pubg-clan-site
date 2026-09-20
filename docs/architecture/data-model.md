@@ -1,6 +1,6 @@
 # Modèle de données
 
-Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust in-process). 49 modèles au total (les sections ci-dessous ne détaillent que les principaux).
+Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust in-process). 54 modèles au total (les sections ci-dessous ne détaillent que les principaux).
 
 ## Vue d'ensemble par domaine
 
@@ -23,6 +23,8 @@ Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust 
 | `ClanRole` | Rôle personnalisé au niveau clan (avec permissions JSON) |
 | `ClanMemberRole` | Table de jonction membre ↔ rôle |
 | `Permission` | Registre global des permissions disponibles |
+| `PlayerClanChange` | Journal des changements d'appartenance de clan — détectés ou décidés (voir [Cycle de vie du clan](../features/cycle-de-vie-clan.md)) |
+| `ClanLifecycleRun` | Passage du cron de synchronisation d'appartenance : compteurs, mode, coupe-circuit. Sert aussi de verrou entre process |
 
 ### Matchs
 
@@ -82,19 +84,26 @@ Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust 
 id, name, tag, platformShard (défaut "steam")
 pubgClanId, clanStats (Json), clanLevel, clanPoints
 pubgCreatedAt, pubgMemberCount, pubgMembersSyncedAt
-isActive, createdAt, updatedAt
+isActive, isSystem, createdAt, updatedAt
 ```
 
 Contrainte unique : `(name, platformShard)` et `(pubgClanId, platformShard)`.
+
+`isSystem` marque le **clan technique** du shard (`Ungrouped` / `UNG`), parking des joueurs sans clan qu'on continue de suivre. Un clan système n'a pas de `pubgClanId`, n'est jamais renommé depuis l'API PUBG et n'apparaît pas dans les sélecteurs côté joueur. L'identification passe **toujours** par ce champ, jamais par le nom — voir [Cycle de vie du clan](../features/cycle-de-vie-clan.md).
 
 ### ClanMember
 
 ```
 id, displayName, pubgPlayerName, pubgAccountId
 platformShard (défaut "steam"), isActive, clanId
+archivedAt, archivedReason, contactEmail
 ```
 
 Contrainte unique : `(pubgPlayerName, platformShard)`. Le champ `isActive` filtre les membres qui ont quitté le clan sans supprimer leurs données.
+
+`isActive: false` recouvre désormais **quatre** situations distinctes : adhésion en attente, membre rejeté, arrêt de suivi, et archivage du parking. Seul `archivedReason` distingue la dernière — une requête qui filtre `isActive: false` sans qualifier davantage les mélange toutes.
+
+`contactEmail` est l'adresse laissée sur `/join` lors d'une demande de **création** de clan. Elle vit sur `ClanMember` parce que c'est la seule table qui connaît déjà le pseudo du demandeur à ce stade : `UserAccount` n'existe pas encore (son `passwordHash` est non nullable) et `Clan` perdrait le lien avec le joueur.
 
 ### MemberIdentity
 
@@ -272,6 +281,36 @@ Clan
   ├── CronExecution (1-N)
   └── MemberInvite (1-N)
 ```
+
+---
+
+### PlayerClanChange
+
+```
+id, pubgAccountId, platformShard, clanMemberId
+previousClanId / newClanId          (clans du SITE — seuls utilisables pour un revert)
+previousPubgClanId / newPubgClanId  (ce que l'API PUBG a renvoyé au moment de la détection)
+source, status, runId
+detectedAt, appliedAt, acknowledgedAt, acknowledgedByUserId, triggeredByUserId
+```
+
+`source` : `player_sync` · `auto_demotion` · `auto_transfer` · `ungrouped_promotion` · `player_refresh` · `manual_demotion` · `manual_transfer` · `manual_revert`
+
+`status` : `observed` (écart en cours de confirmation) · `pending` (attend la validation d'un clan) · `applied` · `ignored` · `reverted`
+
+La ligne est écrite **dans la même transaction que le mouvement** : un mouvement sans trace serait invisible, une trace sans mouvement serait un faux positif. `runId` rattache l'événement au passage de cron qui l'a produit, ce qui rend possible un revert par lot.
+
+### ClanLifecycleRun
+
+```
+id, source, status, mode
+startedAt, finishedAt, durationMs
+membersScanned, apiCalls, statesHasClan / statesNoClan / statesUnknown
+discrepanciesFound, awaitingConfirmation, movementsPlanned, movementsApplied
+circuitBreakerTripped, movesRatioPercent, triggeredByUserId, errorMessage
+```
+
+Table dédiée plutôt que `CronExecution`, dont le `clanId` est obligatoire alors que ce cron est global. Elle sert aussi de **verrou** : un passage refuse de démarrer si un autre est encore `running`. Les passages bloqués sont fermés par `runDbMaintenance`.
 
 ---
 

@@ -241,6 +241,22 @@ Toutes exigent `manage_settings` sur le clan.
 
 ---
 
+## Webhook d'administration — global, pas par clan
+
+Tout ce qui précède décrit des webhooks **par clan** (`ClanConfig`). Le cycle de vie des clans en utilise un autre, **global**, stocké dans `AppConfig.clan_lifecycle_discord_webhook_url` : une mutation d'appartenance concerne toute la ligue, pas un clan en particulier, et le salon d'administration n'est pas celui des annonces.
+
+| | Webhooks par clan | Webhook d'administration |
+|---|---|---|
+| Stockage | `ClanConfig` | `AppConfig` |
+| Configuré depuis | Paramètres du clan | `/settings/clan-lifecycle`, onglet « Paramètres » |
+| Contenu | Top 1, résultats de tournoi | Mouvements de clan détectés automatiquement |
+
+La validation de l'URL est **partagée** (`isValidDiscordWebhookUrl`, `normalizeWebhookUrl`) : pas de seconde règle qui pourrait diverger.
+
+Un webhook vide est un cas normal, pas une erreur : aucune notification ne part et la page l'affiche comme « non configuré ».
+
+Voir [Cycle de vie du clan](cycle-de-vie-clan.md).
+
 ## Limites connues
 
 - **Pas de victoire en solo, ni de seuil à 1 membre.** `detectSquadFromMatchDetails()` exige au moins deux membres du clan pour créer un `SquadMatch` : un Top 1 en solo n'existe pas dans les données et ne peut donc pas être notifié.

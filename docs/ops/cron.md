@@ -22,6 +22,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `monthly_report_auto` | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génère le rapport mensuel pour tous les clans actifs |
 | `challenge_processing` | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges expirés |
 | `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) |
+| `clan_lifecycle_membership_sync` | `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON` | `45 1 * * *` | Vérifie l'appartenance de clan de chaque membre suivi, joueur par joueur |
 | `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
 
 La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune à tous les schedules.
@@ -90,6 +91,33 @@ Déclenché à minuit chaque nuit pour tous les clans actifs. Pour chaque clan :
 ### `encountered_player_clan_resolution` — Clans des joueurs croisés
 
 Toutes les 30 min. Sélectionne un lot d'identités non résolues (`selectPrioritizedEncounteredPlayerIdentities`) puis résout leur clan PUBG ; chaque passage est tracé dans `EncounteredPlayerResolutionRun` (pas dans `CronExecution`). Depuis le 2026-09-15, la sélection se fait en deux paliers — identités avec interaction de combat, puis classement complet mis en cache 6 h — au lieu d'un regroupement de ~560 000 lignes à chaque passage (48 s → 1,8 s). Détail et mesures : [database-performance.md](database-performance.md#32-cron-de-résolution-des-adversaires--sélection-en-deux-paliers-2026-09-15).
+
+### `clan_lifecycle_membership_sync` — Appartenance de clan
+
+Compare, pour chaque `ClanMember` actif, le clan enregistré sur le site au clan renvoyé par l'API PUBG. Documenté en détail dans [Cycle de vie du clan](../features/cycle-de-vie-clan.md).
+
+**Placement à 01 h 45 :** quinze minutes avant `daily_sync` (02 h 00), pour que les mouvements soient appliqués **avant** le recalcul des agrégats du matin — les statistiques partent ainsi du bon clan.
+
+**Coût mesuré le 2026-09-20 :** 346 membres, **35 appels PUBG**, ~255 s. La durée est bornée par le quota partagé de 10 req/min, pas par le traitement. Les lots sont plafonnés à **10 identifiants** : au-delà, l'API renvoie `200 OK` avec seulement 10 joueurs, sans erreur.
+
+**Ce qu'il fait automatiquement**, une fois le mode passé à `apply` :
+
+- bascule vers le clan technique un membre dont le départ est confirmé ;
+- transfère entre deux clans suivis quand la destination est stable ;
+- crée en attente de validation un clan détecté mais inconnu ;
+- marque les membres du parking éligibles à l'archivage.
+
+**Trois garde-fous**, tous configurables depuis `/settings/clan-lifecycle` :
+
+| | |
+|---|---|
+| Mode `observe` (défaut) | Journalise les écarts, **ne déplace personne** |
+| N confirmations | Un écart doit être constaté N passages d'affilée ; `attributes.clanId` clignote pour ~5 % des comptes |
+| Coupe-circuit | Au-delà d'une part de l'effectif, le passage est marqué `aborted` et rien n'est appliqué |
+
+**Verrou :** un passage refuse de démarrer si un `ClanLifecycleRun` est encore `running`. Verrou en base, pas en mémoire — le web et le worker sont deux process distincts. Les passages bloqués sont fermés par `db_maintenance`.
+
+**Lancement manuel :** `npx tsx scripts/run-clan-lifecycle-sync.ts` (respecte le mode configuré).
 
 ### `db_maintenance` — Maintenance nocturne
 

@@ -156,7 +156,13 @@ export async function revertPlayerClanChange(
   }
 }
 
-/** Marque un événement comme acquitté, sans rien déplacer. */
+/**
+ * Marque un événement comme relu, sans rien déplacer.
+ *
+ * Le nom technique reste `acknowledge` (et `acknowledgedAt` en base), mais l'UI dit
+ * **« Marquer comme vu »** : « acquitter » venait du vocabulaire de supervision et
+ * n'était pas compris à l'usage.
+ */
 export async function acknowledgePlayerClanChange(changeId: string, userId: number) {
   await prisma.playerClanChange.update({
     where: { id: changeId },

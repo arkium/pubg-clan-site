@@ -2773,23 +2773,35 @@ manuel du même chemin.
 > rattacher au clan d'origine : les deux familles de vues divergent après un déplacement. À trancher si cette
 > divergence doit être corrigée (backfill de `KillEvent.clanId`) ou simplement documentée.
 
-#### Chantier 4 — Demande de création de clan (`/join`) : contact et notifications
+#### ✅ Chantier 4 — Demande de création de clan (`/join`) : contact et notifications — livré le 2026-09-20
 
-- [ ] **Formulaire `/join`** : exiger une adresse email de contact du propriétaire lors de la demande d'intégration
-      d'un nouveau clan. `JoinRequestSchema` ([join/route.ts:9](../../src/app/api/join/route.ts#L9)) ne porte
-      aujourd'hui que `pubgPlayerName`, `platformShard` et `mode` — le champ est entièrement à créer (schéma Zod,
-      UI, stockage)
-- [ ] **Stocker l'email sur `ClanMember.contactEmail`** — *tranché le 2026-09-20*, voir l'encadré ci-dessous
-- [ ] **Créer `POST /api/clans/[clanId]/reject`** — **la route n'existe pas** : `src/app/api/clans/[clanId]/`
-      ne contient que `approve`. Doit refuser le clan, notifier, et laisser le demandeur en `joinStatus: 'rejected'`
-      (état qui autorise la ré-adhésion, voir « Cycle de vie des membres rejetés » en P1)
-- [ ] **Notification de décision** : à l'acceptation comme au refus, envoyer un email au créateur via
-      [email-service.ts](../../src/lib/email-service.ts) (`sendEmail`, déjà en place)
-- [ ] **Prévoir le cas SMTP non configuré** : `SMTP_URL` est optionnel (voir CLAUDE.md) et `email-service` bascule
-      alors en mode `stub`. La décision doit rester visible dans l'UI SuperUser même quand aucun email ne part
-- [ ] **Reprendre l'email à l'activation** : quand l'Owner active son compte, `ClanMember.contactEmail` doit
-      pré-remplir `UserAccount.email` et l'invitation (`MemberInvite.email`), pour ne pas redemander la même
-      information deux fois
+- [x] **Formulaire `/join`** : champ email ajouté au schéma Zod, à la modale de confirmation et au stockage.
+      Il n'apparaît **que si `actionType === 'create_clan'`** et n'est exigé que sur cette branche côté API —
+      rejoindre un clan existant ne nécessite pas de pouvoir recontacter le demandeur
+- [x] **Stocker l'email sur `ClanMember.contactEmail`** — migration `20260920190000_add_member_contact_email`,
+      **appliquée en production le 2026-09-20**. Justification dans l'encadré ci-dessous
+- [x] **`POST /api/clans/[clanId]/reject` créé.** Le clan **n'est pas supprimé** : il reste inactif avec son
+      historique, et le demandeur passe en `joinStatus: 'rejected'` — état qui autorise la ré-adhésion.
+      Refuse un clan déjà actif (409) et le clan technique (400). **Clôt aussi les `PlayerClanChange` en attente
+      qui visaient ce clan** : les joueurs détectés comme l'ayant rejoint ne doivent pas rester suspendus à une
+      approbation qui n'arrivera pas
+- [x] **Notification de décision** — [`clan-decision-email.ts`](../../src/lib/clan-lifecycle/clan-decision-email.ts),
+      branchée sur `approve` et `reject`, **hors chemin critique** : un SMTP absent ou en panne ne peut pas
+      empêcher la décision, qui est déjà prise et visible dans l'UI
+- [x] **Cas SMTP non configuré** couvert : `sendClanApprovedEmail` / `sendClanRejectedEmail` renvoient
+      `{ sent: false, reason }` au lieu de lever, et la réponse de la route le dit explicitement
+      (« Aucun email envoyé »). Un clan découvert automatiquement n'a d'ailleurs **aucun demandeur**, donc aucun
+      contact : c'est un cas normal, pas une anomalie
+- [x] **Email repris à l'invitation** : `POST .../members/[memberId]/invite` utilise `ClanMember.contactEmail`
+      comme valeur par défaut quand aucune adresse n'est fournie — l'information n'est pas redemandée
+- [x] **Onglet « Clans en attente » complété** (il attendait ce chantier) : route dédiée
+      [`pending-clans`](../../src/app/api/settings/clan-lifecycle/pending-clans/route.ts) exposant le demandeur,
+      son email et le nombre de joueurs qui rejoindront le clan à l'activation. Bouton « Refuser » activé.
+      La page distingue un clan **demandé via `/join`** d'un clan **découvert automatiquement** — la distinction
+      change la décision
+- [x] Tests : [`clan-contact-email.test.ts`](../../src/lib/clan-contact-email.test.ts), **9 tests** (notification
+      sans contact, échec SMTP, motif de refus, refus d'un clan actif ou technique, clôture des mouvements,
+      gating SuperUser)
 
 > **Où stocker l'email — tranché le 2026-09-20 : `ClanMember.contactEmail String?` (nullable).**
 >
@@ -2821,21 +2833,26 @@ l'éparpiller entre une page de mutations, une UI de purge et la validation des 
 
 - [x] **Onglet « Mutations »** — journal complet, **tous statuts** y compris `observed` et `pending` : c'est ici
       qu'on comprend *pourquoi* un mouvement n'a pas encore eu lieu. Filtre par statut, actions « annuler » et
-      « acquitter »
+      « Marquer comme vu »
 - [x] **Onglet « Clans en attente »** — liste des `Clan` en `isActive: false` avec action « Valider », qui
       déclenche les déplacements différés du cas B. Le bouton « Refuser » attend la route `reject` du chantier 4,
       et `contactEmail` attend son champ — les deux sont notés là-bas
 - [x] **Onglet « Ungrouped »** — effectif trié du plus inactif au plus récent, jours d'inactivité, date
       d'éligibilité à l'archivage, et archivage en masse des candidats en un clic
-- [ ] **Onglet « Paramètres »** — *tous* les réglages de la thématique au même endroit (voir le bloc dédié
+- [x] **Onglet « Paramètres »** — *tous* les réglages de la thématique au même endroit (voir le bloc dédié
       ci-dessous) : salon Discord d'administration, règle d'archivage d'UNG, interrupteurs d'automatisation
 - [x] **Onglet « Santé »** — dernier passage détaillé, dix derniers runs, et **coût quotidien du parking**
       (un appel PUBG par joueur et par jour) : le chiffre que l'archivage sert à réduire. Alimenté par
       `ClanLifecycleRun`
 - [x] Entrée `superuser.clan-lifecycle` ajoutée au registre **et** `npx tsx prisma/seed-nav-items.ts` exécuté —
       **61 lignes `NavItem` en base** après coup. Sans ce seed l'entrée n'apparaît jamais : le piège était bien réel
-- [x] Compteurs affichés sous les onglets : mutations non acquittées, clans en attente, effectif du parking et
+- [x] Compteurs affichés sous les onglets : mutations à relire, clans en attente, effectif du parking et
       nombre d'archivables
+
+> **Renommage du 2026-09-20, après retour d'usage.** Le bouton « Acquitter » n'était pas compris — le terme
+> vient du vocabulaire de supervision. Devenu **« Marquer comme vu »**, avec une légende sur l'onglet qui
+> oppose les deux actions : l'une modifie les données, l'autre non. Les noms techniques (`acknowledge` côté
+> API, `acknowledgedAt` en base) sont inchangés — les renommer n'aurait produit que du bruit.
 
 ##### Onglet « Paramètres » — tout est réglable depuis l'UI, rien en dur
 
@@ -2887,6 +2904,8 @@ cet onglet, sans redéploiement.
       production le 2026-09-20
 - [x] `ClanMember.archivedAt` + `archivedReason` — migration `20260920180000_add_member_archive_fields`,
       appliquée en production le 2026-09-20. Distingue une purge d'un arrêt de suivi, qui posent le même `isActive`
+- [x] `ClanMember.contactEmail` — migration `20260920190000_add_member_contact_email`, appliquée en production
+      le 2026-09-20
 - [x] Table `PlayerClanChange` — migration `20260920140000_add_player_clan_change`, **appliquée en production le
       2026-09-20**. Purement additive : un `CREATE TABLE`, trois clés étrangères, aucun `ALTER` sur l'existant.
       `migrate diff` vide avant et après. Champs réellement créés :
@@ -2943,7 +2962,7 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
 
 | Fichier | Impact | Pourquoi |
 |---|---|---|
-| [join-validation.test.ts](../../src/lib/join-validation.test.ts) | ⚠️ **Divergence silencieuse** | Le fichier **recopie `JoinRequestSchema` en dur** au lieu de l'importer. Ajouter `contactEmail` (chantier 4) laissera le test **vert contre une copie périmée** : il ne validera plus rien du vrai schéma |
+| [join-validation.test.ts](../../src/lib/join-validation.test.ts) | ✅ **Corrigé le 2026-09-20** | Le fichier **importe désormais le vrai `JoinRequestSchema`**, exporté par la route. La prédiction s'est vérifiée en direct : ajouter `contactEmail` au chantier 4 n'aurait pas fait rougir l'ancienne version. 4 tests ajoutés sur le nouveau champ |
 | [members-add.test.ts](../../src/lib/members-add.test.ts) | ⚠️ **Divergence silencieuse** | Même motif, assumé par un commentaire dans le fichier : « Schéma testé à l'identique de `src/app/api/members/route.ts` ». Toute évolution du schéma réel passe inaperçue |
 | [clan-approval.test.ts](../../src/lib/clan-approval.test.ts) | ⚠️ **Divergence silencieuse** | N'exécute aucun code de production : il assertie sur des littéraux écrits à la main. L'extension de `approve` (déplacements différés du cas B) ne sera pas couverte |
 | [member-lifecycle.test.ts](../../src/lib/member-lifecycle.test.ts) | ⚠️ **Divergence silencieuse** | Réimplémente la logique actif/rejeté dans le test. Le passage de `DELETE` au SuperUser (chantier 3) ne s'y verra pas |
@@ -2988,8 +3007,9 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
       **8 tests**, vérifiés en neutralisant le correctif. Utilise `vi.hoisted()` pour les mocks, comme
       `route-contracts.test.ts` — sans quoi `vi.mock` est hoisté au-dessus des déclarations et le fichier ne
       collecte aucun test
-- [ ] **Chantier 4** — `JoinRequestSchema` rejette un email absent ou malformé ; `contactEmail` est bien repris
-      dans `UserAccount.email` à l'activation ; `reject` laisse la fiche en `joinStatus: 'rejected'`
+- [x] **Chantier 4** — [`clan-contact-email.test.ts`](../../src/lib/clan-contact-email.test.ts) (9) et les
+      4 tests ajoutés à [`join-validation.test.ts`](../../src/lib/join-validation.test.ts), désormais branché sur
+      le vrai schéma
 - [ ] **Chantier 5** — sélection des candidats à l'archivage au seuil configuré, archivage en masse idempotent,
       réactivation, **un membre archivé ne consomme plus d'appel PUBG** ; webhook vide = aucune notification et
       aucune exception ; la date de candidature affichée suit le seuil
@@ -3006,35 +3026,38 @@ C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs d
       change (B) ; un échec de notification Discord n'annule pas un mouvement déjà écrit (C) ; rejouer un passage
       interrompu ne crée ni doublon d'événement ni double mouvement (D) ; annuler un événement périmé est refusé (E)
 
-#### Documentation à produire
+#### ✅ Documentation — produite le 2026-09-20
 
 **Constat :** la documentation du dépôt décrit « le comportement réel du code actuel » (en-tête de
 [sommaire.md](../sommaire.md)). Ces six chantiers modifient le modèle de données, les permissions, les crons, les
 notifications Discord et ajoutent une page d'administration : **aucun de ces documents ne peut rester en l'état.**
 
-- [ ] **Créer `docs/features/cycle-de-vie-clan.md`** — document dédié, le sujet est trop large pour tenir dans
-      `clans.md` : clan système `Ungrouped`, détection quotidienne des changements, promotion, rétrogradation,
-      archivage, journal des mutations, et les trois gestes de sortie avec leurs conséquences sur les agrégats
-- [ ] **`docs/sommaire.md`** — ligne d'index vers le nouveau document + date de mise à jour de l'en-tête
-- [ ] **`docs/features/clans.md`** — flux `/join` enrichi de l'email de contact, existence du clan système, et les
-      trois chemins de sortie d'un membre
-- [ ] **`docs/architecture/data-model.md`** — annoncé « 49 modèles » : passe à **50** avec `PlayerClanChange`, plus
-      les 4 nouveaux champs (`Clan.isSystem`, `ClanMember.contactEmail`, `archivedAt`, `archivedReason`)
-- [ ] **`docs/architecture/api-reference.md`** — nouvelles routes : `POST /api/clans/[clanId]/reject`, routes de la
-      page du chantier 5, et **changement de permission** de `DELETE /api/members/[id]` (Owner → SuperUser)
-- [ ] **Documenter les garde-fous de sûreté** dans `cycle-de-vie-clan.md` : mode `observe` vs `apply`, sens de
-      l'état `unknown`, coupe-circuit de volumétrie et procédure de revert par lot — ce sont les mécanismes qu'un
-      exploitant doit comprendre avant de basculer en `apply`
-- [ ] **`docs/ops/cron.md`** — nouveau cron `clan_lifecycle_membership_sync` (`45 1 * * *`,
-      `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON`) : **35 appels et ~255 s mesurés** sur 346 membres, placement avant
-      `daily_sync`, modes `observe`/`apply`, et fermeture des passages bloqués par `runDbMaintenance`
-- [ ] **`docs/ops/settings.md`** — annoncé « 7 pages `/settings/*` » : passe à **8** avec `/settings/clan-lifecycle`,
-      dont l'onglet « Paramètres » et les 5 clés `AppConfig`
-- [ ] **`docs/ops/nav-permissions.md`** — nouvelle entrée `superuser-menu` et rappel du `seed-nav-items.ts`
-- [ ] **`docs/features/discord-notifications.md`** — le webhook d'administration est **global** (`AppConfig`), à
-      distinguer explicitement des webhooks par clan déjà documentés
-- [ ] **`CLAUDE.md`** — table « Scheduled Jobs » à compléter avec le nouveau cron
-- [ ] **`docs/ui/index.html`** — la modale à trois choix du chantier 3 doit rejoindre le catalogue (charte §22)
+- [x] **[`docs/features/cycle-de-vie-clan.md`](../features/cycle-de-vie-clan.md) créé** — 10 sections : le
+      problème et les deux contraintes mesurées, le clan technique, la synchronisation quotidienne, la promotion,
+      les trois gestes de sortie, l'archivage, le journal, les réglages, les fichiers, et **les limites connues**
+- [x] **`docs/sommaire.md`** — ligne d'index ajoutée, date passée au 2026-09-20, et les compteurs corrigés
+      (modèles, pages `/settings`, contenu de `cron.md`)
+- [x] **`docs/features/clans.md`** — renvoi en tête, section « Le clan technique `Ungrouped` » et tableau des
+      trois chemins de sortie, avec le passage de `DELETE` au SuperUser
+- [x] **`docs/architecture/data-model.md`** — compteur corrigé à **54** (il annonçait 49 alors que le schéma en
+      comptait déjà plus), `PlayerClanChange` et `ClanLifecycleRun` détaillés, et les 5 nouveaux champs documentés.
+      Noté au passage que **`isActive: false` recouvre désormais quatre situations** distinctes, que seul
+      `archivedReason` sépare
+- [x] **`docs/architecture/api-reference.md`** — nouvelle section « Cycle de vie des clans » (10 routes), mention
+      du `contactEmail` sur `/api/join`, et encadré sur le changement de permission de `DELETE /api/members/[id]`
+- [x] **Garde-fous documentés** dans `cycle-de-vie-clan.md` : résolution à trois états, décision en deux
+      niveaux, coupe-circuit, verrou, règles d'annulation, et la séquence de mise en service
+- [x] **`docs/ops/cron.md`** — ligne de tableau + section détaillée : placement avant `daily_sync` et pourquoi,
+      coût mesuré, les quatre actions automatiques, les trois garde-fous, le verrou en base
+- [x] **`docs/ops/settings.md`** — page `/settings/clan-lifecycle` documentée : les 5 onglets et les **7 clés**
+      `AppConfig` (il y en avait plus que les 5 annoncées au plan)
+- [x] **`docs/ops/nav-permissions.md`** — avertissement ajouté à l'endroit où le piège se produit : le menu lit
+      la table, pas le registre, et l'oubli du seed rend l'entrée invisible
+- [x] **`docs/features/discord-notifications.md`** — section dédiée opposant le webhook global aux webhooks par
+      clan, et rappel que la validation d'URL est partagée entre les deux
+- [x] **`CLAUDE.md`** — `45 1 * * *` ajouté à la table « Scheduled Jobs »
+- [ ] **`docs/ui/index.html`** — la modale à trois choix du chantier 3 n'a **pas** rejoint le catalogue.
+      C'est le seul document de cette liste qui reste à faire
 
 > **Règle retenue :** la documentation est mise à jour **dans le même lot que le code**, chantier par chantier, pas
 > en rattrapage à la fin. Un chantier dont la doc n'est pas à jour n'est pas terminé.
@@ -3214,7 +3237,7 @@ parfaitement normale.
 | 5 | ✅ **1 — Synchronisation quotidienne** | **Livré le 2026-09-20** : service, cron, notification Discord (webhook configuré et testé), page des mutations, 54 tests. **Premier passage réel réussi en mode `observe`** (346 membres, 35 appels, 13 écarts) |
 | 6 | ✅ **2 — Promotion UNG → clan** | **Livré le 2026-09-20** : cas A/B/C intégrés au passage, application différée à l'approbation, 8 tests |
 | 7 | ✅ **5 — Page unique + purge d'UNG** | **Livré le 2026-09-20** : page à 5 onglets, 3 routes API, purge, garde-fou E, 15 tests |
-| 8 | **4 — Email de contact `/join`** | Indépendant du reste, à caler quand le flux de validation sera stabilisé ; la route `reject` qu'il crée est consommée par l'onglet « Clans en attente » du chantier 5 |
+| 8 | ✅ **4 — Email de contact `/join`** | **Livré le 2026-09-20** : champ email, route `reject`, notifications, 9 tests. Débloque le bouton « Refuser » et l'affichage du contact au chantier 5 |
 
 > **Corrigé le 2026-09-20 :** les chantiers 1 et 2 étaient inversés. Depuis que le chantier 2 « se branche
 > directement sur les événements `PlayerClanChange` générés par le cron quotidien du chantier 1 », il ne peut plus

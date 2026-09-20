@@ -2,7 +2,7 @@
 
 Index de toute la documentation technique du projet. Chaque doc décrit le comportement réel du code actuel.
 
-**Mise à jour :** 2026-09-15 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
+**Mise à jour :** 2026-09-20 | **Stack :** Next.js 16.2.6 · React 19.2.4 · TypeScript 5 · Prisma 6.19.3 · Node 22 LTS
 
 ---
 
@@ -11,7 +11,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | Document | Contenu |
 |---|---|
 | [Stack](architecture/stack.md) | Tech stack, contraintes Node 22 / Next 16.x, gotchas critiques, variables d'environnement, commandes npm |
-| [Data model](architecture/data-model.md) | 49 modèles Prisma par domaine, relations clés, champs métier importants, stratégie de périodes |
+| [Data model](architecture/data-model.md) | 54 modèles Prisma par domaine, relations clés, champs métier importants, stratégie de périodes |
 | [Structure du code](architecture/code-structure.md) | Organisation des dossiers, patterns page / hook / route API / service, conventions de nommage |
 | [Plan application mobile](architecture/mobile-app-plan.md) | React Native vs Flutter, chantier auth (cookie → token), plan de développement par phases |
 | [Référence API](architecture/api-reference.md) | Vue d'ensemble de toutes les routes API, auth requise, pertinence pour le mobile |
@@ -26,6 +26,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 |---|---|
 | [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre, SuperUser, flux /join |
 | [Clans](features/clans.md) | Structure clan, hiérarchie rôles + matrice permissions, flux /join et membres pending, sync PUBG, overview, crons |
+| [Cycle de vie du clan d'un joueur](features/cycle-de-vie-clan.md) | Détection quotidienne des changements d'appartenance, clan technique `Ungrouped`, promotion et rétrogradation, archivage, journal des mutations, garde-fous d'exécution |
 | [Leaderboard](features/leaderboard.md) | Calcul classement interne, périodes, periodKey, progression, badges Top performers |
 | [Matchs](features/matches.md) | Modèles Match/SquadMatch/SquadMember, détection squad, sessions, stats des 13 champs API, synergies |
 | [Dashboard membre](features/member-dashboard.md) | Sections dashboard, PlayerStats vs MemberLifetimeStats, progression, squads fréquents, heatmap |
@@ -88,9 +89,9 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 |---|---|
 | [Dev setup](ops/dev-setup.md) | Installation Windows/VSCode, Node 22 via nvm-windows, extensions VSCode, .env, multi-terminaux, problèmes courants |
 | [Déploiement production](ops/deployment.md) | Variables d'env, build, 4 processus à démarrer, units systemd, migration DB, rollback, healthchecks |
-| [Cron](ops/cron.md) | Jobs planifiés (dont `db_maintenance`), actions manuelles, table CronExecution, pages de pilotage, variables d'env |
+| [Cron](ops/cron.md) | Jobs planifiés (dont `clan_lifecycle_membership_sync` et `db_maintenance`), actions manuelles, tables CronExecution et ClanLifecycleRun, pages de pilotage, variables d'env |
 | [Performance de la base](ops/database-performance.md) | État mesuré de MariaDB (mémoire, requêtes lentes, index), script `db-health`, sélection en deux paliers du cron de résolution, recommandations en attente |
-| [Paramètres admin](ops/settings.md) | 7 pages /settings/* — PUBG API, email, welcome, labels cartes/armes/phases, catégories armes |
+| [Paramètres admin](ops/settings.md) | 8 pages /settings/* — PUBG API, email, welcome, labels cartes/armes/phases, catégories armes, cycle de vie des clans |
 | [Permissions navigation](ops/nav-permissions.md) | Table NavItem en DB, CRUD depuis l'UI, rôles, ordre drag & drop inter-sections, page owner/superuser |
 | [Bootstrap SuperUser](ops/superuser-bootstrap.md) | Procédure CLI pour accorder/révoquer le statut SuperUser, prérequis, matrice des droits |
 

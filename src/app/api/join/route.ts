@@ -6,10 +6,23 @@ import { searchPlayerByName, fetchPlayerClan } from '@/lib/pubg'
 import { initializeDefaultRoles } from '@/lib/role-service'
 import { notifyJoinRequest, notifyClanCreationRequest } from '@/lib/notification-service'
 
-const JoinRequestSchema = z.object({
+// Exporte pour que le test importe le VRAI schema au lieu d'en recopier une
+// version qui divergerait en silence (voir « Tests de controle » du todo).
+export const JoinRequestSchema = z.object({
   pubgPlayerName: z.string().trim().min(1, 'Le pseudo PUBG est requis').max(32),
   platformShard: z.string().default('steam'),
   mode: z.enum(['preview', 'join']).default('join'),
+  // Chantier 4 : email de contact du demandeur. Optionnel en `preview` — la
+  // previsualisation ne cree rien, inutile de le reclamer avant de savoir si le
+  // joueur existe. Sa presence est exigee a l'execution, et seulement quand un
+  // clan va reellement etre cree (voir plus bas).
+  contactEmail: z
+    .string()
+    .trim()
+    .email('Adresse email invalide')
+    .max(190)
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
 })
 
 type JoinRequestPayload = z.infer<typeof JoinRequestSchema>
@@ -36,7 +49,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { pubgPlayerName, platformShard, mode } = validated.data
+    const { pubgPlayerName, platformShard, mode, contactEmail } = validated.data
 
     // 1. Resolve player account ID from PUBG API
     let pubgAccountId: string
@@ -250,6 +263,21 @@ export async function POST(request: Request) {
       }
     } else {
       // CASE 2: Clan doesn't exist - create new clan and member
+
+      // Chantier 4 : creer un clan engage la ligue, on veut pouvoir recontacter le
+      // demandeur pour lui annoncer la decision. L'email n'est exige que sur cette
+      // branche : rejoindre un clan existant ne le necessite pas.
+      if (!contactEmail) {
+        return Response.json(
+          {
+            error:
+              "Une adresse email de contact est requise pour demander la création d'un clan : elle sert à vous notifier de la décision du SuperUser.",
+            code: 'CONTACT_EMAIL_REQUIRED',
+          },
+          { status: 400 }
+        )
+      }
+
       const newClanName = pubgClanInfo?.name || pubgPlayerName
       const newClanTag = pubgClanInfo?.tag || pubgPlayerName.substring(0, 4).toUpperCase()
 
@@ -278,6 +306,7 @@ export async function POST(request: Request) {
             platformShard,
             isActive: false,
             joinStatus: 'pending',
+            contactEmail,
           },
         })
       } else {
@@ -290,6 +319,7 @@ export async function POST(request: Request) {
             platformShard,
             isActive: false,
             joinStatus: 'pending',
+            contactEmail,
           },
         })
       }

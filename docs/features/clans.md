@@ -4,6 +4,10 @@ Ce document décrit la structure des clans dans l'application, les rôles dispon
 
 ---
 
+> 🔗 **Le suivi de l'appartenance dans le temps** — détection des départs, clan technique `Ungrouped`,
+> promotion, archivage et journal des mutations — est documenté à part :
+> [Cycle de vie du clan d'un joueur](cycle-de-vie-clan.md).
+
 ## 1. Distinction fondamentale — Deux systèmes de gestion clan
 
 Ces deux systèmes coexistent et ne doivent pas être confondus.
@@ -172,6 +176,19 @@ export type PubgClan = {
 
 ---
 
+## 4bis. Le clan technique `Ungrouped`
+
+Un clan par `platformShard` porte `isSystem: true`. Il sert de **parking** aux joueurs sans clan qu'on continue de suivre, et à ceux en transition.
+
+Ses particularités, toutes assumées :
+
+- pas de `pubgClanId`, donc **jamais** synchronisé depuis l'API PUBG ;
+- **actif** (`isActive: true`) — ses membres continuent d'être synchronisés, c'est l'intérêt même du parking ;
+- filtré du sélecteur de clan et du comparateur pour les non-SuperUsers ;
+- identifié **par `isSystem`**, jamais par son nom.
+
+`syncClanMembership()` refuse explicitement un clan système : il n'a pas de roster PUBG à comparer.
+
 ## 5. Gestion des membres
 
 ### Ajout d'un membre — flux manuel (invitation)
@@ -241,6 +258,18 @@ La route `GET /api/clans/[clanId]/members?status=pending` retourne uniquement le
 Un membre qui quitte le clan est passé à `isActive: false`, `joinStatus: 'archived'`. Il n'est plus inclus dans les calculs de stats ni dans les syncs, mais ses données historiques sont conservées.
 
 ---
+
+### 5bis. Les trois façons de faire sortir un membre
+
+| Geste | Qui | Effet sur `ClanMember` | Sync PUBG |
+|---|---|---|---|
+| **Sortir du clan** (`PATCH`) | Owner | `clanId` → clan technique | maintenue |
+| **Transférer de clan** (`PATCH`) | SuperUser | `clanId` → clan cible | maintenue |
+| **Arrêter le suivi** (`DELETE`) | **SuperUser uniquement** | `isActive: false`, `clanId` inchangé | **arrêtée** |
+
+`DELETE` est réservé au SuperUser depuis le 2026-09-20 : il coupe la synchronisation, donc fait disparaître le joueur de l'écosystème. Un Owner qui veut se séparer d'un membre le bascule vers le clan technique — le suivi continue et la bascule est tracée.
+
+Les trois gestes retirent le membre des agrégats du clan. Détails et conséquences : [Cycle de vie du clan](cycle-de-vie-clan.md).
 
 ## 6. Page `/clans/[clanId]/overview`
 

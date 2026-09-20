@@ -76,6 +76,12 @@ model ClanMember {
   // vaut false dans les deux cas, seul archivedReason dit pourquoi.
   archivedAt     DateTime?
   archivedReason String?
+  // Email de contact saisi sur /join lors d'une demande de creation de clan
+  // (chantier 4). Porte par ClanMember parce que c'est la seule table qui
+  // connait deja le pseudo du demandeur a ce stade : UserAccount n'existe pas
+  // encore (passwordHash non nullable) et Clan perdrait le lien avec le joueur.
+  // Repris comme UserAccount.email a l'activation du compte.
+  contactEmail   String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

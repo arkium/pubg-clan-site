@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         return Response.json({ error: 'Session invalide' }, { status: 401 })
       }
       await acknowledgePlayerClanChange(input.changeId, session.userId)
-      return Response.json({ success: true, message: 'Mouvement acquitté.' })
+      return Response.json({ success: true, message: 'Mouvement marqué comme vu.' })
     }
 
     const outcome = await revertPlayerClanChange(input.changeId, session?.userId ?? null)

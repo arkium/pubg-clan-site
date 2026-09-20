@@ -210,7 +210,7 @@ export default function ClanLifecyclePage() {
         />
         {counters ? (
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            {counters.unacknowledged} mouvement(s) non acquitté(s)
+            {counters.unacknowledged} mouvement(s) à relire
             <Badge count={counters.unacknowledged} /> · {counters.pendingClans} clan(s) en attente
             <Badge count={counters.pendingClans} /> · {counters.ungroupedMembers} joueur(s) au
             parking, dont {counters.archiveCandidates} archivable(s)
@@ -697,7 +697,16 @@ function UngroupedTab({
 
 // ------------------------------------------------------------ Clans en attente
 
-type PendingClan = { id: number; name: string; tag: string; platformShard: string; isActive: boolean }
+type PendingClan = {
+  id: number
+  name: string
+  tag: string
+  platformShard: string
+  createdAt: string
+  origin: 'join_request' | 'auto_detected'
+  requester: { memberId: number; playerName: string; contactEmail: string | null } | null
+  pendingPromotions: number
+}
 
 function PendingClansTab({
   onChanged,
@@ -716,11 +725,9 @@ function PendingClansTab({
     async function load() {
       try {
         setLoading(true)
-        const res = await fetch('/api/clans?all=true', { cache: 'no-store' })
+        const res = await fetch('/api/settings/clan-lifecycle/pending-clans', { cache: 'no-store' })
         const data = await res.json()
-        if (!cancelled && res.ok && Array.isArray(data)) {
-          setClans(data.filter((c: PendingClan) => !c.isActive))
-        }
+        if (!cancelled && res.ok) setClans(data.clans ?? [])
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -731,12 +738,20 @@ function PendingClansTab({
     }
   }, [token])
 
-  async function approve(clanId: number) {
+  async function decide(clanId: number, decision: 'approve' | 'reject') {
+    if (decision === 'reject' && !window.confirm('Refuser cette demande de clan ?')) {
+      return
+    }
+
     setBusyId(clanId)
     try {
-      const res = await fetch(`/api/clans/${clanId}/approve`, { method: 'POST' })
+      const res = await fetch(`/api/clans/${clanId}/${decision}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Échec de la validation')
+      if (!res.ok) throw new Error(data?.error ?? 'Échec')
       onToast(data.message, 'success')
       setToken((t) => t + 1)
       onChanged()
@@ -764,25 +779,72 @@ function PendingClansTab({
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-3">
       {clans.map((clan) => (
-        <li
-          key={clan.id}
-          className="app-panel-muted flex flex-wrap items-center gap-3 rounded-xl p-3 text-sm"
-        >
-          <span className="font-semibold text-slate-900 dark:text-white">
-            [{clan.tag}] {clan.name}
-          </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">{clan.platformShard}</span>
-          <button
-            type="button"
-            onClick={() => void approve(clan.id)}
-            disabled={busyId === clan.id}
-            className="app-btn app-btn--md ml-auto inline-flex items-center gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-500"
-          >
-            {busyId === clan.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-            Valider
-          </button>
+        <li key={clan.id} className="app-panel-muted rounded-xl p-4 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-900 dark:text-white">
+              [{clan.tag}] {clan.name}
+            </span>
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                clan.origin === 'auto_detected'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              {clan.origin === 'auto_detected' ? 'découvert automatiquement' : 'demande /join'}
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{clan.platformShard}</span>
+            <span className="ml-auto text-xs text-slate-400">{formatDate(clan.createdAt)}</span>
+          </div>
+
+          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+            {clan.requester ? (
+              <>
+                Demandeur : <strong>{clan.requester.playerName}</strong>
+                {' · '}
+                {clan.requester.contactEmail ? (
+                  <span className="font-mono">{clan.requester.contactEmail}</span>
+                ) : (
+                  <span className="italic text-slate-400">aucun email de contact</span>
+                )}
+              </>
+            ) : (
+              <span className="italic text-slate-500 dark:text-slate-400">
+                Aucun demandeur — ce clan a été découvert par la synchronisation, pas demandé.
+              </span>
+            )}
+            {clan.pendingPromotions > 0 ? (
+              <>
+                {' · '}
+                <strong>{clan.pendingPromotions}</strong> joueur(s) y seront rattachés à
+                l’activation
+              </>
+            ) : null}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void decide(clan.id, 'approve')}
+              disabled={busyId === clan.id}
+              className="app-btn app-btn--md inline-flex items-center gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-500"
+            >
+              {busyId === clan.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              Valider
+            </button>
+            <button
+              type="button"
+              onClick={() => void decide(clan.id, 'reject')}
+              disabled={busyId === clan.id}
+              className="app-btn app-btn--md app-btn--secondary"
+            >
+              Refuser
+            </button>
+          </div>
         </li>
       ))}
     </ul>
@@ -858,6 +920,28 @@ function MutationsTab({
 
   return (
     <div>
+      {/* Les deux actions se ressemblent mais n'ont rien a voir : l'une modifie les
+          donnees, l'autre pas. La confusion a ete constatee a l'usage. */}
+      <div className="app-panel-muted mb-4 rounded-xl p-3 text-xs text-slate-600 dark:text-slate-300">
+        <p className="mb-1.5 font-bold text-slate-900 dark:text-white">Les deux actions</p>
+        <ul className="space-y-1">
+          <li className="flex items-start gap-2">
+            <RotateCcw className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+            <span>
+              <strong>Annuler</strong> — replace réellement le joueur dans son clan précédent et
+              écrit une ligne inverse. Modifie les données.
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+            <span>
+              <strong>Marquer comme vu</strong> — indique que vous avez relu ce mouvement et qu’il
+              est normal. Le sort de la file de relecture, <strong>sans rien modifier</strong>.
+            </span>
+          </li>
+        </ul>
+      </div>
+
       <div className="mb-4">
         <SegmentedControl
           options={[
@@ -921,10 +1005,11 @@ function MutationsTab({
                     type="button"
                     onClick={() => void act(mutation.id, 'acknowledge')}
                     disabled={busyId === mutation.id}
+                    title={'Sort ce mouvement de la file de relecture. Ne modifie rien.'}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    Acquitter
+                    Marquer comme vu
                   </button>
                 ) : null}
               </div>

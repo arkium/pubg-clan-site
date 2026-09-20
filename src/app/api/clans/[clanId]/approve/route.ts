@@ -1,4 +1,5 @@
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { sendClanApprovedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
 import { applyPendingPromotionsForClan } from '@/lib/clan-lifecycle/pending-promotions'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
@@ -87,6 +88,18 @@ export async function POST(
       }).catch((err: unknown) => console.error('[clan-approve] Error notifying owner:', err))
     }
 
+    // Chantier 4 : prevenir le demandeur. Hors chemin critique — un SMTP absent ne
+    // doit pas empecher l'activation du clan, qui est deja faite a ce stade.
+    const emailResult = await sendClanApprovedEmail({
+      contactEmail: ownerMember?.contactEmail ?? null,
+      clanName: updatedClan.name,
+      clanTag: updatedClan.tag,
+      playerName: ownerMember?.pubgPlayerName ?? 'joueur',
+    }).catch((emailError) => {
+      console.error('[clan-approve] Email failed:', emailError)
+      return { sent: false as const, reason: 'failed' as const }
+    })
+
     const promotionSuffix =
       appliedPromotions.length > 0
         ? ` ${appliedPromotions.length} joueur(s) en attente y ont été rattachés : ${appliedPromotions
@@ -104,6 +117,7 @@ export async function POST(
         isActive: updatedClan.isActive,
       },
       appliedPromotions,
+      emailSent: emailResult.sent,
     })
   } catch (error) {
     console.error('Error approving clan:', error)

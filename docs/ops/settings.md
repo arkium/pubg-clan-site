@@ -15,6 +15,38 @@ Chaque page utilise la structure standard :
 
 ---
 
+## `/settings/clan-lifecycle` — Cycle de vie des clans
+
+Accès : SuperUser (`superuser.clan-lifecycle`).
+
+Page unique regroupant toute la thématique de l'appartenance de clan, en cinq onglets. Documentée en détail dans [Cycle de vie du clan](../features/cycle-de-vie-clan.md).
+
+| Onglet | Contenu |
+|---|---|
+| **Mutations** | Journal des `PlayerClanChange`, **tous statuts** — y compris les écarts en cours de confirmation. Actions « Annuler » (modifie les données) et « Marquer comme vu » (sort de la file de relecture, ne modifie rien) |
+| **Clans en attente** | Clans en `isActive: false` : demandes `/join` **et** clans découverts automatiquement. Valider ou refuser |
+| **Ungrouped** | Effectif du clan technique trié du plus inactif, date d'éligibilité à l'archivage, archivage en masse |
+| **Paramètres** | Les 8 clés `AppConfig` de la thématique |
+| **Santé** | Dernier passage du cron, dix derniers runs, coût quotidien du parking en appels PUBG |
+
+### Réglages exposés
+
+| Clé `AppConfig` | Rôle | Défaut |
+|---|---|---|
+| `clan_lifecycle_mode` | `observe` ou `apply` | `observe` |
+| `clan_lifecycle_confirmations_required` | Passages concordants avant d'agir | `3` |
+| `clan_lifecycle_max_moves_ratio` | Coupe-circuit, en % de l'effectif | `10` |
+| `clan_lifecycle_discord_webhook_url` | Salon d'administration (global, pas par clan) | vide |
+| `ungrouped_archive_after_days` | Seuil d'inactivité du parking | `90` |
+| `ungrouped_auto_archive` | Archive sans validation | `false` |
+| `ungrouped_auto_promote` | Promotion automatique depuis le parking | `true` |
+
+Le webhook n'est **jamais renvoyé en clair** par l'API : la page n'affiche qu'une version masquée.
+
+En ligne de commande : `npx tsx scripts/set-clan-lifecycle-config.ts --show | --mode apply | --webhook "<url>" --test`.
+
+---
+
 ## `/settings/pubg-api` — Monitoring PUBG API
 
 Accès : Owner (`owner.pubg-api`, permission `*`).

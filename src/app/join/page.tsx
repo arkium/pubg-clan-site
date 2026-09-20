@@ -76,6 +76,8 @@ export default function JoinPage() {
   const [previewData, setPreviewData] = useState<JoinPreviewData | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
+  // Chantier 4 : email de contact, exige uniquement pour une creation de clan.
+  const [contactEmail, setContactEmail] = useState('')
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -149,6 +151,7 @@ export default function JoinPage() {
           pubgPlayerName: previewData.player.pubgPlayerName,
           platformShard: previewData.player.platformShard,
           mode: 'join',
+          contactEmail: contactEmail.trim() || undefined,
         }),
       })
 
@@ -524,6 +527,33 @@ export default function JoinPage() {
               <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
                 <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
                 <div>{confirmError}</div>
+              </div>
+            )}
+
+            {/* Email de contact — uniquement pour une création de clan : rejoindre un
+                clan existant ne nécessite pas de pouvoir recontacter le demandeur. */}
+            {previewData.actionType === 'create_clan' && (
+              <div className="app-modal-callout mt-4 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                <label
+                  htmlFor="contact-email"
+                  className="block text-xs font-bold text-slate-900 dark:text-white"
+                >
+                  Adresse email de contact <span className="text-rose-600">*</span>
+                </label>
+                <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
+                  Votre demande de création de clan sera examinée par un administrateur. Cette
+                  adresse sert à vous notifier de sa décision, et à préparer votre accès au site.
+                </p>
+                <input
+                  id="contact-email"
+                  type="email"
+                  required
+                  value={contactEmail}
+                  onChange={(event) => setContactEmail(event.target.value)}
+                  disabled={isConfirming}
+                  placeholder="vous@exemple.com"
+                  className="app-modal-select mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
               </div>
             )}
 

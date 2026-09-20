@@ -42,6 +42,10 @@ model NavItem {
 
 Peuplée via `prisma/seed-nav-items.ts` (idempotent, `upsert` sur `navKey`).
 
+> ⚠️ **Le menu lit cette table, pas le registre.** Ajouter une entrée à `nav-permissions-registry.ts` ne suffit
+> pas : sans `npx tsx prisma/seed-nav-items.ts`, elle n'apparaît **jamais**. Le piège s'est reproduit lors de
+> l'ajout de `superuser.clan-lifecycle` (2026-09-20) — 61 lignes en base après le seed.
+
 ---
 
 ## Section d'affichage effective

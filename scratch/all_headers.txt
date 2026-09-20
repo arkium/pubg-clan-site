@@ -1,0 +1,121 @@
+## P1 — Bloquants / manques fonctionnels immédiats
+### Lot 1 — Santé de la base de données (mesurer avant d'indexer) — 🚧 Démarré le 2026-09-15
+### Télémétrie — ordre des prochaines étapes (synthèse du 2026-09-16)
+### Notifications Discord automatiques — Alertes Top 1 & Résultats de Tournois dans des salons dédiés — ✅ Livré le 2026-09-13
+### Refonte UI/UX des Tournois — Page Publique Globale (`/tournaments`) & Paramétrage Clan (`/clans/[clanId]/settings/tournaments`)
+### ~~Gestion compacte des membres (`/clans/[clanId]/settings/members`) — Chevron de déploiement, badges abrégés et légende~~ — ✅ Complété le 2026-09-06
+### Analyse d'impact : Arrêt de suivi (`DELETE /api/members/[id]`) et Transfert de clan (`PATCH /api/members/[id]`) — Documenté le 2026-09-06
+### ~~Cycle de vie des membres rejetés — Déblocage sur `/join` et `/members/add` (Cas Leniver)~~ — ✅ Complété le 2026-09-06
+### ~~Demandes d'adhésion en attente (`/clans/[clanId]/members/pending`) — Refonte visuelle Hero Gaming, modale in-app et ergonomie~~ — ✅ Complété le 2026-09-06
+### ~~Page d'activation de compte (`/activate`) — Harmonisation visuelle, messages d'orientation et navigation de retour style `/join` & `/login`~~ — ✅ Complété le 2026-09-06
+### ~~Page de connexion (`/login`) — Harmonisation visuelle, messages d'orientation et navigation de retour style `/join`~~ — ✅ Complété le 2026-09-06
+### ~~Rejoindre ou créer un clan (`/join`) — Refonte visuelle style `/login` sans menu ni header et modale de confirmation en 2 étapes~~ — ✅ Complété le 2026-09-06
+### ~~Accueil de connexion Clan (`/clans/[clanId]/settings/login-welcome`) — Résolution du blocage d'upload d'image (Signalement seyo187)~~ — ✅ Complété le 2026-09-06
+### ~~Ajout d'un joueur (`/members/add`) — Nouveau Hero Header, nom affiché optionnel et refonte UX/pédagogique~~ — ✅ Complété le 2026-09-06
+### ~~Débriefing Tactique 2D Replay — Résolution de l'alias de map et harmonisation de la typographie~~ — ✅ Complété le 2026-09-05
+### ~~Comparateur de clans (`/clans/comparator`) — Sélecteur Roster « Trading Cards » & Arène de Confrontation~~ — ✅ Complété le 2026-09-04
+### ~~Observatoire des Clans, Résolution & Triage (`/settings/opponents`) — Tri, Métriques, Chargement progressif & Triage interactif~~ — ✅ Complété le 2026-09-03
+### ~~Purge de la télémétrie de géolocalisation & Suivi d'avancement par lots (`/settings/superuser/database`)~~ — ✅ Complété le 2026-09-03
+### ~~Synchronisation dynamique des Hubs de Paramètres (`/settings/admin`, `/settings/owner`, `/settings/superuser`) avec `nav-permissions`~~ — ✅ Complété le 2026-09-03
+### ~~Attribution et révocation du rôle Clan Owner par le SuperUser (`/clans/[clanId]/settings/members`)~~ — ✅ Complété le 2026-09-03
+### ~~Filtrage Normal / Tout & Contraste Mode Sombre sur les Awards (`/clans/[clanId]/awards`)~~ — ✅ Complété le 2026-09-03
+### ~~Modernisation Ops Cron (`/settings/cron`), Purge d'historique et Documentation des tâches~~ — ✅ Complété le 2026-09-02
+### Harmonisation de `/clans/[clanId]/telemetry/recoveries` avec la console globale — ✅ Réalisé le 2026-09-02
+### ~~Clans "trackés" (RATZ, BEE, MTFR, BDXX, FR-Alliance-BE) — stats à zéro malgré la télémétrie~~ — ✅ Corrigé le 2026-08-11
+### ~~Corrections UI & UX — Comparateur et Leaderboard~~ — ✅ Corrigé le 2026-08-14
+### ~~Dépendance `server-only` manquante — cassait `stats-calculator.ts` (via `notification-service.ts` → `email-service.ts`) hors build Next~~ — ✅ Corrigé le 2026-08-11
+### ~~SuperUser — Forbidden sur les clans hors clan d'appartenance~~ — ✅ Corrigé le 2026-08-09
+### ~~Refonte Dashboard Overview & Roster~~ — ✅ Complété (vérifié le 2026-08-30)
+### ~~Télémétrie — Backfill v1 → v2~~ — ✅ Complété le 2026-06-21
+### ~~Migration SQL production~~ — ✅ Appliquée le 2026-06-20
+### Pages UI manquantes ou non finalisées
+### ~~Drop zones membre — Lisibilité de la heatmap~~ — ✅ Complété le 2026-08-01
+### ~~Cartes PUBG — Gestion des villes et périmètres~~ — ✅ Complété le 2026-08-01
+### ~~Drop zones membre — Statistiques par ville~~ — ✅ Complété le 2026-08-01
+### ~~Drop zones clan — Alignement avec la page membre~~ — ✅ Complété le 2026-08-01
+### ~~Drop zones — Navigation cartographique~~ — ✅ Complété le 2026-08-01
+### ~~Positions clan — Carte, villes, gradation et classement~~ — ✅ Complété le 2026-08-01
+### Maîtrise armes (carrière) — Champs API mal mappés
+### Drop zones — Pression au drop dans un rayon de 250 m
+### Drop zones — Changement de carte au swipe (mobile)
+## P2 — Fonctionnalités incomplètes
+### ——— EN COURS / À FAIRE ———
+### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
+### 2. Push notifications — Infrastructure sans service
+### 3. Adversaires — Vue superadmin globale, suivi de joueurs et favoris
+### ——— TERMINÉ / CLOS ———
+### 4. ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
+### 5. ~~Stats lifetime — Pas de ventilation par mode~~ — ✅ Complété le 2026-06-23
+### 6. ~~Page `/clans` (sélecteur SuperUser) — Améliorations~~ — ✅ Implémenté le 2026-08-02
+### 7. ~~Engagement & Assiduité (Temps de jeu et Jours actifs)~~ — ✅ Implémenté le 2026-08-08
+### 8. ~~Auto-cleanup cron~~ — ✅ Clos le 2026-09-20 — requalifié le 2026-09-15, les trois suppressions écartées (voir « Lot 1 — Santé de la base », P1)
+### 9. ~~Streaming JSON parser~~ — ✅ Déjà implémenté (vérifié le 2026-06-23)
+## P3 — Améliorations et données non encore exploitées
+### Events télémétrie non parsés
+### Champs `SquadMember` non affichés
+### Survival Mastery — Endpoint investigué, non retenu (API cassée côté PUBG)
+### Cron — Rapports hebdomadaires / mensuels
+### ~~Monitoring PUBG API (`/settings/pubg-api`) — Lisibilité des données~~ — ✅ Déployé le 2026-08-05
+### ~~Monitoring PUBG API — Répartition par clan~~ — ✅ Déployé le 2026-08-06 (backend + UI)
+### ~~Récupérations télémétrie (`/clans/[clanId]/telemetry/recoveries`) — Pagination du tableau historique~~ — ✅ Déployé le 2026-08-06 (+ option validée)
+### ~~Détail télémétrie d'un match (`/clans/[clanId]/telemetry/matches/[matchId]/telemetry`) — Modernisation visuelle + pagination~~ — ✅ Déployé le 2026-08-06
+### Évolution du Détail Télémétrie d'un Match — Débriefing Tactique, Combat Log & Silhouette Anatomique SVG (Inspiration PUBG.PLUS) — 🆕 Stratégie Nouvelle Page Parallèle & Plan d'Action (2026-09-05)
+### ~~Vue cross-clans SuperUser — Télémétrie + API PUBG~~ — ✅ Déployé le 2026-08-06
+### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04
+## Technique
+### Tests
+### Documentation
+## Résumé — Ce qui reste à faire (au 2026-06-23)
+### Tâches ouvertes par priorité
+### Ce qui n'est PAS à faire (hors scope confirmé)
+## Idées — Comparaison de performances entre clans
+### Constat de départ
+### ~~1. Classement public inter-clans ("Ligue des clans")~~ — ✅ Fait à ~90 % (vérifié le 2026-08-30, déployé sous le nom "Ligue Inter-Clans" sans que cette section ait été mise à jour)
+### ~~2. Score de puissance de clan ("Clan Power Rating")~~ — ⚠️ Partiellement fait (vérifié le 2026-08-30)
+### ~~3. Détection de rivalité — clans qui se croisent dans le même match~~ — ⚠️ Fait à ~70 % via le Comparateur de Clans (vérifié le 2026-08-30)
+### 4. Normalisation par effectif — comparer équitablement petits et gros clans
+### 5. Défis et événements inter-clans
+### 6. Opt-in et confidentialité — condition préalable à tout ce qui précède
+### Priorisation suggérée
+## Suggestions — Stats et fonctionnalités
+### Stats individuelles à mettre en place
+### Stats clan globales
+### Fonctionnalités sociales et engagement
+### Fonctionnalités de gestion et animation du clan
+### Axes techniques qui débloqueraient plusieurs stats
+## Idées — Suivi des adversaires rencontrés en match
+### Règle d'appel API — à respecter strictement
+### ~~1. Identification légère des adversaires (sans créer de `Clan`/`ClanMember`)~~ — ✅ Déployé le 2026-08-03
+### ~~2. Compteur de croisements~~ — ✅ Déployé le 2026-08-03
+### ~~3. Némésis — qui nous a tués, qui on a tué~~ — ✅ Déployé le 2026-08-03 (+ backfill partiel via fichiers capturés)
+### ~~4. Bots par match — fréquentation lobby et bots neutralisés~~ — ✅ Déployé le 2026-08-04
+### Note pour plus tard — données de match du membre suivi lui-même
+### Suggestions complémentaires (brainstorm, non détaillées techniquement)
+### Priorisation suggérée
+## Idées — Nouvelles métriques d'engagement (Temps de jeu et Jours Actifs)
+### 1. Statistiques par Membre (`PlayerStats`) — ⚠️ Partiellement fait (vérifié 2026-08-08)
+### 2. Statistiques par Clan (`ClanStats` ou Dashboard)
+### 3. Statistiques de performance dérivées (KPI avancés)
+## Idées — Comparateur de Clans (Méta-Dashboard)
+### 0. Fondations — Service d'agrégation et cache — ✅ Complété le 2026-08-10
+### 1. L'Activité et le Rythme de jeu (Le "Pouls") — ✅ Complété le 2026-08-10 (hors heatmap horaire)
+### 2. Le Style de jeu (L'ADN) — ✅ Complété le 2026-08-10
+### 3. Les Performances Globales — ✅ Complété le 2026-08-10
+### 4. Le Head-to-Head (Le "Derby") — ✅ Complété le 2026-08-10
+### 5. UI/UX et Tests — 🚧 Base fonctionnelle livrée le 2026-08-10
+### 6. Nouvelles Statistiques Avancées (Télémétrie) — ⚠️ Implémenté le 2026-08-14, avec un écart de schéma trouvé le 2026-08-30 (voir ci-dessous)
+## Idées — Tournois entre clans
+### État réel — largement implémenté le 2026-08-30, bugs constatés à corriger
+### Constat de départ — un signal déjà en base et jamais exploité
+### Décisions actées (2026-08-29)
+### Point ouvert — granularité du classement (proposition par défaut, à valider à l'implémentation)
+### 0. Prérequis bloquant — le pipeline actuel ne capture aucun match `custom` ⚠️ vérifié le 2026-08-29 — ✅ Fix déployé le 2026-08-30 (points de vigilance ci-dessous restent ouverts)
+### 1. Fondations — modèle de données & migration — ✅ Livré le 2026-08-30
+### 2. Moteur d'attribution des matchs (backend) — ✅ Livré le 2026-08-30
+### 3. Moteur de barème (scoring) — ✅ Livré le 2026-08-30
+### 4. Administration — déclaration & gestion — ✅ Livré le 2026-08-30
+### 5. Consultation — liste & résultats — ✅ Livré le 2026-08-30
+### 6. Performances
+### 7. Tests & vérifications
+### Limites connues (acceptées à la conception)
+### ~~Télémétrie — Cron Timeout (UND_ERR_HEADERS_TIMEOUT)~~ — ✅ Corrigé le 2026-09-01

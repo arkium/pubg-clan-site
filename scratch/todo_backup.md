@@ -1,0 +1,5000 @@
+# Points à faire — PUBG Clan Site
+
+Suivi des tâches restantes, classées par priorité. Mis à jour au 2026-09-15.
+
+---
+
+## P1 — Bloquants / manques fonctionnels immédiats
+
+### Lot 1 — Santé de la base de données (mesurer avant d'indexer) — 🚧 Démarré le 2026-09-15
+
+> **Question de départ :** faut-il prévoir des index ? **Réponse mesurée : non, pas à l'aveugle.** Aucune requête
+> vérifiée ne manque d'index ; les vrais problèmes sont la mémoire du serveur, une requête de regroupement qu'aucun
+> index ne corrige, et une table déjà sur-indexée. Document de référence :
+> **[docs/ops/database-performance.md](../ops/database-performance.md)**.
+>
+> **État mesuré le 2026-09-15** (MariaDB 10.11, uptime 3,1 j) :
+> - `innodb_buffer_pool_size` = **128 Mo** (défaut) pour ~16 Go de données — 46,7 M lectures servies par le disque ;
+> - **314 requêtes > 10 s** (~103/jour) alors que le journal des requêtes lentes, `performance_schema` et `userstat`
+>   étaient éteints ;
+> - `EncounteredPlayer` : 1,64 M lignes, **1,1 Go d'index pour 374 Mo de données** (11 index secondaires) ;
+> - `EXPLAIN` : débriefing, replay, `KillEvent` par match et heatmap correctement indexés ; le cron de résolution des
+>   adversaires regroupait **~560 000 lignes** (table temporaire + tri) à chaque passage.
+> - Le compte applicatif détient des privilèges globaux (`SUPER`, `SHUTDOWN`, `CREATE USER` avec `GRANT OPTION`).
+
+- [x] **Mesures activées sur le serveur** (`scripts/db-health.ts enable --yes`, 2026-09-15) : journal des requêtes lentes
+  en table `mysql.slow_log` au seuil de 2 s, `userstat` pour les statistiques de lecture par index et par table.
+  Réversible (`disable --yes`), **non persistant** après un redémarrage de MariaDB. Les connexions déjà ouvertes par
+  l'application gardent leur ancien seuil de 10 s jusqu'à leur renouvellement.
+- [x] **Script `scripts/db-health.ts`** : `status` et `report` en lecture seule (requêtes lentes regroupées par forme et
+  triées par temps total, index jamais lus avec leur taille — clés étrangères signalées non supprimables —, tables les
+  plus lues) ; `enable`, `disable`, `reset-log` protégés par `--yes`.
+- [x] **Cron de résolution des adversaires : sélection en deux paliers** (`selectPrioritizedEncounteredPlayerIdentities`).
+  Palier 1 exact à chaque passage (identités avec interaction de combat, via l'index existant) ; palier 2 = classement
+  complet mis en cache 6 h et revérifié identité par identité. Mesuré en production sur les mêmes données :
+  **lot de 40 : 1,8 s au lieu de 43 s**, lot de 700 : 3,4 s après le premier calcul — **ordre strictement identique** à
+  l'ancien calcul (les 4 écarts relevés sans départage étaient des ex æquo stricts, désormais départagés par compte).
+  Seul écart assumé : une identité *sans* combat devenue prioritaire attend le recalcul du classement (6 h au plus).
+- [x] **Cron `db_maintenance`** (`15 1 * * *`, `src/lib/db-maintenance.ts`) : clôt en `failed` les exécutions restées
+  `running` plus de 6 h. Au 2026-09-15 : 32 `CronExecution` orphelines (depuis le 2026-05-30) et 21
+  `EncounteredPlayerResolutionRun` (du 2026-08-16 au 2026-09-14). **Ne supprime aucune donnée.**
+- [x] Tests : `encountered-player-resolution.test.ts` réécrit pour les deux paliers et le cache (4 cas),
+  `db-maintenance.test.ts` (2). 341 tests verts hors 3 fichiers branchés sur la base.
+- [x] Documentation : `docs/ops/database-performance.md` (nouveau), `docs/ops/cron.md` (`encountered_player_clan_resolution`,
+  qui manquait, et `db_maintenance`), `docs/sommaire.md`, `CLAUDE.md`.
+- [ ] **Déployer** : le cron `db_maintenance` et la nouvelle sélection ne tournent en production qu'après déploiement
+  (le déploiement actuel exécute du code plus ancien).
+- [ ] **2026-09-22 (J+7, couvre un lundi)** : `npx tsx scripts/db-health.ts report --days=7`, consigner le résultat dans
+  `docs/ops/database-performance.md`, puis décider des index de `EncounteredPlayer` (chevauchements structurels listés
+  §4.2 — à confirmer par les lectures réelles et par le code avant toute suppression).
+- [x] **Diagnostic serveur** (2026-09-15, lecture seule) : VM 7,6 Gio mutualisée, disque à 92 %, port 3306 ouvert à
+  Internet, comptes `smk` à droits globaux. Détail : `docs/ops/database-performance.md` §4.1 à §4.5.
+- [ ] **Privilèges `smk`** (décidé le 2026-09-15) : `REVOKE` des seuls droits globaux sur `smk@localhost` et
+  `smk@87.64.188.203` (droits par base conservés, `DATABASE_URL` inchangée), sauvegarde préalable des grants, redémarrage
+  des 4 services ; `GRANT SELECT` sur `mysql.slow_log` et `mysql.innodb_index_stats` à `smk@87.64.188.203` pour
+  `db-health report`, à retirer après le 2026-09-22. `sjlevage@'%'` et `erp@109.137.144.56` : **ne pas toucher**.
+  Sauvegarde faite (`/root/mariadb-grants-smk-2026-09-15-1810.sql`) ; `REVOKE` **à lancer par l'utilisateur**
+  (l'assistant du serveur refuse les modifications de droits), après la fin de `daily_sync`.
+- [x] **Disque** (2026-09-15) : `sftp.log` compressé (548 Mio) puis vidé + règle logrotate `proftpd-sftp` ; journal
+  systemd plafonné à 1 Go ; cache `/root/.npm` vidé. **11,7 Go libérés, disque de 92 % à 68 % (16 Go libres).**
+- [ ] **Mémoire MariaDB — après le rapport du 2026-09-22** (un redémarrage remet `INDEX_STATISTICS` à zéro) :
+  `key_buffer_size` 16M, `aria_pagecache_buffer_size` 32M, `MALLOC_ARENA_MAX=2`, `innodb_buffer_pool_size` 1G,
+  réglages de mesure dans `50-server.cnf`. Relever d'abord `memory.peak` des 4 services. Pas plus de 1 Go tant que les
+  workers gardent un tas de 2 Go sans `MemoryMax`.
+- [ ] **Exposition réseau** : 3306 ouvert à tout Internet, aucune jail fail2ban MariaDB, 2 268 connexions avortées en
+  3 jours. Pare-feu laissé en l'état (comptes Dolibarr). À étudier : jail `mysqld-auth` après lecture de
+  `CLIENT_STATISTICS`.
+- [x] **Disque local** : `.next/standalone/.telemetry-captured` supprimé le 2026-09-15 (16,76 Go) après vérification que
+  ses 672 fichiers existaient tous, à taille identique, dans `.telemetry-captured` (673 fichiers, intact). Ne jamais
+  supprimer `.telemetry-captured` lui-même sans décision : seules copies de la télémétrie au-delà des 14 jours du CDN.
+- [ ] **Cause du doublon — build local** *(requalifié le 2026-09-15 : la production n'a aucun répertoire
+  `.telemetry-captured`, le problème ne touche donc que les builds du poste de développement)*. `next build` recopie tout
+  `.telemetry-captured` dans `.next/standalone` : `fetch-files-selected/route.ts:22` est le seul `path.join(process.cwd(),
+  '.telemetry-captured')` sans `/*turbopackIgnore: true*/` (trace confirmée dans son `route.js.nft.json`). Or le
+  `server.js` standalone fait `process.chdir(__dirname)` : sans `TELEMETRY_CAPTURE_FIXTURES_DIR` absolu, le **web** lit et
+  écrit ses captures dans `.next/standalone/.telemetry-captured` (instantané du build), les **workers** dans celui de la
+  racine. Ordre : (1) vérifier sur le serveur la taille de `.next/standalone/.telemetry-captured` et la valeur de
+  `TELEMETRY_CAPTURE_FIXTURES_DIR` des 4 unités ; (2) la fixer au même chemin absolu pour les 4 services ; (3) seulement
+  ensuite ajouter le commentaire `turbopackIgnore` à la route — sans l'étape 2, le web ne verrait plus aucune capture.
+- [ ] Avant d'implémenter la « détection des changements de clan PUBG » (P2) : la sélection des coéquipiers fréquents
+  parcourrait 1,64 M lignes — prévoir un compteur pré-calculé.
+
+### Télémétrie — ordre des prochaines étapes (synthèse du 2026-09-16)
+
+Vue d'ensemble ; le détail vit dans les sections citées.
+
+1. [x] Corriger l'enregistrement des cellules de positions et le filtrage du lobby par le parser — code prêt
+   (« Modèle et alimentation », section Positions clan).
+2. [x] **Déployer** — ✅ constaté le 2026-09-16 : les parsings de production de 19:57 UTC écrivent `PositionMetricCell`
+   et `SafeZonePhaseStat`, ce que l'ancien code ne faisait sur aucun chemin de stream.
+3. [x] **Resynchroniser les matchs de moins de 14 jours** — ✅ 4 989 matchs mis en file le 2026-09-16 vers 20:44 UTC,
+   file vide le 17/09. Contrôle du 2026-09-17 : **0** match de la fenêtre encore analysé avec l'ancien code, **0** match
+   repassé en `failed` (aucune télémétrie expirée, y compris ceux du 02/09). Sur 5 177 matchs resynchronisés : zones de
+   dégâts et zones sûres 100 %, cellules 5 176, zones de tirs 5 126 (les 51 autres : 0 kill du clan, tir jamais
+   enregistré). Moins de 20 atterrissages : 94 matchs, tous en arcade, custom ou event (TDM sans saut) — normal.
+   Un job interrompu (« Server has closed the connection » à 01:43 UTC, MariaDB non redémarrée) : JSON écrit mais
+   pas les cellules → remis en file et repris le 17/09 (196 cellules). Restent 8 172 matchs plus anciens sans cellules. Stockage : `PositionMetricCell` 97 Mo → 639 Mo (1,1 M lignes, ~170
+   cellules par match, plus que les 117 estimées), `SquadMatchTelemetry` 16,1 Go. Disque le 17/09 : 75 %, 13 Go libres.
+   [ ] **Rétention du JSON brut à décider avant début octobre** : ~0,4 à 0,55 Go de télémétrie par jour, disque à 90 %
+   vers début octobre au rythme actuel — détail et contraintes dans `docs/ops/database-performance.md` §4.4.
+   Aucun chemin existant ne convient à ce volume (4 999 matchs au 2026-09-16, 21 clans) : le cron et « Synchroniser
+   les matchs » (`/settings/cron`) ne reprennent que les matchs sans télémétrie réussie, `telemetry:batch` relit des
+   fichiers capturés que le serveur n'a pas, et le « Direct Sync » d'une soirée plafonne à 50 matchs par clic.
+   → `scripts/enqueue-recent-telemetry-resync.ts` : simulation par défaut, `--yes` met en file `telemetry_live_sync`
+   du plus ancien au plus récent (~9 h de worker, ~343 Mo de cellules), `--report` pour l'avancement. Un échec
+   (télémétrie expirée) repasse un match en `failed` sans effacer ses données : `--restore-downgraded --since <lancement>`.
+   Les nouveaux matchs de la soirée attendent derrière la file. La resynchronisation écrit les cellules de ces matchs ;
+   les plus anciens ont été rattrapés le 2026-09-17 (voir « Modèle et alimentation »).
+   ✅ Faits sur le serveur le 2026-09-16 : recalcul des niveaux de pression au drop (15 873 lignes) et rattrapage des
+   zones sûres (12 357 matchs, 96 992 lignes, 36 s).
+4. [x] Débriefing : bascule des liens, redirections, Mode contextuel Tournoi — code prêt (VOLET 4) ; [ ] recette navigateur.
+5. [~] Positions et zones de drop — route Positions hybride, pression au drop sur les adversaires, zones sûres
+   persistées (2026-09-16), puis indicateurs de villes sur les deux tableaux de bord et page « Fin de zone »
+   (2026-09-17, `docs/features/positions-villes.md` et `fin-de-zone.md`). Reste la recette navigateur, le rattrapage
+   `telemetry:zone-closures:backfill` des autres clans et la décision d'exposer la fin de zone dans les dashboards.
+6. [~] Nouvelles données : objets consommés (`LogItemUse`) — ✅ livré le 2026-09-17 (`MemberItemUseStat`, pages clan
+   et membre, doc `docs/features/objets-consommes.md`) ; restent les rappels par membre, le K/D direct par clan
+   adverse (P2 « Adversaires ») et la détection des changements de clan (P2, 3 décisions en attente).
+7. [ ] Jamais vérifié en conditions réelles : match partagé entre deux clans suivis et ses `KillEvent` (« Comparateur de
+   Clans », bugs structurels n°1 et 2).
+
+### Notifications Discord automatiques — Alertes Top 1 & Résultats de Tournois dans des salons dédiés — ✅ Livré le 2026-09-13
+
+> **État au 2026-09-13 — Phases 1 (Top 1) et 2 (Tournois) livrées.**
+>
+> *Phase 1* : `src/lib/discord/` (client webhook résilient, embed Top 1, dédoublonnage, service
+> d'orchestration), page `/clans/[clanId]/settings/discord`, routes
+> `GET/PUT /api/clans/[clanId]/settings/discord` + `POST .../discord/test`, câblage dans
+> `analyzeMatchForSquads`, table `DiscordNotificationLog`. Testé de bout en bout sur un vrai
+> webhook Discord.
+>
+> *Phase 2* : `discord-tournament-embed.ts` + `discord-tournament-service.ts`, section
+> « Tournois inter-clans » dans la page de paramètres, colonne `Tournament.discordWebhookUrl`
+> pour la surcharge par tournoi, route `GET/POST /api/clans/[clanId]/tournaments/[id]/discord`
+> (prévisualisation puis diffusion confirmée), modale d'aperçu et bouton « Diffuser sur Discord »
+> dans `/clans/[clanId]/settings/tournaments`. Le barème par manche est extrait dans
+> `computeTournamentRoundScores` (tournament-service.ts) pour que la formule reste partagée avec
+> le classement général. 66 tests Vitest au total.
+>
+> **Écarts assumés par rapport à la proposition initiale**, imposés par le schéma réel :
+> - Pas de mode **Solo** ni de seuil à **1 membre** : `detectSquadFromMatchDetails` exige au moins
+>   deux membres du clan pour créer un `SquadMatch`. Modes retenus : Duo / Trio / Squad, seuil 2-4.
+> - Pas de type **Ranked/Compétitif** : les seules valeurs de `SquadMatch.matchType` en base sont
+>   `official`, `casual`, `airoyale` et `custom`. Cases retenues : Officiel (activé), Casual
+>   (activé), Matchs IA (désactivé), Custom (désactivé).
+> - La carte est envoyée en **thumbnail** (vignette d'angle) plutôt qu'en image pleine largeur,
+>   pour garder le canal lisible sur un clan qui gagne souvent. Une ligne à changer dans
+>   `discord-top1-embed.ts` si l'image pleine largeur est préférée.
+> - Retours d'UI en **bandeaux inline** (succès vert / erreur rose, avec icône) placés au contact
+>   du bouton qui les déclenche, et non en toasts flottants : le projet n'a pas de composant Toast
+>   partagé, et le bandeau affiche correctement les messages d'erreur longs renvoyés par Discord.
+> - Les aperçus in-app sont rendus par `DiscordEmbedPreview` **à partir du vrai payload** produit
+>   par les générateurs d'embed (importables côté client car purs). L'aperçu ne peut donc pas
+>   diverger du message réellement envoyé.
+> - La diffusion d'une manche est **toujours manuelle** : aucun envoi automatique de tournoi. Une
+>   rediffusion volontaire reste possible, la modale prévenant que la manche a déjà été publiée.
+
+Intégration d'un système de diffusion automatique de notifications enrichies sur Discord via Webhooks personnalisables par le Clan Owner / Administrateurs du clan (`manage_channels` ou `manage_settings`).
+
+> ⚠️ **Contrainte UI/UX obligatoire** : Toute nouvelle interface (page de paramétrage, modales de prévisualisation, toasts, cartes, formulaires) doit **impérativement** respecter la charte graphique et les composants documentés dans [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html). Cela inclut : le système de classes `.app-panel`, `.app-modal-*`, `.app-btn`, `.app-modal-callout`, les tokens CSS (`--theme-ui-*`), le support du mode sombre (`dark:bg-slate-900`, `dark:border-slate-800`, etc.), les badges 44×44, les animations de chargement et les callouts d'explication contextuelle.
+
+#### 1. Contexte & Objectifs
+
+- **Alerte Victoire (Top 1 / Chicken Dinner) :** Lorsqu'une escouade du clan remporte un match (`placement === 1`), publier instantanément un message enrichi (Embed) dans le canal Discord choisi par le Clan Owner, avec composition d'équipe, kills, dégâts et lien direct vers le match.
+- **Résultats de Tournois & Télémétrie :** Lorsque l'organisateur/owner synchronise un tournoi ou récupère la télémétrie de manche, publier le récapitulatif officiel de la manche (scores par clan, kills, points de placement, MVP) et l'actualisation du classement général dans un canal Discord dédié.
+- **Zéro infrastructure complexe :** Utilisation de l'API standard **Discord Webhooks** (aucun bot Discord à héberger ni permissions serveur invasives pour l'utilisateur).
+
+---
+
+#### 2. Découpage fonctionnel
+
+##### A. Paramétrage Clan (`/clans/[clanId]/settings/discord`)
+- [x] **Nouvelle entrée dans le Hub des paramètres (`ClanSettingsHub`) :**
+  - Ajout d'une carte « Notifications Discord » avec icône MessageSquare, description et contrôle d'accès (`canManageSettings`). Entrée `admin.discord-notifications` ajoutée au registre nav + `scripts/seed-discord-nav.ts`.
+- [x] **Page de configuration dédiée (`/clans/[clanId]/settings/discord`) :**
+  - **Section Top 1 / Chicken Dinner :**
+    - URL du Webhook Discord pour les Top 1 (ex: `https://discord.com/api/webhooks/...`).
+    - Toggle d'activation générale des alertes Top 1.
+    - Cases à cocher pour les modes de jeu : Duo / Trio / Squad (défaut: les trois activés). *Solo impossible — voir écarts ci-dessus.*
+    - Cases à cocher pour le type de match : Officiel (défaut: activé), Casual (défaut: activé), Matchs IA `airoyale` (défaut: désactivé), Custom (défaut: désactivé). *Pas de Ranked en base — voir écarts ci-dessus.*
+    - Seuil minimum de membres du clan dans l'escouade : 2, 3 ou 4 membres (défaut: **minimum 2**).
+    - Option de mention de rôle Discord : Aucune, `@here`, `@everyone`, ou ID de rôle personnalisé (ex: `<@&roleId>`).
+    - Bouton interactif **« Tester le webhook Top 1 »** : envoie un embed test sur Discord avec retour visuel immédiat (message inline de succès ou affichage clair de l'erreur Discord).
+  - **Section Tournois inter-clans :** ✅
+    - URL du Webhook Discord pour les tournois (champ distinct).
+    - Bouton rapide **« 📋 Identique au canal Top 1 »** : recopie automatiquement l'URL du webhook Top 1 en un seul clic.
+    - Toggle d'activation générale des annonces tournoi.
+    - Option de mention de rôle Discord pour les annonces de tournoi (ex: `@Tournoi`, `@everyone`, ou ID de rôle).
+    - Option d'inclure le classement général provisoire cumulé du tournoi sous le récapitulatif de la manche.
+    - Bouton interactif **« Tester le webhook Tournoi »**.
+  - **Surcharge par tournoi (Optionnel / Avancé) :** ✅
+    - Champ « Webhook spécifique à ce tournoi » dans le formulaire d'édition d'un tournoi (colonne `Tournament.discordWebhookUrl`), pour les tournois annoncés sur un autre serveur Discord. Vide = webhook Tournoi du clan.
+
+##### B. Moteur d'envoi & Templates Discord (`src/lib/discord/`)
+- [x] **Client Webhook résilient (`discord-client.ts`) :**
+  - Envoi HTTP `POST` vers l'API Webhook Discord avec timeout strict (5s).
+  - Gestion gracieuse des rate limits Discord (HTTP 429 avec backoff).
+  - Ne bloque jamais et ne fait jamais échouer la synchronisation principale PUBG en cas d'erreur réseau Discord.
+- [x] **Générateur d'Embed Top 1 (`discord-top1-embed.ts`) :**
+  - Couleur dorée Chicken Dinner (`#F1C40F`).
+  - Titre : `🍗 CHICKEN DINNER ! Top 1 pour [TAG] ClanName`
+  - Mention configurée en tête de message (optionnelle).
+  - Carte & Mode : `🗺️ Erangel — Squad FPP` + Horodatage.
+  - Composition d'escouade avec badges :
+    - 🎖️ `Pseudo1` — 7 kills · 820 dégâts · 2 assists
+    - 🎖️ `Pseudo2` — 4 kills · 410 dégâts · 1 revive
+  - Métriques globales de l'escouade : Kills totaux, dégâts cumulés, temps de survie.
+  - Image de prévisualisation de la carte (ex: `/maps/erangel.jpg`).
+  - Bouton / Lien direct vers la télémétrie et le rapport complet du match sur le site.
+- [x] **Générateur d'Embed Résultats de Tournoi (`discord-tournament-embed.ts`) :**
+  - Couleur compétitive violette / indigo (`#5865F2`).
+  - Titre : `🏆 Tournoi : {Nom du Tournoi} — Résultats Manche #{N}`
+  - Mention configurée en tête de message (optionnelle).
+  - Carte & Paramètres : `🗺️ Miramar — Mode Compétition`
+  - Tableau des scores par clan participant :
+    - 🥇 **[TAG1] Clan Alpha** : 1er (+10 pts) · 8 kills (+8 pts) = **18 pts**
+    - 🥈 **[TAG2] Clan Bravo** : 2e (+6 pts) · 5 kills (+5 pts) = **11 pts**
+    - 🥉 **[TAG3] Clan Charlie** : 3e (+5 pts) · 2 kills (+2 pts) = **7 pts**
+  - Badge MVP de la manche (Joueur ayant infligé le plus de dégâts / kills).
+  - Bloc « Classement Général Provisoire » (Top 3 ou complet).
+  - Lien direct vers la page publique du tournoi et le replay télémétrique 2D.
+- [x] **Mécanisme de dédoublonnage strict (Anti-Spam) :**
+  - Table `DiscordNotificationLog` avec contrainte unique `(clanId, kind, refId)` : le verrou est posé *avant* l'envoi et relâché uniquement si Discord refuse, pour qu'une panne réseau reste rattrapable sans jamais permettre de doublon.
+  - Garantie absolue qu'un re-calcul de statistiques ou une re-synchronisation de télémétrie ne renvoie pas une seconde fois l'alerte sur Discord.
+
+##### C. Câblage dans les flux existants & Ergonomie Tournoi
+- [x] **Flux Top 1 (`squad-detector.ts`) :**
+  - Câblé dans `analyzeMatchForSquads`, sur les deux chemins : création d'un `SquadMatch` **et** complétion d'un match déjà créé par un autre clan suivi du même lobby.
+  - Vérifie l'activation, les filtres (modes, types de match, seuil de membres) puis le dédoublonnage avant d'envoyer.
+  - L'envoi est `await`é mais ne peut jamais faire échouer la synchronisation : `notifyTop1IfEligible` ne lève jamais et le client webhook plafonne à 5 s par tentative.
+- [x] **Flux Tournoi à la demande (Bouton sur la page du tournoi) :**
+  - Bouton **« Diffuser sur Discord »** sur chaque tournoi de `/clans/[clanId]/settings/tournaments`, à côté de « Synchroniser ». Aucun envoi automatique, aucun cycle cron.
+  - `GET /api/clans/[clanId]/tournaments/[id]/discord` liste les manches comptabilisées (avec la date de diffusion précédente le cas échéant) ; `?matchId=` renvoie l'aperçu ; `POST` diffuse.
+- [x] **Modale de prévisualisation avant publication sur Discord :**
+  - Sélecteur de manche (la plus récente présélectionnée), aperçu exact de l'Embed rendu par `DiscordEmbedPreview` à partir du payload réel (scores, points calculés, MVP, classement, mention).
+  - Boutons **« Confirmer et envoyer sur Discord »** / « Annuler », avertissement si la manche a déjà été diffusée, et mention du webhook spécifique quand une surcharge de tournoi s'applique.
+
+---
+
+#### 3. Plan de Tests & Validation
+
+##### Tests Automatisés (Vitest)
+> 32 tests verts (`npx vitest run src/lib/discord`).
+
+- [x] **`src/lib/discord/discord-top1-embed.test.ts` :**
+  - Vérification de la conformité du payload JSON Discord (limites de caractères Discord : titre <= 256, champs <= 1024, max 25 champs).
+  - Validation du formatage des données joueurs (kills, damage arrondi, assists).
+  - Présence de l'URL du site et de la miniature de la carte, et omission propre quand `NEXT_PUBLIC_APP_URL` est vide.
+- [x] **`src/lib/discord/discord-client.test.ts` :** 204, 400, 404, backoff `retry_after` sur 429, abandon après second 429, panne réseau — sans jamais lever.
+- [x] **`src/lib/discord/discord-config.test.ts` :** validation de l'URL de webhook (domaines autorisés, rejet HTTP simple et domaines tiers) et normalisation défensive de la configuration stockée.
+- [x] **`src/lib/discord/discord-tournament-embed.test.ts` (13 tests) :** conformité aux limites Discord, médailles et numérotation au-delà du podium, bonus de victoire affiché seulement s'il est accordé, MVP, bloc classement général optionnel, lien de replay conditionnel, bornage à 1024 caractères.
+- [x] **`src/lib/tournament-service.test.ts` — `computeTournamentRoundScores` (5 tests) :**
+  - Calcul exact des points de manche selon les règles du tournoi (`placementPoints`, `killPoints`, `winBonus`).
+  - Tri correct des clans par points décroissants puis kills puis placement.
+  - Gestion des égalités, exclusion des clans non participants, et `bestOfRounds` volontairement ignoré (il ne s'applique qu'au cumul).
+- [x] **`src/lib/discord/discord-tournament-service.test.ts` (11 tests) :** numérotation chronologique des manches, barème appliqué de bout en bout, MVP sur les dégâts, priorité du webhook de tournoi sur celui du clan, refus sans webhook exploitable, manche étrangère au tournoi en 404, détection d'une manche déjà diffusée, aucun POST pendant la prévisualisation, journalisation après diffusion et absence de journalisation quand Discord refuse.
+- [x] **`src/lib/discord/discord-service.test.ts` :**
+  - Test du déclenchement conditionnel : envoi déclenché pour `placement === 1`, ignoré pour `placement > 1`.
+  - Test du filtre de membres : ignoré si l'escouade a moins de membres clan que le seuil configuré.
+  - Test du dédoublonnage : un deuxième appel pour le même `squadMatchId` ne produit aucun appel HTTP.
+  - Test de résilience : échec d'envoi Discord → verrou relâché, aucune exception ; panne base de données → aucune exception.
+- [x] **`src/lib/discord/discord-route-contracts.test.ts` (24 tests) :** contrats des trois routes de configuration. Placé dans `src/lib/` et non à côté de la route, car `vitest.config.ts` ne collecte que `src/lib/**/*.test.ts` — même convention que `route-contracts.test.ts` et `drop-pressure-route-contracts.test.ts`, qui importent eux aussi leur handler depuis `src/app/`.
+  - Contrôle d'accès : `requirePermission('manage_settings')` sur le bon `clanId`, propagation des `401` et `403`, et vérification qu'aucune écriture ni appel Discord n'a lieu quand l'accès est refusé.
+  - Validation de l'URL Webhook : rejet d'un domaine tiers, du HTTP simple et d'un chemin incomplet ; acceptation de `discord.com` et du domaine historique `discordapp.com` ; webhook vide toléré tant que le flux est désactivé, refusé dès qu'on l'active.
+  - Autres refus couverts : identifiant de rôle non numérique, seuil de membres hors 2/3/4, bloc tournoi manquant, corps de requête illisible, panne de persistance en 500.
+  - Endpoint de test : aiguillage Top 1 / Tournoi selon `kind`, `502` avec le message exact renvoyé par Discord en cas de refus, `500` sur exception inattendue.
+  - Robustesse vérifiée par mutation : en relâchant `WEBHOOK_URL_PATTERN`, les quatre tests de validation d'URL échouent bien.
+
+##### Tests Manuels & Recette Fonctionnelle
+- [ ] **Configuration UI :**
+  - Naviguer sur `/clans/[clanId]/settings/discord`, saisir un Webhook Discord réel créé sur un serveur de test.
+  - Cliquer sur *« Tester le webhook Top 1 »* : confirmer l'apparition immédiate de l'embed de test dans le canal Discord et du toast de confirmation dans l'application.
+- [ ] **Simulation Top 1 :**
+  - Importer un match avec placement 1 pour le clan : vérifier l'arrivée instantanée du message Discord avec les bons pseudos, le bon ratio de kills et le lien vers le site.
+  - Relancer la synchronisation du même match : vérifier qu'aucun message en doublon n'est expédié.
+- [ ] **Simulation Tournoi :**
+  - Ouvrir un tournoi avec des matchs custom terminés.
+  - Cliquer sur *« Synchroniser »* ou *« Diffuser sur Discord »* : vérifier la réception de la fiche récapitulative de manche avec scores conformes aux règles du tournoi.
+- [ ] **Mode Sombre / Clair :**
+  - Vérifier la parfaite lisibilité de la nouvelle page de configuration Discord sur tous les thèmes.
+- [ ] **Conformité UI/UX — Validation contre [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html) :**
+  - Vérifier que la page `/clans/[clanId]/settings/discord` utilise exclusivement les classes `.app-panel`, `.app-btn`, `.app-btn--primary`, `.app-btn--secondary` et les tokens CSS `--theme-ui-*` du projet (aucun style inline ou classe ad-hoc).
+  - Vérifier que la modale de prévisualisation Discord respecte le standard `.app-modal-card` / `.app-modal-inner-card` / `.app-modal-callout` documenté dans le guide UI (fond `dark:bg-slate-900`, bordure `dark:border-slate-800`, typographie contrastée).
+  - Vérifier que les toasts de succès/erreur (webhook test, envoi confirmé) utilisent le système de toast existant du projet (aucun `window.alert`).
+  - Vérifier que le rendu de la carte dans le hub `/clans/[clanId]/settings` est cohérent avec les cartes *Membres*, *Accueil login* et *Tournois* existantes (taille, icône, couleur, texte).
+  - Passer en revue la maquette dans `docs/ui/index.html` pour valider que les nouveaux composants y sont correctement illustrés et documentés.
+
+---
+
+### Refonte UI/UX des Tournois — Page Publique Globale (`/tournaments`) & Paramétrage Clan (`/clans/[clanId]/settings/tournaments`)
+
+> ⚠️ **Contrainte UI/UX obligatoire (Règles du projet & [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html))** :
+> Toute nouvelle interface ou refonte de page doit **impérativement** respecter la charte graphique documentée dans [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html). Cela inclut :
+> - L'utilisation exclusive des classes de surface du design system : `.app-panel`, `.app-table`, `.app-table-header`, `.app-table-row`, `.app-modal-card`, `.app-modal-backdrop`, `.app-modal-callout`, `.app-btn`, `.app-segmented-control`.
+> - Les tokens de thème CSS (`--theme-ui-surface`, `--theme-ui-border`, `--theme-ui-surface-soft`, etc.).
+> - Le support natif et irréprochable du **mode sombre** (`dark:bg-slate-900`, `dark:border-slate-800`, `dark:text-slate-100`, etc.) et du mode clair — aucun texte clair sur fond clair ni style inline non réactif.
+> - Des animations soignées et fluides pour les interactions (rotation de chevron à 180°, pulsation des badges « En direct », transitions de survol des lignes de tableau).
+
+#### 1. Contexte & Objectifs
+
+- **Faiblesse de la page publique `/tournaments` :**
+  - Actuellement, la page affiche une simple liste de cartes empilées avec du style clair codé en dur (`bg-white`, `border-gray-200`, `text-gray-900`), sans support propre du mode sombre.
+  - Aucune barre de recherche, aucun filtre par statut (actif vs terminé), par mode ou par carte.
+  - Les tournois terminés encombrent l'affichage au même niveau que les compétitions en direct.
+  - Absence de badges riches permettant de distinguer en un coup d'œil le clan organisateur, le format PUBG (Squad/Duo/Solo), la carte et le mode de scoring.
+- **Ergonomie de la page de gestion `/clans/[clanId]/settings/tournaments` :**
+  - Formulaire de création massif situé au-dessus de la liste des tournois, obligeant à scroller.
+  - Impossibilité de supprimer un tournoi depuis l'interface (alors que la route API `DELETE` existe déjà).
+  - Absence d'explications et d'accompagnement sur le fonctionnement des tournois.
+- **Nouveaux modes de jeu :** Permettre au Clan Owner de choisir parmi 4 modes de tournois (Inter-Clans avec options de prorata, Équipes Libres, Solo FFA, Intra-Clan) et adapter en conséquence les notifications Discord.
+
+---
+
+#### 2. Découpage fonctionnel
+
+---
+
+##### VOLET 1 : Page Publique Globale des Tournois (`/tournaments`)
+
+> **VOLET 1 livré le 2026-09-17** — page réécrite (`src/app/tournaments/page.tsx`), résumé serveur
+> `src/lib/tournament-overview.ts` (état affiché dérivé des dates, manches, participants, vainqueur calculé comme
+> sur la page de détail), filtres isolés et testés dans `src/lib/tournament-list-filters.ts` (8 tests).
+> Manque encore le badge « mode de calcul » (Inter-Clans, Équipes Libres, Solo FFA, Intra-Clan) : le champ n'existe
+> pas sur `Tournament`, c'est le VOLET 2 qui l'introduit.
+
+- [x] **Hero Header Immersif :**
+  - Bannière visuelle avec l'image thématique `/ClanLeaderboardTable.jpg`, dégradé sombre (`from-black/90 via-black/40 to-transparent`), icône dorée `Trophy`.
+  - Titre principal `Tournois & Compétitions`, sous-titre expliquant la scène compétitive inter-clans.
+  - Compteur dynamique en badge : ex: `🔥 2 tournois en cours` et `🏆 14 tournois archivés`.
+  - Bouton d'accès rapide pour les administrateurs de clan connectés : `⚙️ Gérer les tournois de mon clan` (pointant vers `/clans/[clanId]/settings/tournaments`).
+
+- [x] **Barre d'outils, Recherche & Filtres Dynamiques (`.app-panel`) :**
+  - **Recherche instantanée :** Barre de saisie fluide avec icône loupe, filtrant en direct sur le nom du tournoi, la description et le nom du clan organisateur, avec bouton d'effacement rapide (`X`).
+  - **Filtre de statut :** Boutons rapides / SegmentedControl : `Tous`, `🔥 En direct (Actifs)`, `⏳ À venir`, `🏁 Terminés`.
+  - **Filtres combinés :**
+    - Filtre Mode de jeu : `Tous les formats`, `Squad FPP`, `Duo`, `Solo`.
+    - Filtre Carte : `Toutes les cartes`, `Erangel`, `Miramar`, `Taego`, `Rondo`, etc.
+    - Filtre Mode de tournoi : `Tous les modes`, `Inter-Clans`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
+  - **Tri dynamique :** Par `Date (plus récents)`, `Date (plus anciens)`, `Nom (A-Z)`.
+  - **Compteur de résultats :** Badge contextuel (ex: `4 tournois trouvés sur 12`) avec bouton de réinitialisation si aucun résultat.
+
+- [x] **Section Prioritaire : « Tournois en Direct & À Venir » (Grille de Cartes Héroïques) :**
+  - Mise en avant des compétitions actives en haut de page avec des cartes `.app-panel` riches et modernes :
+    - **Badge Statut dynamique :** Badge vert avec point pulsant (`animate-pulse`) `● EN DIRECT` pour les tournois en cours, badge bleu `À VENIR` pour ceux qui démarrent prochainement.
+    - **Badges contextuels de match :**
+      - Badge Mode PUBG (`Squad`, `Duo`, `Solo`) via le composant `TeamModeBadge`.
+      - Badge Carte avec icône ou miniature (ex: `Erangel`, `Miramar`).
+      - Badge Mode de calcul : `Inter-Clans (Partage 100%)`, `Inter-Clans (Prorata)`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
+    - **Bloc Organisateur :** Tag et nom du clan avec lien cliquable vers la page du clan (`/clans/[clanId]/overview`).
+    - **Période & Compte à rebours :** Dates formatées et temps restant (ex: `Se termine dans 3 jours`).
+    - **Bouton d'action proéminent :** Bouton `👁️ Suivre le direct / Classement` (`.app-btn--primary`) menant à `/tournaments/[tournamentId]`.
+
+- [x] **Section « Archives des Tournois Terminés » — Accordéon avec Chevron & Tableau Triable :**
+  - **En-tête de section interactif :**
+    - Bouton bandeau `.app-panel` cliquable avec `ChevronDown` rotatif (`transition-transform duration-200 rotate-180`).
+    - Titre : `Archives des tournois terminés` accompagné d'un badge compteur discret `(N tournois)`.
+    - **Replié par défaut** si le nombre de tournois terminés est supérieur à 3, afin de privilégier la lisibilité des tournois en cours.
+  - **Tableau Interactif Triable (`.app-table`, `.app-table-header`, `.app-table-row`) :**
+    - Remplacement de la simple liste par un tableau structuré conforme à la charte graphique :
+      1. **Colonne Tournoi :** Nom du tournoi en gras, description courte et badge du mode de calcul.
+      2. **Colonne Organisateur :** Tag et nom du clan organisateur avec avatar/initiales.
+      3. **Colonne Format & Carte :** Badges compacts (Mode PUBG + Carte).
+      4. **Colonne Période :** Date de début → Date de fin avec tri possible par date.
+      5. **Colonne Vainqueur / Podium :** Badge trophée or avec le nom du clan vainqueur ou de l'équipe championne.
+      6. **Colonne Action :** Bouton d'accès au rapport complet et classement final (`.app-btn--secondary app-btn--xs`).
+    - **Tri sur les colonnes :** Flèches de tri interactives sur les en-têtes (Nom, Date, Organisateur).
+    - Lignes entièrement cliquables avec effet de survol (`hover:bg-slate-100/60 dark:hover:bg-slate-800/60`).
+
+---
+
+##### VOLET 2 : Administration du Clan (`/clans/[clanId]/settings/tournaments`)
+
+> **VOLET 2 livré le 2026-09-18** — page d'administration réécrite, moteur des 4 modes (`tournament-service.ts`),
+> filtres réalignés (`tournament-filters.ts`), modale de suppression. Doc : `docs/features/tournois.md`.
+> **Trois incohérences trouvées et corrigées au passage**, détaillées sous les cases.
+
+- [x] **Navigation par 3 Onglets (`SegmentedControl`) :**
+  1. **🏆 Tournois (`tournaments`) :** Vue principale de pilotage. Contient la barre d'outils, la recherche, les tournois actifs en vue prioritaire, et les tournois archivés/brouillons en accordéon repliable avec chevron. Bouton proéminent *« + Nouveau tournoi »*.
+  2. **✏️ Créer / Modifier un tournoi (`editor`) :** Formulaire structuré en 5 blocs clairs. Bascule dynamique sur *« Modifier : {Titre} »* lors du clic sur Modifier.
+  3. **💡 Guide & Fonctionnement (`guide`) :** Centre d'aide interactif intégré au format callout.
+
+- [x] **Barre d'outils & Gestion des Tournois du Clan :** recherche, filtre de statut, tournois actifs en cartes avec les cinq actions, accordéon pour brouillons et tournois terminés.
+  - Recherche textuelle en direct sur les tournois gérés par le clan.
+  - Filtres de statut (`Tous`, `Actifs`, `Terminés`, `Brouillons`).
+  - Section Tournois Actifs avec actions rapides : `🔄 Synchroniser PUBG`, `📢 Diffuser sur Discord`, `👁️ Voir le classement`, `✏️ Modifier`, `🗑️ Supprimer`.
+  - Section repliable avec chevron pour les tournois terminés et les brouillons.
+
+- [x] **Formulaire Structuré en 5 Blocs :**
+  1. **Informations Générales :** Titre, description, dates de début et fin avec validation (date de fin ≥ date de début), statut (`Brouillon`, `Actif`, `Terminé`).
+  2. **Mode de Tournoi & Attribution des Points (Au choix du Clan Owner) :**
+     - Choix parmi les 4 modes : `Inter-Clans`, `Équipes Libres`, `Solo FFA`, `Intra-Clan`.
+     - Si `Inter-Clans` : Choix de la règle d'escouade mixte (`Partage 100 %` ou `Prorata`).
+  3. **Format & Filtres PUBG :** Sélection du mode de jeu (Tous, Squad, Duo, Trio, Solo) et de la carte (Toutes, Erangel, etc.).
+  4. **Barème de points :** Top 1 à Top 10 préremplis, points par kill, bonus victoire, best-of N manches (`bestOfRounds`).
+  5. **Diffusion Discord :** Surcharge optionnelle du webhook Discord pour ce tournoi.
+
+  **Incohérences trouvées en implémentant (2026-09-18), toutes corrigées :**
+  1. `normalizeTournamentRules` ne conservait que le barème : le mode choisi aurait été **silencieusement perdu** à
+     l'enregistrement. Les routes `POST` et `PATCH` filtraient elles aussi les champs de `rules`.
+  2. Le moteur ne savait calculer qu'un classement par clan. `computeTournamentModeStandings` produit désormais une
+     ligne par participant selon le mode (clan, équipe ou joueur), `computeTournamentStandings` restant la vue clan.
+     ⚠️ L'**affichage** du classement reste celui par clan : son adaptation aux modes est le VOLET 3.
+  3. Le formulaire proposait des cartes en nom d'affichage (« Erangel ») et des modes inexistants (« squad »,
+     « trio ») alors que les matchs personnalisés stockent `Baltic_Main` et `normal-squad` : **un tournoi ainsi
+     filtré ne retenait aucune manche, sans message**. Corrigé par `tournament-filters.ts`, appliqué aussi côté
+     serveur pour réparer les tournois déjà enregistrés à leur prochaine sauvegarde.
+  4. Régression attrapée par les tests existants : le partage au prorata s'appliquait aussi au score de manche,
+     sans avoir été choisi.
+
+- [x] **Suppression Sécurisée d'un Tournoi :** `TournamentDeleteModal`, message rassurant sur les données conservées, appel à la route `DELETE` existante.
+  - Bouton `🗑️ Supprimer` (`.app-btn--danger`) sur chaque tournoi de la liste.
+  - Modale de confirmation sécurisée (`TournamentDeleteModal`) conforme `.app-modal-card` et `.app-modal-backdrop`.
+  - Message rassurant indiquant que les matchs PUBG bruts et les statistiques restent préservés en base de données.
+  - Appel à `DELETE /api/clans/[clanId]/tournaments/[tournamentId]`.
+
+---
+
+##### VOLET 3 : Page Détail & Classement d'un Tournoi (`/tournaments/[tournamentId]`)
+
+> **VOLET 3 livré le 2026-09-18** — page de détail réécrite, payload de classement enrichi
+> (`src/lib/tournament-standings-view.ts`, 13 tests), colonne Dégâts ajoutée au moteur pour le mode solo.
+> Doc : `docs/features/tournois.md`. Non fait : les **avatars** du podium et du classement solo, l'avatar vivant sur
+> `UserAccount` via `MemberIdentity`, hors du périmètre du classement.
+
+- [x] **Hero Header Immersif & Statut Dynamique :**
+  - Titre principal, clan organisateur avec lien vers sa page, dates de début et fin.
+  - Badge de statut dynamique avec pulsation : `● EN DIRECT` (vert), `⏳ À VENIR` (bleu) ou `🏁 TERMINÉ` (gris).
+  - Badges contextuels :
+    - Badge du Mode de Tournoi : `Inter-Clans (100 %)`, `Inter-Clans (Prorata)`, `Équipes Libres`, `Solo FFA`, `Tournoi Interne`.
+    - Badge Format de match (`Squad FPP`, `Duo`, `Solo`) via `TeamModeBadge`.
+    - Badge Carte (`Erangel`, `Miramar`, etc.).
+    - Badge Clans participants détectés automatiquement.
+  - **Barre d'Actions Rapides Organisateur (Boutons en en-tête pour le Clan Owner / Admin) :**
+    - `🔄 Synchroniser PUBG` : Déclenche l'import immédiat des matchs récents depuis l'API PUBG sans devoir retourner dans les réglages.
+    - `📢 Diffuser sur Discord` : Ouvre instantanément la modale `TournamentBroadcastModal`.
+    - `⚙️ Paramètres du tournoi` : Raccourci vers `/clans/[clanId]/settings/tournaments`.
+
+- [x] **Barème de Points Compact & Rétractable :** ruban dépliable, grille Top 1–10, mention explicite de la règle d'escouade mixte.
+  - Remplacement du pavé rigide actuel par un ruban épuré et dépliable (callout `.app-modal-callout`) :
+    - Points par Kill, Bonus Top 1, limitation aux N meilleures manches (`bestOfRounds`), et grille Top 1 à Top 10.
+    - Mention explicite de la règle de partage des escouades mixtes (Partage intégral ou Prorata).
+
+- [x] **Podium Héroïque Interactif (Top 1, 2, 3) :** médailles or/argent/bronze, libellé du participant, points, kills et victoires. Sans avatars (voir ci-dessus).
+  - Mise en avant graphique des 3 premiers du classement actuel avec couronnes/médailles or, argent, bronze, avatars/tags de clan et total de points.
+
+- [x] **Classement Polymorphique adapté aux 4 Modes de Tournoi (`.app-table`) :** points décimaux et infobulle en prorata, bascule cumul/escouade en inter-clans, colonne Dégâts et trophée des clans rétractable en solo, composition affichée pour les équipes et les scrims internes.
+  - **Mode 1 : Inter-Clans (`inter_clan`) :**
+    - Tableau par Clan (Rang, Clan, Points totaux, Kills, Manches jouées, Victoires).
+    - Si règle `prorata` : affichage des points décimaux (ex: `18.5 pts`) avec infobulle explicative de la répartition.
+    - **Toggle de granularité :** Bouton à bascule `[ Cumul par Clan ]` / `[ Détail par Escouade ]` pour observer le comportement de chaque escouade au sein des clans.
+  - **Mode 2 : Équipes Libres (`custom_teams`) :**
+    - Tableau par Équipe : Nom de l'équipe, liste des joueurs avec leurs tags de clan respectifs (ex: `[SMK] Pagiotte, [ARK] Nova`), Points, Kills, Victoires.
+  - **Mode 3 : Solo FFA (`solo_ffa`) :**
+    - Leaderboard individuel des joueurs (Top 1 à N) : Rang, Joueur (avatar + pseudo + tag clan), Kills, Dégâts totaux, Meilleur placement, Points totaux.
+    - Bloc « MVP de la Compétition » mettant en avant le joueur ayant le plus de kills et dégâts.
+    - Tableau secondaire rétractable « Trophée des Clans » (somme des points marqués par les membres de chaque clan).
+  - **Mode 4 : Tournoi Interne (`intra_clan`) :**
+    - Classement des escouades internes du clan organisateur avec composition complète des coéquipiers.
+
+- [x] **Section Manches & Matchs Comptabilisés (`Manche #N`) :** numérotation chronologique, carte et heure, vainqueur (au placement, pas aux points), MVP de la manche, score par participant, lien vers le débriefing 2D.
+  - Numérotation chronologique des manches : `Manche #1`, `Manche #2`, etc.
+  - Carte de manche détaillée :
+    - Carte, heure et mode de jeu.
+    - Vainqueur de la manche (Top 1) et MVP de la manche (dégâts/kills).
+    - Récapitulatif des scores de la manche pour chaque équipe/clan.
+    - **Bouton d'accès direct au Débriefing 2D :** `🗺️ Débriefing & Replay Télémétrique` (pointant vers la page de débriefing de la manche).
+
+---
+
+##### VOLET 4 : Unification Télémétrie & Débriefing de Manche (`/matches/[matchId]/telemetry` vs `/debrief`)
+
+> **Stratégie d'Architecture : Finaliser et consolider `/clans/[clanId]/telemetry/matches/[matchId]/debrief` en priorité**
+> Plutôt que de maintenir deux pages de télémétrie divergentes (l'ancienne page monolithique de 65 Ko sur les tournois et la nouvelle page moderne de débriefing sur les clans), la stratégie retenue est de **finaliser d'abord la page de Débriefing à 4 onglets**, puis de l'exploiter pour les matchs de tournois.
+
+> **État au 2026-09-13 — les 4 chantiers techniques du débriefing sont livrés ; le « Mode contextuel Tournoi », qui
+> est la finalité de ce volet, n'est pas commencé** (voir plus bas, avec l'obstacle d'accès à lever d'abord).
+>
+> Audit préalable mené sur le match réel `cmtoouiyw8t6304b22w3f4u8y` (Sanhok, Squad TPP, Top 2, clan 1),
+> sur `cmu00zh2r2e9t04tztbp80kfk` (Erangel, 100 joueurs) et sur une capture télémétrie brute de 38,6 Mo
+> (100 joueurs, 13 428 événements de dégâts).
+> **Tout est consigné en détail dans [docs/telemetry/replay-trajectories.md](../telemetry/replay-trajectories.md)**
+> (système de coordonnées, bases de temps, reconstitution de l'avion, cercles de zone, format de piste,
+> scripts de diagnostic, limites connues).
+>
+> Cinq découvertes ont conditionné le découpage réel, différent de la proposition initiale :
+>
+> 1. **Le lobby complet est déjà en base, contrairement aux kills et aux dégâts.** `positionSamples` contient
+>    **96 acteurs distincts sur 29 équipes**, horodatés, avec `teamId` et `inVehicle`, échantillonnés toutes les 10 s.
+>    Raison : la garde `accumulator.clanMemberKeys.size === 0 || …` dans `parser.ts` laisse tout passer, et
+>    `clanMemberKeys` est vide sur le chemin de sync principal (même cause que pour le kill-feed et les lancers).
+>    Le mode « Global 100 joueurs » n'a donc demandé **aucune modification du parser ni du stockage** — l'inquiétude
+>    initiale sur le volume était infondée.
+> 2. **Deux bases de temps coexistent dans `SquadMatchTelemetry`, sans que rien ne le signale.** `positionSamples`,
+>    `trajectorySegments` et `phaseSnapshots` sont en **secondes relatives** au début du match ; `landingSamples`,
+>    `deathSamples`, `knockoutSamples`, `reviveSamples` et `KillEvent.timestampSeconds` sont en **epoch absolu**.
+>    Sans normalisation, un atterrissage se serait affiché à la seconde 1 788 628 072 d'un match de 1 385 s.
+>    Centralisé dans `toRelativeSeconds` (`match-replay.ts`), base = `SquadMatch.createdAt`.
+> 3. **Le cercle blanc (prochaine zone) n'était pas stockable.** `phaseSnapshots` ne portait que `safetyZoneX/Y`
+>    (cercle bleu courant) et le **rayon** du prochain cercle, jamais son centre. `poisonGasWarningX/Y` a été ajouté
+>    au parser — changement **additif dans une colonne JSON existante, donc sans migration Prisma** — et est désormais
+>    présent sur **170 snapshots sur 170** d'une capture réelle reparseée. Les matchs parses avant le 2026-09-13
+>    gardent `px/py = null` ; le lecteur ne dessine ce cercle que s'il existe.
+> 4. **La silhouette anatomique affichait des données entièrement inventées.** Non seulement `inferHitZones` était
+>    une heuristique en dur, mais l'API **fabriquait sa donnée d'entrée** (`damageReason: headshot ? 'HeadShot' :
+>    'Torso'`). Corrigé à la source — voir chantier 2.
+> 5. **Les positions à `t=0` ne sont pas celles de l'avion.** Elles valent le spawn / l'île d'attente, à plusieurs
+>    kilomètres de l'appareil : sur un match Erangel réel, moyenne des positions à `t=0` = `(565965, 305667)` alors
+>    que l'avion reconstitué s'y trouve en `(83000, -87000)`, hors carte au nord-ouest. Les interpoler traçait de
+>    longues diagonales fantômes et plaçait les joueurs n'importe où pendant les ~20 premières secondes.
+>    **Source exacte retenue :** les départs d'aéronef (`vehicleSamples`, `action: 'leave'` +
+>    `vehicleType: 'TransportAircraft'`), qui donnent la position réelle de l'avion à un instant précis.
+>    Sur le match testé : 99 sauts entre `t=19s` et `t=60s`, 5 725 m parcourus, soit ~140 m/s — la vitesse réelle
+>    du C-130. Chaque piste est désormais ancrée sur le saut du joueur, et les échantillons antérieurs sont écartés.
+>    Attention : il faut **borner la fenêtre au largage initial** (120 s après le premier saut), sinon l'avion de
+>    rappel de fin de partie — 109 départs d'aéronef au total, dont 10 à plus de 900 s — pollue la trajectoire.
+>
+> **Fichiers livrés :** `src/lib/pubg-assets/map-asset.ts` (+ test), `src/lib/pubg-telemetry/match-replay.ts` (+ test),
+> `src/lib/pubg-telemetry/body-zones.ts` (+ test), `src/lib/pubg-telemetry/flight-path.ts` (+ test),
+> `src/app/api/clans/[clanId]/matches/[matchId]/replay/route.ts`, `src/components/telemetry/MatchReplay2D.tsx`,
+> onglet « 🎮 Replay 2D » dans la page débriefing, doc `docs/telemetry/replay-trajectories.md`, et trois scripts de
+> validation hors HTTP sur données réelles : `scripts/inspect-match-replay.ts`, `scripts/inspect-body-zones.ts`,
+> `scripts/inspect-replay-scale.ts`.
+> Documentation existante mise à jour : entrée ajoutée dans `docs/sommaire.md`, et renvois croisés dans
+> `docs/telemetry/parser.md` sur `LogPlayerPosition`, `LogGameStatePeriodically` et `LogVehicleLeave` — dont
+> `poisonGasWarningPosition`, qui manquait à la liste des champs extraits.
+>
+> **Mesures réelles :** 96 à 100 joueurs reconstitués selon le match, 95 à 99 % de pseudos résolus,
+> 137 à 153 snapshots de zone, **131 à 154 Ko de JSON brut / 47 à 56 Ko gzip**, plan de vol passant
+> **exactement** par les points de saut (écart 0 m), ventilation anatomique **exacte à 0 près** face à `damageTaken`.
+> Validation : `tsc --noEmit` 0 erreur, ESLint **sous la baseline** (24 erreurs préexistantes contre 27 avant),
+> `npm run test:telemetry` **294 tests verts dont 60 nouveaux**.
+>
+> **Écarts assumés par rapport à la proposition initiale :**
+> - Pas de **lignes de tir vectorielles** au sens strict : la télémétrie ne persiste pas les tirs individuels
+>   (`shotSamples` est agrégé en clusters spatiaux, sans horodatage exploitable). Le lecteur trace à la place la
+>   ligne tueur → victime au moment du frag ou du knock, ce qui couvre le besoin d'analyse d'engagement.
+> - Le **plan de vol est calculé depuis les sauts** (`computeFlightPathFromJumps`), avec repli sur les atterrissages
+>   (`computeFlightPath`) si les départs d'aéronef manquent. Vérifié : la ligne passe désormais **exactement** par
+>   les points de saut (écart 0 m, cap 43,5° contre 44° mesuré) alors que la version issue des atterrissages laissait
+>   **217 m** d'écart. Le repli reste imprécis par construction — il moyenne les 15 % d'atterrissages les plus
+>   précoces et les plus tardifs, or le temps d'atterrissage dépend surtout de la distance planée, pas de la position
+>   sur la ligne de vol.
+> - Le **mode Escouade** inclut les adversaires « au contact » via un double critère : implication dans un
+>   événement des 12 dernières secondes, **ou** présence dans un rayon de 300 m d'un membre du clan.
+> - Le **Replay est un onglet distinct** de la « Carte Tactique 2D » existante, qui reste en place : l'une sert
+>   l'analyse statique par phase, l'autre la lecture chronologique. Fusionner les deux est un chantier à part.
+> - **Kill-feed dominé par les knocks** (94 knocks contre 5 kills sur le match de test) : `KillEvent` ne persiste que
+>   les frags impliquant le clan suivi, alors que `knockoutSamples` couvre tout le lobby. Comportement identique au
+>   Combat Log déjà en production, non corrigé ici. *(Corrigé pour le Replay le 2026-09-13 : les morts de `deathSamples`
+>   sans `KillEvent` sont ajoutées au journal, sans tueur — 107 morts affichées au lieu d'environ 5 sur Erangel. Le Combat
+>   Log n'est pas modifié.)*
+> - Le résolveur `resolveMapAssetKey` renvoie **`null` plutôt qu'un chemin invalide** quand aucun asset n'existe, et
+>   l'UI affiche alors une grille de repli avec un bandeau explicite au lieu d'une image cassée.
+>
+> **Deux bugs de chargement corrigés après recette (2026-09-13) :**
+> - **Squelette infini sans message sur l'onglet Replay.** `replayLoading` figurait dans le tableau de dépendances
+>   de l'effet : le `setReplayLoading(true)` initial faisait immédiatement re-tourner l'effet, dont le nettoyage
+>   posait `cancelled = true` sur **sa propre requête**. Les trois branches `if (!cancelled)` étaient alors ignorées
+>   — ni données, ni erreur, ni fin de chargement. Un simple garde par `ref` n'aurait pas suffi : **StrictMode est
+>   actif par défaut dans l'App Router** et double-invoque les effets, ce qui aurait reproduit le blocage (la
+>   première requête annulée, la seconde jamais lancée). Remplacé par un **garde de fraîcheur par identifiant de
+>   requête**, sans annulation : seule la requête la plus récente applique son résultat.
+> - **Aucun état de repli.** L'onglet pouvait rester vide si ni `loading`, ni `error`, ni `data` n'étaient posés.
+>   Ajout d'un message explicite « Aucune donnée de replay renvoyée pour ce match » et d'un bouton **Réessayer**
+>   piloté par un jeton de relance — un double `setActiveTab` aurait été fusionné par le batching React et n'aurait
+>   rien relancé.
+> - Au passage, la garde « pas de positions » de la route ne se base plus sur la liste des comptes du lobby (qui
+>   exclut les bots) mais sur le **nombre de joueurs réellement reconstitués**, pour ne pas renvoyer 404 sur un
+>   lobby entièrement composé de bots.
+
+- [~] **Les 4 Chantiers d'Amélioration & Finalisation du Débriefing :** *(code livré ; reste la resynchronisation des matchs récents et la recette navigateur)*
+  1. **🎮 Véritable Replay 2D interactif animé sur Carte Tactique (Inspiration PUBG.PLUS) :** — ✅ Livré le 2026-09-13
+     - [x] **Lecteur multimédia dynamique :** Contrôles `Lecture / Pause`, barre de progression temporelle interactive (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
+       - Rendu en `<canvas>` 2D sous `requestAnimationFrame`, avec le temps courant en `ref` et non en état React : le scrubber est piloté par manipulation directe du DOM, et un `setState` n'est déclenché qu'au changement de seconde entière (1 rendu/s à vitesse ×1, 8/s à ×8).
+     - [x] **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
+       - Caméra interne au canevas (centre normalisé + facteur d'échelle, ×1 à ×8), et non le conteneur scrollable `DropZoneMapViewport` des pages drop zones : indispensable pour le suivi caméra et le rendu 60 fps. Le zoom molette conserve le point sous le curseur.
+     - [x] **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
+       - [x] `Mode Escouade` : notre clan / équipe et les adversaires au contact direct ou engagés en duel.
+       - [x] `Mode Tournoi / Suivis` : l'ensemble des membres des clans suivis et équipes participantes au tournoi. *(Onglet masqué quand aucun autre clan suivi n'est présent dans le lobby.)*
+       - [x] `Mode Global (100 joueurs)` : vue intégrale sur tous les joueurs du lobby avec pastilles numérotées par escouade (façon PUBG.PLUS). *(Le numéro d'équipe s'affiche sous ×4, le pseudo réel au-delà.)*
+     - [x] **Suivi Caméra Automatique (*Camera Follow*) :** Clic sur un joueur ou une équipe pour centrer et verrouiller la caméra sur lui, avec suivi automatique de ses déplacements sur la carte pendant la lecture. *(Clic sur la carte dans un rayon de 16 px, ou bouton dédié dans le roster ; un glisser de carte libère automatiquement le verrou.)*
+     - **Animation dynamique des cercles & combats :**
+       - [x] Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match. *(Interpolation linéaire entre snapshots, assombrissement de l'extérieur de la zone jouable. Cercle blanc conditionné au reparse — voir découverte n°3.)*
+       - [~] Effet visuel des tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log. *(Éliminations, knocks et réanimations livrés avec onde de choc et croix ; lignes de tir individuelles impossibles — voir écarts.)*
+     - **Fidélité du début de partie (ajouté après recette, voir découverte n°5) :**
+       - [x] `extractInitialJumps` reconstitue le saut de chaque joueur depuis `vehicleSamples` et expose `player.jump`.
+       - [x] Chaque piste démarre sur ce saut ; les positions antérieures (spawn / île d'attente) sont écartées. **99 joueurs sur 100 ancrés**, écart 0 m à la ligne de vol.
+       - [x] `computeFlightPathFromJumps` remplace le calcul issu des atterrissages, conservé en repli.
+       - [x] Le joueur sans saut enregistré (déconnexion avant largage) gardait ses positions de spawn — ✅ 2026-09-16 : quand le lobby a sauté, ses positions antérieures au premier saut sont écartées ; sans autre position, il n'apparaît pas (test dans `match-replay.test.ts`). Match sans aucun saut : comportement inchangé.
+       - [x] ~~Reprendre la même correction sur l'onglet « Carte Tactique 2D »~~ — sans objet : l'onglet a été **fusionné dans le Replay** le 2026-09-13 (voir « Suite du 2026-09-13 » ci-dessous).
+     - **Suite du 2026-09-13 — fusion de la Carte Tactique, avion animé, zoom standard :** — ✅ Livré le 2026-09-13
+       > **Décision validée avec l'utilisateur :** l'onglet statique « 🗺️ Carte Tactique 2D » faisait doublon avec le Replay
+       > (deux cartes, deux plans de vol, deux logiques de zoom) et affichait des identifiants bruts `account.xxx` au survol,
+       > sans zoom, avec des trajectoires coupées à 1 500 segments. Il est **supprimé** et ce qu'il apportait d'unique est
+       > repris dans le Replay. Le débriefing passe à 4 onglets : Combat Log, Replay 2D, Escouade, Duels.
+       >
+       > **Bug trouvé au passage — le « Cap C-130 » était faux deux fois.** Sur le match Karakin `cmu027vpd3ftl04tzlejla0vk`,
+       > le badge affichait **312°** pour un avion qui volait au **357° (N)** :
+       > 1. source : plan de vol issu des atterrissages, faux de **45°** sur cette petite carte ;
+       > 2. convention : `angleDeg` est un angle compté depuis l'est, affiché tel quel sous le nom de cap (cap = angle + 90°) ;
+       > 3. l'icône était en plus tournée de 90° de trop (`angleDeg − 45` au lieu de `cap − 45`).
+       - [x] **Avion C-130 animé** sur la ligne de vol (`aircraftPositionAt`), avec tronçon parcouru, fenêtre de largage
+         (premier saut vert, dernier ambre) et badge « Cap C-130 : 357° N · 12/64 sautés ». Horaires extrapolés des sauts
+         (`FlightPath.timing`) : la **vitesse dépend de la carte** — 140 m/s Erangel, 71 m/s Sanhok, 48 m/s Karakin —, et
+         l'avion passe à 18-30 m (médiane) des points de saut réels, 113 m au pire (arrondi des horodatages à la seconde).
+       - [x] **Cap compas corrigé** (`compassHeadingDeg`, `compassCardinal`) et calculé depuis les sauts.
+       - [x] **Calques persistants** repris de la carte tactique, en version chronologique : « Trace complète » (trajet de
+         l'escouade depuis le saut, morts inclus), « Atterrissages », « Éliminations ». En mode Escouade, un adversaire n'a de
+         marqueur qu'après son premier échange avec l'escouade.
+       - [x] **Accès rapide** « Largage » et `P1…Pn`, qui remplacent le sélecteur de phase de la carte tactique.
+       - [x] **Zoom aligné sur `/clans/[clanId]/drop-zones`** : nouveau composant partagé `MapZoomControl`
+         (`[ − | ⊙ 1× | + ]` en haut à droite, paliers de ×0,5) et règles dans `src/lib/map-zoom.ts`, utilisés à la fois par
+         `DropZoneMapViewport` et par le Replay. Molette non passive ancrée sous le curseur (la page ne défile plus pendant
+         le zoom), glisser seulement au-delà de ×1, caméra bornée à la carte. Plafond ×8 conservé sur le Replay.
+         **Documenté comme standard projet** : `docs/ui/index.html#zoom-carte` (section 25), `docs/ui/components.md`, `CLAUDE.md`.
+       - [x] La route `/matches/[matchId]/telemetry` ne calcule ni ne renvoie plus `flightPath` (plus aucun consommateur).
+       - [x] ~~`InteractiveMap.tsx` garde son propre zoom vertical~~ — sans objet : composant supprimé le 2026-09-16 avec les
+         deux anciennes pages, devenues des redirections (voir « Bascule vers le débriefing »).
+     - **Recette du 2026-09-13 — escouade invisible, réanimations et rappels absents :** — ✅ Corrigé le 2026-09-13
+       > **Signalement** sur `/clans/1/telemetry/matches/cmu027vpd3ftl04tzlejla0vk/debrief` (Karakin, clan 1) : on ne voit
+       > pas le nom des 4 joueurs de l'escouade, ni les réanimations ni les rappels ; après leur première mort, les joueurs
+       > ne réapparaissent plus lors d'un rappel.
+       >
+       > **Deux causes, vérifiées sur les données du match :**
+       > 1. **Une seule mort par joueur.** Le payload gardait `d` = première mort et le lecteur masquait le joueur ensuite.
+       >    Pagiotte (mort à 94 s, rappel sauté à 668 s) et SAMUELAXEII (mort à 177 s, rappel à 364 s) disparaissaient
+       >    pour tout le reste de la partie. Leurs réanimations et rappels n'avaient donc personne à afficher. Piège associé :
+       >    après une mort, la télémétrie continue d'émettre la position **figée du cadavre** (98 → 147 s), puis celle de
+       >    l'avion de rappel ; `LogPlayerUseRespawn` n'est pas persisté en échantillon.
+       > 2. **L'escouade réduite au clan.** L'équipe 1 compte 4 joueurs dont **2 seulement sont membres du clan 1**.
+       >    CdtMcKoy et dada14smc étaient classés « lobby externe » : libellé `#1` au lieu du pseudo, masqués hors combat en
+       >    mode Escouade, absents du suivi caméra. C'est dada14smc qui porte 3 des 4 réanimations de l'escouade.
+       - [x] **Vies successives** (`computeReplayLives`) : une vie s'ouvre au saut (initial ou de rappel) et se ferme à une
+         mort ; positions du cadavre et de l'avion de rappel écartées ; chaque vie bornée par le point de saut et le lieu
+         de la mort ; lecteur et traces n'interpolent jamais à travers une mort. Résultat : 7 vies pour l'escouade du match.
+       - [x] **Escouade = équipe** (`sq`) : les coéquipiers hors clan sont nommés, toujours visibles, suivis par la caméra et
+         comptés « en vie », en turquoise pour les distinguer des membres du clan (émeraude).
+       - [x] **Événements** `recall` (onde bleue « RAPPEL », « X revient par rappel » dans le journal) et morts sans
+         `KillEvent` (« X éliminé »), dédupliquées à ±2 s des frags connus.
+       - [x] **État « à terre »** (anneau ambre pointillé, « (à terre) » sur le nom) jusqu'à la réanimation ou la mort ;
+         réanimations flashées 4 s avec ligne sauveteur → relevé et libellé « RÉANIMÉ ».
+       - [x] **Journal et flashs filtrés par mode** : en mode Escouade, les knocks du lobby ne chassent plus une réanimation
+         de l'escouade. Au passage, un adversaire n'est plus « au contact » que s'il a échangé avec l'escouade — avant, n'importe
+         quel duel du lobby dans les 12 dernières secondes suffisait.
+       - [x] Tests : 10 nouveaux dans `match-replay.test.ts` (vies, cadavre écarté, coéquipiers, rappels, morts, déduplication).
+         `scripts/inspect-match-replay.ts` affiche désormais les vies et les événements de l'escouade.
+       - [ ] Recette navigateur à refaire sur ce match (voir « Tests Manuels » plus bas).
+     - **Recette du 2026-09-13 (suite) — coéquipiers non suivis, avions de rappel, caisses de largage :** — ✅ Code livré le 2026-09-13
+       > **Demandes :** (1) afficher le nom et les stats des joueurs non suivis de l'escouade dans le débriefing ;
+       > (2) tracer l'avion des rappels et le faire disparaître quand il quitte la carte ; (3) afficher les caisses de loot.
+       - [x] **Coéquipiers non suivis** (`src/lib/pubg-telemetry/squad-mates.ts`, route `/matches/[matchId]/telemetry` →
+         `squadMates`). `SquadMember` ne contient que les membres suivis ; les stats des invités viennent de `memberStats`.
+         Vérifié : pour Pagiotte et SAMUELAXEII, télémétrie et API concordent exactement ; CdtMcKoy 0 K / 30 dmg / 1 réa,
+         dada14smc 3 K / 302 dmg / 1 réa / 3 rappels déclenchés. Affichés dans le bandeau (pastille turquoise « non suivi »),
+         dans les indicateurs « escouade » (« dont coéquipiers : … »), dans le tableau de l'onglet Escouade et dans les
+         silhouettes anatomiques. **Les assistances restent celles des seuls membres suivis** : la télémétrie ne les compte pas.
+       - [x] **Avions de rappel** (`computeRecallFlights`) : reconstitués depuis embarquements et sauts, horodatages non
+         arrondis, ajustement par moindres carrés, prolongés jusqu'aux bordures. **4 vols sur le match Karakin** (86, 67, 53 et
+         28 m/s). Ligne et appareil ambre affichés **uniquement pendant le survol**, badge « Avion de rappel : cap · rappelés »,
+         raccourcis `R1…R4`.
+       - [x] **Caisses de largage** : ajout au parser de `LogCarePackageSpawn`, `LogCarePackageLand` et
+         `LogItemPickupFromCarepackage` (`care-packages.ts`). *Stockage revu le 2026-09-14 : colonne dédiée
+         `carePackageSamples` au lieu de `summary.carePackages`, voir « Recette du 2026-09-14 » ci-dessous.*
+         Validé sur 3 captures réelles : 39 à 45 caisses (4-5 principales), rebonds dédupliqués, pillages rattachés par
+         distance (`carePackageUniqueId` vaut toujours 0), ~10 Ko. Calque « Largages » : parachute pendant la chute, caisse
+         posée, contour une fois pillée, anneau émeraude si pillée par l'escouade, arme principale affichée à ×3.
+       - [x] Tests : `care-packages.test.ts` (6), `squad-mates.test.ts` (4), 3 dans `flight-path.test.ts`, 3 dans
+         `match-replay.test.ts`, 2 dans `parser.test.ts`. Suite : 332 tests verts (hors 3 fichiers branchés sur la base).
+       - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite.
+         **Re-synchroniser la télémétrie de `cmu027vpd3ftl04tzlejla0vk`** (et des matchs de moins de 14 jours) pour
+         peupler `carePackageSamples` et `killFeedSamples` : sans cela, le calque « Largages » reste grisé. Écriture en production — à lancer
+         par l'utilisateur via le bouton **« Resync ce match »** de la page « Audit Technique Brut »
+         (`/clans/1/telemetry/matches/<id>/telemetry`, rôle Owner, route `POST /telemetry/sync-selected`).
+         ⚠️ `npm run telemetry:batch -- --clan 1` **ne convient pas** : `getMatchesToSync` écarte tout match déjà en
+         `success` avec des `landingSamples` — il ne re-parse donc aucun match récent déjà analysé.
+       - [ ] Les caisses « de mort » (`LogItemPickupFromLootBox`) ne sont pas affichées : leur position est celle des
+         éliminations, déjà couverte par le calque « Éliminations ».
+     - **Recette du 2026-09-14 — match clan 18 `cmu1k4in8auof0493sog1dm50` (BOFS, Karakin, Top 2) :** — ✅ Code livré le 2026-09-14
+       > **Signalements :** (1) rappel invisible dans le Combat Log (« Escouade » et « Tout le match ») alors que le replay
+       > le montre ; (2) les 5 kills de Pagiotte absents des duels — comment sont-ils établis ? ; (3) Pagiotte marqué
+       > « [SMK] non suivi » alors qu'il est suivi ; (4) Zimbabalooba aussi, et il a changé de clan : comment est-ce détecté ?
+       >
+       > **Constats sur les données :**
+       > - L'équipe 4 compte Kouner et skiercross (clan 18), **Pagiotte (membre du clan 1)** et **Zimbabalooba (aucune fiche
+       >   `ClanMember`, ni par compte ni par pseudo, et non favori)**. Le clan 1 n'avait **pas encore synchronisé** ce match
+       >   (pas de `SquadMember` pour lui) : Pagiotte n'était donc connu du clan 18 que par la télémétrie.
+       > - **Le rappel n'était pas celui de Pagiotte** (une seule mort, à 986 s) : ce sont skiercross et Zimbabalooba qui sont
+       >   revenus par l'avion de 511-521 s, rappel déclenché par Kouner (`recalls: 2`). Le Combat Log n'avait tout
+       >   simplement **aucun événement de rappel**, et son filtre « Escouade » ignorait les coéquipiers.
+       > - **Duels** = `KillEvent` où tueur ou victime est membre du clan consulté. `KillEvent` n'est écrit que pour les
+       >   rosters des clans ayant une ligne `SquadMember` sur le match : 4 frags seulement, tous du clan 18. Les 5 kills de
+       >   Pagiotte n'existaient que dans le kill-feed de la télémétrie, qui était jeté après filtrage.
+       - [x] **Migration additive appliquée en production le 2026-09-14** (`20260914190000_add_telemetry_kill_feed_care_packages`) :
+         colonnes JSON nullables `killFeedSamples` et `carePackageSamples` sur `SquadMatchTelemetry`. Procédure : `migrate diff`
+         vide avant, diff limité aux deux `ADD COLUMN` après édition du schéma, table de **12 Go** sur MariaDB 10.11 →
+         `ALGORITHM=INSTANT` + `lock_wait_timeout = 10` via `prisma db execute` (2 s, sans recopie), puis
+         `migrate resolve --applied`. `migrate diff` vide et `migrate status` à jour ensuite.
+         Pourquoi pas dans `summary` : 309 octets en moyenne, lus par `JSON_EXTRACT` dans 4 routes d'agrégats sur tous les
+         matchs d'une période ; le kill-feed pèse ~20 Ko et les caisses ~10 Ko par match.
+       - [x] **Kill-feed complet** persisté (`parsed.killFeedSamples`) et fusionné avec `KillEvent`
+         (`mergeKillFeedWithKillEvents`, même victime à 2 s = même frag) dans les duels, le Combat Log et le replay ; frags
+         issus de la télémétrie marqués « télémétrie ».
+       - [x] **Escouade = équipe** partout dans le débriefing : filtre « Escouade » du Combat Log, compteurs, duels
+         (`isSquadKill` / `isSquadVictim`).
+       - [x] **Rappels dans le Combat Log** (`extractRespawnEvents`) : nouveau type « Rappels », carte bleue « revient en jeu
+         par rappel ».
+       - [x] **Légendes** : Combat Log (qui compte dans l'escouade, sources des kills) et onglet Duels (définition d'un duel,
+         sources, et nombre de kills de l'escouade non détaillés quand statistiques et frags ne concordent pas).
+       - [x] **Badge de coéquipier corrigé** : recherche d'une fiche `ClanMember` pour chaque coéquipier → « [SMK] suivi »
+         (violet) si suivi dans un autre clan, « non suivi » sinon, avec la date de résolution du tag PUBG en info-bulle.
+       - [x] Tests : `match-replay.kill-feed.test.ts` (4), `squad-mates.test.ts` (+1), `parser.test.ts` et
+         `match-replay.test.ts` adaptés. 337 tests verts (hors 3 fichiers branchés sur la base).
+       - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite. Ce match a justement été resynchronisé le 14/09 avec l'ancien code : 2 joueurs au lieu de ~100.
+         **Re-synchroniser `cmu1k4in8auof0493sog1dm50`** (« Resync ce match ») pour remplir `killFeedSamples` :
+         d'ici là, l'onglet Duels l'indique et annonce les kills non détaillés.
+       - [x] **Redéployer** — ✅ 2026-09-16 : la production écrit de nouveau les deux colonnes, vérifié sur les parsings
+         de 19:57 UTC.
+       - [ ] **Détection des changements de clan PUBG** — plan détaillé demandé avant implémentation, voir la section
+         « Détection et signalement des changements de clan PUBG » (P2).
+  2. **🩺 Correction du décompte des impacts et Refonte Graphique de la Silhouette (`DamageBodySvg`) :** — ✅ Décompte corrigé le 2026-09-13
+     > **Constat de l'audit du 2026-09-13 :** le parser **ne persistait aucune zone corporelle**. `LogPlayerTakeDamage.damageReason`
+     > n'était lu que par `isHeadshotKill` (`parser.ts`) pour incrémenter un compteur de headshots ; la valeur brute
+     > (`TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`…) était jetée. `inferHitZones` était donc une **pure invention** :
+     > sur un kill sans `damageReason` exploitable, il retournait `{ torso: 75, pelvis: 25 }` en dur. Pire, l'API
+     > **fabriquait la donnée d'entrée** : `damageReason: k.headshot ? 'HeadShot' : 'Torso'` pour les kills, et
+     > `pair.knocker?.damageReason || 'Combat'` pour les knocks — alors que `TelemetryKnockoutSample` ne porte
+     > aucun `damageReason`. Toute la silhouette affichait donc une répartition entièrement synthétique.
+     >
+     > **Décision validée avec l'utilisateur :** vraies données quand elles existent, **badge « données indisponibles »
+     > sinon — aucune heuristique conservée**.
+     >
+     > **Mise en œuvre :** nouveau module `src/lib/pubg-telemetry/body-zones.ts` (résolution `damageReason` → zone,
+     > accumulation, agrégation), accumulation dans le parser sur `LogPlayerTakeDamage`, sérialisation dans
+     > `memberStats[*].bodyZonesDealt` / `bodyZonesTaken`. **Aucune migration Prisma** : c'est le même procédé que
+     > `memberStats[*].weapons`, à l'intérieur de la colonne JSON existante.
+     >
+     > **Validation sur une capture réelle de 38,6 Mo** (100 joueurs, 13 428 événements de dégâts) :
+     > la somme des dégâts ventilés par zone est **strictement égale** à la somme de `damageTaken`
+     > (écart de 0). Ventilation du lobby : tête 3 639 dmg / 128 touches, torse 5 724 / 479,
+     > bassin 1 447 / 103, bras 2 969 / 254, jambes 1 988 / 184.
+     - **Écarts assumés :**
+       - Une **6ᵉ zone `other`** a été ajoutée pour les dégâts non localisés (`NonSpecific`, `None`, zone bleue,
+         chute, explosion). Elle n'est **pas projetée sur la silhouette** mais affichée à part — sur la capture de
+         test elle représente 10 056 dmg pour 12 280 touches, essentiellement des ticks de zone bleue : la diluer
+         dans le torse aurait rendu la lecture fausse.
+       - La ventilation est **par membre et par match**, pas par événement de combat. Le duel individuel du Combat
+         Log n'affiche donc une zone que pour un headshot avéré, et l'état « Localisation de l'impact non
+         enregistrée » sinon.
+     - **Refonte visuelle et stylistique complète de la silhouette (Style Opérateur Tactique PUBG) :** — ✅ déjà livrée le 2026-09-05, non retouchée
+       - Remplacement de la forme trapue/basique actuelle par un tracé vectoriel SVG haute fidélité, athlétique et moderne (silhouette d'opérateur militaire / Battle Royale).
+       - Découpage anatomique précis et stylé :
+         - **Casque militaire PUBG Level 3 (Spetsnaz)** avec visière blindée distincte.
+         - **Gilet pare-balles tactique (Military Vest)** avec plaques balistiques et collerette.
+         - **Bassin & ceinture utilitaire** avec étuis et démarcation nette.
+         - **Membres segmentés** (bras/avant-bras/gants tactiques, cuisses/genouillères/bottes d'intervention).
+       - Esthétique HUD holographique militaire : tracés fins, shaders/dégradés lumineux néon réactifs selon la gravité des dégâts (Rouge cramoisi létal avec glow, Orange intense, Jaune ambré, Ardoise/Cyan neutre).
+       - Réticule de visée et repères holographiques d'impacts précis au survol.
+     - **Correction mathématique du décompte des impacts corporels :**
+       - [x] Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`. *(`inferHitZones` supprimé du code, y compris sa copie locale dans `MatchCombatTimeline` et le test qui en dupliquait la logique.)*
+       - [x] Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade. *(Les dégâts auto-infligés ne comptent pas comme « infligés » ; seuls les `damageTaken` alimentent la silhouette de l'escouade.)*
+       - [x] Nombre de touches réel affiché à côté des dégâts et du pourcentage dans la ventilation.
+       - [x] ⚠️ Blocage levé : correctif déployé le 2026-09-16 et matchs de moins de 14 jours resynchronisés les 16–17/09 (lobby complet restauré) — la recette navigateur peut être faite.
+         **Resynchroniser les matchs de moins de 14 jours** pour peupler l'historique récent : sans cela, la page
+         affiche le badge « Zones d'impact non capturées pour ce match ». *(Correction du 2026-09-13 : la commande
+         `npm run telemetry:batch -- --clan <id>` indiquée ici ne re-parse **pas** les matchs déjà analysés avec succès.
+         Utiliser « Resync ce match » sur la page « Audit Technique Brut », ou la re-synchronisation par session.)*
+       - [x] Exposer aussi `bodyZonesDealt` dans l'UI — ✅ 2026-09-13 : l'onglet Duels affiche désormais **deux silhouettes
+         côte à côte**, « Tirs infligés » et « Tirs subis », chacune avec son nombre de touches, ses dégâts localisés, sa
+         part de touches à la tête et ses dégâts non localisés à part (`summarizeBodyZones`, testé). Identifiants SVG de
+         `DamageBodySvg` rendus uniques (`useId`) pour permettre plusieurs silhouettes sur la même page.
+  3. **🗺️ Résolution et affichage garanti de l'image satellite de la carte :** — ✅ Livré le 2026-09-13
+     - [x] Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) :
+       - `Erangel` / `Erangel (Remastered)` ↔ `Baltic_Main`
+       - `Miramar` ↔ `Desert_Main`
+       - `Sanhok` ↔ `Savage_Main`
+       - `Vikendi` ↔ `DihorOtok_Main`
+       - `Taego` ↔ `Tiger_Main`
+       - `Deston` ↔ `Kiki_Main`
+       - `Rondo` ↔ `Neon_Main`
+       - `Karakin` ↔ `Summerland_Main`
+       - `Paramo` ↔ `Chimera_Main`
+     - [x] Garantie de chargement de l'image haute résolution `/maps/pubg/${mapKey}.webp` sans aucune erreur 404.
+     - **Correction du 2026-09-13 — la « cause racine » annoncée ne se produit pas sur les données réelles.**
+       Il est exact que `Erangel_Main` (présent dans `dictionaries/mapName.json`) n'a aucun fichier et que c'est
+       `Baltic_Main.webp` qui porte Erangel. Mais `SquadMatch.mapName` **ne contient que des clés techniques** :
+       vérifié en base sur les 13 978 matchs (`Baltic_Main` ×6 056, `DihorOtok_Main` ×1 327, `Savage_Main` ×1 222…),
+       aucun `Erangel_Main`. L'ancien chemin `/maps/pubg/${match.mapName}.webp` fonctionnait donc déjà pour **toutes**
+       les cartes Battle Royale. Seuls **5 matchs arcade** n'ont pas d'image (`Italy_TDM_Main` ×2, `Boardwalk_Main` ×2,
+       `PillarCompound_Main` ×1) — et aucun asset n'existe pour eux de toute façon.
+       Le résolveur reste utile **par précaution** (libellés, alias, clés d'origine incertaine) et apporte un vrai gain :
+       il renvoie `null` et le Replay affiche une grille de repli explicite au lieu d'une image cassée.
+     - **Piège annexe à connaître :** `mapImageUrl()` dans `src/lib/pubg-assets/asset-url.ts` construit un chemin
+       PNG (`${mapKey}_Low_Res.png`) qui **n'existe pas dans ce dépôt**. Ne pas l'utiliser pour les fonds de carte ;
+       passer par `mapAssetUrl()`.
+     - [ ] ~~Propager `mapAssetUrl()` aux autres pages — même bug latent~~ — **priorité basse, requalifié le 2026-09-13** :
+       il n'y a pas de bug latent sur les données actuelles (voir ci-dessus), le seul bénéfice serait un repli propre sur
+       les 5 matchs arcade. Si c'est fait un jour, la liste complète des chemins codés en dur est : les 3 anciennes pages
+       télémétrie (`/clans/[clanId]/matches/[matchId]/telemetry`, `/clans/[clanId]/telemetry/matches/[matchId]/telemetry`,
+       `/tournaments/[tournamentId]/matches/[matchId]/telemetry`), `/clans/[clanId]/stats/positions`, drop zones clan et
+       membre, heatmap kills, `/members/[id]/map-stats`, `/settings/map-labels`, `MapImage.tsx` et la vignette de
+       `discord-top1-embed.ts`.
+  4. **👤 Noms complets de tous les joueurs (non-membres et adversaires du lobby) :** — ✅ Livré le 2026-09-13
+     > **Constat de l'audit du 2026-09-13 :** `memberIdentityMap` de la route télémétrie n'était alimenté que par
+     > `EncounteredPlayer` **filtré sur le clan courant** et par le roster des clans suivis. La table `Player`
+     > (identité globale, partagée entre tous les clans) et `OpponentClan` n'étaient jamais interrogées ici.
+     > `killerRawKey` / `victimRawKey` **ne contiennent pas de pseudo** : ce sont les `memberKey` bruts
+     > (`account.xxx`), recopiés tels quels par `kill-event-persistence.ts` — cette piste de la proposition initiale
+     > était donc sans objet.
+     - [x] Cascade de résolution `EncounteredPlayer` → `Player` global → `ClanMember` implémentée sur **les deux routes**
+       (`/matches/[matchId]/replay` et `/matches/[matchId]/telemetry`) : **95 % des 96 joueurs du lobby résolus**
+       sur le match de test, contre un simple identifiant brut auparavant pour les adversaires jamais croisés par ce clan.
+     - [x] Affichage du nom complet pour les adversaires, avec repli sur les 8 premiers caractères de l'identifiant
+       et libellé « Bot » pour les clés `ai.*`.
+     - **Bug de performance corrigé au passage :** la route télémétrie chargeait **tout l'historique
+       `EncounteredPlayer` du clan** (`findMany({ where: { clanId } })`, sans borne ni limite — plusieurs dizaines de
+       milliers de lignes) à chaque affichage de page. Les deux requêtes d'identité sont désormais bornées aux comptes
+       réellement présents dans le lobby via `collectLobbyAccountIds`, et exécutées en parallèle.
+     - [ ] Résoudre les ~5 % restants : ce sont des comptes jamais croisés auparavant, absents des trois tables.
+       Les obtenir exigerait un appel à l'API PUBG par joueur inconnu, coûteux en quota (10 RPM par défaut) — à arbitrer.
+
+   5. **📊 Enrichissement du Débriefing avec les Métriques Clés de l'ancienne page Télémétrie :**
+      - **Bilan de mobilité & exposition individuelle (`memberStats`) :**
+        - Intégration de mini-badges tactiques sur la carte de chaque joueur dans l'onglet **Escouade** :
+          - `🎯 First contact P{n}` : Phase du premier tir ou frag initié.
+          - `🏃 Pied` : Distance totale parcourue à pied (`onFootDistanceMeters`).
+          - `🚗 Véhicule` : Distance totale parcourue en véhicule (`vehicleDistanceMeters`).
+          - `⏳ Retard cercle` : Temps passé hors safe zone (`circleDelaySeconds`) et pourcentage du match hors zone (`circleDelayPercent`).
+          - `🛡️ Dégâts reçus` : Volume total de pression et dégâts subis (`damageTaken`).
+      - **Bilan des armes de la partie (`weaponStats`) :**
+        - Intégration dans l'onglet **Combat** d'un tableau synthétique triable des armes du match (Nom de l'arme résolu, Kills, Headshots, Dégâts totaux).
+      - *(Décision validée : les données brutes JSON et l'arbre de debug technique ne sont pas conservés dans le Débriefing pour garder une expérience épurée).*
+
+- [ ] **Bascule vers le débriefing et retrait des anciennes pages** — 🚧 Étape 1 (liens) livrée le 2026-09-15, étape 2 (redirections, suppression) le 2026-09-16 ; reste la recette navigateur et l'accès public tournoi
+  > Quatre pages de télémétrie de match coexistent. **Seul le débriefing a le Replay 2D et le Combat Log** ; les trois
+  > autres utilisent encore `InteractiveMap` (zoom hors standard) :
+  > - `/clans/[clanId]/telemetry/matches/[matchId]/debrief` — la page cible ;
+  > - `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` — vue d'audit (resync, import, JSON brut), à conserver
+  >   comme `/telemetry/audit` selon le plan d'origine ;
+  > - `/clans/[clanId]/matches/[matchId]/telemetry` — ancienne page monolithique côté clan ;
+  > - `/tournaments/[tournamentId]/matches/[matchId]/telemetry` — ancienne page monolithique côté tournoi.
+  >
+  > Au 2026-09-15, avant l'étape 1, **aucun lien du site ne menait au débriefing**, en dehors des deux bandeaux croisés
+  > débriefing ↔ audit. Les adresses sont désormais construites par `src/lib/match-links.ts` (`matchDebriefPath`,
+  > `matchTelemetryAuditPath`, 3 tests).
+  >
+  > Vérifié avant bascule : le débriefing lit **les mêmes routes API** que les anciennes pages (garde
+  > `requireNavPermission('clan.matches')`), donc aucun changement d'accès. Aucune page n'est gardée par rôle côté client.
+  - [x] `SquadMatchList` (listes `/clans/[clanId]/matches`, sessions clan et télémétrie) : bouton « Débriefing du match »
+    quand la télémétrie est `success` ; sinon « État de la télémétrie » vers l'audit (le débriefing renvoie 404 sans
+    télémétrie). Lien secondaire « Audit technique » sur la page de session télémétrie (`showAuditLink`).
+  - [x] `MatchHistory` (tableau de bord membre, déjà filtré sur `telemetryAvailable`) et `HeadToHeadCard` (comparateur)
+  - [x] `tournaments/[tournamentId]/page.tsx` → débriefing du clan retenu (2026-09-16). Vérifié avant : l'ancienne page
+    tournoi n'affichait **aucun contexte de tournoi** (même contenu que la page clan, fil d'Ariane vers la page clan) —
+    la bascule ne perd rien. Le clan retenu reste le premier membre de la manche : à revoir avec le « Mode contextuel
+    Tournoi »
+  - [x] Embed Discord Top 1 → débriefing (test mis à jour)
+  - [x] Embed Discord tournoi : « ▶️ Replay 2D de la manche » mène enfin à un Replay 2D (débriefing du clan retenu, même
+    accès que l'ancienne page tournoi). Les messages déjà postés gardent l'ancienne adresse → à couvrir par la redirection
+  - [x] Débriefing : parent de repli du fil d'Ariane et lien « Retour » vers `/clans/[clanId]/matches` (accessible à tous)
+    au lieu de la page Owner `/telemetry/matches` ; message en français quand la télémétrie est absente
+    (`TELEMETRY_NOT_FOUND`)
+  - [x] Retour vers le comparateur avec sa sélection (signalé le 2026-09-15 depuis
+    `/clans/comparator?clanIds=26%2C23%2C13&period=week`) : le comparateur n'alimentait pas la pile du fil d'Ariane, et la
+    pile traitait un changement de query comme une nouvelle page. `NavigationTrail` invisible sur le comparateur +
+    déduplication par chemin dans `src/lib/nav-stack.ts` (6 tests)
+  - [ ] Recette navigateur : liste des matchs d'un clan (bouton selon l'état), tableau de bord membre, comparateur (changer
+    la sélection puis ouvrir un match : « Retour à Comparateur » doit restaurer la dernière sélection), arrivée directe
+    sur un débriefing (fil d'Ariane → « Matchs »), match sans télémétrie
+  - [x] **Étape 2 — 2026-09-16** : les deux anciennes pages (1 804 et 1 584 lignes) sont remplacées par une redirection
+    serveur 307 vers le débriefing — `/clans/[clanId]/matches/[matchId]/telemetry` et
+    `/tournaments/[tournamentId]/matches/[matchId]/telemetry?clanId=` (sans `clanId` valide → page du tournoi). Les liens
+    déjà publiés sur Discord restent valides. Supprimés, faute d'autre usage vérifié : `InteractiveMap.tsx` et
+    `WeaponStatsTable.tsx`. `isGameLabel` reste utilisé par la vue d'audit.
+  - [x] Adresses conservées : le débriefing reste sur `/debrief` et l'audit sur `/telemetry` — **le plan d'origine** (servir
+    le débriefing sur `/telemetry` et déplacer l'audit sur `/telemetry/audit`) **n'est pas repris** : il casserait les liens
+    publiés depuis le 2026-09-15 pour un simple changement de nom, sans gain pour l'utilisateur.
+  - [ ] Recette navigateur de l'étape 2 : ouvrir une ancienne adresse clan et une ancienne adresse tournoi (avec et sans
+    `clanId`) → arrivée sur le débriefing ou la page du tournoi
+  - [x] Côté tournoi : accès ouvert à **tout utilisateur connecté** (décision du 2026-09-16) — voir ci-dessous. La page
+    d'un tournoi, les messages Discord de tournoi et l'ancienne adresse `/tournaments/[id]/matches/[matchId]/telemetry`
+    mènent désormais à `/tournaments/[tournamentId]/matches/[matchId]`.
+
+- [x] **Mode contextuel Tournoi & Ruban Multi-Escouades :** — ✅ **Livré le 2026-09-16** (code ; recette navigateur à faire)
+  > **Réalisation :**
+  > - **Accès** : `GET /api/tournaments/[tournamentId]/matches/[matchId]/telemetry` et `/replay`, session obligatoire (tout
+  >   compte connecté), 404 si le match n'est pas une manche du tournoi (`loadTournamentRoundContext`). Page
+  >   `/tournaments/[tournamentId]/matches/[matchId]`. `/api/tournaments` et `/standings` vérifient aussi la session : le
+  >   proxy ne couvre pas `/api`, ces deux routes étaient **lisibles sans compte** jusqu'ici.
+  > - **Une seule vue** : `MatchDebriefView` (`src/components/telemetry/`) sert la vue clan et la vue tournoi ; le calcul
+  >   serveur est partagé (`match-debrief-payload.ts`, `match-replay-loader.ts`). Les deux routes clan sont réduites à
+  >   un appel.
+  > - **Équipe mise en avant** au lieu d'un clan : `?teamId=`, défaut = équipe du clan (vue clan) ou équipe la mieux
+  >   classée (vue tournoi). Bande des escouades triée par classement, médailles 🥇🥈🥉, `[TAG] clan (N kills)` ; deux
+  >   escouades d'un même clan sont distinguées par leur premier joueur. Tout suit la sélection : bandeau, indicateurs,
+  >   Combat Log, onglet Escouade, duels, silhouettes, Replay.
+  > - **Bandeau tournoi** : manche N/total, points de chaque clan (placement + kills + bonus), retour au classement.
+  > - **Replay** : l'escouade suivie est recalculée côté client (`replay-focus.ts`), caisses pillées comprises
+  >   (`lteams`) ; couleurs bleu, vert, jaune, orange attribuées dans l'**ordre alphabétique** des pseudos — la télémétrie
+  >   ne donne pas le numéro de slot PUBG.
+  > - **Classement des équipes** (trouvé en implémentant) : le parser ne lisait le classement que de l'équipe gagnante —
+  >   `LogMatchEnd.characters[].character.ranking` était ignoré. Corrigé pour les prochaines analyses ; pour les matchs en
+  >   base, repli sur `SquadMember.placement` (API PUBG) puis estimation d'après l'ordre des éliminations, signalée `~#N`.
+  > - **Bug corrigé au passage** : dans une manche où un clan aligne deux escouades (cas réel « Tournoi SMK », manche 2),
+  >   l'appartenance « escouade » se jugeait sur le clan — l'escouade à 0 kill affichait 2 duels gagnés. Elle se juge
+  >   désormais sur les comptes de l'équipe mise en avant.
+  > - Vérifié hors HTTP sur données réelles (`scripts/inspect-match-debrief.ts`) : Karakin clan 1 inchangé (9 kills dont 3
+  >   des coéquipiers, 6 duels gagnés / 4 perdus) ; manche « Tournoi SMK » : escouade 1 → 0 kill, 0/2 ; escouade 2 → 2 kills,
+  >   2/0. Tests : `match-teams.test.ts` (5), `replay-focus.test.ts` (3), `parser.test.ts` (+1), `match-links.test.ts` (+1).
+  >
+  > **Écarts assumés :** pas de pastille « 🌐 Vue Globale » (le Combat Log a son filtre « Tout le match » et le Replay son
+  > mode « Global ») ; pas de centrage caméra automatique au changement d'escouade (le suivi reste au clic sur un joueur) ;
+  > le classement général des clans reste calculé par clan, pas par escouade (règle existante du moteur de tournoi).
+  - [x] Fil d'Ariane en boucle entre un tournoi et une de ses manches (signalé le 2026-09-16) : « Retour » empilait la
+    page précédente au lieu de revenir en arrière — défaut général de `NavigationTrail`, antérieur au mode tournoi.
+    Revenir sur une page déjà dans la pile la coupe désormais à cette page (`nav-stack.ts`, 2 tests), et `/tournaments`
+    s'inscrit dans la pile
+  - [ ] Recette navigateur : page d'un tournoi → manche → bandeau, bande des escouades, changement d'escouade (indicateurs,
+    Combat Log, duels, silhouettes, Replay et couleurs), accès avec un compte d'un autre clan, ancienne adresse Discord
+  >
+  > *Spécification d'origine (2026-09-14), conservée pour référence :*
+  > **L'unification annoncée par ce volet n'est donc pas faite** : seul son prérequis (finaliser le débriefing) l'est.
+  > État constaté dans le code :
+  > - la page débriefing ne lit aucun `tournamentId` ;
+  > - la page tournoi (`src/app/tournaments/[tournamentId]/page.tsx`) renvoie toujours vers l'**ancienne page monolithique**
+  >   `/tournaments/[tournamentId]/matches/[matchId]/telemetry?clanId=${match.members[0]?.clanId}` — le clan retenu est
+  >   celui du **premier membre** de la manche, choisi arbitrairement.
+  >
+  > ⚠️ **Obstacle de conception à traiter en premier — l'accès public des tournois :**
+  > Les routes `/api/clans/[clanId]/matches/[matchId]/telemetry` et `/replay` sont gardées par `requireNavPermission('clan.matches')` + appartenance au clan (`ensureMemberInClan`).
+  > Un joueur d'un autre clan, s'il n'est pas SuperUser, reçoit **403** en ouvrant la télémétrie d'une manche d'un tournoi pourtant public.
+  > Solution retenue :
+  > - Création de routes publiques dédiées au tournoi :
+  >   - `/api/tournaments/[tournamentId]/matches/[matchId]/telemetry`
+  >   - `/api/tournaments/[tournamentId]/matches/[matchId]/replay`
+  >   - Contrôle d'accès : vérification que le match est bien associé à une manche du tournoi (`TournamentRoundMatch`), accessible sans obligation d'appartenance au clan.
+  - **Ruban Horizontal Multi-Escouades Défilant (*Squad Focus Strip*) :**
+    - En en-tête du Débriefing de manche (sous le bandeau du tournoi), affichage d'un ruban scrollable horizontalement contenant les pastilles interactives de toutes les escouades de la manche, **triées par leur classement final (#1 à #N)** :
+      - Pastille #1 (Or) : `🏆 #1 · [TAG] Nom Clan/Team (12 kills)`
+      - Pastille #2 (Argent) : `🥈 #2 · [TAG] Nom Clan/Team (8 kills)`
+      - Pastille #3 (Bronze) : `🥉 #3 · [TAG] Nom Clan/Team (6 kills)`
+      - Pastilles #4 à #N : `#N · [TAG] Nom Clan/Team (X kills)`
+      - Pastille spéciale : `🌐 Vue Globale (Tout le match)`
+    - **Valeur par défaut intelligente :**
+      - En vue Tournoi : sélection automatique du **Top 1 de la manche** (l'escouade championne).
+      - En vue Clan : sélection automatique de l'escouade du clan courant.
+    - **Répercussion dynamique instantanée du choix d'escouade sur toute la page :**
+      - **Onglet Escouade :** Affiche immédiatement les 4 joueurs de l'escouade sélectionnée avec leurs métriques individuelles.
+      - **Silhouettes anatomiques (`DamageBodySvg`) :** Bascule automatique des tirs infligés et reçus sur l'escouade sélectionnée.
+      - **Replay 2D :** 
+        - Mise en valeur lumineuse de l'escouade choisie avec centrage/suivi caméra automatique.
+        - **Couleurs d'équipe officielles PUBG :** Respect strict des 4 couleurs officielles PUBG par joueur au sein de l'escouade (Bleu, Vert, Jaune, Orange) pour une lisibilité instantanée des coéquipiers sur la carte 2D.
+  - **Bandeau de contexte Tournoi :**
+    - `🏆 Manche #{N} du Tournoi : {Nom Tournoi}`.
+    - Récapitulatif des points de la manche attribués selon les règles du tournoi (points de placement + kills).
+    - Bouton d'action proéminent : `← Retour au Classement Général du Tournoi`.
+
+---
+
+##### VOLET 5 : Adaptation des Notifications Discord & Moteur de Scoring
+
+> **VOLET 5 livré le 2026-09-18** — embed et orchestration alignés sur les 4 modes, tests étendus (+8).
+> Doc : `docs/features/tournois.md` et `docs/features/discord-notifications.md`.
+> **Incohérence trouvée** : tout l'embed était typé « par clan » (`clanId`, `clanLabel`). Le participant est
+> désormais générique (`label`), ce qui a imposé de mettre à jour l'aperçu des paramètres Discord et le message de
+> test. **Piège rencontré** : le mock Prisma du test de service ne listait pas `clanMember`, le nouveau modèle lu
+> par l'orchestration — l'erreur tombait loin de sa cause, exactement le gotcha documenté dans CLAUDE.md.
+
+- [x] **Générateur d'Embed Polymorphique (`discord-tournament-embed.ts`) :** intitulés, pied de page et vocabulaire
+  adaptés aux 4 modes, note explicite quand le partage au prorata est actif.
+  - Embed adapté dynamiquement selon le mode du tournoi :
+    - Mode Inter-Clans (avec note de prorata si activé).
+    - Mode Équipes Libres (nom d'équipe + membres et clans d'origine).
+    - Mode Solo FFA (leaderboard individuel et MVP dégâts/kills).
+    - Mode Tournoi Interne (classement des escouades internes du clan).
+- [x] **Service d'orchestration (`discord-tournament-service.ts`) :** règles normalisées transmises au générateur,
+  scores de manche et classement calculés par `buildRoundViews` / `computeTournamentModeStandings` — donc exactement
+  les mêmes chiffres que la page de détail. En scrims internes, le MVP est restreint au clan organisateur.
+
+---
+
+##### VOLET 6 : Onglet « Guide & Fonctionnement »
+
+> **VOLET 6 livré le 2026-09-18** — guide extrait dans une source unique (`src/lib/tournament-guide.ts`, 7 tests)
+> et rendu par un composant partagé (`TournamentGuide`).
+> **Deux écarts assumés par rapport à la demande :**
+> 1. **Sept fiches au lieu de six** : les escouades mixtes ont leur propre fiche plutôt qu'un paragraphe noyé dans
+>    celle des modes — c'est la règle qui surprend le plus, avec ses points décimaux.
+> 2. **Le guide est aussi public**, en accordéon replié sur `/tournaments` : la demande le plaçait seulement dans
+>    l'administration, mais les questions « qu'est-ce qui compte ? » et « pourquoi ce score ? » viennent des joueurs,
+>    pas de l'organisateur.
+>
+> **Incohérence corrigée** : les descriptions de modes étaient dupliquées entre le formulaire de création et le
+> guide. Elles viennent maintenant du même fichier, et un test échoue si un mode du moteur n'y est pas décrit.
+
+- [x] **Fiches explicatives au format `.app-modal-callout` :**
+  1. **Comment sont capturés les matchs ?** : Parties personnalisées (`matchType: custom`).
+  2. **Règle d'or de l'organisateur :** Présence obligatoire d'un membre du clan organisateur dans le match.
+  3. **Les 4 Modes de Tournoi :** Fonctionnement des modes Inter-Clans (100% ou Prorata), Équipes Libres, Solo FFA et Intra-Clan.
+  4. **Synchronisation PUBG :** Récupération automatique ou manuelle en un clic.
+  5. **Calcul des scores :** Barème détaillé de placement, kills et victoires.
+  6. **Diffusion Discord :** Publication manche par manche avec prévisualisation.
+
+---
+
+#### 3. Spécification détaillée des 4 Modes de Tournois & Règles de Partage
+
+Le choix du mode est stocké dans le champ `rules: Json` de la table `Tournament` sous la structure suivante :
+```typescript
+type TournamentRules = {
+  mode: 'inter_clan' | 'custom_teams' | 'solo_ffa' | 'intra_clan'
+  mixedSquadRule?: 'full_share' | 'prorata' // Spécifique au mode inter_clan
+  placementPoints: Record<number, number>
+  killPoints: number
+  winBonus: number
+  bestOfRounds: number | null
+}
+```
+
+##### 1. Mode Inter-Clans (`inter_clan` — Clan vs Clan)
+- **Objectif :** Établir la suprématie entre plusieurs clans enregistrés sur la plateforme.
+- **Règles pour les escouades mixtes (au choix du Clan Owner) :**
+  - **Option 1.A — Partage intégral (`full_share`) :**
+    - Chaque clan présent dans l'escouade reçoit 100 % des points de placement de l'escouade + ses kills respectifs.
+  - **Option 1.B — Partage au prorata (`prorata`) :**
+    - Les points de placement et de victoire sont divisés au prorata de l'effectif (ex: 2 membres Clan A + 2 membres Clan B = 50 % des points de placement à chaque clan) + leurs kills respectifs.
+
+##### 2. Mode Équipes Libres / Escouades Mixtes (`custom_teams`)
+- **Objectif :** Classer des équipes de 2 à 4 joueurs fixes pouvant venir de n'importe quel clan suivi ou d'alliances inter-clans.
+- **Calcul :** La clé d'équipe est l'ensemble trié des `memberId` (`buildTeamKey`). L'équipe cumule ses points de placement, kills et victoires sous son nom d'équipe.
+- **Affichage :** Le classement affiche le nom d'équipe et la composition avec les tags de clan de chacun.
+
+##### 3. Mode Solo / Battle Royale Individuel (`solo_ffa`)
+- **Objectif :** Classement individuel joueur par joueur.
+- **Calcul :** Chaque joueur participant marque des points selon son placement final personnel et ses kills.
+- **Affichage :** Leaderboard individuel des joueurs (Top 1 à Top 100), avec affichage optionnel d'un classement dérivé par clan calculé par la somme des scores de leurs membres.
+
+##### 4. Mode Tournoi Interne au Clan (`intra_clan`)
+- **Objectif :** Scrims internes et championnats propres à un seul clan.
+- **Calcul :** Seuls les membres appartenant au clan organisateur sont éligibles. Les escouades internes du clan s'affrontent pour le titre de champion interne.
+
+---
+
+#### 4. Plan de Tests & Recette
+
+##### Tests Automatisés (Vitest — `src/lib/tournament-service.test.ts` & `src/lib/discord/`)
+- [ ] **Moteur de règles et calculs des scores (`tournament-service.test.ts`) :**
+  - **Mode Inter-Clans - Option Partage Intégral :** Vérifier que chaque clan représenté reçoit 100 % des points de placement.
+  - **Mode Inter-Clans - Option Prorata :** Vérifier la division exacte des points de placement et bonus selon la répartition des joueurs (ex: 2/4 = 50%, 1/4 = 25%).
+  - **Mode Équipes Libres :** Vérifier le regroupement par clé d'équipe indépendamment du clan.
+  - **Mode Solo FFA :** Vérifier le calcul individuel par joueur sans regroupement d'escouade.
+  - **Mode Intra-Clan :** Vérifier l'exclusion des joueurs tiers n'appartenant pas au clan organisateur.
+- [ ] **Générateur d'Embed Discord (`discord-tournament-embed.test.ts`) :**
+  - Test de rendu de l'embed pour chacun des 4 modes de tournoi.
+  - Vérification de la mention du prorata en mode Inter-Clans avec option prorata.
+  - Vérification de l'affichage des noms d'équipes et membres en mode Équipes Libres.
+  - Vérification du format leaderboard individuel en mode Solo FFA.
+  - Vérification du titre spécifique en mode Intra-Clan.
+- [ ] **Suppression :**
+  - Vérifier que la suppression d'un tournoi supprime l'enregistrement sans toucher aux `SquadMatch` ni aux membres.
+  - Vérifier le rejet 403 si un clan non organisateur tente de supprimer.
+
+##### Tests d'Intégration API (`src/lib/discord/discord-route-contracts.test.ts` & routes tournois)
+- [ ] `POST /api/clans/[clanId]/tournaments` :
+  - Validation du payload avec les nouveaux champs de mode (`mode`, `mixedSquadRule`).
+  - Validation des valeurs par défaut (`mode: 'inter_clan'`, `mixedSquadRule: 'full_share'`).
+- [ ] `DELETE /api/clans/[clanId]/tournaments/[tournamentId]` :
+  - Vérification des permissions (`manage_settings` obligatoire, SuperUser autorisé).
+  - Validation du statut 200 `{ success: true }`.
+  - Rejet 404 si le tournoi n'existe pas.
+  - Rejet 403 si `organizerClanId !== clanId`.
+
+##### Tests Manuels & Recette UI/UX (Conformité stricte [`docs/ui/index.html`](file:///d:/Sources/pubg-clan-site/docs/ui/index.html))
+- [ ] **Page Publique `/tournaments` :**
+  - **Conformité des classes UI :** Vérifier l'utilisation exclusive de `.app-panel`, `.app-table`, `.app-btn`, etc.
+  - **Mode Sombre / Mode Clair :** Vérifier le contraste parfait sur tous les badges, textes, cartes et en-têtes de tableau.
+  - **Barre de recherche et filtres :** Filtrage instantané lors de la frappe, interaction des filtres de statut et de mode de jeu.
+  - **Accordéon avec chevron sur les archives :** Vérifier le clic, la rotation fluide du chevron (`rotate-180`) et l'affichage du tableau.
+  - **Tri du tableau des tournois passés :** Vérifier le tri ascendant/descendant sur les colonnes Date, Nom et Organisateur.
+- [ ] **Page Paramètres `/clans/[clanId]/settings/tournaments` :**
+  - Navigation fluide entre les 3 onglets.
+  - Sélection dynamique des modes et options de prorata dans le formulaire.
+  - Modale de suppression sécurisée (`TournamentDeleteModal`) : vérification de la fermeture, de l'annulation et de l'exécution avec toast de succès.
+- [ ] **Prévisualisation Discord adaptée :**
+  - En cliquant sur *Diffuser sur Discord*, vérifier que l'aperçu correspond bien au mode choisi pour ce tournoi.
+- [ ] **Page Débriefing de Match (`/telemetry/matches/[matchId]/debrief`) :**
+  - **Silhouette Anatomique Tactique (`DamageBodySvg`) :**
+    - Vérifier le rendu esthétique haut de gamme (design opérateur militaire élancé, casque T3, gilet pare-balles, membres découpés).
+    - Vérifier les dégradés et halos néon (rouge cramoisi, orange, jaune, neutre).
+    - Vérifier la réactivité au survol de chaque zone avec l'affichage fidèle des dégâts réels et pourcentages.
+  - **Replay 2D :** Vérifier la fluidité des animations, le zoom/pan molette, le suivi de caméra et le basculement entre les 3 modes (Escouade, Tournoi, Global 100 joueurs).
+    - Zoom **identique à `/clans/[clanId]/drop-zones`** : même contrôle `[ − | ⊙ 1× | + ]`, paliers ×0,5, la page ne défile pas pendant le zoom molette (mais reprend en butée), pas de déplacement à ×1, aucun vide visible autour de la carte.
+    - Avion C-130 : apparaît vers `t≈10 s`, passe sur les premiers sauteurs, disparaît en bord de carte ; badge de cap cohérent avec le sens de vol (Karakin `cmu027vpd3ftl04tzlejla0vk` → 357° N) ; « Largage » et `P1…Pn` positionnent la lecture.
+    - Calques « Trace complète », « Atterrissages », « Éliminations » dans les 3 modes de visibilité ; mobile ~400 px : badge de cap et contrôle de zoom ne se chevauchent pas.
+    - Sur `cmu027vpd3ftl04tzlejla0vk` : bandeau avec CdtMcKoy et dada14smc « non suivi » et « Kills escouade 9 (dont coéquipiers : 3) » ; avion de rappel ambre visible de 650 à 690 s puis disparu ; après re-synchronisation, caisses en chute puis posées et pillées.
+    - Sur `cmu027vpd3ftl04tzlejla0vk` : les 4 pseudos de l'escouade visibles (CdtMcKoy et dada14smc en turquoise) ; Pagiotte à terre à 89 s puis mort à 94 s, absent jusqu'au rappel, réapparaît à 668 s au point de saut sans ligne fantôme ; réanimations à 355, 450, 474 et 527 s ; rappels à 364, 666 et 668 s dans le journal.
+  - **Ruban Multi-Escouades & Contexte Tournoi :**
+    - Vérifier le défilement horizontal fluide du ruban avec pastilles ordonnées (#1 à #N).
+    - Vérifier que le clic sur une pastille d'escouade met à jour instantanément les 4 onglets (Escouade, Combat, Duels/Silhouettes, Replay 2D).
+    - Vérifier l'accès public direct sans erreur 403 pour un spectateur ou clan tiers via la route tournoi.
+  - **Couleurs d'équipe PUBG Officielles dans le Replay 2D :**
+    - Vérifier que les 4 joueurs de l'escouade suivie portent leurs couleurs officielles respectives (Joueur 1 = Bleu, Joueur 2 = Vert, Joueur 3 = Jaune, Joueur 4 = Orange).
+  - **Métriques Mobilité & Tableau des Armes :**
+    - Vérifier la présence des mini-badges (First Contact, Pied, Véhicule, Retard cercle, Dégâts reçus) sur chaque joueur dans l'onglet Escouade.
+    - Vérifier la présence et le tri du tableau récapitulatif des armes du match dans l'onglet Combat.
+- [ ] **Thème sombre / clair :**
+  - Vérifier la parfaite lisibilité de chaque composant, bordure, bouton et texte en mode clair et en mode sombre.
+
+---
+
+### ~~Gestion compacte des membres (`/clans/[clanId]/settings/members`) — Chevron de déploiement, badges abrégés et légende~~ — ✅ Complété le 2026-09-06
+
+Optimisation de l'affichage sur la page de gestion des membres du clan pour économiser de la place à l'écran :
+- [x] **Chevron de déploiement par membre :**
+  - Ajout d'un bouton chevron interactif (`ChevronDown`) avec animation fluide de rotation (`rotate-180`).
+  - Section de gestion (changement de rôle `RoleAssignment`, invitations Discord / Email, réinitialisation et historique des 5 dernières invitations) repliée par défaut.
+  - Clic sur l'en-tête de la carte ou sur le chevron pour déplier/replier instantanément la gestion du joueur souhaité.
+  - Maintien automatique de l'état déplié si un brouillon d'invitation ou une action réseau est en cours sur ce membre.
+- [x] **Badges de rôles compacts (`O`, `A`, `M`, `★ S`) :**
+  - Abréviation élégante des badges sur chaque carte (`O` pour Owner, `A` pour Admin, `M` pour Membre, `★ S` pour SuperUser) avec infobulle explicite au survol (`title`).
+  - Gain de plus de 60px de largeur sur la colonne de droite, évitant toute troncature des pseudos (ex: "Pagiotte") et forçant la date d'adhésion sur une seule ligne (`whitespace-nowrap`).
+- [x] **Légende explicative dans la barre d'outils :**
+  - Ajout d'une légende visuelle claire en haut de page illustrant chaque pastille (`O`, `A`, `M`, `★ S`).
+- [x] **Barre de recherche instantanée par pseudo :**
+  - Bouton « Rechercher » placé à gauche du filtre Alpha/Inverse avec icône loupe.
+  - Déploiement d'une barre de saisie fluide sous la barre d'outils avec focus automatique, bouton de réinitialisation rapide (`X`) et compteur dynamique de résultats trouvés (ex: `3 / 21 membres`).
+  - État vide contextuel si aucun résultat avec bouton de réinitialisation.
+- [x] **Action globale « Tout déplier / Tout replier » :**
+  - Bouton rapide intégré dans la barre d'outils supérieure à côté du compteur de membres pour basculer l'ensemble des cartes en un seul clic.
+- [x] **Navigation profil joueur au clic sur le pseudo & avatar :** ✅ Complété le 2026-09-06
+  - Clic sur le nom du joueur ou sur son avatar redirigeant vers `/members/[id]/dashboard` avec `onClick={(e) => e.stopPropagation()}` (ne déclenche pas le tiroir accordéon).
+  - Effet interactif au survol (`hover:underline hover:text-blue-600 dark:hover:text-blue-300`).
+- [x] **Correction du mode clair sur les cartes de membres :** ✅ Complété le 2026-09-06
+  - **Avatars sans image :** Fin du texte blanc forcé sur fond blanc. Initiales désormais parfaitement visibles avec un contraste élevé (`bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-100`).
+  - **En-têtes de cartes :** Remplacement du bloc noir imposé par une surface claire douce en mode clair (`bg-slate-50 border-slate-200 text-slate-900`) et préservation du dégradé sombre en mode sombre.
+  - **Tiroir et barre d'outils :** Harmonisation complète des teintes et bordures clair/sombre.
+- [x] **Nettoyage du Hero Header :** ✅ Complété le 2026-09-06
+  - Suppression des deux boutons superflus (« Ajouter » et « Changer de clan ») pour un en-tête épuré et lisible.
+- [x] **Suivi en base de données et affichage du dernier match (`lastMatchAt`) :** ✅ Complété le 2026-09-06
+  - **Base de données :** Ajout des colonnes `lastMatchAt DATETIME(3) NULL` sur `ClanMember` et `Clan` avec index de tri/recherche (`20260906150000_add_last_match_at`).
+  - **Backfill historique :** Script exécuté avec succès pour initialiser `lastMatchAt` sur 266 membres et 21 clans depuis l'historique des matchs.
+  - **Maintien automatique :** Synchronisation automatique en continu lors des imports PUBG (`matches-sync-service.ts` et `api/matches/[matchId]`).
+  - **Affichage carte :** Remplacement de la date d'inscription par l'icône de combat `Swords` et le décompte relatif en jours (`Aujourd’hui`, `-1j`, `-150j`, ou `Aucun match`) avec infobulle complète.
+  - **Filtres et tri :** Ajout des options de tri par date dans la barre d'outils (`Récents`, `Anciens`, `Alpha`, `Inverse`) pour identifier immédiatement les membres actifs ou inactifs.
+
+### Analyse d'impact : Arrêt de suivi (`DELETE /api/members/[id]`) et Transfert de clan (`PATCH /api/members/[id]`) — Documenté le 2026-09-06
+
+> 🔗 **Regroupé le 2026-09-20 :** le suivi du clan d'un joueur (protection d'`Ungrouped`, détection des
+> changements, promotion depuis UNG, rétrogradation par l'Owner) est traité dans une seule section —
+> « Cycle de vie du clan d'un joueur » en **P2**.
+
+Analyse d'architecture et règles de gestion des statistiques lors du départ ou transfert d'un joueur :
+
+#### 1. Arrêt du suivi d'un joueur (`DELETE /api/members/[id]`) :
+- **Comportement par défaut (Soft delete) :** La fiche `ClanMember` passe à `isActive: false` (préservation des relations de base de données).
+- **Statistiques des matchs passés :**
+  - **Préservation intégrale de l'historique :** Les matchs joués en escouade (`SquadMatch`, `SquadMember`, `KillEvent`, télémétrie, dégâts, kills) restent stockés et inchangés.
+  - Les victoires et statistiques de match acquises par les coéquipiers de clan ne sont pas corrompues.
+- **Statistiques actuelles du clan :**
+  - L'ensemble des services de calcul (`stats-calculator.ts`, `cron-jobs.ts`, `ClanMatchesCache`, comparateur) appliquent un filtre d'isolation stricte : `where: { clanId, isActive: true, joinStatus: 'active' }`.
+  - Le joueur est décompté de l'effectif actif du clan (`membersCount - 1`).
+  - Le total cumulé des kills/dégâts du clan (`syncTrackedClanStats`) est recalculé sans lui.
+  - Le joueur est masqué des classements internes du clan (Top Kills, Leaderboards, MVP).
+- **Synchronisation automatique PUBG :**
+  - Le worker de récupération (`matches-sync-service.ts`) ne scrute que les membres avec `isActive: true`.
+  - La collecte automatique de ses nouvelles parties PUBG s'arrête immédiatement (économie d'appels API PUBG).
+- **Statut dans l'écosystème :**
+  - Le joueur devient soit un joueur sans clan (rattaché au clan technique `Ungrouped` / `TAG: UNG`), soit un joueur externe.
+  - S'il croise à nouveau l'escouade en match PUBG, la télémétrie le trace comme adversaire ou coéquipier externe (`EncounteredPlayer` / `Player`).
+
+#### 2. Transfert d'un joueur vers un autre clan (`PATCH /api/members/[id]`) :
+- **Droits requis :** Opération cross-clan réservée au rôle `SuperUser`.
+- **Contraintes de sécurité :**
+  - Un membre ayant le rôle `Owner` ne peut pas être transféré directement (nécessite la rétrogradation préalable).
+  - Les deux clans doivent partager la même plateforme (`platformShard`, ex: Steam ↔ Steam).
+- **Impact statistique sur l'ancien clan (Clan A) :**
+  - Déclenché via `syncTrackedClanStats(previousClanId)`.
+  - L'effectif actif diminue de 1 et les totaux globaux de carrière sont recalculés sans lui.
+  - Ses rôles dans le Clan A sont révoqués.
+- **Impact statistique sur le nouveau clan (Clan B) :**
+  - Déclenché via `syncTrackedClanStats(targetClan.id)`.
+  - L'effectif actif augmente de 1, attribution du rôle par défaut `Member`.
+  - Ses statistiques individuelles s'agrègent aux totaux du Clan B.
+
+#### 3. Éléments implémentés côté interface (UI) :
+- [x] **Bouton « Retirer du clan » / « Arrêter le suivi »** sur `/clans/[clanId]/settings/members` (panneau déplié) avec modale de confirmation expliquant la conservation de l'historique et l'exclusion des futurs calculs.
+- [x] **Bouton « Transférer de clan »** (visible pour le SuperUser uniquement) avec sélecteur déroulant des clans compatibles sur le même shard.
+- [x] **Harmonisation et charte graphique des modales (`docs/ui/index.html` Section 22) :** Imposition stricte du standard visuel issu de `/join` (bimodal complet avec `dark:bg-slate-900`, `dark:border-slate-800`, `dark:text-white`, `dark:text-slate-300`, badges 44x44, callouts de données et d'explications contextuelles, bascule interactive en direct et démo plein écran).
+- [x] **Application stricte du mode sombre aux fenêtres modales :**
+  - Classes `.app-modal-backdrop`, `.app-modal-card`, `.app-modal-inner-card`, `.app-modal-callout` et `.app-modal-select` renforcées dans `src/app/globals.css` et `docs/ui/index.html` pour garantir un fond sombre ardoise (`#0f172a`), bordure nette (`#1e293b`), typographie contrastée (`#ffffff` / `#e2e8f0` / `#94a3b8`) et fiches internes translucides (`rgba(30,41,59,0.5)`).
+  - Intégration sur la page de confirmation `/join` et sur les modales d'action de `/clans/[clanId]/settings/members` (Arrêt de suivi & Transfert de clan).
+  - Contrôle dédié dans la documentation `docs/ui/index.html` pour tester les modales en mode sombre, en mode clair ou en plein écran interactif.
+
+### ~~Cycle de vie des membres rejetés — Déblocage sur `/join` et `/members/add` (Cas Leniver)~~ — ✅ Complété le 2026-09-06
+
+Correction de l'état des joueurs dont la demande d'adhésion a été refusée (`joinStatus: 'rejected'`) :
+- [x] **Déblocage sur `/join` (`src/app/api/join/route.ts`) :**
+  - La vérification d'existence ne bloque désormais en `409 PLAYER_ALREADY_MEMBER` que les joueurs **véritablement actifs** (`isActive: true && joinStatus: 'active'`).
+  - Si une demande est en attente, renvoie `409 JOIN_REQUEST_PENDING`.
+  - Si le joueur avait été rejeté (`joinStatus: 'rejected'`) ou est inactif, la ré-adhésion est autorisée : sa fiche existante est mise à jour en `joinStatus: 'pending'` sans générer d'erreur de contrainte unique `P2002` sur `[pubgPlayerName, platformShard]`.
+- [x] **Déblocage sur `/members/add` (`src/app/api/members/route.ts`) :**
+  - Lorsqu'un administrateur ajoute manuellement un joueur précédemment rejeté, l'API ne plante plus sur `P2002 (Ce joueur est déjà enregistré...)` : elle réactive la fiche existante (`isActive: true`, `joinStatus: 'active'`, mise à jour du clan et attribution des rôles par défaut).
+- [x] **Tests automatisés :**
+  - `src/lib/member-lifecycle.test.ts` (5 tests Vitest validant la différenciation actif/rejeté, la ré-adhésion `/join`, le blocage du pending et la réactivation directe par `/members/add`). Total de **36 tests réussis**.
+
+### ~~Demandes d'adhésion en attente (`/clans/[clanId]/members/pending`) — Refonte visuelle Hero Gaming, modale in-app et ergonomie~~ — ✅ Complété le 2026-09-06
+
+Harmonisation complète de la page des demandes d'adhésion en attente avec les standards graphiques du site :
+- [x] **Hero Header Gaming avec bannière :**
+  - Remplacement de l'ancien header blanc par le grand bandeau immersif avec image `/members.jpg`, halo dégradé, titre avec accents corrects et boutons d'action rapide (*« Membres du clan »* et *« Ajouter un joueur »*).
+- [x] **Remplacement du `window.confirm` par une modale in-app dédiée :**
+  - Modale interactive avec détails du joueur (pseudo, compte PUBG, plateforme) et explication des conséquences de l'action pour approbation ou rejet.
+- [x] **Cartes membres enrichies & ergonomie :**
+  - Avatar stylisé avec puce animée, badge de plateforme (Steam, Xbox, PSN, Kakao), libellés de dates en français (`Reçue le...`).
+  - Champ de recherche instantané pour filtrer les demandes par nom ou gamertag PUBG.
+  - Compteur dynamique de demandes en attente.
+  - Toast de notification de succès (`actionSuccess`) et gestion d'erreurs enrichie.
+  - État vide immersif avec icône `ShieldCheck` et lien d'action direct.
+
+### ~~Page d'activation de compte (`/activate`) — Harmonisation visuelle, messages d'orientation et navigation de retour style `/join` & `/login`~~ — ✅ Complété le 2026-09-06
+
+Harmonisation complète de la page d'activation (`/activate`) avec les standards graphiques, les messages pédagogiques et les options de navigation de `/join` et `/login` :
+- [x] **Plein écran & footer sous la ligne de flottaison :**
+  - Ajout de `min-h-screen` sur le conteneur principal afin que la carte occupe tout l'écran visible et que le footer reste masqué au chargement initial sauf défilement.
+- [x] **Navigation supérieure et retour rapide :**
+  - Barre supérieure avec bouton retour *« Retour à l'accueil du site »* (`/clans`) et lien direct *« Espace connexion »* (`/login`).
+- [x] **Visuel d'escouade et piliers d'information :**
+  - Affichage de l'image haute définition `/squad.jpg` ou personnalisée de clan, avec les 3 points forts (Rattachement immédiat, Statistiques & Télémétrie, Vie du clan).
+- [x] **Guide d'activation & première visite :**
+  - Encart explicatif sur l'origine du jeton d'invitation, la sécurité du mot de passe et le lien direct vers `/login` en cas de compte déjà actif.
+- [x] **Formulaire et ergonomie :**
+  - Prise en charge complète du thème sombre, focus émeraude, carte d'erreur `AlertCircle`, bouton d'action `app-btn app-btn--primary` avec loader animé et bouton secondaire large `Retour à la page principale`.
+
+### ~~Page de connexion (`/login`) — Harmonisation visuelle, messages d'orientation et navigation de retour style `/join`~~ — ✅ Complété le 2026-09-06
+
+Harmonisation complète de la page de connexion (`/login`) avec les standards graphiques, les messages pédagogiques et les options de navigation de `/join` :
+- [x] **Navigation supérieure et retour rapide :**
+  - Barre supérieure avec bouton retour *« Retour à l'accueil du site »* (`/clans`) et lien direct *« Rejoindre ou créer un clan »* (`/join`).
+- [x] **Visuel d'escouade et piliers gaming :**
+  - Utilisation par défaut du visuel d'escouade haute définition (`/squad.jpg`) ou de l'image personnalisée de clan.
+  - Intégration des 3 badges de points forts (Accès centralisé, Statistiques & Télémétrie, Défis & Compétition).
+  - Préservation du logo PUBG et des personnalisations de clan (`welcome.badge`, `welcome.title`, `clanLabel`).
+- [x] **Guide d'accès & première visite :**
+  - Remplacement du texte technique vague par un encart explicatif guidé :
+    - *Membre actif* : Connexion par identifiants directs.
+    - *Invitation reçue* : Lien direct vers l'activation de compte (`/activate`).
+    - *Pas encore inscrit* : Lien direct vers le recrutement PUBG (`/join`).
+- [x] **Ergonomie du formulaire et retours d'erreurs :**
+  - Affichage des erreurs sous forme de carte stylisée avec icône `AlertCircle` et message d'aide.
+  - Modernisation des champs de formulaire avec support du mode sombre et focus states émeraude.
+  - Bouton d'action principal `app-btn app-btn--primary` avec indicateur de chargement.
+  - Bouton large `app-btn app-btn--secondary` *« Retour à la page principale »* en pied de page.
+
+### ~~Rejoindre ou créer un clan (`/join`) — Refonte visuelle style `/login` sans menu ni header et modale de confirmation en 2 étapes~~ — ✅ Complété le 2026-09-06
+
+Harmonisation de la page de recrutement et création de clan (`/join`) avec l'expérience épurée et immersive de la page `/login`, enrichie d'une validation sécurisée en 2 étapes :
+
+- [x] **Suppression des menus et de l'en-tête global (`src/components/ClanNavigation.tsx`) :**
+  - Ajout de `pathname.startsWith('/join')` dans les exceptions de rendu de `ClanNavigation` (aux côtés de `/login`, `/activate`, `/reset-password`), masquant la sidebar et le topbar.
+  - Ajout de `/join` dans les `PUBLIC_PATHS` et `PENDING_ACTIVATION_ALLOWED_PATHS` de `src/proxy.ts` pour garantir un accès public direct sans redirection.
+- [x] **Design double-colonne style `/login` (`src/app/join/page.tsx`) :**
+  - Colonne gauche visuelle avec l'image panoramique d'escouade `/squad.jpg`, dégradé sombre immersif, logo officiel PUBG et 3 piliers phares (Détection auto, Télémétrie/Stats, Défis/Progression).
+  - Colonne droite avec formulaire épuré, sélecteur de plateforme moderne et retour d'état de succès détaillé avec redirection automatique.
+  - **Suppression du cadre bleu intrusif** : Remplacé par une explication limpide du processus de validation obligatoire avant activation.
+  - **Navigation de retour vers l'accueil (`/clans`)** :
+    - Barre supérieure d'accès rapide avec bouton fléché *« Retour à l'accueil du site »* et lien vers l'espace connexion.
+    - Bouton d'action large secondaire en pied de formulaire *« Retour à la page principale »* permettant un retour en arrière immédiat sans friction.
+- [x] **Fenêtre de confirmation interactive avant de rejoindre ou créer un clan :**
+  - **Étape 1 (Prévisualisation sans mutation)** : `POST /api/join` avec `mode: 'preview'` interroge l'API PUBG pour vérifier l'existence du joueur (`searchPlayerByName`), détecte son clan officiel (`fetchPlayerClan`), et vérifie si le clan existe déjà dans la base du site.
+  - **Modale de confirmation dédiée (`src/app/join/page.tsx`)** :
+    - Affiche le gamertag PUBG officiel vérifié et la plateforme de jeu.
+    - Met en valeur le clan PUBG officiel détecté avec son tag `[TAG]`.
+    - Explicite l'action qui sera exécutée et la gouvernance requise :
+      - *Si le clan existe déjà* : Demande d'adhésion officielle transmise pour **validation par l'administrateur / Owner du clan** (statut *En attente*).
+      - *Si le clan n'existe pas encore* : Création du nouveau clan sous son nom officiel PUBG, avec **`isActive: false` (En attente de validation SuperUser)** afin de protéger la ligue contre les bots et clans non sérieux.
+    - Propose deux actions : *Annuler / Modifier* ou *Confirmer*.
+  - **Étape 2 (Exécution finale)** : `POST /api/join` avec `mode: 'join'` effectue l'inscription avec les libellés officiels de clan et affiche le panneau de confirmation de succès avec redirection automatique.
+  - **Notification & Contrôle SuperUser (`POST /api/clans/[clanId]/approve`)** :
+    - Envoi d'une notification push/in-app `clan_creation_request` aux SuperUsers via `notifyClanCreationRequest`.
+    - Endpoint dédié `POST /api/clans/[clanId]/approve` permettant au SuperUser d'approuver et d'activer le clan (`isActive: true`) et son Propriétaire (`joinStatus: 'active'`), avec notification envoyée au créateur.
+    - `GET /api/clans?all=true` permet aux SuperUsers de lister et superviser les clans en attente de validation.
+- [x] **Adaptation contextuelle des messages (Joueur existant vs Création de clan) :**
+  - Si le pseudo PUBG saisi est déjà membre d'un clan sur le site (ex: `pagiotte`), l'API renvoie un statut 409 explicite avec le code `PLAYER_ALREADY_MEMBER` : *« Le joueur "pagiotte" est déjà enregistré dans le clan "SMK". Veuillez vous connecter à votre compte pour accéder à votre espace clan. »* sans jamais mentionner la création de clan.
+  - La bannière d'erreur sur `/join` propose immédiatement un bouton direct **[Se connecter à mon compte]**.
+  - Si le joueur appartient à un clan déjà existant sur le site, la prévisualisation et la modale ciblent uniquement **l'adhésion au clan existant**, sans aucune mention de création de clan.
+  - Seuls les joueurs sans clan ou dont le clan n'est pas encore présent sur la plateforme voient les libellés de création et de validation SuperUser.
+- [x] **Tests de contrôle automatisés :**
+  - `src/lib/join-validation.test.ts` (5 tests Vitest validant le schéma, les modes `preview` et `join`, le trim et la gestion d'erreurs).
+  - `src/lib/clan-approval.test.ts` (5 tests Vitest validant l'état inactif par défaut, l'activation coordonnée et les messages d'erreurs adaptés sans fausse mention de création).
+
+### ~~Accueil de connexion Clan (`/clans/[clanId]/settings/login-welcome`) — Résolution du blocage d'upload d'image (Signalement seyo187)~~ — ✅ Complété le 2026-09-06
+
+Correction complète du processus d'upload d'image d'accueil personnalisé pour les clans suite au blocage signalé par le owner **seyo187** (Clan 7, FR-Alliance-BE) :
+
+- [x] **Validation par Magic Bytes (`src/lib/upload-image-validator.ts`) :**
+  - Élimination des faux rejets 400 causés par les navigateurs Windows renvoyant `file.type` vide (`""`) ou `application/octet-stream` (notamment sur fichiers WebP ou JPEG sans type MIME enregistré dans le registre Windows).
+  - Détection binaire native des signatures : JPEG (`FF D8 FF`), PNG (`89 50 4E 47`), WebP (`RIFF...WEBP`).
+  - Validation explicite du plafond de 5 Mo avec message d'erreur en français indiquant la taille actuelle et le plafond.
+- [x] **Persistance double répertoire pour mode Next.js `standalone` :**
+  - Résolution dynamique de la racine projet pour persister les fichiers dans `public/uploads/clans/` à la racine (survit aux commandes `rm -rf .next && npm run build` de redéploiement).
+  - Écriture miroir automatique dans `.next/standalone/public/uploads/clans/` si présent pour disponibilité à chaud sans redémarrage.
+- [x] **Route de service dédiée (`src/app/uploads/clans/[fileName]/route.ts`) :**
+  - Routeur Next.js direct garantissant le service des images uploadées avec headers de cache optimisés (`public, max-age=31536000, immutable`) et protection contre le path traversal.
+- [x] **Proxy d'authentification (`src/proxy.ts`) :**
+  - Ajout de `uploads` dans les exclusions du matcher d'URL pour que les images uploadées soient publiques et s'affichent correctement pour les visiteurs non connectés sur `/login`.
+  - Autorisation sans redirection pour toutes les extensions d'images statiques (`.jpg`, `.jpeg`, `.png`, `.webp`, `.svg`, `.ico`).
+- [x] **Ergonomie et robustesse du formulaire (`/clans/[clanId]/settings/login-welcome/page.tsx`) :**
+  - Attribut `accept` élargi avec extensions explicites (`image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,image/*`) pour débloquer l'explorateur de fichiers sous Windows.
+  - Pré-validation de taille côté client (5 Mo) pour un retour d'erreur immédiat sans latence réseau.
+  - Gestion explicite des erreurs HTTP 413 (Nginx `client_max_body_size`).
+  - Instructions clarifiées et rappel visuel d'enregistrer les paramètres du clan après upload.
+- [x] **Tests de contrôle automatisés (21 tests Vitest) :**
+  - `src/lib/upload-image-validator.test.ts` (16 tests unitaires : magic bytes, types MIME alternatifs, rejet formats non supportés, validation limites).
+  - `src/lib/login-welcome-upload-routes.test.ts` (5 tests d'intégration : upload complet, gestion permissions, lecture image, 404 & path traversal).
+
+### ~~Ajout d'un joueur (`/members/add`) — Nouveau Hero Header, nom affiché optionnel et refonte UX/pédagogique~~ — ✅ Complété le 2026-09-06
+
+Refonte de la page d'ajout d'un joueur (`/members/add`) pour moderniser l'expérience utilisateur et simplifier l'intégration des membres :
+
+- [x] **Nouveau Hero Header immersif (Design System & `index.html`) :**
+  - Remplacement de l'ancien panneau neutre `SettingsPageHeader` par le Hero Banner gaming avec image de fond `/banner-members.jpg`, dégradé sombre, icône `UserPlus` et typographie responsive contrastée.
+  - Lien direct vers la liste des membres du clan actif.
+- [x] **Nom affiché optionnel avec fallback automatique :**
+  - Côté frontend (`/members/add/page.tsx`) : suppression de l'obligation de saisie (`required`), mention `Optionnel` et placeholder indicatif. Si laissé vide, le pseudo PUBG est automatiquement utilisé.
+  - Côté backend (`src/app/api/members/route.ts`) : `AddMemberSchema` transforme automatiquement un `displayName` vide ou manquant en lui assignant `pubgPlayerName`.
+  - Messages d'erreur de validation traduits et clarifiés en français.
+- [x] **Amélioration de la compréhension & Guide d'onboarding :**
+  - Panneau latéral pédagogique expliquant les 4 étapes : 1. Recherche officielle PUBG, 2. Détection du clan, 3. Validation en 2 étapes, 4. Synchronisation et assignation des rôles.
+  - Modal de confirmation enrichie avec badge de validation PUBG, affichage du nom retenu (avec précision si identique au pseudo) et détection du clan.
+- [x] **Tests de contrôle Vitest :**
+  - `src/lib/members-add.test.ts` (5 tests validant le fallback automatique de `displayName`, la conservation du nom personnalisé et le rejet des pseudos manquants).
+
+### ~~Débriefing Tactique 2D Replay — Résolution de l'alias de map et harmonisation de la typographie~~ — ✅ Complété le 2026-09-05
+
+Améliorations de lisibilité et fidélité cartographique sur la page de Débriefing Tactique Replay (`/clans/[clanId]/telemetry/matches/[matchId]/debrief`) :
+
+- [x] **Résolution de l'alias officiel de la map (`resolveMapName`) :**
+  - Remplacement de l'ID technique interne PUBG (`Savage_Main`, `Baltic_Main`, `Desert_Main`, `Tiger_Main`…) par le nom officiel affiché (`Sanhok`, `Erangel`, `Miramar`, `Taego`…) via `resolveMapName` de `@/lib/pubg-assets`.
+  - Application cohérente dans le fil d'Ariane (`NavigationTrail`), le titre Hero (`text-2xl md:text-3xl font-black`), et le texte alternatif de la carte satellite.
+  - Conservation de l'identifiant technique d'asset (`Savage_Main`) sous forme de badge discret à côté du mode de jeu pour audit technique sans gêner la lecture.
+- [x] **Harmonisation complète des tailles de police (Typographie & Hiérarchie) :**
+  - **Élimination des micro-polices** illisibles (`text-[10px]`, `text-[11px]`) sur les composants clés.
+  - **Hero Banner & KPIs escouade** :
+    - Titre map mis en avant en grand format (`text-2xl md:text-3xl font-black`).
+    - Noms des membres de l'escouade agrandis (`text-sm font-bold text-emerald-400`), stats associées lisibles (`text-xs text-slate-300 font-mono`).
+    - Indicateurs clés (Kills, Dégâts, Assistances, Réanimations) : labels en `text-xs uppercase font-bold tracking-wider text-slate-400` et valeurs numériques imposantes en `text-2xl font-mono font-black`.
+  - **Onglets & Navigation** :
+    - Onglets en `text-sm font-bold`, compteurs d'événements en `text-xs font-mono font-semibold`.
+    - Sélecteur de phase cartographique avec puces `text-xs font-bold font-mono px-2.5 py-1` et toggles de calques en `text-xs font-semibold`.
+    - Badge C-130 agrandi en `text-xs font-mono font-semibold text-blue-200 px-3.5 py-2`.
+  - **Tableau Roster Escouade (Onglet 3)** :
+    - En-têtes du tableau en `text-xs uppercase font-mono font-bold text-slate-300`.
+    - Noms des joueurs en `text-sm font-bold text-slate-100` avec sous-ligne assists/revives en `text-xs text-slate-400`.
+    - Badge kills en `text-sm font-bold font-mono px-2.5 py-1`.
+    - Chiffres de dégâts infligés et subis en `text-sm font-mono font-bold`.
+    - Distances à pied et en véhicule rehaussées en `text-xs font-mono text-slate-200`.
+    - Compteurs d'utilitaires (grenades, smokes, flashs) en `text-xs font-mono font-medium`.
+  - **Grille de l'Arsenal & Précision** :
+    - Titre des armes en `text-sm font-bold text-slate-100`.
+    - Dégâts et kills de chaque arme en `text-xs text-slate-400 font-mono`.
+  - **Matrice des Duels (Onglet 4)** :
+    - Noms des protagonistes (vainqueur et cible) en `text-sm font-bold`.
+    - Badges d'armes et distances rehaussés en `text-xs font-mono font-semibold`.
+- [x] **Silhouette anatomique gaming & fun (`DamageBodySvg.tsx`) — Fin des débordements et données directes :**
+  - **Look Opérateur Tactique PUBG** : Silhouette stylisée avec Casque militaire Lv.3 (fente de visière lumineuse réactive), gilet pare-balles tactique (plaques de kevlar et coutures MOLLE), ceinture d'intervention avec boucle et holster, protège-coudes, genouillères diamant et bottes de combat.
+  - **Arrière-plan HUD radar et réticules de visée** : Cercles concentriques de scanner, axes de ciblage et crochets d'angle tactiques néon.
+  - **Affichage direct des données sur la silhouette (In-Zone HUD Chips)** : Chaque zone touchée arbore désormais son badge numérique haute visibilité directement incrusté (`💥 100` / `🎯 45` sur la tête, `🛡️ 85` sur le torse, `💪 20` sur les bras, `⚡ 30` sur le bassin, `🦵 15` sur les jambes) avec teintes néon selon la criticité des dégâts.
+  - **Élimination définitive du débordement** : Suppression du carcan `width: 65px` sur le wrapper ; refonte du panneau de détail (`showLabels`) en liste verticale aérée avec icônes par zone, pourcentages d'impact et jauges contrastées dans un conteneur responsive garanti sans dépassement.
+  - **Données réelles de l'escouade** : Calcul dynamique des zones corporelles touchées (`squadDamageByZone`) à partir des événements de combat réels du match via `inferHitZones`.
+    > ⚠️ **Corrigé le 2026-09-13 :** ces zones n'étaient pas « réelles ». `inferHitZones` était une heuristique en dur
+    > et l'API lui fournissait un `damageReason` fabriqué. Remplacé par une ventilation issue de
+    > `LogPlayerTakeDamage` (`src/lib/pubg-telemetry/body-zones.ts`) — voir Volet 4, chantier 2.
+
+### ~~Comparateur de clans (`/clans/comparator`) — Sélecteur Roster « Trading Cards » & Arène de Confrontation~~ — ✅ Complété le 2026-09-04
+
+Refonte complète de l'expérience de sélection des clans sur `/clans/comparator` (Proposition N°2 : *Roster Trading Cards avec Smart Filters & Battle Slots*) pour remplacer le nuage de boutons statique devenu illisible avec l'augmentation des clans suivis :
+
+- [x] **Arène de confrontation & Battle Slots (`src/components/comparator/ClanRosterSelector.tsx`) :**
+  - 3 emplacements visuels interactifs (`P1`, `P2`, `P3`) synchronisés avec la palette catégorielle du Radar et des graphiques :
+    - *Slot 1 :* Bleu (`#3b82f6`)
+    - *Slot 2 :* Orange (`#f97316`)
+    - *Slot 3 :* Émeraude / Vert (`#10b981`)
+  - **Badges `VS` esport** : insertion d'un badge centralisé lumineux `VS` entre chaque slot (P1 vs P2 vs P3) pour matérialiser la confrontation.
+  - Affichage instantané du tag `[TAG]` agrandi (`text-base sm:text-lg font-black`), du nom du clan, de l'effectif, et bouton de retrait unitaire (`✕`).
+  - Action **`🎲 Aléatoire`** : pioche 3 clans actifs au hasard pour lancer un duel surprise en un clic.
+  - Action **`Effacer`** : réinitialisation rapide de la sélection sans recharger la page.
+  - **Bouton centré de déploiement / repliement avec chevron** : placé au centre du bas de la 1ère carte pour afficher ou masquer à volonté le catalogue de cartes, économisant un maximum d'espace vertical pour le radar et les graphiques.
+- [x] **Contrôles intelligents & Filtres rapides (Smart Filters) :**
+  - **Puces de catégories prioritaires en en-tête** :
+    - *Tous* (avec compteur total de clans).
+    - *🔥 Actifs récents* (clans ayant des matchs joués dans les 30 derniers jours).
+    - *👥 Effectifs 10+* (clans avec 10 membres ou plus).
+    - *⭐ Sélectionnés* (isole les clans actuellement sélectionnés).
+  - **Bouton Loupe rétractable (`🔍 Recherche`)** : la barre de recherche textuelle s'affiche à la demande lors d'un clic sur la loupe avec autofocus immédiat, préservant une vue ultra-compacte sur une seule ligne par défaut.
+  - **Tri multicritères** : tri dynamique par dernière activité (plus récent d'abord), ordre alphabétique (A-Z), effectif (membres décroissants), ou volume total de matchs.
+- [x] **Grille de « Trading Cards » de clans (Style Esport / FUT) :**
+  - Cartes gaming interactives avec **lisibilité et typographie considérablement renforcées** :
+    - **Tag de clan mis en avant en grand format** (`font-mono text-xl sm:text-2xl font-black tracking-wide`).
+    - Nom de clan plus lisible et contrasté (`text-xs sm:text-sm font-semibold`).
+    - Métriques d'effectif (`👥 X membres`) et de matchs agrandies avec icônes rehaussées.
+    - Indicateur de récence d'activité dynamique (*« À l'instant »*, *« Il y a 2 h »*, *« Hier »*, *« Il y a 3 j »*).
+  - **Rétroaction visuelle riche** : halo lumineux et bordure aux couleurs du slot attribué (`P1`, `P2`, `P3`), micro-animation 3D au survol, et atténuation grisée élégante lorsque le plafond de 3 clans est atteint pour les clans non sélectionnés.
+- [x] **Dataviz « Performances globales — Profil ADN Multi-Axes » (`src/components/comparator/GlobalPerformancesDominance.tsx`) :**
+  - Remplacement de la grille de barres par un **graphique de télémétrie multi-axes unifié (Parallel Coordinates / Profil ADN)** :
+    - 5 axes verticaux calibrés : *Matchs*, *Winrate*, *Top 10*, *Dégâts / m.* et *Kills / m.*
+    - Trajectoires en courbes de Bézier fluides (splines SVG) aux couleurs néon de chaque clan (`P1 Bleu #3b82f6`, `P2 Orange #f97316`, `P3 Vert #10b981`).
+    - Nœuds d'intersection interactifs affichant les valeurs exactes de chaque clan et mettant en valeur le score maximal en doré.
+    - **Légende interactive & focus au survol** : survoler un clan dans la légende ou sur sa courbe amplifie sa trajectoire avec un effet de halo lumineux (glow filter) et estompe temporairement les courbes rivales pour une lecture immédiate sans surcharge.
+    - **Élimination des superpositions sur les nœuds sommitaux** : remontée des en-têtes d'axes (titre à `y=22`, indicateur Max à `y=38`, ligne de départ à `padTop=75`), et répartition géométrique stricte des étiquettes de clans (P1 décalé à gauche, P2 à droite, P3 en dessous avec protection des bords extrêmes) avec contour protecteur (`paintOrder: stroke fill`) garantissant zéro chevauchement même si plusieurs clans partagent un score identique de 100%.
+    - **Optimisation mobile & suppression du double cadre** : suppression de la boîte interne redondante (`border`, `bg`, `p-2 sm:p-4`) et de `min-w-[620px]` avec `overflow-x-auto` ; le graphique s'affiche désormais directement sur le panneau avec marges réduites (`padLeft=36`, `padRight=36`), s'adaptant à 100% de l'écran sur smartphone sans aucun défilement horizontal parasite.
+- [x] **Harmonisation transverse des en-têtes de sections (`src/app/clans/comparator/page.tsx` & `ClanComparatorRadar.tsx`) :**
+  - Généralisation de l'agencement visuel premium sur toutes les sections de la page :
+    - *Profil comparé (Radar)* : icône `Radar` (cyan) + sous-titre sur l'équilibre multidimensionnel.
+    - *Performances globales* : icône `Activity` (bleu) + sous-titre sur la signature tactique multi-axes.
+    - *Le « Derby » (Head-to-Head)* : icône `Swords` (rouge) + sous-titre sur les lobbies partagés.
+    - *Performances par mode* : icône `Users` (ambre) + sous-titre sur la spécialisation Duo / Trio / Squad.
+    - *Le « Pouls » (Activité et rythme)* : icône `HeartPulse` (rose) + sous-titre sur la santé du roster et régularité.
+    - *Le « ADN » (Style de jeu)* : icône `Dna` (violet) + sous-titre sur les hot drops, survie et entraide.
+    - *Heatmap d'activité (Punchcard)* : icône `Calendar` (indigo) + sous-titre sur les créneaux et jours de pointe.
+  - Chaque bloc bénéficie d'un badge d'icône aux couleurs du thème, d'un titre en gras, d'une courte description claire et d'une ligne de séparation épurée.
+- [x] **Harmonisation des sections « Le Pouls » & « Le ADN » (Style Leaderboard Performances par mode) (`ClanPulseCards.tsx` & `ClanDnaCards.tsx`) :**
+  - Alignement visuel et logique strict sur le composant `ModePerformancesCard` (`/clans/comparator`) :
+    - **Contrôles de tri par critères (`SegmentedControl`)** :
+      - *Le « Pouls »* : classement dynamique par *Roster actif*, *Rythme hebdo*, ou *Mode favori*.
+      - *Le « ADN »* : classement dynamique par *Hot drop*, *Survie*, ou *Revives* (avec volume total de revives et moyenne par match).
+    - **Correction de la métrique Revives / Entraide (`ClanDnaCards.tsx`)** :
+      - Affichage direct du nombre réel de réanimations (`revivesGiven`, ex: `60 revives`) et du taux par match (`0.8 / match`) au lieu d'afficher `—` lorsque la télémétrie spatiale des KO subis n'est pas indexée sur les périodes récentes (semaine/mois).
+      - Maintien du ratio KO en complément dès qu'il est disponible (`· Ratio 0.54`).
+    - **Structure de rangs unifiée (Leaderboard List)** :
+      - **Badges de slot `P1`, `P2`, `P3` identitaires** : squircle aux couleurs du slot (`P1 Bleu`, `P2 Orange`, `P3 Vert`) placé en ancrage à gauche de chaque ligne.
+      - **Trophée doré `🏆 1er`** : badge d'honneur à côté du tag de clan pour le clan dominant le critère sélectionné (+ fond subtilement surligné `bg-blue-500/5`).
+      - Colonne gauche : Tag de clan en gras avec lien direct, nom complet et 2 sous-lignes contextuelles détaillées.
+- [x] **Généralisation du design des badges de slot `P1`, `P2`, `P3` sur l'ensemble du comparateur :**
+  - Harmonisation intégrale de l'identité visuelle de confrontation (`P1 Bleu #3b82f6`, `P2 Orange #f97316`, `P3 Vert #10b981`) sur **toutes les sections** de la page :
+    - *Arène & Sélecteur (`ClanRosterSelector`)* : badges squircles néon officiels sur les 3 battle slots et les trading cards.
+    - *Performances globales (`GlobalPerformancesDominance`)* : badges `P1`, `P2`, `P3` interactifs dans la légende et trajectoires de courbes.
+    - *Profil comparé (`ClanComparatorRadar`)* : badges intégrés dans la légende et en en-tête de chaque colonne du tableau d'axes.
+    - *Le « Derby » (`HeadToHeadCard`)* : badges `P1` vs `P2` dans l'en-tête du duel et teintes de confrontation dynamiques.
+    - *Performances par mode (`ModePerformancesCard`)* : remplacement des numéros génériques par les badges `P1`, `P2`, `P3` et badge `🏆 1er`.
+    - *Le « Pouls » (`ClanPulseCards`)* : badges de slot à gauche de chaque ligne de classement et puce `🏆 1er`.
+    - *Le « ADN » (`ClanDnaCards`)* : badges de slot à gauche de chaque ligne de classement et puce `🏆 1er`.
+    - *Heatmap d'activité (`ClanActivityHeatmap`)* : boutons de légende interactifs avec état de survol (`hoveredClanId`), mise en surbrillance néon des points du clan ciblé (`boxShadow` néon et grossissement +35%), et atténuation des points des clans adverses (opacité 0.12).
+- [x] **Correction & Modernisation interactive du Radar (`src/components/comparator/ClanComparatorRadar.tsx`) :**
+  - **Correction du bug d'affichage (lignes manquantes)** : la fonction de calcul générait une commande de tracé SVG complète (`M x,y L x,y ... Z`) qui était injectée dans une balise `<polygon points="...">`. L'attribut `points` rejetant les lettres de commande `M`, `L`, `Z`, le SVG était invalidé silencieusement par le navigateur et n'affichait aucune ligne. Remplacement par `<path d="...">` avec fermeture automatique.
+  - **Interaction au survol (Hover & Focus)** :
+    - Gestion d'état `hoveredClanId` connectée à la fois aux polygones du radar, aux puces de légende et aux colonnes du tableau d'axes.
+    - **Halo néon lumineux (`feDropShadow`)** : filtre SVG dédié par clan intensifiant la lueur et la présence visuelle du clan ciblé.
+    - **Atténuation automatique** des autres clans (opacité abaissée à 0.12 - 0.15) pour isoler parfaitement l'empreinte radar du clan examiné.
+    - **Nœuds de sommets interactifs (`<circle>`)** : points lumineux pulsants aux 5 intersections des axes.
+    - **Zone de captage élargie** (`strokeWidth="18"`) transparente pour rendre le survol du radar fluide et sans à-coups.
+    - **Élimination du débordement horizontal (`overflow-x`) au survol** : suppression de `scale-105` sur les cellules `<td>` et passage du tableau en `table-fixed` avec largeurs proportionnelles garantissant 100% de la largeur du conteneur sans barre de défilement parasite ; surbrillance de colonne avec fond d'accentuation doux (`bgHighlightClass`) et texte en gras.
+  - **Suppression des styles CSS conflictuels** : retrait d'un bloc `<style>` legacy qui forçait les couleurs des séries avec `!important`.
+- [x] **Intégration page & données API (`src/app/clans/comparator/page.tsx`) :**
+  - Exploitation complète des métadonnées déjà fournies par `GET /api/clans` (`membersCount`, `matchesCount`, `lastMatchAt`, `platformShard`, `imageUrl`).
+  - Déplacement et harmonisation de la barre de période (`Semaine`, `Mois`, `Tous`) dans un conteneur dédié sous le sélecteur.
+- [x] **Documentation du Design System (`docs/ui/index.html`) — Nouveaux composants Esport & Dataviz :**
+  - Ajout des sections 17 à 21 avec aperçus interactifs (clair/sombre), snippets de code copiables et cas d'usage pour de futures pages (matchs, tournois, profils, lobbies) :
+    - *Section 17* : En-têtes de modules pédagogiques & panneaux (`.app-panel` avec carré d'icône teinté et sous-titre).
+    - *Section 18* : Slots de confrontation P1 / P2 / P3 (`.p-slot-badge`) et badge Esport `VS` (`.esport-vs-badge`).
+    - *Section 19* : Roster Trading Cards (style FUT/Esport) & Battle Slots (états vide vs assigné).
+    - *Section 20* : Dataviz Radar SVG & Trajectoires ADN (filtres néon `feDropShadow`, hover bidirectionnel, règles strictes anti-débordement `table-fixed`).
+    - *Section 21* : Listes Leaderboard par critère avec rangs ordonnés et puce d'honneur `🏆 1er` (`.app-trophy-chip`).
+
+### ~~Observatoire des Clans, Résolution & Triage (`/settings/opponents`) — Tri, Métriques, Chargement progressif & Triage interactif~~ — ✅ Complété le 2026-09-03
+
+Refonte transverse des 3 onglets de gestion des adversaires : correction des classements faussés, élimination des blocages de performance, rafraîchissement des cartes métriques, infobulles explicatives et reconnexion du triage unitaire.
+
+#### 1. Onglet « Explorer » (`/settings/opponents`)
+- [x] **Correction du tri par colonne (`src/app/api/settings/opponents/route.ts`) :**
+  - *Suppression du verrou favoris en tête :* Le tri SQL appliquait systématiquement `ORDER BY oc.isFavorite DESC, ...`, forçant les clans favoris en premier (même avec de faibles scores comme 8, 9, 10) et repoussant artificiellement les clans ayant 395+ coéquipiers plus bas.
+  - *Tri primaire strict :* Le tri demandé par l'utilisateur (ex: `asTeammate`, `asOpponent`, `totalEncounters`, `lastSeen`, `memberCount`, `trackedClansCount`) est désormais le critère primaire direct en SQL (`ORDER BY ${col} ${dir}, oc.isFavorite DESC, oc.name ASC`).
+  - *Sécurisation des NULLs :* Utilisation systématique de `COALESCE(stats.asTeammateCount, 0)`, etc. pour éviter les incohérences de classement ASC / DESC en MySQL.
+  - *Tri spécifique par favoris :* L'icône étoile ⭐ dans l'en-tête de colonne est devenue interactive pour permettre un tri explicite par statut favori à la demande.
+- [x] **Nouvelle colonne & Filtres rapides ergonomiques :**
+  - Ajout de la colonne **« Total rencontres »** (`Fois adversaire + Fois coéquipier`) mise en valeur en gras pour évaluer d'un coup d'œil l'activité globale contre chaque clan.
+  - 3 filtres rapides à onglets au-dessus du tableau :
+    - **Tous les clans** (6 742 clans).
+    - **Favoris uniquement ⭐** : isole instantanément les clans surveillés sans avoir à chercher parmi plus de 670 pages.
+    - **Avec coéquipiers (Fill)** : filtre uniquement les clans ayant été croisés au moins une fois dans votre escouade (`asTeammateCount > 0`).
+- [x] **Mise à jour des métriques & Bouton de recalcul du cache :**
+  - Compteurs temps réel pour les clans suivis (22 au lieu de 7) et clans adverses actifs, évitant l'affichage figé d'un cache ancien datant de plusieurs jours.
+  - Affichage de l'horodatage de dernière synchronisation (`lastComputedAt`) avec formatage relatif dynamique (« il y a X jours »).
+  - Nouvelle route sécurisée `POST /api/settings/opponents/recalculate` permettant aux SuperUsers de relancer le calcul complet du cache d'agrégation (`OpponentClanStatsCache` et `SystemStatsCache`) à la demande avec indicateur de progression animé.
+- [x] **Infobulles explicatives (`<Info />`) & Terminologie explicite :**
+  - Ajout d'icônes d'information et d'infobulles descriptives claires au survol de chaque carte métrique et de chaque en-tête de colonne.
+  - Clarification sémantique de la différence entre :
+    - *Fois adversaire :* Confrontation directe contre une escouade ennemie dans la partie.
+    - *Fois coéquipier :* Joueurs de ce clan placés dans votre escouade via le matchmaking aléatoire de PUBG (fill squad).
+  - Encart de légende détaillé au bas de la page clarifiant chaque indicateur.
+
+#### 2. Onglet « Résolution & Jobs » (`/settings/opponents/resolution`)
+- [x] **Élimination de la requête bloquante de 28 secondes (`src/app/api/settings/encountered-player-resolution/route.ts`) :**
+  - Suppression du `groupBy` non indexé sur 1 053 000 lignes dans `buildResponsePayload()` pour un champ qui n'était même pas affiché dans la page (`crossClan`). Le temps de réponse de l'API passe de 28,4 secondes à 20-30 ms en mode rapide.
+- [x] **Chargement progressif (`mode=quick` et `mode=backlog`) :**
+  - La page affiche immédiatement la structure, les contrôles (taille du lot, activation du cron, statut du worker) et le tableau des passages récents (`recentRuns`), tandis que les 6 cartes de métriques de backlog se chargent de manière asynchrone sans figer l'interface.
+- [x] **Bouton « Résoudre un lot maintenant » (`src/app/api/settings/encountered-player-resolution/run/route.ts`) :**
+  - Nouveau déclencheur manuel permettant aux SuperUsers de tester et lancer une passe de résolution immédiate sans attendre le cron planifié, avec récapitulatif détaillé en direct (joueurs résolus avec clan, sans clan, depuis le cache, et échecs).
+- [x] **Infobulles explicatives (`<Info />`) :**
+  - Définition claire sur chaque carte métrique (Jamais tenté, Nouvel essai prévu, Échec définitif, Résolus 24h, Rattrapage estimé, Cadence cron, Taille du lot).
+
+#### 3. Onglet « Triage » (`/settings/opponents/triage`)
+- [x] **Correction des URLs d'API défaillantes :**
+  - Remplacement des routes 404 (`/api/settings/opponents/triage` et `/resolve`) par les véritables endpoints du backend (`GET /api/settings/encountered-players` et `POST /api/settings/encountered-players/[id]/resolve`).
+- [x] **Filtres par statut avec badges thématiques :**
+  - Jamais tenté, Nouvel essai prévu, Échec définitif, Sous le seuil d'éligibilité (<2 rencontres), Résolu avec clan, Sans clan.
+- [x] **Recherche de joueur en direct (`src/app/api/settings/encountered-players/route.ts`) :**
+  - Ajout du filtre par pseudo PUBG (`?q=...`) dans l'API et l'interface de triage.
+- [x] **Lien direct PUBG Lookup & Détails d'interaction :**
+  - Affichage du clan qui a croisé le joueur, volume de rencontres, tentatives échouées, et lien externe de vérification.
+- [x] **Action de résolution unitaire interactive :**
+  - Bouton « Résoudre » ou « Forcer réessai » par ligne avec statut visuel animé en direct (appel PUBG, succès avec tag de clan identifié, ou motif d'échec précis).
+- [x] **Infobulles explicatives :**
+  - Explication des règles de qualification au cron (seuil minimal de 2 rencontres pour préserver les quotas d'API).
+- [x] **Harmonisation Dark Mode & Responsive :**
+  - Styles `dark:bg-slate-900`, `dark:border-slate-800` et contrastes adaptés sur toute l'interface et sur le layout transverse (`src/app/settings/opponents/layout.tsx`).
+
+### ~~Purge de la télémétrie de géolocalisation & Suivi d'avancement par lots (`/settings/superuser/database`)~~ — ✅ Complété le 2026-09-03
+
+Résolution du timeout HTTP et de l'erreur générique lors de la purge des colonnes volumineuses `positionSamples` et `trajectorySegments` (table `SquadMatchTelemetry`) :
+
+- [x] **Éradication des timeouts HTTP & Full Table Scans dans l'API (`/api/superuser/database/purge-telemetry`) :**
+  - *Cause de l'erreur précédente :* Une boucle synchrone `while` tentait de tout purger d'un coup avec `UPDATE ... WHERE positionSamples IS NOT NULL LIMIT 100`. Comme `positionSamples` (longtext) n'est pas indexé, MySQL exécutait un scan complet de table à chaque itération, provoquant des verrous InnoDB et un dépassement de timeout HTTP (504 Gateway Timeout).
+  - *Optimisation par clé primaire (PK) :* Sélection rapide des IDs par tranche (`LIMIT 250`) puis mise à jour instantanée par index groupé `UPDATE ... WHERE id IN (...)` exécutée en moins de 200 ms par lot.
+  - *Support complet des deux colonnes :* Prise en compte simultanée de `positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL`.
+  - *Filtrage par ancienneté (`olderThanDays`) :* Paramètre optionnel (14, 30, 60, 90 jours ou 'all') calculé via `COALESCE(sourceGeneratedAt, parsedAt, createdAt) < cutoffDate` pour préserver intégralement les tracés récents.
+  - *Préservation totale des statistiques de jeu :* Les colonnes de statistiques de combat (`killSamples`, `damageSamples`, `knockoutSamples`, `reviveSamples`, `weaponStats`, `memberStats`) et les événements de mort (`deathSamples`) restent 100% conservés pour les analyses et historiques.
+  - *Nouvelle méthode GET :* Fournit les statistiques en direct de la table selon le seuil sélectionné (`totalMatches`, `matchesToPurge`, `purgedMatches`, `percentPurged`).
+- [x] **Suivi en direct & Sélecteur d'ancienneté dans l'interface (`DatabaseStatsPage`) :**
+  - Sélecteur à 5 cartes d'ancienneté : **Plus de 14 jours** (Recommandé - standard officiel PUBG), **Plus de 30 jours** (1 mois), **Plus de 60 jours** (2 mois), **Plus de 90 jours** (1 trimestre), **Tous les matchs** (purge intégrale).
+  - Affichage de 3 compteurs d'état recalculés en direct : Total matchs, Cible à purger selon le filtre actif, Hors cible / Déjà allégés.
+  - Machine à états côté client (`isPurging`, `cancelPurgeRef`, `purgedCountSession`, `totalToPurgeSession`) pilotant l'enchaînement des lots de 250 matchs avec pause de fluidité de 60 ms.
+  - Barre de progression animée avec pourcentage en temps réel, compteur de matchs traités et restants.
+  - Bouton interactif d'interruption sécurisée (« Interrompre la purge ») avec confirmation du volume intermédiaire nettoyé.
+  - Gestion précise des erreurs : affichage du message détaillé retourné par le serveur et bouton « Reprendre la purge » pour relancer là où l'opération s'était arrêtée sans repartir de zéro.
+  - Détection automatique : bouton désactivé avec badge vert de confirmation si aucun match ne correspond au seuil choisi.
+  - Rafraîchissement automatique des tailles de tables (`fetchStats()`) et des métriques de purge dès la fin de l'opération.
+- [x] **Compacter & Restituer l'espace disque réel (OPTIMIZE TABLE & `data_free`) :**
+  - *Explication technique :* Sous MySQL InnoDB, vider des colonnes (`UPDATE ... SET col = NULL`) libère l'espace dans les pages internes du tablespace mais ne réduit jamais le fichier `.ibd` sur le disque dur automatiquement. `data_length` reste figé tant que la table n'est pas reconstruite.
+  - *Nouvelle route d'optimisation (`POST /api/superuser/database/optimize`) :* Permet d'exécuter soit un compactage physique (`OPTIMIZE TABLE`) qui défragmente le fichier `.ibd` et restitue les Go au système d'exploitation, soit un recalcul rapide des statistiques (`ANALYZE TABLE`).
+  - *Affichage de l'espace récupérable :* Intégration de `data_free_mb` dans l'API et affichage dans le tableau (colonne « Libre ») et dans les métriques globales (« Espace libre / Récupérable »).
+  - *Boutons interactifs d'optimisation :* Bouton « Compacter SquadMatchTelemetry (OPTIMIZE) » et « Recalculer les stats d'index (ANALYZE) » intégrés directement sous la section de purge, ainsi qu'un bouton d'action directe dans le tableau.
+  - *Gain constaté :* Le compactage sur `SquadMatchTelemetry` fait chuter la taille de 10,5 Go à 3,1 Go (plus de 7,4 Go de stockage immédiatement libérés sur le disque).
+- [x] **Correction du rendu de la jauge et suppression des débordements (Desktop & Mobile) :**
+  - Définition de `--theme-ui-accent` dans `globals.css` (manquant, causant un affichage transparent).
+  - Suppression de la 8e colonne superflue « Action » qui gaspillait de la largeur et créait un débordement à droite : le bouton « Compacter » est désormais logé directement dans la 1ère colonne aux côtés du badge « Télémétrie » de `SquadMatchTelemetry`.
+  - Optimisation responsive sur smartphone : masquage élégant des colonnes secondaires sur petit écran (`hidden sm:table-cell`, `hidden md:table-cell`, `hidden lg:table-cell`), ne conservant sur mobile que le nom de la table, le total en Mo et la jauge de pourcentage avec adaptation fluide sans aucun débordement horizontal.
+  - Ajustement des grilles de métriques (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`) et des boutons d'action avec retours à la ligne contrôlés (`flex-wrap`).
+
+### ~~Synchronisation dynamique des Hubs de Paramètres (`/settings/admin`, `/settings/owner`, `/settings/superuser`) avec `nav-permissions`~~ — ✅ Complété le 2026-09-03
+
+Les trois pages Hub de paramètres affichaient des cartes statiques codées en dur, ne reflétant ni les changements de rôles, ni les réordonnancements, ni les masquages (`hidden`) configurés dans `/settings/nav-permissions`. Elles ont été rendues 100% dynamiques et pilotées par la table `NavItem` :
+
+- [x] **Hook de résolution dynamique `useSettingsHubItems` (`src/hooks/useSettingsHubItems.ts`) :**
+  - Lecture en temps réel des définitions `NavItemDef`, rôles effectifs (`roles`), ordre d'affichage (`positions` et `promotedPositions`) et libellés personnalisés (`labels`) via `useNavPermissions`.
+  - Déplacement automatique : si le rôle d'un outil est modifié (ex. promu d'Admin vers Owner ou SuperUser), sa carte bascule automatiquement sur le Hub cible correspondant (`admin-menu`, `owner-menu`, `superuser-menu`).
+  - Filtrage de sécurité par rôle : exclusion automatique des outils nécessitant un privilège supérieur et des outils marqués `hidden`.
+  - Découplage clan/global : partitionnement automatique entre outils spécifiques au clan actif (`requiresClan: true`, dépendant de `clanId`) et outils transverses globaux (`requiresClan: false`).
+- [x] **Composant de carte réutilisable `SettingsHubCard` (`src/components/settings/SettingsHubCard.tsx`) :**
+  - Mappage des icônes Lucide (`Users`, `Monitor`, `Map`, `Swords`, `Activity`, `LayoutDashboard`, `History`, `Clock`, `Database`, `ShieldAlert`…) avec palette de couleurs sémantiques.
+  - Rendu dynamique du titre et de la description configurés.
+  - Support complet des thèmes clair et sombre (`dark:bg-slate-900/50`, `dark:border-slate-800`, `dark:hover:bg-slate-900`).
+- [x] **Refonte des trois Hubs de paramètres :**
+  - `/settings/admin` (`AdminHubPage`) : affiche uniquement les outils et dictionnaires configurés pour les administrateurs.
+  - `/settings/owner` (`OwnerHubPage`) : supervision télémétrie du clan actif et infrastructure globale.
+  - `/settings/superuser` (`SuperUserHubPage`) : outils transverses de plateforme et dépannage avancé clan.
+  - Si aucun clan n'est sélectionné en amont, les outils dépendant du clan affichent un encart d'avertissement clair avec bouton de redirection vers `/clans`.
+- [x] **Enrichissement du registre et de la base de données :**
+  - Ajout de l'entrée `superuser.database` (`/settings/superuser/database`, "Base de données") dans `NAV_REGISTRY` (`src/lib/nav-permissions-registry.ts`).
+  - Synchronisation et seeding dans la table `NavItem` en base via `prisma/seed-nav-items.ts` (56 entrées actives).
+
+
+### ~~Attribution et révocation du rôle Clan Owner par le SuperUser (`/clans/[clanId]/settings/members`)~~ — ✅ Complété le 2026-09-03
+
+Déblocage complet de la gestion des rôles Owner par un SuperUser, solutionnant l'erreur bloquante *"Role not found for member clan"* :
+
+- [x] **Déblocage cross-clan dans `role-service.ts` :**
+  - Prise en charge du paramètre `options?: { isSuperUser?: boolean }` dans `assignRole` et `revokeRole`.
+  - Levée du contrôle bloquant `role.clanId !== actor.clanId` lorsque l'acteur est un SuperUser (permet à un SuperUser rattaché au clan 1 d'administrer les rôles du clan 7 ou de tout autre clan).
+  - Levée du verrou bootstrap `Owner role can only be self-assigned during bootstrap` pour les SuperUsers.
+  - Levée de l'interdiction de révocation `Owner role cannot be revoked` pour les SuperUsers.
+- [x] **Sécurisation & méthode DELETE sur l'API (`/api/clans/[clanId]/members/[memberId]/role`) :**
+  - Contrôle `isSuperUserSession(request)` transmis à `assignRole` et `revokeRole`.
+  - Autorisation pour les SuperUsers sans `activeMemberId` clanique local.
+  - Ajout de la méthode `DELETE` pour révoquer explicitement tous les rôles d'un membre et lui réattribuer automatiquement le rôle de base `Member`.
+- [x] **Interface utilisateur `RoleAssignment.tsx` & page membres :**
+  - Transmission du statut `isSuperUser` via `useAuthSession`.
+  - Les non-superusers ne voient plus l'option `Owner` dans la liste déroulante et ne peuvent pas altérer un propriétaire existant.
+  - Le SuperUser dispose d'un bouton direct rouge **« Révoquer Owner »** avec confirmation interactive sur la carte de tout membre propriétaire pour le rétrograder instantanément en membre simple.
+  - Styles de la liste déroulante et des feedbacks d'erreur/succès harmonisés avec le thème sombre (`dark:bg-slate-800`, `dark:border-slate-700`).
+
+
+### ~~Filtrage Normal / Tout & Contraste Mode Sombre sur les Awards (`/clans/[clanId]/awards`)~~ — ✅ Complété le 2026-09-03
+
+- [x] **Restriction aux modes Battle Royale Squad :**
+  - Limitation stricte des awards aux modes duo, trio et squad (`duo`, `duo-fpp`, `normal-duo`, `normal-duo-fpp`, `squad`, `squad-fpp`, `normal-squad`, `normal-squad-fpp`), exclusion des modes solo, TDM et IBR.
+- [x] **Filtre de portée Scope (`normal` vs `all`) :**
+  - `normal` : matchs officiels uniquement (`matchType: 'official'`), exclut parties personnalisées et casual/bots.
+  - `all` : ensemble des types de matchs (officiels, custom, ranked, airoyale).
+  - Segmented control avec descriptif dynamique et compteur de matchs pris en compte.
+  - Persistance dans `ClanAwardsCache` avec clés composites `${period}:${scope}` et précalcul automatique de toutes les combinaisons.
+- [x] **Contraste en Mode Sombre :**
+  - Remplacement des classes claires hardcodées par la classe du Design System `.app-panel-muted` s'adaptant automatiquement au thème (`#111827` en sombre).
+  - Typographie et badges dotés de contrastes renforcés (`dark:text-white`, `dark:text-slate-300`, `dark:bg-slate-800`).
+
+### ~~Modernisation Ops Cron (`/settings/cron`), Purge d'historique et Documentation des tâches~~ — ✅ Complété le 2026-09-02
+
+Refonte moderne de la console de supervision des tâches planifiées `/settings/cron` selon le Design System (`docs/ui/index.html`), clarification du fonctionnement des jobs de synchronisation télémétrie et ajout de la purge des exécutions.
+
+- [x] **Purge de l'historique d'exécutions :**
+  - Ajout de la route API sécurisée `DELETE /api/clans/[clanId]/cron-control` (contrôle SuperUser / Owner, suppression dans `prisma.cronExecution` avec exclusion stricte des jobs `running` et `queued`).
+  - Bouton interactif avec confirmation en ligne dans l'en-tête de la section Historique (`Trash2`, bouton "Confirmer la purge", notification toast haute visibilité et rafraîchissement dynamique).
+- [x] **Descriptions enrichies des tâches cron :**
+  - Dictionnaire `SCHEDULE_DESCRIPTIONS` détaillant le rôle précis et l'impact de chaque job (`daily_sync`, `daily_stats_recalc`, `daily_lifetime_stats_sync`, `daily_season_stats_sync`, `clan_online_reminder`, `weekly_report_reminder`, `weekly_report_auto`, `monthly_report_auto`, `challenge_processing`, `encountered_player_clan_resolution`).
+  - Affichage direct sous le nom de chaque tâche dans le tableau d'édition des expressions cron.
+- [x] **Contraste & Design System :**
+  - Remplacement de tous les badges obsolètes par le composant `StatusPill` exploitant les classes officielles `.status-pill` (`--online`, `--pending`, `--error`, `--offline`) et `.status-dot`.
+  - Intégration de `.app-meta-pill` pour le clan actif et les badges de métadonnées.
+  - Toasts de feedback unifiés avec `.telemetry-toast-success` et `.telemetry-toast-error`.
+  - Tous les textes et labels de tables et cartes adaptés pour un contraste optimal en thème sombre (`text-slate-900 dark:text-white`, `text-slate-700 dark:text-slate-300`, `dark:border-slate-700`, `dark:bg-slate-900`).
+- [x] **Liaison explicite Actions manuelles ↔ Crons & Sélecteur de portée :**
+  - Ajout sur chaque carte d'action manuelle d'un badge de liaison technique (`daily_sync`, `daily_stats_recalc`, `telemetry:aggregates:worker`, `daily_lifetime_stats_sync`) et harmonisation des intitulés de boutons.
+  - Sélecteur de clan mis en évidence dans l'en-tête de la section, permettant de basculer instantanément d'un clan à un autre sans recharger la page, ou de sélectionner l'option globale « Tous les clans ».
+  - Bandeau d'avancement en direct avec spinner, libellé précis de l'action en cours et barre de progression dynamique lors des exécutions unitaires ou par lot.
+- [x] **Documentation du fonctionnement & limites :**
+  - *Fréquence & Quota :* Le job `daily_sync` (par défaut `0 * * * *`, exécuté toutes les heures) découvre et planifie les nouveaux matchs PUBG pour tous les clans actifs avec une limite de sécurité fixée à 50 matchs max par clan par exécution (soit jusqu'à 1200 matchs/clan/jour).
+  - *Découplage Cron / Worker :* Le cron scheduler planifie et dépose les matchs à traiter dans la file d'attente ; c'est le worker dédié en arrière-plan (`telemetry:worker`) qui dépile et télécharge la télémétrie en continu.
+  - *Estimation dynamique :* L'estimation de prochaine relance lit dynamiquement l'expression cron en base plutôt qu'une valeur figée.
+
+
+### Harmonisation de `/clans/[clanId]/telemetry/recoveries` avec la console globale — ✅ Réalisé le 2026-09-02
+
+Mise à niveau de la console télémétrie par clan pour apporter le même état d'esprit et les mêmes capacités d'audit et de pilotage que la page globale `/settings/telemetry-recoveries` :
+- [x] **Pilotage Moteur & File d'attente intégrés :**
+  - Affichage en direct du statut du worker (en ligne/hors ligne, PID, heartbeat), de la file d'attente globale (`queued`, `running`, `remaining`, `total`), de la durée estimée ETA et de la prochaine relance cron estimée.
+- [x] **Audit réel du Backlog du Clan :**
+  - Calcul et affichage des métriques complètes du clan sur l'ensemble de la base : Matchs totaux, Complétés, Expirés définitifs PUBG (>14j), Backlog récupérable (<14j), Urgents (<14j sur le point d'expirer), En file / Restant à enfiler.
+  - Jauge tricolore de complétion (complétés vert, expirés gris, récupérables indigo).
+- [x] **Actions d'enfilage rapide pour le Clan :**
+  - Ajout de la méthode `POST /api/clans/[clanId]/telemetry/recoveries` avec permission Clan Owner et SuperUser.
+  - Bouton « Mettre en file les urgences (< 14j) » pour sécuriser les matchs avant expiration PUBG.
+  - Bouton « Mettre en file tout le backlog » pour ingérer tous les matchs récupérables restants.
+  - Bouton « Backfill JSON manquants » avec feedback toast unifié.
+- [x] **Sélecteur de clan & Design System :**
+  - Sélecteur rapide de clan en haut de page pour switcher immédiatement d'un clan à l'autre.
+  - Lien direct vers la console globale pour les SuperUsers.
+  - Intégration stricte du Design System (`.status-pill`, `.status-dot`, `.app-meta-pill`, `.app-btn`, `.telemetry-toast-success`, contrastes dark mode `dark:*`).
+
+
+### ~~Clans "trackés" (RATZ, BEE, MTFR, BDXX, FR-Alliance-BE) — stats à zéro malgré la télémétrie~~ — ✅ Corrigé le 2026-08-11
+
+`/clans/6/overview` (RATZ) affichait 0 partout (kills, wins, dégâts, matchs) alors que 511 lignes `SquadMember` existaient bien en base. Cause : `joinStatus: 'tracked'` isole volontairement les membres (voir `tracked-isolation.test.ts`) des agrégats (`recalculateStatsForClan` dans `stats-calculator.ts`, `precomputeClanMatchesStats` dans `matches-cache-service.ts`) — mais ce statut était le **seul** posé par le bouton "tracker" de `/settings/opponents` (`POST /api/settings/opponents/track`), utilisé pour construire la quasi-totalité du roster de 5 clans sur 6 du site (86 `ClanMember` sur ~95 dans ces clans, tous avec `playerId` renseigné → tous créés via cette route, jamais via `/join`).
+
+- [x] Modifier `src/app/api/settings/opponents/track/route.ts` : poser `joinStatus: 'active'` au lieu de `'tracked'` (create + update) — une confirmation manuelle par un SuperUser vaut approbation, il n'existe pas de flux `/join` pour un joueur scouté sans compte sur le site.
+- [x] Migrer les 86 `ClanMember` existants (`tracked` → `active`) sur les clans 3 (LesZzabeilles), 4 (LA_MEUTE), 5 (BDXX), 6 (Les-Ratz), 7 (FR-Alliance-BE).
+- [x] Relancer `recalculateStatsForClan`, `precomputeClanMatchesStats`, `recalculateTelemetryPeriodAggregatesForClan` pour ces 5 clans.
+- [x] Vérifié : clan 6 → 240 matchs / 1504 kills / 52 wins (période "Tous"), 56 lignes `PlayerStats`.
+- [x] Complété après coup : `precomputeClanAwards` (`ClanAwardsCache`, cartes "Awards du mode") et `computeClanComparatorStats` (`ClanComparatorCache`, page `/clans/comparator` — cartes "Performances par mode" à 0 pour RATZ) n'avaient pas été relancés lors de la première passe ; le recalcul complet suit désormais la même séquence que `recalculateStatsDaily` dans `cron-jobs.ts` (`recalculateStatsForClan` → `precomputeClanAwards` → `precomputeClanMatchesStats` → `computeClanComparatorStats`).
+- [x] Réécrit `tracked-isolation.test.ts` (obsolète : `periodType` manquant, modèle `ClanStats` inexistant) pour couvrir le pipeline actuel (`recalculateStatsForClan` + `precomputeClanMatchesStats`) et nettoyer ses données après exécution (un run précédent avait laissé un clan orphelin `Test Isolation Clan` en base réelle, supprimé).
+
+**Note :** le statut `joinStatus: 'tracked'` reste dans le schéma pour un éventuel futur usage (isolation d'un coéquipier auto-détecté non confirmé), mais n'est plus produit par aucun flux applicatif actuel.
+
+### ~~Corrections UI & UX — Comparateur et Leaderboard~~ — ✅ Corrigé le 2026-08-14
+
+- [x] **Comparateur (`/clans/comparator`) :** Corriger le débordement de l'arrière-plan sur les `app-panel` ("contour des cartes non respecté") via l'ajout de `overflow-hidden` généralisé sur les sections.
+- [x] **Leaderboard (`/clans-leaderboard`) :** Rendre les en-têtes de table interactives pour permettre le tri selon 5 critères (Effectif Actif, Power Score, Win Rate, Dégâts moy., Kills moy.).
+- [x] **Leaderboard :** Adapter le podium dynamique pour refléter le filtre actif (changement du classement et de l'étiquette affichée).
+- [x] **Leaderboard :** Corriger le rayon de bordure des podiums flottants (`rounded-t-xl` remplacé par `rounded-xl`).
+
+### ~~Dépendance `server-only` manquante — cassait `stats-calculator.ts` (via `notification-service.ts` → `email-service.ts`) hors build Next~~ — ✅ Corrigé le 2026-08-11
+
+`server-only` était importé dans `email-service.ts` mais absent de `package.json`/`node_modules` : tout script ou test import ant `stats-calculator.ts` (donc `tracked-isolation.test.ts`) plantait avec `Cannot find module 'server-only'`. Une fois le paquet installé, le vrai module `server-only` lève une erreur volontaire dès qu'il est chargé hors du bundling spécial Next.js (serveur/client) — donc aussi en environnement Vitest.
+
+- [x] `npm install server-only` (ajouté aux `dependencies`).
+- [x] Alias `server-only` → stub no-op (`src/lib/test-stubs/server-only.ts`) dans `vitest.config.ts`, car Vitest n'a pas le découpage serveur/client de Next qui rend ce module inoffensif en prod.
+
+### ~~SuperUser — Forbidden sur les clans hors clan d'appartenance~~ — ✅ Corrigé le 2026-08-09
+
+`requireNavPermission` (`src/middleware/auth-permission.ts`) vérifiait l'appartenance au clan ciblé (`ensureMemberInClan`) **avant** de vérifier le statut SuperUser, contrairement à `requirePermission`/`requireRole` qui font le bypass SuperUser en premier. Un SuperUser dont le membre actif appartient au clan 1 recevait `403 Forbidden` sur les ~16 routes protégées par `requireNavPermission` (positions, matches, lifetime-stats, drop-zones, weapons, heatmap, challenges, reports, squad-analysis, leaderboard, bot-stats…) dès qu'il consultait un autre clan (ex. clan 7), alors que les données existaient bien.
+
+- [x] Ajouter le bypass SuperUser avant le contrôle `ensureMemberInClan` dans `requireNavPermission`
+- [x] Étendre le bypass SuperUser aux branches `role === 'admin'` et `role === 'owner'` (qui dépendaient des rôles du membre actif dans son propre clan, jamais valides pour un clan étranger)
+- [x] Valider TypeScript et ESLint sur `auth-permission.ts`
+- [ ] Vérifier dans le navigateur `/clans/7/telemetry/matches` avec la session SuperUser actuelle (`activeMemberId=1`, clan 1)
+
+### ~~Refonte Dashboard Overview & Roster~~ — ✅ Complété (vérifié le 2026-08-30)
+
+Cette tâche visait à transformer la page `Overview` en un véritable dashboard analytique (100% statistiques) alimenté par un cache persistant précalculé, et à alléger la page `Matches`. **Vérification de code du 2026-08-30 :** le chantier était en réalité entièrement implémenté, sans qu'aucune case n'ait été cochée entre-temps.
+
+**1. Persistance & Cache (Cron)**
+- [x] Modèle `ClanMatchesCache` dans `prisma/schema.prisma` (`clanId`, `period`, `periodKey`, `payload`, `computedAt`, unique `[clanId, period]`)
+- [x] Migration appliquée
+- [x] `src/lib/matches-cache-service.ts` avec `precomputeClanMatchesStats(clanId)`
+- [x] Payload structuré par mode (`all`/`duo`/`trio`/`squad`) avec `globalStats`, `modePerformance`, `rosterStats`, `synergies.topPairs`/`topSquads` (top 5) et `topPerformers` (top 5 par catégorie)
+- [x] Appelée depuis `src/lib/cron-jobs.ts`
+- [x] Route `GET /api/clans/[clanId]/overview/matches-stats/route.ts`
+
+**2. Allègement de la page Matches**
+- [x] `modePerformance`, `<SquadSynergies />` et `<TopPerformers />` retirés de `src/app/clans/[clanId]/matches/page.tsx` (page réduite à `MatchStatCard` + `SessionRecap`)
+
+**3. Refonte UI : Dashboard Overview**
+- [x] Carte "Comparaison PUBG vs site" (`ClanSyncPanel`) déplacée vers `src/app/clans/[clanId]/settings/members/page.tsx`
+- [x] Filtres *Période* (Semaine/Mois/Tous) et *Mode de jeu* (Tous/Duo/Trio/Squad) en en-tête du Dashboard
+- [x] 6 KPIs connectés au cache (`globalStats`)
+- [x] Section "Top Performers" : "Awards du mode" (#1 par catégorie) + `<TopPerformers />` (Top 5) côte à côte
+- [x] Cartes "Performances par mode" (duo/trio/squad) et `<SquadSynergies />` connectées au filtre Mode
+- [x] Mention "Données mises à jour le [date]" basée sur `computedAt`
+
+**4. Refonte UI : Roster Membres Actifs (Performance)**
+- [x] Tableau administratif remplacé par un "Roster des performances" basé sur `rosterStats` du cache
+- [x] Colonnes livrées : Joueur, Matchs, Victoires, Kills, Dégâts (Moy), K+A Moy., Médailles — légèrement différentes de la spec initiale (pas de colonne "Statut"/icône de santé de synchro dédiée, "Victoires" plutôt qu'un Win Rate % explicite), fonctionnalité équivalente
+- [x] Tableau responsive : table desktop (`hidden md:block`) / cartes mobile (`md:hidden`)
+
+**5. Fix Responsive : Pression au drop**
+- [x] `min-w-[760px]` supprimé de `DropPressureStatsPanel.tsx`
+- [x] Pattern responsive (table desktop cachée en mobile + cartes mobile) appliqué
+
+### ~~Télémétrie — Backfill v1 → v2~~ — ✅ Complété le 2026-06-21
+
+346 snapshots `SquadMatchTelemetry` — tous `status=success`, `parserVersion=v2`. Aucun snapshot v1 résiduel.
+
+- [x] Vérifier quels matchs en DB ont `parserVersion = 'v1'`
+- [x] Lancer le backfill depuis les fichiers `.telemetry-captured/` encore présents
+- [x] Vérifier après exécution que `MemberWeaponStats` est complet
+- [ ] ~~Supprimer les fichiers capturés obsolètes une fois le backfill terminé~~ — **à ne pas faire** (requalifié le 2026-09-16) : ces captures sont les seules copies de la télémétrie au-delà des 14 jours du CDN PUBG, et servent à re-parser les nouvelles colonnes (voir P2 « Auto-cleanup cron »). Elles n'existent que sur le poste de développement.
+
+**Référence :** `docs/telemetry/ops.md` — section Backfill v1 → v2
+
+---
+
+### ~~Migration SQL production~~ — ✅ Appliquée le 2026-06-20
+
+`prisma/add-telemetry-columns.sql` appliqué manuellement sur `smk.arkium.group:3306` puis supprimé du repo. Tables et colonnes présentes en production :
+- `ALTER TABLE SquadMember` — 13 champs stats
+- `ALTER TABLE MemberTelemetryStats` — 3 champs heal
+- `CREATE TABLE MemberSeasonStats`
+- `CREATE TABLE MemberWeaponMastery`
+
+---
+
+### Pages UI manquantes ou non finalisées
+
+Plusieurs pages sont décrites dans les docs comme à créer mais n'ont pas été vérifiées comme réellement implémentées :
+
+- [x] `/clans/[clanId]/drop-zones` — page et API présentes
+- [x] `/members/[id]/drop-zones` — page et API présentes
+- [x] Awards — 11 awards complets, service + route API + page UI avec emojis, labels, descriptions et formatage
+- [x] Défis — `refreshChallengeProgressForClan` câblée depuis `processChallenges` et `runDailyClanSync` (2026-06-23)
+
+### ~~Drop zones membre — Lisibilité de la heatmap~~ — ✅ Complété le 2026-08-01
+
+- [x] Remplacer les halos circulaires par des cellules carrées jointives alignées sur la grille télémétrie `40 × 40`
+- [x] Appliquer cinq plages de couleur logarithmiques recalculées selon le maximum de la période, du filtre et de la carte actifs
+- [x] Utiliser la palette vert clair, vert, jaune, orange et rouge pour distinguer les niveaux de densité
+- [x] Faire varier logarithmiquement la transparence de `10 %` à `60 %` entre la plus faible cellule et le maximum courant
+- [x] Masquer les faibles densités sous un seuil adaptatif `max(1, floor(log2(maximum)))`
+- [x] Recalculer les cinq plages depuis le seuil visible et afficher le compteur `cellules visibles / cellules totales`
+- [x] Conserver des aplats sans halo pour ne pas masquer le fond de carte
+- [x] Appliquer un arrondi uniforme de `35 %` aux quatre coins de toutes les cellules de densité visibles, sans condition de voisinage
+- [x] Afficher les points de drop zones des membres au-dessus de la couche de densité
+- [x] Forcer les points de drop zones des membres en cyan totalement opaque, y compris en thème sombre
+- [x] Ajouter une légende affichant les bornes absolues, le libellé de chaque niveau et le maximum courant
+- [x] Conserver le détail au survol avec les coordonnées, le nombre d'atterrissages et le niveau de densité
+- [x] Valider la page avec ESLint ciblé
+- [x] Vérifier dans le navigateur les périodes `Semaine` (maximum 63) et `Tous` (maximum 717)
+- [x] Vérifier dans le navigateur les bornes d'opacité, l'absence de halo, l'arrondi uniforme sur les cinq niveaux et l'ordre des couches
+- [x] Vérifier dans le navigateur que les points membres ont `opacity: 1` et une couleur sans canal alpha
+- [x] Vérifier les seuils adaptatifs `5` sur `Semaine` et `9` sur `Tous`
+
+### ~~Cartes PUBG — Gestion des villes et périmètres~~ — ✅ Complété le 2026-08-01
+
+- [x] Ajouter un stockage séparé `AppConfig.pubg_map_locations` sans modifier le contrat des alias de cartes
+- [x] Ajouter le service de normalisation des villes avec coordonnées en pourcentage, rayon et statut actif
+- [x] Ajouter `GET/PUT /api/settings/map-locations` avec permission `manage_settings` et validation Zod
+- [x] Ajouter les vues `Alias des cartes` et `Villes et zones` dans `/settings/map-labels`
+- [x] Permettre la sélection d'une carte, l'ajout, la modification, l'activation et la suppression d'une ville
+- [x] Permettre le positionnement du centre par clic sur la carte et la saisie manuelle des coordonnées
+- [x] Permettre le réglage du diamètre de `0,5 %` à `50 %` avec aperçu circulaire immédiat
+- [x] Préremplir les 9 cartes disponibles avec 162 villes et zones issues des noms visibles sur les assets WebP
+- [x] Permettre le préremplissage non destructif de la carte sélectionnée ou de toutes les cartes
+- [x] Ajouter un zoom de `1×` à `4×`, sa réinitialisation et le déplacement dans la carte agrandie
+- [x] Conserver le centre visible pendant le zoom et recentrer la carte lors de la sélection d'une ville
+- [x] Conserver des coordonnées cartographiques exactes lors d'un placement sur une carte zoomée
+- [x] Remplacer les contrôles externes par le viewport moderne partagé avec les pages drop zones
+- [x] Superposer les contrôles de zoom sur la carte et masquer les barres de défilement
+- [x] Permettre le zoom sous le curseur avec la molette et le déplacement par glisser-déposer
+- [x] Distinguer un clic de placement d'un glisser de carte avec un seuil de mouvement
+- [x] Passer au minimum à `2×` et centrer la carte lors de l'ajout ou de la sélection d'une ville
+- [x] Vérifier le clic de placement à zoom `2×`, le drag sans déplacement de la ville et le rendu mobile sans débordement
+- [x] Désactiver l'édition géographique de `Range_Main` et `Heaven_Main` tant que leurs images sont absentes
+- [x] Valider un aller-retour API `PUT -> GET` puis restaurer la configuration initiale
+- [x] Valider ESLint et les diagnostics VS Code sur le service, l'API et la page
+- [x] Vérifier l'éditeur dans le navigateur sur desktop et mobile sans débordement horizontal
+
+### ~~Drop zones membre — Statistiques par ville~~ — ✅ Complété le 2026-08-01
+
+- [x] Associer chaque atterrissage à une seule ville active selon son centre et son rayon configurés
+- [x] Résoudre les chevauchements par le plus faible ratio `distance / rayon`
+- [x] Afficher au-dessus de la carte un Top 5 avec rang, ville, atterrissages, part, matchs et membres
+- [x] Afficher pour chaque ville le membre qui y atterrit le plus souvent et son nombre d'atterrissages
+- [x] Aligner le Top 5 sur le standard `app-table-*` avec podium, chiffres tabulaires et vue mobile dédiée
+- [x] Afficher la ville favorite et les totaux en ville / hors périmètre
+- [x] Ajouter un filtre par ville qui limite les points et recalcule la heatmap
+- [x] Ajouter l'affichage facultatif des périmètres entre la heatmap et les points
+- [x] Afficher `Dropzone : <ville>` dans l'infobulle de chaque point
+- [x] Vérifier avec les données réelles que Pochinki est favorite avec 3 atterrissages sur la période active
+- [x] Vérifier le rendu mobile sans débordement horizontal de page
+
+### ~~Drop zones clan — Alignement avec la page membre~~ — ✅ Complété le 2026-08-01
+
+- [x] Exposer les villes actives dans `GET /api/clans/[clanId]/telemetry/drop-zones`
+- [x] Remplacer les halos radiaux par la grille carrée logarithmique `40 × 40`
+- [x] Appliquer le seuil adaptatif, l'opacité `10 %–60 %`, les cinq couleurs et la légende dynamique
+- [x] Ajouter le Top 5 standard `app-table-*` avec membre principal et vue mobile dédiée
+- [x] Ajouter les statistiques en ville / hors périmètre et la ville favorite
+- [x] Ajouter le filtre par ville avec recalcul des points et de la heatmap
+- [x] Ajouter l'affichage facultatif des périmètres et les infobulles `Dropzone : <ville>`
+- [x] Conserver les points colorés par membre au-dessus des périmètres et de la densité
+- [x] Aligner les libellés et compteurs du bandeau sur les données filtrées
+- [x] Vérifier Pochinki sur les données clan : 17 atterrissages, 6 matchs, 6 membres, Damarz principal avec 4
+- [x] Vérifier le filtre Pochinki : 97 → 17 points et heatmap recalculée
+- [x] Vérifier les rendus desktop et mobile sans débordement horizontal
+
+### ~~Drop zones — Navigation cartographique~~ — ✅ Complété le 2026-08-01
+
+- [x] Partager le viewport cartographique entre les pages membre et clan
+- [x] Afficher les périmètres circulaires blancs par défaut sur les deux pages
+- [x] Remplacer la case à cocher par un bouton superposé expliquant le principe d'association aux villes
+- [x] Ajouter un zoom superposé de `1×` à `4×` avec niveau courant et réinitialisation
+- [x] Ajouter le zoom et dézoom à la molette en conservant le point situé sous le curseur
+- [x] Permettre le déplacement de la carte zoomée par glisser-déposer et masquer les barres de défilement
+- [x] Conserver le centre visible lors d'un changement de zoom manuel
+- [x] Passer à `2×` et centrer la ville lors d'une sélection depuis le filtre ou le Top 5
+- [x] Réinitialiser le viewport lors d'un changement de carte ou de portée
+- [x] Valider ESLint et les diagnostics VS Code sur le composant et les deux pages
+
+### ~~Positions clan — Carte, villes, gradation et classement~~ — ✅ Complété le 2026-08-01
+
+- [x] Mesurer le chargement réel de `GET /api/clans/[clanId]/telemetry/positions` sur les données hebdomadaires
+- [x] Limiter le chargement des colonnes JSON lourdes à la carte sélectionnée
+- [x] Supprimer le second chargement automatique de la carte initiale et dédupliquer les requêtes React simultanées
+- [x] Ajouter un cache serveur de cinq minutes après vérification des permissions
+- [x] Réutiliser le viewport des drop zones avec zoom, molette, déplacement et centrage
+- [x] Exposer les villes actives, afficher leurs périmètres et ajouter un filtre avec centrage
+- [x] Ajouter un Top 5 dynamique des villes pour la métrique visible avec podium et parts
+- [x] Appliquer cinq plages logarithmiques `Très faible`, `Faible`, `Modérée`, `Forte` et `Point chaud`
+- [x] Afficher les bornes absolues, le seuil adaptatif et le maximum de la métrique courante
+- [x] Afficher les métriques de densité en cellules graduées et conserver des points gradués pour les événements ponctuels
+- [x] Distinguer les événements ponctuels (`Kill`, `KO`, `Revive`, `Véhicule`, `Mort`) des zones de densité (`Tirs`, `Dégâts`) avec des marqueurs contrastés, des compteurs et un fond cartographique atténué
+- [x] Afficher tous les événements ponctuels sans seuil et placer les marqueurs au-dessus des périmètres de villes
+- [x] Conserver les couleurs par métrique en vue combinée `Tous`
+- [x] Simplifier le filtre de cercle en plages tactiques `Toutes`, `Début` (phases 1–2), `Milieu` (phases 3–4) et `Fin` (phases 5–8)
+- [x] Réutiliser les phases entières persistées sans migration ni backfill : chaque transition décimale reste rattachée à sa phase de départ
+- [x] Appliquer la plage tactique aux métriques, au Top 5 et au cercle moyen, puis identifier celui-ci comme zone de sécurité moyenne
+- [x] Vérifier le rendu desktop/mobile, le Top 5, le centrage sur Pochinki et l'absence de débordement horizontal
+
+#### Évolution — Densité des positions en fin de zone
+
+Objectif : montrer où les membres encore en vie terminent leurs rotations lorsque chaque rétrécissement prend fin et que le nouveau cercle devient stable. Cette vue mesure des positions d'arrivée, pas une densité d'événements de combat.
+
+Livré le 2026-09-17 — page `/clans/[clanId]/stats/zone-closures`, doc `docs/features/fin-de-zone.md`.
+
+- [x] Fin de zone définie depuis les transitions `x.5 → x+1` — vérifié sur des matchs réels : à `isGame = 2`,
+  `safetyZoneRadius` reprend le `poisonGasWarningRadius` de `isGame = 1`, donc la zone sûre de cet instantané est le
+  nouveau cercle stable. La phase 1 est exclue (zone sûre = carte entière).
+- [x] Dernier échantillon connu de chaque membre avant la fermeture, ignoré au-delà de 180 s
+  (`MAX_POSITION_AGE_SECONDS`) : plus vieux, il ne dit plus où était le joueur.
+- [x] Une position au maximum par membre, match et fermeture — contrainte unique
+  `(squadMatchId, memberId, phase)` en base.
+- [x] Membres morts avant la fermeture exclus (sur `deathSamples.phase`, car leur `timestampSeconds` est un
+  horodatage absolu). La page affiche observations, fermetures, matchs, joueurs et survivants moyens du lobby.
+- [x] Agrégation sur la grille 40 × 40 et filtre de plage tactique (`Début` 1–2, `Milieu` 3–4, `Fin` 5–8) : la phase
+  enregistrée est celle qui commence, donc les mêmes plages que `PositionMetricCell`.
+- [x] Classement par rapport au nouveau cercle : `center` (≤ 0,5 rayon), `edge` (≤ 1), `outside` (> 1), avec le ratio
+  moyen par fermeture.
+- [x] Top 5 des secteurs d'arrivée, en réutilisant les périmètres de villes (`buildCityGrid`).
+- [x] Filtres période, carte, joueur et plage tactique — aucune double observation possible grâce à la contrainte unique.
+- [x] **Décision** : métrique persistée dédiée (`ZoneClosurePosition`, migration `20260917180000_add_zone_closure_position`
+  appliquée en production) plutôt qu'une extension de `PositionMetricCell` — les lignes survivent à la purge des
+  positions brutes, et le calcul à la volée exigerait de relire les JSON à chaque affichage. Backfill :
+  `npm run telemetry:zone-closures:backfill` (limité aux matchs qui ont encore leurs positions).
+- [x] Association temporelle vérifiée sur plusieurs matchs (`scripts/inspect-zone-closures.ts`) : coéquipiers au même
+  endroit, ratio cohérent d'une fermeture à l'autre, et un match sans aucune ligne s'explique — l'escouade était morte
+  en phase 1.5, avant la première fermeture.
+- [x] Biais de survie documenté dans la page et dans `docs/features/fin-de-zone.md` : sur le clan 1, **un tiers des
+  matchs** ne produit aucune ligne (escouade éliminée avant la première fermeture, vers la 10ᵉ minute).
+- [x] Faibles échantillons : avertissement explicite en dessous de 20 observations. Tests : 5 dans
+  `zone-closure-positions.test.ts`. Mesure du 2026-09-17, clan 1 : 718 positions, 343 fermetures, 87 matchs sur
+  Erangel, résumé complet en 132 ms ; centre 19 %, bord 54 %, hors zone 28 %.
+- [ ] Recette navigateur : lisibilité de la carte, thèmes clair/sombre, rendus desktop et mobile.
+- [x] Rattrapage de tous les clans — ✅ 2026-09-17 : 5 879 matchs traités en 6 min 12, **39 324 lignes** pour
+  4 401 matchs, 22 clans, 284 membres, 20 Mo en base. Répartition : centre 18,9 %, bord 57,2 %, hors zone 23,9 %
+  (ratio moyen 0,32 / 0,79 / 1,55) ; 10 584 observations en phase 2 jusqu'à 598 en phase 9.
+  Les 1 478 matchs sans aucune ligne sont ceux où l'escouade est morte avant la première fermeture — ils seront
+  re-scannés à chaque exécution du rattrapage, sans jamais produire de ligne.
+- [ ] ⚠️ **Le code n'est pas encore déployé** : les lignes des matchs parsés à 20:09 UTC ont été écrites par le
+  rattrapage à 20:20, pas au moment de l'analyse. Tant que les services tournent avec l'ancien code, chaque nouveau
+  match exige un nouveau passage du rattrapage.
+- [ ] Exposition dans les tableaux de bord à décider une fois la page éprouvée.
+
+#### Phase 2 — Persistance des métriques de positions
+
+Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON télémétriques par des cellules persistantes, afin de supprimer le chargement à froid d'environ 20 secondes et de rendre ces données exploitables dans les dashboards.
+
+##### Cadrage fonctionnel et technique
+
+- [x] Limiter la page Positions aux catégories UI `Combat` et `Équipe` ; exclure `Mouvement` de cette page
+- [x] Conserver les métriques persistées `position` et `rotation` pour les dashboards et analyses, sans les exposer dans cette page
+- [x] Traiter les vues comme des métriques persistables plutôt que comme des catégories de stockage
+- [x] Séparer explicitement les rôles dans les métriques : dégâts infligés/reçus, KO infligé/reçu, revive donné/reçu
+- [x] Ne pas persister la vue combinée `Tous`, qui doit être reconstruite depuis les métriques élémentaires
+- [x] Ne pas persister d'image de heatmap ni chaque combinaison de filtres
+- [x] Retenir une granularité par match, membre, carte, phase, métrique et cellule `40 × 40`
+- [x] Prévoir une contrainte d'unicité permettant le remplacement idempotent des cellules d'un match reparsé
+
+##### Modèle et alimentation
+
+- [x] Créer le modèle Prisma `PositionMetricCell` avec `squadMatchId`, `clanId`, `memberId`, `mapName`, `phase`, `metric`, `xIndex`, `yIndex`, `eventCount` et `matchDate`
+- [x] Ajouter les relations vers `SquadMatch` et `ClanMember`, ainsi que les index nécessaires aux périodes, cartes, membres et métriques
+- [x] Définir une contrainte unique sur `(squadMatchId, memberId, phase, metric, xIndex, yIndex)`
+- [x] Créer et appliquer la migration SQL additive sans modifier les colonnes JSON télémétriques existantes
+- [x] Extraire un helper pur qui transforme les échantillons d'un match en cellules persistables
+- [x] Couvrir les métriques `position`, `rotation`, `kill`, `shot`, `damage_dealt`, `damage_taken`, `knockout_dealt`, `knockout_taken`, `revive_given`, `revive_received`, `vehicle` et `death`
+- [x] Pondérer correctement les tirs et dégâts avec leur champ `count`
+- [ ] Alimenter les cellules dans la même transaction que la persistance télémétrique du match
+- [x] 🐞 **Corrigé dans le code le 2026-09-16 — deux défauts de synchronisation, trouvés en analysant le todo.**
+  1. **Plus aucune cellule écrite depuis le 31/07.** `persistPositionMetricCellsForMatch` n'était appelée que par
+     `syncTelemetryForSquadMatchFromStream` — malgré son nom, le **chemin fichier local** (import, resync depuis
+     `.telemetry-captured`), qui servait aux tests avant le stream et n'est pas utilisé en production. Les deux chemins
+     de stream ne l'appelaient pas : `syncTelemetryForSquadMatch` (cron `job.ts`, worker) et
+     `syncTelemetryForSelectedSquadMatches` (« Resync ce match »). Mesuré : 2026-07 → 690 matchs sur 977 ; **2026-08 → 0
+     sur 7 282 ; 2026-09 → 0 sur 5 577**. Effet sur `/clans/[clanId]/stats/positions` : dès qu'une cellule existe sur la
+     période (`hasPersistedData`), le repli JSON est coupé → une période qui englobe juillet n'affichait **que les
+     anciens matchs**, sans avertissement.
+  2. **`clanMemberKeys` avait deux rôles opposés dans le parser.** Sans clés (sync automatique) : lobby complet mais
+     **aucune zone de tirs ni de dégâts** (`damageSamples` vide sur 7 282 matchs d'août). Avec clés (« Resync ce match »,
+     fichier local) : zones présentes mais **positions, véhicules, kills, knocks et réanimations réduits aux membres
+     suivis** — le replay perd adversaires, sauts et avions. Constaté sur `cmu1k4in8auof0493sog1dm50` (resync du 14/09 à
+     20:10) : 2 joueurs au lieu de 98 à 100.
+  - Correctif : le parser garde **toujours** tout le lobby ; les clés ne servent plus qu'aux zones de tirs et de dégâts
+    et sont fournies par les trois chemins (`buildClanMemberKeys`, `clan-member-keys.ts`) ; cellules écrites sur les deux
+    chemins de stream. Tests : 3 dans `parser.test.ts`, 2 dans `clan-member-keys.test.ts`. Doc : `docs/telemetry/parser.md`.
+- [x] **Déployer ce correctif avant toute resynchronisation** — ✅ 2026-09-16 en fin de journée.
+- [x] **Resynchroniser les matchs de moins de 14 jours** — ✅ 4 989 matchs les 16 et 17/09
+  (`scripts/enqueue-recent-telemetry-resync.ts`), voir la synthèse « Télémétrie — ordre des prochaines étapes ».
+- [x] **Rattraper les cellules** — ✅ 2026-09-17 : `npm run telemetry:position-metrics:backfill -- --missing-only`,
+  **8 172 matchs traités, 263 208 cellules écrites**. Contrôle : **0 match `success` sans cellule** sur les 14 972.
+  Coût réel bien inférieur à l'estimation : `PositionMetricCell` 639 → **773 Mo** (+134 Mo, contre ~800 Mo estimés),
+  soit 32 cellules par match ancien contre 170 pour un match récent — leurs positions et tirs avaient été purgés ou
+  n'avaient jamais été capturés. Métriques dominantes sur les matchs d'avant le 25/08 : véhicules (74 768),
+  positions (64 691), rotations (62 676), puis mises à terre, morts et kills. Base totale : 19,4 Go.
+  Limites : sans resync, ces matchs n'auront ni tirs ni dégâts (colonnes vides à la source) ; la purge de géolocalisation
+  a vidé les positions des matchs de plus de 14 jours (464 / 7 282 en août) → `position`/`rotation` absentes pour eux,
+  kills, knocks, réanimations, morts et véhicules intacts.
+- [x] Supprimer puis recréer uniquement les cellules du match traité afin de garantir l'idempotence
+- [x] Ajouter des tests unitaires pour la grille, les phases, les rôles et les poids, puis valider le remplacement idempotent sur la base
+
+##### Backfill et validation des données
+
+- [x] Ajouter un script CLI de backfill avec filtres `--clan`, `--limit` et reprise contrôlée
+- [x] Backfiller les `1 284` télémétries du clan 1 sans supprimer les JSON sources (`161 900` cellules)
+- [x] Vérifier qu'un second backfill ne modifie pas le nombre de cellules persistées (`161 900` avant/après)
+- [x] Comparer les agrégats persistés avec la route actuelle — ✅ 2026-09-16, `scripts/compare-position-metrics.ts` (lecture
+  seule). Clan 1, Erangel, juillet, 243 matchs : **0 cellule différente** sur les 10 métriques de combat (kills, morts,
+  knocks, réanimations, véhicules, tirs, dégâts). Seules `position`/`rotation` manquent au calcul brut (purge de
+  géolocalisation ; la page n'affiche plus les rotations). **Écart trouvé et corrigé** : le calcul brut comptait tout
+  membre du clan présent dans le lobby, donc aussi ceux d'une autre escouade du clan dans la même partie (+2 à +4 % sur
+  kills, knocks, véhicules), comptés deux fois ; il se limite désormais aux membres de l'escouade du match, comme les
+  cellules.
+- [x] Mesurer le volume, la durée et le stockage : environ `139 s`, `161 900` lignes, `97,4 MiB` (`24,1 MiB` données + `73,3 MiB` index)
+
+##### API et performances
+
+- [x] Retirer la catégorie `Mouvement`, les vues `Prédilection`, `Rotation` et `Lignes`, ainsi que leurs textes et contrôles de la page Positions
+- [x] Supprimer le chargement API des trajectoires devenu inutile sur cette page, sans supprimer les données sources ni les cellules persistées
+- [x] Créer un service partagé d'agrégation des cellules par période, carte, membre, phase et métrique
+- [x] Migrer `GET /api/clans/[clanId]/telemetry/positions` vers `PositionMetricCell`
+- [x] Conserver temporairement un fallback vers les JSON tant que le backfill n'est pas complet
+- [x] ~~Supprimer le fallback et le cache mémoire lorsque les données persistées sont validées~~ — requalifié le
+  2026-09-16 : le repli est devenu **hybride par match** (cellules pour les matchs qui en ont, télémétrie brute pour les
+  autres, `loadRawPositionTelemetryRows` + `aggregateRawPositionRows`). Il ne coûte plus rien une fois tous les matchs
+  couverts, et corrige l'affichage partiel silencieux (une période contenant des matchs couverts ignorait les autres).
+  Cache de 5 min conservé.
+- [x] Vérifier que les filtres et le Top 5 restent identiques — cellules identiques entre les deux sources (Top 5 calculé
+  côté client depuis ces cellules) ; filtres membre + plage tactique couverts par les tests
+- [x] Mesurer un premier chargement à froid inférieur à une seconde sur la période hebdomadaire (`692 ms`, cache vide)
+- [x] Tests de service : `position-metric-raw-aggregation.test.ts` (4) — rôles et pondérations, filtres membre + plage
+  combinés, période vide, fusion des cartes
+
+##### Optimisations complémentaires — lenteur résiduelle (2026-08-08)
+
+Malgré la migration vers `PositionMetricCell`, `GET /api/clans/[clanId]/telemetry/positions` reste lent car plusieurs opérations coûteuses s'exécutent encore à chaque requête, y compris quand les données sont déjà persistées.
+
+- [x] Mettre en cache en mémoire (process) le résultat des deux vérifications `information_schema.COLUMNS` au lieu de les requêter à chaque appel — le schéma ne change pas entre deux requêtes (`getColumnPresence()` dans `route.ts`)
+- [x] Dédupliquer le double appel à `loadPositionMetricCatalog` — remplacé par `loadPositionMetricMapSummary` (résumé des cartes, appelé une fois) et `loadPositionMetricMemberPhaseBreakdown` (membres/phases, appelé une seule fois avec la carte réellement sélectionnée), la requête d'agrégat par carte n'est plus dupliquée
+- [x] Éviter le scan complet de `SquadMatchTelemetry JOIN SquadMatch` sur toute la carte sélectionnée quand `hasPersistedData` est vrai et qu'aucun filtre de phase n'est actif (`needsRawRows`) — cette requête ne sert qu'à `phaseSnapshots` pour l'overlay de zone de sécurité
+- [x] Requête `phaseSnapshots` — ✅ 2026-09-16, **mesure contre-intuitive** : l'agréger en SQL (`JSON_TABLE`) est plus
+  lent (2,5–3,2 s) que la lecture JSON (1,8–2,1 s ; clan 1, Erangel, 623 matchs), résultat identique à 1e-12 près. Vraie
+  cause de lenteur trouvée par `EXPLAIN` : MariaDB partait de **tous** les matchs du clan et lisait leurs colonnes JSON
+  avant de filtrer carte et période. Lecture en deux étapes (identifiants sans JSON, puis JSON des seuls matchs
+  retenus) pour le cercle moyen et la télémétrie brute.
+- [x] Zones sûres persistées par phase — ✅ 2026-09-16 : table `SafeZonePhaseStat` (migration
+  `20260916200000_add_safe_zone_phase_stat`, appliquée en production), une ligne par match et par phase entière avec
+  les sommes x / y / rayon en pourcentage de la carte (une ligne `phase = 0` vide marque un match sans zone
+  exploitable). Écrite par les trois chemins de synchronisation (`persistSafeZonePhaseStatsForMatch`). La route
+  additionne les lignes persistées et relit le JSON des seuls matchs non couverts : même moyenne qu'avant.
+  - [x] Validation (`scripts/compare-safe-zone-overlay.ts`, clan 1, Erangel) : écart **0** sur les trois plages,
+    juillet et année entière ; cercle moyen **340–670 ms → 70–120 ms**.
+  - [x] Rattrapage du clan 1 : 2 128 matchs, 16 610 lignes, 4,6 s (`npm run telemetry:safe-zones:backfill -- --clan 1`).
+  - [x] Rattrapage de tous les clans — ✅ 2026-09-16 sur le serveur : 12 357 matchs, 96 992 lignes, 36 s. Contrôle
+    en base : 14 485 matchs couverts (113 602 lignes, dont 51 marqueurs sans zone), **0** match `success` sans ligne ;
+    les nouveaux parsings écrivent la table. Le relais JSON de la route ne sert plus qu'en cas d'écriture manquée.
+- [x] Mesures du 2026-09-16 (base de production, hors HTTP) : télémétrie brute d'Erangel, clan 1 — juillet (243 matchs)
+  **8,4 s → 1,2 s** avec la lecture en deux étapes ; septembre (151 matchs sans cellules) **9 s → 3,4–4,7 s**. Cellules
+  persistées : 0,65 s pour les 243 matchs de juillet — le rattrapage des cellules reste le vrai levier.
+
+##### Dashboards clan et membre
+
+- [x] Définir les KPI réellement utiles — ✅ 2026-09-17 : ville principale, zone de combat favorite (kills + dégâts
+  infligés cumulés), part hors villes configurées et nombre de matchs couverts.
+- [x] Ajouter un Top 5 des villes commutable entre présence, kills, dégâts et revives sur le dashboard clan
+  (`CityInsightsPanel`, `GET /api/clans/[clanId]/city-insights`, filtres période / type de match / mode du tableau de bord).
+- [x] Lien préfiltré vers la page Positions plutôt qu'une heatmap dupliquée : la page accepte désormais
+  `?map=&view=&period=` (`useSearchParams` + `Suspense`), le bouton « Voir sur la carte » ouvre la carte principale
+  sur la métrique affichée.
+- [x] Évolution sur huit semaines, semaines vides conservées — une semaine sans barre est explicitement décrite
+  comme « aucun match analysé, ou positions purgées ».
+- [x] Dashboard membre : trois villes principales et plus (Top 5), zone de combat favorite, parts par ville pour
+  présence, kills, dégâts et réanimations (`GET /api/members/[id]/city-insights`).
+- [x] Comparaison avec le clan seulement si l'échantillon suffit : 25 événements côté membre, 100 côté clan
+  (`MEMBER_COMPARISON_MIN_EVENTS`, `CLAN_COMPARISON_MIN_EVENTS`), sinon la colonne affiche `—`.
+- [x] Réutilisation des composants de la pression au drop : `SegmentedControl`, médailles, `app-table-shell`,
+  mêmes conventions de panneau.
+- [x] Tests : 6 dans `city-insights.test.ts` (rattachement des cellules aux villes, classement et parts, zone de
+  combat, semaines vides, seuils de comparaison). Contrôle sur données réelles :
+  `npx tsx scripts/inspect-city-insights.ts 1 month [memberId]` — clan 1 sur septembre, 303 matchs, Pochinki en tête
+  (12,7 % des passages en ville), 740 ms de chargement (3 s sur « Tous »).
+- [ ] Vérifier les thèmes clair/sombre et les rendus desktop/mobile sur les deux dashboards
+- [ ] **Limite de données connue** : les positions des matchs de plus de ~3 semaines ayant été purgées, l'évolution
+  8 semaines est creuse avant le 31/08 et le panneau l'annonce (`dataStart`). Les métriques de combat des matchs plus
+  anciens reviendront avec le rattrapage des cellules.
+
+### Maîtrise armes (carrière) — Champs API mal mappés
+
+Sur `/members/[id]/weapons`, la colonne Dégâts affichait `0` pour toutes les armes, et le taux de headshot était incohérent (pouvait dépasser 100 %). Root cause identifiée en comparant le code, une réponse API brute réelle, le schéma OpenAPI officiel PUBG (`https://documentation.pubg.com/en/_static/swagger/en/schemas/weaponSummary.yml`) et l'écran "Maîtrise des armes" du client PUBG.
+
+- [x] Corriger `fetchWeaponMastery` (`src/lib/pubg.ts`) : fusion champ par champ de `OfficialStatsTotal`/`StatsTotal` au lieu d'un choix d'objet entier — un bloc peut avoir une activité réelle pendant que l'autre reste gelé à zéro
+- [x] Corriger le nom de champ dégâts : `DamagePlayer` (total carrière), pas `Damage` (n'existe pas dans le schéma officiel)
+- [x] Corriger le mapping `knockouts` : `Groggies` (*"caused another player to become groggy"*, confirmé officiellement et par recoupement avec "Neutralisations" affiché en jeu sur deux armes), pas `Defeats` (quasi toujours `0`, sémantique non confirmée — hypothèse : ancien nom de "kill" avant migration terminologique, jamais peuplé dans les blocs actifs)
+- [x] Confirmer qu'aucun champ `Shots`/`Hits` n'existe dans le schéma officiel `weapon_mastery` — la précision par arme ne peut structurellement pas être calculée depuis cette source
+- [x] Confirmer que `HeadShots` compte des **coups** en tête (peut dépasser `Kills`), pas des kills en headshot — vérifié sur deux armes contre l'écran officiel PUBG (MP5K, M24)
+- [x] Retirer la colonne "Precision %" du tableau `/members/[id]/weapons` (toujours `0 %`, aucune donnée source possible)
+- [x] Retirer la colonne "Headshot %" (`headshots/kills`, confirmée fausse — dépassait 100 % sur M24), conserver la colonne "Headshots" brute avec infobulle explicative
+- [x] Ajouter la colonne "Neutralisations" (`knockouts`, déjà stockée en DB mais jamais affichée), triable comme les autres colonnes
+- [x] Documenter la structure réelle de l'API dans `docs/features/weapons.md` et `docs/telemetry/pubg-api.md`, avec citation du schéma officiel
+- [ ] Recliquer sur "Rafraîchir" sur `/members/[id]/weapons` pour valider en conditions réelles que Dégâts et Neutralisations s'affichent correctement après le correctif
+- [ ] Étendre le correctif au reste du clan via le prochain passage du cron `daily_season_stats_sync` (`0 5 * * *`), pas de backfill manuel nécessaire
+
+#### Colonne Distance (`LongestKill`) et réordonnancement du tableau — ✅ Complété le 2026-08-02
+
+- [x] Migration additive `20260802130000_add_weapon_mastery_longest_kill_distance` : `MemberWeaponMastery.longestKillDistance Float @default(0)` — appliquée manuellement sur `smk.arkium.group` (vérifiée via `prisma migrate status` : `Database schema is up to date!`)
+- [x] Régénérer le client Prisma (`npx prisma generate`, après arrêt du serveur dev qui verrouillait le `.dll` du query engine sur Windows)
+- [x] Mapper `longestKillDistance` dans `fetchWeaponMastery` (`src/lib/pubg.ts`) : `official?.LongestKill ?? competitive?.LongestKill ?? 0` (absent de `StatsTotal` legacy par schéma officiel)
+- [x] Persister `longestKillDistance` dans `POST /api/members/[id]/weapon-mastery` (create + update)
+- [x] Réordonner les colonnes du tableau Maîtrise armes : Arme, Kills, Neutralisations, Dégâts, Headshots, Distance, Niveau
+- [x] Ajouter la colonne "Distance" (`formatMeters(row.longestKillDistance)`), triable
+- [x] Corriger l'orthographe et les accents manquants dans toute la page `/members/[id]/weapons` (titres de sections, sous-titres, boutons, dropdowns Période/Catégorie, options de catégories d'armes, en-têtes de tableau, messages d'erreur)
+- [x] Valider ESLint (5 erreurs préexistantes non liées, vérifiées par comparaison avant/après) et la vérification TypeScript
+- [ ] Recliquer sur "Rafraîchir" pour valider que la colonne Distance se remplit avec les vraies valeurs (ex. attendu : M24 ≈ 458 m, MP5K ≈ 73 m d'après les captures d'écran PUBG déjà comparées)
+
+**Champ API restant non exploité** (piste future) : aucun — `LongestKill` est maintenant capturé.
+
+---
+
+### Drop zones — Pression au drop dans un rayon de 250 m
+
+La première phase valide le principe à partir des `landingSamples` déjà stockés, sans migration. La métrique est nommée **pression au drop** : elle mesure la fréquentation autour du point d'atterrissage, pas l'agressivité réelle du joueur.
+
+#### Phase 1 — Calcul à la volée et validation UI
+
+- [x] Pour chaque drop suivi, sélectionner uniquement les `landingSamples` du même match
+- [x] Dédupliquer les joueurs par `memberKey` avant le comptage
+- [x] Compter les autres joueurs dans un rayon réel de `250 m` (`25 000` unités PUBG)
+- [x] Exposer `nearbyPlayerCount250m` pour chaque point dans les API membre et clan
+- [x] Ajouter un niveau provisoire : `Calme` (0–2), `Contesté` (3–7), `Hot drop` (8–15), `Très chaud` (16+)
+- [x] Remplacer chaque point par un marqueur unique dont le remplissage indique la pression
+- [x] Conserver la couleur du membre sur le contour du marqueur dans la page clan
+- [x] Ajouter une légende commune des quatre niveaux sur les pages membre et clan
+- [x] Ajouter à l'infobulle le nombre de joueurs à moins de 250 m et le niveau de pression
+- [x] Afficher la moyenne, le maximum et le pourcentage de hot drops pour `Semaine`, `Mois` et `Tous`
+- [x] Ajouter au Top 5 des villes leur pression moyenne et leur part de hot drops
+- [x] Vérifier par le code que les filtres de portée, joueur, carte et ville recalculent les indicateurs
+- [x] Ajouter des tests unitaires pour la frontière des 250 m, la déduplication, les seuils et les agrégats
+- [x] Valider ESLint, les diagnostics TypeScript et le build de production
+- [x] Valider sur les matchs réels — ✅ 2026-09-16, **36 516 drops** depuis juin : le niveau compte **tous** les joueurs à
+  moins de 250 m, coéquipiers compris (2,0 à 2,7 en moyenne par drop). Résultat : « Calme » ne concerne que 15,5 % des
+  drops (9,9 % en escouade de 4), « Contesté » 52,9 %. Sur les adversaires seuls (`nearbyOpponentCount250m`, renseigné
+  sur 100 % des drops) : médiane 3, p75 6, p90 11 — Calme 44,3 %, Contesté 35,8 %, Hot 17,0 %, Très chaud 2,9 %.
+- [x] **Décision** : fonder le niveau sur les adversaires seuls — ✅ 2026-09-16, seuils inchangés.
+  `dropPressureCount` (`nearbyOpponentCount ?? nearbyPlayerCount`) alimente `dropPressureLevel`, la persistance, les
+  deux routes `drop-zones` (points : `nearbyOpponentCount250m`) et les moyennes / maximums de `summarizeDropPressure`.
+  Infobulle « 1 adversaire à moins de 250 m (4 joueurs) », légende « coéquipiers exclus ». Tests : +2.
+  - [x] Recalcul des niveaux stockés — ✅ 2026-09-16 sur le serveur (`recompute-drop-pressure-levels.ts --yes`) :
+    15 873 lignes sur 36 784 ; Calme 15,4 % → 44,2 %, Contesté 52,8 % → 35,9 %, Hot 26,3 % → 17,0 %, Très chaud
+    5,5 % → 2,9 %. Contrôle en base : **0** ligne dont le niveau diffère du calcul sur les adversaires.
+- [ ] Vérifier les rendus desktop/mobile et les thèmes clair/sombre sur les deux pages
+
+### Drop zones — Changement de carte au swipe (mobile)
+
+Objectif : sur `/clans/[clanId]/drop-zones` et `/members/[id]/drop-zones` en mode téléphone, permettre de changer de carte en glissant le pouce sur l'image, en plus de la dropdown existante. Le geste n'est actif qu'à zoom `1×` (aucun pan possible à ce niveau, donc aucune ambiguïté avec le déplacement de carte zoomée) ; les données de toutes les cartes sont déjà chargées en une seule requête par période, donc le changement de carte est un simple refiltrage client, sans latence réseau.
+
+- [x] Ajouter `onSwipeMap?: (direction: 'prev' | 'next') => void` à `DropZoneMapViewport` (`src/components/drop-zones/DropZoneMapViewport.tsx`)
+- [x] Déclencher le swipe uniquement si `zoom === MIN_ZOOM`, le geste est horizontal (`|deltaX| > |deltaY|`) et dépasse un seuil de `60px`
+- [x] Ne pas interférer avec le tap (`onMapClick`) ni avec le pan existant à zoom `> 1×`
+- [x] Câbler `handleSwipeMap` sur `/clans/[clanId]/drop-zones` : navigation circulaire dans le tableau `maps` triées, réutilisation de `selectMap` (dropdown + swipe partagent la même logique de sélection et de reset du viewport)
+- [x] Câbler le même `selectMap` / `handleSwipeMap` sur `/members/[id]/drop-zones`, en réutilisant le composant `DropZoneMapViewport` déjà partagé
+- [x] Valider ESLint et la vérification TypeScript sur les quatre fichiers modifiés (composant partagé + deux pages)
+- [ ] Vérifier sur un téléphone réel le swipe gauche/droite sur les deux pages, l'absence de conflit avec le scroll vertical de la page et avec le tap de placement
+
+#### Extension — Positions clan (`/clans/[clanId]/stats/positions`)
+
+Contrairement aux pages drop zones, cette page ne précharge que la carte sélectionnée (optimisation déjà en place, voir "Positions clan — Carte, villes, gradation et classement" ci-dessus) : chaque changement de carte déclenche un vrai `fetch` vers `GET /api/clans/[clanId]/telemetry/positions?map=...`, atténué par le cache serveur de 5 minutes déjà en place plutôt qu'un simple refiltrage client instantané.
+
+- [x] Ajouter `selectMap` (regroupant `setMapName`, reset du filtre de ville et `mapViewportRef.current?.reset()`) et le réutiliser dans `mapItems` (dropdown existante)
+- [x] Ajouter `handleSwipeMap` qui navigue circulairement dans `payload.maps` selon la carte active (`mapName || payload.selectedMap`)
+- [x] Garder le swipe inactif tant que `loading` est vrai, pour éviter d'empiler plusieurs `fetch` en cas de swipes rapprochés (le viewport est de toute façon démonté pendant le chargement, cette garde est une sécurité supplémentaire)
+- [x] Câbler `onSwipeMap={handleSwipeMap}` sur `DropZoneMapViewport`
+- [x] Valider ESLint et la vérification TypeScript sur la page
+- [ ] Vérifier sur un téléphone réel le swipe gauche/droite, le comportement pendant le chargement réseau (carte suivante non warm en cache) et l'absence de swipes multiples empilés
+
+#### Phase 2 — Persistance et historique après validation
+
+- [x] Décider si les performances observées justifient la persistance des résultats dérivés
+- [x] Créer `DropPressureStat`, un stockage par drop avec match, membre, coordonnées, date, joueurs proches et niveau
+- [x] Stocker séparément le nombre total de joueurs proches et le nombre d'adversaires proches grâce au `teamId`
+- [x] Calculer et stocker la pression lors du parsing des nouveaux matchs
+- [x] Backfiller les matchs existants qui possèdent déjà des `landingSamples` (`1 284` matchs, `3 443` drops)
+- [x] Garantir l'idempotence du parsing et du backfill avec l'unicité `(squadMatchId, memberId)` et le remplacement transactionnel
+- [x] Utiliser `matchDate` pour consulter les fenêtres calendaires `Semaine`, `Mois` et `Tous`
+- [x] Ajouter un panneau partagé de statistiques persistantes aux dashboards membre et clan
+- [x] Afficher les drops/matchs analysés, moyennes joueurs/adversaires, maximum et part de hot drops
+- [x] Vérifier les API authentifiées et les rendus desktop/mobile sur les données backfillées
+- [x] Ajouter une évolution temporelle de la pression au drop après validation du stockage
+
+---
+
+## P2 — Fonctionnalités incomplètes
+
+### ——— EN COURS / À FAIRE ———
+
+### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
+
+> **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des
+> changements de clan PUBG » du 2026-09-14. Elle y ajoute trois chantiers apparus à l'usage (cas Vvila). Les entrées
+> éparses qui traitaient d'un bout du sujet renvoient désormais ici : « Suivre ce clan » (section *Observatoire des
+> Clans, Résolution & Triage*) et « Analyse d'impact : Arrêt de suivi et Transfert de clan » (P1).
+
+#### Vue d'ensemble du circuit
+
+```mermaid
+graph TD
+    classDef system fill:#2d3748,stroke:#4fd1c5,stroke-width:2px,color:#fff
+    classDef active fill:#2b6cb0,stroke:#63b3ed,stroke-width:2px,color:#fff
+    classDef review fill:#c05621,stroke:#fbd38d,stroke-width:2px,color:#fff
+    classDef inactive fill:#718096,stroke:#a0aec0,stroke-width:2px,color:#fff
+
+    Player(["Joueur PUBG inconnu"])
+    ClanActif[["Clan Suivi Actif"]]:::active
+    UNG{{"Clan Système 'Ungrouped'"}}:::system
+    Inactif(["Suivi arrêté — SuperUser uniquement"]):::inactive
+    Rejete(["joinStatus: rejected — ré-adhésion possible"]):::inactive
+    OwnerQueue(("Validation par l'Owner du clan")):::review
+    NewClan[["Nouveau clan en attente (isActive: false)"]]:::review
+
+    %% Entrée sur le site — DEUX flux distincts, deux validateurs différents
+    Player -- "/join : le clan est déjà suivi" --> OwnerQueue
+    Player -- "/join : le clan n'existe pas encore" --> NewClan
+    OwnerQueue -- "Owner valide la demande" --> ClanActif
+    OwnerQueue -- "Owner refuse" --> Rejete
+    NewClan -- "SuperUser valide la création (📩 Email)" --> ClanActif
+    NewClan -- "SuperUser refuse (📩 Email)" --> Rejete
+
+    %% Actions manuelles
+    ClanActif -- "Owner : basculer vers UNG (garde le suivi actif)" --> UNG
+    ClanActif -- "SuperUser : arrêter le suivi (stoppe la synchronisation)" --> Inactif
+    UNG -- "SuperUser : archiver — N jours sans match (chantier 5)" --> Inactif
+    Inactif -- "SuperUser : réactiver" --> UNG
+
+    %% Détections par le cron quotidien (chantiers 1 & 2)
+    ClanActif -- "Cron : départ vers clan inconnu ou aucun clan ⭐ BASCULE AUTO (🔔 Discord)" --> UNG
+    ClanActif -- "Cron : transfert vers un autre clan suivi ⭐ TRANSFERT AUTO (🔔 Discord)" --> ClanActif
+    UNG -- "Cron : rejoint un clan suivi ⭐ PROMOTION AUTO — cas A (🔔 Discord)" --> ClanActif
+    UNG -- "Cron : rejoint un clan non suivi — cas B, création en attente (🔔 Discord)" --> NewClan
+    UNG -- "Cron : toujours sans clan — cas C" --> UNG
+```
+
+> **Lecture :** ce diagramme décrit l'**état cible**, pas le code actuel. Deux corrections apportées le 2026-09-20 :
+> (1) l'entrée par `/join` suit **deux chemins avec deux validateurs différents** — rejoindre un clan déjà suivi est
+> validé par l'**Owner du clan** (`notifyJoinRequest`), seule la **création d'un clan** passe par le SuperUser
+> (`notifyClanCreationRequest`) ; (2) un refus mène à `joinStatus: 'rejected'`, un état distinct de « inactif » qui
+> **autorise la ré-adhésion** (voir « Cycle de vie des membres rejetés » en P1).
+
+#### Déclencheurs
+
+1. **Zimbabalooba — 2026-09-14.** Sur le débriefing du clan 18, il apparaît « [FADA] non suivi » alors qu'il aurait
+   changé de clan. Aucune fiche `ClanMember`, coéquipier fréquent du clan 18 (135 parties). Question d'origine :
+   comment les changements sont-ils détectés et signalés au SuperUser ?
+2. **Vvila — 2026-09-20.** Membre actif du clan 1 (D32/SMK, `ClanMember` id 11, 250 matchs en escouade, 387 kills).
+   Il a quitté SMK et créé son propre clan. Vérifié le 2026-09-20 : l'API PUBG ne renvoie **aucun clan** pour son
+   compte (`attributes.clanId: null`), alors que le site l'affiche toujours SMK partout, y compris sur les lignes
+   `EncounteredPlayer` des clans 17, 18, 24 et 179. Aucun mécanisme ne détecte ni ne signale ce départ.
+
+#### Constat — état réel du code au 2026-09-20
+
+| Mécanisme | État vérifié |
+|---|---|
+| Diff roster PUBG ([`syncClanMembership`](../../src/lib/clan-service.ts#L357)) | 🔴 **Mort en pratique — testé en live le 2026-09-20.** `GET /shards/steam/clans/{id}/members` renvoie **404** (l'endpoint n'existe pas) et le repli `fetchPubgClanById` renvoie `memberCount: 14` mais **aucun `memberIds`**. `pubgMembers` est donc vide : `matched: []`, `inPubgOnly: []`, `inSiteOnly: tous les membres actifs`, `incompleteRelationships: true`. Le front le sait déjà et masque la liste des départs ([ClanSyncPanel.tsx:110](../../src/components/settings/ClanSyncPanel.tsx#L110), [:149](../../src/components/settings/ClanSyncPanel.tsx#L149)) au profit d'un avertissement ([:136](../../src/components/settings/ClanSyncPanel.tsx#L136)). **« Comparer PUBG » n'affiche plus rien d'exploitable** — c'est ce qui justifie la bascule du chantier 1 vers une synchronisation joueur par joueur |
+| Compte de membres PUBG (`Clan.pubgMemberCount`) | Seul signal de roster encore disponible, 1 appel par clan. Mesuré le 2026-09-20 sur D32 : **14 côté PUBG contre 18 membres actifs suivis**. Un écart de compte suffit à détecter qu'il s'est passé quelque chose — complément bon marché aux ~35 appels joueur par joueur |
+| Résolution de clan des joueurs croisés | Ne sélectionne que `clanResolvedAt: null` ([encountered-player-resolution.ts:64](../../src/lib/encountered-player-resolution.ts#L64)) — **une fois résolu, un compte n'est jamais réévalué** |
+| Raccourci « membre suivi » | [encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301) fait `findFirst({ where: { pubgAccountId } })` **sans filtre `isActive`** et tamponne le clan du site sans appeler l'API. Un membre parti — ou même désactivé — reste donc étiqueté avec son ancien clan indéfiniment |
+| Historique de changement | Aucun — `Player.opponentClanId` est écrasé par la résolution suivante |
+| Canal d'alerte SuperUser | `Notification` vise un `ClanMember`, pas un `UserAccount` |
+| Clan technique `Ungrouped` | Créé à la volée par [`getOrCreateUngroupedClan`](../../src/lib/clan-service.ts#L135), **jamais protégé** (voir bug ci-dessous). Mesuré le 2026-09-20 : **aucune ligne `Ungrouped` en base, tous shards confondus** |
+
+**Volumes mesurés** : 324 membres actifs suivis, 26 clans steam actifs, 23 clans avec `pubgClanId`, 429 773 `Player`
+dont 37 980 résolus, **1 139 coéquipiers fréquents** (≥ 10 parties partagées avec un clan suivi), 6 040 à ≥ 3.
+Quota PUBG par défaut : 10 requêtes/min (`AppConfig.pubg_api_rate_limit_rpm` non défini), déjà partagé avec la
+résolution d'adversaires.
+
+##### 🔴 Bug bloquant découvert le 2026-09-20 — `Ungrouped` se fait renommer tout seul
+
+[`resolvePubgClanForLocalClan`](../../src/lib/clan-service.ts#L186) : quand un clan n'a **pas** de `pubgClanId` — ce
+qui est la définition même d'`Ungrouped` — la fonction boucle sur ses membres actifs et retourne **le clan PUBG du
+premier membre qui en a un**. [`syncTrackedClanStats`](../../src/lib/clan-service.ts#L304) écrit ensuite ce résultat
+directement sur le clan : `name`, `tag` et `pubgClanId`.
+
+Ce fallback est légitime pour un vrai clan pas encore résolu. Sur un clan technique, il est destructeur :
+
+1. Un joueur sans clan est parqué dans `Ungrouped`.
+2. Il rejoint (ou crée) un clan PUBG.
+3. Le cron quotidien itère sur `{ isActive: true }` **sans exclusion** ([cron-jobs.ts:695](../../src/lib/cron-jobs.ts#L695))
+   et appelle `syncTrackedClanStats` sur chaque clan ([cron-jobs.ts:777](../../src/lib/cron-jobs.ts#L777)).
+4. `Ungrouped` est **renommé en son clan à lui**, avec son `pubgClanId` — et devient un clan suivi normal contenant
+   tous les joueurs sans clan.
+
+Deux issues, toutes deux mauvaises, selon que le clan détecté existe déjà en base :
+
+- **Il n'existe pas** → le renommage réussit, `Ungrouped` est détourné. `getOrCreateUngroupedClan` cherche
+  `name: 'Ungrouped'` + `pubgClanId: null` : il ne le retrouve plus et en **crée un deuxième**.
+- **Il existe déjà** → `@@unique([name, platformShard])` (et `@@unique([pubgClanId, platformShard])`) font échouer
+  l'`update` en `P2002`, et le cron quotidien remonte une erreur de stats à chaque passage.
+
+Le transfert de membre déclenche lui-même `syncTrackedClanStats(targetClan.id)`
+([members/[id]/route.ts:289](../../src/app/api/members/[id]/route.ts#L289)) : si l'API rend un clan à cet instant,
+`Ungrouped` est renommé **dès le clic**, sans attendre le cron.
+
+Aggravant : l'appartenance au clan technique n'est identifiée nulle part par un marqueur, seulement par la
+comparaison de chaîne `name === 'Ungrouped'`, recopiée dans **5 endroits** —
+[ClanSelector.tsx:155](../../src/components/ClanSelector.tsx#L155), [:181](../../src/components/ClanSelector.tsx#L181),
+[:444](../../src/components/ClanSelector.tsx#L444), [comparator/page.tsx:90](../../src/app/clans/comparator/page.tsx#L90),
+[members/[id]/route.ts:236](../../src/app/api/members/[id]/route.ts#L236). Le renommage casse donc ces 5 garde-fous
+en même temps.
+
+---
+
+#### ✅ Prérequis n°1 — `filter[playerIds]` vérifié le 2026-09-20 — ⚠️ résultat qui invalide une hypothèse centrale
+
+> ### 🔴 Résultat du spike — `attributes.clanId` n'est **pas stable** et ne peut pas déclencher d'action seule
+>
+> Scripts : [`check-pubg-player-ids-filter.ts`](../../scripts/check-pubg-player-ids-filter.ts),
+> [`check-pubg-endpoints-disagreement.ts`](../../scripts/check-pubg-endpoints-disagreement.ts),
+> [`check-pubg-clanid-stability.ts`](../../scripts/check-pubg-clanid-stability.ts). Exécutés le 2026-09-20 entre
+> 11 h 48 et 11 h 51 UTC, hors fenêtres de cron. Lecture seule (seules des lignes `PubgApiCallLog` ont été écrites).
+>
+> **Quatre appels consécutifs sur les mêmes comptes, en ~30 secondes :**
+>
+> | Compte | p1 | p2 | p3 | p4 | Stable ? |
+> |---|---|---|---|---|---|
+> | Vvila | `clan.5bb7…` | `clan.5bb7…` | `clan.5bb7…` | `""` | **NON** |
+> | pagiotte | `""` | `clan.5bb7…` | `clan.5bb7…` | `clan.5bb7…` | **NON** |
+> | Viande_Hachee | `clan.b4c3…` | `clan.b4c3…` | `clan.b4c3…` | `clan.b4c3…` | oui |
+> | TigrOo-SmK | `""` | `""` | `""` | `""` | oui |
+>
+> **Deux comptes sur quatre changent de valeur d'un appel à l'autre**, en basculant entre « aucun clan » (`""`) et
+> `clan.5bb720900d544585a4abf276e4c5c159` — soit **KeepMoveSurvive [KMS]**, le clan suivi n°180. Les deux endpoints
+> sont touchés : à 11 h 50, le lot disait Vvila `""` / pagiotte KMS, et l'appel unitaire disait exactement
+> l'inverse **au même instant**.
+>
+> **Conséquence directe : le chantier 1 tel qu'écrit produirait des mouvements erronés en continu.** « Tout écart
+> déclenche une action immédiate » est intenable sur un champ qui se contredit en trente secondes. Les
+> confirmations multiples cessent d'être un filet de sécurité pour devenir **le mécanisme central** — et elles
+> doivent être espacées dans le temps (jours), pas en passages rapprochés.
+>
+> **Correction sur le cas Vvila :** le diagnostic du 2026-09-20 (« l'API ne lui renvoie aucun clan ») reposait sur
+> **un seul** appel unitaire. Le lot le place dans **KMS, un clan déjà suivi (n°180)**. Il n'a donc probablement
+> pas créé un clan invisible : il a rejoint KMS. À reconfirmer sur plusieurs jours avant d'agir — ce qui est
+> exactement la règle que le spike vient de rendre obligatoire.
+
+##### Réponses aux cinq questions
+
+| # | Question | Réponse mesurée |
+|---|---|---|
+| 1 | Multi-valeurs accepté ? | **Oui**, `filter[playerIds]` avec valeurs séparées par des virgules |
+| 2 | Taille de lot maximale ? | **10, avec troncature silencieuse.** Un lot de 20 ou 50 renvoie `200 OK` et… **10 joueurs**. Aucune erreur, aucun avertissement |
+| 3 | `clanId` exposé comme sur `GET /players/{id}` ? | **Oui**, même champ `attributes.clanId`. `relationships.clan` est **absent des deux endpoints** — le repli par relations de `fetchPlayerClan` ne se déclenche jamais ici |
+| 4 | Joueur sans clan : `null`, `""` ou absent ? | **`""` (chaîne vide)**, jamais `null`, jamais absent. Le cas « champ absent » du risque A ne se produit pas sur cet endpoint |
+| 5 | `playerId` invalide dans le lot ? | **Silencieusement omis**, le reste du lot réussit en `200 OK` |
+
+> **Les réponses 2 et 5 créent le même piège** : un compte peut manquer dans la réponse soit parce qu'il est
+> invalide, soit parce que le lot dépassait 10. Dans les deux cas, interpréter « absent de la réponse » comme
+> « n'a plus de clan » **déplacerait des membres à tort**. Le code doit vérifier que chaque `playerId` demandé est
+> bien présent dans la réponse, et traiter toute absence comme `unknown`.
+
+##### Ce que le spike change dans le plan
+
+- [x] **Lots plafonnés à 10** — `fetchPlayersClanStates()` **lève** au-delà plutôt que de tronquer en silence,
+      et `chunkAccountIds()` découpe en amont
+- [x] **Complétude vérifiée** : tout `playerId` demandé et absent de la réponse devient `unknown`, jamais
+      « sans clan » — c'est ce qui arrive à un compte invalide, silencieusement omis par l'API
+- [x] **Revoir le volume** : 324 membres ÷ 10 = **33 appels/jour**, conforme à l'estimation initiale (~35).
+      Ce point-là est validé
+- [x] **Traiter `""` comme « sans clan » mais jamais comme une certitude** : c'est précisément la valeur qui
+      clignote. Exiger N confirmations espacées avant toute bascule vers UNG
+- [x] **Relancer sur un échantillon plus large** → fait le 2026-09-20, voir « Rang 0 bis » : **5 % d'instabilité**
+      sur 40 comptes, et non 50 %. Le chiffre de 2 sur 4 était bien un artefact d'échantillon
+- [x] **Rouvrir la question du mécanisme si l'instabilité se confirme** → **non nécessaire** : à 5 %, concentrée
+      sur des comptes en transition, et sans désalignement d'API, le mécanisme joueur-par-joueur reste le bon.
+      Le repli sur `Clan.pubgMemberCount` reste documenté dans la table de décision mais n'est plus la piste
+      privilégiée
+
+---
+
+> **Pourquoi c'était le tout premier travail à faire.** Deux choses en dépendent, et elles sont de nature différente :
+> le **dimensionnement** du chantier 1 (~35 appels/jour ou 324 ?) et, bien plus grave, le **risque A** de la section
+> « Sûreté d'exécution » — si cet endpoint n'expose pas `clanId` de la même façon que `fetchPlayerClan`, le cron
+> interprète une absence de champ comme « ce joueur n'a plus de clan » et bascule toute la ligue dans `Ungrouped`.
+> Tant que ce point n'est pas levé, **le chantier 1 ne doit pas être commencé**.
+
+**État des lieux avant le spike :** `filter[playerIds]` n'était utilisé **nulle part** dans le dépôt. Le seul filtre multi-valeurs
+pratiqué est `filter[playerNames]`, avec **une seule valeur**, dans `searchPlayerByName`
+([pubg.ts:537-545](../../src/lib/pubg.ts#L537-L545)). Tout ce que le plan avance sur les lots de 10 est donc une
+hypothèse non testée.
+
+##### Le spike à écrire
+
+- [x] Créer `scripts/check-pubg-player-ids-filter.ts` (**dans `scripts/`**, règle stricte du dépôt), en réutilisant
+      `queuedPubgGet` ([pubg.ts:36](../../src/lib/pubg.ts#L36)) pour passer par la file et le quota plutôt que
+      d'appeler l'API en direct — le but est aussi de mesurer le comportement réel sous throttle
+- [x] Construire l'appel sur le modèle exact de `searchPlayerByName` :
+      `GET /shards/{shard}/players` avec `params: { 'filter[playerIds]': ids.join(',') }`
+- [x] Alimenter le script depuis la base, avec des comptes dont on **connaît déjà la réponse unitaire** :
+      des membres actifs de clans suivis (clan attendu **non nul**) **et** le compte de Vvila
+      (`account.4878a647b0974b0eb2f53e58aae53623`, clan attendu **nul** au 2026-09-20). Sans ce témoin à clan nul,
+      on ne peut pas distinguer les deux cas qui nous intéressent
+
+##### Les cinq mesures à produire
+
+| # | Question | Pourquoi elle compte |
+|---|---|---|
+| 1 | L'endpoint accepte-t-il plusieurs `playerIds` ? | Si non, tout le chantier 1 retombe à 1 appel par joueur |
+| 2 | **Quelle taille de lot maximale** avant `4xx` ? | Dimensionne le cron. Tester 1, 5, 10, 20, 50 et noter où ça casse |
+| 3 | Chaque élément porte-t-il `attributes.clanId` **avec la même sémantique** que `GET /players/{id}` ? | **C'est la mesure critique.** Comparer champ à champ avec `fetchPlayerClan` sur les mêmes comptes |
+| 4 | Un joueur **sans clan** renvoie-t-il `clanId: null`, `clanId: ""`, ou **pas de champ du tout** ? | Détermine si le garde-fou `unknown` du risque A est indispensable — et il l'est sauf si l'API distingue explicitement |
+| 5 | Un `playerId` inconnu ou invalide dans le lot fait-il échouer **tout le lot** ? | Un compte supprimé côté PUBG ne doit pas faire tomber les 9 autres en silence |
+
+- [x] Journaliser la **réponse brute** d'au moins un lot dans le rapport du script : c'est la seule preuve
+      exploitable pour trancher les points 3 et 4, et elle devra être recopiée dans ce todo
+- [x] Vérifier au passage le coût réel en quota : 1 lot = 1 appel facturé, ou 1 appel par joueur du lot ?
+
+##### Table de décision — ce que chaque résultat implique
+
+| Résultat | Conséquence sur le plan |
+|---|---|
+| ✅ **← CAS OBSERVÉ (partiellement)** Lots de 10 acceptés, `clanId` présent, absence de clan explicite (`""`) | La **volumétrie** tient : 33 appels/jour. Mais le spike a révélé un problème que cette table n'anticipait pas — **l'instabilité du champ** — qui impose de revoir le déclenchement, pas le dimensionnement |
+| ⚠️ Lots acceptés mais **champ `clanId` absent quand le joueur n'a pas de clan** | Le chantier 1 tient sur la volumétrie, mais le **risque A devient certain** : `unknown` + confirmations + coupe-circuit deviennent non négociables |
+| ⚠️ Lots acceptés mais `clanId` **jamais** exposé sur cet endpoint | L'endpoint ne sert qu'à détecter *qu'un joueur existe*. Il faut retomber sur `fetchPlayerClan` unitaire → **324 appels/jour, ~32 min à 10 RPM**. Chantier 1 à redimensionner : cadence réduite, ou sélection par palier comme `selectPrioritizedEncounteredPlayerIdentities` |
+| ⚠️ Taille de lot < 10 (ex. 5) | Recalculer : 324 / taille réelle. À 5, ~65 appels/jour — encore acceptable |
+| ❌ `filter[playerIds]` non supporté | Le chantier 1 doit être repensé entièrement. Repli possible : surveiller `Clan.pubgMemberCount` (1 appel par clan, ~23/jour) pour détecter *qu'un roster a bougé*, puis ne résoudre unitairement que les membres des clans qui ont changé |
+
+- [x] **Reporter le résultat dans ce todo** — remplacer le prérequis bloquant du chantier 1 par les chiffres réels,
+      et lever ou confirmer le risque A en conséquence
+- [x] Le spike est **en lecture seule** : aucune écriture en base, aucun `PlayerClanChange`. Il consomme seulement
+      quelques appels du quota partagé, à lancer hors des fenêtres de cron (02 h – 05 h)
+
+#### ✅ Rang 0 bis — Mesure d'instabilité à grande échelle — fait le 2026-09-20
+
+Script : [`measure-pubg-clanid-instability.ts`](../../scripts/measure-pubg-clanid-instability.ts),
+enregistré sous **`npm run clanid:instability [nbPassages]`**. Observations accumulées en NDJSON dans
+`.telemetry-captured/clanid-stability/` (dossier gitignoré), pour agréger des relances sur plusieurs jours.
+Lecture seule hors `PubgApiCallLog`.
+
+**Protocole :** 40 comptes actifs de clans suivis × 6 passages, lots de 10 — puis un test de position sur 10
+comptes interrogés dans trois ordres différents. 27 appels PUBG.
+
+##### Résultat 1 — l'instabilité est marginale, pas généralisée
+
+**2 comptes sur 40 (5,0 %)**, et non 50 % comme le laissait croire l'échantillon de 4 du premier spike.
+
+| Joueur | Clan site | Séquence observée sur 6 passages |
+|---|---|---|
+| pagiotte | SMK | `KMS` → `KMS` → `""` → `KMS` → `KMS` → `KMS` |
+| Vvila | SMK | `KMS` → `KMS` → `KMS` → `KMS` → `""` → `""` |
+
+Les 38 autres comptes sont parfaitement stables, tous clans confondus (BDXX, BEE, FR, KMS, MTFR, RATZ).
+
+##### Résultat 2 — ce n'est **pas** un défaut d'alignement de l'API *(résultat négatif important)*
+
+Le test de position donne **8/10 stables**, et les deux exceptions sont… exactement pagiotte et Vvila. La valeur
+suit donc bien le **compte**, jamais sa **position** dans le lot. L'hypothèse d'un désalignement entre `id` et
+`attributes` est écartée : le mécanisme joueur-par-joueur reste valide.
+
+##### Résultat 3 — le clignotement ressemble à une transition de clan en cours
+
+Les deux comptes instables sont dans le **même clan site (SMK)** et clignotent vers **la même cible (KMS,
+clan suivi n°180)**. Ce n'est pas du bruit aléatoire : c'est le profil d'un changement de clan récent en cours de
+propagation dans les caches PUBG. Hypothèse à confirmer en relançant le script sur plusieurs jours — si elle est
+juste, le clignotement se stabilise de lui-même et N observations concordantes le filtrent parfaitement.
+
+##### Résultat 4 — il existe aussi des **écarts stables**, et ce sont les vrais cas d'usage
+
+Deux membres SMK renvoient `""` de façon **parfaitement stable** sur les 6 passages : **TigrOo-SmK** et
+**Thetyne**. Le site les croit dans SMK, PUBG dit qu'ils n'ont plus de clan. Ce sont exactement les cas que le
+chantier 1 doit détecter, et ils ne posent aucun problème de fiabilité.
+
+##### 🔴 Conséquence non anticipée — le coupe-circuit à 10 % se déclencherait au premier passage
+
+Sur l'échantillon, **4 comptes sur 40 (10 %)** seraient candidats à un mouvement : 2 écarts stables et 2 en
+transition. C'est exactement le seuil proposé pour le coupe-circuit du risque A — il **sauterait dès le premier
+passage réel**.
+
+C'est logique et il fallait s'y attendre : le site n'a jamais détecté de changement de clan, donc la dérive
+accumulée depuis des mois se présente d'un coup. Le coupe-circuit protège d'un emballement, pas d'un rattrapage
+initial légitime.
+
+- [x] Ne pas relever le seuil : c'est le **mode `observe`** qui absorbe le premier passage. On observe, on vérifie
+      la liste à la main, on applique, et seulement ensuite le coupe-circuit à 10 % prend son sens sur le régime
+      permanent
+- [x] Documenter cette séquence de mise en service : `observe` → revue manuelle du rattrapage → `apply` →
+      coupe-circuit actif
+
+##### Seconde mesure du 2026-09-20 (14 h 14) — l'hypothèse « transition en cours » est **infirmée**
+
+Deuxième passage lancé deux heures après le premier, mêmes 40 comptes. **540 observations cumulées** dans le
+fichier NDJSON.
+
+| | Passage 12 h 17 | Passage 14 h 14 |
+|---|---|---|
+| Comptes instables | 2/40 (5,0 %) | 2/40 (5,0 %) |
+| Lesquels | pagiotte, Vvila | pagiotte, Vvila |
+| Test de position | 8/10 suivent le compte | 9/10 |
+
+**Exactement les mêmes deux comptes, deux heures plus tard.** Le clignotement ne s'est pas résorbé : ce n'est donc
+pas la propagation d'un changement récent, comme je l'avais supposé. Le résultat de position (9/10, seul Vvila
+dévie) confirme au passage, une seconde fois, qu'il ne s'agit pas d'un désalignement de l'API.
+
+Sur les **12 observations cumulées** de chacun des deux comptes :
+
+| Compte | Clan site | Contredisent le site | Répartition | Plus longue série `""` |
+|---|---|---|---|---|
+| pagiotte | SMK | **12/12** | KMS ×9, `""` ×3 | 2 |
+| Vvila | SMK | **12/12** | KMS ×9, `""` ×3 | 2 |
+
+##### 🔴 Ce que cette mesure a révélé — un défaut dans ma règle de confirmation
+
+**Le départ est certain, c'est la destination qui clignote.** Les deux comptes contredisent leur clan enregistré
+**12 fois sur 12** : ils ont bel et bien quitté SMK. Ce qui varie, c'est seulement *où ils sont allés* — KMS ou
+« aucun clan ».
+
+La règle « N observations identiques » écrite plus haut exigeait la stabilité de la **destination**. Appliquée
+telle quelle, elle produit un résultat **arbitraire** : selon la valeur sur laquelle tombent les N derniers
+appels, le même compte partirait vers KMS ou vers le parking, au hasard du tirage. Et tant que ça clignote, le
+joueur reste faussement affiché dans SMK.
+
+**Correction retenue — décision en deux niveaux :**
+
+- [x] **Niveau 1, le départ** — `evaluateDepartureConfirmation()` : « ce joueur est-il encore dans son clan
+      enregistré ? ». Binaire, donc stable même pour un compte qui clignote. C'est ce niveau qui autorise un
+      mouvement
+- [x] **Niveau 2, la destination** — `evaluateConfirmations()` : n'est utilisée que si elle est *elle aussi*
+      stable. Sinon le joueur va au **parking**, qui est précisément fait pour les transitions
+- [x] Conséquence concrète : Vvila et pagiotte seraient parqués dans UNG (sûr, réversible, suivi maintenu), puis
+      promus vers KMS par le chantier 2 quand leur destination se stabilisera
+
+> **N=3 tient sur ces données** : la plus longue série `""` consécutive observée est de **2**, sur 12 mesures par
+> compte. Réserve inchangée — ce sont des passages rapprochés, pas des passages quotidiens, et rien ne dit que le
+> bruit soit indépendant d'un jour sur l'autre.
+
+##### Ce qui reste à mesurer
+
+- [~] **Relancer `npm run clanid:instability` à plusieurs heures d'intervalle** — deux passages faits le
+      2026-09-20 (12 h 17 et 14 h 14). **Reste la mesure sur plusieurs jours** : six passages en trois minutes ne
+      calibrent pas N pour un cron quotidien, et rien ne dit que le bruit soit indépendant d'un jour sur l'autre
+- [x] ~~Vérifier si pagiotte et Vvila se stabilisent sur KMS~~ → **non, pas après 2 h**. Mais la question est
+      devenue secondaire : leur **départ** de SMK est confirmé 12/12, ce qui suffit à les parquer dans UNG. Le cas
+      « Vvila a créé son clan » est clos — il est très probablement dans **KMS (clan suivi n°180)**, mais c'est le
+      chantier 2 qui tranchera, quand la destination sera stable
+- [x] Étendre l'échantillon aux 324 membres pour mesurer le volume réel du rattrapage initial (33 appels, une seule
+      passe suffit)
+
+> **Valeur de N proposée en attendant : 3 passages quotidiens concordants.** Sur les séquences observées, N=2
+> aurait déclenché à tort pour Vvila (deux `""` consécutifs en fin de série) ; N=3 ne déclenche pour aucun des deux
+> comptes en transition. À confirmer sur la mesure multi-jours.
+
+#### ✅ Chantier 0 — `Ungrouped` est un clan système protégé — livré le 2026-09-20
+
+**Décision :** `Ungrouped` (`TAG: UNG`) est un **clan système**, réservé aux joueurs sans clan qu'on veut continuer à
+suivre et à ceux en transition entre deux clans. Il ne doit jamais être renommé, ni absorbé par un clan PUBG, ni
+apparaître dans les classements.
+
+- [x] `Clan.isSystem Boolean @default(false)` — migration `20260920120000_add_clan_is_system`, **appliquée en
+      production le 2026-09-20** via `prisma migrate deploy`. Procédure respectée : `migrate diff` vide avant,
+      un seul `ADD COLUMN` après édition du schéma, `migrate diff` vide de nouveau après application
+- [x] `resolvePubgClanForLocalClan` court-circuite sur `clan.isSystem` **avant** la boucle sur les membres
+      ([clan-service.ts:197-202](../../src/lib/clan-service.ts#L197-L202)) — c'est le correctif du bug
+- [x] `syncTrackedClanStats` n'écrit `name` / `tag` / `pubgClanId` que si `canAdoptPubgIdentity` — ceinture et
+      bretelles indépendante du point précédent, et le test le prouve : neutraliser le court-circuit fait
+      échouer un test mais pas l'autre
+- [x] `upsertTrackedClanFromPubg` filtre sur `isSystem: false` : un vrai clan PUBG nommé « Ungrouped » ne peut
+      plus absorber le parking
+- [x] `getOrCreateUngroupedClan` cherche sur `isSystem: true` + `platformShard`, et crée avec `isSystem: true`.
+      Constantes `UNGROUPED_CLAN_NAME` / `UNGROUPED_CLAN_TAG` exportées
+- [x] **Interdire le renommage — vérifié, il n'y avait rien à interdire.** Aucune route n'expose de renommage de
+      clan : les seuls écrivains de `Clan.name` / `tag` / `pubgClanId` sont `upsertTrackedClanFromPubg` et
+      `syncTrackedClanStats`, tous deux désormais bridés. Les autres `prisma.clan.update` du dépôt
+      (`cron/opponent-stats`, `matches/[matchId]`, `clan-stats-cache`, `matches-sync-service`, `approve`)
+      n'écrivent ni nom ni tag — vérifié un par un
+- [x] Les 5 comparaisons `name === 'Ungrouped'` remplacées par `isSystem` :
+      [ClanSelector.tsx](../../src/components/ClanSelector.tsx) (×3, dont le badge « S »),
+      [comparator/page.tsx](../../src/app/clans/comparator/page.tsx),
+      et `isUngroupedOwner` → `isSystemClanOwner` dans
+      [members/[id]/route.ts](../../src/app/api/members/[id]/route.ts). `isSystem` est exposé par
+      `GET /api/clans` et ajouté aux types `Clan` et `ClanSummary`
+- [x] **Roster : c'est `syncClanMembership` qui est gardé, pas `runDailyClanSync`.** Vérification faite :
+      le cron quotidien n'appelle jamais `syncClanMembership` — il enchaîne `triggerClanSync` (matchs),
+      `runTelemetryBatchForClan` et `syncTrackedClanStats`. Aucun roster n'y est synchronisé, donc rien à exclure,
+      et **la synchronisation des matchs des membres d'UNG continue**, ce qui est le but. `syncClanMembership`
+      refuse désormais un clan système avec un message explicite au lieu du trompeur « Clan has no PUBG clan ID »
+- [x] Script [`mark-system-clans.ts`](../../scripts/mark-system-clans.ts), mode simulation par défaut
+      (`--apply` pour écrire), avec garde-fou si plusieurs clans techniques existaient sur un même shard.
+      **Exécuté le 2026-09-20 : 0 candidat, 0 déjà marqué — no-op confirmé**
+- [x] **Clan technique créé en production le 2026-09-20 : `#201 [UNG] Ungrouped`** (shard `steam`,
+      `isSystem: true`, `isActive: true`, `pubgClanId: null`, 0 membre). Sans lui, le bouton « Sortir du clan »
+      du chantier 3 ne s'affichait pour personne, puisque `PATCH /api/members/[id]` exige une cible existante et
+      qu'aucun chemin de ce chantier n'appelle `getOrCreateUngroupedClan`.
+      Option `--create <shard>` ajoutée au script : simulation par défaut, idempotente (relancée, elle répond
+      « Deja present »), et elle **refuse de créer** si un clan porte déjà ce nom sur le shard — la collision
+      `@@unique([name, platformShard])` du risque J est donc traitée
+- [x] Constantes `UNGROUPED_CLAN_NAME` / `UNGROUPED_CLAN_TAG` extraites dans
+      [`system-clan.ts`](../../src/lib/system-clan.ts), module feuille sans dépendance : `clan-service.ts` tire
+      `server-only` par la chaîne `stats-calculator` → `notification-service`, donc reste inutilisable depuis un
+      script `tsx`. `clan-service` les ré-exporte, rien n'est dupliqué
+
+#### ✅ Chantier 1 — Détection et signalement des changements de clan — livré le 2026-09-20, en observation
+
+> ⛔ **Le spike du prérequis n°1 a été exécuté le 2026-09-20 et il change ce chantier.** La volumétrie est
+> validée : lots de 10, **33 appels/jour**. Mais `attributes.clanId` **clignote** — 2 comptes sur 4 ont renvoyé des
+> valeurs contradictoires en trente secondes (risque **K** de « Sûreté d'exécution »). La règle « tout écart
+> déclenche une action immédiate » est donc **caduque en l'état** : elle devient « N observations stables et
+> concordantes déclenchent l'action ». Ce chantier ne démarre pas avant la mesure d'instabilité à grande échelle
+> (rang 0 bis de l'ordre d'implémentation).
+
+- [x] ⛔ **Garde-fou anti-clignotement** — câblé en **deux niveaux** (départ puis destination), voir la correction
+      de conception du 2026-09-20 plus haut
+- [x] ⛔ **Vérification de complétude des lots** — `fetchPlayersClanStates()` lève au-delà de 10 et marque
+      `unknown` tout compte absent de la réponse
+- [x] ⛔ **Mode observation** — `shouldApplyMovements()` consulté avant toute écriture ; défaut `observe`
+- [x] **Service du passage livré** — [`clan-lifecycle/membership-sync.ts`](../../src/lib/clan-lifecycle/membership-sync.ts) :
+      chargement des membres actifs de clans actifs (clans suivis **et** clan technique), lots de 10 par shard,
+      comparaison, observations, confirmations, coupe-circuit, application transactionnelle, journal de run
+- [x] **Stockage des observations tranché** : une ligne `PlayerClanChange` en `observed` **seulement quand un écart
+      est constaté**, et un passage conforme **clôt** la série (`ignored`). Évite 324 écritures par jour quand rien
+      ne bouge, tout en gardant la remise à zéro exigée par le garde-fou A
+- [x] **Cron enregistré** : clé `clan_lifecycle_membership_sync`, variable
+      `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON`, défaut **`45 1 * * *`** — quinze minutes avant `daily_sync` (02 h 00),
+      pour que les mouvements soient appliqués **avant** le recalcul des agrégats du matin, donc que les stats
+      partent du bon clan. Libellé et description ajoutés à `/settings/cron`
+- [x] **Fermeture des passages bloqués** branchée sur `runDbMaintenance` (`closeStaleLifecycleRuns`) : la table de
+      run étant le verrou, un passage resté `running` empêcherait tous les suivants de démarrer
+- [x] **Notification Discord** — [`clan-lifecycle/discord-notifier.ts`](../../src/lib/clan-lifecycle/discord-notifier.ts),
+      webhook **global** (`AppConfig`), embed distinguant application / observation / coupe-circuit, liste bornée à
+      15 mouvements pour rester sous la limite Discord. Appelée **hors du chemin critique** : le service expose ses
+      mouvements et c'est le cron qui notifie, donc un échec Discord ne peut pas annuler un mouvement déjà écrit
+- [x] **Historique des mutations** — page [`/clans/mutations`](../../src/app/clans/mutations/page.tsx) +
+      route [`GET /api/clan-lifecycle/mutations`](../../src/app/api/clan-lifecycle/mutations/route.ts), paginée,
+      filtrable par clan. Bouton ajouté en bas de `/clans`
+- [x] **Webhook Discord configuré en production le 2026-09-20** et validé par un message de contrôle (HTTP 204).
+      Posé via `npx tsx scripts/set-clan-lifecycle-config.ts --webhook "<url>" --test`
+- [x] Setters de configuration livrés ([`config.ts`](../../src/lib/clan-lifecycle/config.ts)) : mode,
+      confirmations, coupe-circuit, seuil d'archivage, interrupteurs, webhook. Chaque setter borne sa valeur comme
+      le getter correspondant, et l'URL passe par `isValidDiscordWebhookUrl`, partagée avec la configuration
+      Discord par clan — pas de seconde règle de validation qui pourrait diverger
+
+> **Portée de la page « publique » — précisée à l'implémentation.** Le plan disait « page publique ». `/clans`
+> exige déjà une session, et exposer les mouvements de joueurs à l'internet ouvert serait un choix de
+> confidentialité que le plan n'a jamais discuté. Retenu : **visible par tout membre connecté**, ce qui remplit
+> l'objectif de transparence interne. Seuls les mouvements réellement survenus (`applied`, `reverted`) sont
+> exposés ; les lignes `observed` et `ignored` sont du bruit de détection et restent réservées au journal
+> SuperUser du chantier 5. À rouvrir si tu veux réellement une page anonyme.
+
+##### ✅ Premier passage réel — 2026-09-20 à 14 h 27, en mode observation
+
+Lancé via `npx tsx scripts/run-clan-lifecycle-sync.ts` (mode `observe`, donc **aucun mouvement appliqué**).
+
+| Mesure | Valeur |
+|---|---|
+| Membres examinés | **346** |
+| Appels PUBG | **35** — conforme à l'estimation de 33 |
+| États `has_clan` / `no_clan` / `unknown` | 337 / 9 / **0** |
+| Écarts détectés | **13 (3,8 %)** |
+| En attente de confirmation | 13 — normal, une seule observation chacun |
+| Mouvements appliqués | 0 |
+| Durée | 254 s (borné par le quota de 10 req/min) |
+
+**Les 13 écarts :** Pagiotte et Vvila (SMK → KMS, clan suivi), WESTEN88 (BOFS) et Jtetape (TNT) vers des clans
+**non suivis**, et 9 joueurs sans clan — TigrOo-SmK, Thetyne (SMK), Gavache, Nevro-974 (FR), RICKAR--0,
+barracuda73540, Akuhnamatata, MAX-BR (BF), Uranovx (BEE).
+
+> **Le coupe-circuit à 10 % ne sautera pas au premier passage, contrairement à ce que je craignais.** Cette crainte
+> venait d'un échantillon de 40 comptes où 4 bougeaient (10 % pile). Sur la population réelle de 346 membres, le
+> rattrapage initial ne représente que **3,8 %** — confortablement sous le seuil. Le mode observation reste
+> néanmoins la bonne façon de démarrer : il permet de relire ces 13 lignes avant d'autoriser le moindre mouvement.
+
+> **Zéro état `unknown` sur ce passage** : l'API était parfaitement saine pendant les 35 appels. C'est une bonne
+> nouvelle, mais ça ne dit rien de sa stabilité dans la durée — voir le clignotement mesuré sur Pagiotte et Vvila.
+- [x] **Synchronisation de l'appartenance de tous les joueurs suivis — quotidien, 33 appels** *(mesuré : 324 membres ÷ lots de 10)*. *(Remplace la vérification des rosters de clan, car l'API PUBG ne renvoie pas la liste des membres).* Nouveau cron (`CRON_SCHEDULE_DEFINITIONS` + `CronExecution`, visible dans `/settings/cron`) : itère sur tous les `ClanMember` actifs du site (clans suivis + `Ungrouped`), par lots de 10 (`/shards/{shard}/players?filter[playerIds]=…`). Compare le `clanId` PUBG avec le clan actuel sur le site.
+- [x] ~~Tout écart déclenche une action immédiate~~ → **N observations stables et concordantes** déclenchent
+      l'action (risque K). Une seule observation ne suffit jamais. Les deux issues restent inchangées :
+  - **Départ vers un clan non suivi ou aucun clan** : Le joueur est **basculé automatiquement vers `Ungrouped`**. Son suivi continue, mais il ne pollue plus les stats de son ancien clan. (Si le nouveau clan existe sur PUBG, une demande de création de clan est générée en parallèle via le flux du Chantier 2).
+  - **Transfert vers un autre clan suivi actif** : Le joueur y est **transféré automatiquement**.
+
+> **Tranché le 2026-09-20 — le transfert automatique n'est validé par personne, et c'est assumé.** Déplacer un
+> membre re-parente l'intégralité de son historique vers le clan cible (250 matchs, 387 kills et 55 314 dégâts
+> dans le cas Vvila), sans que l'Owner du clan de départ ni celui du clan d'arrivée n'aient à l'approuver. La
+> notification Discord **informe mais ne bloque pas** : c'est la contrepartie acceptée de la justesse des agrégats,
+> qui prime sur la validation humaine. Le filet de sécurité est l'action « annuler » du journal des mutations
+> (chantier 5), qui remet le membre dans son clan précédent.
+- [x] Dans tous les cas, un événement `PlayerClanChange` est généré (statut `applied`) pour garder l'historique et notifier le SuperUser, mais **l'action n'attend pas de validation humaine**.
+- [x] **Historique public des mutations** : Ajouter un bouton en bas de la page `/clans` menant à une page publique listant tous les événements de mutations. Cela permet de rendre transparents les changements automatiques.
+- [x] **Notification Discord** : Envoyer un message au canal d'administration Discord pour chaque `PlayerClanChange` généré automatiquement par le Cron (évite les changements silencieux).
+- [x] **Coéquipiers fréquents — hebdomadaire.** Comptes ayant ≥ 10 parties partagées avec un clan suivi et une
+      résolution de plus de 7 jours : ~114 appels en lots de 10
+      (`/shards/{shard}/players?filter[playerIds]=…`), ~12 min à 10 req/min, la nuit.
+      *À vérifier sur un appel réel : que l'endpoint multi-joueurs expose bien `attributes.clanId` comme
+      `fetchPlayerClan`.*
+- [x] **Journal des mutations** : onglet « Mutations » de la page unique du chantier 5 — **journal a posteriori**,
+      pas file d'attente, puisque les mouvements sont déjà appliqués par le cron
+- [x] **Débriefing** : l'info-bulle du tag affiche « a quitté [X] pour [Y] le … » quand un changement est connu
+- [x] **Corriger le raccourci « membre suivi »** ([encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301)) :
+      ajouter `isActive: true` et `joinStatus: 'active'` au `findFirst`, pour qu'un membre non suivi retombe sur
+      l'appel API PUBG au lieu de rester tamponné avec son ancien clan
+      *(reporté volontairement par l'utilisateur le 2026-09-20, à reprendre ici)*
+
+> **Contrainte de performance (mesurée le 2026-09-15)** : la sélection des coéquipiers fréquents parcourt
+> l'intégralité d'`EncounteredPlayer` (1,64 M lignes) — le même motif qui faisait durer 45 s chaque passage du cron
+> de résolution. Prévoir un compteur pré-calculé ou un palier comme dans
+> `selectPrioritizedEncounteredPlayerIdentities`. Voir [database-performance.md](../ops/database-performance.md).
+
+#### 🚦 Mise en service du chantier 1 — état au 2026-09-20
+
+Le cron tourne dès cette nuit à **01 h 45**, en mode `observe`. Séquence prévue, telle que documentée dans
+« Sûreté d'exécution » B :
+
+- [x] Passage 1 (manuel, 14 h 27) — 13 écarts observés, aucun mouvement
+- [ ] Passages 2 et 3 (crons des deux nuits suivantes) — les écarts persistants atteindront N=3
+- [ ] **Relire les écarts confirmés à la main** avant toute application
+- [x] Basculer en `apply` : `npx tsx scripts/set-clan-lifecycle-config.ts --mode apply`
+- [x] Vérifier le premier passage en `apply` : notification Discord reçue, mouvements conformes à la revue
+
+> Tant que `clan_lifecycle_mode` vaut `observe`, **aucun `clanId` n'est modifié**, quel que soit le nombre de
+> confirmations atteint. Le passage en `apply` est la seule décision qui engage.
+
+#### ✅ Chantier 2 — Promotion : un joueur d'UNG dont le clan est détecté — livré le 2026-09-20
+
+**Objectif :** un joueur parqué dans UNG qui rejoint ou crée un clan PUBG doit sortir d'UNG vers son vrai clan,
+sans que cela ouvre une porte dérobée à la validation SuperUser.
+
+> **Tension à respecter — le garde-fou porte sur la création de clan, pas sur le déplacement de membre.**
+> Depuis la refonte du chantier 1, déplacer un membre est automatique et assumé. Ce qui reste gardé, c'est
+> l'**entrée d'un nouveau clan dans la ligue** : `/join` crée volontairement tout nouveau clan en `isActive: false`
+> en attente de validation SuperUser, « afin de protéger la ligue contre les bots et clans non sérieux » (voir la
+> section `/join` en P1). Créer un clan automatiquement contournerait ce garde-fou.
+>
+> Deux contraintes techniques verrouillent d'ailleurs le sujet : `PATCH /api/members/[id]` refuse déjà une cible
+> `isActive: false` (`Target clan not found`), et `runDailyClanSync` n'itère que sur les clans actifs — déplacer
+> quelqu'un vers un clan en attente **arrêterait silencieusement** de le suivre. D'où le découpage ci-dessous : on
+> déplace librement vers un clan déjà validé (cas A), jamais vers un clan qui ne l'est pas (cas B).
+
+- [x] **Traitement intégré au passage du chantier 1** plutôt que branché après coup : le cron dispose déjà des
+      observations et de l'état confirmé, un second parcours aurait dupliqué la logique de confirmation
+- [x] **Cas A — clan détecté déjà suivi et actif** → déplacement automatique avec
+      `source: 'ungrouped_promotion'` (et non `auto_transfer`, réservé aux mouvements entre clans suivis)
+- [x] **Cas B — clan détecté absent de la base** → `createPendingClanForDetection()` crée le clan
+      **`isActive: false`**, écrit un `PlayerClanChange` en `status: 'pending'` par membre concerné, et **ne
+      déplace personne**. Les demandes sont dédupliquées par identifiant PUBG : dix membres partis vers le même
+      clan ne produisent qu'une demande et qu'un appel API
+- [x] **Cas C — aucun clan détecté** → le joueur reste dans UNG, sans écart enregistré : c'est l'état attendu
+- [x] **Application à l'approbation** — [`pending-promotions.ts`](../../src/lib/clan-lifecycle/pending-promotions.ts),
+      appelé par `POST /api/clans/[clanId]/approve`. Idempotent, et **clôt sans déplacer** les lignes devenues
+      caduques (membre retiré entre-temps, ou déjà rattaché). La réponse de la route liste les joueurs rattachés
+- [x] **Garde-fou Owner** : l'exception a été re-clée sur `isSystem` au chantier 0
+- [x] **Interrupteur `ungrouped_auto_promote`** : ne gouverne **que** le cas A. Désactivé, le joueur reste dans UNG
+      sans que la détection s'arrête
+- [x] Tests : [`promotion.test.ts`](../../src/lib/clan-lifecycle/promotion.test.ts), **8 tests** couvrant les trois
+      cas, l'interrupteur, la déduplication et les trois issues de l'application différée.
+      **Vérifié en neutralisant le garde-fou** : créer le clan `isActive: true` fait rougir le test
+
+> **Écart assumé — `upsertTrackedClanFromPubg` n'est pas réutilisé.** `clan-service.ts` tire `server-only` par la
+> chaîne `stats-calculator` → `notification-service` → `email-service`, ce qui rendrait le passage inutilisable
+> depuis un script `tsx` (celui de mise en service, notamment). La création passe donc par `fetchPubgClanById` +
+> un `prisma.clan.create` explicite. `notifyClanCreationRequest` est appelé en **import dynamique** dans un
+> try/catch : la notification in-app part depuis le cron Next, et son absence sous `tsx` ne bloque rien.
+
+#### ✅ Chantier 3 — Rétrogradation : un Owner peut basculer un de ses membres vers UNG — livré le 2026-09-20
+
+**Objectif :** permettre à un Owner de constater « ce joueur n'est plus dans mon clan » sans passer par le
+SuperUser, et sans arrêter de le suivre.
+
+Aujourd'hui l'**arrêt de suivi (`DELETE /api/members/[id]`)** est accessible à un Owner via la permission
+`manage_members` ([members/[id]/route.ts:113](../../src/app/api/members/[id]/route.ts#L113)). **Décision : ce
+`DELETE` devient strictement SuperUser**, et « Basculer vers UNG » devient la seule action de sortie d'un Owner.
+
+**Motif** — ce n'est *pas* une question de perte d'historique : l'encadré ⚠️ plus bas montre que `DELETE` est au
+contraire le seul geste qui **ne re-parente pas** la fiche (`clanId` inchangé). Le vrai motif est la **continuité
+du suivi** : `DELETE` coupe la synchronisation PUBG, donc fait disparaître le joueur de l'écosystème sans décision
+SuperUser. En canalisant les Owners vers UNG, toute sortie reste suivie, tracée par un `PlayerClanChange`, et
+réversible.
+
+**Articulation avec le chantier 1** — le cron basculera de toute façon vers UNG sous 24 h. Le bouton Owner garde
+deux usages : l'**immédiateté**, et les cas où l'API PUBG ne dit pas la vérité — exactement le cas Vvila, dont le
+compte renvoie `clanId: null` alors qu'il a créé un clan. Ce n'est donc pas un doublon du cron, mais l'override
+manuel du même chemin.
+
+- [x] `PATCH /api/members/[id]` bascule sur `requirePermission('manage_members')` **du clan actuel du membre**
+      quand la cible est le clan système du même shard, et reste `requireSuperUser` dans tous les autres cas.
+      La décision de permission a dû être **déplacée après le chargement** du membre et du clan cible : on ne peut
+      pas savoir quelle règle appliquer avant de connaître `targetClan.isSystem`
+- [x] Règles existantes conservées : un `Owner` ne peut pas être déplacé, plateformes identiques, cible active.
+      Un shard différent fait retomber sur `requireSuperUser`, donc l'exception ne peut pas servir de contournement
+- [x] **`DELETE /api/members/[id]` réservé au SuperUser** — `requirePermission('manage_members')` remplacé par
+      `requireSuperUser`, et le bouton « Arrêter le suivi » n'est plus rendu pour un Owner
+- [x] `PlayerClanChange` écrit **dans la même transaction** que le mouvement
+      ([members/[id]/route.ts](../../src/app/api/members/[id]/route.ts)) — applique la règle C de « Sûreté
+      d'exécution » dès maintenant. Les effets dérivés (`syncTrackedClanStats`, rôles) restent hors transaction
+- [x] Service dédié [`player-clan-change.ts`](../../src/lib/player-clan-change.ts) : constantes de `source` et
+      `status`, `recordPlayerClanChange(tx, …)` qui accepte un client de transaction, et `appliedAt` renseigné
+      seulement quand le statut vaut `applied`
+- [x] **UI** `/clans/[clanId]/settings/members` : troisième bouton **« Sortir du clan »** (ambre, icône `LogOut`),
+      visible dès qu'un clan système existe pour le shard du membre. Modale à la charte expliquant **les trois
+      gestes côte à côte** et l'effet sur les statistiques. Le chargement de la liste des clans n'est plus réservé
+      au SuperUser — un Owner a besoin de connaître le clan système de son shard
+- [x] Tests : [`member-clan-move-permissions.test.ts`](../../src/lib/member-clan-move-permissions.test.ts),
+      **8 tests**. Bascule acceptée sous `manage_members` sans SuperUser ; SuperUser exigé pour toute autre cible ;
+      un Owner ne peut pas être basculé ; shard différent rejeté ; refus du middleware respecté ; `manual_demotion`
+      écrit avec `triggeredByUserId` ; `manual_transfer` distingué ; `DELETE` refusé à un non-SuperUser.
+      **Vérifié en neutralisant l'exception de permission** : 2 tests passent au rouge
+
+> **Écart constaté à l'implémentation — une valeur de `source` manquait.** Le plan prévoyait `manual_demotion`
+> pour la bascule d'un Owner, mais **rien** pour le transfert cross-clan d'un SuperUser, qui existait pourtant déjà
+> avant ces chantiers. Valeur `manual_transfer` ajoutée à l'énumération (8 valeurs au lieu de 7).
+
+**Différence entre les trois gestes — à afficher dans la modale et à documenter :**
+
+| Geste | `ClanMember` | Sync PUBG | Agrégats du clan | Historique rattaché à |
+|---|---|---|---|---|
+| **Arrêter le suivi** (SuperUser, `DELETE`) | `isActive: false`, `clanId` inchangé | **arrêtée** | retiré | le clan d'origine, réactivable |
+| **Basculer vers UNG** (Owner, `PATCH`) | `isActive: true`, `clanId` → clan système | **maintenue** | retiré | **UNG** |
+| **Transférer de clan** (SuperUser, `PATCH`) | `clanId` → cible | maintenue | retiré de A, ajouté à B | le clan cible |
+
+> ⚠️ **Les trois gestes retirent le membre des agrégats du clan.** `recalculateStatsForClan` filtre sur
+> `{ clanId, isActive: true, joinStatus: 'active' }` ([stats-calculator.ts:244](../../src/lib/stats-calculator.ts#L244)),
+> et `syncTrackedClanStats` sur `member: { clanId, isActive: true }` : un simple arrêt de suivi suffit déjà à sortir
+> le joueur des totaux cumulés, des leaderboards et des awards.
+>
+> La différence réelle porte sur le **rattachement**. Un déplacement re-parente la fiche `ClanMember`, donc toutes
+> les vues qui joignent par `member.clanId` réattribuent l'intégralité de son passé au nouveau clan — pour Vvila,
+> 250 matchs en escouade, 387 kills et 55 314 dégâts. `KillEvent.clanId` étant une colonne figée à l'écriture
+> ([schema.prisma:926](../../prisma/schema.prisma#L926)), les vues basées sur la télémétrie continuent elles de le
+> rattacher au clan d'origine : les deux familles de vues divergent après un déplacement. À trancher si cette
+> divergence doit être corrigée (backfill de `KillEvent.clanId`) ou simplement documentée.
+
+#### ✅ Chantier 4 — Demande de création de clan (`/join`) : contact et notifications — livré le 2026-09-20
+
+- [x] **Formulaire `/join`** : champ email ajouté au schéma Zod, à la modale de confirmation et au stockage.
+      Il n'apparaît **que si `actionType === 'create_clan'`** et n'est exigé que sur cette branche côté API —
+      rejoindre un clan existant ne nécessite pas de pouvoir recontacter le demandeur
+- [x] **Stocker l'email sur `ClanMember.contactEmail`** — migration `20260920190000_add_member_contact_email`,
+      **appliquée en production le 2026-09-20**. Justification dans l'encadré ci-dessous
+- [x] **`POST /api/clans/[clanId]/reject` créé.** Le clan **n'est pas supprimé** : il reste inactif avec son
+      historique, et le demandeur passe en `joinStatus: 'rejected'` — état qui autorise la ré-adhésion.
+      Refuse un clan déjà actif (409) et le clan technique (400). **Clôt aussi les `PlayerClanChange` en attente
+      qui visaient ce clan** : les joueurs détectés comme l'ayant rejoint ne doivent pas rester suspendus à une
+      approbation qui n'arrivera pas
+- [x] **Notification de décision** — [`clan-decision-email.ts`](../../src/lib/clan-lifecycle/clan-decision-email.ts),
+      branchée sur `approve` et `reject`, **hors chemin critique** : un SMTP absent ou en panne ne peut pas
+      empêcher la décision, qui est déjà prise et visible dans l'UI
+- [x] **Cas SMTP non configuré** couvert : `sendClanApprovedEmail` / `sendClanRejectedEmail` renvoient
+      `{ sent: false, reason }` au lieu de lever, et la réponse de la route le dit explicitement
+      (« Aucun email envoyé »). Un clan découvert automatiquement n'a d'ailleurs **aucun demandeur**, donc aucun
+      contact : c'est un cas normal, pas une anomalie
+- [x] **Email repris à l'invitation** : `POST .../members/[memberId]/invite` utilise `ClanMember.contactEmail`
+      comme valeur par défaut quand aucune adresse n'est fournie — l'information n'est pas redemandée
+- [x] **Onglet « Clans en attente » complété** (il attendait ce chantier) : route dédiée
+      [`pending-clans`](../../src/app/api/settings/clan-lifecycle/pending-clans/route.ts) exposant le demandeur,
+      son email et le nombre de joueurs qui rejoindront le clan à l'activation. Bouton « Refuser » activé.
+      La page distingue un clan **demandé via `/join`** d'un clan **découvert automatiquement** — la distinction
+      change la décision
+- [x] Tests : [`clan-contact-email.test.ts`](../../src/lib/clan-contact-email.test.ts), **9 tests** (notification
+      sans contact, échec SMTP, motif de refus, refus d'un clan actif ou technique, clôture des mouvements,
+      gating SuperUser)
+
+> **Où stocker l'email — tranché le 2026-09-20 : `ClanMember.contactEmail String?` (nullable).**
+>
+> Le motif retenu est que le contact doit être rattaché au **pseudo du joueur qui fait la demande**, et
+> `ClanMember` est la seule table qui porte déjà `pubgPlayerName` à ce stade du flux. Les deux alternatives ont été
+> écartées :
+> - **`UserAccount.email`** — impossible : `passwordHash` est **non nullable** et `email` est `@unique`
+>   ([schema.prisma:410-413](../../prisma/schema.prisma#L410-L413)). Il faudrait créer un compte sans mot de passe
+>   avant toute validation, donc inventer un état de compte fantôme pour chaque demande, y compris les refusées.
+> - **`Clan.contactEmail`** — perdrait le lien avec le pseudo : un clan peut recevoir plusieurs demandes, et rien
+>   n'indiquerait plus *qui* a laissé cette adresse.
+>
+> Cycle de vie : saisi sur `/join` → porté par la fiche `ClanMember` pendant toute la phase `pending` → sert à
+> notifier l'acceptation ou le refus → repris comme `UserAccount.email` à l'activation. Une demande refusée garde
+> son email sur une fiche en `joinStatus: 'rejected'`, ce qui permet de la recontacter en cas de ré-adhésion.
+> `contactEmail` reste nullable : les membres créés autrement (ajout manuel, sync clan) n'en ont pas.
+
+#### ✅ Chantier 5 — Page SuperUser unique « Cycle de vie des clans » + purge d'UNG — livré le 2026-09-20
+
+**Décision du 2026-09-20 :** toute la thématique est regroupée sur **une seule page SuperUser**, au lieu de
+l'éparpiller entre une page de mutations, une UI de purge et la validation des clans. Nom proposé :
+`/settings/clan-lifecycle`.
+
+> **Constat qui justifie le regroupement (vérifié le 2026-09-20) :** il n'existe **aucune page** pour valider les
+> clans en attente. `GET /api/clans?all=true` expose bien les clans inactifs aux SuperUsers
+> ([clans/route.ts:13-17](../../src/app/api/clans/route.ts#L13-L17)) et `POST /api/clans/[clanId]/approve` existe,
+> mais rien ne les relie côté interface : un clan créé par `/join` en `isActive: false` n'est visible nulle part.
+> Le regroupement ne fait donc pas que ranger — il **comble un trou fonctionnel déjà présent**.
+
+- [x] **Onglet « Mutations »** — journal complet, **tous statuts** y compris `observed` et `pending` : c'est ici
+      qu'on comprend *pourquoi* un mouvement n'a pas encore eu lieu. Filtre par statut, actions « annuler » et
+      « Marquer comme vu »
+- [x] **Onglet « Clans en attente »** — liste des `Clan` en `isActive: false` avec action « Valider », qui
+      déclenche les déplacements différés du cas B. Le bouton « Refuser » attend la route `reject` du chantier 4,
+      et `contactEmail` attend son champ — les deux sont notés là-bas
+- [x] **Onglet « Ungrouped »** — effectif trié du plus inactif au plus récent, jours d'inactivité, date
+      d'éligibilité à l'archivage, et archivage en masse des candidats en un clic
+- [x] **Onglet « Paramètres »** — *tous* les réglages de la thématique au même endroit (voir le bloc dédié
+      ci-dessous) : salon Discord d'administration, règle d'archivage d'UNG, interrupteurs d'automatisation
+- [x] **Onglet « Santé »** — dernier passage détaillé, dix derniers runs, et **coût quotidien du parking**
+      (un appel PUBG par joueur et par jour) : le chiffre que l'archivage sert à réduire. Alimenté par
+      `ClanLifecycleRun`
+- [x] Entrée `superuser.clan-lifecycle` ajoutée au registre **et** `npx tsx prisma/seed-nav-items.ts` exécuté —
+      **61 lignes `NavItem` en base** après coup. Sans ce seed l'entrée n'apparaît jamais : le piège était bien réel
+- [x] Compteurs affichés sous les onglets : mutations à relire, clans en attente, effectif du parking et
+      nombre d'archivables
+
+> **Renommage du 2026-09-20, après retour d'usage.** Le bouton « Acquitter » n'était pas compris — le terme
+> vient du vocabulaire de supervision. Devenu **« Marquer comme vu »**, avec une légende sur l'onglet qui
+> oppose les deux actions : l'une modifie les données, l'autre non. Les noms techniques (`acknowledge` côté
+> API, `acknowledgedAt` en base) sont inchangés — les renommer n'aurait produit que du bruit.
+
+##### Onglet « Paramètres » — tout est réglable depuis l'UI, rien en dur
+
+**Décision du 2026-09-20 :** aucun de ces réglages ne doit être une constante de code ni une variable
+d'environnement. Tous vivent dans `AppConfig` (même mécanique que `pubg_api_rate_limit_rpm`) et s'éditent depuis
+cet onglet, sans redéploiement.
+
+| Clé `AppConfig` | Réglage | Défaut proposé |
+|---|---|---|
+| `clan_lifecycle_mode` | `observe` (écrit les événements sans rien appliquer) ou `apply` — voir « Sûreté d'exécution » B | **`observe`** |
+| `clan_lifecycle_max_moves_ratio` | Coupe-circuit : part maximale de l'effectif déplaçable en un passage — voir « Sûreté d'exécution » A | `10` (%) |
+| `clan_lifecycle_confirmations_required` | Passages **quotidiens** concordants exigés avant d'agir | **`3`** *(mesuré rang 0 bis : N=2 aurait déclenché à tort)* |
+| `clan_lifecycle_discord_webhook_url` | Salon Discord d'administration recevant les `PlayerClanChange` automatiques | vide — aucune notification tant qu'il n'est pas renseigné |
+| `clan_lifecycle_discord_mention` | Mention associée (`none` / `here` / `everyone` / `role`) | `none` |
+| `ungrouped_archive_after_days` | Seuil d'inactivité déclenchant la proposition d'archivage | `90` |
+| `ungrouped_auto_archive` | Archive sans validation humaine au-delà du seuil | `false` |
+| `ungrouped_auto_promote` | Promotion automatique du cas A (chantier 2) | `true` |
+
+- [x] **Salon Discord — global, pas par clan.** La configuration Discord actuelle est **par clan**
+      (`getDiscordSettings(clanId)`, [discord-config-service.ts:11](../../src/lib/discord/discord-config-service.ts#L11))
+      et ne convient pas : les mutations concernent toute la ligue. D'où une clé `AppConfig` dédiée. **Réutiliser**
+      `isValidDiscordWebhookUrl`, `normalizeWebhookUrl` et `renderDiscordMention`
+      ([discord-config.ts](../../src/lib/discord/discord-config.ts)) plutôt que de revalider une URL à la main
+- [x] **Affichage de la date d'archivage** : `lastMatchAt`, jours d'inactivité et date d'éligibilité.
+      `GET .../ungrouped?thresholdDays=N` permet de simuler un autre seuil **avant** de l'enregistrer
+      (`eligibleAt` est calculé côté service, pas en base, précisément pour ça)
+- [~] **Test du webhook** — disponible en ligne de commande
+      (`npx tsx scripts/set-clan-lifecycle-config.ts --webhook "<url>" --test`), **pas encore en bouton** dans la page
+- [x] Garde-fou : webhook vide = aucune notification, et la page affiche « non configuré » plutôt que d'échouer
+
+**Règle d'archivage d'UNG** — répond au risque « UNG ne se vide jamais » :
+
+- [x] Le cron **marque** les candidats et ne les archive que si `ungrouped_auto_archive` est explicitement
+      activé — sinon il se contente de journaliser leur nombre et la page les présente
+- [x] Archiver = `isActive: false` + `archivedAt` + `archivedReason: 'ungrouped_inactive'`. `archiveMembers()`
+      **ne touche qu'aux membres réellement dans un clan système** : un identifiant errant ne peut pas servir à
+      archiver un membre d'un clan suivi
+- [x] **Réversible** : `reactivateArchivedMember()` ne réactive **que** ce que la purge a désactivé — un arrêt de
+      suivi ordinaire (sans `archivedReason`) n'est pas concerné. C'est tout l'intérêt d'avoir ajouté la raison
+      plutôt que de se fier au seul `isActive`
+- [x] Un membre **sans aucun match connu** est inclus dans les candidats : jamais joué depuis qu'il est suivi,
+      c'est le cas le plus coûteux et le moins utile à garder actif
+- [x] Tests : [`revert.test.ts`](../../src/lib/clan-lifecycle/revert.test.ts), **15 tests** couvrant l'annulation
+      (garde-fou E) et la purge
+
+#### Modèle de données
+
+- [x] `Clan.isSystem Boolean @default(false)` — migration `20260920120000_add_clan_is_system`, appliquée en
+      production le 2026-09-20
+- [x] `ClanMember.archivedAt` + `archivedReason` — migration `20260920180000_add_member_archive_fields`,
+      appliquée en production le 2026-09-20. Distingue une purge d'un arrêt de suivi, qui posent le même `isActive`
+- [x] `ClanMember.contactEmail` — migration `20260920190000_add_member_contact_email`, appliquée en production
+      le 2026-09-20
+- [x] Table `PlayerClanChange` — migration `20260920140000_add_player_clan_change`, **appliquée en production le
+      2026-09-20**. Purement additive : un `CREATE TABLE`, trois clés étrangères, aucun `ALTER` sur l'existant.
+      `migrate diff` vide avant et après. Champs réellement créés :
+      `pubgAccountId`, `platformShard`, `clanMemberId?`, `previousPubgClanId?` / `previousPubgClanTag?`,
+      `newPubgClanId?` / `newPubgClanTag?`, `detectedClanId?` (FK `Clan` quand le clan existe côté site),
+      `source` (valeurs ci-dessous), `status` (`observed` | `pending` | `applied` | `ignored` | `reverted`),
+      `detectedAt`, `appliedAt?`, `acknowledgedAt?`, `acknowledgedByUserId?`, `triggeredByUserId?`,
+      `runId?` (rattachement au passage de cron, indispensable au revert par lot)
+- [x] **Table de run du cycle de vie** — migration **additive**, calquée sur `EncounteredPlayerResolutionRun` :
+      `status` (`running` | `success` | `failed` | `aborted`), compteurs (candidats, `unknown`, écartés faute de
+      confirmation, mouvements prévus, mouvements appliqués), `circuitBreakerTripped`, durée. **Pas
+      `CronExecution`**, dont le `clanId` est obligatoire alors que ce cron est global
+- [x] Compteur de confirmations consécutives sur `Player` (ou porté par l'événement `observed`) — voir « Sûreté
+      d'exécution » A
+- [x] Mise à jour de `Player.opponentClanId` et d'`EncounteredPlayer.pubgClan*` au passage de chaque détection
+- [x] **`ClanMember.contactEmail String?`** — migration **additive** (chantier 4), voir la justification ci-dessous
+- [x] `ClanMember.archivedAt DateTime?` + `ClanMember.archivedReason String?` — migration **additive**
+      (chantier 5) : trace *quand* et *pourquoi* un membre d'UNG a été archivé, sans quoi `isActive: false` ne
+      distingue pas une purge d'un arrêt de suivi ordinaire
+
+**Valeurs de `source`** — révisées le 2026-09-20 après l'abandon des rosters et l'ajout des actions automatiques du
+chantier 1 :
+
+| Valeur | Émise par | Action sur le membre |
+|---|---|---|
+| `player_sync` | Cron quotidien (chantier 1) | Aucune — écart constaté sans mouvement |
+| `auto_demotion` | Cron quotidien (chantier 1) | Bascule automatique vers UNG |
+| `auto_transfer` | Cron quotidien (chantier 1) | Transfert automatique entre clans suivis |
+| `ungrouped_promotion` | Cron (chantier 2, cas A) | Sortie d'UNG vers un clan suivi |
+| `player_refresh` | Passe hebdomadaire coéquipiers | Aucune — hors membres suivis |
+| `manual_demotion` | Owner (chantier 3) | Bascule manuelle vers UNG |
+| `manual_transfer` | SuperUser (chantier 3) | Transfert manuel entre clans suivis — **valeur ajoutée à l'implémentation**, elle manquait au plan |
+| `manual_revert` | SuperUser (journal des mutations) | Annulation d'un mouvement précédent |
+
+`clan_roster` est supprimé : les rosters de clan n'existent plus côté API PUBG (voir le constat).
+
+> **Rappel procédure (voir AGENTS.md) :** lancer
+> `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
+> **avant** toute écriture en base — il doit répondre `-- This is an empty migration.` au départ, puis ne montrer que
+> les `ADD COLUMN` / `CREATE TABLE` voulus. Ne jamais faire de `db push` aveugle sur cette base : c'est la production.
+
+#### Tests de contrôle
+
+**Référence mesurée le 2026-09-20 :** `npm run test:telemetry` → **472 tests verts, 1 ignoré, 64 fichiers**, 4,3 s.
+C'est la base à ne pas casser. *(Le chiffre de « 332 tests » cité ailleurs dans ce fichier est périmé.)*
+
+> **Convention Vitest du dépôt — à respecter sans exception.** `vitest.config.ts` déclare
+> `include: ['src/lib/**/*.test.ts']`. Un test posé à côté d'une route sous `src/app/` **n'est jamais exécuté**, sans
+> le moindre avertissement. Pour tester une route, le fichier va dans `src/lib/` et importe le handler depuis
+> `src/app/` — c'est ce que font déjà `pubg-telemetry/route-contracts.test.ts` et
+> `discord/discord-route-contracts.test.ts`.
+
+##### 🔴 Tests existants à adapter — dont quatre qui ne casseront pas, et c'est le problème
+
+| Fichier | Impact | Pourquoi |
+|---|---|---|
+| [join-validation.test.ts](../../src/lib/join-validation.test.ts) | ✅ **Corrigé le 2026-09-20** | Le fichier **importe désormais le vrai `JoinRequestSchema`**, exporté par la route. La prédiction s'est vérifiée en direct : ajouter `contactEmail` au chantier 4 n'aurait pas fait rougir l'ancienne version. 4 tests ajoutés sur le nouveau champ |
+| [members-add.test.ts](../../src/lib/members-add.test.ts) | ⚠️ **Divergence silencieuse** | Même motif, assumé par un commentaire dans le fichier : « Schéma testé à l'identique de `src/app/api/members/route.ts` ». Toute évolution du schéma réel passe inaperçue |
+| [clan-approval.test.ts](../../src/lib/clan-approval.test.ts) | ⚠️ **Divergence silencieuse** | N'exécute aucun code de production : il assertie sur des littéraux écrits à la main. L'extension de `approve` (déplacements différés du cas B) ne sera pas couverte |
+| [member-lifecycle.test.ts](../../src/lib/member-lifecycle.test.ts) | ⚠️ **Divergence silencieuse** | Réimplémente la logique actif/rejeté dans le test. Le passage de `DELETE` au SuperUser (chantier 3) ne s'y verra pas |
+| [encountered-player-resolution.test.ts](../../src/lib/encountered-player-resolution.test.ts) | 🔧 **Cassera vraiment** | Mocke `clanMember: { findFirst }`. Le correctif du raccourci (chantier 1) ajoute `isActive` / `joinStatus` au `where` : les assertions sur l'appel doivent suivre |
+| [tracked-isolation.test.ts](../../src/lib/tracked-isolation.test.ts) | 🔧 **À étendre** | Seul test branché sur la **vraie base** : il crée un `Clan` et des `ClanMember`. `Clan.isSystem` a un défaut, donc rien ne casse — mais c'est l'endroit naturel pour prouver qu'un clan système est exclu des agrégats |
+
+- [x] **Décider du sort des 4 fichiers à divergence silencieuse** : soit ils importent le vrai schéma / la vraie
+      fonction, soit ils sont supprimés. Un test vert qui ne teste rien est pire que pas de test — il donne une
+      fausse assurance au moment exact où le schéma change
+- [x] Adapter `encountered-player-resolution.test.ts` au nouveau `where` du raccourci
+- [x] Étendre `tracked-isolation.test.ts` au clan système
+
+> **⚠️ Le piège s'est réalisé pendant le chantier 2 (2026-09-20).** Ajouter un seul appel —
+> `getUngroupedAutoPromote()` — a fait tomber **10 tests** de `membership-sync.test.ts` avec
+> « No export is defined on the mock », alors que le code était correct. Le mock du module de configuration
+> listait ses exports un par un, exactement comme les mocks Prisma. Même remède : compléter le mock **dans le
+> même lot** que le code.
+>
+> **Piège des mocks Prisma (déjà documenté dans CLAUDE.md).** Les tests de contrats listent les modèles **un par
+> un** — par exemple `prisma: { clanMember: {...}, cronExecution: {...} }`
+> ([route-contracts.test.ts:12-25](../../src/lib/pubg-telemetry/route-contracts.test.ts#L12-L25)). Dès qu'une route
+> touchée par ces chantiers utilisera `playerClanChange`, le mock renverra `undefined` et le test cassera **loin de
+> la cause réelle**. À ajouter à chaque mock concerné en même temps que le code.
+
+##### Nouveaux tests par chantier
+
+- [x] **Chantier 0** — [`system-clan-protection.test.ts`](../../src/lib/system-clan-protection.test.ts),
+      **8 tests**. Couvre : aucune interrogation de l'API PUBG pour un clan système ; ni `name`, ni `tag`, ni
+      `pubgClanId` écrits ; les stats continuent d'être mises à jour ; un clan **ordinaire** adopte bien son
+      identité PUBG (test de non-régression) ; `getOrCreateUngroupedClan` retrouve le clan renommé à la main ;
+      création avec `isSystem: true` ; `upsertTrackedClanFromPubg` exclut les clans système ; `syncClanMembership`
+      refuse avec le bon message.
+      **Vérifié en neutralisant le correctif** : le test « n'interroge jamais l'API PUBG » passe au rouge, donc il
+      teste bien quelque chose — contrairement aux 4 fichiers à divergence silencieuse signalés plus haut
+- [x] **Chantier 1** — un écart « clan inconnu » produit `auto_demotion` + un déplacement vers UNG ; un écart
+      « autre clan suivi » produit `auto_transfer` ; aucun écart ne produit rien ; le lot de 10 est respecté et le
+      plafond par passage tient
+- [x] **Chantier 2** — [`promotion.test.ts`](../../src/lib/clan-lifecycle/promotion.test.ts), **8 tests** :
+      les trois cas, l'interrupteur `ungrouped_auto_promote`, la déduplication des demandes, et les trois
+      issues de l'application différée. **Vérifiés en neutralisant le garde-fou** `isActive: false`
+- [x] **Chantier 3** — [`member-clan-move-permissions.test.ts`](../../src/lib/member-clan-move-permissions.test.ts),
+      **8 tests**, vérifiés en neutralisant le correctif. Utilise `vi.hoisted()` pour les mocks, comme
+      `route-contracts.test.ts` — sans quoi `vi.mock` est hoisté au-dessus des déclarations et le fichier ne
+      collecte aucun test
+- [x] **Chantier 4** — [`clan-contact-email.test.ts`](../../src/lib/clan-contact-email.test.ts) (9) et les
+      4 tests ajoutés à [`join-validation.test.ts`](../../src/lib/join-validation.test.ts), désormais branché sur
+      le vrai schéma
+- [x] **Chantier 5** — sélection des candidats à l'archivage au seuil configuré, archivage en masse idempotent,
+      réactivation, **un membre archivé ne consomme plus d'appel PUBG** ; webhook vide = aucune notification et
+      aucune exception ; la date de candidature affichée suit le seuil
+- [x] **Transverse** — un `PlayerClanChange` est écrit pour chacune des 7 valeurs de `source`, et l'action
+      « annuler » du journal restaure bien le `clanId` précédent
+- [~] **Sûreté d'exécution** — **54 tests livrés le 2026-09-20** :
+      [`safety.test.ts`](../../src/lib/clan-lifecycle/safety.test.ts) (29, fonctions pures),
+      [`membership-sync.test.ts`](../../src/lib/clan-lifecycle/membership-sync.test.ts) (16, passage complet) et
+      [`discord-notifier.test.ts`](../../src/lib/clan-lifecycle/discord-notifier.test.ts) (9, dont le webhook non
+      configuré qui ne doit ni lever ni notifier). Couvrent A, B, C et D. Reste **E**. Couverture visée :
+      une réponse API **sans le champ `clanId`** produit `unknown` et **ne déplace personne** (A) ; une seule
+      confirmation ne suffit pas à déclencher une bascule (A) ; un passage dépassant le ratio est marqué `aborted`
+      **sans aucun mouvement appliqué** (A) ; en mode `observe` les événements sont écrits et aucun `clanId` ne
+      change (B) ; un échec de notification Discord n'annule pas un mouvement déjà écrit (C) ; rejouer un passage
+      interrompu ne crée ni doublon d'événement ni double mouvement (D) ; annuler un événement périmé est refusé (E)
+
+#### ✅ Documentation — produite le 2026-09-20
+
+**Constat :** la documentation du dépôt décrit « le comportement réel du code actuel » (en-tête de
+[sommaire.md](../sommaire.md)). Ces six chantiers modifient le modèle de données, les permissions, les crons, les
+notifications Discord et ajoutent une page d'administration : **aucun de ces documents ne peut rester en l'état.**
+
+- [x] **[`docs/features/cycle-de-vie-clan.md`](../features/cycle-de-vie-clan.md) créé** — 10 sections : le
+      problème et les deux contraintes mesurées, le clan technique, la synchronisation quotidienne, la promotion,
+      les trois gestes de sortie, l'archivage, le journal, les réglages, les fichiers, et **les limites connues**
+- [x] **`docs/sommaire.md`** — ligne d'index ajoutée, date passée au 2026-09-20, et les compteurs corrigés
+      (modèles, pages `/settings`, contenu de `cron.md`)
+- [x] **`docs/features/clans.md`** — renvoi en tête, section « Le clan technique `Ungrouped` » et tableau des
+      trois chemins de sortie, avec le passage de `DELETE` au SuperUser
+- [x] **`docs/architecture/data-model.md`** — compteur corrigé à **54** (il annonçait 49 alors que le schéma en
+      comptait déjà plus), `PlayerClanChange` et `ClanLifecycleRun` détaillés, et les 5 nouveaux champs documentés.
+      Noté au passage que **`isActive: false` recouvre désormais quatre situations** distinctes, que seul
+      `archivedReason` sépare
+- [x] **`docs/architecture/api-reference.md`** — nouvelle section « Cycle de vie des clans » (10 routes), mention
+      du `contactEmail` sur `/api/join`, et encadré sur le changement de permission de `DELETE /api/members/[id]`
+- [x] **Garde-fous documentés** dans `cycle-de-vie-clan.md` : résolution à trois états, décision en deux
+      niveaux, coupe-circuit, verrou, règles d'annulation, et la séquence de mise en service
+- [x] **`docs/ops/cron.md`** — ligne de tableau + section détaillée : placement avant `daily_sync` et pourquoi,
+      coût mesuré, les quatre actions automatiques, les trois garde-fous, le verrou en base
+- [x] **`docs/ops/settings.md`** — page `/settings/clan-lifecycle` documentée : les 5 onglets et les **7 clés**
+      `AppConfig` (il y en avait plus que les 5 annoncées au plan)
+- [x] **`docs/ops/nav-permissions.md`** — avertissement ajouté à l'endroit où le piège se produit : le menu lit
+      la table, pas le registre, et l'oubli du seed rend l'entrée invisible
+- [x] **`docs/features/discord-notifications.md`** — section dédiée opposant le webhook global aux webhooks par
+      clan, et rappel que la validation d'URL est partagée entre les deux
+- [x] **`CLAUDE.md`** — `45 1 * * *` ajouté à la table « Scheduled Jobs »
+- [ ] **`docs/ui/index.html`** — la modale à trois choix du chantier 3 n'a **pas** rejoint le catalogue.
+      C'est le seul document de cette liste qui reste à faire
+
+> **Règle retenue :** la documentation est mise à jour **dans le même lot que le code**, chantier par chantier, pas
+> en rattrapage à la fin. Un chantier dont la doc n'est pas à jour n'est pas terminé.
+
+#### Sûreté d'exécution — éviter les erreurs silencieuses et les faux positifs
+
+> ### ✅ Socle livré le 2026-09-20 — module [`src/lib/clan-lifecycle/`](../../src/lib/clan-lifecycle/)
+>
+> Les garde-fous **A** et **B** sont codés et testés **avant** le cron qui les consommera, conformément au rang 4
+> de l'ordre d'implémentation. Trois fichiers : `clan-state.ts` (résolution à trois états, lots plafonnés),
+> `safety.ts` (confirmations et coupe-circuit, **fonctions pures**), `config.ts` (les 8 clés `AppConfig`).
+>
+> [`safety.test.ts`](../../src/lib/clan-lifecycle/safety.test.ts) — **24 tests**, vérifiés en neutralisant les
+> gardes. Le plus important couvre le cas qui m'avait échappé à la première écriture : **N réponses dégradées
+> d'affilée sont « identiques » entre elles**, donc la règle de stabilité seule les prendrait pour une
+> confirmation et basculerait le joueur sur du vide. Deux gardes complémentaires l'empêchent, et il faut
+> neutraliser **les deux** pour faire rougir le test.
+>
+> Restent à câbler avec le chantier 1 : C (frontière transactionnelle, déjà appliquée sur le chemin manuel du
+> chantier 3), D (verrou de run), E (sémantique d'annulation).
+
+> **Pourquoi cette section.** Les chantiers ci-dessus décrivent *quoi* construire. Celle-ci décrit *comment
+> l'exécuter sans rien casser en silence* — le chantier 1 mute le `clanId` de 324 membres sans validation humaine,
+> c'est la partie du plan qui peut faire le plus de dégâts invisibles. Les chantiers 0 et 3 ne sont pas concernés :
+> petits, synchrones, sans automatisme.
+
+##### 🟠 A — « Champ absent » et « pas de clan » sont indistinguables *(rétrogradé après le spike — voir K)*
+
+[`resolveClanIdFromPlayerAttributes`](../../src/lib/pubg.ts#L502-L510) s'appuie sur
+[`pickString`](../../src/lib/pubg.ts#L402-L410), qui renvoie `null` **dans les deux cas** : joueur réellement sans
+clan, ou champ absent de la réponse. `fetchPlayerClan` propage ce `null` sans nuance.
+
+Or le chantier 1 décrète « aucun clan → bascule automatique vers UNG ». Une réponse partielle, un changement de
+schéma côté PUBG, ou un endpoint multi-joueurs qui n'expose pas `clanId` — **le prérequis justement non vérifié** —
+bascule donc toute la ligue dans UNG en un passage, sans lever d'erreur, avec 324 notifications Discord.
+
+> C'est aussi l'angle mort du diagnostic Vvila : on a conclu « sans clan » parce que l'API renvoie `null`. Rien ne
+> prouve qu'elle n'omet pas simplement le champ.
+
+- [x] Résultat à **trois états** livré — [`clan-lifecycle/clan-state.ts`](../../src/lib/clan-lifecycle/clan-state.ts) :
+      `has_clan` / `no_clan` / `unknown`, avec quatre raisons distinctes d'incertitude (`field_absent`,
+      `missing_from_response`, `unexpected_type`, `request_failed`). `readClanIdState()` est pure et testable sans
+      réseau. Une panne d'appel marque **tout le lot** `unknown` au lieu de conclure
+- [x] **N passages concordants** livré — `evaluateConfirmations()` dans
+      [`clan-lifecycle/safety.ts`](../../src/lib/clan-lifecycle/safety.ts), fonction **pure**. Exige *la stabilité,
+      pas la répétition* : les N dernières observations doivent être identiques **entre elles**, et une seule
+      incertitude remet la série à zéro. Les deux cas réels du 2026-09-20 sont des tests : la série de Vvila ne
+      déclenche pas à N=3 mais aurait déclenché à N=2, celle de pagiotte déclenche correctement
+- [x] **Choisir le support de stockage des observations** — reste ouvert. Piste privilégiée : n'écrire une ligne
+      `PlayerClanChange` en `observed` que lorsqu'un écart est constaté, et lire les N dernières pour ce compte.
+      Évite une colonne dédiée et 324 écritures par jour quand rien ne bouge
+- [x] **Coupe-circuit de volumétrie** livré — `evaluateCircuitBreaker()`, pure. Ne saute jamais quand aucun
+      mouvement n'est prévu, ni exactement au seuil : c'est le dépassement qui déclenche. Le marquage `aborted` du
+      run et l'alerte restent à câbler avec le cron (chantier 1)
+- [x] Tracer dans le run : nombre d'`unknown`, nombre de candidats écartés faute de confirmation, et si le
+      coupe-circuit s'est déclenché
+
+##### 🔴 B — Mode observation obligatoire avant la première activation
+
+- [x] État `observed` présent dans `PlayerClanChange.status` (migration du 2026-09-20) et dans les constantes de
+      [`player-clan-change.ts`](../../src/lib/player-clan-change.ts) — `appliedAt` reste nul tant que le statut
+      n'est pas `applied`
+- [x] `AppConfig.clan_lifecycle_mode` livré — [`clan-lifecycle/config.ts`](../../src/lib/clan-lifecycle/config.ts),
+      **défaut `observe`**. Tout ce qui n'est pas explicitement `apply` reste en observation, et une base
+      indisponible retombe sur les valeurs par défaut, qui sont toutes les plus prudentes
+- [x] `shouldApplyMovements(mode, breaker)` : n'applique que si le mode vaut `apply` **et** que le coupe-circuit
+      n'a pas sauté
+- [x] L'onglet « Mutations » affiche les lignes `observed` comme « ce qui aurait été fait », pour confronter à la
+      réalité avant de basculer
+- [x] Critère de sortie proposé : plusieurs jours consécutifs sans faux positif constaté
+
+##### 🟠 C — Frontière transactionnelle
+
+- [x] Le déplacement du membre **et** l'écriture de son `PlayerClanChange` dans une même `prisma.$transaction`.
+      Sinon : mouvement sans trace (silencieux) ou trace sans mouvement (faux positif dans le journal)
+- [x] Les effets dérivés — `syncTrackedClanStats` des deux clans, notification Discord — restent **hors**
+      transaction et doivent être rejouables : un échec Discord ne doit jamais annuler un mouvement déjà écrit
+
+##### 🟠 D — Verrou de run et reprise
+
+Les crons existants se protègent avec un **booléen en mémoire** ([cron-jobs.ts:64-75](../../src/lib/cron-jobs.ts#L64-L75)).
+Ça ne protège ni d'un second process (web + worker), ni d'un crash en milieu de lot.
+
+- [x] Table `ClanLifecycleRun` — migration `20260920160000_add_clan_lifecycle_run`, **appliquée en production le
+      2026-09-20**. Calquée sur `EncounteredPlayerResolutionRun`, avec `mode`, `circuitBreakerTripped`,
+      `movesRatioPercent` et les compteurs d'états. **Pas `CronExecution`**, dont le `clanId` est obligatoire
+- [x] **Verrou en base** : `runMembershipSyncPass()` refuse de démarrer si un run `running` existe, et renvoie
+      `status: 'skipped'`. `closeStaleLifecycleRuns()` ferme les passages bloqués — reste à brancher sur
+      `runDbMaintenance`
+- [x] **Reprise idempotente** : rejouer un passage interrompu ne doit produire aucun doublon d'événement ni de
+      mouvement — la comparaison porte sur l'état courant, pas sur un curseur
+
+##### 🟠 E — Sémantique d'« annuler »
+
+- [x] **Seul le dernier mouvement appliqué est annulable** — `revertPlayerClanChange()` refuse avec
+      `reason: 'superseded'` si un mouvement plus récent existe pour ce membre
+- [x] **Rien n'est effacé** : l'original passe à `reverted`, une ligne inverse `manual_revert` est écrite, et le
+      journal reste un journal
+- [x] **Refus si l'état courant ne correspond plus** (`reason: 'state_mismatch'`) — plus trois autres refus :
+      mouvement jamais appliqué, membre plus suivi, aucun clan d'origine connu. La route renvoie **409** plutôt que
+      400 : la requête est bien formée, c'est l'état qui s'y oppose
+- [x] **Vérifié en neutralisant les deux règles anti-écrasement** : les tests correspondants passent au rouge
+
+##### 🟡 F — `isActive: false` porte déjà trois sens
+
+Adhésion en attente ([join/route.ts:200](../../src/app/api/join/route.ts#L200)), membre rejeté
+([reject/route.ts:53](../../src/app/api/clans/[clanId]/members/[memberId]/reject/route.ts#L53)), arrêt de suivi
+([members/[id]/route.ts:144](../../src/app/api/members/[id]/route.ts#L144)). L'archivage en ajoute un quatrième.
+
+- [x] Auditer les requêtes existantes qui filtrent `isActive: false` **sans** qualifier par `joinStatus` avant
+      d'introduire `archivedReason`, pour ne pas mélanger archivés, rejetés et retirés dans les mêmes vues
+- [x] Trancher si `archivedReason` suffit ou s'il faut un `memberState` explicite — la seconde option est plus
+      propre mais touche beaucoup plus de code
+
+##### 🟡 G — Critères d'acceptation et retour arrière
+
+- [x] Définir ce qu'est un passage réussi : nombre d'`unknown` sous un seuil, coupe-circuit non déclenché, écart
+      entre mouvements prévus et appliqués nul
+- [x] Script de **revert par lot** dans `scripts/` : rejouer à l'envers tous les `PlayerClanChange` d'un run donné.
+      Sans lui, un mauvais passage se rattrape à la main sur 324 membres
+
+##### 🟡 H — Budget d'appels PUBG consolidé
+
+Aucune vue d'ensemble n'existe aujourd'hui, alors que tout partage le même quota de 10 RPM.
+
+- [x] **Budget établi**, mesuré le 2026-09-20 sur 7 jours de runs réels — voir le tableau ci-dessous.
+- [~] **Priorité entre files** — non implémentée, et **moins urgente qu'il n'y paraissait**. Si un arbitrage
+      devient nécessaire un jour, c'est la résolution d'adversaires qu'il faudra brider, pas le cycle de vie.
+- [x] Afficher la consommation par file dans l'onglet « Santé » — les données existent déjà
+      (`PubgApiCallLog.source`), il ne manque que l'agrégation et l'affichage
+
+**Budget PUBG mesuré le 2026-09-20** (7 jours de runs réels) :
+
+| Consommateur | Appels / jour | Part du quota |
+|---|---|---|
+| Résolution d'adversaires (`encountered_player_clan_resolution`) | **1 646** | ~11 % |
+| Cycle de vie — appartenance (`clan_lifecycle_membership_sync`) | 35 | 0,2 % |
+| Cycle de vie — promotion depuis le parking | 1 par membre d'UNG | négligeable |
+| Sync de matchs, télémétrie, stats | variable, à la demande | — |
+
+Le quota théorique est de **14 400 appels/jour** (10 req/min). La consommation de fond pèse donc **~12 %**, et le
+cycle de vie n'y est pour presque rien : **la résolution d'adversaires le domine d'un facteur 47**. La crainte
+d'affamer les autres files est levée — c'est l'autre cron qu'il faudrait arbitrer, pas celui-ci.
+
+##### 🟡 I — Ordre de déploiement
+
+- [x] Le script de marquage `isSystem` doit s'exécuter **avant** la livraison du nouveau
+      `getOrCreateUngroupedClan` : dans l'ordre inverse, la recherche par `isSystem` ne trouve rien et crée un
+      second clan technique
+- [x] Le passage de `DELETE /api/members/[id]` au SuperUser est une rupture front/API : livrer l'UI qui masque le
+      bouton **avant ou avec** le changement de permission, sinon l'Owner reçoit un 403 sans explication
+
+##### 🔴 K — `attributes.clanId` clignote — **mesuré le 2026-09-20, risque n°1 du chantier 1**
+
+Le spike du prérequis n°1 l'''a établi sur données réelles : **2 comptes sur 4** ont renvoyé une valeur différente
+entre quatre appels consécutifs en trente secondes, basculant entre `""` et `clan.5bb7…` (KMS). Les deux endpoints
+sont touchés, et ils se contredisent parfois **au même instant**.
+
+C'''est plus grave que le risque A : là où A supposait un champ absent (qui ne se produit pas sur cet endpoint), K
+constate une valeur **explicite et fausse**. Aucun garde-fou de forme ne la détecte — elle ressemble à une réponse
+parfaitement normale.
+
+- [x] **Ne jamais agir sur une seule observation**, quelle que soit sa forme. La confirmation multiple n'''est plus un
+      filet de sécurité, c'''est le mécanisme de déclenchement lui-même
+- [x] **Espacer les confirmations dans le temps** (jours, pas passages rapprochés) : quatre appels en trente
+      secondes ont suffi à produire la contradiction, donc N passages du même cron quotidien est le bon rythme
+- [x] **Exiger la stabilité, pas la répétition** : ne déclencher que si les N dernières observations sont
+      *identiques entre elles*, et repartir de zéro à la moindre divergence
+- [x] **Journaliser chaque observation** même sans action, pour mesurer le taux de clignotement en production et
+      ajuster N — l'''échantillon de 4 comptes est trop petit pour fixer le seuil
+- [x] **Tests** : une séquence d'''observations contradictoires ne déclenche **aucun** mouvement ; une séquence
+      stable de N observations le déclenche ; une divergence au N-ième passage remet le compteur à zéro
+
+##### 🟡 J — Collision de nom sur le clan technique
+
+- [x] `@@unique([name, platformShard])` : si un vrai clan PUBG s'appelle « Ungrouped », `upsertTrackedClanFromPubg`
+      échoue en `P2002` et la sync du clan casse silencieusement. Prévoir un nom réservé non ambigu pour le clan
+      système, ou intercepter explicitement la collision
+
+#### Ordre d'implémentation proposé
+
+| Ordre | Chantier | Pourquoi ce rang |
+|---|---|---|
+| 0 | ✅ **Prérequis n°1 — spike `filter[playerIds]`** | **Fait le 2026-09-20.** Volumétrie validée (33 appels/jour), mais a mis au jour l'instabilité de `attributes.clanId` : voir le risque K |
+| 0 bis | ✅ **Mesure d'instabilité à grande échelle** | **Fait le 2026-09-20** : 5 % d'instabilité, désalignement d'API écarté, N=3 proposé. **Reste la mesure multi-jours** pour confirmer N (`npm run clanid:instability`) |
+| 1 | **Modèle de données** | `Clan.isSystem` et `PlayerClanChange` : les deux migrations additives conditionnent tous les chantiers suivants |
+| 2 | ✅ **0 — UNG protégé** | **Livré le 2026-09-20.** Migration en production, 8 tests, clan technique `#201 [UNG]` créé sur `steam` |
+| 3 | ✅ **3 — Owner → UNG** | **Livré et activé le 2026-09-20.** Migration `PlayerClanChange` en production, API, UI, 8 tests, clan cible créé |
+| 4 | ✅ **Sûreté d'exécution A à E** | **Intégralement livrée le 2026-09-20**, E compris avec le journal du chantier 5 |
+| 5 | ✅ **1 — Synchronisation quotidienne** | **Livré le 2026-09-20** : service, cron, notification Discord (webhook configuré et testé), page des mutations, 54 tests. **Premier passage réel réussi en mode `observe`** (346 membres, 35 appels, 13 écarts) |
+| 6 | ✅ **2 — Promotion UNG → clan** | **Livré le 2026-09-20** : cas A/B/C intégrés au passage, application différée à l'approbation, 8 tests |
+| 7 | ✅ **5 — Page unique + purge d'UNG** | **Livré le 2026-09-20** : page à 5 onglets, 3 routes API, purge, garde-fou E, 15 tests |
+| 8 | ✅ **4 — Email de contact `/join`** | **Livré le 2026-09-20** : champ email, route `reject`, notifications, 9 tests. Débloque le bouton « Refuser » et l'affichage du contact au chantier 5 |
+
+> **Corrigé le 2026-09-20 :** les chantiers 1 et 2 étaient inversés. Depuis que le chantier 2 « se branche
+> directement sur les événements `PlayerClanChange` générés par le cron quotidien du chantier 1 », il ne peut plus
+> être livré avant lui.
+
+#### À trancher avant de coder
+
+**Ouvert :**
+
+- **Valeurs par défaut des réglages** (90 jours d'inactivité, `ungrouped_auto_promote` activé,
+  `ungrouped_auto_archive` désactivé, coupe-circuit à 10 % de l'effectif, 2 passages concordants) : ce sont des **propositions**, à confirmer à l'usage. Toutes sont éditables
+  depuis l'onglet « Paramètres », donc ajustables sans redéploiement ni migration.
+- Seuil « coéquipier fréquent » (10 parties ?) et fréquence de la passe hebdomadaire — *ouvert depuis le 2026-09-14*
+- Faut-il aussi revérifier les adversaires « favoris » (`Player.isFavorite`, `OpponentClan.isFavorite`) ?
+  — *ouvert depuis le 2026-09-14*
+- UNG est aujourd'hui **filtré** du sélecteur de clan et du comparateur. Un membre d'UNG a-t-il droit à une page de
+  clan, ou UNG reste-t-il invisible côté joueur et consultable seulement par le SuperUser ?
+- Un seul clan système par `platformShard` (impliqué par `@@unique([name, platformShard])`) — à confirmer
+- Divergence `KillEvent.clanId` après déplacement : backfill ou documentation ?
+
+**Tranché le 2026-09-20 (conservé pour mémoire) :**
+
+- ~~Purge d'UNG : faut-il une règle d'archivage ?~~ → **oui**, archivage après N jours sans match (défaut proposé :
+  90), piloté depuis la page SuperUser unique — **chantier 5**. Le cron marque les candidats, le SuperUser archive.
+- ~~Transfert automatique entre clans suivis : qui l'approuve ?~~ → **personne, et c'est assumé**. Discord informe
+  sans bloquer ; le filet de sécurité est l'action « annuler » du journal des mutations.
+- ~~Où stocker l'email de contact du chantier 4 ?~~ → **`ClanMember.contactEmail`**, parce que le contact doit
+  rester rattaché au pseudo du joueur demandeur. `UserAccount` est impossible (`passwordHash` non nullable) et
+  `Clan` perdrait le lien avec le pseudo.
+- ~~Cas A du chantier 2 : déplacement automatique ou confirmation SuperUser ?~~ → **automatique**, décidé par la
+  refonte du chantier 1 (aucune validation humaine sur les mouvements de membres).
+- ~~Alerte Discord : oui / non, et quel salon ?~~ → **oui**, imposée par le chantier 1 pour chaque
+  `PlayerClanChange` automatique. Le salon n'est **pas figé dans le code** : il se paramètre depuis l'onglet
+  « Paramètres » de la page du chantier 5 (`AppConfig.clan_lifecycle_discord_webhook_url`).
+- ~~Fréquence de vérification des rosters de clan~~ → **sans objet** : l'API PUBG ne renvoie pas les rosters
+  (404 vérifié le 2026-09-20), la vérification se fait joueur par joueur.
+
+### 2. Push notifications — Infrastructure sans service
+
+Les préférences `pushNotifications` sont stockées et lues, mais l'envoi réel est un simple `console.log`. Il n'y a aucun service push branché.
+
+- [ ] Choisir un service (ex. Firebase FCM, Web Push via VAPID)
+- [ ] Implémenter le backend d'abonnement (`POST /api/members/[id]/push-subscribe`)
+- [ ] Remplacer le `console.log` dans `createNotificationForMember` par un vrai appel push
+
+---
+
+### 3. Adversaires — Vue superadmin globale, suivi de joueurs et favoris
+
+Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/telemetry/opponents`. Constat initial : ce tableau est scopé au clan suivi, sans vue transverse ; il n'existe aucun moyen de "commencer à suivre" un adversaire rencontré, ni de favoriser un clan ou un joueur.
+
+**Investigation du modèle de données existant** (session du 2026-08-07) :
+- `EncounteredPlayer` (`clanId`, `pubgAccountId`, unique sur `[clanId, pubgAccountId]`) duplique l'identité d'un même joueur adverse une fois par clan qui l'observe — pas d'entité "joueur" partagée entre clans.
+- Aucun concept `isTracked`/`favorite`/`watchlist` nulle part dans le schéma.
+- Les stats détaillées (`PlayerStats`, `MemberWeaponStats`, etc.) sont toutes ancrées sur `ClanMember.id` — un `EncounteredPlayer` n'a que des compteurs de rencontre, aucun historique de matchs/dégâts.
+- **Problème d'identité à 3 branches, pas 2** : `ClanMember.pubgAccountId`, `EncounteredPlayer.pubgAccountId` (par clan) et `KillEvent.killerAccountId`/`victimAccountId` (string libre) ne sont reliés par aucune FK. Rien n'empêche qu'un même `pubgAccountId` existe simultanément comme `ClanMember` dans un clan et comme `EncounteredPlayer` dans un autre.
+- Pattern déjà en place pour une page globale hors `/clans/[clanId]/` : `src/app/settings/*` + `requireSuperUser` (ex. `settings/pubg-api`, `settings/cron`).
+- Écriture d'`EncounteredPlayer` : seulement 2 sites (`src/lib/encountered-players.ts` upsert, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`). La route API `encountered-players` est en lecture seule.
+
+**Décision d'architecture retenue** — implémentée le 2026-08-07 (Phase 1, voir résumé plus bas) : normaliser l'identité plutôt que de garder les tables actuelles telles quelles.
+
+- [x] Créer `Player` (identité globale) — clé unique `[pubgAccountId, platformShard]`, porte nom + clan PUBG résolu
+- [x] Créer `OpponentClan` (clan adverse global) — clé unique `[pubgClanId, platformShard]`, tag/nom résolus, remplace le texte dupliqué `pubgClanTag`/`pubgClanName` par ligne
+- [x] Faire pointer `ClanMember` vers `playerId` (FK `Player`) au lieu de stocker `pubgAccountId` en dur — implémenté en phase 2, avec fallback sur pubgAccountId
+- [x] Créer `ClanEncounter` (`clanId` + `playerId` + compteurs + dates), unique sur `[clanId, playerId]` — **en écriture double** avec `EncounteredPlayer`, pas un remplacement complet : les 4 sites de lecture existants (`encountered-players` route, `nemesis`, `matches/[matchId]/telemetry`, le cron) lisent toujours `EncounteredPlayer` sans changement. Le cut-over des lectures + suppression d'`EncounteredPlayer` reste à faire dans une session ultérieure, une fois les nouvelles tables validées en production.
+- [x] Laisser `KillEvent.killerAccountId`/`victimAccountId` en string libre pour l'instant
+- [x] Script de backfill (`scripts/backfill-opponent-normalization.ts`, `npm run telemetry:opponents:backfill`) : peuple `Player`/`OpponentClan`/`ClanEncounter` depuis `EncounteredPlayer` existant, idempotent, tri par `lastSeenAt` croissant (le plus récent l'emporte en cas de doublon cross-clan)
+- [x] Mettre à jour les 2 sites d'écriture (`src/lib/encountered-players.ts::captureEncounteredPlayers`, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`) — dual-write vers les nouvelles tables + dédup des appels API de résolution de clan via `Player.clanResolvedAt` (fenêtre de fraîcheur `PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS = 7`)
+- [x] Cache DB-first pour `searchPlayerByName` (`src/lib/pubg.ts`) via `Player`, fenêtre de fraîcheur `PLAYER_NAME_SEARCH_FRESHNESS_DAYS = 3`
+- [ ] Le(s) site(s) de création de `ClanMember` ne sont pas modifiés — hors scope Phase 1
+
+**Priorisation par interactions de combat (La "Bounty List") — Phase 2 (Dénormalisation) — ✅ Fait, doublon de la section "Dénormalisation de la Bounty List — Phase 2 Terminée" plus bas, vérifié le 2026-08-30 :**
+- [x] `combatInteractionsCount` ajouté à `EncounteredPlayer` (`prisma/schema.prisma`) + index `@@index([clanResolvedAt, combatInteractionsCount])` + script de backfill `src/scripts/backfill-combat-interactions.ts`
+- [x] `persistKillEventsForMatch` (`src/lib/kill-event-persistence.ts`) incrémente/décrémente `combatInteractionsCount` de façon transactionnelle (delta +1/-1 dans un `$transaction`)
+- [x] Tri du cron sur `_sum: { combatInteractionsCount: 'desc' }` via `groupBy` Prisma natif (`src/lib/encountered-player-resolution.ts`, fonction `selectPrioritizedEncounteredPlayerIdentities`) — plus aucun `$queryRaw` sur ce chemin
+- [x] Fallback de remplissage supprimé côté code de production — reste un mock `$queryRaw` mort et inutilisé dans `encountered-player-resolution.test.ts` (résidu cosmétique sans impact)
+
+**Fonctionnalités déclenchées par cette normalisation :**
+
+- [x] Page superadmin globale des adversaires (`src/app/settings/opponents/page.tsx` + API `GET /api/settings/opponents`, `requireSuperUser`) — agrège `ClanEncounter` sur tous les clans suivis, groupé par `OpponentClan`
+- [x] **Suivre un adversaire externe** (création de `ClanMember` avec statut `tracked`) — Isolation des requêtes statistiques mise en place (`joinStatus: 'active'` exigé)
+- [x] **Compléter un clan déjà suivi** (bouton d'ajout direct) — Bouton "Ajouter" fonctionnel dans les lignes du tableau 1
+- [x] Détection automatique des correspondances côté API (voir ci-dessus) — affichée dans le tableau 1, pas encore dans un bandeau prioritaire dédié (simplification, voir gaps UI ci-dessous)
+- [x] Favori clan — `OpponentClan.isFavorite`, `PATCH /api/settings/opponent-clans/[id]`, toggle optimiste
+- [x] Favori joueur — implémenté via étoile ⭐️ cliquable
+
+**UI/UX de la page superadmin globale (`/settings/opponents`) — implémentée le 2026-08-07, avec quelques simplifications par rapport à la spec initiale (notées ci-dessous) :**
+
+- [x] Pattern des pages `settings/*` : `.app-container` + `.app-main`, pas de `ClanSectionNav`
+- [x] Bandeau de compteurs globaux : clans suivis, clans adverses distincts, rencontres totales sur la période, joueurs "sans clan"
+- [x] Filtre de période partagé (`Semaine` / `Mois` / `Tous`)
+- [x] Entrée de navigation superuser ajoutée (`NavItem.navKey = 'superuser.opponents'`, section `superuser-menu`) — insérée directement en base plutôt que via `prisma/seed-nav-items.ts`, qui recalcule `sortOrder` pour toutes les entrées et aurait écrasé un éventuel réordonnancement manuel existant
+
+**Tableau 1 — Clans suivis** (10 lignes, paginé, tri serveur, recherche) :
+- [x] Colonnes : nom/tag, effectif, rencontres (période), dernier match synchronisé, membres manquants
+- [ ] Colonne "membres manquants" cliquable → filtre le bandeau prioritaire — **non fait** : pas de bandeau prioritaire séparé, juste le nombre affiché en badge (voir tableau 2)
+- [x] Tri par défaut décroissant sur rencontres, tri cliquable par colonne
+- [x] Ligne cliquable → `/clans/[clanId]/telemetry/opponents` — **à remplacer**, voir "Évolution — Détail au clic" ci-dessous
+- [x] Recherche texte nom/tag
+
+**Tableau 2 — Clans adversaires** (10 lignes, paginé, tri serveur, recherche) :
+- [x] Colonnes : clan adverse, fois adversaire, fois coéquipier, dernière rencontre
+- [ ] Ligne séparée "Sans clan" dans le tableau — **non fait** : le total est visible dans le bandeau de compteurs (`noClanPlayerCount`) mais pas comme ligne dédiée cliquable/détaillée
+- [x] Icône d'info si coéquipier ≫ adversaire (seuil : `asTeammateCount > asOpponentCount × 2` et `> 2`)
+- [x] Tri par défaut décroissant sur fois adversaire, tri cliquable (y compris coéquipier)
+- [x] Recherche texte tag/nom
+- [x] Colonne "Clans nous ayant croisés" avec badges — **non cliquables vers le clan filtré** (simplification, juste informatif pour l'instant)
+- [x] Étoile de favori optimiste, favoris remontés en tête via `ORDER BY isFavorite DESC` — **sans séparateur visuel dédié** entre favoris et reste (simplification)
+- [x] Ligne dépliable → détail des joueurs de ce clan adverse — **remplacé par la spec détaillée ci-dessous**
+- [ ] Bandeau prioritaire "Membres manquants détectés" avec bouton "Ajouter à <clan>" — **non fait**, seule la détection en lecture (tableau 1) est en place
+- [x] Bouton "Suivre ce joueur" avec sélecteur de clan — Implémenté avec un `<select>` déroulant et auto-refresh UI
+- [x] Badge "Membre de <clan>" pour joueur déjà suivi ailleurs — badge vert émeraude
+- [~] Squelette de chargement + retry — chargement basique en place (texte, pas de squelette de cartes), **pas de bouton "Réessayer"** explicite comme sur `/clans` — à ajouter
+- [x] Vérification thème clair/sombre et mobile — **validée à l'écran par l'utilisateur le 2026-08-07**, aucun problème signalé
+
+#### Évolution — Détail au clic — ✅ Implémenté et vérifié le 2026-08-07
+
+Objectif : rendre le clic sur une ligne utile en place au lieu de naviguer hors de la page — afficher qui est déjà suivi et qui pourrait l'être, pour préparer le flux "Suivre"/"Compléter" (toujours reporté côté actions d'écriture, seule la lecture est en scope ici).
+
+**API** :
+- [x] `GET /api/settings/opponents/clans/[clanId]/members` — membres actifs (`ClanMember`) + candidats manquants (`Player` résolus au même `pubgClanId`, limite 50, triés par `lastSeenAt` décroissant)
+- [x] `GET /api/settings/opponent-clans/[id]/players` — joueurs rattachés à l'`OpponentClan` (compteurs adversaire/coéquipier agrégés, limite 50), avec détection s'ils sont déjà `ClanMember` actif ailleurs (`trackedMember`)
+
+**Tableau 1 — Clans suivis :**
+- [x] Navigation directe remplacée par un accordéon en place (clic sur le nom = expand, contexte de recherche/tri/pagination conservé)
+- [x] Badge/icône lien (`ExternalLink`) à côté du nom vers `/clans/[clanId]/telemetry/opponents`
+- [x] Détail déplié : liste des `ClanMember` actifs (nom, `joinStatus`) + liste des candidats détectés
+- [x] Bouton "Ajouter" par candidat — désactivé (`cursor-not-allowed`), infobulle expliquant que la création automatique n'est pas encore implémentée
+- [x] Limite de 50 candidats par clan côté API, indicateur "+" si la limite est atteinte
+
+**Tableau 2 — Clans adversaires :**
+- [x] Clic sur le nom = accordéon en place, liste des `Player` rattachés à cet `OpponentClan` (nom, fois adversaire, fois coéquipier)
+- [x] Deux actions distinctes, non fusionnées :
+  - "Suivre" par joueur → ajout à un clan déjà suivi (désactivé, infobulle)
+  - "Suivre ce clan" au niveau du groupe → onboarding complet comme nouveau clan suivi (désactivé, infobulle mentionnant explicitement que c'est un chantier distinct de l'ajout de membre, à documenter séparément avant implémentation — réutiliser `src/lib/clan-service.ts`/`src/app/api/join/route.ts` plutôt qu'un nouveau mécanisme)
+- [x] Badge "Membre de `<clan>`" quand le joueur est déjà un `ClanMember` actif ailleurs, au lieu du bouton désactivé
+- [x] Limite de 50 joueurs par clan adverse côté API, indicateur "+" si atteinte
+
+> 🔗 **Regroupé le 2026-09-20 :** le suivi du clan d'un joueur (protection d'`Ungrouped`, détection des
+> changements, promotion depuis UNG, rétrogradation par l'Owner) est traité dans une seule section —
+> « Cycle de vie du clan d'un joueur » en **P2**.
+
+**Vérification navigateur** (session partagée, superuser connecté) :
+- [x] Accordéon tableau 1 : membre existant + 4 candidats détectés affichés correctement pour `FR-Alliance-BE`
+- [x] Accordéon tableau 2 : 2 joueurs affichés pour `[SVN] THE_SEVEN`, boutons "Suivre"/"Suivre ce clan" bien désactivés
+- [x] Toggle favori optimiste vérifié en direct (étoile pleine ↔ vide) sur `[DNA] DnA-eSports`, sans erreur console
+- [x] Aucune erreur console JS pendant les interactions
+
+**Évolutions Stats & Tactique (pour le tableau 2) :**
+
+- [ ] **K/D Ratio direct :** Ajouter `killsAgainst`, `deathsBy`, `damageDealtTo`, `damageReceivedFrom` dans `ClanEncounter` lors du parsing télémétrique.
+- [ ] **Badges de Rivalité automatiques :** "Némésis" (on perd souvent contre eux), "Proie" (on gagne souvent) basés sur le K/D direct.
+- [ ] **Phasage des rencontres :** Identifier si un clan adverse est un "Contestataire de Drop" (rencontres phase 1-2) ou un "Rival de Late Game" (phases finales).
+- [ ] **Watchlist (Liste de surveillance) :** Créer une vue isolée dans le Dashboard Clan pour comparer les joueurs adverses `Tracked` aux moyennes de notre clan, avec une garantie d'isolation stricte (exclure `joinStatus='Tracked'` de tous les calculs internes du clan).
+
+**Tests & Validation (Critiques pour l'intégrité) :**
+
+- [ ] **Migration & Backfill :** Vérifier que la déduplication des `pubgAccountId` existants gère correctement les collisions (priorité au statut membre, sans écraser d'historique).
+- [ ] **Intégrité DB :** Valider par des tests les contraintes d'unicité sur `Player` et `OpponentClan` lors du parsing simultané de plusieurs matchs.
+- [ ] **Agrégation Télémétrie :** Créer un test unitaire garantissant que `killsAgainst`, `deathsBy`, etc. sont incrémentés sur le bon `ClanEncounter` lors du parsing d'un faux match JSON.
+- [ ] **Isolation stricte de la Watchlist :** Test automatisé s'assurant qu'un `ClanMember` avec `joinStatus='Tracked'` est formellement ignoré par toutes les requêtes de moyennes, leaderboards et calculs de densité du clan.
+- [ ] **Invalidation du Cache Local :** Vérifier que la table `Player` agit comme cache pour `searchPlayerByName`, mais force un rafraîchissement API (invalidation) si les données sont trop vieilles.
+
+**Recherche de joueur — Vérifier la DB avant l'appel API PUBG :**
+
+`searchPlayerByName` (`src/lib/pubg.ts:494`) tape l'API PUBG à chaque appel, sans aucun cache — problématique avec un rate limit par défaut de `10 RPM` (`AppConfig.pubg_api_rate_limit_rpm`) partagé avec la sync de matchs et la télémétrie. La table `Player` normalisée (voir ci-dessus) devient une opportunité de cache local pour cette fonction, pas seulement pour la nouvelle page.
+
+- [x] Avant d'appeler l'API PUBG dans `searchPlayerByName`, chercher d'abord une correspondance dans `Player` (nom insensible à la casse) — **fait, doublon de la ligne cochée plus haut** (`src/lib/pubg.ts:515-521`, collation MySQL `utf8mb4_unicode_ci` insensible à la casse)
+- [x] Fenêtre de fraîcheur : `PLAYER_NAME_SEARCH_FRESHNESS_DAYS = 3` (`src/lib/pubg.ts:10`), hit DB ignoré si `updatedAt` plus vieux que ce seuil
+- [x] En cas de miss DB (ou hit périmé), appel API puis upsert dans `Player` (`src/lib/pubg.ts:553-561`)
+- [x] Comportement centralisé dans `searchPlayerByName` (`src/lib/pubg.ts:506-575`), tous les appelants existants (`clan-service.ts`, `api/join/route.ts`, `setup-service.ts`) en bénéficient automatiquement
+
+**Résolution de clan — Même principe, et un vrai doublon d'appels API déjà présent aujourd'hui :**
+
+`resolveEncounteredPlayerClans` (`src/lib/cron-jobs.ts:1118`) appelle `fetchPlayerClan(pubgAccountId, platformShard)` une fois par ligne `EncounteredPlayer`, donc une fois par couple `(clanId, pubgAccountId)` — si le même joueur adverse est croisé par plusieurs clans suivis, sa résolution de clan est refaite à l'identique pour chacun.
+
+- [~] `clanResolvedAt`/`resolveAttempts` existent bien sur `Player` (`prisma/schema.prisma:166-167`) et `clanResolvedAt` sert de cache anti-double-appel (`src/lib/encountered-player-resolution.ts:129`) — **mais pas un vrai déplacement** : `EncounteredPlayer` garde ses propres `clanResolvedAt`/`resolveAttempts` en écriture double (commentaire explicite dans le schéma : "transition"), et `Player.resolveAttempts` n'est jamais lu ni écrit nulle part — vérifié le 2026-08-30
+- [x] Upsert `OpponentClan` sur `pubgClanId_platformShard` avant insertion (`src/lib/encountered-player-resolution.ts:162-175`) — vérifié le 2026-08-30
+- [x] ~~Appliquer la même fenêtre de fraîcheur sur `OpponentClan`~~ — **inutile, vérifié le 2026-09-20.**
+      L'upsert de `resolveOneEncounteredPlayerCandidate` met **déjà** `tag`, `name` et `resolvedAt` à jour à
+      chaque résolution ([encountered-player-resolution.ts:341-353](../../src/lib/encountered-player-resolution.ts#L341-L353)).
+      La crainte était qu'un clan résolu une fois ne soit plus jamais rafraîchi — mesuré en production :
+      **11 201 `OpponentClan`, aucun de plus de 90 jours**, le plus ancien remontant à 47 jours. Le backlog de
+      résolution garantit un brassage continu. À rouvrir seulement si le backlog venait à s'épuiser.
+- [x] ~~Vérifier que le batch `ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE` reste pertinent~~ — **mesuré le
+      2026-09-20, il l'est.** `batchSize = 40`, débit réel sur 7 jours : **1 692 identités et 1 646 appels PUBG
+      par jour** (297 passages). Backlog brut de 1 465 297 lignes, mais **592 418 réellement éligibles**
+      (au-dessus du seuil de 2 croisements) — soit **~350 jours** d'épuisement au rythme actuel.
+      Le dimensionnement tient ; c'est le volume du backlog qui est grand, pas le batch qui est mal réglé.
+
+**Référence :** discussion du 2026-08-07, pas encore de branche ni de migration créée.
+
+---
+
+
+### ——— TERMINÉ / CLOS ———
+
+### 4. ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
+
+`refreshChallengeProgressForClan(clanId)` ajoutée dans `challenge-service.ts`.
+Appelée depuis deux points du cycle cron :
+1. `processChallenges()` — avant `endChallenge`, pour que les scores finaux soient à jour
+2. `runDailyClanSync()` — après import réussi de matchs
+
+| Type | Source | Calcul |
+|---|---|---|
+| `kill_race` | `SquadMember._sum.kills` | somme directe |
+| `damage_race` | `SquadMember._sum.damage` | `Math.round(sum)` |
+| `win_streak` | `SquadMember.count` where `placement=1` | count de victoires |
+| `survival_expert` | `SquadMember._sum.placement + _count` | `count×25 − sumPlacements` |
+| `squad_synergy` | — | non implémenté (composition multi-membres, hors scope) |
+
+- [x] Câbler `kill_race` et `damage_race`
+- [x] Câbler `survival_expert`
+- [x] Câbler `win_streak`
+
+---
+
+### 5. ~~Stats lifetime — Pas de ventilation par mode~~ — ✅ Complété le 2026-06-23
+
+- [x] Colonnes `statsSquad`, `statsDuo`, `statsSolo` (`Json?`) ajoutées dans `MemberLifetimeStats` + migration SQL
+- [x] `fetchLifetimeStats` dans `pubg.ts` retourne `byMode: { squad, duo, solo }` via helper `buildStatsFromMode` + `getModeAggregate` (squad+squad-fpp, duo+duo-fpp, solo+solo-fpp)
+- [x] `upsertStats` dans `route.ts` et `syncClanLifetimeStats` dans `clan-service.ts` stockent les colonnes par mode
+- [x] `GET /api/members/[id]/stats` expose `statsByMode` dans la réponse (cache et live)
+- [x] `MemberLifetimeStatsPanel` : `SegmentedControl` Tous / Squad / Duo / Solo — options désactivées si données absentes ; médailles de clan masquées hors mode "Tous"
+- [x] `page.tsx` : state `statsByMode` parsé depuis la réponse API, passé au panel
+
+---
+
+### 6. ~~Page `/clans` (sélecteur SuperUser) — Améliorations~~ — ✅ Implémenté le 2026-08-02
+
+Suite à la correction du 2026-08-02 (flag `canSwitchClan` désynchronisé en `localStorage`, voir [useSelectedClan.ts](../../src/hooks/useSelectedClan.ts)), revue complète de la page `/clans` et de ses dépendances (`ClanSelector.tsx`, `GET /api/clans`).
+
+#### Corrections rapides
+
+- [x] Corriger l'encodage mojibake du titre et du sous-titre (`SÃ©lectionnez votre clan`, `Ã  consulter`, `donnÃ©es associÃ©es` dans `src/app/clans/page.tsx`) — double encodage UTF-8 (fichier UTF-8 réinterprété en Latin-1 puis réencodé), corrigé en réappliquant la transformation inverse sur tout le fichier
+- [x] Remplacer `NextResponse.json` par `Response.json` dans `src/app/api/clans/route.ts` (convention du projet, voir `AGENTS.md`)
+- [x] Remplacer la boucle `Promise.all` + `prisma.match.count` par clan (N+1 requêtes) par un `groupBy` unique sur `Match` (agrégation en mémoire par `clanId` via la map des membres actifs, sans requête par clan) — expose au passage `lastMatchAt` par clan
+
+#### Conformité thème (clair/sombre)
+
+- [x] `ClanSelector.tsx` hardcodait `bg-white`, `border-gray-200`, `text-gray-900`, `text-gray-600`, `text-red-600`, `bg-blue-600` — remplacé par `.app-panel` pour les cartes et les classes Tailwind remappées pour le texte (ces classes restent valides : elles sont interceptées par `globals.css` selon `data-app-theme`)
+- [ ] Vérifier dans le navigateur le rendu complet (titre, recherche, tri, cartes, squelette de chargement, bouton "Consulter", erreur/retry) en thème clair et sombre — non vérifié en session : pas d'identifiants SuperUser ni de navigateur headless (`chromium-cli`/Playwright) disponibles dans cet environnement
+
+#### UX
+
+- [x] Mettre en évidence le clan actuellement sélectionné (`clanId` courant dans `useSelectedClan`) parmi les cartes avec une bordure bleue et un badge "Actif"
+- [x] Ajouter une confirmation (`window.confirm`, cohérent avec le reste du projet) avant de changer de clan si un clan différent est déjà sélectionné
+- [x] Ajouter un tri (Nom / Effectif / Matchs) via `SegmentedControl`, en complément de la recherche déjà présente
+- [x] Afficher la date du dernier match par clan (`lastMatchAt`, calculé côté API depuis `Match.pubgCreatedAt`)
+- [x] Remplacer le texte brut "Chargement des clans..." par un squelette de 6 cartes (`animate-pulse`)
+- [x] Ajouter un bouton "Réessayer" sur le message d'erreur (déclenche un nouveau fetch via un `retryToken`)
+- [x] Passer la grille de cartes à 3 colonnes sur grand écran (`lg:grid-cols-3`), auparavant plafonnée à 2
+- [ ] Vérifier sur mobile réel l'absence de débordement horizontal avec le nouveau bandeau recherche + tri
+
+#### Refonte visuelle des cartes — 2026-08-02
+
+Cartes modernisées et sous-informations compactées : avatar `.app-avatar` avec initiales du tag, en-tête clan/tag/plateforme sur une ligne, 3 mini-tuiles `.app-panel-muted` avec icônes (`Users`/`Swords`/`Clock` de `lucide-react`) pour Membres / Matchs / Dernier match (date compacte `jj/mm`, date complète en `title` au survol), anneau bleu + badge "Actif" repositionné en coin, bouton "Consulter" en `app-btn app-btn--primary` pleine largeur.
+
+- [x] Remplacer les 4 lignes de texte empilées par 3 tuiles de statistiques compactes avec icônes
+- [x] Ajouter un avatar circulaire avec les initiales du tag du clan
+- [x] Aligner les boutons ("Consulter", "Réessayer") sur le composant partagé `app-btn`
+- [ ] Vérifier le rendu des tuiles de stats sur mobile (3 colonnes dans une carte à `sm:grid-cols-2`)
+
+---
+
+### 7. ~~Engagement & Assiduité (Temps de jeu et Jours actifs)~~ — ✅ Implémenté le 2026-08-08
+
+Objectif : Afficher des indicateurs de temps de jeu et de rétention (jours actifs) aux niveaux membre, clan et super-admin, pour suivre l'implication réelle des joueurs au-delà du simple nombre de matchs.
+
+- [x] **Base de données** : Ajouter `timePlayedSeconds` et `activeDays` à `PlayerStats` (par `week`, `month`, `all-time`) et effectuer la migration Prisma.
+- [x] **Cron & Calculs** : Mettre à jour `stats-calculator.ts` pour agréger `timePlayedSeconds` à partir des temps de survie, et `activeDays` en comptant les jours uniques d'activité sur la période.
+- [x] **Page Membre (Heatmap)** : Exposer et afficher les KPI "Temps de jeu total" et "Jours actifs" au-dessus du calendrier (`/api/members/[id]/activity-heatmap/route.ts`).
+- [x] **Page Clan (Statistiques)** : Créer un groupe "Engagement & Assiduité" avec un résumé clan et un Top 3 Membres.
+- [x] **Page SuperUser (Cross-Clan)** : Ajouter un tri par "Temps de jeu" et afficher les tuiles "Temps" sur les cartes de chaque clan (`/api/clans/route.ts`).
+
+---
+
+### 8. ~~Auto-cleanup cron~~ — ✅ Clos le 2026-09-20 — requalifié le 2026-09-15, les trois suppressions écartées (voir « Lot 1 — Santé de la base », P1)
+
+Le nettoyage des fichiers `.telemetry-captured/` et des jobs `failed` anciens est disponible via `queue-cleanup` mais n'est pas déclenché automatiquement.
+
+> **Vérification du 2026-09-15 — les trois suppressions prévues sont à écarter en l'état :**
+> - jobs `queued` > 24 h : un `telemetry:batch -- --all-matches` peut légitimement attendre plusieurs jours (0 en attente
+>   au 2026-09-15) ;
+> - jobs `failed` > 7 j : la **dead letter** affiche précisément ces jobs, elle serait vidée sans prévenir (228 échecs, tous
+>   de juin) ;
+> - captures `.telemetry-captured` > 30 j : **seules copies** de la télémétrie après les 14 jours du CDN PUBG, nécessaires
+>   pour re-parser (17 Go, 673 fichiers).
+>
+> Seule la partie non destructive est livrée : le cron **`db_maintenance`** clôt les exécutions restées `running` > 6 h.
+
+- [x] ~~Ajouter un job cron nocturne qui appelle `queue-cleanup`~~ — **remplacé** par `db_maintenance`
+      (`15 1 * * *`), qui clôt les exécutions restées `running` sans rien supprimer. Depuis le 2026-09-20 il
+      ferme aussi les `ClanLifecycleRun` bloqués, qui serviraient sinon de verrou permanent.
+- [x] ~~Ajouter le nettoyage des fichiers `.telemetry-captured/` de plus de 30 jours~~ — **écarté**, et la
+      décision tient : ces fichiers sont les **seules copies** de la télémétrie passé les 14 jours de
+      rétention du CDN PUBG. Les supprimer rendrait tout re-parse impossible.
+
+**Référence :** `docs/telemetry/overview.md` — section "Ce qui reste à faire"
+
+---
+
+### 9. ~~Streaming JSON parser~~ — ✅ Déjà implémenté (vérifié le 2026-06-23)
+
+Le parser `parseTelemetrySnapshotFromStream` dans `parser.ts` est un vrai streaming JSON character-by-character :
+- `resync-files.ts` utilise `createReadStream({ highWaterMark: 64 KB })` — jamais de lecture complète en mémoire
+- `consumeText()` suit `objectDepth` caractère par caractère ; `JSON.parse()` est appelé sur **un seul event** à la fois (quelques Ko)
+- À aucun moment le fichier entier n'est accumulé en mémoire — inutile d'introduire `jsonstream` ou `@streamparser/json`
+
+---
+
+## P3 — Améliorations et données non encore exploitées
+
+### Events télémétrie non parsés
+
+Développé et déployé le 2026-08-04 à partir de fichiers réels dans `.telemetry-captured/` (structure des événements vérifiée directement, pas juste le nom du champ). **Résultat sur les 3 premiers items : 1 déployé (lancers), 1 abandonné après investigation car déjà résolu autrement (distance véhicule), 1 abandonné car la prémisse était fausse (arme au moment du kill).** Un 4e item (objets de soin/boost consommés) a été ajouté le 2026-08-16, non encore développé.
+
+**Correction d'abord :** `LogVehicleLeave.maxSpeed` est **déjà parsé** ([parser.ts:1379](../../src/lib/pubg-telemetry/parser.ts#L1379), champ `TelemetryMemberStats.maxVehicleSpeedKph`) — la ligne du tableau précédent était obsolète, ce n'est plus à faire.
+
+#### ~~1. `LogPlayerUseThrowable` — diversité tactique (grenades, fumigènes, flashbangs...)~~ — ✅ Déployé le 2026-08-04
+
+- [x] Nouvelle table `MemberThrowableStat` (`squadMatchId`, `memberId`, `itemId`, `count`, `matchDate`, unique sur `[squadMatchId, memberId, itemId]`) — migration `20260804150000_add_member_throwable_stat`, remplacement idempotent par match comme `KillEvent`/`DropPressureStat`
+- [x] Capture non filtrée dans le parser (`throwableSamples` dans [parser.ts](../../src/lib/pubg-telemetry/parser.ts), type `TelemetryThrowableSample`), même raison que le kill-feed : `clanMemberKeys` vide sur le chemin de sync principal, filtrage fait à la persistance dans [throwable-persistence.ts](../../src/lib/throwable-persistence.ts) (résolution contre tout le roster clan, pas seulement la squad détectée)
+- [x] Branché sur les 3 chemins de sync ([pubg-telemetry/index.ts](../../src/lib/pubg-telemetry/index.ts) + 2 points de [manual-sync.ts](../../src/lib/pubg-telemetry/manual-sync.ts)), juste après `persistKillEventsForMatch`
+- [x] Décidé : affichage par type précis (pas de regroupement offensif/tactique) — 9 types distincts observés, assez lisibles individuellement pour ne pas justifier une catégorisation supplémentaire
+- [x] Section "Lancers" ajoutée sur `/members/[id]/weapons` (pas de page dédiée), API [`GET /api/members/[id]/throwables`](../../src/app/api/members/[id]/throwables/route.ts) (cumul lifetime tous matchs, `groupBy` Prisma)
+- [x] **Découverte en cours d'implémentation :** ni les icônes (`public/icons/pubg/weapons/`) ni `resolveWeaponName()`/`damageCauserName.json` ne couvrent ces `itemId` (le dictionnaire indexe les grenades sous leur nom de *projectile en vol* — `ProjGrenade_C` — pas sous l'ID d'objet lancé `Item_Weapon_Grenade_C` de `LogPlayerUseThrowable`) — ajouté un petit mapping local `THROWABLE_LABELS` dans la page avec repli sur l'ID nettoyé pour tout type non couvert ; les icônes manquantes se dégradent silencieusement (comportement déjà prévu dans `WeaponIcon`, pas de correctif nécessaire)
+
+**Validé le 2026-08-04** par un vrai resync (clan 1, match récent) : lancers capturés correctement pour 2 membres réels (`Pagiotte` : 3 grenades + 3 fumigènes ; `SAMUELAXEII` : 1 grenade + 1 flashbang), attribution par membre correcte.
+
+**Effort réel :** conforme à l'estimation (2–4h) pour l'extraction ; le mapping de labels/icônes manquants était un imprévu mineur, pas un blocage.
+
+#### 2. ~~`LogVehicleLeave.rideDistance` — distance véhicule précise par session~~ — ❌ Investigation faite, non implémenté
+
+**Découverte du 2026-08-04 qui change la donne :** `SquadMember.rideDistance` — la distance véhicule **déjà en base**, sourcée depuis l'API de résumé PUBG (`participant.rideDistance` dans [pubg.ts:291](../../src/lib/pubg.ts#L291), via [squad-detector.ts:275](../../src/lib/squad-detector.ts#L275)), donc fiable et déjà officielle PUBG — **n'est utilisée nulle part sauf en interne pour l'award "JACKY TUNING"**, jamais affichée comme stat visible. Vérifié en base : `4390` lignes, moyenne `1289 m`, max `12836 m` — donnée réelle et cohérente, aucun signe de champ gelé. Le "besoin" de précision que ce point cherchait à combler est donc déjà résolu par une donnée existante et fiable, sans aucun parsing télémétrie.
+
+**Tentative de vérification du champ télémétrie `LogVehicleLeave.rideDistance` — résultat non concluant, abandonné.** Comparé sur 3 matchs réels la somme de `rideDistance` par joueur contre une estimation par delta de position (même logique que le parser) : le ratio entre les deux variait de **~180 à plus de 400 000** selon le joueur, sans schéma cohérent expliquant l'écart (pas un facteur d'unité constant comme `/10` ou `/100`). Cause probable : un joueur monte/descend plusieurs véhicules différents dans un match et `rideDistance` semble se réinitialiser par instance de véhicule d'une façon que je n'ai pas isolée avec certitude dans le temps imparti.
+
+- [ ] **Ne pas implémenter tel quel** — le besoin déclaré ("distance véhicule précise") est déjà satisfait par `SquadMember.rideDistance`, non exploité ailleurs qu'en interne pour un award
+- [ ] Si la granularité par session (pas juste le total du match) devient un jour un besoin réel, reprendre l'investigation `LogVehicleLeave.rideDistance` avec plus de temps — comparer instance de véhicule par instance de véhicule (`vehicle.vehicleId`), pas juste une somme par joueur sur tout le match
+- [x] Mesuré `SquadMember.rideDistance` en base pour objectiver : `4390` lignes, moyenne `1289 m`, max `12836 m`, jamais affiché dans l'UI (seulement `awards-service.ts`)
+
+**Ce qui pourrait être fait à la place, à effort quasi nul :** exposer `SquadMember.rideDistance` (déjà fiable, déjà en base) quelque part en UI si le besoin est simplement "voir sa distance en véhicule" — pas fait ici, hors scope de cette investigation, mais noté comme piste bien moins chère que le parsing télémétrie.
+
+#### 3. ~~`CharacterWrapper.primaryWeaponFirst` — arme en main au moment des kills~~ — ❌ Prémisse invalidée, ne pas faire tel quel
+
+**Vérifié le 2026-08-04** sur un match réel capturé : `primaryWeaponFirst` **n'existe que sur `LogMatchStart`** (`characters[].primaryWeaponFirst`), comme snapshot du kit de spawn au tout début du match (généralement vide en mode standard) — **ce n'est pas un champ par kill**. Aucun événement `LogPlayerKillV2` ne contient d'info d'inventaire complet du tueur ; le seul champ arme rattaché au kill est déjà capturé (`killerDamageInfo.damageCauserName`, utilisé pour `weaponStats`/`memberWeaponStats`/le kill-feed Némésis).
+
+- [ ] **Ne pas implémenter tel que décrit initialement** — le besoin ("quelle arme tient le joueur au moment où il tue") est déjà satisfait par l'arme qui a causé le kill, déjà trackée partout
+- [ ] Si un besoin distinct existe vraiment ("composition d'arsenal transportée", indépendamment des kills), ce serait une reconstruction complète de l'état d'équipement dans le temps via `LogItemEquip`/`LogItemUnequip`/`LogItemPickup`/`LogItemDrop` croisés par timestamp — un chantier bien plus lourd que l'estimation initiale (4–8h → plutôt 2–3 jours), avec une justification produit à clarifier avant de s'y engager
+
+**Ce qui n'est PAS à faire (confirmé) :** chercher `primaryWeaponFirst` par kill, c'est structurellement absent de la télémétrie.
+
+#### 4. `LogItemUse` (catégorie `Use`) — détail des objets de soin/boost consommés + page dédiée — 🆕 À faire
+
+Demandé le 2026-08-16, en prolongement de l'ajout des icônes manquantes (`public/icons/pubg/items/`, synchronisées via `npm run sync:pubg-assets -- --items`, voir plus bas) pour Heal/Boost/Fuel/Gadget.
+
+**État actuel :** `LogItemUse` est déjà parsé ([parser.ts:1347](../../src/lib/pubg-telemetry/parser.ts#L1347)) mais uniquement en agrégats grossiers : `summary.itemUseEvents` (compteur global, tous types confondus — y compris munitions/attachments, pas seulement `Use`), `boostsUsed` (détection **fragile par sous-chaîne** sur l'`itemId` : `.includes('boost')`/`'energy'`/`'adrenaline'`/`'painkiller'`), `recalls` (bluechip transmitter). `LogHeal` ([parser.ts:1395](../../src/lib/pubg-telemetry/parser.ts#L1395)) alimente `healsUsed` + `healAmountTotal`, sans détail par type d'objet.
+
+**Découverte en préparant ce chantier (vérifiée sur des captures réelles dans `.telemetry-captured/`) :** `LogItemUse` porte déjà `item.category` et `item.subCategory` directement dans le payload — pas besoin de deviner via des sous-chaînes comme le fait `boostsUsed` aujourd'hui :
+```json
+{"item": {"itemId": "Item_Heal_FirstAid_C", "category": "Use", "subCategory": "Heal"}}
+{"item": {"itemId": "Item_Boost_AdrenalineSyringe_C", "category": "Use", "subCategory": "Boost"}}
+{"item": {"itemId": "Item_JerryCan_C", "category": "Use", "subCategory": "Fuel"}}
+{"item": {"itemId": "Item_Mountainbike_C", "category": "Use", "subCategory": "Gadget"}}
+```
+**Piège vérifié :** `LogHeal.item.itemId` est **vide** dans les captures réelles (`""`) — ne pas s'appuyer dessus pour le détail par objet, c'est `LogItemUse` avec `subCategory === 'Heal'` qui porte l'`itemId` fiable.
+
+**Bug de casse déjà corrigé au passage (2026-08-16) :** l'`itemId` télémétrie du vélo de montagne est `Item_Mountainbike_C` (« b » minuscule) mais l'asset du repo officiel est `Item_MountainBike_C.png` (« B » majuscule) — invisible sur Windows/macOS (FS insensible à la casse) mais aurait cassé silencieusement en prod Linux. Corrigé via une table d'alias dans `itemIconUrl()` ([asset-url.ts](../../src/lib/pubg-assets/asset-url.ts)).
+
+Livré le 2026-09-17 — doc `docs/features/objets-consommes.md`.
+
+- [x] Nouvelle table `MemberItemUseStat` (`squadMatchId`, `memberId`, `itemId`, `category`, `subCategory`, `count`, `matchDate`), unique sur `[squadMatchId, memberId, itemId]` — migration `20260917200000_add_member_item_use_stat`, **appliquée en production**, remplacement idempotent par match reparsé.
+- [x] Échantillons `itemUseSamples` capturés dans le parser, sans filtre de catégorie.
+- [x] `boostsUsed` calculé sur `item.subCategory === 'Boost'`. ⚠️ Les valeurs déjà stockées gardent l'ancien calcul par sous-chaîne : pas de recalcul possible sans resynchroniser les matchs.
+- [x] `item-use-persistence.ts` : résolution contre tout le roster du clan, filtre `category === 'Use'`, sous-catégorie manquante rangée sous `Unknown`.
+- [x] Persistance branchée sur les 3 chemins de synchronisation, juste après les lancers.
+- [x] Routes `GET /api/members/[id]/item-use` et `GET /api/clans/[clanId]/telemetry/item-use` (`?period=week|month|all`), agrégation commune dans `src/lib/item-use-stats.ts` : familles, objets et classement des membres.
+- [x] **Deux pages dédiées** : `/clans/[clanId]/stats/items` et `/members/[id]/items`, panneau commun `ItemUsePanel` (indicateurs, répartition par famille, top objets en cartes mobile et tableau desktop, classement des membres côté clan). Entrées de navigation `clan.items` et `member.items` créées en base (`scripts/seed-item-use-nav.ts`).
+- [x] Couverture des icônes vérifiée sur les objets réellement observés : seul `Item_BulletproofShield_C` (bouclier pliable) n'a pas d'icône, le libellé reste correct. Relancer `npm run sync:pubg-assets -- --items` après chaque saison.
+- [x] **Tests parser** : un échantillon par sous-catégorie, `LogHeal` sans `itemId` sans effet, `Ammunition` capturé mais écarté à la persistance.
+- [x] **Tests persistance** : regroupement par membre et objet, résolution par identifiant de compte ou pseudo, filtrage de catégorie, JSON stocké en chaîne.
+- [x] **Tests routes** (5, `item-use-route-contracts.test.ts`) : identifiant invalide, permission clan, période inconnue ramenée à « tous », garde `requireSameClanAsMember`, membre sans donnée.
+- [x] ESLint et TypeScript propres sur tous les fichiers touchés ; 398 tests au vert.
+- [x] Vérifié sur une capture réelle de 28 Mo (`scripts/inspect-item-use.ts`) : **1 356 événements comptés à la main, 1 356 échantillons produits par le parser**, dont 476 de catégorie `Use` (le reste : munitions). Familles observées : Heal, Boost, Fuel, Gadget.
+- [ ] Recette navigateur des deux pages (thèmes clair/sombre, mobile).
+- [ ] ⚠️ Aucun rattrapage possible : les échantillons ne sont pas stockés dans `SquadMatchTelemetry`. Seuls les matchs analysés après le déploiement auront le détail par objet.
+
+**Effort estimé :** comparable aux lancers pour l'extraction/persistance (2–4h), plus le temps d'une page dédiée complète (mobile + desktop, contrairement à la simple section ajoutée pour les lancers) et ses tests — plutôt 1 jour complet.
+
+---
+
+### Champs `SquadMember` non affichés
+
+Ces champs sont stockés en DB depuis la migration P1.1 mais n'ont pas tous de vue dédiée :
+
+- `headshotKills` — ✅ affiché dans `/members/[id]/matches` (colonne du tableau) et agrégé dans map-stats (`totalHeadshots`). Absent des pages clan.
+- `teamKills` — ❌ non affiché nulle part. La variable `teamKills` dans les pages télémétrie est la somme des kills d'équipe, pas ce champ.
+- `swimDistance` — ❌ non affiché par match. Le lifetime agrégé `swamDistance` est bien présent dans `MemberLifetimeStatsPanel`.
+
+**Remarques (vérification 2026-06-23) :**
+
+- `headshotKills` est couvert à 2/3 : vue membre (/members/[id]/matches) et agrégat map-stats. Le seul endroit manquant est la liste de matchs du clan — valeur faible, pas prioritaire.
+- Le nom `teamKills` dans `src/app/clans/[clanId]/matches/[matchId]/telemetry/page.tsx` et sa copie dans `src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx` est trompeur : c'est une variable locale qui fait `group.members.reduce(...kills)`, pas `SquadMember.teamKills`. À ne pas confondre si on veut un jour afficher les team kills réels.
+- `swimDistance` par match a peu d'intérêt isolément (la distance de nage sur un match est anecdotique). L'agrégat lifetime suffit. Ce point peut rester hors scope sans impact utilisateur.
+- Si `teamKills` doit un jour être affiché, le bon endroit est la fiche de match du clan (`/clans/[clanId]/matches/[matchId]`) et le détail de match membre, pas la télémétrie.
+
+---
+
+### Survival Mastery — Endpoint investigué, non retenu (API cassée côté PUBG)
+
+Piste explorée : exposer `GET /players/{accountId}/survival_mastery` (schéma officiel `https://documentation.pubg.com/en/_static/swagger/en/schemas/survivalMastery.yml`), avec l'idée d'une nouvelle page dédiée `/members/[id]/survival` + `/clans/[clanId]/stats/survival`, sur le modèle des pages Drop zones / Positions / Weapons déjà existantes.
+
+**Verdict : on ne fait rien.** Vérifié par appel API réel sur deux comptes du clan (membre 1 `pagiotte`, niveau 496, ~4931 matchs ; membre 2 `Kiffpit`, niveau 237, ~5239 matchs) :
+
+- Les champs d'en-tête (`xp`, `tier`, `level`, `totalMatchesPlayed`) sont réels et cohérents.
+- **Les 15 métriques du bloc `stats`** (`damageDealt`, `damageTaken`, `distanceOnFoot/BySwimming/ByVehicle/Total`, `healed`, `hotDropLandings`, `enemyCratesLooted`, `position`, `revived`, `teammatesRevived`, `timeSurvived`, `throwablesThrown`, `top10`) **sont toutes à `0`** sur les deux comptes testés, malgré une activité massive et réelle — même symptôme que le bloc `StatsTotal` gelé de `weapon_mastery`, mais ici c'est la totalité du détail qui est inexploitable, pas juste un bloc legacy en doublon d'un bloc actif.
+- Seule exception : `timeSurvived.lastMatchValue` contient une vraie valeur en secondes (1496s et 9s respectivement, cohérent avec des fins de match réelles) — anecdotique, ne justifie pas une page à lui seul.
+- Écart doc/réalité supplémentaire : la réponse réelle contient un champ `uniqueItemsLooted` absent du schéma officiel Swagger.
+- Le service mort `src/lib/survival-title-service.ts` (mapping points de survie 0–6000+ → titre `Beginner`→`Lone Survivor`) utilise très probablement le mauvais champ : `xp` réel (2 692 300 / 2 173 700) est à des ordres de grandeur du seuil 0–6000 codé en dur. `tier` (= `3` identique sur les deux comptes malgré des `level`/`xp` très différents) est un candidat plus plausible comme index direct dans `survivalTitles.json`, mais non vérifié/câblé.
+
+- [x] Récupérer le schéma officiel `survivalMastery.yml` et lister les 15 métriques disponibles (total/moyenne/meilleur match/dernier match)
+- [x] Identifier les items du backlog P3 que ces métriques auraient pu débloquer sans parsing télémétrie (`damageTaken`, `distanceByVehicle`, `throwablesThrown`)
+- [x] Tester un appel réel sur 2 comptes du clan pour valider la fiabilité des données
+- [x] Confirmer que le bloc `stats` est vide sur les deux comptes malgré une activité réelle importante
+- [x] Décider de ne pas construire de page dédiée tant que l'API n'est pas fiable côté PUBG
+- [ ] Réévaluer périodiquement (pas de date fixée) si PUBG corrige un jour ce endpoint — retester avec le même script d'appel direct avant de relancer le sujet
+
+**Ce qui n'est PAS à faire (confirmé)** : construire `/members/[id]/survival` et `/clans/[clanId]/stats/survival`, migrer un modèle `MemberSurvivalMastery`, réactiver `survival-title-service.ts` — tant que le bloc `stats` de l'API reste vide.
+
+---
+
+### Cron — Rapports hebdomadaires / mensuels
+
+Les routes `generateWeeklyReport` et `generateMonthlyReport` existent mais leur déclenchement automatique dépend d'une vérification que le cron est bien configuré et actif.
+
+- [ ] Vérifier que le cron `weekly_report` est actif et déclenche `generateWeeklyReport`
+- [ ] Vérifier que le cron `monthly_report` est actif et déclenche `generateMonthlyReport`
+- [ ] Tester la génération d'un rapport complet (toutes les sections)
+
+---
+
+### ~~Monitoring PUBG API (`/settings/pubg-api`) — Lisibilité des données~~ — ✅ Déployé le 2026-08-05
+
+Réflexion du 2026-08-05 après lecture de [page.tsx](../../src/app/settings/pubg-api/page.tsx) et du type `ApiCallRow` : la page était centrée sur des appels individuels (heatmap 24h, historique paginé ligne à ligne) plutôt que sur des tendances agrégées. Toutes les pistes identifiées ont été déployées le même jour.
+
+**Base commune** : nouveau module partagé [pubg-api-call-category.ts](../../src/lib/pubg-api-call-category.ts) (`categorizePubgApiCall`, `PUBG_API_CALL_CATEGORY_LABELS`) — remplace la fonction `getCronBadgeMeta` dupliquée qui vivait uniquement côté page, désormais réutilisée à la fois par l'agrégation serveur ([pubg-api-call-log-service.ts](../../src/lib/pubg-api-call-log-service.ts)) et par les badges côté client.
+
+**Correction du 2026-08-05 (a posteriori) — la catégorisation initiale était quasi inopérante :** toutes les requêtes PUBG passent par `queuedPubgGet` ([pubg.ts:21-28](../../src/lib/pubg.ts#L21-L28)) avec `source` toujours égal à `'pubg-lib'` et `endpoint` toujours égal au chemin REST brut (ex. `/shards/steam/players/{id}/weapon_mastery`). Les mots-clés de l'ancienne catégorisation (`sync-matches`, `daily_sync`, `weekly`, `report`, `challenge`...) visaient des noms de jobs cron internes qui n'apparaissent quasiment jamais dans ces URLs réelles — résultat : presque tous les appels tombaient dans "Autre", y compris dans la répartition agrégée ci-dessous. Remplacé par une catégorisation basée sur la forme réelle du chemin REST PUBG (11 catégories couvrant les 11 points d'appel existants de `pubg.ts` : recherche joueur, détail joueur, maîtrise armes, stats lifetime/ranked/saison, liste des saisons, membres du clan, clan, détail match) — "Autre" ne devrait plus apparaître en pratique. Colonne "Cron" renommée en "Type" dans le tableau d'historique (l'ancien nom n'avait plus de sens).
+
+**Complément du 2026-08-05 :** dans le tableau desktop, l'endpoint complet (`method` + chemin REST avec IDs) n'était visible qu'au survol (tooltip) sous le badge de catégorie — ajouté en clair sous le badge (police monospace, `break-all`), aligné sur la vue mobile qui l'affichait déjà en clair.
+
+**Bug trouvé et corrigé le 2026-08-05 — appels clan doublés inutilement :** l'analyse de la colonne "Dispo API" (`rateLimitRemaining`) a révélé que la ligne "Clan" affichait systématiquement "-" pour une partie des appels. Diagnostic confirmé en base sur `PubgApiCallLog` (24 h glissantes) : `fetchPubgClanById()` ([pubg.ts](../../src/lib/pubg.ts)) tentait d'abord `/clans?filter[clanIds]=...`, qui **échoue en 404 à 100 % (120/120 appels observés)**, puis retombait en silence sur `/clans/{clanId}` qui réussit toujours (120/120). Les réponses d'erreur PUBG ne portent pas les en-têtes `X-RateLimit-*`, d'où le "-" sur la tentative ratée. Comme `clanId` est déjà connu à l'appel, la première tentative était purement redondante — corrigé en appelant directement `/clans/{clanId}`, ce qui divise par deux la consommation de quota RPM pour chaque lookup de clan (1 appel au lieu de 2). Sans régression : comportement final identique pour les appelants (`clan-service.ts`), simple suppression d'un aller-retour mort.
+
+**Non lié à un bug (comportement PUBG confirmé) :** `/matches/{id}` ("Détail match") ne renvoie jamais les en-têtes `X-RateLimit-*` même en succès (61/61 dans l'échantillon) — particularité de cet endpoint côté PUBG, rien à corriger côté code.
+
+- [ ] Surveiller sur quelques jours que "Clan" n'apparaît plus qu'une fois par lookup dans l'historique et que "Dispo API" y est systématiquement renseigné
+
+**Priorité haute**
+
+- [x] Répartition agrégée par source/cron : panneau "Répartition par cron / source" (appels, succès, erreurs, 429, latence moyenne par catégorie, fenêtre 24h)
+- [x] Regroupement des messages d'erreur : panneau "Top erreurs" (top 5 messages par occurrence, fenêtre 24h)
+- [x] Vue au-delà de 24h : panneau "Tendance 14 jours", mini graphique en barres (`dailySeries`), teinte rouge/ambre/verte selon présence d'erreurs/429 ce jour-là
+
+**Priorité moyenne**
+
+- [x] Jauge de consommation du quota : barre de progression sous les tuiles `X-RateLimit-*`, teinte verte/ambre/rouge selon le % consommé (70 % / 90 %)
+- [x] Filtre par endpoint/source/`clanId` dans l'historique : formulaire "Filtrer" + "Effacer les filtres" au-dessus du tableau, paramètres `q` et `clanId` sur `GET /api/settings/pubg-api-calls`
+- [x] Badge de cohérence RPM configuré vs `X-RateLimit-Limit` observé : bandeau d'alerte ambre si le RPM configuré dépasse la limite réelle observée côté PUBG
+
+**Priorité basse**
+
+- [x] Métrique "retries totaux" en carte de synthèse (`totals.retriesTotal`)
+
+**Réalisé également le 2026-08-05**
+
+- [x] Légende des codes statut au-dessus du tableau d'historique (2xx succès / 429 limite de débit / 4xx-5xx-n-a erreur)
+- [x] Pagination adaptée : option `15` lignes remplace `10` dans `HISTORY_PAGE_SIZE_OPTIONS`, devient la valeur par défaut côté page et côté service (`getPubgApiCallsOverview`)
+
+**Validation :** ESLint et `tsc --noEmit` propres sur les 4 fichiers modifiés/créés (page, service, route API, module de catégorisation). Non vérifié en session : rendu navigateur réel (pas d'identifiants SuperUser/Owner disponibles dans cet environnement).
+
+- [ ] Vérifier dans le navigateur (Owner) le rendu des nouveaux panneaux, la jauge de quota, le filtre d'historique et le badge de cohérence RPM, en thème clair et sombre
+
+**Refonte visuelle du 2026-08-05 — corrections de thème + alignement UI/UX :**
+
+- [x] `bg-slate-900` (badge "Aujourd'hui") et `bg-slate-200` (piste de la jauge de quota) n'étaient pas remappés par le thème (couleurs non couvertes par `globals.css`) — remplacés par une mise en page sans couleur codée en dur et par `bg-gray-100` (remappé)
+- [x] Ajout des variantes sombres manquantes dans `globals.css` pour `fuchsia`, `teal`, `lime` (bg-50/100, text-700/800/900, border-200/300) et `orange` (bg-50, border-200/300) — suivent exactement le pattern déjà existant pour emerald/amber/rose/cyan/etc., nécessaire pour que les nouveaux badges de catégorie restent lisibles en thème sombre
+- [x] Remplacement du bouton "Voir uniquement les erreurs" et du `MobileDropdownNav` de pagination par deux `SegmentedControl` — standard documenté dans `docs/ui/tables.md` §"Standard des boutons segmentés" (CLAUDE.md règle #6), pas d'ad-hoc
+- [x] Icônes `lucide-react` sur les 6 cartes de métriques, le bouton Actualiser, le titre "Configuration du rate limit", l'alerte de cohérence RPM et le bouton Purger
+- [x] Grille de métriques passée à `gap-4` (2 colonnes mobile / 6 desktop) au lieu d'un simple empilement `grid-cols-1`
+- [x] Mini-barres de répartition (succès/429/erreurs) sous chaque catégorie dans "Répartition par type d'appel", et barre de poids relatif sous chaque message dans "Top erreurs"
+- [ ] Vérifier dans le navigateur (Owner) le rendu clair/sombre et mobile de la refonte visuelle — non vérifié en session, pas d'accès Owner disponible
+
+---
+
+### ~~Monitoring PUBG API — Répartition par clan~~ — ✅ Déployé le 2026-08-06 (backend + UI)
+
+**Constat :** la colonne `PubgApiCallLog.clanId` existe déjà en base et un filtre par `clanId` a été ajouté sur `/settings/pubg-api` (voir ci-dessus), mais **elle est toujours `null` en pratique** — le filtre ne retournera jamais rien tant que ce chantier n'est pas fait. `queuedPubgGet()` ([pubg.ts:21-28](../../src/lib/pubg.ts#L21-L28)), point d'entrée unique de tous les appels PUBG, ne transmet que `{ source, method, endpoint, shard }` à la queue ([api-throttle.ts](../../src/lib/api-throttle.ts)) — jamais `clanId`/`memberId`, même quand la fonction appelante connaît parfaitement le clan ou le membre concerné. Le type `PubgApiRequestMetadata` supporte déjà ces deux champs, ils ne sont simplement jamais peuplés.
+
+**Objectif produit :** permettre d'identifier quel clan consomme le plus de quota RPM partagé (utile en environnement multi-clan pour repérer une sync mal réglée qui pénalise les autres clans).
+
+**Contrainte du 2026-08-05 (demande explicite) :** ce chantier touche des fonctions au cœur du pipeline de sync/télémétrie (`pubg.ts`, `pubg-domain/client.ts`, `clan-service.ts`, `pubg-telemetry/index.ts`, `pubg-telemetry/manual-sync.ts`, `cron-jobs.ts`) — la télémétrie ne doit pas être cassée par ce changement. Documentation du plan **avant** toute implémentation, avec tests, comme demandé.
+
+#### Principe retenu — additif uniquement, zéro rupture de signature — ✅ Fait le 2026-08-06
+
+- [x] `queuedPubgGet(url, config, context?: PubgApiCallContext)` dans `pubg.ts` transmet `context?.clanId`/`context?.memberId` à `enqueuePubgApiRequestWithMetadata`
+- [x] Paramètre optionnel `context?: PubgApiCallContext` (`{ clanId?: number; memberId?: number }`, exporté depuis `pubg.ts`) ajouté en dernière position sur les 11 fonctions concernées : `searchPlayerByName`, `fetchPubgClanById`, `fetchClanMembers`, `fetchPlayerClan`, `fetchRecentMatchIds`, `fetchLifetimeStats`, `fetchPlayerRankedStats`, `fetchPlayerSeasonStats`, `fetchWeaponMastery`, `fetchMatchDetails`, `fetchMatchDetailsWithTelemetryAsset` (+ le helper interne partagé `fetchMatchResponse`)
+- [x] `fetchCurrentSeason` non modifiée (appel système, aucun contexte pertinent)
+- [x] Méthodes de `PubgDomainClient` ([pubg-domain/client.ts](../../src/lib/pubg-domain/client.ts)) étendues en miroir avec le même paramètre optionnel
+
+#### Sites d'appel mis à jour (clanId/memberId déjà connus localement)
+
+- [x] `src/lib/clan-service.ts` — `resolvePubgClanForLocalClan`, `syncClanMembership`, `syncClanLifetimeStats` (3 sites)
+- [x] `src/lib/cron-jobs.ts` — `syncClanSeasonStats`, `syncClanWeaponMastery` (4 sites) ; `resolveEncounteredPlayerClans` volontairement laissé sans contexte (résolution de joueurs adverses, pas de clan/membre du site concerné)
+- [x] `src/app/api/members/[id]/weapon-mastery/route.ts`, `.../stats/route.ts`, `.../season-stats/route.ts`, `.../matches/route.ts` — `memberId` du paramètre de route
+- [x] `src/app/api/clans/[clanId]/sync-matches/route.ts` — `clan.id`/`member.id` (3 sites : résolution joueur, liste des matchs, détail de match)
+- [x] `src/app/api/members/route.ts` — `clanId` optionnel du body validé, passé quand présent
+- [x] `src/app/api/matches/[matchId]/route.ts` — `memberId` du body sur `POST` (le `GET` n'a pas de `memberId` disponible, laissé tel quel)
+- [ ] **Volontairement différé** — `src/lib/pubg-telemetry/index.ts` et `manual-sync.ts` (`fetchMatchDetailsWithTelemetryAsset`, appelé depuis `scripts/telemetry-resync-worker.ts` et `job.ts`) : zone la plus sensible du pipeline (worker dédié, mémoire limitée à 512 Mo) — c'est précisément la zone que la contrainte anti-régression visait à protéger. À reprendre dans un chantier séparé, testé isolément, si le besoin de granularité par match du worker se confirme
+- [ ] **Volontairement non câblé** — `src/app/api/join/route.ts`, `src/lib/setup-service.ts` (recherche joueur avant création du membre/setup initial, aucun `clanId`/`memberId` n'existe encore à ce stade) ; `src/app/api/matches/[matchId]/route.ts` GET (pas de `memberId` dans la requête) ; `resolveEncounteredPlayerClans` dans `cron-jobs.ts` (joueurs adverses, hors périmètre)
+
+#### Garde-fous anti-régression télémétrie — ✅ Validés le 2026-08-06
+
+- [x] Aucune modification de la logique métier, du typage de retour ou de la gestion d'erreur des fonctions `pubg.ts` — uniquement un paramètre optionnel traversant jusqu'à la queue
+- [x] Rollout fichier par fichier (pubg.ts → pubg-domain/client.ts → clan-service.ts → cron-jobs.ts → routes API), chaque étape vérifiée par `tsc --noEmit` avant la suivante
+- [x] Confirmé par grep : seuls `pubg-telemetry/index.ts` et `manual-sync.ts` importent `pubg.ts` dans tout `src/lib/pubg-telemetry/` (le parser lui-même n'appelle jamais ces fonctions) — et ces deux fichiers sont précisément ceux volontairement non touchés
+- [x] `tsc --noEmit` : **137 erreurs avant et après**, sur l'ensemble du projet — 0 régression de compilation introduite (comparé via `git stash`/`git stash pop` contre le commit `f1beb69`)
+
+#### Tests — ✅ Faits le 2026-08-06
+
+- [x] `vitest.config.ts` : `include` élargi de `['src/lib/pubg-telemetry/**/*.test.ts']` à `['src/lib/**/*.test.ts']`
+- [x] [api-throttle.test.ts](../../src/lib/api-throttle.test.ts) : 3 tests — `clanId`/`memberId` transmis dans `metadata` sont bien répercutés dans la ligne loggée (branche succès, branche erreur, et défaut à `null` quand absents)
+- [x] [pubg-context-forwarding.test.ts](../../src/lib/pubg-context-forwarding.test.ts) : 3 tests sur `fetchPubgClanById`, `fetchWeaponMastery`, `fetchLifetimeStats` avec `enqueuePubgApiRequestWithMetadata` mocké — vérifie que `context` atteint bien la queue sans toucher au parsing de la réponse
+- [x] `npm run test:telemetry` : mêmes 3 fichiers en échec (4 tests) qu'avant tout changement de cette session (confirmé par `git stash`) — pré-existant, sans lien avec ce chantier ; 55 tests passent désormais (49 + 6 nouveaux), 0 nouvelle régression
+- [ ] Validation manuelle post-déploiement : lancer une sync clan réelle (`npm run telemetry:batch -- --clan <id>` ou bouton "Sync" sur `/clans/[clanId]/settings`) et vérifier sur `/settings/pubg-api` que les nouvelles lignes affichent un `clanId` peuplé et que le filtre `clanId` retourne des résultats — nécessite un environnement avec accès PUBG API réel, non disponible en session
+
+#### Côté UI — panneau "Répartition par clan" sur `/settings/pubg-api` — ✅ Déployé le 2026-08-06
+
+Réutilise les mécanismes déjà en place (filtre `clanId` déjà câblé sur l'historique, pattern d'agrégation déjà utilisé pour "Répartition par type d'appel") plutôt que d'introduire un nouveau système.
+
+- [x] `getPubgApiCallsOverview()` étendu : groupe les `dayRows` (déjà chargées pour `byCategory`/`topErrors`, fenêtre 24h) par `clanId`, calcul `count/success/errors/rateLimited/avgDurationMs` par clan
+- [x] **Amélioration par rapport au plan initial** : quand la ligne n'a pas de `clanId` direct mais a un `memberId` (cas des routes membre — weapon-mastery, stats, season-stats, matches), le `clanId` est résolu via un batch `prisma.clanMember.findMany({ id: { in } })` plutôt que d'exiger que chaque site d'appel connaisse et transmette son propre `clanId` — centralise la résolution dans l'agrégation au lieu de la disperser dans ~13 sites d'appel
+- [x] Batch `prisma.clan.findMany({ where: { id: { in: clanIds } } })` sur les `clanId` résolus pour construire le label `Nom [TAG]` — même pattern que le `memberMap` déjà utilisé pour `actorLabel`
+- [x] Bucket explicite "Sans clan" pour les lignes sans `clanId` ni `memberId` résolvable (ex. `fetchCurrentSeason`, appels système)
+- [x] Nouveau panneau `app-panel` "Répartition par clan", même format visuel que "Répartition par type d'appel" (mini-barre succès/429/erreurs par ligne)
+- [x] Mise en évidence visuelle (bordure rose + icône `AlertTriangle`) des clans dont le taux combiné `(errors + rateLimited) / count` dépasse `10 %` sur la fenêtre 24h — le bucket "Sans clan" n'est jamais marqué comme problématique (pas un vrai clan à corriger)
+- [x] Clic sur une ligne clan → applique le filtre `clanId` déjà existant sur "Historique récent" (réutilise `appliedHistoryClanId`/`historyClanIdInput`, aucun nouvel état de filtre) ; désactivé sur la ligne "Sans clan" (rien à filtrer)
+- [x] Tri par défaut : nombre d'appels décroissant (fait côté service, pas besoin de tri côté client)
+- [ ] Vérifier rendu clair/sombre et mobile du nouveau panneau — non vérifié en session, pas d'accès Owner disponible
+
+**Validation :** ESLint et `tsc --noEmit` propres (137 erreurs avant/après, identique à la baseline). `npm run test:telemetry` : mêmes 3 fichiers en échec préexistants, 55 tests passent toujours. Le panneau restera vide ("Aucun appel aujourd'hui") tant qu'aucune sync clan réelle n'a eu lieu depuis le déploiement du plumbing backend — comportement attendu, pas un bug.
+
+---
+
+### ~~Récupérations télémétrie (`/clans/[clanId]/telemetry/recoveries`) — Pagination du tableau historique~~ — ✅ Déployé le 2026-08-06 (+ option validée)
+
+Réflexion demandée le 2026-08-06 après capture d'écran du pattern `SegmentedControl` (Tout/Erreurs, 15/25/50) déployé sur `/settings/pubg-api`, en référence pour cette page.
+
+**Distinction par clan — déjà en place, différemment que `/settings/pubg-api` :** la route [route.ts](../../src/app/api/clans/[clanId]/telemetry/recoveries/route.ts#L94-L100) filtre en SQL via `WHERE EXISTS (... cm.clanId = ${parsedClanId})` — chaque visite de `/clans/[clanId]/telemetry/recoveries` ne retourne que les récupérations du clan concerné. Ce n'est pas une vue globale multi-clans à ventiler comme l'était `/settings/pubg-api` avant le panneau "Répartition par clan" — c'est scopé par construction (un clan = une URL). Pas de chantier de plomberie `clanId`/`memberId` à refaire ici, contrairement au chantier PUBG API.
+
+- [x] Pagination **côté client** dans [page.tsx](../../src/app/clans/[clanId]/telemetry/recoveries/page.tsx) : `paginatedRows` dérivé de `sortedRows.slice(...)`, page courante bornée via `historyPageClamped = Math.min(historyPage, historyTotalPages)` (protège contre une page hors bornes après un rechargement de données, en plus du reset explicite ci-dessous)
+- [x] Sélecteur de taille de page en `SegmentedControl` avec `10`, `15`, `25` (défaut `15`) — même pattern que `/settings/pubg-api`
+- [x] Contrôles précédent/suivant + "X–Y sur N" sous le tableau, réutilisant `.app-pagination`/`.app-pagination-button`/`.app-pagination-label` de `globals.css` (markup copié du seul autre usage existant, `MatchHistory.tsx`)
+- [x] Retour à la page 1 sur changement de filtre/recherche/tri/taille de page — `setHistoryPage(1)` ajouté directement dans chaque `onChange` (`statusFilter`, `parserFilter`, `searchTerm`, `primarySortKey/Direction`, `secondarySortKey/Direction`, `historyPageSize`), même convention que `/settings/pubg-api`
+- [x] Compteur "Résultats: X / Y" conservé (inchangé, toujours basé sur `sortedRows` complet), complété par la pagination sous le tableau
+- [x] Export CSV et badge "Résultats" laissés sur `sortedRows` (l'intégralité du filtré/trié), volontairement **pas** limités à `paginatedRows` — exporter doit rester indépendant de la page affichée
+- [ ] Vérifier rendu clair/sombre et mobile — non vérifié en session, pas d'accès disponible
+
+**Option validée avec l'utilisateur — migration des 6 `<select>` bruts vers les composants partagés :**
+
+- [x] Statut et Parser JSON → `FilterDropdown` (label + select thémé, composant déjà utilisé ailleurs dans le site)
+- [x] Tri principal/secondaire et Ordre principal/secondaire → `SegmentedControl` avec label au-dessus (`<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">`), même agencement que `/clans/[clanId]/leaderboard`
+- [x] Option "Décroissant"/"Croissant" de l'ordre secondaire désactivée via la prop `disabled` de `SegmentedControl` quand `secondarySortKey === 'none'` (remplace l'attribut `disabled` du `<select>` d'origine)
+
+**Validation :** ESLint — 5 erreurs préexistantes inchangées (vérifié par `git stash`/`git stash pop` : mêmes règles, mêmes causes, non liées à ce chantier — `set-state-in-effect` sur deux effets non touchés, `Date.now()` impur dans un `useMemo` non touché, 2 apostrophes non échappées). `tsc --noEmit` : 137 erreurs, baseline inchangée. `npm run test:telemetry` : 55/59, mêmes échecs préexistants.
+
+**Modernisation visuelle du 2026-08-06 — icônes et couleurs, alignée sur `/settings/pubg-api` :**
+
+Couleurs déjà vérifiées comme bien thémées (mêmes familles remappées slate/emerald/rose/amber que `/settings/pubg-api`) — cette passe est purement visuelle, aucun bug de thème à corriger ici.
+
+- [x] Nouveau composant local `MetricCard` (icône + label + valeur, tons slate/emerald/amber/rose, variante `compact`) — même esprit que celui de `/settings/pubg-api`, appliqué aux 6 cartes de synthèse, aux 4 cartes KPI et aux 5+4 cartes du dashboard observability (15 cartes au total converties)
+- [x] Icônes `lucide-react` sur les 3 boutons d'action (`RefreshCw` Rafraichir, `Wrench` Backfill, `ArrowLeft` Retour aux matchs) et sur les 4 titres de section (`Gauge` KPIs, `Server` Observability, `History` Historique)
+- [x] Sélecteurs "Fenetre" (KPIs de santé + Dashboard observability) migrés de `<select>` vers `SegmentedControl` (`WINDOW_OPTIONS` partagé, 24h/7j/30j/Tout) — effet de bord positif : élimine au passage 2 des 5 erreurs ESLint préexistantes (apostrophe non échappée dans "Tout l'historique", remplacé par "Tout")
+- [x] Mini-barre de répartition (succès/échecs/expirés/en attente) sous les 6 cartes de synthèse principales, même pattern que les barres de "Répartition par type d'appel" sur `/settings/pubg-api`
+- [x] Icône ajoutée dans chaque badge de statut (`CheckCircle2`/`XCircle`/`Clock`/`History`) sur le tableau d'historique principal et le tableau observability, alerts de santé avec `CheckCircle2`/`AlertTriangle` selon le statut
+- [x] Validation : ESLint passé de 5 à **3** erreurs préexistantes (2 corrigées en effet de bord, aucune nouvelle), `tsc --noEmit` 137 (baseline inchangée), `npm run test:telemetry` 55/59 (mêmes échecs préexistants)
+- [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès disponible
+
+**Correctif du 2026-08-06 (retour utilisateur sur capture d'écran) :** `SegmentedControl` avec `wrap` sur "Tri principal" (3 options) et "Tri secondaire" (4 options) ne tenait pas sur une ligne dans une colonne à 4 — le retour à la ligne cassait la forme arrondie du conteneur (effet "marche d'escalier"). "Ordre principal"/"Ordre secondaire" (2 options courtes) restaient propres. Revenu à `FilterDropdown` pour les deux contrôles à options multiples (Tri principal, Tri secondaire), conservé `SegmentedControl` uniquement pour les deux qui tiennent naturellement sur une ligne (Ordre principal, Ordre secondaire). Revalidé : ESLint toujours 3 erreurs préexistantes (inchangé), `tsc --noEmit` 137, `test:telemetry` 55/59.
+
+---
+
+### ~~Détail télémétrie d'un match (`/clans/[clanId]/telemetry/matches/[matchId]/telemetry`) — Modernisation visuelle + pagination~~ — ✅ Déployé le 2026-08-06
+
+Page d'audit/debug dense (1800 lignes, 8 sections) pour un développeur inspectant le pipeline parser sur un match précis. Même traitement que `/settings/pubg-api` et `/clans/[clanId]/telemetry/recoveries` : icônes `lucide-react`, aucun bug de couleur à corriger (mêmes familles déjà remappées).
+
+- [x] Icône sur le titre `<h1>` (`Radar`) et sur les 8 titres de section (`Users` Contexte match, `Server` Etat pipeline, `ListChecks` Resume parser, `Crosshair` Top armes, `Users` Stats membres, `Waves` Phases du match, `MapPin` Positions brutes, `FileJson` Payload JSON brut)
+- [x] Icônes sur les 3 boutons d'action (`ArrowLeft` Retour, `RefreshCw` Resync ce match, `Upload` Importer fichier telemetry)
+- [x] Badge de statut pipeline (`telemetryTone`/`telemetryLabel`) avec icône selon le statut (`CheckCircle2`/`XCircle`/`AlertTriangle`), même traitement sur le bloc "Erreur telemetry"
+- [x] Badges de statut membre dans les cartes "Stats membres parser" (`resolved`/`opponent`/`bot`/`unresolved`) avec icône dédiée (`CheckCircle2`/`Swords`/`Bot`/`HelpCircle`)
+- [x] Pagination à 15 lignes sur le tableau "Top armes (weaponStats)" — seul tableau de la page dont la taille dépend directement du nombre d'armes distinctes utilisées dans le match et peut dépasser 15 lignes sur un match chargé ; les autres tableaux (contexte match, phases, stats armes par membre) sont naturellement bornés par la taille d'une squad ou le nombre de phases d'un match (≤ ~20), pas de pagination nécessaire. Réutilise `.app-pagination` (même markup que les deux autres pages), page bornée via `Math.min(page, totalPages)`
+- [x] Validation : ESLint — **20 erreurs préexistantes, comptage identique avant/après** (vérifié par `git stash`/`git stash pop`) — toutes liées à un bug préexistant et non lié à cette session (hooks `useMemo`/`useEffect` appelés après un retour anticipé conditionnel `if (!clanId || !matchId) return`, dans la zone `rawPhaseOptions`/`filteredPositionSamples` etc., lignes ~937-1198, jamais touchée par cette passe) + 1 paire de guillemets non échappés préexistante. `tsc --noEmit` : 137 (baseline inchangée). `npm run test:telemetry` : 55/59 (mêmes échecs préexistants)
+- [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès disponible
+
+**Note pour un futur chantier (hors scope ici) :** le bug préexistant de hooks conditionnels (20 erreurs ESLint) mériterait sa propre correction séparée — déplacer `rawPhaseOptions`, `filteredPositionSamples`, `filteredTrajectorySegments`, `filteredDeathSamples`, `filteredInBoundsPositionSamples`, `filteredInBoundsDeathSamples`, `filteredInBoundsTrajectorySegments`, `outOfBoundsSummary`, `clanAccountIds`, `clanTeamId`, `groupedMemberStats` et l'effet de reset `rawPhaseFilter` avant le early-return `if (!clanId || !matchId)`, ou restructurer ce dernier. Risqué à faire en même temps qu'une passe visuelle — volontairement laissé de côté.
+
+**Correctifs du 2026-08-06 (retour utilisateur sur capture d'écran) :**
+
+- [x] **Bug de thème réel, corrigé dans `globals.css` (pas seulement sur cette page)** : `border-slate-100` (utilisé sur `<tr className="border-t border-slate-100">` dans quasiment tous les tableaux du site) n'était **pas** dans la liste des classes remappées par le thème — seuls `border-slate-200`/`border-slate-300` l'étaient, alors que `divide-slate-100` l'était déjà (incohérence dans la CSS d'origine). Résultat : lignes de séparation gris très clair figées, quasi blanches et visibles en thème sombre. Ajouté `.border-slate-100` aux deux règles de remap existantes (claire `body[data-app-theme]` et sombre `html[data-app-theme='dark']`), même valeur que `border-gray-100`/`border-slate-200`. Bénéficie automatiquement aux 4 fichiers du projet qui utilisaient cette classe : cette page, [matches/[matchId]/telemetry/page.tsx](../../src/app/clans/[clanId]/matches/[matchId]/telemetry/page.tsx), [nav-permissions/page.tsx](../../src/app/settings/nav-permissions/page.tsx), [phase-labels/page.tsx](../../src/app/settings/phase-labels/page.tsx)
+- [x] Tri par colonne sur le tableau "Top armes (weaponStats)" (Arme/Kills/Headshots/Damage) — en-têtes cliquables avec indicateur `↑`/`↓`, même pattern que `MatchHistory.tsx` (clic sur la même colonne inverse le sens, clic sur une autre colonne repart en `desc`). Tri appliqué avant la pagination ; reset à la page 1 sur changement de tri
+- [x] Validation : ESLint toujours 20 erreurs préexistantes (inchangé, aucune nouvelle), `tsc --noEmit` 137, `npm run test:telemetry` 55/59
+
+---
+
+### Évolution du Détail Télémétrie d'un Match — Débriefing Tactique, Combat Log & Silhouette Anatomique SVG (Inspiration PUBG.PLUS) — 🆕 Stratégie Nouvelle Page Parallèle & Plan d'Action (2026-09-05)
+
+**Stratégie de déploiement — Nouvelle Page Dédiée en Parallèle (Zéro Régression) :**
+Plutôt que de modifier directement l'ancienne page d'audit `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` (très volumineuse avec 1800 lignes de code et des outils d'audit utiles au SuperUser), la démarche retenue consiste à **créer une toute nouvelle page en parallèle** :
+- **Route de développement & d'itération :** `/clans/[clanId]/telemetry/matches/[matchId]/debrief` (ou `/analysis`).
+- **Avantages majeurs de l'approche :**
+  1. **Zéro risque de régression :** l'outil d'audit existant (resync, debug des colonnes JSON, monitoring du parser) reste 100% accessible et intact pendant tout le développement.
+  2. **Itération fluide & comparaison côte à côte :** possibilité de comparer les deux pages en simultané, d'itérer sur l'ergonomie, les silhouettes anatomiques et la timeline sans contrainte.
+  3. **Codebase moderne & modulaire :** nouvelle page découpée en petits composants légers et testables, sans hériter des avertissements ESLint préexistants de l'ancienne page.
+  4. **Bascule finale transparente :** une fois validée, la nouvelle page prendra la place de la route principale `/telemetry`, et l'ancienne vue d'audit deviendra simplement l'onglet ou la sous-route `/telemetry/audit` (pour les besoins avancés de diagnostic).
+- **Passerelle de navigation temporaire :** un bouton d'accès direct sur l'ancienne page (*« 🚀 Tester la nouvelle vue Débriefing Tactique (Bêta) »*) et un lien miroir sur la nouvelle (*« 🛠️ Vue Audit technique »*).
+
+**Contexte & Objectif :**
+La page actuelle a été initialement conçue comme un outil d'audit et de débogage technique du pipeline de parsing. L'objectif de la nouvelle page est de devenir un **Centre de Débriefing Tactique & d'Analyse Post-Match Esport** intuitif et esthétique.
+
+Ce chantier s'appuie directement sur la rétro-ingénierie de **PUBG.PLUS** et sur les données réelles du match clan de référence :
+*URL de test :* `/clans/1/telemetry/matches/cmtoouiyw8t6304b22w3f4u8y/telemetry?period=week&fromDate=2026-09-05`
+*Match testé en base :* Sanhok (`Savage_Main`), Squad, **Top 2**, 3 membres SmK engagés (`Viande_Hachee`, `TigrOo-SmK`, `CanardEnrage`), 5 frags d'équipe, 8 lancers tactiques, 94 knocks globaux, 24 réanimations et 4 851 événements de dégâts capturés.
+
+---
+
+#### 1. Rétro-Ingénierie & Analyse Exhaustive de PUBG.PLUS (Référence Technique pour le Futur)
+
+L'audit technique mené sur l'application de replay de **PUBG.PLUS** (`https://pubg.plus/en/replay`, bundle client `chunk-B2A3tpo3.js`, 286 Ko) a permis de cartographier avec exactitude leur moteur de restitution, les données collectées et leur modèle d'affichage.
+
+##### 1.1 Architecture & Arborescence des 22 Composants Découverts
+L'application de PUBG.PLUS est articulée autour de 22 composants spécialisés :
+- **Moteur de Carte & Visualisation Spatiale :**
+  - `Replay` : conteneur orchestrateur principal (état du lecteur, sélection de joueur/match, gestion du layout).
+  - `MapCanvas` : canevas interactif MapLibre GL JS / SVG (gestion du zoom, pan, centrage automatique).
+  - `MapZones` : cercles dynamiques (Safe Zone blanche, Blue Zone bleue, Red Zone / Blizzard / Sandstorm) avec minuteurs de phase.
+  - `MapTransit` : tracés de vol de l'avion initial (`Flight Path`), avion de rappel (`Revive plane`), sauts en parachute, véhicules et déplacements.
+  - `MapAssets` : icônes spatiales géolocalisées (caisses de ravitaillement airdrop, tours de transmission bluechip, balises de sauvetage, véhicules).
+  - `MapTimeline` & `MapAutoplay` : barre de défilement temporel interactive avec vitesse de lecture variable (0.5x, 1x, 2x, 4x, 8x, pause, scrubber).
+  - `MapKillFeed` : killfeed live synchronisé projeté directement sur la carte pendant la lecture.
+  - `MapPlayerBar` : bandeau contextuel du joueur ciblé (jauge de PV, jauge de boost orange, statut, armes équipées).
+  - `MapSettings` : filtres d'affichage visuel (afficher/masquer pseudos, traces de pas, numéros d'équipe, tirs, dégâts flottants).
+- **Combat, Dataviz & Analyse de Duels :**
+  - `DamageChart` : composant SVG anatomique du corps humain avec coloration dynamique des dégâts sur 5 zones corporelles.
+  - `DamageDetail` : matrice croisée détaillée des duels 1v1 (dégâts nets infligés et reçus, armure et PV restants).
+  - `TeamNumber` : badge squircle officiel coloré par identifiant d'équipe.
+- **Rosters, Événements & Télémétrie d'Équipe :**
+  - `TeamList` : panneau latéral et tableau complet des équipes avec double affichage (onglet Équipes / onglet Événements globaux).
+  - `MapRoster` : liste rapide des survivants avec état live (vivant, à terre/DBNO, dans un véhicule, en nage, éliminé).
+  - `BluechipEvents` : journal dédié aux puces de rappel (ramassage dans lootbox, coffre véhicule, réactivation à la tour).
+  - `CarePackageEvents` : journal des largages aériens (spawn, atterrissage, contenu de la caisse, premier pilleur).
+  - `EmPickupEvents` : journal d'évacuation d'urgence (instigateur du ballon, passagers embarqués, vol C-130).
+  - `WeaponStats` : tableau récapitulatif des armes (kills, headshots, dégâts, tir le plus lointain).
+  - `PlayerStats` : statistiques individuelles exhaustives (kills, assists, knockdowns, distances pied/véhicule/nage, soins/boosts).
+  - `MatchOverview` : synthèse macro du match (vainqueur, podium, météo, carte, mode).
+  - `TournamentDetail` & `TournamentList` : modules d'affichage spécifiques pour les serveurs et tournois esport.
+
+##### 1.2 Les 38 Événements de Télémétrie PUBG Officiels Traités
+PUBG.PLUS écoute et parse 38 types d'événements du flux de télémétrie officiel PUBG :
+1. *Cycle de vie du match & Connexions :* `LogPlayerCreate`, `LogPlayerLogin`, `LogPlayerLogout`, `LogMatchStart`, `LogMatchEnd`, `LogMatchDefinition`, `LogGameStatePeriodic`.
+2. *Zones & Environnement :* `LogPhaseChange` (cercles de zone), `LogSpecialZoneInCharacters` (blizzard, tempête de sable, zone rouge).
+3. *Positionnement & Mobilité :* `LogPlayerPosition`, `LogParachuteLanding`, `LogSwimStart`, `LogSwimEnd`, `LogVehicleRide`, `LogVehicleLeave`, `LogCharacterCarry` (porter un allié KO).
+4. *Événements Tactiques & Réapparition :* `LogEmPickupLiftOff` (évacuation d'urgence), `LogPlayerRevive` (réanimation), `LogCarePackageSpawn`, `LogCarePackageLand`, `LogItemPickupFromCarepackage`.
+5. *Gestion de l'Inventaire & Équipement :* `LogItemPickup`, `LogItemDrop`, `LogItemEquip`, `LogItemUnequip`, `LogItemAttach`, `LogItemDetach`, `LogItemPickupFromLootBox`, `LogItemPutToVehicleTrunk`, `LogItemPickupFromVehicleTrunk`.
+6. *Consommables & Santé :* `LogItemUse`, `LogHeal`.
+7. *Combats & Dégâts :* `LogPlayerUseThrowable` (grenades/smokes), `LogPlayerTakeDamage` (dégâts balistiques par partie du corps), `LogPlayerMakeGroggy` (knockout), `LogPlayerKillV2` / `LogPlayerKill` (éliminations), `LogArmorDestroy` (casque/gilet brisé).
+
+##### 1.3 Matrice Comparative : PUBG.PLUS vs Notre Approche PUBG Clan Site
+
+| Dimension | PUBG.PLUS | Notre Approche PUBG Clan Site | Décision & Rationale |
+|---|---|---|---|
+| **Restitution spatiale 2D** | Lecteur vidéo WebGL animé en continu (Play/Pause, 1x à 8x, 60 fps, traces de balles). | Carte satellite vectorielle statique haute résolution, filtrable par phase, avec survol synchronisé depuis le log. | **Pragmatique & Rapide :** 80% de la valeur tactique pour 10% de la complexité. Évite un moteur d'animation lourd de 50 Mo en mémoire client. |
+| **Ligne de vol avion (*Flight Path*)** | Tracé vectoriel de la trajectoire initiale du largage. | Ligne vectorielle stylisée sur la carte (`Proposition N°5`). | **Adopté :** simple à tracer et fondamental pour comprendre la répartition du drop et des rotations. |
+| **Silhouette anatomique des dégâts** | SVG anatomique du corps humain divisé en 5 zones (`Head`, `Torso`, `Pelvis`, `Arm`, `Leg`). | Composant SVG dédié `DamageBodySvg.tsx` avec gradient thermique et infobulles (`Proposition N°1`). | **Adopté à 100% :** visuel percutant, permet de démythifier un duel perdu ou réussi en un coup d'œil. |
+| **Journal des combats (*Combat Log*)** | Timeline chronologique par phases avec tireur, arme, distance, PV restants et victime. | Timeline verticale `MatchCombatTimeline.tsx` avec double onglet *Mon Escouade* vs *Tout le match* (`Proposition N°2`). | **Adopté & Amélioré :** notre filtre *Mon Escouade* évite d'être submergé par 90 joueurs inconnus. |
+| **Précision balistique (*Accuracy %*)** | Ratio touches / tirs par arme (`hitsLanded / shotsFired`). | Jauge de précision % par arme et par joueur (`Proposition N°6`). | **Adopté :** métrique déjà calculée par notre parser (`TelemetryWeaponStats`), très valorisante pour les membres. |
+| **Accessoires d'armes en temps réel** | Reconstitution continue de l'inventaire (lunettes, chargeurs, poignées seconde par seconde). | Arme responsable du tir + niveau de casque et gilet (T1/T2/T3) au moment de l'impact. | **Différé pour l'inventaire complet :** trop lourd à reconstruire seconde par seconde ; l'arme du tir et l'armure suffisent amplement. |
+| **Gestion des adversaires** | Pseudos anonymes ou tags génériques sans historique. | **Identification intelligente des clans rivaux & Némésis** via `OpponentClan` et `EncounteredPlayer`. | **🔥 Notre avantage exclusif :** affiche si l'adversaire est un rival historique, le nombre de rencontres et le passif de duels ! |
+| **Focus d'analyse** | Grand public / neutre (vue indifférenciée sur les 100 joueurs). | **Focus Escouade & Synergie Clan** (pression au drop à 250m, entraide, revives réussis, bilan duel Top 1). | **🔥 Notre avantage exclusif :** pensée spécifiquement pour le débriefing d'une équipe soudée. |
+| **Performances & Chargement** | Téléchargement client de gros fichiers JSON bruts (10–50 Mo) à chaque consultation. | Stockage SQL relationnel pré-agrégé, requêtes ciblées indexées et rendu quasi instantané. | **🔥 Notre avantage exclusif :** aucun freeze navigateur, fluidité totale sur desktop et mobile. |
+
+---
+
+#### 2. Propositions d'Évolution pour PUBG Clan Site
+
+##### Proposition N°1 : Composant SVG de Silhouette Anatomique (`DamageBodySvg.tsx`)
+Créer un composant autonome `DamageBodySvg` réutilisable à la fois en grand format (dans la fiche membre ou le débriefing d'escouade) et en popover compact (sur clic d'un duel) :
+- **Tracé SVG vectoriel premium** : silhouette stylisée claire/sombre avec 5 zones indépendantes cliquables et survolables (`head`, `torso`, `pelvis`, `arms`, `legs`).
+- **Gradients thermiques / Heatmap d'impact** : coloration dynamique de chaque zone selon le pourcentage ou la valeur absolue des dégâts (teintes bleutées en l'absence d'impact, dégradé ambre/rouge/pourpre lors de gros dégâts).
+- **Tooltips précis** : infobulle au survol indiquant les dégâts chiffrés, le nombre d'impacts et la part relative (ex: *Tête : 78 dégâts · 2 balles · 45% des dégâts totaux*).
+- **Équipement en contexte** : mini-badges superposés pour indiquer le casque et le gilet équipés lors de l'engagement.
+
+##### Proposition N°2 : Le Combat Log Interactif & Chronologique (`MatchCombatTimeline.tsx`)
+Remplacer les aperçus bruts par une timeline verticale élégante et rythmée :
+- **Bandeau de Phase de Cercle** : séparateurs horizontaux indiquant le numéro de phase (Phase 1, Phase 2...), l'état (stable vs rétrécissement actif) et le chrono écoulé.
+- **Cartes de Confrontation (Frags & DBNO)** :
+  - Ligne 1 : Horodatage `MM:SS`, Tireur (avec PV restants à l'instant `T`), icône de l'arme, distance en mètres, badge Headshot, Victime.
+  - Ligne 2 (dépliable au clic) : Confrontation 1v1 détaillée avec la silhouette `DamageBodySvg`, PV restants, dégâts réciproques et statut de l'adversaire (résolu via `OpponentClan` si clan rival connu).
+- **Filtres rapides** :
+  - Onglet `🛡️ Mon Escouade` (ne montre que les frags, knocks, revives et morts impliquant le clan).
+  - Onglet `🌐 Tout le Match` (vue panoramique de l'arène).
+  - Puces de filtrage : *Kills*, *Knockouts*, *Revives*, *Lancers / Utilitaires*, *Airdrops*.
+
+##### Proposition N°3 : Rapprochement Spatio-Temporel avec la Carte 2D
+Lier directement le Combat Log et la carte interactive existante :
+- **Survol synchronisé** : survoler un frag ou un knockout dans le Combat Log projette un marqueur pulsant sur la carte avec tracé de la ligne de visée (tireur → cible).
+- **Superposition des Cercles de Zone** : dessiner sur la carte les cercles Safe Zone (blanc) et Blue Zone (bleu) pour la phase active, en exploitant les données déjà disponibles dans `phaseSnapshots` (`safetyZoneRadiusMeters`, `poisonGasWarningRadiusMeters`, coordonnées X/Y).
+
+##### Proposition N°4 : Matrice des Dégâts & Duels 1v1 (`MatchDamageMatrix.tsx`)
+- Tableau croisé récapitulant les échanges de feu directs entre notre clan et les autres escouades (notamment l'équipe adverse ayant privé notre escouade du Top 1).
+- Bilan net des duels : qui a mis la pression, qui a concédé les dégâts critiques.
+
+##### Proposition N°5 : Trajectoire de Vol de l'Avion (*Flight Path*) sur la Carte 2D
+Ajouter sur la carte 2D la ligne directrice traversant l'île au début du match :
+- Reconstitution du cap de l'avion de largage C-130 à partir des premières coordonnées d'éjection et de parachute (`LogParachuteLanding` / premiers points `positionSamples`).
+- Tracé en ligne vectorielle élégante (pointillés lumineux ou flèche directionnelle stylisée) avec indication du sens de vol.
+- Valeur tactique : permet d'analyser en un coup d'œil la dispersion des équipes, la zone de tension sous l'axe de vol et les choix de rotation de notre escouade par rapport à la trajectoire initiale.
+
+##### Proposition N°6 : Précision Balistique & Efficacité au Tir (*Accuracy %*)
+Exploiter pleinement les métriques déjà accumulées par le parser dans `TelemetryWeaponStats` (`shotsFired` et `hitsLanded`) :
+- Calcul du taux de précision par arme : `accuracy % = Math.round((hitsLanded / shotsFired) * 100)`.
+- Intégration d'une jauge visuelle de précision dans le tableau des armes et sur la fiche de chaque joueur de l'escouade.
+- Permet de mesurer l'efficacité réelle au tir (ex: *CanardEnrage : 34% précision globale · Mini14 : 41% de touches · Beryl : 26%*) et d'enrichir le débriefing individuel au-delà des seuls frags.
+
+##### Proposition N°7 : Restructuration de la Page en 4 Onglets Thématiques
+Afin de ne pas surcharger la page et de maintenir une navigation fluide :
+1. **🎯 Débriefing & Combat Log** : Score du match (placement, podium, kills, dégâts totaux), résumé d'escouade, timeline des combats avec silhouettes anatomiques et événements tactiques.
+2. **🗺️ Carte & Trajectoires 2D** : Carte satellite haute résolution avec trajectoire de vol de l'avion (*Flight Path*), filtres par phase, positions, déplacements, lignes de mort et cercles de zone.
+3. **📊 Statistiques Détaillées** : Tableau des membres parser, ventilation des armes avec précision % (*Accuracy*), lancers d'utilitaires (MemberThrowableStat), pression au drop.
+4. **🛠️ Audit & Pipeline (Debug)** : Métadonnées du parser, statut des colonnes JSON, payloads DB bruts (téléchargement / inspection technique pour admin/superuser).
+
+---
+
+#### 3. Plan d'Implémentation Détaillé (Stratégie Nouvelle Page Parallèle)
+
+- [x] **Phase 1 — Enrichissement API & Données (`GET /api/clans/[clanId]/matches/[matchId]/telemetry`) :** ✅ Terminé
+  - [x] Joindre les `killEvents` existants du match avec résolution des membres du clan et des clans adverses (`OpponentClan`).
+  - [x] Renvoyer les tableaux `knockoutSamples`, `reviveSamples` et `throwableStats` pour alimenter le Combat Log.
+  - [x] Agréger les données `LogPlayerTakeDamage` par zone anatomique (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) pour les duels impliquant les membres du clan.
+  - [x] Exposer `shotsFired` et `hitsLanded` pour chaque arme et calculer le taux de précision balistique (`accuracyRate`).
+  - [x] Extraire les coordonnées de cap pour la trajectoire de vol initiale de l'avion (*Flight Path*).
+- [x] **Phase 2 — Composants Dataviz & Graphiques :** ✅ Terminé
+  - [x] Créer `src/components/telemetry/DamageBodySvg.tsx` (silhouette SVG 5 zones anatomiques, thème clair/sombre, infobulles de dégâts).
+  - [x] Créer `src/components/telemetry/MatchCombatTimeline.tsx` (timeline d'événements, séparateurs de phases, cartes d'échange 1v1 avec SVG dégâts).
+  - [x] Créer le composant de jauge / badge de précision balistique (`WeaponAccuracyBadge.tsx`).
+- [x] **Phase 3 — Création de la Nouvelle Page Parallèle (`/clans/[clanId]/telemetry/matches/[matchId]/debrief`) :** ✅ Terminé
+  - [x] Créer la nouvelle route dédiée `src/app/clans/[clanId]/telemetry/matches/[matchId]/debrief/page.tsx`.
+  - [x] Intégrer les 4 onglets tactiques : *🎯 Débriefing & Combat Log*, *🗺️ Carte Tactique 2D*, *📊 Escouade & Précision*, *⚔️ Matrice des Duels*.
+  - [x] Afficher la ligne de vol de l'avion (*Flight Path* C-130) et les cercles de zones géographiques sur la carte pour chaque phase sélectionnée.
+  - [x] Intégrer les métriques de précision de tir dans l'onglet Statistiques.
+  - [x] Ajouter les bandeaux de découverte et de bascule entre l'ancienne et la nouvelle vue.
+- [ ] **Phase 4 — Tests, Ajustements Utilisateur & Bascule Finale :** (En cours)
+  - [x] Tests unitaires Vitest automatisés (`src/lib/pubg-telemetry/tactical-debrief.test.ts` : 9 tests passés avec succès).
+  - [x] Compilation TypeScript globale validée à 0 erreur (`npx tsc --noEmit`).
+  - [x] **Distinction multi-clans suivis & affiliation à 3 niveaux (Actif / Suivis / Adversaires) :** ✅ Implémenté le 2026-09-05
+    - **Constat & Problématique :** Dans un match partagé (ex: match en squad mixte où des membres de `[RAF]` et de `[BOFS]` jouent ensemble ou se croisent), les joueurs d'autres clans suivis sur la plateforme apparaissaient sans distinction ou pouvaient être confondus avec des adversaires inconnus ou avec le clan actif.
+    - **Architecture API (`src/app/api/clans/[clanId]/matches/[matchId]/telemetry/route.ts`) :**
+      - Résolution de l'affiliation sur 3 niveaux via `resolvePlayer` : `'current_clan'` (clan actif consulté, ex: `[RAF]`), `'tracked_clan'` (autre clan suivi sur le site, ex: `[BOFS]`), ou `'external'` (adversaires / lobby externe).
+      - Détection automatique et exposition des autres clans suivis présents dans le match via `payload.match.otherTrackedClans` (`string[]`).
+      - Injection de `actorAffiliation`, `targetAffiliation`, `isTrackedClanActor`, `isTrackedClanTarget` sur chaque événement du Combat Log (kills, knocks, revives).
+    - **Affichage UI & Filtrage (`src/components/telemetry/MatchCombatTimeline.tsx`) :**
+      - Filtre à 3 positions dynamique : `Escouade [RAF]` (clan actif uniquement), `Clans Suivis [RAF + BOFS]` (tous les membres de clans enregistrés), `Tout le match` (l'ensemble des événements).
+      - Badges visuels distinctifs :
+        - Vert Émeraude / Gras pour le Clan Actif (`[RAF]`).
+        - Violet / Indigo avec pillule `SUIVI` pour les autres clans suivis de la plateforme (`[BOFS] SUIVI`).
+        - Ardoise neutre pour les joueurs externes du lobby PUBG.
+  - [x] **Correction de l'échelle du plan de vol C-130 et des cercles de zone :** ✅ Implémenté le 2026-09-05
+    - **Constat :** Le tracé du plan de vol de l'avion ne traversait pas la carte et semblait "trop court" (s'arrêtait à mi-chemin au niveau de Bootcamp).
+    - **Causes identifiées :**
+      1. Les parachutages tardifs (respawns de rappels de puces bleues jusqu'à 14 min de jeu) polluaient l'échantillon des atterrissages et déviaient le point final vers les tours de rappel de Bootcamp.
+      2. Le vecteur ne reliait que le premier et dernier point d'atterrissage des joueurs au lieu d'extrapoler la trajectoire continue de l'avion d'une bordure de carte à l'autre.
+      3. Une erreur de facteur 100 existait dans la projection du rayon du cercle de zone blanche (`(radius / (bounds.width / 100)) * 100`).
+    - **Corrections apportées :**
+      - Filtrage des atterrissages initiaux de l'avion (fenêtre <= 80s du début).
+      - Calcul d'intersection géométrique avec les 4 bordures de la carte pour tracer la ligne de survol complète de l'avion d'un bout à l'autre de l'île.
+      - Ajout de la fenêtre de largage active (`dropStart` / `dropEnd`) avec balises visuelles distinctes.
+      - Normalisation du cap compas aéronautique (`0° - 360°`) et rotation orientée de l'icône avion.
+      - Correction du ratio de dimensionnement des cercles de zone (`radius / bounds.width * 100`).
+  > **Mise à jour du 2026-09-15 :** les quatre chantiers ci-dessous (Replay, zones corporelles, image de carte, noms) ont
+  > été livrés dans le **VOLET 4** (P1) le 2026-09-13 ; leurs cases restaient ouvertes ici. La revue utilisateur et la
+  > bascule d'URL restent ouvertes et sont suivies dans le VOLET 4, « Bascule vers le débriefing et retrait des anciennes pages ».
+  - [x] **🎮 Véritable Replay 2D interactif animé (Inspiration PUBG.PLUS) :** — livré (VOLET 4, chantier Replay)
+    - **Lecteur multimédia dynamique :** Commandes Play/Pause, barre de progression temporelle (Scrubber `00:00 → fin de partie`), vitesse variable (`0.5x`, `1x`, `2x`, `4x`, `8x`), horloge du match.
+    - **Zoom & Pan interactifs :** Zoom fluide à la molette de souris ou boutons `+ / -`, déplacement libre sur la carte (*pan & drag*).
+    - **3 Modes de Visibilité des Joueurs (au choix via sélecteur dédié) :**
+      - `Mode Escouade` : notre clan / équipe et les adversaires au contact direct ou engagés en duel.
+      - `Mode Tournoi / Suivis` : l'ensemble des membres des clans suivis et équipes participantes au tournoi.
+      - `Mode Global (100 joueurs)` : vue intégrale sur tous les joueurs du lobby avec pastilles numérotées par escouade (façon PUBG.PLUS).
+    - **Suivi Caméra Automatique (*Camera Follow*) :** Clic sur un joueur ou une équipe pour centrer et verrouiller la caméra sur lui, avec suivi automatique de ses déplacements sur la carte pendant la lecture.
+    - **Animation dynamique des cercles & combats :**
+      - Réduction continue des cercles de zone (Safe Zone blanche et Blue Zone toxique) synchronisée avec l'horloge du match.
+      - Événements de tirs (lignes vectorielles traçantes) et éliminations (icônes d'élimination/knockout) projetés instantanément sur la carte en synchronisation avec le Combat Log.
+  - [x] **🩺 Correction du décompte des impacts corporels (`DamageBodySvg`) :** — livré (VOLET 4, `body-zones.ts`)
+    - Remplacement du calcul heuristique arbitraire (`inferHitZones`) par les vraies métriques de touches par zone corporelle (`HeadShot`, `TorsoShot`, `PelvisShot`, `ArmShot`, `LegShot`) issues des événements de télémétrie `LogPlayerTakeDamage`.
+    - Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade.
+  - [x] **🗺️ Résolution et affichage garanti de l'image satellite de la carte :** — livré (VOLET 4, `map-asset.ts`)
+    - Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) pour garantir que `/maps/pubg/${mapKey}.webp` charge toujours l'image haute résolution (ex: `Erangel` ↔ `Baltic_Main`, `Miramar` ↔ `Desert_Main`, `Sanhok` ↔ `Savage_Main`, `Taego` ↔ `Tiger_Main`, `Rondo` ↔ `Neon_Main`, etc.) sans erreur 404.
+  - [~] **👤 Noms complets de tous les joueurs (non-membres et adversaires) :** — 95 à 99 % résolus (VOLET 4) ; ~5 % de comptes jamais croisés restent ouverts
+    - Enrichissement de `memberIdentityMap` : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
+    - Fin des identifiants bruts ou tronqués pour les adversaires externes.
+  - [ ] Revue et validation utilisateur sur le match réel `cmtonisut8oru04b2vnaaxrdj` (clan RAF + BOFS) et `cmtoouiyw8t6304b22w3f4u8y`.
+  - [x] ~~Une fois validée : basculer la nouvelle page sur l'URL principale `/telemetry` et archiver/rediriger l'ancienne vue vers `/telemetry/audit`.~~ — bascule faite autrement le 2026-09-16 : liens et anciennes pages redirigés vers `/debrief`, adresses conservées (voir VOLET 4)
+  - [x] Documenter le composant `DamageBodySvg` dans le showroom `docs/ui/index.html` — ✅ 2026-09-16, section 26 `#silhouette-impacts`
+
+
+
+---
+
+### ~~Vue cross-clans SuperUser — Télémétrie + API PUBG~~ — ✅ Déployé le 2026-08-06
+
+Demande du 2026-08-06 : permettre à un SuperUser de comparer la santé télémétrie et la consommation API de plusieurs clans sans naviguer clan par clan. Analyse du modèle de permissions avant de proposer une architecture.
+
+#### Constat sur le contrôle d'accès — bug trouvé au passage
+
+Deux mécanismes distincts coexistent dans le code :
+
+- **`isSuperUser`** : flag global sur `UserAccount` (`src/middleware/auth-permission.ts`), indépendant de tout clan. C'est le vrai SuperUser — `requireSuperUser()`/`isSuperUserSession()` l'utilisent côté API, et il bypass les checks clan-scopés (ex. la route recoveries via `requireRole(['Owner'])(request, { clanId })` laisse passer un SuperUser sur n'importe quel clan).
+- **`permissions.includes('*')`** : dérivé du rôle du **membre actif dans son clan courant** (`getMemberPermissionKeys()` dans `role-service.ts`) — le rôle "Owner" donne `['*']` à l'échelle de ce clan. Ce n'est **pas** l'équivalent d'être SuperUser.
+
+[`/settings/pubg-api/page.tsx:158`](../../src/app/settings/pubg-api/page.tsx#L158) gate toute la page sur `permissions.includes('*')`, jamais sur `isSuperUser` (pourtant déjà exposé par `useAuthSession()` — voir `src/hooks/useAuthSession.ts`). Conséquence : un simple Owner de clan (pas SuperUser) peut accéder à la page, et un vrai SuperUser dont le membre actif n'a pas le rôle Owner sur son clan lié se ferait bloquer à tort.
+
+- [x] Corrigé `/settings/pubg-api/page.tsx` : `isOwner = permissions.includes('*')` remplacé par `isSuperUser` (retourné par `useAuthSession()`, déjà exposé côté hook) sur les 5 points de gate (accès page, effet de chargement, `handleSaveRpm`, `handlePurgeHistory`, `canWriteSettings`) ; import `permissions` retiré du destructuring devenu inutile ; message d'accès refusé mis à jour ("reservee au SuperUser")
+- [x] Corrigé côté serveur : `GET/DELETE /api/settings/pubg-api-calls` et `GET/POST /api/settings/pubg-api-rate-limit` utilisaient `getMemberPermissionKeys(session.activeMemberId)` + `permissions.includes('*')` — remplacé par `session.isSuperUser` directement (déjà présent sur `AuthSessionContext` retourné par `getSessionFromRequest()`, pas besoin de requête supplémentaire). Bénéfice additionnel : un SuperUser sans `activeMemberId` (aucune adhésion clan) n'est plus bloqué à tort — l'ancien code exigeait `session?.activeMemberId` avant même de vérifier `isSuperUser`
+- [x] Validation : ESLint et `tsc --noEmit` propres (137 erreurs, identique à la baseline), `npm run test:telemetry` toujours 55/59 (mêmes 3 échecs préexistants)
+
+#### Décision d'architecture — API PUBG : rien de nouveau à créer
+
+`/settings/pubg-api` est déjà une page globale (hors `/clans/[clanId]/...`), et le panneau "Répartition par clan" livré le 2026-08-06 **est déjà** la vue cross-clans demandée pour le volet API. Le fix d'accès ci-dessus est fait — ce volet est maintenant complet.
+
+#### Décision d'architecture — Télémétrie : nouvelle page — ✅ Déployée le 2026-08-06
+
+`/clans/[clanId]/telemetry/recoveries` est scopée à un clan par construction (route dynamique + filtre SQL `cm.clanId = X` dans `route.ts`). Forcer cette page à représenter "tous les clans" (id spécial type `clanId=all`, toggle de mode) aurait été bancal et aurait fragilisé une page qui fonctionne bien pour son usage actuel (deep-dive un clan). Le pattern déjà établi dans ce projet pour une vue globale réservée SuperUser est `/settings/pubg-api` — répliqué à l'identique.
+
+**Décisions validées avant implémentation (questions posées à l'utilisateur) :** nom de page `/settings/telemetry-recoveries` (cohérent avec le nom de la page clan-scopée) ; page en lecture seule + liens vers le détail par clan, sans dupliquer les actions Backfill/Export CSV de la page clan-scopée.
+
+- [x] Nouveau service [telemetry-recoveries-overview.ts](../../src/lib/telemetry-recoveries-overview.ts) : `getTelemetryRecoveriesOverview(window)`. Requête SQL en deux temps plutôt qu'un simple `GROUP BY` — un `SELECT DISTINCT (clanId, squadMatchId)` dérivé d'abord (dédupliquer les cas où plusieurs membres du même clan sont dans la même squad, pour ne jamais compter une ligne `SquadMatchTelemetry` deux fois pour un même clan), puis jointure vers `SquadMatchTelemetry` avec filtre de fenêtre temporelle optionnel (`Prisma.empty` si `window=all`, même pattern que `drop-pressure-persistence.ts`/`position-metric-aggregation.ts`). Classification succès/échec/expiré/en attente et résolution des noms de clan répliquent exactement la logique déjà existante dans [route.ts](../../src/app/api/clans/[clanId]/telemetry/recoveries/route.ts) (réutilise `isTelemetryDataExpiredError`, ne la duplique pas)
+- [x] Nouvelle route [GET /api/settings/telemetry-recoveries](../../src/app/api/settings/telemetry-recoveries/route.ts), gate `session.isSuperUser` (le bon mécanisme, pas `'*'`), paramètre `window` (`24h`/`7d`/`30d`/`all`, défaut `7d`)
+- [x] Type `TelemetryScope` étendu avec `'global'` dans [api-contract.ts](../../src/lib/pubg-telemetry/api-contract.ts) (changement additif, n'affecte aucun des 12 autres appelants existants)
+- [x] Nouvelle page [/settings/telemetry-recoveries](../../src/app/settings/telemetry-recoveries/page.tsx) : panneau "Répartition par clan" avec mini-barre succès/échecs/expirés/en attente par ligne, bordure + icône d'alerte si le taux d'échec dépasse `10 %`, sélecteur de fenêtre en `SegmentedControl`, lien "Détail" vers `/clans/[clanId]/telemetry/recoveries` par ligne
+- [x] Nouvelle entrée nav `superuser.telemetry-recoveries` dans [nav-permissions-registry.ts](../../src/lib/nav-permissions-registry.ts) (section `superuser-menu`) — coexiste sans collision avec `owner.telemetry-recoveries` (la page clan-scopée existante, navKey différent)
+- [x] **Découverte en cours d'implémentation :** le menu de navigation lit la table `NavItem` en base, pas directement `nav-permissions-registry.ts` (fallback statique non atteint une fois la DB seedée — commentaire `@deprecated` sur `getItemRole`). Lancé `npx tsx prisma/seed-nav-items.ts` (upsert idempotent) pour que la nouvelle entrée apparaisse réellement dans le menu SuperUser — 49 lignes `NavItem` en base après coup
+- [x] Validation : requête SQL testée directement contre la base réelle (20 lignes échantillon), puis pipeline complet (agrégation + résolution nom de clan) simulé en Node contre la vraie base — résultat cohérent : clan D32 [SMK], 1674 récupérations, 1342 succès, 332 expirées, 0 échec, 0 en attente
+- [x] ESLint et `tsc --noEmit` propres (137 erreurs, baseline inchangée), `npm run test:telemetry` toujours 55/59 (mêmes 3 échecs préexistants)
+- [ ] Vérifier rendu clair/sombre et mobile dans le navigateur — non vérifié en session, pas d'accès SuperUser disponible
+
+#### Évolution — Backlog, Suivi Worker/Planification, Actions & Chargement Progressif — ✅ Déployé le 2026-09-02
+
+Demande utilisateur : `/settings/telemetry-recoveries` n'affichait aucune information sur ce qui restait à récupérer (backlog invisible), le statut de complétion réel était absent, et aucune indication ne permettait de savoir quand le restant serait récupéré. De plus, un chargement rapide avec affichage progressif des données plus lourdes était requis.
+
+- [x] **Chargement progressif et asynchrone :** suppression de l'écran blanc bloquant. La page et la navigation s'affichent instantanément. Trois flux de données parallèles indépendants :
+  1. `GET /api/settings/telemetry-recoveries/status` : ultra-rapide (< 20ms), lit le lock du worker (`.telemetry-resync-worker.lock`), la file live-sync (`CronExecution`), la configuration scheduler (`TELEMETRY_SYNC_ENABLED`, quota) et l'ETA de traitement.
+  2. `GET /api/settings/telemetry-recoveries?window=...` : rapide (50-100ms), récupère l'activité récente par fenêtre temporelle (`24h`, `7d`, `30d`, `all`).
+  3. `GET /api/settings/telemetry-recoveries/backlog` : audit complet en tâche de fond sous skeleton animé, calculant le vrai volume de matchs éligibles, les télémétries complétées, le backlog restant, les matchs en file et les urgences PUBG 14 jours.
+- [x] **Axe 1 — Visibilité Backlog & Complétion Réelle :**
+  - Nouveau service [telemetry-recoveries-backlog.ts](../../src/lib/telemetry-recoveries-backlog.ts) avec agrégation SQL optimisée groupée par clan (`SquadMatch` non casual, `SquadMember`, `ClanMember`, LEFT JOIN `SquadMatchTelemetry`).
+  - Prise en compte de la règle de rétention PUBG (14 jours) : les matchs de plus de 14 jours sans télémétrie sont isolés en `expiredMatches` (non récupérables).
+  - Alerte d'urgence PUBG : détection des matchs datant de 7 à 13 jours risquant d'expirer prochainement.
+  - Jauge de complétion réelle cross-clans et par clan : `complétés / (total - expirés PUBG)`.
+- [x] **Axe 2 — Moteur & Planification (Quand est-ce récupéré) :**
+  - Nouveau service [telemetry-recoveries-status.ts](../../src/lib/telemetry-recoveries-status.ts) et route [status/route.ts](../../src/app/api/settings/telemetry-recoveries/status/route.ts).
+  - Bandeau temps réel : badge 🟢 Worker Actif (PID, traitement en cours) ou 🔴 Worker Inactif avec consigne explicite (`npm run telemetry:worker`).
+  - File d'attente : nombre de matchs `queued` et `running`, temps estimé (ETA).
+  - Statut de la synchronisation automatique nocturne (`TELEMETRY_SYNC_ENABLED`, heure estimée, quota par clan).
+- [x] **Axe 3 — Actions SuperUser directes :**
+  - Nouvelle route [POST /api/settings/telemetry-recoveries/enqueue-backlog](../../src/app/api/settings/telemetry-recoveries/enqueue-backlog/route.ts) permettant de mettre en file en 1 clic tout le backlog récupérable ou prioritairement les urgences (< 14 jours).
+  - Boutons d'enqueuement cross-clans et par clan directement sur les cartes de clan avec rafraîchissement réactif (`reloadToken`).
+- [x] **Tests & Validation :**
+  - Nouveaux tests unitaires [telemetry-recoveries.test.ts](../../src/lib/telemetry-recoveries.test.ts) validant le statut, le calcul du backlog/complétion et l'enqueuement (3/3 passés).
+  - `npx tsc --noEmit` : 0 erreur. ESLint : 0 erreur, 0 avertissement.
+
+---
+
+### ~~Performances — Cache des awards~~ — ✅ Déployé le 2026-08-04
+
+Développé le 2026-08-04 après lecture de [awards-service.ts](../../src/lib/awards-service.ts) et [awards/route.ts](../../src/app/api/clans/[clanId]/awards/route.ts).
+
+**Confirmé :** `GET /api/clans/[clanId]/awards` appelait `computeClanAwards()` sans aucun cache — pas de `Cache-Control`, pas de mémoïsation. `computeClanAwards()` charge **tous** les `SquadMember` du clan sur la période via `findMany` (pas de `groupBy` SQL), puis agrège en mémoire en JS. Sur la période `all`, ça veut dire une ligne par membre par match — potentiellement des dizaines de milliers de lignes rechargées et ré-agrégées à chaque affichage de la page Awards, par tous les membres qui la consultent.
+
+**Option retenue : précalcul plutôt que TTL en mémoire.** Le projet a déjà exactement ce pattern ailleurs : `Clan.clanStats` (colonne `Json?`) est précalculé chaque nuit par `syncTrackedClanStats()` ([clan-service.ts:208](../../src/lib/clan-service.ts#L208)) — lu tel quel par les routes de lecture, jamais recalculé à la demande. Un TTL en mémoire (`Map` module-level) aurait été plus rapide à écrire mais ne survit pas à un redémarrage/déploiement et se désynchronise de la logique cron déjà en place pour des besoins similaires ; le précalcul est plus cohérent avec l'architecture existante.
+
+- [x] Nouvelle table `ClanAwardsCache` (`clanId`, `period`, `periodKey`, `payload Json`, `computedAt`, unique sur `[clanId, period]`) — migration `20260804120000_add_clan_awards_cache`, même esprit que `Clan.clanStats` mais une ligne par période (week/month/all)
+- [x] `precomputeClanAwards(clanId)` dans [awards-service.ts](../../src/lib/awards-service.ts) : calcule les 3 périodes et upsert dans `ClanAwardsCache`, appelée depuis `recalculateStatsDaily()` juste après `recalculateStatsForClan()` dans [cron-jobs.ts](../../src/lib/cron-jobs.ts) — même cron `daily_stats_recalc` déjà existant, pas de nouveau cron créé ; échec du précalcul non bloquant pour le reste de la boucle cron (try/catch dédié, comme le refresh challenges dans `runDailyClanSync`)
+- [x] `GET /api/clans/[clanId]/awards` utilise désormais `getCachedOrComputeClanAwards()` : lit `ClanAwardsCache` en priorité, fallback sur `computeClanAwards()` à la volée si aucune ligne (clan tout juste créé) — **et écrit le résultat en cache à ce moment-là** (auto-guérison), pas seulement au prochain passage cron, puisque le calcul a de toute façon déjà eu lieu pour répondre à la requête
+- [x] Décidé pour "week" : pas de rafraîchissement séparé plus fréquent — le cache se régénère au même rythme que les 2 autres périodes via le cron quotidien déjà existant ; suffisant vu que les awards ne sont pas une donnée temps réel
+- [x] Mesuré le volume réel : `4379` lignes `SquadMember` pour le plus gros clan (D32, clan 1), `0` pour les 6 autres (pas encore de détection d'escouade)
+
+**Validé le 2026-08-04** en conditions réelles : précalcul des 3 périodes pour le clan 1 en 335ms (3 lignes créées), lecture depuis le cache en 13ms, et auto-guérison confirmée sur un clan sans ligne de cache (clan 3 : calcul à la volée + écriture immédiate en cache, ligne créée et vérifiée en base).
+
+---
+
+## Technique
+
+### Tests
+
+- [ ] Aucun test n'existe actuellement en dehors de `test:telemetry` (Vitest limité). Envisager des tests pour `awards-service.ts`, `report-generator.ts` et `stats-calculator.ts`
+- [ ] Tester la route `drop-zones` avec des données réelles (après backfill)
+
+### Documentation
+
+- [x] Mettre à jour `docs/telemetry/ops.md` après le backfill v1 → v2
+- [x] Documenter les pages UI `/drop-zones` une fois créées — `docs/features/drop-zones.md` existe (vérifié le 2026-08-30)
+- [ ] Mettre à jour `docs/features/challenges.md` une fois la progression auto câblée — **confirmé toujours pas fait le 2026-08-30** : le câblage (`refreshChallengeProgressForClan`) est bien en place dans `cron-jobs.ts`, mais `docs/features/challenges.md` ne le mentionne pas
+
+---
+
+## Résumé — Ce qui reste à faire (au 2026-06-23)
+
+> ⚠️ **Obsolète (constaté le 2026-09-16)** — ne plus s'y fier : lancers livrés, `rideDistance` et arme en main
+> abandonnés après investigation, cache des awards livré, suppression des captures et nettoyage automatique écartés
+> (voir P2 « Auto-cleanup cron »). L'état à jour de la télémétrie est dans P1 « Télémétrie — ordre des prochaines étapes ».
+
+### Tâches ouvertes par priorité
+
+| Priorité | Catégorie | Item | Effort estimé |
+|---|---|---|---|
+| P1 | Ops | Supprimer les fichiers `.telemetry-captured/` obsolètes (backfill v1→v2 terminé) | < 1h |
+| P2 | Infra | Push notifications — choisir et brancher un service réel (FCM / Web Push VAPID) | 1–2j |
+| P2 | Ops | Auto-cleanup cron — brancher `queue-cleanup` nocturne (jobs queued > 24h, failed > 7j, fichiers capturés > 30j) | 2–4h |
+| P3 | Télémétrie | Parser `LogPlayerUseThrowable` (grenades/molotovs) | 2–4h |
+| P3 | Télémétrie | Parser `LogVehicleLeave.rideDistance` + `.maxSpeed` | 2–3h |
+| P3 | Télémétrie | Parser `CharacterWrapper.primaryWeaponFirst` (arme au moment du kill) | 4–8h |
+| P3 | UI | Afficher `teamKills` et `swimDistance` par match depuis `SquadMember` (`headshotKills` déjà couvert) | 1h |
+| P3 | Fiabilité | Vérifier et tester les crons `weekly_report` / `monthly_report` | 1–2h |
+| P3 | Performances | Cache awards `computeClanAwards` (TTL 10 min ou pré-calcul quotidien) | 2–4h |
+| Tech | Tests | Tests unitaires pour `awards-service.ts`, `report-generator.ts`, `stats-calculator.ts` | 4–8h |
+| Tech | Doc | Documenter `/drop-zones` + mettre à jour `docs/features/challenges.md` | 1h |
+
+### Ce qui n'est PAS à faire (hors scope confirmé)
+
+- `squad_synergy` challenge — calcul de composition multi-membres, complexité non justifiée
+- Streaming JSON parser — déjà implémenté nativement dans `parser.ts`
+
+---
+
+## Idées — Comparaison de performances entre clans
+
+Aujourd'hui, le site est strictement mono-clan : isolation garantie par `ensureMemberInClan()`, aucune page ne compare deux clans entre eux. Cette section propose des pistes pour introduire une dimension **inter-clans**, en s'appuyant au maximum sur les données déjà collectées (`clanStats`, `PlayerStats`, `Match`, `SquadMatch`) plutôt que sur de nouveaux pipelines.
+
+### Constat de départ
+
+| Élément | État actuel |
+|---|---|
+| Isolation clan | Stricte — un Owner/Admin/Member ne voit que son propre clan (voir `docs/features/clans.md` §3) |
+| Données déjà agrégées par clan | `Clan.clanStats` (JSON) : totaux kills/damage/matches/winRate + top performers, recalculé chaque nuit par `syncTrackedClanStats()` |
+| Multi-clan en DB | Oui — `GET /api/clans` liste déjà tous les clans actifs avec comptage membres/matchs |
+| SuperUser | Seul rôle à avoir une vue cross-clan aujourd'hui |
+
+Toute fonctionnalité de comparaison inter-clans est donc un **choix de politique de confidentialité** autant qu'une feature technique : faut-il que ce soit public (visible par tous les clans), opt-in par clan, ou réservé au SuperUser ? Voir item confidentialité ci-dessous.
+
+### ~~1. Classement public inter-clans ("Ligue des clans")~~ — ✅ Fait à ~90 % (vérifié le 2026-08-30, déployé sous le nom "Ligue Inter-Clans" sans que cette section ait été mise à jour)
+
+**Pourquoi c'est utile :** la fonctionnalité la plus évidente et la plus motivante — donner à chaque clan un rang par rapport aux autres, pas seulement en interne.
+
+**Données disponibles :** `Clan.clanStats.tracked.aggregated` existe déjà pour chaque clan actif (kills, damage, matches, winRate, assists, revives). Aucun nouveau pipeline de calcul n'est nécessaire, juste une agrégation de lecture sur tous les clans.
+
+- [x] Page `/clans-leaderboard` (`src/app/clans-leaderboard/page.tsx`) listant tous les clans actifs, triable par winRate, kills totaux, damage moyen par match, matches joués (`ClanLeaderboardTable.tsx`, tri cliquable)
+- [x] Podium Top 3 avec gradients/glow/icône couronne et animations d'entrée (`ClanLeaderboardTable.tsx`) — [ ] **sparklines de tendance 4 semaines toujours absentes**, aucune trace dans le code
+- [x] Colonnes : rang (médailles), nom + tag, effectif actif, Power Score, winRate, dégâts moyens, kills moyens (+ knocks moyens en bonus)
+- [x] Filtrage par période (Semaine/Mois/Tous), backend précalculé via `ClanComparatorCache`/`computeClanComparatorStats`, rafraîchi chaque nuit par `cron-jobs.ts`
+- [x] Route API `GET /api/clans-leaderboard` (lecture `ClanComparatorCache` pour les clans `isActive`, tri en mémoire) — composant dédié `ClanLeaderboardTable.tsx` plutôt que réutilisation de `Leaderboard.tsx` interne
+
+**Point d'attention :** comparer des totaux bruts favorise les gros clans (plus de membres = plus de kills). Voir item 4 (normalisation, toujours pas fait).
+
+**Effort :** faible — réalisé.
+
+### ~~2. Score de puissance de clan ("Clan Power Rating")~~ — ⚠️ Partiellement fait (vérifié le 2026-08-30)
+
+**Pourquoi c'est utile :** un score unique, facile à afficher en badge, qui résume la force d'un clan mieux qu'un classement multi-colonnes.
+
+- [~] Un "Power Score" existe et s'affiche partout sur `/clans-leaderboard` (`src/app/api/clans-leaderboard/route.ts`, formule `winRate*10000 + avgDamage + avgKills*10 + avgKnocks*5`) — **mais ce n'est pas une formule normalisée 0–100** (échelle libre non bornée) et le facteur de régularité (écart-type des perfs hebdo) n'est pas implémenté
+- [ ] Historique du score dans le temps (courbe) — nouvelle table légère `ClanPowerRatingHistory (clanId, period, score)` ou append JSON dans `clanStats` à chaque recalcul nocturne — **confirmé absent**, le score est recalculé à la volée à chaque requête, rien n'est persisté dans le temps
+- [ ] Évolution ± affichée comme delta (même pattern que les deltas du leaderboard interne) — pas de delta affiché
+
+**Effort :** moyenne — le calcul brut existe déjà (à normaliser), l'historique demande une nouvelle table/append JSON et une décision sur la fenêtre de calcul (rolling 30 jours ?).
+
+**Inspiration :** systèmes de type Elo/Glicko pour classer des équipes — ici plus simple, pas de confrontations directes à arbitrer (voir item 3).
+
+### ~~3. Détection de rivalité — clans qui se croisent dans le même match~~ — ⚠️ Fait à ~70 % via le Comparateur de Clans (vérifié le 2026-08-30)
+
+**Pourquoi c'est utile :** PUBG est un battle royale, donc deux clans trackés peuvent littéralement s'affronter dans le même match sans le savoir. Détecter ces croisements et en faire un classement "face-à-face" est une fonctionnalité qu'aucun site classique de stats PUBG ne propose.
+
+**Données disponibles :** `Match` stocke déjà le `matchId` PUBG par membre. Si deux membres de deux clans différents ont le même `matchId`, c'est un croisement détecté.
+
+- [x] Détection de `SquadMatch` partagés entre membres actifs de deux clans, via `src/lib/head-to-head-service.ts` (`getHeadToHeadStats`) — va au-delà de la demande initiale (kills directs via `KillEvent` en plus du placement)
+- [x] Pour chaque croisement : meilleur placement par clan, kills totaux par clan, bilan victoire/défaite (`matchesWonByA/B`)
+- [x] Tableau "Confrontations directes" par paire de clans — section "Le Derby — Head-to-Head" sur `/clans/comparator`
+- [ ] **Reste manquant :** ce n'est pas un job/cron automatique balayant tous les clans (calculé seulement à la demande pour les clans sélectionnés manuellement, max 3, dans le Comparateur) ; aucune notification "Votre clan a croisé [Clan X]" n'existe
+
+**Effort :** moyenne à élevée. La détection et l'exploitation fine (kills directs via `KillEvent`) sont faites ; il ne reste que l'automatisation en tâche de fond et la notification.
+
+**Point d'attention confidentialité :** révèle des informations sur un autre clan sans son consentement explicite (placement, kills dans un match donné). Voir item confidentialité (toujours pas tranché — le leaderboard actuel expose tous les clans actifs sans distinction, ce qui correspond de facto à l'option "Public par défaut").
+
+### 4. Normalisation par effectif — comparer équitablement petits et gros clans
+
+**Pourquoi c'est utile :** sans ça, tout classement brut favorise mécaniquement les clans à 30 membres actifs contre ceux à 8. Un petit clan très performant n'a aucune chance de se distinguer.
+
+- [ ] Toutes les métriques du classement inter-clans (item 1) déclinées en version "par membre actif" : kills/membre, damage moyen/membre, matches/membre
+- [ ] Toggle "Classement brut" vs "Classement par capita" (comme le toggle Clan/Inclus Solo existant sur le leaderboard interne)
+- [ ] Seuil minimum de membres actifs ou de matchs joués pour apparaître dans le classement per-capita
+
+**Effort :** faible — division simple sur les données déjà agrégées de l'item 1. À faire en même temps que l'item 1, pas après.
+
+### 5. Défis et événements inter-clans
+
+**Pourquoi c'est utile :** le modèle `Challenge` existe déjà pour les défis internes à un clan. L'étendre à un scope inter-clans donnerait un vrai objectif compétitif motivant (type "guerre de clans").
+
+**Données disponibles :** `Challenge`, `ChallengeParticipant`, `ChallengeReward` existent déjà, actuellement scopés par `clanId`.
+
+- [ ] `Challenge` à scope `null` clanId (global) ou nouveau type `ClanChallenge` opposant N clans sur un objectif commun (ex. "premier clan à atteindre 10 000 kills cumulés cette semaine")
+- [ ] Classement de progression en temps réel entre clans participants, jauge comparative
+- [ ] Récompenses spécifiques (badge clan) — équivalent `ClanRewards` au modèle `PlayerRewards` existant
+
+**Effort :** élevée — extension de modèle de données, pas juste une vue en lecture. À envisager après les items 1–4 (quick wins sur données déjà là).
+
+Voir aussi la section "Compétitions inter-clans" ci-dessous (suggestions), qui recoupe cette idée avec un `ClanChallenge` détaillé.
+
+### 6. Opt-in et confidentialité — condition préalable à tout ce qui précède
+
+**Pourquoi c'est un sujet à part entière :** le système actuel a été durci récemment précisément pour garantir l'isolation stricte entre clans. Introduire une comparaison inter-clans est un changement de philosophie qui mérite une décision explicite, pas juste un ajout de route API.
+
+| Option | Description | Effort |
+|---|---|---|
+| Public par défaut | Tous les clans actifs apparaissent dans les classements inter-clans (comme un leaderboard PUBG mondial) | Faible — aucun nouveau champ nécessaire |
+| Opt-in par clan | Un Owner active un flag `Clan.publicStatsOptIn` dans les settings pour apparaître dans les classements | Moyenne — nouveau champ + toggle dans `/clans/[clanId]/settings` |
+| Réservé SuperUser | Comparaison visible uniquement en interne pour la modération/animation de la plateforme, pas exposée aux clans eux-mêmes | Faible — nouvelle page réservée `requireSuperUser()` |
+
+- [ ] Trancher l'option de confidentialité (recommandation : commencer par "Réservé SuperUser" pour valider l'intérêt et la fiabilité des chiffres, puis basculer vers "opt-in par clan" une fois le concept validé) — **note du 2026-08-30** : `/clans-leaderboard` (livré depuis) expose déjà tous les clans actifs sans distinction, donc l'option "Public par défaut" est de facto celle en place, sans qu'une décision explicite ait jamais été actée
+
+### Priorisation suggérée
+
+**Mise à jour du 2026-08-30 :** les items 1 et 3 ont été livrés entre-temps sous le nom "Ligue Inter-Clans" / "Comparateur de Clans" (voir sections ci-dessus), sans que cette table ait été tenue à jour.
+
+| Priorité | Idée | Effort | Dépendances | Statut au 2026-08-30 |
+|---|---|---|---|---|
+| 1 | Classement inter-clans brut + per-capita (items 1 + 4) | Faible | Aucune — données déjà en base | Classement brut ✅ fait (`/clans-leaderboard`) ; per-capita ❌ toujours pas fait |
+| 2 | Scope SuperUser-only en premier (item 6) | Faible | Aucune | ❌ Pas fait — décision jamais tranchée, page ouverte à tous les utilisateurs authentifiés |
+| 3 | Clan Power Rating avec historique (item 2) | Moyenne | Nouvelle table ou append JSON | ⚠️ Score brut ("Power Score") fait, non normalisé, sans historique |
+| 4 | Détection de rivalité / croisements de matchs (item 3) | Moyenne à élevée | Itérer avec/sans télémétrie | ⚠️ Fait à ~70 % via le Comparateur (manuel, pas de job auto ni notification) |
+| 5 | Défis inter-clans (item 5) | Élevée | Extension du modèle `Challenge` | ❌ Pas fait |
+
+Les items 1 et 2 peuvent être livrés ensemble comme un premier lot cohérent : une page SuperUser-only `/admin/clans-leaderboard` avec classement brut et per-capita, sans aucune migration de schéma.
+
+---
+
+## Suggestions — Stats et fonctionnalités
+
+Idées de stats et fonctionnalités qui apporteraient une vraie valeur au clan. L'angle directeur est toujours "aider chaque joueur à identifier ce qu'il peut améliorer" — pas juste afficher des chiffres.
+
+### Stats individuelles à mettre en place
+
+- [x] **Précision par arme et par distance** — ✅ Fait pour l'essentiel (vérifié le 2026-08-30) : taux de précision (`hitsLanded / shotsFired`) affiché par arme sur `/members/[id]/weapons` et `/clans/[clanId]/stats/weapons`, alimenté par `MemberWeaponStats` via `/api/members/[id]/telemetry/weapons` et `/api/clans/[clanId]/telemetry/weapons`. Nuance : pas de comparaison explicite à une "portée efficace de référence" ni de mise en évidence visuelle au-dessus/en dessous de la moyenne clan — juste le tableau trié.
+- [ ] **Score de positionnement (Circle IQ)** — score synthétique sur 100 combinant `circleDelayPercent` et `blueZoneHitsRate` (tous deux dans `MemberTelemetryStats`), classement des membres, tendance sur 4 semaines. Widget dashboard membre avec insight textuel ("Tu entres dans la zone 12 % moins vite que tes coéquipiers").
+- [ ] **Profil de joueur — Spider chart** — radar à 6 axes normalisés sur 100 : Agressivité (kills/match vs moyenne clan), Précision (headshot rate), Support (revives/match), Survie (temps de survie moyen), Mobilité (distance à pied/match), Circle IQ (inverse de `circleDelayPercent`). Données dans `MemberTelemetryStats` et `PlayerStats`, normalisation par min/max du clan.
+- [ ] **Radar playstyle vs moyenne clan** — superposer le profil du joueur (Agressivité/Support/Zone, déjà calculés par période) à la moyenne clan sur la section "Évolution du playstyle" existante. Radar SVG à 3 axes, joueur (rempli) vs moyenne clan (contour pointillé), réactif au SegmentedControl Semaine/Mois/Tous. Nécessite l'endpoint `/api/clans/[clanId]/telemetry/playstyle-average?period=week`. Cacher le radar si moins de 3 membres ont des données télémétrie sur la période. Page : `/members/[id]/dashboard`, section "Évolution du playstyle". Effort faible côté frontend.
+- [ ] **Kill distance — Distribution** — répartition des kills par tranche (< 25 m CQC, 25–100 m mid, 100–200 m longue, > 200 m snipe), identification de l'arme "signature", comparaison au profil du clan. Données : `MemberWeaponStats.avgDistance`.
+- [ ] **Évolution K/D par phase de cercle** — répartition des kills par phase (Early 1–3, Mid 4–6, Late 7+) en %, comparaison early/late entre membres ("early rusher" vs "late game player"). Données : `MemberTelemetryStats.firstKillPhase`, `killSamples` dans `SquadMatchTelemetry`.
+- [ ] **Ratio damage dealt / damage taken** — ratio par membre et par période, classement du clan, identification des joueurs qui absorbent le plus de dégâts. Nécessite d'ajouter `avgDamageTaken` dans `MemberTelemetryStats` (données présentes dans le parser via `LogPlayerTakeDamage` + `LogBlueZoneDamage`, mais pas encore agrégées en période).
+
+### Stats clan globales
+
+- [ ] **Tendance du clan sur 8 semaines** — courbes win rate moyen, kills/match moyen, nombre de matchs joués (indicateur d'activité), agrégées depuis `PlayerStats` par `periodKey` semaine. Page suggérée : section "Santé du clan" dans l'overview du clan.
+- [x] **Meilleurs duos du clan** — ✅ Fait à l'essentiel (vérifié le 2026-08-30) : top 5 des duos exposé en UI via `<SquadSynergies />` (`src/components/SquadSynergies.tsx`, section Overview clan), alimenté par `topPairs` (`src/app/api/clans/[clanId]/matches/route.ts`) avec matchs, kills, durée et winRate. Nuance : trié par matchs/winRate/kills, pas par le score `coKills + revives` pondéré décrit ici ; pas de matrice N×N "Chimie d'équipe" (`ClanSynergyTelemetryStats.reviveCount`/`coKillCount` alimentent un classement séparé "Top Sauvetages"/"Co-kills", pas ce score composite).
+- [ ] **Heatmap clan des zones de danger** — heatmap agrégée "où notre clan prend le plus de dégâts" par carte, comparaison avec "où on inflige des dégâts" pour identifier les zones à éviter. Données : `SquadMatchTelemetry.damageSamples` / `killSamples`, actuellement agrégés seulement par match, pas en heatmap cumulative par carte.
+- [ ] **Carte des loot routes préférées** — visualisation des trajectoires des 15 premières secondes après le drop par membre, calcul de la dispersion moyenne au drop (distance entre membres de la squad, clan groupé vs dispersé). Données : `SquadMatchTelemetry.landingSamples` (parser v2) et `trajectorySegments`.
+
+### Fonctionnalités sociales et engagement
+
+- [ ] **Badges de progression (Rank cards)** — ex. "Sniper en progression" (`avgDistance` de kill +20 % sur 4 semaines), "Reviver de l'équipe" (top 1 revives 3 semaines d'affilée), "Circle Master" (`circleDelayPercent` < 5 % pendant 1 mois). Entièrement calculable depuis `MemberTelemetryStats` et `PlayerStats` agrégés dans le temps.
+- [ ] **Objectifs personnels (Goals)** — modèle `MemberGoal` (`memberId`, `metric`, `target`, `deadline`, `status`), page `/members/[id]/goals` avec saisie d'objectif et courbe de progression, notification automatique à l'atteinte. Difficulté : métriques hétérogènes (`PlayerStats`, `MemberTelemetryStats`, `MemberWeaponStats`) — nécessite un résolveur de métrique générique.
+- [ ] **Rapport hebdomadaire enrichi avec stats télémétrie** — ajouter au rapport existant (basé uniquement sur `PlayerStats`) : meilleur Circle IQ de la semaine, paire la plus synergique (revives + co-kills), arme la plus utilisée par le clan (`MemberWeaponStats`), insight "% de kills au headshot cette semaine" (tendance vs semaine précédente).
+- [ ] **Comparaison avec les saisons PUBG** — graphique "évolution du tier ranked" par membre sur les 5 dernières saisons, vue "qui a le plus progressé en ranked ce mois-ci", comparaison tier ranked vs performance squad (corrélation ?). Données : `MemberSeasonStats` (stats ranked par saison), pas encore de vue dédiée à la progression saisonnière du clan.
+
+### Fonctionnalités de gestion et animation du clan
+
+#### Rôle Moderator — animation de clan
+
+Le rôle Moderator existe en DB mais n'a pas de fonctions définies. Quatre axes d'animation identifiés à implémenter dans une future itération.
+
+- [ ] **Gestion des défis internes (Challenges)** — le Moderator peut créer, modifier et clore des challenges (`kill_race`, `damage_race`, etc.) sans impliquer l'Owner/Admin. Permission à câbler : `manage_challenges` sur `POST/PATCH /api/clans/[clanId]/challenges`.
+- [ ] **Annonces et rappels (Notifications)** — le Moderator peut rédiger et envoyer des annonces aux membres (soirée scrims, objectif de la semaine), gestion des canaux (Discord webhook, email). Permissions : `manage_notifications`, `manage_channels`.
+- [ ] **Recrutement (Invitations membres)** — le Moderator peut envoyer des invitations à de nouveaux joueurs, mais ne peut pas retirer/archiver un membre existant. Permission : `invite_members` (sans `remove_members` ni `kick_members`).
+- [ ] **Export des rapports** — le Moderator peut exporter les rapports hebdomadaires/mensuels du clan (PDF, CSV), utile pour des analyses hors site (Discord, Google Sheets). Permission : `export_reports`.
+
+#### Compétitions inter-clans
+
+**Pourquoi c'est utile :** les challenges actuels sont intra-clan. Une compétition inter-clans permettrait de mesurer l'ensemble d'un clan face à un autre sur une période donnée — un motivateur fort pour l'engagement. Recoupe l'idée "Défis et événements inter-clans" ci-dessus (comparaison inter-clans, item 5).
+
+- [ ] Modèle `ClanChallenge` : deux clans s'affrontent sur une métrique (kills, win rate, damage) sur une période définie
+- [ ] L'Owner ou le SuperUser crée le défi et invite un clan adverse (via son `clanId`)
+- [ ] Cron nocturne comparant les stats agrégées des deux clans sur la période
+- [ ] Leaderboard live inter-clans affiché pour les membres des deux clans
+- [ ] À la clôture : badge "Vainqueur du défi inter-clan [Nom du clan] — Saison X" attribué aux membres du clan gagnant
+
+**Données disponibles :** `PlayerStats` agrégés par clan et par période sont déjà calculés — moteur des stats existant réutilisable comme base.
+
+**Difficulté principale :** isoler les matchs joués *pendant* la période du défi (filtrage par `Match.playedAt` dans la fenêtre temporelle du `ClanChallenge`).
+
+**Page suggérée :** `/clans/[clanId]/competitions` — liste des défis inter-clans actifs/terminés, formulaire d'invitation.
+
+### Axes techniques qui débloqueraient plusieurs stats
+
+| Amélioration technique | Stats qu'elle débloquerait |
+|---|---|
+| Ajouter `avgDamageTaken` dans `MemberTelemetryStats` | Ratio dealt/taken, identification des joueurs exposés |
+| Parser `LogPlayerUseThrowable` | Diversité tactique, grenadiers vs non-grenadiers |
+| Stocker `rideDistance` par session depuis `LogVehicleLeave` | Suivi véhicule par type |
+| Ventiler `MemberLifetimeStats` par mode de jeu | Stats solo/duo/squad comparées |
+| Agréger `damageSamples` et `killSamples` par carte sur la période | Heatmaps cumulatives clan par carte |
+
+---
+
+## Idées — Suivi des adversaires rencontrés en match
+
+Discuté le 2026-08-03. Objectif différent de la section "Comparaison de performances entre clans" ci-dessus : il ne s'agit pas de comparer deux clans déjà suivis, mais d'exploiter les rosters adverses (non trackés) déjà présents dans chaque match pour (1) repérer les clans potentiellement intéressants à ajouter plus tard, (2) mesurer la fréquence de croisement avec certains joueurs/clans, (3) savoir qui nous tue et qui on tue.
+
+**Items 1 à 4 déployés (2026-08-03/04)**, ainsi que le filtrage par période et le classement "arme qui tue le plus" des suggestions complémentaires (voir détail par item ci-dessous). Restent : clans rivaux récurrents (qui finit devant), zone de mort récurrente, revanche.
+
+### Règle d'appel API — à respecter strictement
+
+- La résolution du clan d'un adversaire (`fetchPlayerClan(accountId)`, [pubg.ts:564](../../src/lib/pubg.ts#L564)) coûte **un appel API PUBG par joueur**.
+- **Un seul appel par `pubgAccountId` jamais vu auparavant.** Si le joueur est déjà connu en base (`EncounteredPlayer` proposé ci-dessous), ne jamais rappeler l'API pour lui — se contenter d'incrémenter le compteur de croisements.
+- Le rate limit PUBG est partagé avec la sync des clans suivis (`AppConfig.pubg_api_rate_limit_rpm`, défaut 10 RPM, voir `CLAUDE.md` section Gotcha 8) — cette résolution doit passer par la même queue/throttle, jamais en appel direct synchrone depuis une route.
+- Aucun re-fetch périodique prévu par défaut (un joueur qui change de clan restera avec l'ancien tag tant qu'on ne décide pas explicitement d'un refresh — non retenu pour l'instant, à trancher plus tard si besoin).
+- Les infos de roster adverses (nom, `accountId`, placement, kills) proviennent du match déjà synchronisé (`analyzeMatchForSquads`, [squad-detector.ts:213](../../src/lib/squad-detector.ts#L213)) — **aucun appel API supplémentaire** pour cette partie, uniquement pour la résolution du clan.
+- **Bots identifiés gratuitement, sans appel API.** Confirmé empiriquement le 2026-08-03 sur des télémétries réelles (`.telemetry-captured/`, échantillon 130 comptes dont 4 bots) : les comptes bots ont un `accountId` au format `ai.<nombre>` (ex. `ai.325`), les vrais joueurs au format `account.<guid>` (ex. `account.16c80fae97c9468f923e5b45d8f34d92`) — distinction structurelle fiable à 100 %, aucune heuristique de nom nécessaire. **Ne jamais appeler `fetchPlayerClan` pour un `accountId` commençant par `ai.`** — un bot n'a structurellement aucun clan à résoudre, l'appel serait gaspillé.
+
+### ~~1. Identification légère des adversaires (sans créer de `Clan`/`ClanMember`)~~ — ✅ Déployé le 2026-08-03
+
+**Pourquoi c'est utile :** repérer les clans qui reviennent souvent en face de nous, pour décider plus tard de les ajouter officiellement — sans les mélanger avec la table `ClanMember` (qui sert au tracking actif "Ungrouped" inclus).
+
+**Données disponibles :** rosters de match déjà résolus par `analyzeMatchForSquads` ; `fetchPlayerClan()` déjà implémenté dans `pubg.ts` pour la résolution ponctuelle.
+
+- [x] Créer une table légère `EncounteredPlayer` (`pubgAccountId` unique par clan, `pubgPlayerName`, `platformShard`, `pubgClanId`/`pubgClanTag`/`pubgClanName` nullables, `clanResolvedAt`, `resolveAttempts`, `firstSeenAt`, `lastSeenAt`) — migration `20260803120000_add_encountered_player`, volontairement séparée de `Clan`/`ClanMember`
+- [x] Brancher la capture des participants adverses au moment du sync de match — `captureEncounteredPlayers()` dans [encountered-players.ts](../../src/lib/encountered-players.ts), appelée juste après `analyzeMatchForSquads` dans [sync-matches/route.ts](../../src/app/api/clans/[clanId]/sync-matches/route.ts), exclut les comptes `ai.*` (bots) et les membres du clan suivi, aucun appel API supplémentaire
+- [x] Ajouter une tâche basse priorité, séparée de la queue de sync clan, qui résout le clan **uniquement** pour les `pubgAccountId` non résolus — cron `encountered_player_clan_resolution` dans [cron-jobs.ts](../../src/lib/cron-jobs.ts) (`resolveEncounteredPlayerClans`), toutes les 30 min par défaut (`ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON`), batch de 5, un seul appel par joueur (jamais de re-fetch), max 3 tentatives en cas d'échec réseau
+- [x] Décider d'un seuil avant résolution — fixé à 2 croisements minimum (`ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION`)
+- [x] Vue listant les clans adverses les plus rencontrés, non trackés, avec nombre de croisements — page [`/clans/[clanId]/telemetry/opponents`](../../src/app/clans/[clanId]/telemetry/opponents/page.tsx), API [`GET /api/clans/[clanId]/encountered-players`](../../src/app/api/clans/[clanId]/encountered-players/route.ts), accès Owner/Admin (`requireRole(['Owner', 'Admin'])`), nav ajoutée en DB (`NavItem.navKey = 'owner.encountered-opponents'`, section owner-menu, `defaultRole: 'owner'` — même visibilité nav que les pages télémétrie voisines ; l'API reste ouverte aux Admin en accès direct)
+- [x] **Cas d'usage identifié le 2026-08-03, traité le 2026-08-03** : `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` résout maintenant aussi les noms adverses via un nouveau `opponentIdentityMap` (issu d'`EncounteredPlayer`) exposé par [route.ts](../../src/app/api/clans/[clanId]/matches/[matchId]/telemetry/route.ts), avec un badge dédié "Adversaire · [tag]" (tone `opponent`, bleu ciel) distinct du badge "Membre du clan"
+- [x] Sur cette même page, label "Bot" (tone `bot`, gris) affiché à la place du nom PUBG généré pour tout `accountId` préfixé `ai.` — détection par préfixe dans `resolveTelemetryMemberLabel()`
+
+**Validé le 2026-08-03** sur un match réel déjà importé (clan 1) : roster de 99 participants, 92 bots détectés et exclus, 6 adversaires réels capturés correctement. Résolution de clan testée end-to-end sur un compte réel (résultat "sans clan", mis en cache — pas de re-appel).
+
+**Non couvert dans ce lot** (à faire plus tard si besoin) : test visuel navigateur clair/sombre + mobile de la page `/telemetry/opponents` — pas de navigateur headless disponible dans cet environnement, à vérifier manuellement.
+
+### ~~2. Compteur de croisements~~ — ✅ Déployé le 2026-08-03
+
+**Pourquoi c'est utile :** savoir "on retombe souvent sur ce joueur/ce clan" est une info déjà disponible sans appel API — pur sous-produit du sync de match existant.
+
+- [x] Incrémenter `EncounteredPlayer.encounterCount` à chaque match partagé avec un membre suivi (upsert dans `captureEncounteredPlayers`)
+- [x] Exposer un top des adversaires/clans les plus croisés (par clan suivi) — bloc "Clans adverses les plus croisés" sur la page `/telemetry/opponents`, agrégé depuis `pubgClanTag`
+- [ ] Distinguer croisement "même match, roster adverse" (déjà disponible) de "même match, dans le top de placement proche" si utile plus tard (hors scope initial)
+- [x] Filtrage par période (Semaine/Mois/Tous) — **fait le 2026-08-04**, `SegmentedControl` sur `/telemetry/opponents`, filtre sur `lastSeenAt` (dernière rencontre) via `?period=`, pas un recalcul du compteur — `encounterCount` reste le cumul total historique, précisé dans l'UI
+
+#### Limite d'affichage à 300 joueurs — diagnostic du 2026-08-09
+
+Les clans 1, 5 et 7 affichent tous `300` dans la carte "Joueurs croisés" parce que l'API applique `take: 300`, puis utilise `rows.length` comme `summary.totalPlayers`. Le filtre `clanId` fonctionne bien — les joueurs renvoyés diffèrent selon le clan — mais ce nombre représente la taille de l'échantillon retourné, pas le total réel. Les cartes "Résolus", "En attente", "Clans identifiés" et "Dont coéquipiers", ainsi que le tableau des clans rivaux, sont également calculés sur ces 300 joueurs les plus croisés.
+
+- [x] Confirmer dans le navigateur que `GET /api/clans/{1,5,7}/encountered-players?period=all` renvoie exactement 300 joueurs distincts propres à chaque clan
+- [x] Calculer `summary.totalPlayers` avec un `count` exact utilisant les mêmes filtres `clanId` et `lastSeenAt`, indépendamment de la limite de la liste
+- [x] Calculer les autres KPI et les agrégats de clans rivaux sur l'ensemble filtré, pas uniquement sur les 300 lignes retournées
+- [x] Conserver une limite explicite pour la liste ou mettre en place une pagination serveur afin d'éviter de charger tous les joueurs dans le navigateur
+- [x] Ajouter au-dessus du tableau des joueurs une mention visible du type : "Affichage limité aux 300 joueurs les plus croisés sur la période sélectionnée"
+- [x] Tant que le total exact n'est pas séparé de la liste, ne pas présenter `rows.length` comme un total : afficher "300+" ou renommer la carte en "Joueurs affichés"
+- [x] Vérifier après correction les clans 1, 5 et 7 ainsi que les périodes Semaine, Mois et Tous ; le total doit pouvoir dépasser 300 tandis que la liste reste explicitement limitée
+
+**Corrigé le 2026-08-09** dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) : la requête `EncounteredPlayer.findMany` charge désormais toutes les lignes filtrées (`allRows`, sans `take`) pour calculer `summary` (dont `totalPlayers` exact) et `rivalClans` sur l'ensemble réel ; seule la liste `players` retournée reste tronquée à `PLAYERS_LIST_LIMIT = 300` (les lignes les plus croisées, déjà triées). Nouveaux champs `playersListLimit`/`playersListTruncated` dans la réponse JSON, consommés côté UI (`/telemetry/opponents`) pour afficher un bandeau d'avertissement au-dessus du tableau quand la liste est tronquée. `rows.length` n'est plus utilisé comme total nulle part. `distinctClansIdentified` reste dérivé de `rivalClanMap.size`, désormais construit sur `allRows`.
+
+#### Résolution des clans adverses — débit, observabilité et action ciblée
+
+**Diagnostic du 2026-08-09 :** le clan 1 compte `8 067` joueurs croisés, dont `7 304` avec `clanResolvedAt = null`. Le cron `encountered_player_clan_resolution` s'exécute toutes les 30 minutes par défaut, mais `ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE = 5` limite le débit théorique à `240` joueurs par jour. Les candidats sont triés par `encounterCount DESC`, puis `lastSeenAt DESC` : un joueur éligible mais peu croisé peut rester durablement derrière les joueurs plus fréquents. Le serveur web observé a `ENABLE_CRON_JOBS=false`, configuration normale en mode deux workers, mais l'état du worker cron séparé n'est pas vérifiable tant que `CRON_BOOTSTRAP_SECRET` n'est pas configuré.
+
+**Emplacement UI retenu :** ajouter un panneau "Résolution des clans adverses" dans la page SuperUser existante `/settings/opponents`, plutôt que créer une nouvelle page. Le réglage est global à tous les clans, consomme le rate limit PUBG partagé et complète directement la vue transverse des adversaires. La page `/settings/pubg-api-rate-limit` reste la source du plafond RPM ; `/clans/[clanId]/telemetry/opponents` expose uniquement l'état par joueur et ne porte pas le réglage global.
+
+##### Réglage et augmentation du batch
+
+- [x] Remplacer la constante seule `ENCOUNTERED_PLAYER_RESOLUTION_BATCH_SIZE = 5` par une configuration persistée globale dans `AppConfig`, avec fallback sur une variable d'environnement puis sur une valeur par défaut documentée
+- [x] Mesurer le backlog global, le nombre de candidats éligibles, le débit réel et la consommation PUBG avant de fixer la nouvelle valeur par défaut ; ne pas augmenter arbitrairement le batch sans tenir compte de `pubg_api_rate_limit_rpm` et des syncs prioritaires — mécanisme livré, défaut conservé à `5` (bornes serveur `[1, 40]`), pas de changement de valeur tant que le panneau n'a pas été observé en conditions réelles
+- [x] Ajouter dans `/settings/opponents` un panneau affichant : batch effectif, fréquence du cron, seuil minimal de croisements, backlog jamais tenté, backlog en retry, échecs définitifs, résolutions sur 24 h et estimation du temps de rattrapage
+- [x] Ajouter dans ce panneau un contrôle SuperUser pour modifier le batch avec bornes serveur, validation, aide contextuelle et rappel que la limite PUBG est partagée avec les autres traitements
+- [x] Permettre de désactiver temporairement la résolution automatique avec une valeur/configuration explicite, sans détourner le batch `0` comme état implicite — nouvelle clé `AppConfig` `encountered_player_resolution_enabled`, toggle dédié dans le panneau
+- [x] Afficher l'état du worker cron et la dernière exécution réussie ; configurer la sonde `CRON_BOOTSTRAP_SECRET` afin de distinguer "web worker désactivé normalement" de "aucun worker cron actif" — `getCronWorkerRuntimeStatus()` extrait de `cron-control/route.ts` vers `cron-observability.ts`, réutilisé par le nouveau panneau (`CRON_BOOTSTRAP_SECRET` reste à configurer par l'opérateur si non fait, la distinction des 3 états est gérée par le code)
+- [x] Journaliser pour chaque passage : candidats sélectionnés, résolus via cache, appels PUBG, sans clan, échecs, durée, backlog restant et rate limit avant/après — nouvelle table `EncounteredPlayerResolutionRun` (migration `20260809120000_add_encountered_player_resolution_run`), remplie par `resolveEncounteredPlayerClans()` et par la résolution manuelle (`source: 'manual'`)
+- [x] Vérifier qu'une hausse du batch ne retarde pas `daily_sync`, la télémétrie et les actions manuelles ; conserver le passage obligatoire par la gateway/throttle PUBG centralisée — vérifié : tous les appels de résolution passent toujours par `fetchPlayerClan` → `queuedPubgGet` → `enqueuePubgApiRequestWithMetadata`, la file `ApiQueue` reste strictement FIFO partagée (pas de nouvelle voie de contournement ajoutée) ; documenté dans l'aide contextuelle du panneau que relever le batch augmente la latence des autres appelants de la même file
+
+##### États de résolution dans l'API et l'UI
+
+- [x] Exposer `resolveAttempts` dans `GET /api/clans/[clanId]/encountered-players` et dans le type `EncounteredPlayerRow`
+- [x] Exposer un statut dérivé explicite plutôt que laisser le client l'inférer : `below_threshold`, `never_attempted`, `retry_pending`, `failed`, `resolved_with_clan`, `resolved_without_clan` — fonction pure `deriveEncounteredPlayerStatus()` dans `src/lib/encountered-player-status.ts`, seule source utilisée par l'API par clan, le panneau global et la table de triage
+- [x] Définir `never_attempted` par `clanResolvedAt = null` et `resolveAttempts = 0`, uniquement si le seuil minimal de croisements est atteint ; afficher séparément "Seuil non atteint" avant éligibilité
+- [x] Définir `retry_pending` lorsque `clanResolvedAt = null` et `0 < resolveAttempts < maxAttempts`, avec le nombre de tentatives visible dans le tableau
+- [x] Définir `failed` lorsque `clanResolvedAt = null` et `resolveAttempts >= maxAttempts` ; ne plus afficher le même libellé "En attente de résolution" qu'un joueur jamais traité
+- [x] Distinguer clairement `resolved_without_clan` : l'appel PUBG a réussi et a confirmé l'absence de clan, donc `clanResolvedAt` est renseigné même si `pubgClanId`/`pubgClanTag` restent nuls
+- [x] Ajouter au tableau `/clans/[clanId]/telemetry/opponents` des libellés et infobulles expliquant chaque état, sans exposer de détail technique ou d'erreur sensible
+- [x] Ajouter dans `/settings/opponents` des filtres globaux par statut et tentatives pour identifier rapidement le backlog et les échecs définitifs — nouvelle route `GET /api/settings/encountered-players`, table de triage filtrable par statut(s) et `minAttempts`
+
+##### Résolution manuelle ciblée
+
+- [x] Ajouter une route dédiée SuperUser pour résoudre un joueur précis, jamais par nom PUBG seul — **écart assumé par rapport à l'énoncé initial** : la route est finalement clée sur `EncounteredPlayer.id` (`POST /api/settings/encountered-players/[id]/resolve`), pas sur `Player.id`, car `Player` n'est upsert qu'après une résolution réussie ou un cache-hit — jamais avant la première tentative ni sur échec. Clé sur `Player.id` aurait rendu la route inutilisable pour `never_attempted`/`retry_pending`/`failed`, son cas d'usage principal. La dédup cross-clan reste identique (propagation par `pubgAccountId`+`platformShard`).
+- [x] Réutiliser exactement le service de résolution du cron et la gateway PUBG ; ne pas dupliquer l'appel, le mapping de clan ni les écritures `Player`/`OpponentClan`/`EncounteredPlayer` — fonction partagée `resolveOneEncounteredPlayerCandidate()` dans `src/lib/encountered-player-resolution.ts`, utilisée par le cron et par la route manuelle
+- [x] Dédupliquer la résolution transverse : un seul appel PUBG doit mettre à jour l'identité globale `Player`, puis propager le résultat aux lignes `EncounteredPlayer` du même compte dans tous les clans suivis — `updateMany` par `pubgAccountId`+`platformShard`, y compris pour les échecs (`resolveAttempts` incrémenté partout, décision actée avec l'utilisateur pour garder un statut cohérent entre clans)
+- [x] Ajouter l'action "Résoudre maintenant" dans le détail joueur de `/settings/opponents`, réservée aux statuts non résolus
+- [x] Ajouter une confirmation indiquant qu'un appel PUBG sera consommé, désactiver le bouton pendant la requête et afficher le résultat : clan trouvé, aucun clan, cache utilisé ou erreur/retry
+- [x] Autoriser "Réessayer" après échec définitif avec remise à zéro contrôlée de `resolveAttempts`, journal d'audit et protection contre les clics répétés/concurrents — `?force=retry`, audit via `EncounteredPlayerResolutionRun` (`source: 'manual'`, `triggeredByUserId`), verrou en mémoire par identité (`Set` global, même style que le garde-fou du cron)
+- [x] Appliquer un rate limit serveur à l'action manuelle et refuser une nouvelle résolution si une tentative du même joueur est déjà en cours — cooldown 60 s par joueur, plafond 20 résolutions/SuperUser/10 min, verrou en mémoire (409 si déjà en cours)
+- [ ] Tester les six états UI, un résultat sans clan, un cache global récent, un échec PUBG, le maximum de tentatives et deux demandes concurrentes sur le même joueur — **non fait** : build/typecheck/lint passent, testé sans authentification (gating SuperUser confirmé, aucun crash serveur), migration + backfill vérifiés en base réelle (142 941/143 487 lignes `EncounteredPlayer` avec `playerId` peuplé). Pas d'accès navigateur/session SuperUser dans cet environnement pour dérouler le scénario complet — à valider manuellement
+
+##### Priorisation cross-clan — maximiser les lignes résolues par appel PUBG
+
+**Proposition du 2026-08-09 :** un même joueur peut être croisé par plusieurs clans suivis. Le sélectionner en priorité permet de consommer un seul appel PUBG, puis de renseigner simultanément toutes ses lignes `EncounteredPlayer`. Le rendement recherché n'est donc pas seulement le nombre de croisements d'une ligne, mais le nombre de relations clan-joueur retirées du backlog par identité globale résolue.
+
+Ordre de priorité proposé pour les identités éligibles et non résolues :
+
+1. nombre de clans suivis distincts ayant croisé le joueur, décroissant (`distinctClanCount`)
+2. somme des croisements dans tous ces clans, décroissante (`totalEncounterCount`)
+3. rencontre la plus récente parmi tous les clans, décroissante (`lastSeenAt`)
+
+Ainsi, un joueur présent dans cinq clans est traité avant un joueur propre à un seul clan, puis le résultat est propagé par le couple `(pubgAccountId, platformShard)`. Une résolution peut alors retirer cinq lignes du backlog pour un seul appel PUBG.
+
+- [x] Remplacer la sélection actuelle par ligne `EncounteredPlayer` par une sélection d'identités globales distinctes, idéalement depuis `Player` + `ClanEncounter`, avec fallback temporaire groupé sur `(pubgAccountId, platformShard)` tant que la transition depuis `EncounteredPlayer` n'est pas terminée — `selectPrioritizedEncounteredPlayerIdentities()` dans [encountered-player-resolution.ts](../../src/lib/encountered-player-resolution.ts), implémenté en groupBy sur `EncounteredPlayer` (le fallback groupé, `Player`/`ClanEncounter` pas encore la source de vérité pour la résolution — non fait, prématuré tant que la double-écriture n'est pas terminée)
+- [x] Calculer pour chaque candidat `distinctClanCount`, `totalEncounterCount` et `lastSeenAt` sur l'ensemble des clans suivis, sans compter deux fois un même clan — `@@unique([clanId, pubgAccountId])` garantit qu'un groupe `groupBy` par identité ne contient jamais deux fois le même clan, donc `_count.clanId` = `distinctClanCount` sans logique supplémentaire
+- [x] Appliquer l'ordre `distinctClanCount DESC`, `totalEncounterCount DESC`, `lastSeenAt DESC` avant la limite du batch — `orderBy` du `groupBy` Prisma, vérifié contre les données réelles (clan 1 : comptes croisés par 5-6 clans en tête)
+- [x] Ne compter qu'une seule identité dans le batch, même si elle possède plusieurs lignes `EncounteredPlayer` ; le batch configuré doit représenter un nombre maximal d'appels PUBG potentiels, pas un nombre de relations clan-joueur — `take: batchSize` porte sur le nombre d'identités (`uniqueCandidatesSelected`), `candidatesSelected` redevient la somme des lignes représentées (nouveau sens, documenté dans le schéma)
+- [x] Après cache-hit ou appel PUBG réussi, propager immédiatement le clan trouvé ou l'absence de clan à toutes les lignes partageant `(pubgAccountId, platformShard)` dans une même opération cohérente — déjà en place depuis le sous-bloc précédent (`resolveOneEncounteredPlayerCandidate`), inchangé ici
+- [x] En cas d'échec PUBG, conserver des tentatives cohérentes au niveau de l'identité globale et éviter qu'une autre ligne du même joueur soit sélectionnée comme nouveau candidat au passage suivant — déjà garanti par la propagation `updateMany` existante (échecs inclus, actée avec l'utilisateur dans le sous-bloc précédent) : toutes les lignes d'une identité restent synchronisées, donc jamais sélectionnées séparément
+- [x] Mesurer séparément dans le panneau `/settings/opponents` : identités globales restantes (appels potentiels), lignes clan-joueur en attente, joueurs communs à plusieurs clans et nombre moyen de lignes résolues par appel — nouvelle section de métriques (`crossClan` dans la réponse API), calculée par `groupBy` sur le backlog automatique (jamais tenté + nouvel essai prévu)
+- [x] Ajouter aux journaux de run `uniqueCandidatesSelected`, `crossClanCandidatesSelected`, `encounterRowsUpdated` et `rowsResolvedPerApiCall` pour vérifier le gain réel — 4 nouvelles colonnes sur `EncounteredPlayerResolutionRun` (migration `20260809140000_add_cross_clan_resolution_metrics`), remplies par le cron et par la résolution manuelle, affichées dans la table des derniers runs
+- [x] Afficher dans la table de triage le nombre de clans ayant croisé chaque joueur afin d'expliquer visuellement sa priorité — colonne "Clans" avec badge dès que `distinctClanCount > 1`
+- [ ] Comparer sur un échantillon réel l'ancien tri et le nouveau : appels PUBG identiques, mais davantage de lignes retirées du backlog avec la stratégie cross-clan — **non fait** : nécessite d'observer plusieurs passages réels du cron avec l'ancien vs le nouveau tri (impossible à comparer a posteriori, l'ancien tri n'est plus en place) ; le panneau expose désormais `rowsResolvedPerApiCall` par run pour suivre ce gain dans le temps une fois le cron actif
+- [x] Ajouter des tests couvrant un joueur présent dans plusieurs clans, l'unicité du candidat dans le batch, la propagation multi-lignes, le résultat sans clan, le cache-hit et l'échec partagé — [encountered-player-resolution.test.ts](../../src/lib/encountered-player-resolution.test.ts) (6 tests, prisma/pubg mockés), `npm run test:telemetry` : aucune régression sur la suite existante (4 échecs préexistants sans rapport, vérifiés par comparaison avant/après)
+
+**Vérifié le 2026-08-09** : `tsc --noEmit`, `eslint` (aucune nouvelle erreur) et `npm run build` passent ; la requête `groupBy` de priorisation exécutée directement contre la base réelle (clan 1) retourne bien les comptes croisés par 5-6 clans en tête, `crossClanPlayerCount` cohérent. Test manuel authentifié en navigateur non fait (pas d'accès session SuperUser dans cet environnement) — à valider côté utilisateur sur `/settings/opponents`.
+
+#### Dénormalisation de la Bounty List — Optimisation du cron (Phase 2 Terminée)
+
+- [x] Ajout de la colonne `combatInteractionsCount` à la table `EncounteredPlayer`.
+- [x] Ajout de l'index `@@index([clanResolvedAt, combatInteractionsCount])` pour garantir un temps d'exécution constant.
+- [x] Script de backfill (`src/scripts/backfill-combat-interactions.ts`) exécuté pour initialiser les compteurs à partir de l'historique existant.
+- [x] Mise à jour en temps réel des compteurs lors de l'ingestion d'un match (`persistKillEventsForMatch`).
+- [x] Suppression de la requête SQL `$queryRaw` dans le cron au profit d'un tri natif Prisma sur `combatInteractionsCount`.
+
+#### Bug trouvé et corrigé le 2026-08-04 : coéquipiers comptés comme adversaires
+
+Signalé par l'utilisateur, confirmé sur données réelles : `captureEncounteredPlayers` parcourait tous les rosters du match sans distinguer le roster (squad) d'un membre suivi des autres — un ami/random groupé avec un membre en solo/duo queue se retrouvait donc dans "Adversaires rencontrés" au même titre qu'un vrai inconnu d'une autre équipe. Vérifié sur un match réel du clan 1 : `Praetes` et `BL0odice` étaient dans le même roster que `pagiotte`/`SAMUELAXEII` — de vrais coéquipiers, pas des adversaires.
+
+- [x] Nouveau champ `EncounteredPlayer.teammateEncounterCount` (migration `20260804200000_add_teammate_encounter_count`) — sous-ensemble de `encounterCount`, incrémenté seulement quand le roster du joueur croisé contenait un membre suivi ; `opponentEncounterCount` (= `encounterCount - teammateEncounterCount`) calculé à la lecture, pas stocké
+- [x] `captureEncounteredPlayers()` dans [encountered-players.ts](../../src/lib/encountered-players.ts) détermine `isOurRoster` par roster (au moins un participant dans `knownAccountIds`) avant de classer chaque adversaire potentiel
+- [x] `topRivalClans` dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) agrège désormais sur `opponentEncounterCount` uniquement — le clan d'un coéquipier occasionnel ne pollue plus le classement des clans rivaux
+- [x] UI `/telemetry/opponents` : colonnes "Adversaire"/"Coéquipier" séparées (au lieu d'une colonne "Croisements" unique), badge "Coéquipier" ou "Mixte" (a été les deux selon le match) à côté du nom, filtre "Adversaires uniquement / Coéquipiers uniquement", nouvelle carte KPI "Dont coéquipiers", en-tête renommé "Joueurs croisés" (plus honnête que "Adversaires suivis")
+
+**Validé le 2026-08-04** en rejouant la capture sur le même match réel : `Praetes` et `BL0odice` correctement identifiés avec un `teammateEncounterCount` non nul. Note : les chiffres exacts de cette première validation (11 et 4 croisements totaux) se sont révélés faux dans l'heure qui a suivi — voir le bug de double comptage ci-dessous, découvert en creusant pourquoi `Praetes` semblait sous-compté comme coéquipier.
+
+#### Second bug trouvé et corrigé le 2026-08-04 (même jour) : compteurs de croisement doublés
+
+Signalé par l'utilisateur ("il me semble que Praetes a été coéquipier plus d'une fois ?"), la vérification a révélé un bug plus grave que prévu : `captureEncounteredPlayers()` est appelée dans une boucle `for (member of clan.members) { for (matchId of nouveaux matchs DE CE MEMBRE) { ... } }` — la déduplication "match déjà importé" se fait par `memberId + pubgMatchId`, pas par `pubgMatchId` seul. Un match joué par **plusieurs membres du clan ensemble** (le cas normal en squad) est donc traité comme "nouveau" séparément pour chaque membre présent, et `captureEncounteredPlayers()` incrémentait `encounterCount`/`teammateEncounterCount` une fois par membre du clan dans le match, pas une fois par match réel. Tous les compteurs de croisement étaient gonflés depuis le tout début de la fonctionnalité (2026-08-03), dès qu'au moins 2 membres partageaient un match — ce qui est fréquent.
+
+- [x] Correctif dans [sync-matches/route.ts](../../src/app/api/clans/[clanId]/sync-matches/route.ts) : nouveau `Set<string>` `capturedEncounterMatchIds` déclaré une fois par appel de sync (hors boucle membre), `captureEncounteredPlayers()` ne s'exécute que si le `pubgMatchId` n'a pas déjà été traité dans ce passage de sync
+- [x] Données corrigées le 2026-08-04 : script ponctuel supprimant les lignes `EncounteredPlayer` des 3 clans affectés (clan 1 : 2370 lignes, clan 5 : 309, clan 7 : 764) et les reconstruisant en ne rappelant l'API qu'une fois par match réel distinct (38 + 7 + 9 = 54 appels), plutôt qu'une fois par paire membre/match — les matchs étaient tous récents (depuis le 2026-08-03), donc encore dans la fenêtre de rétention PUBG, aucune perte
+- [x] Chiffre corrigé pour `Praetes` : `encounterCount: 7`, `teammateEncounterCount: 7` — **coéquipier 7 fois sur 7**, jamais un adversaire réel, contre l'ancien chiffre bugué (14 croisements, 1 seul marqué coéquipier) qui avait à la fois doublé le total et raté presque toute la détection de coéquipier
+
+**Leçon retenue :** toute future feature qui capture une donnée "par match" depuis une boucle de sync structurée par membre doit dédupliquer explicitement par `pubgMatchId`, pas se fier à la déduplication `memberId + pubgMatchId` déjà en place pour l'import des `Match` — celle-ci est correcte pour son propre usage (une ligne `Match` par membre est voulu) mais incorrecte comme garde-fou pour une capture qui doit être unique par match réel.
+
+#### Croisement avec le kill-feed — ✅ Déployé le 2026-08-04
+
+Demandé par l'utilisateur : identifier sur `/telemetry/opponents` qui a déjà été tué par le clan, et qui a déjà tué un membre du clan. Peu coûteux car `KillEvent` (item 3, Némésis) contient déjà toute l'info nécessaire — simple croisement, aucune nouvelle capture de donnée.
+
+- [x] Dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) : deux `groupBy` sur `KillEvent` scopés au clan — `victimAccountId` où `killerMemberId` est renseigné (tué par le clan), `killerAccountId` où `victimMemberId` est renseigné (a tué un membre) — croisés avec `EncounteredPlayer.pubgAccountId`
+- [x] UI `/telemetry/opponents` : colonnes "Tué par le clan" / "A tué un membre" dans le tableau, 2 cartes KPI ("Déjà tués par le clan", "Ont déjà tué un membre") avec le nombre de joueurs distincts concernés
+
+**Limite héritée du kill-feed (déjà documentée pour l'item 3) :** ne couvre que les matchs synchronisés depuis le déploiement du kill-feed, pas d'historique rétroactif complet — même contrainte de rétention PUBG que pour Némésis.
+
+**Validé le 2026-08-04** sur données réelles du clan 1 : 1743 adversaires distincts déjà tués par le clan, 1422 adversaires distincts ayant déjà tué un membre — requête `groupBy` fonctionnelle sur un volume réel de plusieurs milliers de lignes `KillEvent`.
+
+#### Tableau des clans rencontrés (agrégat par clan) — ✅ Déployé le 2026-08-05
+
+Demandé par l'utilisateur : sous le tableau des joueurs, une carte avec un tableau paginé des clans rencontrés (agrégés, pas joueur par joueur), avec les mêmes données utiles (nombre de kills, etc.) que le tableau joueurs. Réutilise entièrement les données déjà calculées côté API (pas de nouvelle capture, pas de migration schéma) — simple ré-agrégation de `EncounteredPlayer` + `KillEvent` par `pubgClanTag` au lieu de par joueur.
+
+- [x] Dans [encountered-players/route.ts](../../src/app/api/clans/[clanId]/encountered-players/route.ts) : la `Map` `resolvedClanTags` (qui ne sommait que `opponentEncounterCount` pour les 5 pills existantes) remplacée par `rivalClanMap`, une `Map<string, RivalClanAccumulator>` accumulant par tag `playerCount`, `opponentEncounterCount`, `killedByClanCount`, `killedClanMemberCount` et `lastSeenAt` (max) — toujours filtrée sur `opponentEncounterCount > 0` par joueur, donc un clan uniquement croisé comme coéquipiers n'apparaît jamais (même règle que pour `topRivalClans`)
+- [x] `topRivalClans` (top 5, pour les pills) désormais dérivé de ce même `rivalClanMap` plutôt que recalculé séparément ; nouveau champ `rivalClans` (liste complète, triée par `opponentEncounterCount` décroissant, non limitée) ajouté à la réponse JSON
+- [x] `summary.distinctClansIdentified` recalculé depuis `rivalClanMap.size` (comportement identique à avant, juste la source de la donnée qui a changé)
+- [x] UI `/telemetry/opponents` : nouvelle carte "Clans rencontrés" sous le tableau des joueurs, avec recherche (tag/nom), tri (Croisements / Joueurs identifiés / Tué par le clan / A tué un membre / Dernière rencontre / Tag) et pagination (10 lignes/page — `CLAN_PAGE_SIZE`), même pattern de pagination que le tableau joueurs (reset de page au changement de recherche/tri/période, clamp si la page dépasse le total)
+- [x] Colonnes : Clan (tag + nom), Joueurs identifiés, Croisements, Tué par le clan, A tué un membre, Dernière rencontre
+
+**Validé le 2026-08-05** sur données réelles du clan 1 : 59 clans adverses distincts agrégés (hors coéquipiers), classement cohérent avec les colonnes attendues (ex. `[SVN] THE_SEVEN` : 2 joueurs identifiés, 8 croisements, 2 kills de membre du clan — vérifié par script temporaire contre la DB de prod, supprimé après validation).
+
+### ~~3. Némésis — qui nous a tués, qui on a tué~~ — ✅ Déployé le 2026-08-03 (+ backfill partiel via fichiers capturés)
+
+**Pourquoi c'est utile :** angle jamais couvert actuellement, alors que la télémétrie contient déjà l'info brute (tueur/victime par événement `LogPlayerKill`).
+
+**Données disponibles :** pipeline `pubg-telemetry` existant, mais les événements `LogPlayerKill`/`LogPlayerMakeGroggy` ne sont aujourd'hui pas persistés individuellement (seuls les totaux agrégés par `SquadMember` le sont).
+
+- [x] Étendre le parser télémétrie pour extraire les événements `LogPlayerKill` — capture **non filtrée** à l'extraction (`killFeedSamples` dans [parser.ts](../../src/lib/pubg-telemetry/parser.ts), type `TelemetryKillFeedSample`) : `clanMemberKeys` est vide sur le chemin de sync principal (`index.ts` ne le passe jamais), donc le filtrage "victime ou tueur = membre suivi" est fait à la persistance, pas au parsing
+- [x] Stocker dans une nouvelle table relationnelle `KillEvent` (migration `20260803180000_add_kill_event`) : `squadMatchId`, `clanId`, `killerAccountId`/`killerRawKey`/`killerMemberId`, `victimAccountId`/`victimRawKey`/`victimMemberId`, `weaponName`, `distance`, `headshot`, `timestampSeconds`, `matchDate` — table relationnelle plutôt que blob JSON (comme `PositionMetricCell`/`DropPressureStat`), pour permettre l'agrégation Némésis sans reparser du JSON
+- [x] [kill-event-persistence.ts](../../src/lib/kill-event-persistence.ts) : résout `killerMemberId`/`victimMemberId` contre **tout le roster du clan** (pas seulement les membres de la squad détectée, car un kill peut impliquer n'importe quel participant du match), ne garde que les lignes où au moins un côté est un membre suivi ; remplacement idempotent (delete+recreate) par `squadMatchId`
+- [x] Branché sur les trois chemins de sync existants : [pubg-telemetry/index.ts](../../src/lib/pubg-telemetry/index.ts) (chemin principal automatique) et les deux points de [manual-sync.ts](../../src/lib/pubg-telemetry/manual-sync.ts) (sync manuel / import fichier), juste après `persistDropPressureStatsForMatch`
+- [x] Relié `killerAccountId`/`victimAccountId` à `EncounteredPlayer` — fait **à la lecture** dans l'API Némésis plutôt qu'à l'écriture, pour rester à jour si le nom/clan de l'adversaire est résolu plus tard
+- [x] Page/widget "Némésis" par membre — [`/members/[id]/nemesis`](../../src/app/members/[id]/nemesis/page.tsx), API [`GET /api/members/[id]/nemesis`](../../src/app/api/members/[id]/nemesis/route.ts), accès `requireSameClanAsMember` (comme les autres pages membre), nav ajoutée en DB (`NavItem.navKey = 'member.nemesis'`, section member-section) ; exclut les bots des classements Némésis mais expose leur compte à part ("Bots neutralisés" / "Tué par un bot")
+- [ ] Vérifier l'impact volumétrie/temps de parsing sur les matchs déjà backfillés avant d'envisager un backfill complet — **sans objet**, voir contrainte de rétention ci-dessous
+
+**Correction du 2026-08-03 (même jour) : backfill partiel finalement possible, sans API.** L'analyse initiale ci-dessus était incomplète — elle ne considérait que le resync via l'API PUBG, bloqué par la rétention ~14-15 jours. Mais le dossier `.telemetry-captured/` contient déjà les fichiers JSON bruts téléchargés lors de précédents parsings (utilisés pour le backfill v1→v2, jamais nettoyés depuis). Vérifié : sur 672 fichiers capturés, **658 correspondent à des matchs hors fenêtre de rétention** — leur `squadMatchId` est encodé dans le nom de fichier. Ces fichiers permettent de reparser localement (aucun appel API PUBG) et d'en extraire le kill-feed.
+
+- [x] Script [`scripts/backfill-kill-events-from-captured.ts`](../../scripts/backfill-kill-events-from-captured.ts) : parcourt `.telemetry-captured/`, extrait le `squadMatchId` du nom de fichier, reparse le JSON brut localement (`parseTelemetrySnapshot`), persiste via `persistKillEventsForMatch` — flags `--limit` et `--dry-run`
+- [x] Validé sur un lot de 5 fichiers avant le lot complet : 28 lignes `KillEvent` réellement pertinentes écrites (sur 514 kills bruts parsés, la plupart impliquant des joueurs hors clan des deux côtés)
+- [x] Lancé sur les 672 fichiers le 2026-08-03 — **terminé** : 672 fichiers traités, 672 matchés à un `SquadMatch` existant, 2 erreurs de parsing (JSON tronqué/corrompu sur les fichiers capturés — matchs ignorés, sans impact ailleurs), **3709 `KillEvent` écrits sur 659 matchs distincts** (clan 1)
+
+Sur les 1319 télémétries déjà parsées : **658 récupérées via backfill local** (fichiers capturés, hors fenêtre de rétention, zéro appel API) + 300 potentiellement resynchronisables via l'API dans la fenêtre de rétention (non fait, resync individuel si besoin) = l'essentiel de l'historique du clan 1 dispose maintenant d'un kill-feed. Reste un résidu incompressible (~361 matchs, autres clans ou hors fenêtre sans fichier capturé) qui n'auront jamais de kill-feed.
+
+**Validé le 2026-08-03** par un vrai resync d'un match récent (clan 1, dans la fenêtre de rétention) : 3 `KillEvent` capturés correctement, dont un membre tué par un adversaire résolu, un membre ayant tué un adversaire, un membre tué à la grenade — `killerMember`/`victimMember` correctement peuplés via jointure.
+
+**Effort réel :** moyen, comme estimé — la difficulté principale était la découverte tardive que `clanMemberKeys` n'est jamais peuplé sur le chemin de sync automatique, nécessitant de déplacer le filtrage du parsing vers la persistance.
+
+### ~~4. Bots par match — fréquentation lobby et bots neutralisés~~ — ✅ Déployé le 2026-08-04
+
+Suggéré le 2026-08-03, en réaction directe à la confirmation du préfixe `ai.` ci-dessus. **Pourquoi c'est utile :** contexte de qualité pour les autres stats (un match avec beaucoup de bots doit être lu différemment d'un lobby 100 % humain) et un chiffre engageant en soi ("X bots neutralisés cette semaine").
+
+**Données disponibles :** sous-produit direct de la détection de bots (préfixe `ai.`) et de l'extraction `LogPlayerKill` de l'item 3 — aucune nouvelle source de données, uniquement de l'agrégation supplémentaire sur ce qui est déjà itéré.
+
+- [x] Compter les `accountId` uniques préfixés `ai.` par match au moment du parsing télémétrie — `countBotsInMatch()` dans [encountered-players.ts](../../src/lib/encountered-players.ts), calculé depuis le roster complet déjà chargé par `fetchMatchDetails`, aucun appel API supplémentaire
+- [x] Stocker `botCount` par match observé — champ `Match.botCount` nullable (migration `20260803190000_add_match_bot_count`), rempli à chaque sync dans [sync-matches/route.ts](../../src/app/api/clans/[clanId]/sync-matches/route.ts) ; nullable et non backfillé (nouvelles synchronisations uniquement, cohérent avec la politique déjà adoptée pour `EncounteredPlayer`/`KillEvent`)
+- [x] Compter, dans `KillEvent` (item 3), les kills où le tueur est un membre suivi et la victime un `ai.*` — fait en bonus de l'item 3 : `botKillCount`/`botDeathCount` exposés par `GET /api/members/[id]/nemesis` et affichés sur `/members/[id]/nemesis`
+- [x] Exclure explicitement les kills/morts impliquant un bot des classements Némésis — fait (`topKillers`/`topVictims` filtrent `isBot`)
+- [x] Afficher le nombre moyen de bots par match, par période — carte KPI "Bots moy. / match" sur `/telemetry/opponents`, `prisma.match.aggregate` scopé au clan et à la période sélectionnée (Semaine/Mois/Tous, même `SegmentedControl` que le filtre de l'item 2)
+
+**Validé le 2026-08-04** : `countBotsInMatch` testé sur un vrai match récent (roster 98, 90 bots détectés, cohérent avec l'échantillon précédent). **`botCount` est encore vide en base à ce stade** — champ nouveau sans backfill, se remplit au fil des prochaines synchronisations (cron horaire déjà actif) ; la carte KPI affichera `-` tant qu'aucun match n'a de `botCount` non nul dans la période sélectionnée.
+
+**Point d'attention documenté dans le code :** la moyenne agrège sur `Match` (une ligne par membre tracké, pas par match unique) — un match croisé par plusieurs membres du clan compte plusieurs fois. Approximation acceptable pour un indicateur de fréquentation, pas une statistique exacte.
+
+#### Visibilité élargie — dashboards membre et clan (2026-08-04)
+
+Discuté le 2026-08-04 : les stats bots n'étaient visibles que sur des pages secondaires (`/telemetry/opponents`, réservée Owner/Admin ; `/members/[id]/nemesis`, accessible mais pas la page d'atterrissage). Décision : remonter un teaser sur les deux dashboards principaux, en gardant les pages détaillées comme destination "en savoir plus".
+
+- [x] **Dashboard membre** ([`/members/[id]/dashboard`](../../src/app/members/[id]/dashboard/page.tsx)) : tuile cliquable "🤖 Bots neutralisés" (lien vers `/members/[id]/nemesis`), fetch léger et non bloquant sur `GET /api/members/[id]/nemesis` déjà existant — aucune nouvelle route
+- [x] **Page stats clan** ([`/clans/[clanId]/stats`](../../src/app/clans/[clanId]/stats/page.tsx), section "Ambiance de lobby") : moyenne de bots par match, réutilise le `SegmentedControl` de période déjà présent pour la section playstyle (`telemetryPeriod`) — pas de nouveau sélecteur
+- [x] Nouvelle route [`GET /api/clans/[clanId]/bot-stats`](../../src/app/api/clans/[clanId]/bot-stats/route.ts) créée plutôt que de réutiliser `/api/clans/[clanId]/encountered-players` : cette dernière est réservée Owner/Admin (expose des noms d'adversaires), alors qu'une moyenne de bots ne révèle rien de sensible — permission alignée sur `requireNavPermission('clan.stats')`, donc visible à tout membre du clan comme le reste de la page stats
+- [ ] `/clans/[clanId]/overview` envisagée initialement pour la tuile clan, écartée : cette page est réservée Admin (`defaultRole: 'admin'`), pas visible à tout le clan — `/clans/[clanId]/stats` choisie à la place (`defaultRole: 'none'`)
+
+### Note pour plus tard — données de match du membre suivi lui-même
+
+Mentionné le 2026-08-03 : la télémétrie contient aussi des données détaillées sur les matchs du membre suivi lui-même (au-delà de ce qui alimente déjà drop zones / positions / weapon mastery). Piste à creuser plus tard, sans axe précis identifié pour l'instant — à reprendre quand le reste de cette section sera avancé.
+
+### Suggestions complémentaires (brainstorm, non détaillées techniquement)
+
+**⏸ Pause décidée le 2026-08-04.** Items 1 à 4 déployés, backfill partiel fait, filtrage par période et classement d'armes ajoutés. Les 3 idées restantes ci-dessous sont notées mais volontairement non développées pour l'instant — à reprendre plus tard si besoin, aucune n'a de dépendance bloquante ni de contrainte d'urgence (les données nécessaires, `KillEvent` et `PositionMetricCell`, sont déjà en base).
+
+- [ ] **Clans rivaux récurrents** — une fois `pubgClanTag` résolu sur les adversaires, agréger par clan adverse : nombre de croisements, qui finit devant (recoupe l'item "Détection de rivalité" de la section comparaison inter-clans ci-dessus, mais sans exiger que l'autre clan soit lui-même suivi sur le site) — le compteur de croisements par clan existe déjà (bloc "Clans adverses les plus croisés"), reste le "qui finit devant"
+- [x] **Arme qui nous tue le plus** — **fait le 2026-08-04** : section "Armes qui vous tuent le plus" sur `/members/[id]/nemesis`, classement global (toutes armes, tous adversaires confondus, indépendant du filtre par arme) avec mini barres de comparaison, `aggregateWeapons()` dans [route.ts](../../src/app/api/members/[id]/nemesis/route.ts) — s'ajoute au filtre par arme déjà en place (qui lui recalcule les classements par adversaire) et au dropdown [`WeaponSelect`](../../src/components/ui/WeaponSelect.tsx) avec icônes, nouveau composant réutilisable créé faute d'équivalent existant (le `<select>` HTML natif ne peut pas afficher d'images dans ses options)
+- [ ] **Zone de mort récurrente face à un adversaire donné** — croiser les positions de mort (déjà couvertes par `PositionMetricCell`, métrique `death`) avec `killerAccountId` une fois disponible
+- [ ] **Revanche** — détecter si on retue plus tard dans la saison un joueur qui nous avait tués auparavant (nécessite l'historique `KillEvent` de l'item 3)
+
+### Priorisation suggérée
+
+| Priorité | Idée | Statut | Effort | Dépendances |
+|---|---|---|---|---|
+| 1 | Identification légère des adversaires + compteur de croisements (items 1 + 2) | ✅ Déployé 2026-08-03/04 | Faible à moyenne | Aucune |
+| 2 | Némésis / kill-feed (item 3) | ✅ Déployé 2026-08-03 (+ backfill partiel) | Moyenne | Extension du parser télémétrie |
+| 3 | Bots neutralisés / tué par un bot | ✅ Déployé en bonus de l'item 3 | Faible | Item 3 |
+| 4 | Bots par match (fréquentation lobby, `botCount`) | ✅ Déployé 2026-08-04 | Faible | Aucune (indépendant du kill-feed) |
+| 5 | Arme qui nous tue le plus | ✅ Déployé 2026-08-04 | Faible | Item 3 |
+| 6 | Clans rivaux récurrents (qui finit devant), zone de mort récurrente, revanche | Reste à faire | Moyenne | Items 1–3 |
+
+Item 4 restant (fréquentation lobby `botCount` par match) est indépendant du kill-feed — nécessite juste de compter les `ai.*` uniques par match au moment du parsing, sans lien avec `KillEvent`.
+
+---
+
+## Idées — Nouvelles métriques d'engagement (Temps de jeu et Jours Actifs)
+
+**Pourquoi c'est utile :** Le nombre de matchs joués est un indicateur imparfait. Un match peut durer 2 minutes (mort au drop) ou 30 minutes (top 1). Utiliser le **temps de jeu réel** (playtime) et le **nombre de jours de jeu distincts** (active days) donne une image beaucoup plus juste de l'engagement réel des membres et du clan.
+
+**Données disponibles :**
+- `SquadMember.timeSurvived` (en secondes) : donne le temps de survie exact du joueur dans un match suivi.
+- Date du match (`matchDate` ou `pubgCreatedAt`) : permet de déduire les jours uniques de connexion.
+
+**Proposition d'implémentation :**
+
+### 1. Statistiques par Membre (`PlayerStats`) — ⚠️ Partiellement fait (vérifié 2026-08-08)
+- [x] Ajouter `timePlayedSeconds` (Int) et `activeDays` (Int) dans le modèle `PlayerStats` (qui agrège par semaine/mois/all-time). — `prisma/schema.prisma:695-696`
+- [x] Lors de la génération des statistiques (cron), sommer les `SquadMember.timeSurvived` de la période pour calculer le temps de jeu. — `src/lib/stats-calculator.ts:95-141`
+- [x] Compter les dates uniques des matchs (ex: format `YYYY-MM-DD`) de la période pour déterminer les `activeDays`. — `src/lib/stats-calculator.ts:97-103`
+- [ ] Afficher ces deux métriques (Temps de jeu formaté en heures/minutes et Jours actifs) sur le profil du joueur (`/members/[id]/dashboard`). **Pas fait** : absent de `src/app/members/[id]/dashboard/page.tsx`. Actuellement affiché ailleurs seulement — agrégé par membre sur `src/app/clans/[clanId]/stats/page.tsx:145-146` ("Temps de jeu" / "Jours actifs"), et `activeDays` seul sur `src/app/members/[id]/heatmap/page.tsx:461`.
+- [x] Ajouter ces métriques dans les classements (Leaderboard) pour permettre le tri (ex: les joueurs les plus assidus). **Fait, note précédente obsolète — vérifié le 2026-08-30** : `src/app/api/clans/[clanId]/leaderboard/route.ts` (`parseSortBy`/`sortLeaderboard`) gère bien `timePlayed` et `activeDays` en plus de `kills`/`damage`/`winRate`/`matches`/`kpm` ; option "Jours Actifs" présente dans `src/components/Leaderboard.tsx`.
+- [ ] **Design Visuel attractif :** Ajouter des badges conditionnels exclusifs dans le leaderboard (ex: Badge "Marathonien" pour le plus de temps joué, Badge "Régulier" pour l'assiduité) et formater le temps de façon très lisible et moderne (ex: "12h 45m" avec une icône d'horloge dynamique).
+
+**Prochaines étapes proposées :**
+1. Ajouter une carte "Temps de jeu" / "Jours actifs" sur `/members/[id]/dashboard/page.tsx`, en réutilisant le pattern de fetch déjà utilisé côté clan-stats (`lifetime-stats` route lit déjà `PlayerStats.timePlayedSeconds`/`activeDays` — voir `src/app/api/clans/[clanId]/lifetime-stats/route.ts:174-197`). Prévoir un formatteur heures/minutes (probablement déjà présent via `formatDurationLong` utilisé dans `clans/[clanId]/stats/page.tsx:145`, à factoriser/réutiliser plutôt que dupliquer).
+2. Étendre `LeaderboardSortBy` (`src/types/leaderboard.ts`) avec `timePlayed` et `activeDays`, câbler `parseSortBy` + `sortLeaderboard` dans `leaderboard/route.ts`, et ajouter les options correspondantes dans le composant de tri UI du leaderboard (probablement `SegmentedControl` selon les conventions du projet — voir CLAUDE.md section UI).
+3. Vérifier si le dashboard membre doit consommer directement `PlayerStats` (comme lifetime-stats) ou une nouvelle route API dédiée — à trancher avant l'implémentation pour éviter une divergence de source de données avec la page clan-stats.
+
+### 2. Statistiques par Clan (`ClanStats` ou Dashboard)
+- [ ] **Temps de jeu total du clan** : Somme du `timePlayedSeconds` de tous les membres actifs sur la période (mesure l'investissement "heures-hommes").
+- [ ] **Jours d'activité globaux** : Nombre de jours uniques où au moins un membre a joué.
+- [ ] Afficher ces agrégats sur la page "Overview" et "Stats" du clan pour évaluer sa vitalité réelle indépendamment de sa taille brute.
+
+### 3. Statistiques de performance dérivées (KPI avancés)
+- [ ] Remplacer ou compléter le traditionnel "Dégâts / Match" par **Dégâts / Minute (DPM)**, plus juste pour l'e-sport.
+- [ ] Calculer les **Kills / Heure**, ce qui lisse le biais des parties très courtes.
+- [ ] Afficher une "Heatmap" d'activité ou un "Ratio de survie" calculé sur le temps passé.
+
+
+#### Phase 2 — Suivi, Favoris & UI — ✅ Implémenté le 2026-08-08
+
+Objectif : Finaliser la fonctionnalité de "Watchlist" en permettant d'ajouter des joueurs suivis sans corrompre les calculs statistiques des clans.
+
+**Modèle et API :**
+- [x] Ajout de `isFavorite` sur `Player` et lien `playerId` sur `ClanMember`.
+- [x] Route `PATCH /api/settings/players/[id]/favorite` pour le système d'étoiles.
+- [x] Route `POST /api/settings/opponents/track` pour insérer un `ClanMember` de statut `joinStatus: 'tracked'`.
+
+**UI :**
+- [x] Boutons "Ajouter" activés pour les membres manquants détectés (Tableau 1).
+- [x] Boutons "Suivre" avec menu déroulant pour affecter un adversaire à un clan suivi (Tableau 2).
+- [x] Étoiles de favori interactives pour chaque joueur (Tableau 2).
+- [x] Toast de notifications modernes et rafraîchissement automatique des tableaux après interaction.
+
+**Isolation Stricte (Watchlist) :**
+- [x] Patch global sur `src/lib/stats-calculator.ts`, `cron-jobs.ts`, `report-generator.ts`, et `matches-cache-service.ts` pour filtrer `isActive: true, joinStatus: 'active'`.
+- [x] Création du test unitaire `tracked-isolation.test.ts` pour garantir l'étanchéité des calculs.
+
+---
+
+## Idées — Comparateur de Clans (Méta-Dashboard)
+
+**Pourquoi c'est utile :** Apporter une dimension méta et compétitive (Le "Derby") entre les différents clans suivis sur le site. Il s'agit de comparer l'activité, le style de jeu et les performances pures des rosters, plutôt que de se limiter à des classements de joueurs individuels.
+
+**Données disponibles :**
+- `Match`, `SquadMember`, `SquadMatch`, `PositionMetricCell`, `DropPressureStat`, `KillEvent`, `PlayerStats`, `ClanSynergyTelemetryStats`
+- La télémétrie existante suffit largement, il s'agit surtout de nouvelles agrégations transverses (cross-clan) au-dessus de tables déjà peuplées — pas de nouveau parsing.
+
+**Vérification du modèle de données (2026-08-10) :**
+- `SquadMatch.pubgMatchId` est **globalement unique** (`prisma/schema.prisma:542`) : quand deux clans suivis jouent le même match PUBG, une seule ligne `SquadMatch` existe pour les deux, et `SquadMember` y rattache les membres des deux clans. `KillEvent.killerMemberId` / `victimMemberId` (`prisma/schema.prisma:717-723`) peuvent donc pointer vers des `ClanMember` de clans différents sur le même `squadMatchId` — le Head-to-Head (section 4) est réellement calculable, à condition que les deux clans concernés soient suivis par le site et que leur télémétrie ait été parsée. **Limite à documenter dans l'UI** : les affrontements avec des clans non suivis (rencontrés seulement via `EncounteredPlayer`/`OpponentClan`, cf. section "Idées — Suivi des adversaires rencontrés en match") ne peuvent pas être exploités ici — ces comptes ne sont jamais résolus en `ClanMember`, donc invisibles pour `KillEvent`.
+- `PositionMetricCell` et `DropPressureStat` sont scopés par `clanId`/`memberId`, agrégeables directement par clan sans jointure supplémentaire.
+- `ClanMatchesCache` (`prisma/schema.prisma:294`) est le pattern de cache déjà en place pour les agrégats coûteux par clan (`payload Json`, recalculé en cron) — à réutiliser comme modèle plutôt qu'à réinventer un cache ad hoc pour le comparateur.
+
+**Proposition d'implémentation (Page Comparateur) :**
+
+### 0. Fondations — Service d'agrégation et cache — ✅ Complété le 2026-08-10
+- [x] Créer `src/lib/clan-comparator-service.ts` avec `computeClanComparatorStats(clanId)` (calcule `week`/`month`/`all`) qui calcule un payload unique regroupant les sections 1 à 3 (pouls, ADN, performances) — même esprit que `precomputeClanMatchesStats` dans `matches-cache-service.ts`. Réutilise `getDropPressureDashboardStats` (`src/lib/drop-pressure-stats.ts`) pour l'indice Hot Drop plutôt que de recalculer, et `PositionMetricCell` (`metric: 'knockout_taken'`) pour les KO subis (non présents dans `KillEvent`, qui ne journalise que les kills).
+- [x] Ajouter le modèle `ClanComparatorCache` (`clanId`, `period`, `periodKey`, `payload Json`, `computedAt`), calqué sur `ClanMatchesCache` — migration additive `prisma/migrations/20260810120000_add_clan_comparator_cache` (appliquée manuellement sur `smk.arkium.group`, cf. gotcha connu du projet sur les migrations de production).
+- [x] Intégrer le calcul dans `src/lib/cron-jobs.ts`, juste après `precomputeClanMatchesStats` dans `runDailyStatsRecalculation`, pour que la page comparateur ne fasse jamais de calcul à froid.
+- [x] Créer `GET /api/clans/comparator?clanIds=1,2,3&period=month` — route transverse (`src/app/api/clans/comparator/route.ts`, hors du préfixe `/api/clans/[clanId]/`), qui lit `ClanComparatorCache` pour chaque `clanId` demandé (max 3) et retourne un tableau de payloads. Retourne `Response.json` standard (pas `NextResponse`), conforme au reste des nouvelles routes.
+- [x] Permissions : lecture cross-clan ouverte à tout utilisateur authentifié (simple vérification de session via `getSessionFromRequest`, pas de `requireNavPermission` scopé à un clan) — cohérent avec la décision "comparaison publique côté site".
+- [ ] Vérifier en base que le prochain passage du cron `daily_stats_recalc` peuple bien `ClanComparatorCache` pour les clans actifs (aucun backfill manuel déclenché à l'implémentation).
+
+### 1. L'Activité et le Rythme de jeu (Le "Pouls") — ✅ Complété le 2026-08-10 (hors heatmap horaire)
+- [x] **Indice de Synergie :** Répartition des tailles de squad par clan (solo/duo/trio/squad) dans `ClanComparatorPayload.pulse.squadSizeDistribution`, dérivé du nombre de `SquadMember` par `squadMatchId` appartenant au clan.
+- [x] **Taux de participation (Roster Health) :** `pulse.rosterHealth` — membres actifs ayant joué / effectif total, filtré `isActive: true, joinStatus: 'active'` (isolation stricte, cf. `tracked-isolation.test.ts`).
+- [x] **Régularité :** `pulse.dailyMatchCounts` (matchs par jour sur la période) et `pulse.activityByDayHour` (grille 7×24 jour/heure), affichés sous forme de compteurs sur la page — pas encore de heatmap visuelle superposée entre clans.
+- [ ] **Heatmap d'activité comparée :** `activityByDayHour` est déjà calculé et mis en cache, mais la page ne l'affiche pas encore visuellement (juxtaposition Night Owls vs Weekend warriors) — reste à construire le composant de visualisation.
+  - [ ] **Design Visuel attractif :** Concevoir une matrice style "Punchcard" (Github contribution graph). Si on compare 2 clans, utiliser des couleurs distinctes avec un mode de fusion (`mix-blend-mode: screen` ou `multiply`) pour mettre en évidence les heures de forte collision d'activité, ou une vue côte-à-côte avec des tooltips riches montrant le pourcentage d'activité.
+
+### 2. Le Style de jeu (L'ADN) — ✅ Complété le 2026-08-10
+- [x] **Indice de "Hot Drop" :** `dna.hotDropSharePercent`/`hotDropCount`/`dropCount`, calculé directement sur `DropPressureStat.pressureLevel` (`hot`/`very_hot`) avec filtre d'isolation `member.isActive/joinStatus` — **ne pas réutiliser `getDropPressureDashboardStats` telle quelle**, elle ne filtre pas par `joinStatus` et fait fuiter les membres en simple watchlist dans les stats d'un clan (bug trouvé et corrigé pendant l'implémentation, cf. `src/lib/clan-comparator-service.ts`).
+- [x] **Agressivité vs Survie :** `dna.avgDamagePerMatch`/`avgKillsPerMatch` vs `dna.avgTimeSurvivedSeconds`, affichés en cartes par clan (pas encore en nuage de points).
+- [x] **Altruisme (Teamplay) :** `dna.teamplayRatio` = `revivesGiven` / `knockoutsTaken`, où `knockoutsTaken` vient de `PositionMetricCell` (`metric: 'knockout_taken'`) et non de `KillEvent`, qui ne journalise que les kills (pas les KO) — même piège d'isolation que le Hot Drop, filtré via la relation `member`.
+
+### 3. Les Performances Globales — ✅ Complété le 2026-08-10
+- [x] **Winrate et Top 10 Rate :** `performance.winRate`/`top10Rate`, calculés depuis `SquadMatch.placement` (placement = 1 pour winrate, ≤ 10 pour Top 10) sur les matchs du clan dans la période.
+- [x] **Dégâts moyens / Kills moyens :** `performance.avgDamagePerMatch`/`avgKillsPerMatch`, calculés directement depuis `SquadMember` sur la période (pas depuis `PlayerStats`, pour rester cohérent avec le filtrage d'isolation watchlist déjà appliqué au reste du payload).
+- [x] **Performances par mode (ajout demandé le 2026-08-10) :** `pulse.modePerformance` (duo/trio/squad : matchs, victoires, winrate, kills), affiché sur la page comparateur avec `TeamModeBadge` — permet de voir si un clan joue surtout ensemble (squad complète) ou en petits groupes ad hoc.
+  - **Bug corrigé (même jour) :** la taille d'équipe était calculée en filtrant les `SquadMember` sur `joinStatus: 'active'`, comme le reste du payload par souci d'isolation — mais un vrai squad de 4 avec 3 coéquipiers seulement `tracked` (auto-détectés, pas administrativement actifs) se retrouvait compté comme "solo" et disparaissait du tableau duo/trio/squad. Repéré sur FR-Alliance-BE : 42 matchs joués au total, 0 comptés en duo/trio/squad avant correctif. Fix : la taille d'équipe utilise désormais la composition réelle du squad (tous les membres du clan présents, `isActive: true`, peu importe `joinStatus`), tandis que l'agrégation des stats individuelles (kills/dégâts/revives) reste filtrée sur `joinStatus: 'active'` pour préserver l'isolation watchlist sur les chiffres attribués au clan.
+
+### 4. Le Head-to-Head (Le "Derby") — ✅ Complété le 2026-08-10
+- [x] **Détection des matchs communs :** `src/lib/head-to-head-service.ts`, `getHeadToHeadStats(clanIdA, clanIdB)` — `SquadMatch` où au moins un `SquadMember` actif appartient à chacun des deux clans.
+- [x] **Tableau de Rivalité :** `KillEvent` filtré sur `killerMember`/`victimMember` résolus vers les deux clans (isolation `isActive`/`joinStatus` appliquée aussi ici) — compte `killsAOnB`/`killsBOnA`.
+- [x] **Bilan de confrontation :** Le vainqueur d'un match commun se lit sur le **meilleur `SquadMember.placement` par clan**, pas sur `SquadMatch.placement` — un même `SquadMatch` (clé `pubgMatchId` globalement unique) peut représenter deux équipes réelles différentes si les deux clans étaient dans le même lobby sans être dans la même squad PUBG.
+- [x] Le cas "aucun match commun" est géré explicitement dans l'UI (message dédié plutôt qu'un tableau vide).
+- [x] Intégré à `GET /api/clans/comparator` (calculé à la demande pour chaque paire de clans sélectionnés, pas mis en cache comme les sections 1-3 — volume de paires trop faible pour justifier un cache dédié) et à la page comparateur.
+- [ ] Le Head-to-Head est calculé toutes périodes confondues, indépendamment du filtre Semaine/Mois/Tous de la page — à réévaluer si le volume de confrontations augmente.
+
+#### Bug structurel découvert et corrigé (même jour) — pipeline de sync ne partageait jamais un match entre deux clans
+
+En vérifiant pourquoi aucune des 7 clans suivis n'avait le moindre match commun (constaté par l'utilisateur), investigation plus profonde que prévu : `analyzeMatchForSquads` (`src/lib/squad-detector.ts`) ne résolvait que les membres du clan dont c'était le job de sync, et — plus grave — quand un `SquadMatch` existait déjà pour un `pubgMatchId` (créé par un premier clan), la fonction **retournait l'existant sans jamais y attacher les membres d'un second clan**. Sur les 3031 `SquadMatch` en base au moment de l'investigation, aucun n'avait de membres de plus d'un `clanId` — le Head-to-Head était donc structurellement mort avant même d'être écrit.
+
+- [x] `analyzeMatchForSquads` détecte désormais le squad du clan appelant même si le `SquadMatch` existe déjà, et attache les `SquadMember` manquants pour ce clan (fonction de détection extraite en `detectSquadFromMatchDetails`, réutilisée dans les deux branches).
+- [x] **Risque identifié avant d'implémenter** : les colonnes dénormalisées `SquadMatch.totalKills/totalDamage/totalAssists/totalRevives` (calculées par `calculateSquadStats`, qui somme tous les `SquadMember` attachés) sont lues directement par plusieurs consommateurs comme "les stats de MON clan sur ce match" — attacher un second clan sans corriger ces consommateurs aurait fait fuiter les stats d'un clan vers l'autre sur les matchs partagés.
+- [x] Décision : ne plus jamais recalculer ces colonnes lors de l'attache d'un second clan (elles restent celles du premier clan créateur, désormais considérées obsolètes/non fiables) — **4 fichiers consommateurs audités et corrigés pour recalculer depuis les `SquadMember` filtrés par clan plutôt que de faire confiance aux colonnes du `SquadMatch`** :
+  - `src/lib/squad-detector.ts` — `getClanSquadMatches` filtre désormais `members` par `clanId` ; `findBestSquads`/`getSquadWinRates`/`getClanSquadAnalysis` recalculent via le nouvel helper `sumClanMemberTotals`.
+  - `src/lib/matches-cache-service.ts` — cache Overview, même traitement.
+  - `src/app/api/clans/[clanId]/matches/route.ts` — page Matchs en direct (mode de jeu, sessions, synergies duo/squad, top performers) — le plus gros fichier touché.
+  - `src/lib/report-generator.ts` — rapports hebdo/mensuels (timeline, totaux).
+- [x] Validé par une simulation contrôlée : insertion temporaire d'un `SquadMember` d'un second clan sur un `SquadMatch` réel existant → Head-to-Head détecte bien le match commun avec le bon vainqueur (meilleur placement), les stats des deux clans restent isolées (aucune fuite croisée vérifiée par requête), les caches se recalculent sans erreur — puis suppression de la ligne de test et re-vérification du retour à l'état initial.
+- [ ] Pas de test automatisé couvrant ce scénario (match partagé entre deux clans) — à ajouter, notamment un test d'intégration sur `analyzeMatchForSquads` avec un `pubgMatchId` déjà existant.
+- [ ] Le prochain vrai match partagé entre deux clans suivis (détecté par le cron/worker en conditions réelles, pas simulé) n'a pas encore été observé — à vérifier dès qu'il se présente que la détection fonctionne aussi via le pipeline de sync complet, pas seulement via l'insertion directe testée ici.
+
+**Tentative de vérification en conditions réelles (2026-08-10) :** repéré via `EncounteredPlayer` (page "Adversaires") que Serejaah (clan BEE, memberId 19) et des membres de D32 se sont croisés 23 fois — **toujours comme coéquipiers, jamais comme adversaires** (`teammateEncounterCount: 23` = `encounterCount`). Les 2 lignes "Tué par le clan" affichées sur cette page sont donc probablement des team kills accidentels, pas des kills d'opposant. Tentative de rejouer ces 2 matchs (30 mai et 13 juin) via `fetchMatchDetails` pour vérifier l'attache réelle : **échec 404, l'API PUBG ne conserve les détails d'un match qu'environ 14 jours** — ces matchs sont définitivement inaccessibles côté PUBG, aucun moyen de les backfiller rétroactivement. Limite structurelle à retenir : le Head-to-Head et l'attache cross-clan ne peuvent couvrir que les matchs encore disponibles côté PUBG au moment où le second clan les synchronise pour la première fois (~14 jours), jamais l'historique complet.
+
+#### Bug structurel n°2 découvert en creusant le premier — `KillEvent` avait exactement le même défaut
+
+Question de l'utilisateur : "y a-t-il des matchs partagés parmi les 3031, je suppose que oui si un clan a tué un membre ?" — vérification : **0 des 91 `KillEvent` ayant killer et victim résolus ne sont cross-clan**, confirmant qu'aucun kill entre deux clans suivis n'a jamais été enregistré. Cause : `persistKillEventsForMatch`/`buildKillEventRows` (`src/lib/kill-event-persistence.ts`) dérivaient un unique `clanId` depuis le premier clan trouvé sur le `SquadMatch`, puis ne résolvaient `killerMemberId`/`victimMemberId` que contre le roster de CE seul clan — un kill entre deux clans suivis n'aurait donc jamais résolu les deux côtés, même après le fix d'`analyzeMatchForSquads` ci-dessus (qui attache désormais les `SquadMember`, mais `KillEvent` est peuplé par un pipeline séparé).
+
+- [x] `persistKillEventsForMatch` résout désormais les rosters de **tous** les clans présents sur le match (`clanId: { in: clanIds } }`), plus seulement le premier.
+- [x] `buildKillEventRows` résout `killerMemberId`/`victimMemberId` contre l'ensemble de ces rosters — un kill cross-clan résout maintenant les deux côtés.
+- [x] `KillEvent.clanId` (colonne unique par ligne, utilisée par `encountered-players/route.ts` pour un usage mono-clan légitime — kills contre des adversaires non résolus) prend désormais le clan du killer si résolu, sinon celui de la victime, sinon le clan "principal" du match (comportement identique à avant sur les 99% de matchs mono-clan). Ce choix ne casse aucun consommateur existant : `head-to-head-service.ts` ne filtre jamais par `KillEvent.clanId`, et `nemesis/route.ts` filtre par `killerMemberId`/`victimMemberId` directement, pas par `clanId`.
+- [x] Validé par deux tests unitaires directs sur `buildKillEventRows` (fonction pure) : un kill cross-clan résout bien les deux `memberId` avec `clanId` = clan du killer ; le cas nominal mono-clan (kill contre un adversaire non résolu) reste inchangé.
+- [ ] Comme pour le bug n°1, pas encore observé en conditions réelles via le pipeline de sync complet (worker/cron) — seulement validé par simulation directe des fonctions pures et de la base.
+
+### 5. UI/UX et Tests — 🚧 Base fonctionnelle livrée le 2026-08-10
+- [x] Créer la page `src/app/clans/comparator/page.tsx` (`'use client'`, contenu dans un `<Suspense>` car elle lit `useSearchParams`), hors du préfixe `/clans/[clanId]/` puisqu'elle porte sur plusieurs clans — structure `.app-container`/`.app-main` standard, sans `ClanSectionNav`.
+- [x] **Interface de sélection :** Sélecteur multi-clans en pills (jusqu'à 3), période via `SegmentedControl` (Semaine/Mois/Tous), sélection persistée en query string (`?clanIds=1,3&period=month`) pour permettre le partage d'un lien de comparaison.
+- [x] **Visualisation "Radar Chart" :** `src/components/comparator/ClanComparatorRadar.tsx`, 5 axes normalisés (Agressivité, Survie, Teamplay, Activité, Winrate) sur jusqu'à 3 clans. Utilise directement les slots 1-3 du thème catégoriel du projet (`references/palette.md` du skill `dataviz` : bleu/orange/aqua, déjà validés all-pairs CVD en clair et sombre pour 3 séries) — pas de nouvelle validation de palette nécessaire tant que le plafond reste à 3 clans.
+- [x] Entrée de navigation ajoutée (`primary.comparator`, `/clans/comparator`) dans la sidebar principale, seedée en DB (`NavItem`) et dans le fallback `nav-permissions-registry.ts`.
+- [x] **Performances par mode :** cartes `TeamModeBadge` par clan (duo/trio/squad), même style que le panneau existant sur `/clans/[clanId]/overview`.
+- [x] **Head-to-Head :** section dédiée avec confrontations par paire de clans sélectionnés, message explicite si aucun match commun.
+- [x] Cache `ClanComparatorCache` peuplé manuellement pour les 7 clans actifs le 2026-08-10 (le cron nocturne `daily_stats_recalc` le repeuplera automatiquement ensuite) — les données radar/tableaux n'étaient pas visibles avant ce peuplement initial car la page ne calcule jamais à la volée.
+- [ ] **Heatmap d'activité comparée** (section 1) : `pulse.activityByDayHour` est disponible mais pas encore visualisé.
+- [ ] **Tests Unitaires (Services d'agrégation) :** Aucun test automatisé sur `clan-comparator-service.ts`/`head-to-head-service.ts` pour l'instant — validé manuellement par exécution directe sur les données réelles des 7 clans (a révélé et permis de corriger le bug d'isolation watchlist ci-dessus). À couvrir : Synergie, Roster Health, Hot Drop, Teamplay, isolation `joinStatus`, détection de matchs communs, calcul du vainqueur par meilleur placement.
+- [ ] **Tests de Composants (UI) :** Pas de test automatisé sur la page/le radar — à couvrir : données vides, un seul clan sélectionné, clan sans télémétrie parsée, aucun match commun.
+- [ ] Vérifier dans le navigateur (session authentifiée) les rendus desktop/mobile et les thèmes clair/sombre — non fait dans cette session (pas d'accès à une session de test ; seule la résolution de route a été vérifiée via `curl`, qui redirige correctement vers `/login` sans authentification).
+
+**Décisions (2026-08-10) :**
+- Périmètre clans : uniquement les clans actifs gérés sur le site (`joinStatus: 'active'`) — les clans en simple watchlist (`joinStatus: 'tracked'`) sont exclus du sélecteur, cohérent avec l'isolation déjà appliquée ailleurs (`tracked-isolation.test.ts`).
+- Visibilité : le comparateur est exposé dans la navigation principale dès la V1, pas de phase de rodage en accès direct uniquement — prévoir l'entrée correspondante dans le composant de nav (`NavItem` / menu principal) dès l'implémentation de la page.
+
+### 6. Nouvelles Statistiques Avancées (Télémétrie) — ⚠️ Implémenté le 2026-08-14, avec un écart de schéma trouvé le 2026-08-30 (voir ci-dessous)
+- [x] **Traquer le "Recall" (Respawn) :** Ajouter la comptabilisation des utilisations du système de rappel de PUBG.
+  - [~] **Base de données :** colonne `recallCount` (Int, default 0) — **correction du 2026-08-30 : présente uniquement sur `ClanSynergyTelemetryStats` (`prisma/schema.prisma`), absente de `MemberTelemetryStats` et du modèle `MemberMatchTelemetry` (qui n'existe pas — seul `SquadMatchTelemetry` existe, sans colonne `recallCount`, uniquement des blobs JSON)**. Cette case avait été cochée à tort ; le recall n'est agrégé qu'au niveau paire (`PairSynergyAggregate`), jamais par membre.
+  - [x] **Parser (Backend) :** Analyser les événements correspondants (ex: `LogPlayerUseRespawn` ou items Blue Chip) dans `src/lib/pubg-telemetry/parser.ts` et incrémenter les `recallCount`. Mettre à jour l'agrégation dans `period-aggregates.ts`.
+  - [x] **API :** Exposer `recallCount` dans la route `/api/clans/[clanId]/telemetry/synergies`.
+  - [x] **UI (Frontend) :** Ajouter une colonne/carte "Top Recalls" dans le composant `SquadSynergies.tsx` avec une image dédiée et un badge (comme pour "Top Sauvetages").
+  - [x] **Tests :** 
+    - [x] Ajouter des données de test mockées dans `parser.test.ts` contenant un événement Recall.
+    - [x] Exécuter la suite complète de tests Vitest.
+    - [x] Vérifier sur la page d'overview que la carte s'affiche et affiche des données après l'analyse d'un match (manuel ou cron).
+
+---
+
+## Idées — Tournois entre clans
+
+**Pourquoi c'est utile :** permettre à l'admin d'un clan suivi de déclarer un tournoi (règles, fenêtre de dates, clans participants) sans aucune préinscription joueur — l'app détecte elle-même les matchs du tournoi et calcule le classement selon le barème défini, affiché sur une page dédiée. Réflexion menée le 2026-08-29, convergée en plan concret ci-dessous.
+
+### État réel — largement implémenté le 2026-08-30, bugs constatés à corriger
+
+Le plan ci-dessous a été en grande partie codé entre le 2026-08-29 et le 2026-08-30 (commits `1aceb73`, `b26458d`, `860aaf5`, `539415f`, `5038da3`, `76ebe3d`), y compris la Phase 0 (découverte des matchs `custom`, avec commentaires citant explicitement cette section du todo). Vérifié le 2026-08-30 par relecture complète du code — **la Phase 0 est correcte, mais un bug de fond touche le filtrage par clan participant.**
+
+**Ce qui fonctionne, vérifié :**
+- [x] Schéma Prisma `Tournament`/`TournamentClan` (migration `20260830120000_add_tournament`).
+- [x] Phase 0 : `fetchAllRecentMatchIds` (`src/lib/pubg.ts`) interroge `GET /players/{id}` en complément de `fetchRecentMatchIds`, fusionné et dédupliqué dans `sync-matches/route.ts` — corrige bien le gap identifié (0 match `custom` en base avant ce correctif). Testé (`pubg-tournament-match-discovery.test.ts`, mock propre du endpoint et de la déduplication).
+- [x] Permission : `manage_settings` utilisée partout (pas de `manage_tournaments` inventée) — conforme à la correction actée.
+- [x] Moteur de barème (`computeTournamentStandings`, `groupMatchIntoTeams`, `normalizeTournamentRules`) — 3 tests Vitest solides (placement + kills + bonus victoire + `bestOfRounds`), logique relue et correcte.
+- [x] Pages : `/clans/[clanId]/settings/tournaments` (création/gestion), `/clans/[clanId]/tournaments[/[tournamentId]]`, `/tournaments[/[tournamentId]]` (variante top-level), sous-page détail télémétrie d'un match de tournoi.
+- **Décision produit différente de ce qui avait été discuté le 2026-08-29** : pas de sélection manuelle des clans participants par l'organisateur — l'UI l'indique explicitement ("Les clans et joueurs suivis présents dans les matchs récupérés seront détectés automatiquement", `settings/tournaments/page.tsx:461`). Le modèle `TournamentClan`, la relation `Tournament.clans` et le champ `participantClanIds` (type + parsing dans la route POST) existent mais **ne sont jamais écrits** (`createTournament`/`updateTournament` les ignorent) — code mort, pas un choix assumé documenté comme tel.
+
+**Principe produit confirmé (2026-08-30) :** l'admin du clan organisateur est celui qui crée/lance la partie perso dans le jeu — il est donc présent dans chaque match du tournoi. C'est pourquoi la synchro ne cible que son compte (pas tout le roster) : il suffit à découvrir tous les matchs. Le détail PUBG du match révèle ensuite tous les joueurs présents (tous clans confondus), et n'importe quel joueur d'un clan suivi qui y figure marque des points pour son clan — pas de présélection de clans participants, l'auto-détection est voulue. Ce principe **corrige deux entrées de la liste de bugs ci-dessous** (retirées, comportement confirmé correct) et **précise le correctif du bug n°1**.
+
+**Bugs constatés :**
+
+1. ~~`getTournamentMatches` ne réapplique pas le filtre "clan organisateur présent"~~ — **✅ Corrigé le 2026-08-30.** Ajouté `clanId: tournament.organizerClanId` au filtre `members.some.member` de `getTournamentMatches` (`src/lib/tournament-service.ts`), aligné sur `materializeTournamentCustomMatches` — un membre du clan organisateur doit désormais être présent dans le match pour qu'il compte, tout en gardant l'inclusion ouverte à tous les clans suivis pour l'attribution des points. Empêche la contamination entre tournois/scrims non liés tombant dans la même fenêtre de dates/mode.
+2. ~~`TournamentClan`/`participantClanIds` est du code mort~~ — **✅ Supprimé le 2026-08-30.** Modèle `TournamentClan`, relation `Tournament.clans`/`Clan.tournamentEntries`, type `TournamentCreateInput.participantClanIds`, parsing dans les 2 routes POST/PATCH, et tous les usages front (`tournament.clans` dans les 3 pages) retirés. Migration `20260830200000_remove_tournament_clan` (table vérifiée vide avant suppression) appliquée en prod. Les pages affichent désormais le nombre de clans réellement auto-détecté (`participantClanIds` retourné par les routes standings) plutôt qu'un compteur toujours faux (`clans.length + 1` valait toujours `1`).
+3. ~~`materializeTournamentCustomMatches` scopé au clan organisateur~~ — **retiré, comportement correct par conception** (conforme au principe confirmé le 2026-08-30).
+4. ~~Le bouton de sync ne synchronise que l'admin qui clique~~ — **retiré, comportement correct par conception** (l'admin héberge chaque match, synchroniser son seul compte suffit).
+5. **[Faible, non corrigé] `GET /api/tournaments/[tournamentId]/standings` n'a aucun contrôle de permission** (pas d'appel `requireNavPermission`/`requirePermission`) — accessible sans authentification, contrairement au reste du site.
+
+**Vérifié après correctif (2026-08-30) :** `npx vitest run` sur les 2 suites tournois (7/7 tests OK), `tsc --noEmit` et `eslint` propres sur tous les fichiers touchés (schéma, `tournament-service.ts`, 5 routes API, 3 pages). Migration appliquée via `prisma migrate deploy`. Régénération du client Prisma (`npx prisma generate`) en attente — bloquée par le verrou Windows connu sur le moteur de requête tant que le serveur `npm run dev` tourne (cf. gotcha CLAUDE.md) ; à relancer une fois le serveur arrêté.
+
+**Non vérifié dans cette passe (à faire) :** rendu navigateur (clair/sombre, mobile), fenêtre de rotation réelle de la relation `matches` de l'endpoint de base PUBG, budget rate-limit en conditions réelles, filtrage `matchType` sur `/clans/[clanId]/matches` (le point relevé en Phase 0 sur l'effet de bord liste générale).
+
+### Constat de départ — un signal déjà en base et jamais exploité
+
+| Élément | État actuel |
+|---|---|
+| `matchType` du match PUBG (`official`/`custom`/…) | Le champ est capturé et stocké dès l'ingestion (`src/lib/pubg.ts:1212`, `Match.matchType`/`SquadMatch.matchType`), et bien filtré en dur sur `'official'` par tous les consommateurs actuels (`squad-detector.ts:164`, `stats-calculator.ts:76`, `clan-comparator-service.ts:123`) — **mais l'hypothèse initiale que les matchs `custom` étaient "déjà en base, juste filtrés en aval" était fausse, vérifiée et corrigée le 2026-08-29 (voir "Prérequis bloquant" ci-dessous) : zéro match `custom` n'existe en base sur 21 377 matchs en prod.** Le signal reste valide une fois le pipeline de découverte de matchs corrigé. |
+| Regroupement "qui a joué avec qui" | `detectSquadFromMatchDetails` (`squad-detector.ts:263`) détecte déjà les squads d'un clan présents dans un match/roster — réutilisable tel quel pour identifier les équipes d'un tournoi. |
+| Matchs partagés entre plusieurs clans suivis | Déjà géré depuis le correctif documenté dans "Idées — Comparateur de Clans" §4 : un même `SquadMatch` (`pubgMatchId` globalement unique) peut porter des `SquadMember` de plusieurs clans, et `head-to-head-service.ts` sait déjà déterminer "qui a fini devant qui" sur un match commun via le meilleur `SquadMember.placement` par clan. Directement réutilisable pour un tournoi multi-clans. |
+| Modèle d'événement clan avec règles configurables | `Challenge` (`prisma/schema.prisma:972`) est le précédent le plus proche : `title`/`description`, `startDate`/`endDate`, `criteria: Json`, `rewards: Json`, `status`. Le modèle `Tournament` proposé ci-dessous en reprend directement la forme. |
+| Clans multi-trackés | Le flux `opponents → clan tracké` en cours de construction (`src/app/api/settings/clans/route.ts`) permet de transformer un clan adverse croisé en clan pleinement suivi (roster `ClanMember` complet) — un tournoi entre plusieurs clans trackés est donc atteignable sans nouveau modèle de joueur. |
+| Fenêtre de disponibilité des matchs côté PUBG | ~14 jours après la partie (limite déjà documentée dans "Idées — Comparateur de Clans" §4, bug structurel n°1) — un tournoi déclaré sur des matchs plus anciens que ça ne peut pas être backfillé si aucun clan participant ne les a encore synchronisés à ce moment-là. |
+
+### Décisions actées (2026-08-29)
+
+| Question | Décision |
+|---|---|
+| Portée "joueurs de clans ou non" | **Multi-clans trackés uniquement** — un tournoi réunit un ou plusieurs clans déjà suivis par l'app (dont l'organisateur). Un joueur totalement hors plateforme ne peut pas participer en V1. Aucun nouveau modèle de joueur nécessaire. |
+| Sélection des matchs du tournoi | **100 % automatique** — tout match `matchType: 'custom'` d'un clan participant dans la fenêtre `[startDate, endDate]` (+ filtres optionnels `gameMode`/`mapName`) compte pour le tournoi, sans validation manuelle par l'admin. Limite acceptée : un scrim hors-tournoi du même clan pendant la fenêtre sera compté aussi ; les filtres `gameMode`/`mapName` atténuent le risque sans l'éliminer. |
+| Barème de classement | **Configurable simple** (JSON), pas de moteur de règles/formule libre — points par placement, points par kill, bonus victoire, nombre de manches comptabilisées. |
+
+### Point ouvert — granularité du classement (proposition par défaut, à valider à l'implémentation)
+
+Un tournoi communautaire classe généralement des **équipes** (squads), pas des clans entiers — un même clan peut aligner plusieurs squads. Proposition : classement principal **par équipe**, où une équipe = l'ensemble trié des `memberId` présents ensemble dans un match donné (même clé que `buildSquadKey` dans `squad-detector.ts:130`), avec une vue secondaire "cumul par clan" dérivée du même calcul. **Limite acceptée** : si la composition d'une équipe change d'une manche à l'autre (remplaçant), ses points se répartissent sur deux lignes d'équipe distinctes plutôt que de fusionner — cohérent avec l'absence de préinscription (aucune "identité d'équipe" déclarée à l'avance à laquelle rattacher un changement de composition).
+
+### 0. Prérequis bloquant — le pipeline actuel ne capture aucun match `custom` ⚠️ vérifié le 2026-08-29 — ✅ Fix déployé le 2026-08-30 (points de vigilance ci-dessous restent ouverts)
+
+**Constat empirique (requête directe en prod, `smk.arkium.group`) :** sur **21 377 lignes `Match`**, la distribution de `matchType` est `official: 21188`, `airoyale: 188`, `casual: 1` — **`custom` : 0**. Idem sur `SquadMatch` (`official: 5364`, `airoyale: 16`, `custom: 0`). Le postulat initial du plan ("les matchs custom sont déjà en base, juste filtrés en aval") était donc faux.
+
+**Cause identifiée :** `fetchRecentMatchIds` (`src/lib/pubg.ts:683`), seule fonction de découverte de matchs utilisée par le sync (`src/app/api/clans/[clanId]/sync-matches/route.ts:132` et `src/app/api/members/[id]/matches/route.ts:237`), interroge `GET /shards/{shard}/players/{playerId}/seasons/lifetime`. Vérifié par appel direct à l'API PUBG en conditions réelles sur un membre tracké actif (`pagiotte`) : cet endpoint ne référence les matchs QUE via des relations groupées par mode de matchmaking classé (`matchesSolo`, `matchesSoloFPP`, `matchesDuo`, `matchesDuoFPP`, `matchesSquad`, `matchesSquadFPP`) — **32 matchs uniques**, tous de type `official`/`airoyale`. Le endpoint de base `GET /shards/{shard}/players/{playerId}` (relation `matches`, sans distinction de mode) référence lui **96 matchs** pour le même joueur sur la même fenêtre — **64 de plus**, absents de `seasons/lifetime`. Détail vérifié sur l'un de ces 64 : `matchType: 'custom'`, joué le jour même (`2026-08-29T14:50:03Z`) — confirme qu'un membre tracké joue déjà des parties perso aujourd'hui, invisibles du site.
+
+- [x] Ajouter une fonction de découverte de matchs élargie (`fetchAllRecentMatchIds`, `src/lib/pubg.ts`) interrogeant `GET /shards/{shard}/players/{playerId}` (relation `matches`) en complément de `fetchRecentMatchIds` — **implémenté le 2026-08-30**, sans modifier `fetchRecentMatchIds` en place (fonction dédiée, nouveau champ optionnel `relationships.matches` ajouté à `PubgPlayerDetailResponse`). Testé via `src/lib/pubg-tournament-match-discovery.test.ts` (mock `enqueuePubgApiRequestWithMetadata`, comme `pubg-context-forwarding.test.ts`) : extraction/dédup depuis `relationships.matches.data`, tableau vide si absent, transmission `clanId`/`memberId` à la queue. **Câblé uniquement sur `sync-matches/route.ts`** (le pipeline qui alimente `Match`/`SquadMatch`, seul consommateur pertinent pour les tournois) — `members/[id]/matches/route.ts` (aperçu manuel, hors scope) non touché.
+- [x] Fusionner/dédupliquer les IDs des deux sources avant le `filter` sur les matchs déjà importés (`sync-matches/route.ts`) — **fait le 2026-08-30** : `Array.from(new Set([...seasonMatchIds, ...allTimeMatchIds]))`, les deux appels lancés en parallèle (`Promise.all`) dans le même bloc `try/catch` existant, testé unitairement (dédup sur IDs qui se recoupent).
+- [x] **Validé en conditions réelles le 2026-08-30** : après un premier passage de sync, le match custom de pagiotte du 29/08 (`Desert_Main`/Miramar, placement #6, `26a0fe46-...`) apparaît bien persisté dans `Match` avec `matchType: 'custom'` et s'affiche correctement sur `/members/[id]/matches` (badge "Custom" + mode "Solo"/`normal-squad`) — bout en bout découverte → import → affichage confirmé sur un vrai match, pas seulement en simulation API.
+- [ ] **Fenêtre de rotation de la relation `matches` du endpoint de base — à mesurer, pas supposée.** 96 matchs référencés pour un seul joueur sur une fenêtre non caractérisée : si un joueur très actif fait tourner cette liste en quelques jours, le cron `CLAN_MATCH_SYNC_CRON` (`0 2,17 * * *`, 2 passages/jour, cf. `.env`) doit rester assez fréquent pour ne rater aucun match custom avant qu'il ne sorte de la fenêtre — vérifier sur plusieurs profils avant de valider que 2 syncs/jour suffisent pendant un tournoi actif. **Non vérifiable dans cette session** (pas d'accès API PUBG live ni base de prod en conditions réelles) — à observer une fois le fix Phase 0 déployé.
+- [x] **Bonne nouvelle vérifiée :** le scoring (placement + kills, phase 3) ne dépend que de `analyzeMatchForSquads` (`sync-matches/route.ts:206`), lui-même alimenté par `fetchMatchDetails` (détail de match, pas de télémétrie CDN) — **aucune dépendance sur le worker télémétrie** (`TelemetryResyncJob`, parsing CDN, risque `Readable.toWeb()`). Un match custom peut donc apparaître dans le classement du tournoi dès le prochain sync clan, sans attendre le pipeline télémétrie complet.
+- [x] **Effet de bord tranché le 2026-08-30 — aucune action requise sur `/clans/[clanId]/matches`.** Décision : les tournois ne comptabilisent que les matchs `custom` en **duo/trio/squad** (jamais en solo) — le mode d'équipe (`TeamModeBadge` déjà affiché sur cette page) suffit à distinguer contextuellement un match de tournoi/scrim d'un match classé solo, sans avoir besoin d'un badge `matchType` dédié. Aucun filtre `official` à ajouter non plus à cette page — elle continue d'afficher tous les matchs du clan, classiques et custom confondus, comme avant. Cette restriction duo/trio/squad sera appliquée directement dans le moteur d'attribution (`getTournamentMatches`, Phase 2) plutôt que sur l'affichage.
+- [x] **Budget de rate-limit à chiffrer** — confirmé : l'élargissement double bien le nombre d'appels API par membre et par cycle de sync (`fetchRecentMatchIds` + `fetchAllRecentMatchIds`, lancés en `Promise.all` donc consommant 2 slots de la queue partagée au lieu d'1) — déployé tel quel le 2026-08-30, `AppConfig.pubg_api_rate_limit_rpm` (10 RPM par défaut) reste le seul régulateur ; aucun mécanisme de dégradation automatique ajouté. **À surveiller** sur `/settings/pubg-api` (panneau "Répartition par clan") après activation en conditions réelles.
+- [x] **Synchronisation manuelle d'un tournoi actif** — livrée le 2026-08-30 : l'admin organisateur participant déclenche une récupération directe depuis PUBG avec son seul compte. Ses matchs custom récents sont importés, le détail de chaque match est lu une fois, les joueurs actifs des clans suivis sont détectés automatiquement dans les rosters, puis la télémétrie est mise en file. Le worker déclenche le recalcul d'agrégats après import. Aucun cron ni pré-inscription de clan/joueur n'est requis.
+
+### 1. Fondations — modèle de données & migration — ✅ Livré le 2026-08-30
+
+#### Navigation globale de tournois — ✅ Livré le 2026-08-30 (addition 2026-08-30)
+
+- [x] Ajouter `primary.tournaments` au registre de permissions (`src/lib/nav-permissions-registry.ts`) : `hrefTemplate: '/tournaments'` (site-global, pas clan-scoped).
+- [x] Créer page globale `/tournaments` (`src/app/tournaments/page.tsx`) — affiche tous les tournois de tous les clans, avec organizer, status, dates, clans participants.
+- [x] Créer API globale `GET /api/tournaments` (`src/app/api/tournaments/route.ts`) — retourne tous les tournois, triés par statut puis date.
+- [x] Mettre à jour navigation primaire (`src/components/ClanNavigation.tsx`) : `primary.tournaments` → `/tournaments`.
+- [x] Reseed NavItem DB : `npx tsx prisma/seed-nav-items.ts` (55 entrées, incluant `primary.tournaments`).
+- [x] Tests tournament-service : **3/3 passing** ✓
+
+- [x] Ajouter au schéma Prisma :
+  ```prisma
+  model Tournament {
+    id              String   @id @default(cuid())
+    organizerClanId Int
+    organizerClan   Clan     @relation("TournamentOrganizer", fields: [organizerClanId], references: [id], onDelete: Cascade)
+
+    title       String
+    description String?
+
+    startDate DateTime
+    endDate   DateTime
+
+    gameMode String?   // filtre optionnel : squad-fpp, duo-fpp, solo-fpp… — null = tous modes
+    mapName  String?   // filtre optionnel — null = toutes cartes
+
+    rules  Json      // barème : placementPoints, killPoints, winBonus, bestOfRounds
+    status String    @default("draft") // draft | active | finished
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    clans TournamentClan[]
+
+    @@index([organizerClanId, status])
+    @@map("Tournament")
+  }
+
+  model TournamentClan {
+    id           String     @id @default(cuid())
+    tournamentId String
+    tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+    clanId       Int
+    clan         Clan       @relation("TournamentParticipant", fields: [clanId], references: [id], onDelete: Cascade)
+
+    @@unique([tournamentId, clanId])
+    @@map("TournamentClan")
+  }
+  ```
+- [x] Ajouter les relations inverses sur `Clan` (`organizedTournaments Tournament[] @relation("TournamentOrganizer")`, `tournamentEntries TournamentClan[] @relation("TournamentParticipant")`).
+- [x] Définir la forme exacte de `rules` (JSON) : `{ "placementPoints": { "1": 15, "2": 12, "3": 10, "4": 8, "5": 6, "6": 4, "7": 2, "8": 1, "9": 1, "10": 1 }, "killPoints": 1, "winBonus": 5, "bestOfRounds": null }` — `bestOfRounds: null` = toutes les manches comptent, sinon on ne garde que les N meilleures par équipe. **Retenue telle quelle** (documentée sur le champ `Json` non typé Prisma, validée côté API à la phase 4).
+- [x] Créer et appliquer la migration Prisma (additive, sans toucher aux tables existantes) — `prisma/migrations/20260830120000_add_tournament/migration.sql`, appliquée sur `smk.arkium.group` via `prisma db execute` + `prisma migrate resolve --applied` (même pattern que `ClanComparatorCache`/`ClanMatchesCache`), `npx prisma migrate status` confirme "Database schema is up to date!" après coup.
+- [x] `npx prisma generate` après migration.
+
+### 2. Moteur d'attribution des matchs (backend) — ✅ Livré le 2026-08-30
+
+- [x] Créer `src/lib/tournament-service.ts`.
+- [x] `getTournamentMatches(tournamentId)` : requête `SquadMatch` avec `matchType: 'custom'`, `createdAt` dans `[startDate, endDate]`, filtres `gameMode`/`mapName` si définis et membres actifs appartenant à un clan suivi actif. Les clans pris en compte sont découverts depuis les rosters, sans inscription préalable.
+- [x] `groupMatchIntoTeams(squadMatch, trackedClanIds)` : regroupe les `SquadMember` des clans suivis détectés par clé d'équipe (`buildSquadKey`, memberIds triés).
+- [x] Gérer le cas multi-clans dans un même match : réutiliser le principe déjà validé par `head-to-head-service.ts` (comparaison par meilleur placement d'équipe/clan sur un `SquadMatch` partagé), pas `SquadMatch.placement` brut qui ne reflète qu'un seul camp.
+- [x] **Correctif de décision du 2026-08-30 (clarifié par l'utilisateur) :** contrairement à une première décision erronée prise plus tôt dans la session (exclusion du solo), `getTournamentMatches` **inclut tous les formats** — solo, duo, trio et squad. Les seuls filtres d'éligibilité sont `matchType: 'custom'`, la fenêtre `[startDate, endDate]` du tournoi et l'appartenance à un clan participant. Aucun filtre sur la taille du roster à ajouter dans le moteur d'attribution.
+
+### 3. Moteur de barème (scoring) — ✅ Livré le 2026-08-30
+
+- [x] `computeTournamentStandings(tournamentId)` : pour chaque match éligible et chaque équipe détectée, applique `rules.placementPoints[placement] ?? 0` + `rules.killPoints * killsÉquipe` + `rules.winBonus` si placement = 1, cumule par clé d'équipe sur toute la fenêtre (ou les `bestOfRounds` meilleures manches par équipe si défini).
+- [x] Vue dérivée "cumul par clan" : somme des points de toutes les équipes rattachées à un `clanId` (voir "Point ouvert" ci-dessus pour la limite sur les recompositions d'équipe).
+- [x] Tri du classement : points décroissants, puis kills totaux, puis meilleur placement moyen (mêmes tie-breakers que `sortAggregates` dans `squad-detector.ts:50`, à réutiliser si la forme des données le permet).
+- [x] Tests unitaires : **3 tests passing** (regroupement par clan, calcul des points, application bestOfRounds) ✓
+
+### 4. Administration — déclaration & gestion — ✅ Livré le 2026-08-30
+
+Rattachée au clan organisateur, sur le modèle exact de `/clans/[clanId]/settings/members` (§8.2 #5 de `docs/navigation-arborescence.md`) — pas de route `/settings/tournaments` au niveau racine, ce niveau étant réservé aux outils transverses SuperUser (cron, monitoring PUBG API, import de matchs…).
+
+- [x] `POST /api/clans/[clanId]/tournaments` : créer un tournoi (titre, description, dates, filtres `gameMode`/`mapName`, barème prérempli). Aucun clan participant n'est configuré.
+- [x] `PATCH /api/clans/[clanId]/tournaments/[tournamentId]` : édition du barème, des dates, des filtres et du statut `draft`/`active`/`finished`.
+- [x] `GET /api/clans/[clanId]/tournaments` : liste des tournois organisés par ce clan.
+- [x] Permission : **`manage_settings`** pour l'admin du clan organisateur, avec bypass SuperUser.
+- [x] Synchronisation directe `POST /api/clans/[clanId]/tournaments/[tournamentId]/sync` : récupération PUBG, projection des rosters suivis, télémétrie et recalcul asynchrone.
+
+**Page `/clans/[clanId]/settings/tournaments`** — rôle `manage_settings`, protégée comme les autres pages `settings/*` existantes :
+- Liste des tournois gérés par ce clan (titre, statut, dates, nombre de clans participants), actions Modifier / Changer de statut.
+- Formulaire de création : titre, description, sélecteur multi-clans (parmi les clans trackés actifs, même composant que le sélecteur du Comparateur `src/app/clans/comparator/page.tsx`), deux champs date, dropdowns `gameMode`/`mapName` optionnels (réutiliser les options déjà utilisées sur les pages stats/positions), barème : 10 champs numériques placement→points préremplis (`1→15, 2→12, 3→10, 4→8, 5→6, 6→4, 7→2, 8→1, 9→1, 10→1`), un champ points/kill, un champ bonus victoire, une case à cocher + champ numérique pour `bestOfRounds`.
+- Carte "Tournois" à ajouter au hub `/clans/[clanId]/settings`, **qui existe déjà** (`src/app/clans/[clanId]/settings/page.tsx:59-70` — contrairement à ce que documentait `docs/navigation-arborescence.md` au 2026-08-18 comme "hub à créer" ; le doc a pris du retard sur le code, à corriger dans la même passe que "À faire une fois livré" ci-dessous). Troisième `<Link>` de carte à ajouter aux côtés de "Joueurs et rôles" et "Accueil login", même style (`Users`/`Monitor` de `lucide-react`, classes `bg-gray-50`/`text-gray-900`/`text-gray-500` déjà remappées thème clair/sombre par `globals.css`).
+
+### 5. Consultation — liste & résultats — ✅ Livré le 2026-08-30
+
+Rôle **Tous** (comme Challenges, §8.1 #24-25 de `docs/navigation-arborescence.md`) — pas d'accès public non authentifié, cohérent avec le reste du site (aucune page de contenu n'est accessible sans session hors `/login`/`/join`).
+
+- [x] `GET /api/tournaments/[tournamentId]/standings` : calcule le classement global via `computeTournamentStandings`, retourne les matchs comptabilisés et les clans suivis détectés.
+- [x] `GET /api/clans/[clanId]/tournaments/[tournamentId]/standings` conservé pour compatibilité ; la consultation active est globale.
+
+**Page `/clans/[clanId]/tournaments`** (liste) — `ClanSectionNav` + structure standard, position proposée dans l'arbre §8.1 : juste après "Challenges" (#24-25), même niveau d'indentation (`▸▸`) :
+- Cartes ou table `app-table-*` des tournois où ce clan est organisateur ou participant, triés statut (actif → à venir → terminé) puis date, badge de statut par tournoi.
+- Carte "Créer un tournoi" visible seulement si `manage_tournaments`, renvoie vers `/clans/[clanId]/settings/tournaments`.
+- Parent de repli (à ajouter en §13.2) : `/clans/[clanId]/overview`.
+
+**Page `/clans/[clanId]/tournaments/[tournamentId]`** (détail/résultats) — même gabarit que `/clans/[clanId]/challenges/[challengeId]` (#25) :
+- En-tête : titre, description, dates, statut, barème résumé en badges (`#1 = 15 pts`, `Kill = 1 pt`, `Victoire = +5`).
+- `SegmentedControl` "Classement par équipe" / "Classement par clan" (les deux vues du moteur de scoring, phase 3).
+- Classement en `app-table-*` avec podium sur les 3 premiers (réutiliser le pattern podium du leaderboard), colonnes rang/équipe ou clan/manches jouées/kills/points ; vue Cartes sur mobile comme les autres tableaux `app-table-*`.
+- Section détail des matchs comptabilisés (liste ou table dépliable : date, carte, mode, équipes, placement, kills) pour la transparence de la sélection 100 % automatique.
+- Parent de repli (à ajouter en §13.2) : `/clans/[clanId]/tournaments`.
+
+**À faire une fois livré :** ajouter les routes à `docs/navigation-arborescence.md` :
+- Ajouter `/tournaments` (global) au hub principal (§8.1)
+- Ajouter `/clans/[clanId]/tournaments` à la section clan (§8.1, après Challenges)
+- Ajouter `/clans/[clanId]/settings/tournaments` au menu admin/settings (§8.2)
+- Entrées dans la matrice de parents de repli §13.2
+- Lignes dans le tableau de suivi §13.4
+- Carte "Tournois" mentionnée en §14.7 (hub settings)
+
+Le document précise qu'il reflète l'état réel du code (`Fichier généré depuis l'état du code au 2026-08-18`) — pas de mise à jour tant que rien n'est implémenté, seulement une fois les routes livrées (2026-08-30 : routes `/tournaments`, `/api/tournaments`, `/clans/[clanId]/tournaments`, `/clans/[clanId]/settings/tournaments` maintenant en place).
+
+### 6. Performances
+
+- [ ] V1 : calcul à la volée à chaque vue (volume attendu faible — quelques dizaines de matchs par tournoi), pas de cache dédié, sur le modèle de `getClanSquadAnalysis`.
+- [ ] Si lenteur constatée : réutiliser le pattern `ClanMatchesCache`/`ClanComparatorCache` (payload JSON précalculé, invalidé au prochain cron ou à la création/édition du tournoi) plutôt qu'inventer un nouveau mécanisme de cache.
+
+### 7. Tests & vérifications
+
+- [x] Tests unitaires sur le moteur de barème : placement → points, points par kill, bonus victoire, cumul multi-matchs, troncature `bestOfRounds` — **3/3 passing** (2026-08-30) ✓
+- [ ] Tests unitaires sur l'attribution : exclusion des matchs hors fenêtre de dates, hors `matchType: 'custom'`, hors clans participants ; inclusion correcte d'un match partagé entre deux clans participants.
+- [ ] Test sur la nouvelle fonction de découverte de matchs (phase 0) : vérifier qu'elle référence bien des `matchType` non-`official` sur un fixture/mock de réponse `GET /players/{id}`, et que la déduplication avec `fetchRecentMatchIds` fonctionne sur des IDs qui se recoupent.
+- [ ] Vérifier dans le navigateur : déclaration d'un tournoi de test, un match `custom` réel (ou simulé en base) dans la fenêtre, apparition correcte sur la page résultats, rendus desktop/mobile et thèmes clair/sombre.
+
+### Limites connues (acceptées à la conception)
+
+- Sélection des matchs 100 % automatique (décision actée) : un scrim hors-tournoi du même clan pendant la fenêtre sera compté aussi.
+- V1 limité aux clans déjà trackés par le site — aucun joueur totalement hors plateforme ne peut participer.
+- Fenêtre d'environ 14 jours pour la disponibilité des matchs côté API PUBG (cf. "Idées — Comparateur de Clans" §4) — un tournoi déclaré rétroactivement sur des matchs plus anciens ne peut pas être backfillé si aucun clan participant ne les a synchronisés à temps.
+- Fenêtre de rotation (non caractérisée) de la relation `matches` du endpoint de base PUBG (phase 0) — un joueur très actif peut faire sortir un match custom de cette liste avant le prochain passage cron ; à mesurer avant de garantir une couverture à 100 % pendant un tournoi actif.
+- Tournois éligibles sur **tous les formats** (solo/duo/trio/squad, décision clarifiée le 2026-08-30) — aucun filtre de taille d'équipe dans le moteur d'attribution ; seuls comptent `matchType: 'custom'`, la fenêtre de dates du tournoi et l'appartenance à un clan participant. Pas de badge `matchType` ajouté sur `/clans/[clanId]/matches`, qui continue d'afficher indifféremment matchs classés et custom (le `TeamModeBadge` existant suffit à donner le contexte).
+- Recomposition d'équipe entre manches (remplaçant) : points répartis sur deux lignes d'équipe distinctes plutôt que fusionnés (voir "Point ouvert" ci-dessus).
+
+### ~~Télémétrie — Cron Timeout (UND_ERR_HEADERS_TIMEOUT)~~ — ✅ Corrigé le 2026-09-01
+
+Le cron `daily_sync` déclenchait une erreur `UND_ERR_HEADERS_TIMEOUT` car il appelait la route API `POST /api/clans/[clanId]/sync-matches` qui durait plus de 5 minutes pour les gros clans, dépassant la limite par défaut du client HTTP de Node.js (fetch).
+
+- [x] Extraction de la logique de `sync-matches/route.ts` vers un service dédié `src/lib/matches-sync-service.ts`
+- [x] Appel direct de la fonction `syncClanMatches` dans `src/lib/cron-jobs.ts` pour s'affranchir de la requête HTTP
+- [x] Mise à jour de la route API `sync-matches/route.ts` pour utiliser ce même service tout en conservant les vérifications de permissions existantes
+- [x] Mise à jour de la route de contrôle manuel (`/api/clans/[clanId]/cron-control`) pour appeler également le service en direct plutôt que via HTTP

@@ -104,6 +104,14 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     expect(result.outcome).toBe('resolved_with_clan')
     expect(result.updatedRowCount).toBe(2)
     expect(mockedFetchPlayerClan).not.toHaveBeenCalled()
+    expect(prisma.clanMember.findFirst).toHaveBeenCalledWith({
+      where: {
+        pubgAccountId: candidate.pubgAccountId,
+        isActive: true,
+        joinStatus: 'active',
+      },
+      include: { clan: true },
+    })
     if (result.outcome === 'resolved_with_clan') {
       expect(result.pubgClanTag).toBe('TRK')
     }

@@ -1,0 +1,18 @@
+2146: ### Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
+3291: ### ~~Challenges — Progression non automatisée~~ — ✅ Complété le 2026-06-23
+3312: ### Push notifications — Infrastructure sans service
+3322: ### ~~Stats lifetime — Pas de ventilation par mode~~ — ✅ Complété le 2026-06-23
+3333: ### ~~Page `/clans` (sélecteur SuperUser) — Améliorations~~ — ✅ Implémenté le 2026-08-02
+3370: ### Adversaires — Vue superadmin globale, suivi de joueurs et favoris
+3517: ### ~~Engagement & Assiduité (Temps de jeu et Jours actifs)~~ — ✅ Implémenté le 2026-08-08
+3529: ### ~~Auto-cleanup cron~~ — ✅ Clos le 2026-09-20 — requalifié le 2026-09-15, les trois suppressions écartées (voir « Lot 1 — Santé de la base », P1)
+3554: ### ~~Streaming JSON parser~~ — ✅ Déjà implémenté (vérifié le 2026-06-23)
+3565: ### Events télémétrie non parsés
+3644: ### Champs `SquadMember` non affichés
+3661: ### Survival Mastery — Endpoint investigué, non retenu (API cassée côté PUBG)
+3684: ### Cron — Rapports hebdomadaires / mensuels
+3694: ### ~~Monitoring PUBG API (`/settings/pubg-api`) — Lisibilité des données~~ — ✅ Déployé le 2026-08-05
+3747: ### ~~Monitoring PUBG API — Répartition par clan~~ — ✅ Déployé le 2026-08-06 (backend + UI)
+3806: ### ~~Récupérations télémétrie (`/clans/[clanId]/telemetry/recoveries`) — Pagination du tableau historique~~ — ✅ Déployé le 2026-08-06 (+ option validée)
+3844: ### ~~Détail télémétrie d'un match (`/clans/[clanId]/telemetry/matches/[matchId]/telemetry`) — Modernisation visuelle + pagination~~ — ✅ Déployé le 2026-08-06
+3866: ### Évolution du Détail Télémétrie d'un Match — Débriefing Tactique, Combat Log & Silhouette Anatomique SVG (Inspiration PUBG.PLUS) — 🆕 Stratégie Nouvelle Page Parallèle & Plan d'Action (2026-09-05)

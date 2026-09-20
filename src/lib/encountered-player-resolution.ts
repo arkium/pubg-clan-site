@@ -300,7 +300,11 @@ export async function resolveOneEncounteredPlayerCandidate(
 
     // Auto-découverte immédiate si ce joueur est déjà un membre officiel d'un de nos clans suivis
     const trackedClanMember = await prisma.clanMember.findFirst({
-      where: { pubgAccountId: candidate.pubgAccountId },
+      where: { 
+        pubgAccountId: candidate.pubgAccountId,
+        isActive: true,
+        joinStatus: 'active',
+      },
       include: { clan: true },
     })
 

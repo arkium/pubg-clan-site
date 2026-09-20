@@ -1,0 +1,7 @@
+## 2. 🛡️ Administration & SuperUser
+## 3. ⚔️ Écosystème des Clans & Joueurs
+## 4. 🎯 Analyse de Matchs & Télémétrie (Core)
+## 5. 🏴‍☠️ Adversaires, Rivaux & Watchlist
+## 6. 🏆 Compétition & Tournois
+## 7. ⚙️ Technique, Infrastructure & Notifications
+## 8. 🗑️ Idées Refusées / Archives

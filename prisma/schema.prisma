@@ -71,6 +71,11 @@ model ClanMember {
   clan           Clan?    @relation(fields: [clanId], references: [id], onDelete: SetNull)
   playerId       String?
   player         Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  // Archivage d'un membre du clan technique reste trop longtemps sans jouer
+  // (chantier 5). Distingue une purge d'un arret de suivi ordinaire : isActive
+  // vaut false dans les deux cas, seul archivedReason dit pourquoi.
+  archivedAt     DateTime?
+  archivedReason String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -2807,7 +2807,7 @@ manuel du même chemin.
 > son email sur une fiche en `joinStatus: 'rejected'`, ce qui permet de la recontacter en cas de ré-adhésion.
 > `contactEmail` reste nullable : les membres créés autrement (ajout manuel, sync clan) n'en ont pas.
 
-#### Chantier 5 — Page SuperUser unique « Cycle de vie des clans » + purge d'UNG
+#### ✅ Chantier 5 — Page SuperUser unique « Cycle de vie des clans » + purge d'UNG — livré le 2026-09-20
 
 **Décision du 2026-09-20 :** toute la thématique est regroupée sur **une seule page SuperUser**, au lieu de
 l'éparpiller entre une page de mutations, une UI de purge et la validation des clans. Nom proposé :
@@ -2819,23 +2819,23 @@ l'éparpiller entre une page de mutations, une UI de purge et la validation des 
 > mais rien ne les relie côté interface : un clan créé par `/join` en `isActive: false` n'est visible nulle part.
 > Le regroupement ne fait donc pas que ranger — il **comble un trou fonctionnel déjà présent**.
 
-- [ ] **Onglet « Mutations »** — journal des `PlayerClanChange`, a posteriori. Filtres par clan, par `source` et par
-      `status` ; actions « annuler » (remet le membre dans son clan précédent et écrit une ligne inverse) et
-      « acquitter » (`acknowledgedAt`, `acknowledgedByUserId`)
-- [ ] **Onglet « Clans en attente »** — liste des `Clan` en `isActive: false`, avec le demandeur, son
-      `pubgPlayerName`, son `contactEmail` et la date. Actions « approuver » (`POST .../approve`, existant) et
-      « refuser » (`POST .../reject`, **à créer au chantier 4**). L'approbation déclenche les déplacements différés
-      du cas B (chantier 2)
-- [ ] **Onglet « Ungrouped »** — effectif du clan système, trié par `lastMatchAt` croissant, avec le nombre de
-      jours d'inactivité et le coût quotidien en appels PUBG que représente l'ensemble
+- [x] **Onglet « Mutations »** — journal complet, **tous statuts** y compris `observed` et `pending` : c'est ici
+      qu'on comprend *pourquoi* un mouvement n'a pas encore eu lieu. Filtre par statut, actions « annuler » et
+      « acquitter »
+- [x] **Onglet « Clans en attente »** — liste des `Clan` en `isActive: false` avec action « Valider », qui
+      déclenche les déplacements différés du cas B. Le bouton « Refuser » attend la route `reject` du chantier 4,
+      et `contactEmail` attend son champ — les deux sont notés là-bas
+- [x] **Onglet « Ungrouped »** — effectif trié du plus inactif au plus récent, jours d'inactivité, date
+      d'éligibilité à l'archivage, et archivage en masse des candidats en un clic
 - [ ] **Onglet « Paramètres »** — *tous* les réglages de la thématique au même endroit (voir le bloc dédié
       ci-dessous) : salon Discord d'administration, règle d'archivage d'UNG, interrupteurs d'automatisation
-- [ ] **Onglet « Santé »** — dernier passage du cron, appels PUBG consommés sur 24 h, backlog restant, taille
-      d'UNG dans le temps. Alimenté par `CronExecution`, cohérent avec `/settings/cron`
-- [ ] Entrée dans `nav-permissions-registry.ts` (`section: 'superuser-menu'`, `defaultRole: 'superuser'`) **puis
-      `npx tsx prisma/seed-nav-items.ts`** — le menu lit la table `NavItem` en base, pas le registre : sans ce seed
-      l'entrée n'apparaît jamais (piège déjà rencontré, voir la section « Vue cross-clans SuperUser »)
-- [ ] Pastille compteur dans le hub SuperUser : mutations non acquittées **+** clans en attente
+- [x] **Onglet « Santé »** — dernier passage détaillé, dix derniers runs, et **coût quotidien du parking**
+      (un appel PUBG par joueur et par jour) : le chiffre que l'archivage sert à réduire. Alimenté par
+      `ClanLifecycleRun`
+- [x] Entrée `superuser.clan-lifecycle` ajoutée au registre **et** `npx tsx prisma/seed-nav-items.ts` exécuté —
+      **61 lignes `NavItem` en base** après coup. Sans ce seed l'entrée n'apparaît jamais : le piège était bien réel
+- [x] Compteurs affichés sous les onglets : mutations non acquittées, clans en attente, effectif du parking et
+      nombre d'archivables
 
 ##### Onglet « Paramètres » — tout est réglable depuis l'UI, rien en dur
 
@@ -2854,32 +2854,39 @@ cet onglet, sans redéploiement.
 | `ungrouped_auto_archive` | Archive sans validation humaine au-delà du seuil | `false` |
 | `ungrouped_auto_promote` | Promotion automatique du cas A (chantier 2) | `true` |
 
-- [ ] **Salon Discord — global, pas par clan.** La configuration Discord actuelle est **par clan**
+- [x] **Salon Discord — global, pas par clan.** La configuration Discord actuelle est **par clan**
       (`getDiscordSettings(clanId)`, [discord-config-service.ts:11](../../src/lib/discord/discord-config-service.ts#L11))
       et ne convient pas : les mutations concernent toute la ligue. D'où une clé `AppConfig` dédiée. **Réutiliser**
       `isValidDiscordWebhookUrl`, `normalizeWebhookUrl` et `renderDiscordMention`
       ([discord-config.ts](../../src/lib/discord/discord-config.ts)) plutôt que de revalider une URL à la main
-- [ ] **Affichage de la date d'archivage** : pour chaque membre d'UNG, la page montre `lastMatchAt`, le nombre de
-      jours d'inactivité et **la date à laquelle il deviendra candidat** (`lastMatchAt + seuil`). Changer le seuil
-      recalcule les dates à l'écran avant enregistrement, pour voir qui bascule avant de valider
-- [ ] **Bouton « Tester le webhook »** envoyant un message de contrôle, comme sur la configuration Discord par clan
-- [ ] Garde-fou : webhook vide = aucune notification, et la page le signale explicitement plutôt que d'échouer en
-      silence
+- [x] **Affichage de la date d'archivage** : `lastMatchAt`, jours d'inactivité et date d'éligibilité.
+      `GET .../ungrouped?thresholdDays=N` permet de simuler un autre seuil **avant** de l'enregistrer
+      (`eligibleAt` est calculé côté service, pas en base, précisément pour ça)
+- [~] **Test du webhook** — disponible en ligne de commande
+      (`npx tsx scripts/set-clan-lifecycle-config.ts --webhook "<url>" --test`), **pas encore en bouton** dans la page
+- [x] Garde-fou : webhook vide = aucune notification, et la page affiche « non configuré » plutôt que d'échouer
 
 **Règle d'archivage d'UNG** — répond au risque « UNG ne se vide jamais » :
 
-- [ ] Le cron quotidien **marque les candidats** (membre d'un clan système, `lastMatchAt` plus ancien que le seuil
-      ou nul) mais **n'archive rien tout seul** tant que `ungrouped_auto_archive` est `false` : la page les
-      présente, le SuperUser archive en un clic, en masse ou à l'unité
-- [ ] Archiver = `isActive: false` + `archivedAt` + `archivedReason: 'ungrouped_inactive'`. Effet immédiat : plus
-      de synchronisation de matchs, plus d'appel de promotion quotidien — c'est le mécanisme de maîtrise du coût API
-- [ ] **Réversible** : un bouton « réactiver » remet le membre dans UNG en `isActive: true`. S'il rejoue et croise
-      un clan suivi, il reste de toute façon visible via `EncounteredPlayer` / `Player`
+- [x] Le cron **marque** les candidats et ne les archive que si `ungrouped_auto_archive` est explicitement
+      activé — sinon il se contente de journaliser leur nombre et la page les présente
+- [x] Archiver = `isActive: false` + `archivedAt` + `archivedReason: 'ungrouped_inactive'`. `archiveMembers()`
+      **ne touche qu'aux membres réellement dans un clan système** : un identifiant errant ne peut pas servir à
+      archiver un membre d'un clan suivi
+- [x] **Réversible** : `reactivateArchivedMember()` ne réactive **que** ce que la purge a désactivé — un arrêt de
+      suivi ordinaire (sans `archivedReason`) n'est pas concerné. C'est tout l'intérêt d'avoir ajouté la raison
+      plutôt que de se fier au seul `isActive`
+- [x] Un membre **sans aucun match connu** est inclus dans les candidats : jamais joué depuis qu'il est suivi,
+      c'est le cas le plus coûteux et le moins utile à garder actif
+- [x] Tests : [`revert.test.ts`](../../src/lib/clan-lifecycle/revert.test.ts), **15 tests** couvrant l'annulation
+      (garde-fou E) et la purge
 
 #### Modèle de données
 
 - [x] `Clan.isSystem Boolean @default(false)` — migration `20260920120000_add_clan_is_system`, appliquée en
       production le 2026-09-20
+- [x] `ClanMember.archivedAt` + `archivedReason` — migration `20260920180000_add_member_archive_fields`,
+      appliquée en production le 2026-09-20. Distingue une purge d'un arrêt de suivi, qui posent le même `isActive`
 - [x] Table `PlayerClanChange` — migration `20260920140000_add_player_clan_change`, **appliquée en production le
       2026-09-20**. Purement additive : un `CREATE TABLE`, trois clés étrangères, aucun `ALTER` sur l'existant.
       `migrate diff` vide avant et après. Champs réellement créés :
@@ -3122,12 +3129,14 @@ Les crons existants se protègent avec un **booléen en mémoire** ([cron-jobs.t
 
 ##### 🟠 E — Sémantique d'« annuler »
 
-- [ ] Définir le comportement quand plusieurs événements se sont succédé sur le même membre (A→B puis B→UNG) :
-      seul le **dernier événement appliqué** est annulable, les précédents s'affichent comme périmés
-- [ ] Une annulation **n'efface rien** : elle écrit une ligne inverse (`source: 'manual_revert'`) et marque
-      l'originale `reverted`
-- [ ] Refuser l'annulation si le `clanId` courant du membre ne correspond plus à celui que l'événement a posé —
-      sinon on restaure un état faux
+- [x] **Seul le dernier mouvement appliqué est annulable** — `revertPlayerClanChange()` refuse avec
+      `reason: 'superseded'` si un mouvement plus récent existe pour ce membre
+- [x] **Rien n'est effacé** : l'original passe à `reverted`, une ligne inverse `manual_revert` est écrite, et le
+      journal reste un journal
+- [x] **Refus si l'état courant ne correspond plus** (`reason: 'state_mismatch'`) — plus trois autres refus :
+      mouvement jamais appliqué, membre plus suivi, aucun clan d'origine connu. La route renvoie **409** plutôt que
+      400 : la requête est bien formée, c'est l'état qui s'y oppose
+- [x] **Vérifié en neutralisant les deux règles anti-écrasement** : les tests correspondants passent au rouge
 
 ##### 🟡 F — `isActive: false` porte déjà trois sens
 
@@ -3201,10 +3210,10 @@ parfaitement normale.
 | 1 | **Modèle de données** | `Clan.isSystem` et `PlayerClanChange` : les deux migrations additives conditionnent tous les chantiers suivants |
 | 2 | ✅ **0 — UNG protégé** | **Livré le 2026-09-20.** Migration en production, 8 tests, clan technique `#201 [UNG]` créé sur `steam` |
 | 3 | ✅ **3 — Owner → UNG** | **Livré et activé le 2026-09-20.** Migration `PlayerClanChange` en production, API, UI, 8 tests, clan cible créé |
-| 4 | 🟡 **Sûreté d'exécution A à E** | **A, B, C et D livrés le 2026-09-20.** Reste **E** (sémantique d'annulation), qui va avec le journal du chantier 5 |
+| 4 | ✅ **Sûreté d'exécution A à E** | **Intégralement livrée le 2026-09-20**, E compris avec le journal du chantier 5 |
 | 5 | ✅ **1 — Synchronisation quotidienne** | **Livré le 2026-09-20** : service, cron, notification Discord (webhook configuré et testé), page des mutations, 54 tests. **Premier passage réel réussi en mode `observe`** (346 membres, 35 appels, 13 écarts) |
 | 6 | ✅ **2 — Promotion UNG → clan** | **Livré le 2026-09-20** : cas A/B/C intégrés au passage, application différée à l'approbation, 8 tests |
-| 7 | **5 — Page unique + purge d'UNG** | Rend exploitables les événements des chantiers 1 à 3 et comble le trou de validation des clans ; sans elle, UNG grossit sans recours |
+| 7 | ✅ **5 — Page unique + purge d'UNG** | **Livré le 2026-09-20** : page à 5 onglets, 3 routes API, purge, garde-fou E, 15 tests |
 | 8 | **4 — Email de contact `/join`** | Indépendant du reste, à caler quand le flux de validation sera stabilisé ; la route `reject` qu'il crée est consommée par l'onglet « Clans en attente » du chantier 5 |
 
 > **Corrigé le 2026-09-20 :** les chantiers 1 et 2 étaient inversés. Depuis que le chantier 2 « se branche

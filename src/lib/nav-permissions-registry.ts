@@ -497,6 +497,15 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Comparaison de la sante du pipeline télémétrie entre tous les clans suivis.',
   },
   {
+    navKey: 'superuser.clan-lifecycle',
+    section: 'superuser-menu',
+    label: 'Cycle de vie des clans',
+    hrefTemplate: '/settings/clan-lifecycle',
+    defaultRole: 'superuser',
+    description:
+      "Mutations d'appartenance detectees, clans decouverts a valider, parking des joueurs sans clan et reglages de l'automatisation.",
+  },
+  {
     navKey: 'superuser.opponents',
     section: 'superuser-menu',
     label: 'Adversaires',

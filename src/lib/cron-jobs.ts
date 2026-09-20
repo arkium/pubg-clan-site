@@ -5,7 +5,9 @@ import { precomputeClanAwards } from '@/lib/awards-service'
 import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
 import { computeClanComparatorStats } from '@/lib/clan-comparator-service'
 import { updateClanQuickStats } from '@/lib/clan-stats-cache'
+import { getUngroupedAutoArchive } from '@/lib/clan-lifecycle/config'
 import { notifyLifecyclePass } from '@/lib/clan-lifecycle/discord-notifier'
+import { archiveMembers, listArchiveCandidates } from '@/lib/clan-lifecycle/ungrouped-archive'
 import { closeStaleLifecycleRuns, runMembershipSyncPass } from '@/lib/clan-lifecycle/membership-sync'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
@@ -714,6 +716,31 @@ async function runClanLifecycleMembershipSync() {
   }
 
   console.info(`[Cron] Clan lifecycle membership sync done — ${detail}`)
+
+  // Purge du parking (chantier 5). Par defaut le cron se contente de MARQUER : la
+  // page SuperUser liste les candidats et c'est un humain qui archive. L'archivage
+  // sans validation est un choix explicite, derriere son propre interrupteur.
+  try {
+    const { candidates, thresholdDays } = await listArchiveCandidates()
+
+    if (candidates.length > 0) {
+      const autoArchive = await getUngroupedAutoArchive()
+
+      if (autoArchive) {
+        const { archived } = await archiveMembers(candidates.map((c) => c.memberId))
+        console.info(
+          `[Cron] Ungrouped purge — ${archived} membre(s) archive(s) automatiquement (seuil ${thresholdDays} j)`
+        )
+      } else {
+        console.info(
+          `[Cron] Ungrouped purge — ${candidates.length} candidat(s) au-dela de ${thresholdDays} j, ` +
+            'en attente de validation SuperUser'
+        )
+      }
+    }
+  } catch (error) {
+    console.warn('[Cron] Ungrouped purge failed:', error)
+  }
 
   // Hors du chemin critique : la notification ne doit jamais faire echouer un
   // passage dont les mouvements sont deja ecrits.

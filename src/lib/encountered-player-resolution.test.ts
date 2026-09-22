@@ -97,6 +97,8 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     vi.mocked(prisma.clanMember.findFirst).mockResolvedValue({
       clan: { id: 3, pubgClanId: 'clan.tracked', tag: 'TRK', name: 'Tracked' },
     } as never)
+    vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-trk' } as never)
+    vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
     vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 2 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
@@ -114,6 +116,60 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     })
     if (result.outcome === 'resolved_with_clan') {
       expect(result.pubgClanTag).toBe('TRK')
+    }
+  })
+
+  // Régression WESTEN88 (2026-09-22) : promu de UNG vers 47R, il restait affiché
+  // comme membre de son ancien clan parce que le cache `Player` — repoussé à chaque
+  // rencontre — passait avant la vérification du clan suivi.
+  it('fait primer le clan suivi sur un cache Player encore frais mais périmé', async () => {
+    vi.mocked(prisma.player.findUnique).mockResolvedValue({
+      id: 'player-1',
+      clanResolvedAt: new Date(),
+      opponentClan: { pubgClanId: 'clan.bofs', tag: 'BOFS', name: 'BOFTEAM' },
+    } as never)
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValue({
+      clan: { id: 12, pubgClanId: 'clan.47r', tag: '47R', name: '47RONIN47' },
+    } as never)
+    vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-47r' } as never)
+    vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
+    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 18 } as never)
+
+    const result = await resolveOneEncounteredPlayerCandidate(candidate)
+
+    expect(result.outcome).toBe('resolved_with_clan')
+    if (result.outcome === 'resolved_with_clan') {
+      expect(result.pubgClanTag).toBe('47R')
+    }
+    // Le miroir global est réécrit, pas seulement les lignes par clan.
+    expect(prisma.player.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ opponentClanId: 'opp-47r' }) })
+    )
+    expect(prisma.encounteredPlayer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ pubgClanTag: '47R', pubgClanId: 'clan.47r' }),
+      })
+    )
+  })
+
+  it("ne court-circuite pas pour un membre garé dans le parking (clan suivi sans pubgClanId)", async () => {
+    vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValue({
+      clan: { id: 1, pubgClanId: null, tag: 'UNG', name: 'Ungrouped' },
+    } as never)
+    mockedFetchPlayerClan.mockResolvedValue({ id: 'clan.x', tag: 'XYZ', name: 'Clan X' } as never)
+    vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-x' } as never)
+    vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
+    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 1 } as never)
+
+    const result = await resolveOneEncounteredPlayerCandidate(candidate)
+
+    // Le parking ne dit pas « aucun clan PUBG », il dit « le site n'a pas d'avis » :
+    // l'API doit trancher, sinon on perd la découverte d'un clan non suivi.
+    expect(mockedFetchPlayerClan).toHaveBeenCalled()
+    expect(result.outcome).toBe('resolved_with_clan')
+    if (result.outcome === 'resolved_with_clan') {
+      expect(result.pubgClanTag).toBe('XYZ')
     }
   })
 

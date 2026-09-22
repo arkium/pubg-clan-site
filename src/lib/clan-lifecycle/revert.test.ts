@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 const mocks = vi.hoisted(() => ({
+  syncOpponentIdentity: vi.fn(),
   changeFindUnique: vi.fn(),
   changeFindFirst: vi.fn(),
   changeUpdate: vi.fn(),
@@ -43,6 +44,12 @@ vi.mock('@/lib/prisma', () => {
     },
   }
 })
+
+// Le miroir adversaire (Player/EncounteredPlayer) suit chaque mouvement : il est
+// mocké ici pour vérifier qu'il est bien appelé, sans toucher à Prisma.
+vi.mock('@/lib/player-clan-identity', () => ({
+  syncOpponentIdentityForMemberId: mocks.syncOpponentIdentity,
+}))
 
 vi.mock('@/lib/clan-lifecycle/config', () => ({
   getUngroupedArchiveAfterDays: mocks.getArchiveDays,
@@ -173,6 +180,10 @@ describe('Garde-fou E — ce que l’annulation fait', () => {
       newClanId: 1,
       triggeredByUserId: 42,
     })
+
+    // Le miroir adversaire suit l'annulation comme il suit le mouvement : sans
+    // cet appel, `/settings/opponents` resterait sur le clan annule.
+    expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
   })
 })
 

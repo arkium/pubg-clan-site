@@ -82,11 +82,46 @@ export async function captureEncounteredPlayers(
     },
   })
 
+  // Seuls les clans suivis portant un vrai `pubgClanId` font autorité ici. Un
+  // membre garé dans le parking `Ungrouped` n'apprend rien sur son clan PUBG :
+  // le stamper reviendrait à affirmer « aucun clan » sans l'avoir mesuré, et à
+  // geler la fenêtre de fraîcheur qui doit justement laisser l'API trancher.
   const trackedClanByAccountId = new Map(
     trackedMembers
-      .filter((m) => Boolean(m.pubgAccountId && m.clan))
+      .filter((m) => Boolean(m.pubgAccountId && m.clan?.pubgClanId))
       .map((m) => [m.pubgAccountId as string, m.clan])
   )
+
+  // Miroir normalisé du clan suivi. Sans lui, la branche `trackedClan` repoussait
+  // `Player.clanResolvedAt` sans jamais réécrire `Player.opponentClanId` : la
+  // fenêtre de fraîcheur de 7 jours n'expirait plus et un joueur ayant changé de
+  // clan restait figé sur son ancien `OpponentClan` (voir player-clan-identity.ts).
+  const opponentClanIdByPubgClanId = new Map<string, string>()
+  const distinctTrackedPubgClanIds = Array.from(
+    new Set(
+      Array.from(trackedClanByAccountId.values())
+        .map((clan) => clan?.pubgClanId)
+        .filter((value): value is string => Boolean(value))
+    )
+  )
+
+  for (const pubgClanId of distinctTrackedPubgClanIds) {
+    const source = Array.from(trackedClanByAccountId.values()).find(
+      (clan) => clan?.pubgClanId === pubgClanId
+    )
+    const opponentClan = await prisma.opponentClan.upsert({
+      where: { pubgClanId_platformShard: { pubgClanId, platformShard } },
+      update: { tag: source?.tag ?? null, name: source?.name ?? null, resolvedAt: now },
+      create: {
+        pubgClanId,
+        platformShard,
+        tag: source?.tag ?? null,
+        name: source?.name ?? null,
+        resolvedAt: now,
+      },
+    })
+    opponentClanIdByPubgClanId.set(pubgClanId, opponentClan.id)
+  }
 
   await Promise.all(
     Array.from(opponents.entries()).map(async ([pubgAccountId, { pubgPlayerName, wasTeammate }]) => {
@@ -126,12 +161,19 @@ export async function captureEncounteredPlayers(
       // Écriture en double vers le modèle normalisé (Player/ClanEncounter) pendant
       // la transition — voir docs/TODO/todo.md, section "Adversaires — Vue
       // superadmin globale". Les lectures existantes restent sur EncounteredPlayer.
+      // `trackedClan` a forcément un `pubgClanId` ici (filtre ci-dessus) : on
+      // écrit le miroir normalisé en même temps que `clanResolvedAt`, jamais
+      // l'un sans l'autre — c'était la cause du décalage permanent.
+      const trackedOpponentClanId = trackedClan?.pubgClanId
+        ? opponentClanIdByPubgClanId.get(trackedClan.pubgClanId) ?? null
+        : null
+
       const player = await prisma.player.upsert({
         where: { pubgAccountId_platformShard: { pubgAccountId, platformShard } },
         update: {
           pubgPlayerName,
           lastSeenAt: now,
-          ...(trackedClan ? { clanResolvedAt: now } : {}),
+          ...(trackedClan ? { clanResolvedAt: now, opponentClanId: trackedOpponentClanId } : {}),
         },
         create: {
           pubgAccountId,
@@ -140,6 +182,7 @@ export async function captureEncounteredPlayers(
           firstSeenAt: now,
           lastSeenAt: now,
           clanResolvedAt: trackedClan ? now : null,
+          opponentClanId: trackedClan ? trackedOpponentClanId : null,
         },
       })
 

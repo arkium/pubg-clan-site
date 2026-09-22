@@ -1,6 +1,12 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
+import { getSessionFromRequest } from '@/lib/auth-session'
+import {
+  PLAYER_CLAN_CHANGE_SOURCES,
+  recordPlayerClanChange,
+} from '@/lib/player-clan-change'
+import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,6 +15,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     let { playerId, targetClanId } = body
+    const confirmMove = body?.confirmMove === true
 
     if (!playerId) {
       return Response.json({ error: 'playerId is required' }, { status: 400 })
@@ -44,21 +51,84 @@ export async function POST(req: NextRequest) {
       if (existingMember.clanId === targetClanId && existingMember.joinStatus === 'active' && existingMember.isActive) {
         return Response.json({ error: 'Ce joueur est déjà un membre actif de ce clan.' }, { status: 400 })
       }
-      
+
+      // Garde-fou : un joueur déjà rattaché ailleurs n'est PAS un « candidat
+      // manquant », c'est un conflit. Avant ce contrôle, le bouton « Ajouter à
+      // l'effectif » de `/settings/opponents` le déplaçait sans trace ni
+      // confirmation dès que le miroir adversaire était périmé (incident
+      // WESTEN88 du 2026-09-22).
+      const movesFromAnotherTrackedClan =
+        existingMember.isActive &&
+        existingMember.joinStatus === 'active' &&
+        existingMember.clanId != null &&
+        existingMember.clanId !== targetClanId
+
+      if (movesFromAnotherTrackedClan && !confirmMove) {
+        const currentClan = await prisma.clan.findUnique({
+          where: { id: existingMember.clanId as number },
+          select: { id: true, tag: true, name: true },
+        })
+        return Response.json(
+          {
+            error: 'member_tracked_elsewhere',
+            message:
+              `${player.pubgPlayerName} est déjà membre actif de ` +
+              `${currentClan?.tag ? `[${currentClan.tag}] ` : ''}${currentClan?.name ?? 'un autre clan suivi'}. ` +
+              'Confirmez le transfert pour le déplacer.',
+            currentClan,
+          },
+          { status: 409 }
+        )
+      }
+
+      const previousClanId = existingMember.clanId
+
       // A SuperUser explicitly confirming this player's clan membership is
       // equivalent to an approved join — no separate approval step exists
       // for scouted players (they have no site account to click "join").
-      const updated = await prisma.clanMember.update({
-        where: { id: existingMember.id },
-        data: {
-          isActive: true,
-          joinStatus: 'active',
-          clanId: targetClanId,
-          playerId: player.id,
-          pubgAccountId: player.pubgAccountId,
-          pubgPlayerName: player.pubgPlayerName
+      const updated = await prisma.$transaction(async (tx) => {
+        const member = await tx.clanMember.update({
+          where: { id: existingMember.id },
+          data: {
+            isActive: true,
+            joinStatus: 'active',
+            clanId: targetClanId,
+            playerId: player.id,
+            pubgAccountId: player.pubgAccountId,
+            pubgPlayerName: player.pubgPlayerName
+          }
+        })
+
+        // Même règle que partout ailleurs : le mouvement et sa trace ensemble.
+        if (previousClanId !== targetClanId) {
+          const [previousClan, targetClan] = await Promise.all([
+            previousClanId
+              ? tx.clan.findUnique({ where: { id: previousClanId }, select: { pubgClanId: true, tag: true } })
+              : Promise.resolve(null),
+            tx.clan.findUnique({ where: { id: targetClanId }, select: { pubgClanId: true, tag: true } }),
+          ])
+
+          const session = await getSessionFromRequest(req)
+          await recordPlayerClanChange(tx, {
+            clanMemberId: member.id,
+            pubgAccountId: player.pubgAccountId,
+            platformShard: player.platformShard,
+            previousClanId,
+            newClanId: targetClanId,
+            previousPubgClanId: previousClan?.pubgClanId ?? null,
+            previousPubgClanTag: previousClan?.tag ?? null,
+            newPubgClanId: targetClan?.pubgClanId ?? null,
+            newPubgClanTag: targetClan?.tag ?? null,
+            source: PLAYER_CLAN_CHANGE_SOURCES.manualTransfer,
+            triggeredByUserId: session?.userId ?? null,
+          })
         }
+
+        return member
       })
+
+      await syncOpponentIdentityForMemberId(updated.id)
+
       return Response.json(updated)
     }
 
@@ -75,6 +145,8 @@ export async function POST(req: NextRequest) {
         playerId: player.id
       }
     })
+
+    await syncOpponentIdentityForMemberId(newMember.id)
 
     return Response.json(newMember)
   } catch (error: any) {

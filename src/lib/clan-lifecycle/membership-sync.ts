@@ -25,6 +25,7 @@ import {
   recordPlayerClanChange,
   type PlayerClanChangeSource,
 } from '@/lib/player-clan-change'
+import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 
 /**
  * Chantier 1 — synchronisation quotidienne de l'appartenance de clan.
@@ -543,6 +544,12 @@ export async function runMembershipSyncPass(
             runId: run.id,
           })
         })
+
+        // Hors transaction, volontairement : le miroir adversaire
+        // (Player/EncounteredPlayer) est un cache de lecture, pas une trace.
+        // Sans cet appel, `/settings/opponents` continue de proposer le joueur
+        // comme candidat de son ancien clan (voir player-clan-identity.ts).
+        await syncOpponentIdentityForMemberId(movement.memberId)
 
         summary.movementsApplied += 1
       }

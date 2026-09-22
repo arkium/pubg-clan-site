@@ -9,6 +9,7 @@ import {
   PLAYER_CLAN_CHANGE_SOURCES,
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
+import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 import { requirePermission, requireSuperUser, requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
@@ -150,6 +151,10 @@ export async function DELETE(
       where: { id: memberId },
       data: { isActive: false },
     })
+
+    // Le suivi s'arrete : le compte redevient un joueur externe, son clan PUBG
+    // sera re-resolu par le cron des joueurs croises.
+    await syncOpponentIdentityForMemberId(memberId)
 
     if (existingMember.clanId) {
       try {
@@ -319,6 +324,10 @@ export async function PATCH(
         triggeredByUserId: actorSession?.userId ?? null,
       })
     })
+
+    // Miroir adversaire : sans ce realignement, `/settings/opponents` continue
+    // de proposer le membre comme candidat de son clan precedent.
+    await syncOpponentIdentityForMemberId(member.id)
 
     await initializeDefaultRoles(targetClan.id)
     await assignDefaultMemberRole(member.id, targetClan.id)

@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 const mocks = vi.hoisted(() => ({
+  syncOpponentIdentity: vi.fn(),
   runFindFirst: vi.fn(),
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
@@ -60,6 +61,12 @@ vi.mock('@/lib/clan-lifecycle/clan-state', async (importOriginal) => {
 
 // Les mocks listent les exports un par un : tout export utilise par le code teste
 // doit figurer ici, sinon vitest leve « No export is defined on the mock ».
+// Le miroir adversaire (Player/EncounteredPlayer) suit chaque mouvement applique :
+// il est mocke ici pour verifier l'appel sans toucher a Prisma.
+vi.mock('@/lib/player-clan-identity', () => ({
+  syncOpponentIdentityForMemberId: mocks.syncOpponentIdentity,
+}))
+
 vi.mock('@/lib/clan-lifecycle/config', () => ({
   getClanLifecycleMode: mocks.getMode,
   getConfirmationsRequired: mocks.getConfirmations,
@@ -227,6 +234,9 @@ describe('Garde-fou A — rien ne bouge sans N confirmations', () => {
 
     expect(summary.movementsApplied).toBe(1)
     expect(mocks.memberUpdate).toHaveBeenCalledWith({ where: { id: 11 }, data: { clanId: KMS.id } })
+    // Regression WESTEN88 (2026-09-22) : le miroir adversaire doit suivre, sinon
+    // `/settings/opponents` continue de rattacher le joueur a son ancien clan.
+    expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
 
     const applied = mocks.changeCreate.mock.calls.map((c) => c[0].data).find((d) => d.status === 'applied')
     expect(applied).toMatchObject({ source: 'auto_transfer', newClanId: KMS.id })

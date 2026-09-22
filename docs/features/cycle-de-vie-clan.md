@@ -242,8 +242,10 @@ Séquence recommandée : `observe` → laisser passer N cycles → **relire les 
 | `src/lib/clan-lifecycle/discord-notifier.ts` | Notification des mouvements automatiques |
 | `src/lib/clan-lifecycle/clan-decision-email.ts` | Email d'acceptation / refus d'un clan |
 | `src/lib/player-clan-change.ts` | Écriture du journal, constantes de `source` et `status` |
+| `src/lib/player-clan-identity.ts` | Réalignement du miroir adversaire après un mouvement (§11) |
+| `scripts/resync-player-clan-identity.ts` | Réparation des décalages déjà en base (§11) |
 
-**Tests** : `src/lib/clan-lifecycle/*.test.ts` (safety, membership-sync, promotion, revert, discord-notifier), `src/lib/system-clan-protection.test.ts`, `src/lib/member-clan-move-permissions.test.ts`, `src/lib/clan-contact-email.test.ts`.
+**Tests** : `src/lib/clan-lifecycle/*.test.ts` (safety, membership-sync, promotion, revert, discord-notifier), `src/lib/system-clan-protection.test.ts`, `src/lib/member-clan-move-permissions.test.ts`, `src/lib/clan-contact-email.test.ts`, `src/lib/player-clan-identity.test.ts`, `src/lib/encountered-player-resolution.test.ts`.
 
 ---
 
@@ -253,3 +255,152 @@ Séquence recommandée : `observe` → laisser passer N cycles → **relire les 
 - **Un mouvement re-parente tout l'historique** du membre, alors que `KillEvent.clanId` reste figé : les vues télémétrie et les vues statistiques divergent après un déplacement.
 - **La passe hebdomadaire sur les coéquipiers fréquents** (comptes non suivis croisés en match) n'est pas implémentée — elle parcourrait `EncounteredPlayer` (1,64 M lignes) et demande un compteur pré-calculé.
 - **`syncClanMembership()` reste en place** mais ne produit rien d'exploitable, faute de roster côté API.
+
+---
+
+## 11. Le miroir « adversaire » — propagation d'un changement de clan
+
+### Le constat
+
+Le 2026-09-22, `WESTEN88` apparaît **simultanément** :
+
+- sur `/settings/clan-lifecycle` — promu de `[UNG]` vers `[47R]`, statut `applied` ;
+- sur `/clans/12/members` — seul joueur de `47RONIN47`, ce qui est correct ;
+- sur `/settings/opponents` — « candidat détecté » de **BOFTEAM**, avec un bouton
+  « Ajouter à l'effectif » actif.
+
+Les trois écrans disent vrai *par rapport à la table qu'ils lisent*. Le problème
+n'est pas une page, c'est que **le même fait est stocké trois fois** et qu'un seul
+des trois était tenu à jour.
+
+### Les trois miroirs du même fait
+
+| Où | Écrit par | Lu par |
+|---|---|---|
+| `ClanMember.clanId` → `Clan` | Cycle de vie (§3–§5), transfert manuel, `/join` | Tout le site « clan suivi » |
+| `Player.opponentClanId` → `OpponentClan` | Résolution des joueurs croisés | `/settings/opponents`, rejeu, débrief |
+| `EncounteredPlayer.pubgClanId/Tag/Name` | Capture télémétrie + résolution | `/clans/[id]/telemetry/opponents`, némésis, triage |
+
+`Player` et `EncounteredPlayer` décrivent le clan **PUBG** du compte ; `ClanMember`
+décrit le clan **suivi sur le site**. Quand le cycle de vie déplace un membre, il
+vient précisément de mesurer le clan PUBG auprès de l'API — mais il n'écrivait que
+la première ligne du tableau.
+
+### Pourquoi le décalage ne se résorbait jamais
+
+La résolution des joueurs croisés possède une fenêtre de fraîcheur de 7 jours
+(`PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS`) : un compte résolu récemment n'est pas
+redemandé à l'API. Or `captureEncounteredPlayers` repoussait `Player.clanResolvedAt`
+à chaque rencontre d'un membre suivi **sans jamais réécrire `Player.opponentClanId`**.
+
+La fenêtre n'expirait donc plus, le cache restait « frais » indéfiniment, et il
+réécrivait l'ancien clan sur toutes les lignes `EncounteredPlayer` du compte à
+chaque passage. Mesuré sur WESTEN88 : 18 lignes `EncounteredPlayer`, toutes à
+`BOFS`, sur 18 clans observateurs différents.
+
+### Ce qui a été corrigé
+
+**1. Un point unique de propagation** — `src/lib/player-clan-identity.ts` :
+
+- `syncOpponentIdentityForMember({ pubgAccountId, platformShard, clan })` — upsert
+  de l'`OpponentClan`, réécriture de `Player`, puis de **toutes** les lignes
+  `EncounteredPlayer` du compte (un compte n'a qu'une appartenance, quel que soit
+  le nombre de clans qui l'ont croisé) ;
+- `syncOpponentIdentityForMemberId(memberId)` — variante « après mouvement » qui
+  recharge le membre.
+
+**Appelé hors transaction, volontairement.** Le miroir est un cache de lecture, pas
+une trace d'audit : un échec d'écriture ne doit pas annuler un mouvement déjà
+décidé. Il est donc journalisé (`console.warn`), jamais propagé — contrairement à
+`recordPlayerClanChange`, qui reste dans la transaction du mouvement (garde-fou C).
+
+**2. Tous les chemins d'écriture l'appellent** :
+
+| Chemin | Fichier |
+|---|---|
+| Cron d'appartenance, mouvement appliqué | `clan-lifecycle/membership-sync.ts` |
+| Promotion différée à l'approbation d'un clan | `clan-lifecycle/pending-promotions.ts` |
+| Annulation depuis le journal | `clan-lifecycle/revert.ts` |
+| Transfert / rétrogradation manuels | `PATCH /api/members/[id]` |
+| Arrêt de suivi (soft delete) | `DELETE /api/members/[id]` |
+| « Suivre ce joueur » / « Ajouter à l'effectif » | `POST /api/settings/opponents/track` |
+| Capture télémétrie et résolution | `encountered-players.ts`, `encountered-player-resolution.ts` |
+
+**3. Le clan suivi prime sur le cache.** Dans
+`resolveOneEncounteredPlayerCandidate`, la vérification « ce compte est-il membre
+d'un clan suivi ? » passe désormais **avant** la lecture du cache `Player`, et non
+après. Coût : un `findFirst` indexé de plus par candidat
+(`idx_clan_member_pubg_account`). Gain : un décalage qui ne se résorbait jamais seul.
+
+**4. Le parking n'est pas une réponse.** Le raccourci ne s'applique que si le clan
+suivi porte un vrai `pubgClanId`. Un membre garé dans `Ungrouped` ne signifie pas
+« ce compte n'a aucun clan PUBG », mais « le site n'a pas d'avis » : l'API doit
+trancher, sinon on perdrait la découverte du clan non suivi qu'il vient peut-être
+de rejoindre. En revanche, un mouvement **appliqué** vers le parking vient, lui,
+de mesurer l'absence de clan : le miroir est alors remis à `null`.
+
+### Le garde-fou côté action
+
+Le bouton « Ajouter à l'effectif » appelait `POST /api/settings/opponents/track`,
+qui faisait un `update` inconditionnel de `ClanMember.clanId`. Sur un candidat
+fantôme, il aurait **sorti `WESTEN88` de `47R` pour le mettre dans BOFTEAM**, sans
+confirmation et sans ligne de journal — un dégât réel causé par un affichage périmé.
+
+Deux corrections indépendantes du miroir, pour que le cas ne puisse pas se
+reproduire même si le miroir dérive à nouveau :
+
+- `GET /api/settings/opponents/clans/[clanId]/members` expose `trackedElsewhere`
+  (membre actif d'un **autre** clan suivi). L'UI affiche alors un badge
+  « Membre de `[TAG]` » au lieu du bouton — symétrique de ce que le tableau 2
+  faisait déjà pour les joueurs d'un clan adverse.
+- `POST /api/settings/opponents/track` renvoie **409 `member_tracked_elsewhere`**
+  avec le clan courant. Le déplacement n'a lieu qu'avec `confirmMove: true`, et il
+  écrit alors une ligne `PlayerClanChange` (`source: manual_transfer`) — il
+  apparaît donc dans `/settings/clan-lifecycle` et reste annulable.
+
+### Réparer les décalages déjà en base
+
+Le code corrigé empêche les nouveaux décalages ; il ne répare pas l'existant.
+
+```bash
+npx tsx scripts/resync-player-clan-identity.ts                  # simulation (défaut)
+npx tsx scripts/resync-player-clan-identity.ts --only=conflict  # les contradictions seules
+npx tsx scripts/resync-player-clan-identity.ts --apply
+```
+
+Trois classes, d'urgence décroissante :
+
+| Classe | Situation | Gravité |
+|---|---|---|
+| `conflict` | Le miroir nomme un clan, le clan suivi en nomme un autre | Le miroir énonce un fait **faux** (cas WESTEN88) |
+| `cleared` | Le miroir nomme un clan, le membre est au parking | Le cycle de vie a mesuré « plus de clan PUBG » |
+| `filled` | Le miroir est vide, le clan suivi nomme un clan | Rien de faux, juste une résolution jamais faite |
+
+Mesure du 2026-09-22 avant correction : **2 `conflict`, 3 `cleared`, 15 `filled`**.
+
+### Ce qui n'est volontairement pas couvert
+
+- **`KillEvent.clanId` reste figé** au clan du moment du kill. C'est voulu : un kill
+  appartient à l'histoire, pas à l'effectif courant. C'est la limite déjà notée en
+  §10 (« un mouvement re-parente tout l'historique »).
+- **Les compteurs de rencontre** (`ClanEncounter`, `EncounteredPlayer.encounterCount`)
+  ne sont pas réattribués : ils comptent des rencontres passées, pas une appartenance.
+- **`/clans/[clanId]/telemetry/opponents` et la page némésis** lisent `EncounteredPlayer`
+  sans cascade vers `ClanMember`. Elles bénéficient du correctif par ricochet (les
+  lignes sont réécrites), mais n'ont pas de repli si le miroir dérive — contrairement
+  au rejeu et au débrief, qui appliquent déjà la cascade
+  `EncounteredPlayer < Player < ClanMember`. À aligner si le besoin se confirme.
+
+### Tests
+
+`src/lib/player-clan-identity.test.ts` — écriture du miroir, remise à `null` au
+parking, effacement sur membre désactivé, échec journalisé sans propagation,
+`trackedElsewhere` exposé par l'API, 409 sans confirmation, mouvement **et** trace
+avec confirmation.
+
+`src/lib/encountered-player-resolution.test.ts` — le clan suivi prime sur un cache
+`Player` encore frais mais périmé (régression WESTEN88), et le parking ne
+court-circuite pas l'appel API.
+
+`src/lib/clan-lifecycle/{membership-sync,promotion,revert}.test.ts` — chaque
+mouvement appliqué déclenche le réalignement.

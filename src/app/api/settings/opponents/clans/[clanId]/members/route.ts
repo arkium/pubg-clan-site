@@ -36,19 +36,39 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
     pubgPlayerName: string
     pubgAccountId: string
     lastSeenAt: string
+    trackedElsewhere: { memberId: number; clanId: number | null; clanTag: string | null } | null
   }> = []
 
   if (clan.pubgClanId) {
+    // `trackedElsewhere` : le candidat est déjà membre actif d'un AUTRE clan suivi.
+    // Sans cette jointure, la page proposait « Ajouter à l'effectif » sur un joueur
+    // déjà rattaché ailleurs, et le bouton le déplaçait silencieusement (incident
+    // WESTEN88 du 2026-09-22, voir docs/features/cycle-de-vie-clan.md §11).
     const rows = await prisma.$queryRaw<
-      Array<{ playerId: string; pubgPlayerName: string; pubgAccountId: string; lastSeenAt: Date }>
+      Array<{
+        playerId: string
+        pubgPlayerName: string
+        pubgAccountId: string
+        lastSeenAt: Date
+        trackedMemberId: number | null
+        trackedClanId: number | null
+        trackedClanTag: string | null
+      }>
     >(
       Prisma.sql`
-        SELECT p.id as playerId, p.pubgPlayerName as pubgPlayerName, p.pubgAccountId as pubgAccountId, p.lastSeenAt as lastSeenAt
+        SELECT p.id as playerId, p.pubgPlayerName as pubgPlayerName, p.pubgAccountId as pubgAccountId, p.lastSeenAt as lastSeenAt,
+               cm.id as trackedMemberId, cm.clanId as trackedClanId, c.tag as trackedClanTag
         FROM Player p
         INNER JOIN OpponentClan oc ON oc.id = p.opponentClanId
+        LEFT JOIN ClanMember cm
+          ON cm.pubgAccountId = p.pubgAccountId
+         AND cm.isActive = true
+         AND cm.joinStatus = 'active'
+         AND cm.clanId <> ${clanId}
+        LEFT JOIN Clan c ON c.id = cm.clanId
         WHERE oc.pubgClanId = ${clan.pubgClanId} AND oc.platformShard = ${clan.platformShard}
           AND NOT EXISTS (
-            SELECT 1 FROM ClanMember cm WHERE cm.clanId = ${clanId} AND cm.pubgAccountId = p.pubgAccountId
+            SELECT 1 FROM ClanMember cm2 WHERE cm2.clanId = ${clanId} AND cm2.pubgAccountId = p.pubgAccountId
           )
         ORDER BY p.lastSeenAt DESC
         LIMIT ${CANDIDATES_LIMIT}
@@ -59,6 +79,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
       pubgPlayerName: row.pubgPlayerName,
       pubgAccountId: row.pubgAccountId,
       lastSeenAt: row.lastSeenAt.toISOString(),
+      trackedElsewhere:
+        row.trackedMemberId != null
+          ? { memberId: row.trackedMemberId, clanId: row.trackedClanId, clanTag: row.trackedClanTag }
+          : null,
     }))
   }
 

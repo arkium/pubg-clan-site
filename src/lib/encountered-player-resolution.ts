@@ -1,8 +1,8 @@
 import 'server-only'
 
-import { Prisma } from '@prisma/client'
 import { PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS } from '@/lib/encountered-player-resolution-constants'
 import { prisma } from '@/lib/prisma'
+import { syncOpponentIdentityForMember } from '@/lib/player-clan-identity'
 import { fetchPlayerClan, type PubgApiCallContext } from '@/lib/pubg'
 
 export type ResolveOneCandidateInput = {
@@ -267,6 +267,45 @@ export async function resolveOneEncounteredPlayerCandidate(
   )
 
   try {
+    // Le clan suivi fait autorité sur le cache : un compte devenu membre d'un
+    // clan suivi (ou déplacé entre clans suivis) doit repartir de `ClanMember`,
+    // pas d'un `Player.opponentClanId` écrit avant le mouvement. Un lookup
+    // indexé de plus par candidat (`idx_clan_member_pubg_account`), contre un
+    // décalage qui, lui, ne se résorbait jamais tout seul.
+    const trackedClanMember = await prisma.clanMember.findFirst({
+      where: {
+        pubgAccountId: candidate.pubgAccountId,
+        isActive: true,
+        joinStatus: 'active',
+      },
+      include: { clan: true },
+    })
+
+    // Le raccourci ne vaut que si le clan suivi porte un vrai `pubgClanId`. Un
+    // membre garé dans le parking `Ungrouped` n'a pas « aucun clan PUBG » : le
+    // site n'a simplement pas d'avis, et c'est l'API qui doit trancher — sinon on
+    // perdrait la découverte du clan non suivi qu'il vient peut-être de rejoindre.
+    if (trackedClanMember?.clan?.pubgClanId) {
+      const identity = await syncOpponentIdentityForMember({
+        pubgAccountId: candidate.pubgAccountId,
+        platformShard: candidate.platformShard,
+        pubgPlayerName: candidate.pubgPlayerName,
+        clan: {
+          pubgClanId: trackedClanMember.clan.pubgClanId,
+          tag: trackedClanMember.clan.tag,
+          name: trackedClanMember.clan.name,
+        },
+      })
+
+      return {
+        outcome: 'resolved_with_clan',
+        pubgClanId: trackedClanMember.clan.pubgClanId,
+        pubgClanTag: trackedClanMember.clan.tag ?? null,
+        pubgClanName: trackedClanMember.clan.name ?? null,
+        updatedRowCount: identity?.encounteredRowsUpdated ?? 0,
+      }
+    }
+
     const cachedPlayer = await prisma.player.findUnique({
       where: {
         pubgAccountId_platformShard: {
@@ -298,38 +337,6 @@ export async function resolveOneEncounteredPlayerCandidate(
       }
     }
 
-    // Auto-découverte immédiate si ce joueur est déjà un membre officiel d'un de nos clans suivis
-    const trackedClanMember = await prisma.clanMember.findFirst({
-      where: { 
-        pubgAccountId: candidate.pubgAccountId,
-        isActive: true,
-        joinStatus: 'active',
-      },
-      include: { clan: true },
-    })
-
-    if (trackedClanMember?.clan) {
-      const now = new Date()
-      const { count } = await prisma.encounteredPlayer.updateMany({
-        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-        data: {
-          clanResolvedAt: now,
-          pubgClanId: trackedClanMember.clan.pubgClanId ?? null,
-          pubgClanTag: trackedClanMember.clan.tag ?? null,
-          pubgClanName: trackedClanMember.clan.name ?? null,
-        },
-      })
-
-      const clanIdString = trackedClanMember.clan.pubgClanId ?? `clan.${trackedClanMember.clan.id}`
-      return {
-        outcome: 'resolved_with_clan',
-        pubgClanId: clanIdString,
-        pubgClanTag: trackedClanMember.clan.tag ?? null,
-        pubgClanName: trackedClanMember.clan.name ?? null,
-        updatedRowCount: count,
-      }
-    }
-
     const apiContext: PubgApiCallContext = {
       source:
         options?.source === 'manual'
@@ -338,53 +345,16 @@ export async function resolveOneEncounteredPlayerCandidate(
     }
 
     const clan = await fetchPlayerClan(candidate.pubgAccountId, candidate.platformShard, apiContext)
-    const resolvedAt = new Date()
 
-    let opponentClanId: string | null = null
-    if (clan?.id) {
-      const opponentClan = await prisma.opponentClan.upsert({
-        where: {
-          pubgClanId_platformShard: { pubgClanId: clan.id, platformShard: candidate.platformShard },
-        },
-        update: { tag: clan.tag ?? null, name: clan.name ?? null, resolvedAt },
-        create: {
-          pubgClanId: clan.id,
-          platformShard: candidate.platformShard,
-          tag: clan.tag ?? null,
-          name: clan.name ?? null,
-          resolvedAt,
-        },
-      })
-      opponentClanId = opponentClan.id
-    }
-
-    const player = await prisma.player.upsert({
-      where: {
-        pubgAccountId_platformShard: {
-          pubgAccountId: candidate.pubgAccountId,
-          platformShard: candidate.platformShard,
-        },
-      },
-      update: { opponentClanId, clanResolvedAt: resolvedAt },
-      create: {
-        pubgAccountId: candidate.pubgAccountId,
-        platformShard: candidate.platformShard,
-        pubgPlayerName: candidate.pubgPlayerName,
-        opponentClanId,
-        clanResolvedAt: resolvedAt,
-      },
+    // Même écriture que pour un membre suivi, un seul chemin : `OpponentClan`,
+    // `Player` puis toutes les lignes `EncounteredPlayer` du compte.
+    const identity = await syncOpponentIdentityForMember({
+      pubgAccountId: candidate.pubgAccountId,
+      platformShard: candidate.platformShard,
+      pubgPlayerName: candidate.pubgPlayerName,
+      clan: clan?.id ? { pubgClanId: clan.id, tag: clan.tag ?? null, name: clan.name ?? null } : null,
     })
-
-    const { count } = await prisma.encounteredPlayer.updateMany({
-      where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-      data: {
-        playerId: player.id,
-        clanResolvedAt: resolvedAt,
-        pubgClanId: clan?.id ?? null,
-        pubgClanTag: clan?.tag ?? null,
-        pubgClanName: clan?.name ?? null,
-      },
-    })
+    const count = identity?.encounteredRowsUpdated ?? 0
 
     return clan?.id
       ? {

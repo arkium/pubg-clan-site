@@ -1594,6 +1594,13 @@ Rattachée au clan organisateur, sur le modèle exact de `/clans/[clanId]/settin
 
 ### 🚀 En cours / À faire
 
+> 🔗 **Ajouté le 2026-09-22 :** un changement de clan touche trois tables, pas une
+> (`ClanMember.clanId`, `Player.opponentClanId`, `EncounteredPlayer.pubgClan*`). La propagation
+> entre les trois est traitée en **section 5**, « Propagation d'un changement de clan vers le
+> miroir adversaire », et documentée dans `docs/features/cycle-de-vie-clan.md` §11.
+> Toute nouvelle page qui affiche l'appartenance de clan d'un compte doit lire `ClanMember` en
+> dernier recours de la cascade, jamais `EncounteredPlayer` seul.
+
 #### Analyse d'impact : Arrêt de suivi (`DELETE /api/members/[id]`) et Transfert de clan (`PATCH /api/members/[id]`) — Documenté le 2026-09-06
 
 > 🔗 **Regroupé le 2026-09-20 :** le suivi du clan d'un joueur (protection d'`Ungrouped`, détection des
@@ -3494,6 +3501,49 @@ Le cron `daily_sync` déclenchait une erreur `UND_ERR_HEADERS_TIMEOUT` car il ap
 ## 5. 🏴‍☠️ Adversaires, Rivaux & Watchlist
 
 ### 🚀 En cours / À faire
+
+#### Propagation d'un changement de clan vers le miroir adversaire — ✅ Corrigé le 2026-09-22
+
+Constat : `WESTEN88`, promu de `[UNG]` vers `[47R]` par le cycle de vie, restait affiché comme
+« candidat détecté » de BOFTEAM sur `/settings/opponents`, avec un bouton « Ajouter à l'effectif »
+qui l'aurait sorti de son clan sans confirmation ni trace.
+
+Cause racine : le même fait — l'appartenance de clan PUBG d'un compte — est stocké dans trois
+tables (`ClanMember.clanId`, `Player.opponentClanId`, `EncounteredPlayer.pubgClan*`) et seule la
+première était mise à jour par le cycle de vie. Pire, `captureEncounteredPlayers` repoussait
+`Player.clanResolvedAt` sans réécrire `opponentClanId` : la fenêtre de fraîcheur de 7 jours
+n'expirait jamais et le décalage devenait **permanent**.
+
+- [x] `src/lib/player-clan-identity.ts` — point unique de propagation (`OpponentClan` → `Player` →
+      toutes les lignes `EncounteredPlayer` du compte), appelé **hors transaction** : le miroir est
+      un cache de lecture, un échec ne doit pas annuler un mouvement décidé
+- [x] Branché sur les 7 chemins d'écriture : `membership-sync`, `pending-promotions`, `revert`,
+      `PATCH /api/members/[id]`, `DELETE /api/members/[id]`, `POST /api/settings/opponents/track`,
+      `encountered-players` / `encountered-player-resolution`
+- [x] Le clan suivi prime sur le cache `Player` dans `resolveOneEncounteredPlayerCandidate`
+      (vérification déplacée **avant** la lecture du cache)
+- [x] Le parking `Ungrouped` ne court-circuite pas la résolution API : « pas de clan suivi » n'est
+      pas « pas de clan PUBG » — sinon on perd la découverte d'un clan non suivi
+- [x] `GET /api/settings/opponents/clans/[clanId]/members` expose `trackedElsewhere` ; l'UI affiche
+      « Membre de `[TAG]` » au lieu du bouton
+- [x] `POST /api/settings/opponents/track` renvoie **409 `member_tracked_elsewhere`** sans
+      `confirmMove: true`, et écrit une ligne `PlayerClanChange` (`manual_transfer`) quand il déplace
+- [x] `scripts/resync-player-clan-identity.ts` — réparation de l'existant, simulation par défaut,
+      classes `conflict` / `cleared` / `filled`
+- [x] Tests : `src/lib/player-clan-identity.test.ts` (8), régressions dans
+      `encountered-player-resolution.test.ts` et assertions de câblage dans les 3 tests du cycle de vie
+- [x] Documentation : `docs/features/cycle-de-vie-clan.md` §11
+
+**Reste à faire (non bloquant)** :
+
+- [ ] Appliquer `npx tsx scripts/resync-player-clan-identity.ts --apply` en production (mesure du
+      2026-09-22 : 2 `conflict`, 3 `cleared`, 15 `filled`)
+- [ ] Aligner `/clans/[clanId]/telemetry/opponents` et `/api/members/[id]/nemesis` sur la cascade
+      `EncounteredPlayer < Player < ClanMember` déjà appliquée par le rejeu et le débrief — elles
+      n'ont aujourd'hui aucun repli si le miroir dérive à nouveau
+- [ ] Afficher le tag du clan **courant** (et non celui figé au moment du kill) dans les vues
+      télémétrie, ou assumer explicitement le choix inverse (cf. `KillEvent.clanId`, §10 du doc)
+
 
 #### 3. Adversaires — Vue superadmin globale, suivi de joueurs et favoris
 

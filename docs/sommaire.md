@@ -26,7 +26,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 |---|---|
 | [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre, SuperUser, flux /join |
 | [Clans](features/clans.md) | Structure clan, hiérarchie rôles + matrice permissions, flux /join et membres pending, sync PUBG, overview, crons |
-| [Cycle de vie du clan d'un joueur](features/cycle-de-vie-clan.md) | Détection quotidienne des changements d'appartenance, clan technique `Ungrouped`, promotion et rétrogradation, archivage, journal des mutations, garde-fous d'exécution |
+| [Cycle de vie du clan d'un joueur](features/cycle-de-vie-clan.md) | Détection quotidienne des changements d'appartenance, clan technique `Ungrouped`, promotion et rétrogradation, archivage, journal des mutations, garde-fous d'exécution, propagation vers le miroir adversaire (§11) |
 | [Leaderboard](features/leaderboard.md) | Calcul classement interne, périodes, periodKey, progression, badges Top performers |
 | [Matchs](features/matches.md) | Modèles Match/SquadMatch/SquadMember, détection squad, sessions, stats des 13 champs API, synergies |
 | [Dashboard membre](features/member-dashboard.md) | Sections dashboard, PlayerStats vs MemberLifetimeStats, progression, squads fréquents, heatmap |

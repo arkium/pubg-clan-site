@@ -4,6 +4,7 @@ import {
   PLAYER_CLAN_CHANGE_STATUSES,
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
+import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 
 /**
  * Chantier 2 — application des mouvements différés à l'approbation d'un clan.
@@ -85,6 +86,11 @@ export async function applyPendingPromotionsForClan(
         triggeredByUserId: triggeredByUserId ?? null,
       })
     })
+
+    // Après la transaction : réaligne Player/EncounteredPlayer sur le nouveau
+    // clan, sinon le joueur reste listé comme candidat de son ancien clan sur
+    // `/settings/opponents`.
+    await syncOpponentIdentityForMemberId(member.id)
 
     applied.push({
       memberId: member.id,

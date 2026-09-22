@@ -385,13 +385,31 @@ export default function OpponentsExplorerPage() {
       const bodyPayload: any = { playerId }
       if (targetClanId) bodyPayload.targetClanId = targetClanId
 
-      const res = await fetch('/api/settings/opponents/track', {
+      let res = await fetch('/api/settings/opponents/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyPayload),
       })
-      const body = await res.json()
-      if (!res.ok) throw new Error(body.error || 'Erreur lors du suivi')
+      let body = await res.json()
+
+      // 409 = le joueur est déjà membre actif d'un autre clan suivi. L'API refuse
+      // de le déplacer en silence : le SuperUser tranche explicitement.
+      if (res.status === 409 && body?.error === 'member_tracked_elsewhere') {
+        if (!window.confirm(`${body.message}
+
+Déplacer ce joueur vers ce clan ?`)) {
+          addNotification('Transfert annulé.', 'error')
+          return
+        }
+        res = await fetch('/api/settings/opponents/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...bodyPayload, confirmMove: true }),
+        })
+        body = await res.json()
+      }
+
+      if (!res.ok) throw new Error(body.message || body.error || 'Erreur lors du suivi')
       addNotification('Joueur suivi avec succès !', 'success')
 
       setExpandedClanId(null)
@@ -1057,13 +1075,24 @@ function ClanDetailPanel({ detail, clanId, onTrack, trackPending }: any) {
             missingCandidates.map((c: any) => (
               <li key={c.playerId} className="flex items-center justify-between gap-2 py-0.5">
                 <span className="text-slate-700 dark:text-slate-300 font-medium">{c.pubgPlayerName}</span>
-                <button
-                  onClick={() => onTrack(c.playerId, clanId)}
-                  disabled={trackPending.has(c.playerId)}
-                  className="app-btn app-btn--sm app-btn--secondary text-[11px] px-2 py-0.5"
-                >
-                  Ajouter à l&apos;effectif
-                </button>
+                {c.trackedElsewhere ? (
+                  // Déjà rattaché ailleurs : on montre où, au lieu d'un bouton qui
+                  // le déplacerait sans que le SuperUser voie le conflit.
+                  <span
+                    title="Ce joueur est déjà membre actif d'un autre clan suivi. Son clan PUBG sera réaligné au prochain passage de résolution."
+                    className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300"
+                  >
+                    Membre de {c.trackedElsewhere.clanTag ? `[${c.trackedElsewhere.clanTag}]` : 'un autre clan'}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => onTrack(c.playerId, clanId)}
+                    disabled={trackPending.has(c.playerId)}
+                    className="app-btn app-btn--sm app-btn--secondary text-[11px] px-2 py-0.5"
+                  >
+                    Ajouter à l&apos;effectif
+                  </button>
+                )}
               </li>
             ))
           )}

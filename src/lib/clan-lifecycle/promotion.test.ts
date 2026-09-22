@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 const mocks = vi.hoisted(() => ({
+  syncOpponentIdentity: vi.fn(),
   runFindFirst: vi.fn(),
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
@@ -66,6 +67,12 @@ vi.mock('@/lib/clan-lifecycle/clan-state', async (importOriginal) => {
 })
 
 vi.mock('@/lib/pubg', () => ({ fetchPubgClanById: mocks.fetchClanById }))
+
+// Le miroir adversaire (Player/EncounteredPlayer) suit chaque mouvement : il est
+// mocké ici pour vérifier qu'il est bien appelé, sans toucher à Prisma.
+vi.mock('@/lib/player-clan-identity', () => ({
+  syncOpponentIdentityForMemberId: mocks.syncOpponentIdentity,
+}))
 
 vi.mock('@/lib/clan-lifecycle/config', () => ({
   getClanLifecycleMode: mocks.getMode,
@@ -264,6 +271,10 @@ describe("Application différée à l'approbation du clan", () => {
     expect(mocks.changeUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'chg_1' } })
     )
+
+    // Regression WESTEN88 (2026-09-22) : sans ce realignement, le promu restait
+    // liste comme « candidat detecte » de son ancien clan sur /settings/opponents.
+    expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
   })
 
   it('clôt sans déplacer une ligne devenue caduque', async () => {

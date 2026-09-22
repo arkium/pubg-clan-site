@@ -4,6 +4,7 @@ import {
   PLAYER_CLAN_CHANGE_STATUSES,
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
+import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 
 /**
  * Annulation d'un mouvement — garde-fou **E** de « Sûreté d'exécution ».
@@ -147,6 +148,9 @@ export async function revertPlayerClanChange(
       triggeredByUserId: triggeredByUserId ?? null,
     })
   })
+
+  // Le miroir adversaire suit l'annulation comme il suit le mouvement.
+  await syncOpponentIdentityForMemberId(member.id)
 
   return {
     ok: true,

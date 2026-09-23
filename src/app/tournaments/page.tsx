@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Info, Search, Settings, T
 import { useEffect, useMemo, useState } from 'react'
 
 import TournamentGuide from '@/components/tournaments/TournamentGuide'
+import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import TeamModeBadge, { type TeamMode } from '@/components/ui/TeamModeBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -33,6 +34,19 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: 'recent', label: 'Date (plus récents)' },
   { value: 'oldest', label: 'Date (plus anciens)' },
   { value: 'title', label: 'Nom (A-Z)' },
+]
+
+/**
+ * Tri des archives sur mobile. Sous `md`, le tableau est remplacé par des cartes :
+ * les en-têtes cliquables disparaissent avec lui, donc le tri doit être proposé
+ * ailleurs, sinon la fonctionnalité n'existe tout simplement plus sur téléphone.
+ * `organizer` est repris ici pour garder la parité avec les colonnes du tableau.
+ */
+const ARCHIVE_SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: 'recent', label: 'Période (plus récents)' },
+  { value: 'oldest', label: 'Période (plus anciens)' },
+  { value: 'title', label: 'Tournoi (A-Z)' },
+  { value: 'organizer', label: 'Organisateur (A-Z)' },
 ]
 
 const PHASE_BADGES: Record<TournamentPhase, { label: string; className: string; pulse?: boolean }> = {
@@ -113,6 +127,76 @@ function ContextBadges({ tournament }: { tournament: TournamentOverview }) {
         </span>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * Une archive en carte, pour les écrans sous `md`.
+ *
+ * Le tableau des archives compte 6 colonnes : à 390 px il ne tient pas et
+ * `overflow-x-auto` le rendait scrollable horizontalement, ce qui masquait
+ * « Vainqueur » et « Classement » et écrasait les badges de format sur trois
+ * lignes. La carte reprend les mêmes informations, empilées — même pattern que
+ * `/clans/[id]/stats/weapons` et `/members/[id]/drop-zones`.
+ */
+function ArchiveCard({ tournament }: { tournament: TournamentOverview }) {
+  return (
+    <article className="app-panel flex flex-col gap-3 p-4">
+      <div className="min-w-0">
+        <Link
+          href={`/tournaments/${tournament.id}`}
+          className="block break-words text-base font-semibold text-gray-900 hover:underline"
+        >
+          {tournament.title}
+        </Link>
+        {tournament.description ? (
+          <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">{tournament.description}</p>
+        ) : null}
+      </div>
+
+      <ContextBadges tournament={tournament} />
+
+      <dl className="grid gap-2 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="shrink-0 text-xs uppercase text-slate-500">Organisateur</dt>
+          <dd className="min-w-0 break-words text-right text-gray-700">
+            {tournament.organizerClan ? (
+              <Link href={`/clans/${tournament.organizerClan.id}/overview`} className="hover:underline">
+                {tournament.organizerClan.tag ? `[${tournament.organizerClan.tag}] ` : ''}
+                {tournament.organizerClan.name}
+              </Link>
+            ) : (
+              '—'
+            )}
+          </dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="shrink-0 text-xs uppercase text-slate-500">Période</dt>
+          <dd className="min-w-0 text-right text-gray-700">
+            {formatDate(tournament.startDate)} → {formatDate(tournament.endDate)}
+          </dd>
+        </div>
+      </dl>
+
+      {tournament.winner ? (
+        <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 self-start rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+          <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="min-w-0 break-words">
+            {tournament.winner.tag ? `[${tournament.winner.tag}] ` : ''}
+            {tournament.winner.name}
+          </span>
+          <span className="font-normal text-amber-700/80 dark:text-amber-300/80">
+            {tournament.winner.totalPoints} pts
+          </span>
+        </span>
+      ) : (
+        <span className="text-xs text-gray-500">Classement indisponible</span>
+      )}
+
+      <Link href={`/tournaments/${tournament.id}`} className="app-btn app-btn--sm app-btn--secondary w-full">
+        Voir le rapport
+      </Link>
+    </article>
   )
 }
 
@@ -202,12 +286,19 @@ export default function TournamentsPage() {
       {/* Invisible : inscrit la liste dans la pile du fil d'Ariane, pour que « Retour » y ramène depuis un tournoi. */}
       <NavigationTrail currentLabel="Tournois" currentHref="/tournaments" fallbackParent={null} hidden />
 
+      {/*
+        `min-h` + `justify-end` plutôt que `absolute bottom-0` : le contenu reste collé
+        en bas comme sur les autres bannières du site, mais la hauteur s'adapte quand il
+        déborde. Ici il déborde vraiment sur téléphone — c'est la seule bannière qui porte
+        un bouton en plus du titre, du chapô et des compteurs, et `overflow-hidden`
+        rognait alors le haut du titre.
+      */}
       <header
-        className="relative min-h-[11rem] overflow-hidden rounded-2xl bg-cover bg-center sm:min-h-[14rem]"
+        className="relative flex min-h-[11rem] flex-col justify-end overflow-hidden rounded-2xl bg-cover bg-center sm:min-h-[14rem]"
         style={{ backgroundImage: "url('/ClanLeaderboardTable.jpg')" }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-5">
+        <div className="relative z-10 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-5">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-400 sm:h-6 sm:w-6" aria-hidden />
@@ -448,81 +539,106 @@ export default function TournamentsPage() {
           </button>
 
           {archivesOpen || archives.length <= ARCHIVE_COLLAPSE_THRESHOLD ? (
-            <div className="app-table-shell overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="app-table-head">
-                  <tr>
-                    <th className="px-3 py-2 text-left">
-                      <button type="button" onClick={() => toggleArchiveSort('title')} className="inline-flex items-center gap-1.5">
-                        Tournoi <ArchiveSortIcon column="title" current={archiveSort} />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left">
-                      <button type="button" onClick={() => toggleArchiveSort('organizer')} className="inline-flex items-center gap-1.5">
-                        Organisateur <ArchiveSortIcon column="organizer" current={archiveSort} />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left">Format &amp; carte</th>
-                    <th className="px-3 py-2 text-left">
-                      <button type="button" onClick={() => toggleArchiveSort('recent')} className="inline-flex items-center gap-1.5">
-                        Période <ArchiveSortIcon column="recent" current={archiveSort} />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left">Vainqueur</th>
-                    <th className="px-3 py-2 text-right">Classement</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {archives.map((tournament) => (
-                    <tr key={tournament.id} className="app-table-row">
-                      <td className="px-3 py-3">
-                        <Link href={`/tournaments/${tournament.id}`} className="font-medium text-gray-900 hover:underline">
-                          {tournament.title}
-                        </Link>
-                        {tournament.description ? (
-                          <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{tournament.description}</p>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-3 text-gray-700">
-                        {tournament.organizerClan ? (
-                          <Link href={`/clans/${tournament.organizerClan.id}/overview`} className="hover:underline">
-                            {tournament.organizerClan.tag ? `[${tournament.organizerClan.tag}] ` : ''}
-                            {tournament.organizerClan.name}
-                          </Link>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
-                        <ContextBadges tournament={tournament} />
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-gray-700">
-                        {formatDate(tournament.startDate)} → {formatDate(tournament.endDate)}
-                      </td>
-                      <td className="px-3 py-3">
-                        {tournament.winner ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                            <Trophy className="h-3.5 w-3.5" aria-hidden />
-                            {tournament.winner.tag ? `[${tournament.winner.tag}] ` : ''}
-                            {tournament.winner.name}
-                            <span className="font-normal text-amber-700/80 dark:text-amber-300/80">
-                              {tournament.winner.totalPoints} pts
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-500">Classement indisponible</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <Link href={`/tournaments/${tournament.id}`} className="app-btn app-btn--xs app-btn--secondary">
-                          Voir le rapport
-                        </Link>
-                      </td>
+            <>
+              {/* Mobile (< md) : cartes empilées + tri déporté, le tableau ne tient pas. */}
+              <div className="space-y-3 md:hidden">
+                <MobileDropdownNav
+                  id="archive-sort-dropdown"
+                  label="Trier les archives"
+                  variant="compact"
+                  currentLabel={
+                    ARCHIVE_SORT_OPTIONS.find((option) => option.value === archiveSort)?.label ??
+                    'Période (plus récents)'
+                  }
+                  items={ARCHIVE_SORT_OPTIONS.map((option) => ({
+                    key: option.value,
+                    label: option.label,
+                    active: option.value === archiveSort,
+                    onSelect: () => setArchiveSort(option.value),
+                  }))}
+                />
+                {archives.map((tournament) => (
+                  <ArchiveCard key={tournament.id} tournament={tournament} />
+                ))}
+              </div>
+
+              {/* Desktop (>= md) : le tableau triable d'origine. */}
+              <div className="app-table-shell hidden overflow-x-auto md:block">
+                <table className="min-w-full text-sm">
+                  <thead className="app-table-head">
+                    <tr>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => toggleArchiveSort('title')} className="inline-flex items-center gap-1.5">
+                          Tournoi <ArchiveSortIcon column="title" current={archiveSort} />
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => toggleArchiveSort('organizer')} className="inline-flex items-center gap-1.5">
+                          Organisateur <ArchiveSortIcon column="organizer" current={archiveSort} />
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left">Format &amp; carte</th>
+                      <th className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => toggleArchiveSort('recent')} className="inline-flex items-center gap-1.5">
+                          Période <ArchiveSortIcon column="recent" current={archiveSort} />
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-left">Vainqueur</th>
+                      <th className="px-3 py-2 text-right">Classement</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {archives.map((tournament) => (
+                      <tr key={tournament.id} className="app-table-row">
+                        <td className="px-3 py-3">
+                          <Link href={`/tournaments/${tournament.id}`} className="font-medium text-gray-900 hover:underline">
+                            {tournament.title}
+                          </Link>
+                          {tournament.description ? (
+                            <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{tournament.description}</p>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-3 text-gray-700">
+                          {tournament.organizerClan ? (
+                            <Link href={`/clans/${tournament.organizerClan.id}/overview`} className="hover:underline">
+                              {tournament.organizerClan.tag ? `[${tournament.organizerClan.tag}] ` : ''}
+                              {tournament.organizerClan.name}
+                            </Link>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <ContextBadges tournament={tournament} />
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">
+                          {formatDate(tournament.startDate)} → {formatDate(tournament.endDate)}
+                        </td>
+                        <td className="px-3 py-3">
+                          {tournament.winner ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                              <Trophy className="h-3.5 w-3.5" aria-hidden />
+                              {tournament.winner.tag ? `[${tournament.winner.tag}] ` : ''}
+                              {tournament.winner.name}
+                              <span className="font-normal text-amber-700/80 dark:text-amber-300/80">
+                                {tournament.winner.totalPoints} pts
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-500">Classement indisponible</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          <Link href={`/tournaments/${tournament.id}`} className="app-btn app-btn--xs app-btn--secondary">
+                            Voir le rapport
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : null}
         </section>
       ) : null}

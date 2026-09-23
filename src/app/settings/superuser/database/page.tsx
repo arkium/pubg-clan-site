@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import {
   AlertTriangle,
@@ -26,6 +26,12 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
 }
 
+function formatDateTime(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
 type TableStats = {
   tableName: string
   rowCount: number
@@ -47,12 +53,45 @@ type DbStatsResponse = {
   tables: TableStats[]
 }
 
-type PurgeStatus = {
-  totalMatches: number
-  matchesToPurge: number
-  purgedMatches: number
-  percentPurged: number
+/**
+ * Instantané de comptage publié par le cron `telemetry_geo_purge_count` (une passe nocturne pour
+ * tous les seuils : le scan coûte ~4 min, il n'est pas rejouable au fil des clics). Types
+ * volontairement redéclarés ici plutôt qu'importés de `@/lib/telemetry-geo-purge`, qui tire Prisma.
+ */
+type ThresholdCount = {
+  cutoff: string | null
+  targeted: number
+  protectedMatches: number
+  purgeable: number
+}
+
+type PurgeCounts = {
+  computedAt: string
+  durationMs: number
+  totalRows: number
+  totalWithGeo: number
+  protectedMatches: number
+  byThreshold: Record<string, ThresholdCount | undefined>
+}
+
+type PurgeRun = {
+  status: 'running' | 'done' | 'cancelled' | 'failed'
   olderThanDays: number | string
+  cutoff: string | null
+  target: number
+  purged: number
+  startedAt: string
+  updatedAt: string
+  finishedAt?: string
+  error?: string
+  cancelRequested?: boolean
+}
+
+type PurgeStatusResponse = {
+  counts: PurgeCounts | null
+  run: PurgeRun | null
+  recounting: boolean
+  totalRows: number
 }
 
 const AGE_OPTIONS = [
@@ -77,14 +116,12 @@ export default function DatabaseStatsPage() {
   const [selectedAge, setSelectedAge] = useState<string>('14')
 
   // Purge state
-  const [purgeStatus, setPurgeStatus] = useState<PurgeStatus | null>(null)
+  const [purgeCounts, setPurgeCounts] = useState<PurgeCounts | null>(null)
+  const [purgeRun, setPurgeRun] = useState<PurgeRun | null>(null)
+  const [recounting, setRecounting] = useState(false)
+  const [purgeStatusError, setPurgeStatusError] = useState('')
   const [loadingPurgeStatus, setLoadingPurgeStatus] = useState(false)
-  const [isPurging, setIsPurging] = useState(false)
-  const [purgedCountSession, setPurgedCountSession] = useState(0)
-  const [totalToPurgeSession, setTotalToPurgeSession] = useState(0)
   const [purgeError, setPurgeError] = useState('')
-  const [purgeSuccess, setPurgeSuccess] = useState('')
-  const cancelPurgeRef = useRef(false)
 
   // Table optimization state
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -98,29 +135,49 @@ export default function DatabaseStatsPage() {
     }
   }, [authenticated, isSuperUser, clanId, router, sessionLoading])
 
-  const fetchPurgeStatus = useCallback(async (age: string = selectedAge) => {
+  const fetchPurgeStatus = useCallback(async () => {
     try {
       setLoadingPurgeStatus(true)
-      const res = await fetch(`/api/superuser/database/purge-telemetry?olderThanDays=${age}`)
-      if (res.ok) {
-        const data = (await res.json()) as PurgeStatus
-        setPurgeStatus(data)
+      const res = await fetch('/api/superuser/database/purge-telemetry', { cache: 'no-store' })
+
+      if (!res.ok) {
+        // Un statut indisponible reste indisponible : le traduire en « 0 match » ferait croire
+        // qu'il n'y a rien à purger.
+        setPurgeCounts(null)
+        setPurgeStatusError(`Statut de purge indisponible (HTTP ${res.status}).`)
+        return
       }
+
+      const data = (await res.json()) as PurgeStatusResponse
+      setPurgeCounts(data.counts)
+      setPurgeRun(data.run)
+      setRecounting(data.recounting)
+      setPurgeStatusError('')
     } catch (err) {
       console.error('Erreur lecture statut de purge:', err)
+      setPurgeCounts(null)
+      setPurgeStatusError(err instanceof Error ? err.message : 'Statut de purge indisponible.')
     } finally {
       setLoadingPurgeStatus(false)
     }
-  }, [selectedAge])
+  }, [])
+
+  // La purge et le recomptage tournent côté serveur : on suit leur avancement en relisant l'état,
+  // ce qui permet de quitter la page sans les interrompre.
+  const isPurging = purgeRun?.status === 'running'
+  useEffect(() => {
+    if (!isPurging && !recounting) return
+    const timer = setTimeout(() => {
+      void fetchPurgeStatus()
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [isPurging, recounting, purgeRun, purgeCounts, fetchPurgeStatus])
 
   const fetchStats = async () => {
     try {
       setLoading(true)
       setError('')
-      const [statsRes] = await Promise.all([
-        fetch('/api/superuser/database'),
-        fetchPurgeStatus(selectedAge),
-      ])
+      const [statsRes] = await Promise.all([fetch('/api/superuser/database'), fetchPurgeStatus()])
       if (!statsRes.ok) throw new Error('Erreur lors de la récupération des statistiques')
       const data = await statsRes.json()
       setStats(data)
@@ -138,12 +195,16 @@ export default function DatabaseStatsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, isSuperUser])
 
+  // Tous les seuils sont dans l'instantané : changer de seuil n'appelle plus le serveur.
   const handleAgeChange = (newAge: string) => {
     setSelectedAge(newAge)
     setPurgeError('')
-    setPurgeSuccess('')
-    void fetchPurgeStatus(newAge)
   }
+
+  const selectedCount = purgeCounts?.byThreshold?.[selectedAge] ?? null
+  /** Le volume à purger n'est exploitable que si un comptage a été publié. */
+  const matchesToPurge = selectedCount ? selectedCount.purgeable : null
+  const purgeCountKnown = matchesToPurge !== null
 
   // Sorting
   const [sortField, setSortField] = useState<keyof TableStats>('totalSizeMb')
@@ -167,8 +228,35 @@ export default function DatabaseStatsPage() {
     }
   }
 
-  const handleCancelPurge = () => {
-    cancelPurgeRef.current = true
+  const handleCancelPurge = async () => {
+    try {
+      await fetch('/api/superuser/database/purge-telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+      void fetchPurgeStatus()
+    } catch (err) {
+      setPurgeError(err instanceof Error ? err.message : 'Impossible d’interrompre la purge')
+    }
+  }
+
+  // Le comptage complet coûte ~4 min de lecture disque : il est normalement produit chaque nuit
+  // par le cron, et ce bouton ne sert qu'à le rafraîchir à la demande.
+  const handleRecount = async () => {
+    setPurgeError('')
+    try {
+      const res = await fetch('/api/superuser/database/purge-telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'recount' }),
+      })
+      if (!res.ok) throw new Error(`Erreur serveur HTTP ${res.status}`)
+      setRecounting(true)
+      void fetchPurgeStatus()
+    } catch (err) {
+      setPurgeError(err instanceof Error ? err.message : 'Recomptage impossible')
+    }
   }
 
   const handleOptimizeTable = async (
@@ -220,9 +308,18 @@ export default function DatabaseStatsPage() {
   }
 
   const handlePurge = async () => {
-    const initialToPurge = purgeStatus?.matchesToPurge ?? 0
-    if (initialToPurge === 0) {
-      setPurgeSuccess('Aucun match ne correspond au filtre sélectionné pour la purge.')
+    // Statut inconnu ≠ zéro match : sans cette garde, un comptage indisponible annonçait à tort
+    // « Aucun match ne correspond au filtre » et la purge sortait sans rien faire.
+    if (matchesToPurge === null) {
+      setPurgeError(
+        purgeStatusError ||
+          'Aucun comptage n’a encore été publié pour ce seuil. Lancez un recomptage et attendez son résultat.'
+      )
+      return
+    }
+
+    if (matchesToPurge === 0) {
+      setPurgeError('Aucun match ne correspond au filtre sélectionné pour la purge.')
       return
     }
 
@@ -230,97 +327,50 @@ export default function DatabaseStatsPage() {
       selectedAge === 'all'
         ? 'l’ensemble de l’historique (tous les matchs)'
         : `les matchs de plus de ${selectedAge} jours`
+    const protege = selectedCount?.protectedMatches ?? 0
 
     if (
       !confirm(
-        `Êtes-vous sûr de vouloir purger l'historique de géolocalisation pour ${ageLabel} (${initialToPurge.toLocaleString()} matchs ciblés) ?\n\nCette opération s'exécutera par lots sécurisés avec affichage en direct.`
+        `Êtes-vous sûr de vouloir purger l'historique de géolocalisation pour ${ageLabel} (${matchesToPurge.toLocaleString()} matchs) ?
+
+` +
+          `${protege.toLocaleString()} matchs protégés (Top 1 et parties personnalisées) sont conservés.
+` +
+          `La purge s'exécute sur le serveur : vous pouvez quitter cette page sans l'interrompre.`
       )
     ) {
       return
     }
 
-    setIsPurging(true)
     setPurgeError('')
-    setPurgeSuccess('')
-    cancelPurgeRef.current = false
-    setTotalToPurgeSession(initialToPurge)
-    setPurgedCountSession(0)
-
-    let done = false
-    let currentPurged = 0
-    let lastRemaining = initialToPurge
-
     try {
-      while (!done && !cancelPurgeRef.current) {
-        const res = await fetch('/api/superuser/database/purge-telemetry', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            batchSize: 250,
-            olderThanDays: selectedAge,
-          }),
-        })
+      const res = await fetch('/api/superuser/database/purge-telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start', olderThanDays: selectedAge }),
+      })
+      const payload = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        error?: string
+        run?: PurgeRun
+      } | null
 
-        const payload = (await res.json().catch(() => null)) as {
-          ok?: boolean
-          error?: string
-          purgedInBatch?: number
-          remaining?: number
-          done?: boolean
-        } | null
-
-        if (!res.ok || !payload?.ok) {
-          throw new Error(payload?.error || `Erreur serveur HTTP ${res.status} lors de la purge`)
-        }
-
-        const batchPurged = payload.purgedInBatch ?? 0
-        currentPurged += batchPurged
-        lastRemaining = payload.remaining ?? Math.max(0, lastRemaining - batchPurged)
-        done = Boolean(payload.done || lastRemaining === 0 || batchPurged === 0)
-
-        setPurgedCountSession(currentPurged)
-        setPurgeStatus((prev) =>
-          prev
-            ? {
-                ...prev,
-                matchesToPurge: lastRemaining,
-                purgedMatches: Math.max(0, prev.totalMatches - lastRemaining),
-                percentPurged:
-                  prev.totalMatches > 0
-                    ? Math.round(((prev.totalMatches - lastRemaining) / prev.totalMatches) * 100)
-                    : 100,
-              }
-            : null
-        )
-
-        if (!done && !cancelPurgeRef.current) {
-          await new Promise((resolve) => setTimeout(resolve, 60))
-        }
+      if (!res.ok || !payload?.ok) {
+        throw new Error(payload?.error || `Erreur serveur HTTP ${res.status} lors du démarrage de la purge`)
       }
 
-      if (cancelPurgeRef.current) {
-        setPurgeSuccess(
-          `Purge interrompue à la demande. ${currentPurged.toLocaleString()} matchs ont été nettoyés avec succès.`
-        )
-      } else {
-        setPurgeSuccess(
-          `Purge terminée avec succès ! ${currentPurged.toLocaleString()} matchs nettoyés. Cliquez sur « Compacter la table » ci-dessous pour restituer immédiatement les gigaoctets libérés sur le disque.`
-        )
-      }
-
-      void fetchStats()
-    } catch (err: any) {
-      setPurgeError(err.message || 'Erreur inattendue lors de la purge')
-    } finally {
-      setIsPurging(false)
+      if (payload.run) setPurgeRun(payload.run)
+      void fetchPurgeStatus()
+    } catch (err) {
+      setPurgeError(err instanceof Error ? err.message : 'Erreur inattendue lors de la purge')
     }
   }
 
   if (sessionLoading || !authenticated || !isSuperUser) return null
 
   const progressPercent =
-    totalToPurgeSession > 0
-      ? Math.min(100, Math.round((purgedCountSession / totalToPurgeSession) * 100))
+    purgeRun && purgeRun.target > 0
+      ? Math.min(100, Math.round((purgeRun.purged / purgeRun.target) * 100))
       : 0
 
   return (
@@ -618,49 +668,103 @@ export default function DatabaseStatsPage() {
                   </div>
                 </div>
 
-                {/* Status Badges */}
-                {purgeStatus && (
+                {/* Volumes publiés par le comptage nocturne */}
+                {purgeCounts && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                     <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
-                      <span className="text-xs text-slate-500">Total matchs télémétrie</span>
+                      <span className="text-xs text-slate-500">Matchs portant encore leurs tracés</span>
                       <p className="mt-1 text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-200">
-                        {purgeStatus.totalMatches.toLocaleString()}
+                        {purgeCounts.totalWithGeo.toLocaleString()}{' '}
+                        <span className="text-xs font-normal text-slate-400">
+                          sur {purgeCounts.totalRows.toLocaleString()}
+                        </span>
                       </p>
                     </div>
 
                     <div className={cx(
                       "rounded-lg border p-3",
-                      purgeStatus.matchesToPurge > 0
+                      matchesToPurge === null
+                        ? "border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/40"
+                        : matchesToPurge > 0
                         ? "border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-900/20"
                         : "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/40 dark:bg-emerald-900/20"
                     )}>
                       <span className="text-xs text-slate-500">
-                        Cible du filtre ({selectedAge === 'all' ? 'tous' : `> ${selectedAge}j`}) à purger
+                        À purger ({selectedAge === 'all' ? 'tous' : `> ${selectedAge}j`})
                       </span>
-                      <p className={cx(
-                        "mt-1 text-sm sm:text-base font-semibold",
-                        purgeStatus.matchesToPurge > 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"
-                      )}>
-                        {purgeStatus.matchesToPurge.toLocaleString()}
-                      </p>
+                      {matchesToPurge === null ? (
+                        <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">&mdash;</p>
+                      ) : (
+                        <p className={cx(
+                          "mt-1 text-sm sm:text-base font-semibold",
+                          matchesToPurge > 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"
+                        )}>
+                          {matchesToPurge.toLocaleString()}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
-                      <span className="text-xs text-slate-500">Hors cible / Déjà allégés</span>
-                      <p className="mt-1 text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-200">
-                        {purgeStatus.purgedMatches.toLocaleString()} <span className="text-xs font-normal text-slate-400">({purgeStatus.percentPurged}%)</span>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900/40 dark:bg-emerald-900/10">
+                      <span className="text-xs text-slate-500 flex items-center gap-1">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                        Protégés (Top 1 et parties personnalisées)
+                      </span>
+                      <p className="mt-1 text-sm sm:text-base font-semibold text-emerald-700 dark:text-emerald-400">
+                        {selectedCount ? selectedCount.protectedMatches.toLocaleString() : '\u2014'}
                       </p>
                     </div>
                   </div>
                 )}
 
-                {/* Progress Card when purging */}
-                {isPurging && (
+                {/* Fraîcheur du comptage : borne figée à minuit, la journée en cours n'y entre pas */}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-400">
+                  {purgeCounts ? (
+                    <p>
+                      Comptage du <strong>{formatDateTime(purgeCounts.computedAt)}</strong>
+                      {selectedCount?.cutoff && (
+                        <>
+                          {' '}&mdash; arrêté aux matchs antérieurs au{' '}
+                          <strong>{formatDateTime(selectedCount.cutoff)}</strong>, la journée en cours n&apos;est pas
+                          comptée.
+                        </>
+                      )}{' '}
+                      Recalculé chaque nuit ; un parcours complet de la table prend environ{' '}
+                      {Math.round(purgeCounts.durationMs / 1000)} s.
+                    </p>
+                  ) : (
+                    <p>
+                      Aucun comptage publié pour l&apos;instant. Il est produit chaque nuit ; vous pouvez aussi le
+                      lancer maintenant &mdash; il dure environ 4 minutes et tourne sur le serveur.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleRecount}
+                    disabled={recounting || isPurging}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    <RefreshCw className={cx('h-3.5 w-3.5', recounting && 'animate-spin')} />
+                    {recounting ? 'Comptage en cours…' : 'Recompter maintenant'}
+                  </button>
+                </div>
+
+                {purgeStatusError && !purgeCounts && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <p>
+                      <strong>Volume à purger inconnu :</strong> {purgeStatusError} La purge reste bloquée tant que ce
+                      nombre n&apos;est pas connu &mdash; un statut indisponible ne signifie pas qu&apos;il n&apos;y a rien à purger.
+                    </p>
+                  </div>
+                )}
+
+                {/* Purge en cours : pilotée par le serveur, la page ne fait que la suivre */}
+                {isPurging && purgeRun && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/50 dark:bg-blue-950/20 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs sm:text-sm font-semibold text-blue-900 dark:text-blue-200 flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
-                        Purge par lots ({selectedAge === 'all' ? 'tous matchs' : `> ${selectedAge} jours`}) en cours...
+                        Purge en cours ({purgeRun.olderThanDays === 'all' ? 'tous matchs' : `> ${purgeRun.olderThanDays} jours`})
                       </span>
                       <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
                         {progressPercent}%
@@ -676,17 +780,23 @@ export default function DatabaseStatsPage() {
 
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-blue-700 dark:text-blue-300">
                       <span>
-                        Nettoyés : <strong>{purgedCountSession.toLocaleString()}</strong> / {totalToPurgeSession.toLocaleString()}
+                        Nettoyés : <strong>{purgeRun.purged.toLocaleString()}</strong> / {purgeRun.target.toLocaleString()}
                       </span>
                       <span>
-                        Restants : <strong>{Math.max(0, totalToPurgeSession - purgedCountSession).toLocaleString()}</strong>
+                        Restants : <strong>{Math.max(0, purgeRun.target - purgeRun.purged).toLocaleString()}</strong>
                       </span>
                     </div>
+
+                    <p className="text-xs text-blue-700/80 dark:text-blue-300/80">
+                      Elle s&apos;exécute sur le serveur : vous pouvez changer de page ou fermer l&apos;onglet, elle
+                      continuera. {purgeRun.cancelRequested && <strong>Interruption demandée, arrêt au prochain lot…</strong>}
+                    </p>
 
                     <button
                       type="button"
                       onClick={handleCancelPurge}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700"
+                      disabled={purgeRun.cancelRequested}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700"
                     >
                       <Square className="h-3 w-3 text-red-500 fill-red-500" />
                       Interrompre la purge
@@ -694,48 +804,65 @@ export default function DatabaseStatsPage() {
                   </div>
                 )}
 
-                {/* Actions and messages */}
+                {/* Actions et messages */}
                 <div className="pt-2 flex flex-wrap items-center gap-3 sm:gap-4">
                   {!isPurging && (
                     <button
                       type="button"
                       onClick={handlePurge}
-                      disabled={isPurging || purgeStatus?.matchesToPurge === 0}
+                      disabled={!purgeCountKnown || matchesToPurge === 0}
                       className="app-btn app-btn--md gap-2 bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
                     >
-                      <Trash2 className="h-4 w-4" />
-                      {purgeStatus?.matchesToPurge === 0
+                      {purgeCountKnown ? <Trash2 className="h-4 w-4" /> : <Loader2 className={cx('h-4 w-4', recounting && 'animate-spin')} />}
+                      {!purgeCountKnown
+                        ? purgeStatusError
+                          ? 'Statut indisponible'
+                          : recounting
+                          ? 'Comptage en cours…'
+                          : 'Comptage à lancer'
+                        : matchesToPurge === 0
                         ? `Aucun match ${selectedAge === 'all' ? '' : `> ${selectedAge}j`} à purger`
-                        : purgeError
-                        ? 'Reprendre la purge'
                         : selectedAge === 'all'
-                        ? 'Purger tous les matchs'
-                        : `Purger les matchs > ${selectedAge} jours`}
+                        ? `Purger tous les matchs (${matchesToPurge.toLocaleString()})`
+                        : `Purger les matchs > ${selectedAge} jours (${matchesToPurge.toLocaleString()})`}
                     </button>
                   )}
 
-                  {purgeStatus?.matchesToPurge === 0 && !isPurging && !purgeSuccess && (
+                  {matchesToPurge === 0 && !isPurging && (
                     <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
                       Filtre déjà optimisé (0 match à purger)
                     </span>
                   )}
 
-                  {purgeSuccess && (
+                  {!isPurging && purgeRun?.status === 'done' && (
                     <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
-                      {purgeSuccess}
+                      Purge terminée : {purgeRun.purged.toLocaleString()} matchs nettoyés. Utilisez &laquo; Compacter la
+                      table &raquo; ci-dessous pour rendre l&apos;espace au disque.
+                    </span>
+                  )}
+
+                  {!isPurging && purgeRun?.status === 'cancelled' && (
+                    <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
+                      <Square className="h-3.5 w-3.5" />
+                      Purge interrompue après {purgeRun.purged.toLocaleString()} matchs nettoyés.
                     </span>
                   )}
                 </div>
+
+                {!isPurging && purgeRun?.status === 'failed' && (
+                  <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs sm:text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
+                    <p className="font-semibold">La purge s&apos;est arrêtée après {purgeRun.purged.toLocaleString()} matchs :</p>
+                    <p className="mt-0.5">{purgeRun.error}</p>
+                    <p className="mt-1">Relancer la purge reprend là où elle s&apos;est arrêtée : rien n&apos;est à défaire.</p>
+                  </div>
+                )}
 
                 {purgeError && (
                   <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs sm:text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
                     <p className="font-semibold">Détail de l&apos;erreur :</p>
                     <p className="mt-0.5">{purgeError}</p>
-                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                      Vous pouvez cliquer sur <strong>« Reprendre la purge »</strong> ci-dessus pour relancer l&apos;opération là où elle s&apos;est arrêtée.
-                    </p>
                   </div>
                 )}
 

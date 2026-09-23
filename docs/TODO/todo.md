@@ -190,6 +190,211 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
   parcourrait 1,64 M lignes — prévoir un compteur pré-calculé.
 
 
+#### Lot 2 — Purge de l'historique de géolocalisation (`/settings/superuser/database`) : le message « Aucun match ne correspond au filtre » était faux — 🔬 Mesuré et ✅ corrigé le 2026-09-23 (non déployé)
+
+> **Signalement :** la page annonce « Aucun match ne correspond au filtre sélectionné pour la purge » alors que
+> **3 103 matchs de plus de 14 jours** portent encore leur géolocalisation. Le message est un artefact d'interface :
+> le comptage côté serveur n'a jamais le temps de répondre, et l'interface traduit « je ne sais pas » par « zéro ».
+
+**Mesures en production** — `npx tsx scripts/check-purge-telemetry-status.ts`, lecture seule, 2026-09-23 :
+
+| Mesure | Valeur |
+|---|---|
+| Lignes `SquadMatchTelemetry` | 18 030 |
+| Porteuses de géoloc (`positionSamples` / `trajectorySegments`) | **8 786** |
+| Poids géoloc par match (échantillon n=40) | 1,9 Mo en moyenne, 2,4 Mo au maximum |
+| Taille de la table | **21,76 Go** de données, 3 Mo d'index, `ROW_FORMAT=Dynamic` |
+| **Durée du comptage exécuté par l'API** | **247 s** (`EXPLAIN` : `type=ALL`, `possible_keys=NULL`) |
+
+Répartition des 8 786 matchs porteurs de géoloc (chiffres vivants : le worker en ajoute en continu — 8 776 au premier
+relevé, 8 786 vingt minutes plus tard) :
+
+| Seuil | Ciblés par le filtre de l'API | Ciblés par la date de match | Conservés |
+|---|---|---|---|
+| > 7 j | 5 947 | 5 974 | 2 839 |
+| > 14 j | **3 103** | 3 126 | 5 683 |
+| > 30 j | 118 | 122 | 8 668 |
+| > 60 j | 0 | 0 | 8 786 |
+| > 90 j | 0 | 0 | 8 786 |
+
+**Moins de 7 jours : 2 839 matchs portent de la géoloc** (2 812 si l'on compte par date de match). Rien n'est donc
+« déjà allégé » côté récent ; le plus ancien tracé encore en base remonte au 2026-08-18, soit 36 jours. Au-delà de
+60 jours il n'existe plus rien à purger : les options « > 60 j » et « > 90 j » de la page sont structurellement vides.
+
+**Ce qui n'est PAS en cause — vérifié :** le filtre `COALESCE(sourceGeneratedAt, parsedAt, createdAt)` est
+sémantiquement juste. `sourceGeneratedAt` n'est jamais `NULL` (0 sur 8 786) et s'écarte de la date de match
+(`SquadMatch.createdAt`) de **31 minutes au maximum**. L'écart entre les deux colonnes de comptage ci-dessus
+(3 103 contre 3 126) ne vient que de cette dérive de quelques minutes, pas d'une mauvaise colonne de date.
+
+**Chaîne de causalité établie :**
+
+1. `positionSamples IS NOT NULL` place la colonne dans le *read set* : InnoDB va chercher les pages externes du blob
+   pour chaque ligne scannée. Le comptage lit donc les ~22 Go de la table — **247 s mesurées** — et aucun index ne
+   peut y remédier (on n'indexe pas un `LONGTEXT` sur sa nullité).
+2. `GET /api/superuser/database/purge-telemetry` exécute ce comptage **à chaque affichage de la page** et **à chaque
+   changement de seuil** (`handleAgeChange` → `fetchPurgeStatus`).
+3. La réponse n'arrive jamais dans un délai utilisable : derrière Nginx, `proxy_read_timeout` vaut 60 s par défaut et
+   n'est pas surchargé dans l'exemple de [deployment.md](../ops/deployment.md) → **504** ; en local, l'utilisateur
+   clique bien avant les 4 minutes.
+4. `fetchPurgeStatus` avale l'échec en silence — `if (res.ok)` sans branche `else` — donc `purgeStatus` reste `null`.
+5. `null` n'affiche pas le bloc des trois badges (absent de la capture du signalement) et **ne désactive pas** le
+   bouton, car `purgeStatus?.matchesToPurge === 0` vaut `false` quand l'objet est `null`.
+6. Au clic, `handlePurge` lit `purgeStatus?.matchesToPurge ?? 0` → `0` → il affiche « Aucun match ne correspond au
+   filtre sélectionné pour la purge » et **sort sans rien purger**. Le `?? 0` confond « aucun match » et « statut
+   inconnu ».
+
+**Second défaut, invisible mais plus coûteux :** le `POST` recompte les restants — le même scan de 247 s — **après
+chaque lot de 250**. Purger les 3 103 matchs de plus de 14 jours demanderait 13 lots, soit **~54 minutes passées à
+seulement recompter**, chaque lot exposé au même 504 que le `GET`.
+
+**Ce que coûte réellement la purge** — mesuré le 2026-09-23, l'écriture étant chiffrée par une transaction
+volontairement annulée (`scripts/check-purge-update-cost.ts` : `UPDATE` puis `ROLLBACK`, contrôle de restauration
+inclus, **aucune donnée supprimée**) :
+
+| Étape | Durée mesurée |
+|---|---|
+| Comptage initial (une fois, en arrière-plan) | 247 s |
+| Sélection d'un lot de 250 identifiants | 7,2 s |
+| `UPDATE` de 50 lignes (puis `ROLLBACK`) | 2,2 s → ~11 s pour 250 |
+| Dernier lot (la sélection parcourt la table sans trouver 250) | ~3 min |
+
+Soit **~10 à 12 minutes** pour les 3 103 matchs de plus de 14 jours : 12 lots pleins à une vingtaine de secondes,
+plus le lot final. **Avant le correctif**, le recomptage par lot ajoutait 13 × 247 s, soit ~54 minutes de pur
+comptage — et chaque lot risquait le 504 qui interrompait la purge.
+
+**Ce qui est définitivement perdu** — mesuré sur les matchs réellement ciblés (`scripts/check-purge-collateral.ts`,
+3 117 matchs au relevé) :
+
+| Agrégat déjà calculé | Couverture | Perdus par la purge |
+|---|---|---|
+| `PositionMetricCell` (heatmap, positions) | 100 % | 0 |
+| `SafeZonePhaseStat` (cercle moyen) | 100 % | 0 |
+| `KillEvent` (kill feed) | 100 % | 1 |
+| `DropPressureStat` (pression de drop) | 100 % | 13 |
+| **`ZoneClosurePosition` (fermetures de zone)** | **71 %** | **891** |
+
+La promesse de la page — « les statistiques de combat ne sont pas impactées » — tient donc, à une exception
+apparente : 891 matchs n'ont pas de `ZoneClosurePosition`, et `backfill-zone-closures.ts` ignore par construction
+les matchs dont les positions ont été purgées. Le CDN PUBG ne garde la télémétrie que 14 jours ; seul
+`.telemetry-captured` permettrait un reparse, et il ne couvre pas tout.
+
+> **Requalifié le 2026-09-23 après mesure — l'essentiel de ces 891 matchs n'a rien à sauver.** Un essai
+> `--limit 50` a rendu `matchesProcessed: 50, rowsWritten: 0`. Diagnostic
+> (`scripts/check-zone-closure-rejects.ts`) sur le premier d'entre eux : 8 fermetures détectées, 3 membres suivis
+> correctement rattachés, horodatages cohérents — mais **les 3 joueurs sont morts en phase 1**, leurs dernières
+> positions s'arrêtent vers 200 s alors que la première fermeture tombe à 597 s. Les 24 combinaisons
+> (8 fermetures × 3 membres) sont donc écartées par le seuil `MAX_POSITION_AGE_SECONDS` (180 s). C'est le
+> « biais de survie assumé » documenté dans `buildZoneClosurePositionRows` : une escouade morte avant la première
+> fermeture n'a **aucune** position d'arrivée à enregistrer. Ces matchs ne sont pas un trou à combler.
+>
+> **Conséquence sur la purge :** le blocage invoqué plus haut est largement théorique. Reste à confirmer par une
+> passe complète (sans `--limit`), dont le `rowsWritten` donnera le nombre réel de matchs qui avaient quelque chose
+> à sauver.
+>
+> **Écueil d'exploitation :** un match qui produit 0 ligne n'obtient aucune `ZoneClosurePosition`, donc la sélection
+> du backfill le reproposera à chaque exécution. Enchaîner des `--limit 50` **ne progresse jamais** : on retraite
+> les 50 mêmes matchs. `SafeZonePhaseStat` a résolu ce cas par une ligne sentinelle `phase = 0` ;
+> `ZoneClosurePosition` n'a pas d'équivalent.
+
+- [x] **Scripts de diagnostic** (lecture seule, **une seule passe** — un scan coûte 4 min, ne jamais le boucler par
+  seuil) : `scripts/check-purge-telemetry-status.ts` (volumétrie, dates, matchs ciblés par seuil, poids, durée réelle
+  du comptage), `scripts/check-purge-collateral.ts` (agrégats déjà calculés sur les matchs ciblés),
+  `scripts/check-purge-update-cost.ts` (coût d'écriture, transaction annulée).
+- [x] **Interface — ne plus confondre « 0 » et « inconnu »** — livré le 2026-09-23. `matchesToPurge` est désormais
+  `number | null` : `handlePurge` refuse de démarrer tant qu'il vaut `null`, `fetchPurgeStatus` remonte l'échec dans
+  `purgeStatusError` au lieu de l'ignorer, et le bouton reste désactivé sur « Calcul du volume en cours… » ou
+  « Statut indisponible » — jamais sur « Aucun match à purger ».
+- [x] **Comptage hors du temps de réponse HTTP** — livré le 2026-09-23, puis remplacé le jour même par le
+  comptage en cron ci-dessous (le cache en mémoire faisait encore attendre 4 min le premier visiteur de la
+  journée).
+- [x] **Ne plus recompter après chaque lot** — livré le 2026-09-23. Un lot incomplet suffit à conclure qu'il ne
+  reste aucun candidat : la boucle n'a plus besoin du scan de 247 s qu'elle payait après chaque lot (13 × 247 s,
+  soit ~54 min de pur comptage).
+
+**2ᵉ passe — comptage en cron, purge côté serveur et matchs protégés** (2026-09-23, décidé avec l'exploitant)
+
+Trois demandes : pouvoir quitter la page pendant la purge, ne plus attendre le calcul, et épargner les matchs qui
+comptent. Mesuré avant de coder (`scripts/check-purge-protections.ts`, un scan de 198 s) :
+
+| Sur les 3 143 matchs porteurs de tracés > 14 j | Nombre |
+|---|---|
+| Top 1 (`placement = 1`) | 198 |
+| Parties personnalisées (`matchType = 'custom'`) | 20 |
+| **Protégés (l'un ou l'autre)** | **211** — ~400 Mo conservés |
+| Réellement purgeables | 2 932 — ~5,4 Go libérés |
+
+Les protections ne coûtent que **7 % de la cible** : sur toute la base, 61 parties personnalisées et 1 660 Top 1
+pour 18 874 matchs. Le garde-fou « ne purger que les matchs dont les agrégats sont calculés » a été
+**écarté par l'exploitant** : les `ZoneClosurePosition` manquantes seront donc perdues si la purge part avant
+`scripts/backfill-zone-closures.ts` — enjeu revu à la baisse le 2026-09-23, voir l'encadré plus haut.
+
+- [x] **Cron `telemetry_geo_purge_count`** (`0 6 * * *`, `TELEMETRY_GEO_PURGE_COUNT_CRON`) : une seule passe
+  nocturne calcule **tous les seuils à la fois** et publie l'instantané dans `AppConfig`
+  (`telemetry_geo_purge_counts`). La page devient instantanée et changer de seuil n'appelle plus le serveur — avant,
+  chaque clic déclenchait son propre scan de 4 min.
+- [x] **Borne figée à minuit** : le seuil est « dernier minuit moins N jours ». Le nombre ne bouge pas de la
+  journée, la journée en cours n'entre jamais dans la cible, et la purge applique exactement la borne affichée.
+  C'est ce qui supprime l'écart constaté entre annonce et réalisation (3 103 contre 3 126), dû à deux `NOW()`
+  distincts. L'interface affiche « comptage du …, arrêté aux matchs antérieurs au … ».
+- [x] **Matchs protégés** : Top 1 et parties personnalisées sont exclus du comptage *et* de la purge. Tous les
+  customs sont protégés, pas seulement ceux d'un tournoi existant : un tournoi se déclare *après* les parties, sur
+  une fenêtre de dates (`getTournamentMatches`) — purger un custom parce qu'aucun tournoi ne le réclame encore
+  interdirait de créer ce tournoi ensuite.
+- [x] **Purge côté serveur** : `POST { action: 'start' }` lance la boucle et rend la main ; l'avancement vit dans
+  `AppConfig` (`telemetry_geo_purge_run`), la page ne fait que le relire toutes les 2 s. On peut changer de page ou
+  fermer l'onglet. `{ action: 'cancel' }` demande l'arrêt au prochain lot, `{ action: 'recount' }` force un comptage.
+  Un run dont le battement de cœur dépasse 10 min est requalifié « interrompu » plutôt que d'afficher une
+  progression figée.
+- [x] **Logique partagée** dans `src/lib/telemetry-geo-purge.ts` : page, route et cron appliquent la même borne et
+  les mêmes protections — c'est la seule manière de garantir que le nombre annoncé est le nombre purgé.
+- [x] **Tests** : `telemetry-geo-purge.test.ts` (9 cas : borne à minuit stable sur la journée, passage de mois,
+  repli sur 14 j devant une valeur inconnue, détection des runs orphelins) et
+  `purge-telemetry-route-contracts.test.ts` (10 cas : la route ne compte jamais pendant la requête, refuse de purger
+  sans comptage publié, refuse une purge concurrente, n'attend pas les 247 s d'un recomptage).
+- [x] **Premier comptage réel** (`npx tsx scripts/refresh-geo-purge-counts.ts`, 2026-09-23, 200 s) : la chaîne
+  complète s'exécute et l'instantané est publié. 18 050 lignes, 8 796 porteuses de tracés, 705 protégées.
+
+  | Seuil | Ciblés | Protégés | Purgeables |
+  |---|---|---|---|
+  | > 7 j | 5 724 | 442 | 5 282 |
+  | > 14 j | 2 871 | 192 | **2 679** |
+  | > 30 j | 118 | 4 | 114 |
+  | > 60 j / > 90 j | 0 | 0 | 0 |
+  | tous | 8 796 | 705 | 8 091 |
+
+  Les chiffres sont plus bas que les relevés précédents (2 871 contre 3 143 à 14 j) : c'est la borne figée à
+  minuit, plus conservatrice de quelques heures que l'ancien « maintenant moins N jours ». Aucun match n'est
+  purgé plus tôt qu'avant — l'écart va toujours dans le sens de la prudence.
+- [ ] **Purge automatique récurrente** : écartée pour l'instant. Le cron ne fait que compter ; rien n'est détruit
+  sans une action explicite. À reconsidérer seulement avec un garde-fou sur les agrégats.
+
+- [ ] **Rendre le comptage indexable** — seule correction de fond. Colonne marqueur alimentée à l'écriture et à la
+  purge (p. ex. `geoBytes Int?` ou `geoPurgedAt DateTime?`) + index composite avec la date, puis compter dessus.
+  À mesurer avant de migrer, conformément au principe du Lot 1 ; la marge existe : `SquadMatchTelemetry` ne porte
+  aujourd'hui que **3 Mo d'index pour 21,76 Go de données** (l'inverse exact de `EncounteredPlayer`).
+- [ ] **Déployer** : le correctif ne vit qu'en local ; en production la page continue d'annoncer « Aucun match ne
+  correspond au filtre ».
+- [x] **Rattrapage `ZoneClosurePosition` — fait le 2026-09-23, la purge n'a plus de frein de ce côté.** Passe
+  complète (`npm run telemetry:zone-closures:backfill`, sans `--limit`) : **2 529 matchs évalués, 368 lignes
+  écrites, 373 s.** Toute la file en attente est passée — donc tout ce qui pouvait encore être extrait des
+  positions brutes l'a été. Ce qui reste sans fermeture de zone relève de deux cas, aucun rattrapable :
+  les matchs dont les positions avaient déjà été purgées lors d'une purge antérieure, et les escouades mortes
+  avant la première fermeture (rien à enregistrer, cf. encadré ci-dessus).
+
+  Couverture après coup (`scripts/check-zone-closure-coverage.ts`) : 55 879 lignes sur 6 330 matchs ;
+  2 309 / 8 677 dans la fenêtre purgeable (27 % — le reste n'a plus de positions depuis longtemps),
+  4 021 / 6 112 sur les matchs de moins de 14 jours.
+- [ ] **Ligne sentinelle pour `ZoneClosurePosition`** (facultatif) : sur le modèle de `SafeZonePhaseStat`
+  (`phase = 0`), marquer les matchs sans fermeture exploitable pour qu'ils sortent de la file du backfill au lieu
+  d'être relus à chaque passage — et pour que `--limit` devienne utilisable.
+- [ ] **Ne jamais enchaîner** sur le bouton « Compacter la table » (`OPTIMIZE TABLE` sur 21,76 Go) hors fenêtre de
+  maintenance assumée — voir [database-performance.md](../ops/database-performance.md). Tant que ce compactage n'a pas
+  eu lieu, la purge ne rend **aucun octet** au disque : elle libère de l'espace réutilisable dans le fichier `.ibd`,
+  pas sur le système de fichiers.
+- [ ] **Masquer ou marquer les seuils vides** (« > 60 j », « > 90 j » ciblent 0 match) une fois le comptage rapide
+  disponible.
+
+
 #### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 
 > **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des

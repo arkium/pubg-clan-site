@@ -26,6 +26,7 @@ import {
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
+import { refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import {
   fetchCurrentSeason,
@@ -81,6 +82,7 @@ const globalForCron = globalThis as typeof globalThis & {
   // (ClanLifecycleRun), pour tenir entre plusieurs process.
   clanLifecycleMembershipSyncCronTask?: ScheduledTask
   dbMaintenanceCronTask?: ScheduledTask
+  geoPurgeCountCronTask?: ScheduledTask
 }
 
 function isCronWorkerEnabled() {
@@ -1109,6 +1111,27 @@ async function runDbMaintenance() {
   }
 }
 
+/**
+ * Recompte ce que la purge de géolocalisation retirerait, pour tous les seuils à la fois.
+ *
+ * Un parcours complet de `SquadMatchTelemetry` coûte ~247 s et lit ~22 Go (voir
+ * `src/lib/telemetry-geo-purge.ts`). Le faire une fois par nuit rend la page SuperUser
+ * instantanée : elle ne fait plus que lire le résultat publié dans `AppConfig`.
+ */
+async function runGeoPurgeCount() {
+  try {
+    const counts = await refreshGeoPurgeCounts()
+    const cible = counts.byThreshold['14']
+    console.info(
+      `[Cron] Comptage purge géoloc — ${counts.totalWithGeo} matchs avec tracés, ` +
+        `${cible?.purgeable ?? 0} purgeables à 14 j (${cible?.protectedMatches ?? 0} protégés) ` +
+        `en ${(counts.durationMs / 1000).toFixed(0)}s`
+    )
+  } catch (error) {
+    console.error('[Cron] Comptage purge géoloc échoué', error)
+  }
+}
+
 async function resolveEncounteredPlayerClans() {
   if (globalForCron.encounteredPlayerResolutionInProgress) {
     console.warn('[Cron] Encountered player clan resolution skipped — previous run still in progress')
@@ -1241,6 +1264,7 @@ export type CronScheduleKey =
   | 'encountered_player_clan_resolution'
   | 'clan_lifecycle_membership_sync'
   | 'db_maintenance'
+  | 'telemetry_geo_purge_count'
 
 type CronScheduleGlobalKey =
   | 'clanLifecycleMembershipSyncCronTask'
@@ -1252,6 +1276,7 @@ type CronScheduleGlobalKey =
   | 'challengeProcessingCronTask'
   | 'encounteredPlayerResolutionCronTask'
   | 'dbMaintenanceCronTask'
+  | 'geoPurgeCountCronTask'
 
 type CronScheduleDefinition = {
   key: CronScheduleKey
@@ -1328,6 +1353,15 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '15 1 * * *',
     globalKey: 'dbMaintenanceCronTask',
     run: runDbMaintenance,
+  },
+  {
+    // 06:00 : apres daily_season_stats_sync (05:00) et avant l'usage de la journee. Le scan lit
+    // ~22 Go pendant ~4 min, il ne doit chevaucher aucun autre travail lourd.
+    key: 'telemetry_geo_purge_count',
+    envVar: 'TELEMETRY_GEO_PURGE_COUNT_CRON',
+    defaultExpression: '0 6 * * *',
+    globalKey: 'geoPurgeCountCronTask',
+    run: runGeoPurgeCount,
   },
 ]
 

@@ -1,129 +1,127 @@
 import { NextRequest } from 'next/server'
-import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
+import {
+  parseSelection,
+  readGeoPurgeCounts,
+  readGeoPurgeRunForDisplay,
+  refreshGeoPurgeCounts,
+  requestGeoPurgeCancel,
+  startGeoPurgeRun,
+} from '@/lib/telemetry-geo-purge'
+
+/**
+ * Statut et pilotage de la purge de géolocalisation (page /settings/superuser/database).
+ *
+ * Cette route ne compte plus rien elle-même : le comptage coûte 247 s (scan complet de ~22 Go,
+ * voir `src/lib/telemetry-geo-purge.ts`) et dépassait le `proxy_read_timeout` de Nginx, ce qui
+ * faisait afficher « Aucun match ne correspond au filtre » alors que des milliers de matchs
+ * attendaient. Le comptage est produit une fois par nuit par le cron `telemetry_geo_purge_count`
+ * et servi ici depuis `AppConfig` — donc instantanément, et pour tous les seuils d'un coup.
+ *
+ * La purge, elle, s'exécute côté serveur : `POST { action: 'start' }` lance la boucle et rend la
+ * main. La page ne fait que lire l'avancement, on peut donc la quitter.
+ */
+
+/** Un recomptage manuel à la fois : deux scans simultanés se disputeraient les mêmes 22 Go. */
+let recountInFlight = false
+
+async function requireSuperUser(req: NextRequest) {
+  const session = await getSessionFromRequest(req)
+  return session && session.isSuperUser ? session : null
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSessionFromRequest(req)
-    if (!session || !session.isSuperUser) {
+    if (!(await requireSuperUser(req))) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const { searchParams } = new URL(req.url)
-    const olderParam = searchParams.get('olderThanDays')
-    const olderThanDays =
-      olderParam === 'all' || olderParam === '0'
-        ? null
-        : !olderParam
-        ? 14
-        : Number(olderParam) || 14
-    const cutoffDate = olderThanDays ? new Date(Date.now() - olderThanDays * 24 * 3600 * 1000) : null
+    const [counts, run] = await Promise.all([readGeoPurgeCounts(), readGeoPurgeRunForDisplay()])
 
-    const [totalRowsRes, toPurgeRowsRes] = await Promise.all([
-      prisma.$queryRaw<Array<{ total: bigint }>>`SELECT COUNT(*) as total FROM SquadMatchTelemetry`,
-      cutoffDate
-        ? prisma.$queryRaw<Array<{ toPurge: bigint }>>`
-            SELECT COUNT(*) as toPurge FROM SquadMatchTelemetry 
-            WHERE (positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL)
-              AND COALESCE(sourceGeneratedAt, parsedAt, createdAt) < ${cutoffDate}
-          `
-        : prisma.$queryRaw<Array<{ toPurge: bigint }>>`
-            SELECT COUNT(*) as toPurge FROM SquadMatchTelemetry 
-            WHERE positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL
-          `,
-    ])
-
-    const totalMatches = Number(totalRowsRes[0]?.total ?? 0)
-    const matchesToPurge = Number(toPurgeRowsRes[0]?.toPurge ?? 0)
-    const purgedMatches = Math.max(0, totalMatches - matchesToPurge)
-    const percentPurged = totalMatches > 0 ? Math.round((purgedMatches / totalMatches) * 100) : 100
+    // Sert de repère quand aucun comptage n'a encore été publié (première installation du cron).
+    const totalRowsRes = await prisma.$queryRaw<Array<{ total: bigint }>>`
+      SELECT COUNT(*) as total FROM SquadMatchTelemetry
+    `
 
     return Response.json({
-      totalMatches,
-      matchesToPurge,
-      purgedMatches,
-      percentPurged,
-      olderThanDays: olderThanDays ?? 'all',
+      counts,
+      run,
+      recounting: recountInFlight,
+      totalRows: Number(totalRowsRes[0]?.total ?? 0),
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error fetching purge status:', err)
-    return Response.json({ error: err.message || 'Erreur lors de la lecture du statut de purge' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Erreur lors de la lecture du statut de purge'
+    return Response.json({ error: message }, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSessionFromRequest(req)
-    if (!session || !session.isSuperUser) {
+    if (!(await requireSuperUser(req))) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      batchSize?: number
+      action?: 'start' | 'cancel' | 'recount'
       olderThanDays?: number | string
     }
-    const batchSize = Math.min(Math.max(Number(body?.batchSize) || 250, 50), 1000)
-    const olderParam = body?.olderThanDays
-    const olderThanDays =
-      olderParam === 'all' || olderParam === '0' || olderParam === 0
-        ? null
-        : Number(olderParam) || 14
-    const cutoffDate = olderThanDays ? new Date(Date.now() - olderThanDays * 24 * 3600 * 1000) : null
 
-    // 1. Fetch batch IDs by indexed primary key
-    const candidateRows = cutoffDate
-      ? await prisma.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM SquadMatchTelemetry 
-          WHERE (positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL)
-            AND COALESCE(sourceGeneratedAt, parsedAt, createdAt) < ${cutoffDate}
-          LIMIT ${batchSize}
-        `
-      : await prisma.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM SquadMatchTelemetry 
-          WHERE positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL 
-          LIMIT ${batchSize}
-        `
-
-    if (!candidateRows || candidateRows.length === 0) {
-      return Response.json({
-        ok: true,
-        purgedInBatch: 0,
-        remaining: 0,
-        done: true,
-      })
+    if (body.action === 'cancel') {
+      const cancelled = await requestGeoPurgeCancel()
+      return Response.json({ ok: true, cancelled })
     }
 
-    const ids = candidateRows.map((r) => r.id)
+    if (body.action === 'recount') {
+      if (recountInFlight) {
+        return Response.json({ ok: true, alreadyRunning: true })
+      }
+      recountInFlight = true
+      // Détaché de la réponse : le scan dure ~4 min, la page se contente de relire le statut.
+      void refreshGeoPurgeCounts()
+        .catch((error) => console.error('[geo-purge] recomptage manuel impossible', error))
+        .finally(() => {
+          recountInFlight = false
+        })
+      return Response.json({ ok: true, started: true })
+    }
 
-    // 2. Perform fast primary key update
-    await prisma.$executeRaw`
-      UPDATE SquadMatchTelemetry 
-      SET positionSamples = NULL, trajectorySegments = NULL 
-      WHERE id IN (${Prisma.join(ids)})
-    `
+    if (body.action !== 'start') {
+      return Response.json({ error: 'Action inconnue' }, { status: 400 })
+    }
 
-    // 3. Count remaining
-    const remainingRes = cutoffDate
-      ? await prisma.$queryRaw<Array<{ remaining: bigint }>>`
-          SELECT COUNT(*) as remaining FROM SquadMatchTelemetry 
-          WHERE (positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL)
-            AND COALESCE(sourceGeneratedAt, parsedAt, createdAt) < ${cutoffDate}
-        `
-      : await prisma.$queryRaw<Array<{ remaining: bigint }>>`
-          SELECT COUNT(*) as remaining FROM SquadMatchTelemetry 
-          WHERE positionSamples IS NOT NULL OR trajectorySegments IS NOT NULL
-        `
-    const remaining = Number(remainingRes[0]?.remaining ?? 0)
+    const selection = parseSelection(body.olderThanDays)
+    const counts = await readGeoPurgeCounts()
+    const threshold = counts?.byThreshold?.[String(selection)]
 
-    return Response.json({
-      ok: true,
-      purgedInBatch: ids.length,
-      remaining,
-      done: remaining === 0,
-    })
-  } catch (err: any) {
-    console.error('Error purging telemetry chunk:', err)
-    return Response.json({ error: err.message || 'Erreur lors de la purge' }, { status: 500 })
+    // Sans comptage publié, on ignore l'ampleur : mieux vaut refuser que lancer à l'aveugle.
+    if (!threshold) {
+      return Response.json(
+        {
+          error:
+            'Aucun comptage disponible pour ce seuil. Lancez un recomptage et attendez son résultat avant de purger.',
+        },
+        { status: 409 }
+      )
+    }
+
+    if (threshold.purgeable === 0) {
+      return Response.json({ ok: true, started: false, reason: 'nothing_to_purge' })
+    }
+
+    const result = await startGeoPurgeRun(selection, threshold.purgeable)
+    if (!result.started) {
+      return Response.json(
+        { error: 'Une purge est déjà en cours.', run: result.state },
+        { status: 409 }
+      )
+    }
+
+    return Response.json({ ok: true, started: true, run: result.state })
+  } catch (err: unknown) {
+    console.error('Error starting telemetry purge:', err)
+    const message = err instanceof Error ? err.message : 'Erreur lors de la purge'
+    return Response.json({ error: message }, { status: 500 })
   }
 }

@@ -24,6 +24,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) |
 | `clan_lifecycle_membership_sync` | `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON` | `45 1 * * *` | Vérifie l'appartenance de clan de chaque membre suivi, joueur par joueur |
 | `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
+| `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
 
 La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune à tous les schedules.
 
@@ -122,6 +123,37 @@ Compare, pour chaque `ClanMember` actif, le clan enregistré sur le site au clan
 ### `db_maintenance` — Maintenance nocturne
 
 À 01:15, avant `daily_sync`. Clôt en `failed` les lignes `CronExecution` et `EncounteredPlayerResolutionRun` restées `running` depuis plus de 6 h (processus arrêté en cours d'exécution), pour que les tableaux de bord ne les affichent plus « en cours ». **Ne supprime aucune donnée** : ni jobs échoués (dead letter), ni jobs en attente, ni captures de télémétrie — voir [database-performance.md](database-performance.md#34-ce-qui-nest-volontairement-pas-automatisé). Journal : `[Cron] DB maintenance — orphaned runs finalized: …`.
+
+### `telemetry_geo_purge_count` — Volume purgeable des tracés GPS
+
+À 06:00, après `daily_season_stats_sync`. Recompte, **en une seule passe et pour tous les seuils**
+(7/14/30/60/90 jours et « tous »), les matchs dont `SquadMatchTelemetry.positionSamples` et
+`.trajectorySegments` sont encore remplis, et publie le résultat dans `AppConfig`
+(clé `telemetry_geo_purge_counts`). **Lecture seule.**
+
+**Pourquoi un cron plutôt qu'un calcul à la demande :** `positionSamples IS NOT NULL` place la colonne
+dans le read set, donc InnoDB va chercher les pages externes du blob — le comptage lit les ~22 Go de la
+table et prend **247 s mesurées** (2026-09-23). Aucun index ne peut y remédier. Tenu dans le temps d'une
+réponse HTTP, il dépassait le `proxy_read_timeout` de Nginx et la page SuperUser en concluait
+« aucun match à purger » alors que des milliers de matchs attendaient.
+
+**Borne figée à minuit :** le seuil est « dernier minuit moins N jours », pas « maintenant moins
+N jours ». Le nombre annoncé ne bouge pas de la journée, la journée en cours n'entre jamais dans la
+cible, et la purge applique exactement la borne affichée.
+
+**Protections :** les matchs **Top 1** (`placement = 1`) et les **parties personnalisées**
+(`matchType = 'custom'`, support des tournois) sont comptés à part et jamais purgés. Tous les customs
+sont protégés, pas seulement ceux d'un tournoi déjà créé : un tournoi se déclare *après* les parties,
+sur une fenêtre de dates.
+
+**Purge elle-même :** elle n'est **pas** automatique. Elle se déclenche depuis
+`/settings/superuser/database` et s'exécute côté serveur : son état vit dans `AppConfig`
+(`telemetry_geo_purge_run`), la page ne fait que le lire, on peut donc la quitter. Un run dont le
+battement de cœur dépasse 10 min est requalifié « interrompu ».
+
+**Diagnostic :** `npx tsx scripts/check-purge-telemetry-status.ts` (volumétrie et durées),
+`scripts/check-purge-protections.ts` (poids des protections), `scripts/check-purge-collateral.ts`
+(agrégats déjà calculés), `scripts/check-purge-update-cost.ts` (coût d'écriture, transaction annulée).
 
 ---
 
@@ -286,6 +318,7 @@ Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indé
 | `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Génération rapport hebdo |
 | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génération rapport mensuel |
 | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges |
+| `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Comptage du volume purgeable des tracés GPS |
 
 ### Télémétrie sync (cron + workers)
 

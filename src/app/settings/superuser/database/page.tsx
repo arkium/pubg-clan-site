@@ -26,6 +26,11 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
 }
 
+function formatGo(mb: number | null | undefined) {
+  if (mb === null || mb === undefined) return '\u2014'
+  return `${(mb / 1024).toFixed(2)} Go`
+}
+
 function formatDateTime(iso: string) {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
@@ -87,6 +92,27 @@ type PurgeRun = {
   cancelRequested?: boolean
 }
 
+type OptimizeAssessment = {
+  table: string
+  sizes: TableStats | null
+  disk: { measured: boolean; path: string | null; freeMb: number | null; totalMb: number | null; reason?: string }
+  requiredMb: number
+  verdict: 'useful' | 'pointless' | 'blocked_disk' | 'blocked_unknown_disk' | 'running'
+  reason: string
+}
+
+type OptimizeRun = {
+  status: 'running' | 'done' | 'failed'
+  table: string
+  startedAt: string
+  updatedAt: string
+  finishedAt?: string
+  reclaimedMb?: number
+  sizeBeforeMb?: number
+  sizeAfterMb?: number
+  error?: string
+}
+
 type PurgeStatusResponse = {
   counts: PurgeCounts | null
   run: PurgeRun | null
@@ -124,9 +150,11 @@ export default function DatabaseStatsPage() {
   const [purgeError, setPurgeError] = useState('')
 
   // Table optimization state
-  const [isOptimizing, setIsOptimizing] = useState(false)
+  const [optimizeAssessment, setOptimizeAssessment] = useState<OptimizeAssessment | null>(null)
+  const [optimizeRun, setOptimizeRun] = useState<OptimizeRun | null>(null)
   const [optimizeMsg, setOptimizeMsg] = useState('')
   const [optimizeError, setOptimizeError] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
 
   useEffect(() => {
     if (sessionLoading) return
@@ -173,11 +201,39 @@ export default function DatabaseStatsPage() {
     return () => clearTimeout(timer)
   }, [isPurging, recounting, purgeRun, purgeCounts, fetchPurgeStatus])
 
+  const fetchOptimizeState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/superuser/database/optimize?table=SquadMatchTelemetry', {
+        cache: 'no-store',
+      })
+      if (!res.ok) return
+      const data = (await res.json()) as { assessment: OptimizeAssessment; run: OptimizeRun | null }
+      setOptimizeAssessment(data.assessment)
+      setOptimizeRun(data.run)
+    } catch (err) {
+      console.error('Erreur lecture de l\u2019\u00e9tat de compactage:', err)
+    }
+  }, [])
+
+  // Le compactage tourne sur le serveur : on suit son avancement en relisant l'\u00e9tat.
+  const isOptimizing = optimizeRun?.status === 'running'
+  useEffect(() => {
+    if (!isOptimizing) return
+    const timer = setTimeout(() => {
+      void fetchOptimizeState()
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [isOptimizing, optimizeRun, fetchOptimizeState])
+
   const fetchStats = async () => {
     try {
       setLoading(true)
       setError('')
-      const [statsRes] = await Promise.all([fetch('/api/superuser/database'), fetchPurgeStatus()])
+      const [statsRes] = await Promise.all([
+        fetch('/api/superuser/database'),
+        fetchPurgeStatus(),
+        fetchOptimizeState(),
+      ])
       if (!statsRes.ok) throw new Error('Erreur lors de la récupération des statistiques')
       const data = await statsRes.json()
       setStats(data)
@@ -263,24 +319,47 @@ export default function DatabaseStatsPage() {
     table: string = 'SquadMatchTelemetry',
     action: 'optimize' | 'analyze' = 'optimize'
   ) => {
-    if (
-      action === 'optimize' &&
-      !confirm(
-        `Voulez-vous compacter la table ${table} ?\n\nCette opération reconstruit le fichier de données (.ibd) sous MySQL InnoDB pour restituer physiquement l'espace libre au disque dur et actualiser la taille de la table. Cela peut prendre 30 secondes à 1 minute.`
-      )
-    ) {
-      return
-    }
-
-    setIsOptimizing(true)
     setOptimizeMsg('')
     setOptimizeError('')
+
+    // Le verdict affich\u00e9 ne concerne qu'une table : pour une autre, on laisse le serveur trancher
+    // (il r\u00e9\u00e9value de toute fa\u00e7on avant de lancer quoi que ce soit).
+    const assessment = optimizeAssessment?.table === table ? optimizeAssessment : null
+
+    if (action === 'optimize') {
+      const verdict = assessment?.verdict
+      // Le serveur refusera de toute fa\u00e7on, mais autant ne pas faire cliquer dans le vide.
+      if (verdict === 'blocked_disk' || verdict === 'blocked_unknown_disk') {
+        setOptimizeError(assessment?.reason ?? 'Compactage impossible dans l\u2019\u00e9tat actuel du serveur.')
+        return
+      }
+      const gain = assessment?.sizes?.dataFreeMb ?? 0
+      const taille = assessment?.sizes?.totalSizeMb ?? 0
+      if (
+        !confirm(
+          `Compacter la table ${table} ?\n\n` +
+            `R\u00e9cup\u00e9rable : ${(gain / 1024).toFixed(2)} Go. R\u00e9\u00e9crit : ${(taille / 1024).toFixed(2)} Go.\n` +
+            `L'op\u00e9ration reconstruit enti\u00e8rement le fichier de donn\u00e9es et peut durer plusieurs dizaines de minutes.\n\n` +
+            `Elle s'ex\u00e9cute sur le serveur : vous pouvez quitter cette page.`
+        )
+      ) {
+        return
+      }
+    }
+
+    if (action === 'analyze') setAnalyzing(true)
 
     try {
       const res = await fetch('/api/superuser/database/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table, action }),
+        body: JSON.stringify({
+          table,
+          action,
+          // Un compactage jug\u00e9 \u00ab inutile \u00bb reste permis sur demande explicite ; un compactage jug\u00e9
+          // dangereux ne l'est jamais.
+          force: action === 'optimize' && assessment?.verdict === 'pointless',
+        }),
       })
 
       const payload = (await res.json().catch(() => null)) as {
@@ -289,21 +368,27 @@ export default function DatabaseStatsPage() {
         durationMs?: number
         stats?: TableStats | null
         message?: string
+        run?: OptimizeRun
       } | null
 
       if (!res.ok || !payload?.ok) {
         throw new Error(payload?.error || `Erreur serveur HTTP ${res.status}`)
       }
 
-      const durSec = payload.durationMs ? (payload.durationMs / 1000).toFixed(1) : '1'
-      const newSize = payload.stats ? ` (Nouvelle taille : ${payload.stats.totalSizeMb.toFixed(1)} Mo)` : ''
-      setOptimizeMsg(`${payload.message || 'Opération réussie'}${newSize} en ${durSec}s.`)
+      if (action === 'analyze') {
+        const durSec = payload.durationMs ? (payload.durationMs / 1000).toFixed(1) : '1'
+        setOptimizeMsg(`${payload.message || 'Op\u00e9ration r\u00e9ussie'} en ${durSec}s.`)
+      } else {
+        setOptimizeMsg(payload.message || 'Compactage lanc\u00e9 sur le serveur.')
+        if (payload.run) setOptimizeRun(payload.run)
+      }
 
+      void fetchOptimizeState()
       void fetchStats()
-    } catch (err: any) {
-      setOptimizeError(err?.message || 'Échec de l’opération de compactage')
+    } catch (err) {
+      setOptimizeError(err instanceof Error ? err.message : '\u00c9chec de l\u2019op\u00e9ration de compactage')
     } finally {
-      setIsOptimizing(false)
+      if (action === 'analyze') setAnalyzing(false)
     }
   }
 
@@ -866,43 +951,134 @@ export default function DatabaseStatsPage() {
                   </div>
                 )}
 
-                {/* InnoDB Compaction Callout */}
+                {/* Compactage InnoDB \u2014 verdict mesur\u00e9 plut\u00f4t que bouton nu */}
                 <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 sm:p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20 space-y-3">
                   <div className="flex items-start gap-3">
                     <Info className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <h4 className="text-xs sm:text-sm font-semibold text-indigo-950 dark:text-indigo-200">
-                        Pourquoi la taille affichée ne diminue-t-elle pas immédiatement après la purge ?
+                        Pourquoi la taille affich\u00e9e ne diminue-t-elle pas imm\u00e9diatement apr\u00e8s la purge ?
                       </h4>
                       <p className="text-xs text-indigo-900/80 dark:text-indigo-300/80 leading-relaxed">
-                        Sous MySQL (moteur <strong>InnoDB</strong>), vider des colonnes libère l&apos;espace en mémoire interne mais ne réduit <strong>jamais</strong> automatiquement le fichier sur le disque dur (<code>.ibd</code>). 
-                        Pour restituer physiquement les gigaoctets libérés au système d&apos;exploitation et mettre à jour la taille affichée, lancez un <strong>compactage (OPTIMIZE TABLE)</strong>.
+                        Sous InnoDB, vider des colonnes lib\u00e8re de l&apos;espace <strong>\u00e0 l&apos;int\u00e9rieur</strong> du fichier
+                        de donn\u00e9es (<code>.ibd</code>) mais ne le r\u00e9duit <strong>jamais</strong> automatiquement. Cet espace est
+                        r\u00e9utilis\u00e9 par les \u00e9critures suivantes : le compactage ne sert qu&apos;\u00e0 rendre la place au syst\u00e8me
+                        de fichiers. Il <strong>reconstruit la table enti\u00e8re</strong> et exige autant d&apos;espace disque libre
+                        qu&apos;elle occupe \u2014 il ne peut donc \u00eatre ni fractionn\u00e9 ni automatis\u00e9.
                       </p>
                     </div>
                   </div>
+
+                  {optimizeAssessment && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="rounded-lg border border-indigo-200/60 bg-white/60 p-2.5 dark:border-indigo-900/40 dark:bg-slate-900/40">
+                        <span className="text-[11px] text-slate-500">Taille \u00e0 r\u00e9\u00e9crire</span>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          {formatGo(optimizeAssessment.sizes?.totalSizeMb)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-indigo-200/60 bg-white/60 p-2.5 dark:border-indigo-900/40 dark:bg-slate-900/40">
+                        <span className="text-[11px] text-slate-500">R\u00e9cup\u00e9rable (espace libre interne)</span>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          {formatGo(optimizeAssessment.sizes?.dataFreeMb)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-indigo-200/60 bg-white/60 p-2.5 dark:border-indigo-900/40 dark:bg-slate-900/40">
+                        <span className="text-[11px] text-slate-500">
+                          Disque libre / requis
+                        </span>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          {optimizeAssessment.disk.measured
+                            ? `${formatGo(optimizeAssessment.disk.freeMb)} / ${formatGo(optimizeAssessment.requiredMb)}`
+                            : 'non mesurable'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {optimizeAssessment && (
+                    <div
+                      className={cx(
+                        'flex items-start gap-2 rounded-lg border p-3 text-xs',
+                        optimizeAssessment.verdict === 'useful'
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400'
+                          : optimizeAssessment.verdict === 'running'
+                          ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-300'
+                          : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-400'
+                      )}
+                    >
+                      {optimizeAssessment.verdict === 'useful' ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      ) : optimizeAssessment.verdict === 'running' ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                      )}
+                      <p>{optimizeAssessment.reason}</p>
+                    </div>
+                  )}
+
+                  {isOptimizing && optimizeRun && (
+                    <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 p-3 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                      <p>
+                        Compactage de <strong>{optimizeRun.table}</strong> en cours depuis{' '}
+                        {formatDateTime(optimizeRun.startedAt)}. Il s&apos;ex\u00e9cute sur le serveur : vous pouvez quitter
+                        cette page.
+                      </p>
+                    </div>
+                  )}
+
+                  {!isOptimizing && optimizeRun?.status === 'done' && (
+                    <div className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <p>
+                        Compactage termin\u00e9 : {formatGo(optimizeRun.sizeBeforeMb)} \u2192 {formatGo(optimizeRun.sizeAfterMb)},
+                        soit {formatGo(optimizeRun.reclaimedMb)} rendus au disque.
+                      </p>
+                    </div>
+                  )}
+
+                  {!isOptimizing && optimizeRun?.status === 'failed' && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <p>{optimizeRun.error}</p>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-2.5 pt-1">
                     <button
                       type="button"
                       onClick={() => handleOptimizeTable('SquadMatchTelemetry', 'optimize')}
-                      disabled={isOptimizing || isPurging}
-                      className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-indigo-600 px-3 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 disabled:opacity-50"
+                      disabled={
+                        isOptimizing ||
+                        isPurging ||
+                        !optimizeAssessment ||
+                        optimizeAssessment.verdict === 'blocked_disk' ||
+                        optimizeAssessment.verdict === 'blocked_unknown_disk'
+                      }
+                      className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-indigo-600 px-3 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isOptimizing ? (
                         <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
                       ) : (
                         <HardDrive className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       )}
-                      {isOptimizing ? 'Compactage en cours...' : 'Compacter SquadMatchTelemetry (OPTIMIZE)'}
+                      {isOptimizing
+                        ? 'Compactage en cours\u2026'
+                        : optimizeAssessment?.verdict === 'blocked_disk' ||
+                          optimizeAssessment?.verdict === 'blocked_unknown_disk'
+                        ? 'Compactage indisponible'
+                        : 'Compacter SquadMatchTelemetry (OPTIMIZE)'}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleOptimizeTable('SquadMatchTelemetry', 'analyze')}
-                      disabled={isOptimizing || isPurging}
+                      disabled={analyzing || isOptimizing || isPurging}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-300 shadow-xs hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700 disabled:opacity-50"
                     >
-                      <Zap className="h-3.5 w-3.5 text-amber-500" />
+                      <Zap className={cx('h-3.5 w-3.5 text-amber-500', analyzing && 'animate-pulse')} />
                       Recalculer les stats d&apos;index (ANALYZE)
                     </button>
 

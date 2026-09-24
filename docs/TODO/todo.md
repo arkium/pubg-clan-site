@@ -395,6 +395,183 @@ pour 18 874 matchs. Le garde-fou « ne purger que les matchs dont les agrégats 
   disponible.
 
 
+#### Lot 3 — Compactage InnoDB et compression de la télémétrie — 🔬 Mesuré et ✅ corrigé le 2026-09-24 (non déployé)
+
+> **Signalement :** le bouton « Compacter SquadMatchTelemetry (OPTIMIZE) » de
+> `/settings/superuser/database` rend **« Erreur serveur HTTP 504 »**. Demande initiale : faire fonctionner le
+> compactage, éventuellement en cron et par morceaux. **La mesure inverse la demande : cette opération ne doit pas
+> être lancée, et elle ne peut pas être fractionnée.**
+
+**Ce que le 504 cachait :** même mécanique que le comptage de purge (Lot 2) — Nginx coupe à 60 s pendant que
+MariaDB, lui, **continue**. Un `OPTIMIZE` lancé depuis la page pouvait donc travailler de longues minutes après
+l'affichage de l'erreur, sans supervision. Vérifié le 2026-09-24 : aucune reconstruction n'était en cours, et
+l'issue du clic est indéterminable a posteriori.
+
+**État mesuré** (`npx tsx scripts/check-optimize-feasibility.ts`, lecture seule) :
+
+| Mesure | Valeur |
+|---|---|
+| Taille de `SquadMatchTelemetry` | **20,57 Go** (index : 0) |
+| `DATA_FREE` — espace libre *dans* le fichier | **1,57 Go** ← tout ce qu'un OPTIMIZE rendrait |
+| Espace disque requis pendant l'opération | **~22,6 Go** |
+| Espace disque libre du serveur | ~10 Go (75 % occupé le 17/09, +0,5 Go/jour) |
+| `innodb_buffer_pool_size` | 128 Mo |
+
+**Pourquoi c'est dangereux :** sur InnoDB, `OPTIMIZE TABLE` n'est pas un nettoyage mais une **reconstruction
+complète** — un nouveau `.ibd` est écrit à côté de l'ancien, puis permuté. Il faut donc autant d'espace libre
+que la table entière. Ici l'opération aurait rempli le disque d'une **VM mutualisée** (Dolibarr, messagerie,
+BIND) pour rendre 1,57 Go en réécrivant 20,57 Go. C'est exactement le risque consigné le 2026-09-15 dans
+[database-performance.md](../ops/database-performance.md) §4.
+
+**Pourquoi « en plusieurs morceaux » est impossible :** `OPTIMIZE TABLE` est atomique. InnoDB reconstruit la table
+entière en une opération, sans mode partiel, sans reprise, sans découpage par plage de lignes. Un cron ne ferait
+que déclencher la même opération risquée à heure fixe, sans surveillance — pire que le bouton.
+
+**Ce qu'il faut faire à la place :** rien. L'espace libéré à l'intérieur du fichier est réutilisé par les
+écritures suivantes. À 0,4–0,55 Go de télémétrie par jour, les 1,57 Go déjà libres absorbent ~3 jours ; après la
+purge (~5,4 Go libérés), **le fichier cesse de grossir pendant 10 à 13 jours**. Le compactage ne sert qu'à rendre
+la place au système de fichiers. Et l'ordre compte : compacter *avant* la purge ne rendrait que 1,57 Go ; *après*,
+~7 Go sur une table réduite à ~15 Go, donc avec un besoin temporaire bien moindre.
+
+- [x] **Garde-fou disque** — `src/lib/table-maintenance.ts`. `assessOptimize()` compare l'espace libre du système
+  de fichiers portant le `datadir` MariaDB à la taille de la table majorée de 20 %. **Il refuse par défaut quand
+  l'espace n'est pas mesurable** (base sur un autre hôte) : pour une opération qui peut saturer un disque, le doute
+  ne profite pas à l'opération. `force` autorise un compactage jugé *inutile*, jamais un compactage jugé
+  *dangereux*.
+- [x] **Exécution en tâche de fond** — `POST` lance la reconstruction et rend la main ; l'état vit dans
+  `AppConfig` (`table_optimize_run`), avec un battement de cœur toutes les 30 s puisqu'une reconstruction est une
+  requête unique sans étape intermédiaire. Plus de 504, et surtout plus d'opération fantôme. `ANALYZE TABLE`
+  reste synchrone : il ne fait qu'échantillonner les index.
+- [x] **Verdict affiché au lieu d'un bouton nu** — la page montre la taille à réécrire, l'espace réellement
+  récupérable, le disque libre face au disque requis, et conclut : *utile* / *inutile* / *impossible, disque
+  insuffisant* / *impossible, disque non mesurable*. Le bouton est désactivé dans les deux derniers cas.
+- [x] **Tests** : `src/lib/table-maintenance.test.ts` (10 cas) — refus sur disque insuffisant, refus sur disque non
+  mesurable **même avec `force`**, verdict « inutile » sous le seuil de récupération, autorisation quand les deux
+  conditions sont réunies, détection d'un run orphelin.
+
+**Compression de la télémétrie — l'intuition est juste, et le gain est énorme**
+
+`scripts/check-telemetry-storage-format.ts` : `positionSamples` et `trajectorySegments` sont des **`longtext`**
+(le type `JSON` de MariaDB 10.11 est un alias de LONGTEXT, pas un format binaire compact), `ROW_FORMAT=Dynamic`,
+`CREATE_OPTIONS` vide. **Aucune compression, ni applicative, ni InnoDB.** Le serveur en est pourtant capable
+(`innodb_compression_algorithm=zlib`, `innodb_file_per_table=ON`, pages de 16 Ko).
+
+`scripts/check-telemetry-compressibility.ts` sur 5 matchs récents (9,03 Mo de géoloc brute) :
+
+| Codec | Taille | Ratio | Projection sur les 19,3 Go de géoloc |
+|---|---|---|---|
+| Brut (actuel) | 9,03 Mo | — | 19,3 Go |
+| gzip niveau 6 | 1,03 Mo | **8,8×** | **2,2 Go** |
+| brotli qualité 5 | 0,92 Mo | **9,8×** | **2,0 Go** |
+
+Des coordonnées JSON répétitives se compressent évidemment très bien. **Stocker moins n'est en revanche pas une
+option** : 98,6 % des échantillons concernent le reste du lobby, mais le replay les affiche —
+`match-replay.ts` classe chaque joueur (`0 = lobby externe, 1 = autre clan suivi, 2 = clan consulté`). Les
+tronquer viderait la fonctionnalité de sa substance.
+
+**Plan chiffré de la compression applicative** — analysé le 2026-09-24, à valider avant implémentation
+
+*Faits vérifiés* (`scripts/check-compression-feasibility.ts`) :
+
+| Point | Résultat |
+|---|---|
+| `ADD COLUMN … LONGBLOB, ALGORITHM=INSTANT` | **accepté** — métadonnées seules, aucune reconstruction, aucun besoin d'espace disque |
+| gzip niveau 6 sur un match réel (2 214 Ko) | 268 Ko (**8,2×**), 24 ms à l'écriture, **4 ms à la lecture**, restitution exacte |
+| brotli qualité 5 | 240 Ko (**9,2×**), 34 ms / 5 ms, restitution exacte |
+
+gzip suffit : 4 ms de décompression sont dérisoires face aux ~2 Mo de lecture disque évités à chaque replay — sur
+un serveur à 128 Mo de buffer pool, la compression **accélère** les lectures au lieu de les ralentir.
+
+*Surface réelle à modifier* (inventaire exhaustif au 2026-09-24). L'essentiel du code est déjà découplé : tout ce
+qui consomme ces colonnes reçoit un `unknown` et passe par un assistant d'analyse (`asArray`, `parseArray`,
+`storedArray`, `parseRows`). **`parser.ts`, `match-replay.ts`, `match-teams.ts`, `squad-mates.ts`,
+`position-metric-cells` (construction), `zone-closure-positions` (construction) et `MatchDebriefView` ne changent
+pas d'une ligne.**
+
+| Nature | Sites | Fichiers |
+|---|---|---|
+| Écriture | 2 | `pubg-telemetry/persistence-payload.ts:96`, `pubg-telemetry/persistence-fallback.ts:63` |
+| Lecture SQL de la valeur | 5 | `match-replay-loader.ts:58` (replay), `match-debrief-payload.ts:389` (débriefing **et** page de débogage), `position-metric-cells.ts:288`, `position-metric-aggregation.ts:180`, `zone-closure-positions.ts:293` |
+| Prédicat SQL sur la colonne | 4 | `position-metric-cells.ts:270` (`IS NOT NULL`), `zone-closure-positions.ts:276` (`JSON_LENGTH > 0`), `telemetry-geo-purge.ts:51` (`HAS_GEO`), `telemetry-geo-purge.ts:225` (mise à `NULL`) |
+| Scripts de diagnostic | ~8 | à adapter au fil de l'eau, aucun n'est bloquant |
+
+*Étapes proposées*, chacune déployable seule :
+
+1. **Colonnes** `positionSamplesGz` et `trajectorySegmentsGz` en `Bytes?` (→ `LONGBLOB`). DDL appliqué à la main
+   avec `ALGORITHM=INSTANT` via `prisma db execute`, schéma tenu à jour — la règle du dépôt (lire le
+   `migrate diff` avant toute écriture) s'applique.
+2. **Codec partagé** `src/lib/pubg-telemetry/geo-codec.ts` : `encodeGeo(valeur)` et
+   `decodeGeo(compresse, ancienne)` qui rend l'ancienne colonne quand la nouvelle est vide. Un tableau vide
+   s'écrit `NULL` plutôt qu'un blob, pour que `IS NOT NULL` garde exactement le sens de l'actuel
+   `JSON_LENGTH(…) > 0`.
+3. **Lectures d'abord** : les 5 sites SQL sélectionnent la colonne compressée en plus et enveloppent la valeur
+   d'un `decodeGeo`. À ce stade rien n'est encore compressé : déployable sans risque, et réversible.
+4. **Écritures ensuite** : les 2 sites d'écriture produisent du compressé. À partir de là, **les nouveaux matchs
+   pèsent ~8× moins**.
+5. **Prédicats** : `… IS NOT NULL OR …Gz IS NOT NULL`, et la purge vide les quatre colonnes.
+6. **Rattrapage de l'existant** (facultatif, par lots, interruptible — sur le modèle de la purge) : recompresser
+   les anciennes lignes. Le fichier `.ibd` ne rétrécit pas, mais ses 19 Go de JSON deviennent ~2 Go de données
+   utiles : **~17 Go d'espace libre interne**, que les écritures suivantes réutilisent. La base cesserait de
+   grossir pendant très longtemps, sans jamais approcher le mur de disque d'un `OPTIMIZE`.
+
+*Effet de bord favorable* : le comptage de purge (Lot 2) coûte 247 s **parce qu'il lit les blobs**. Sur des
+colonnes compressées, le même parcours lirait ~2,5 Go au lieu de 22 — le comptage tomberait sous la minute.
+
+*Réserves assumées* : un blob compressé est opaque au SQL (plus de `JSON_LENGTH` ni de `JSON_EXTRACT` dessus —
+vérifié : aucun code de production n'en fait sur ces deux colonnes, seuls des scripts de diagnostic) ; la colonne
+`summary`, elle, reste en clair car elle est lue par `JSON_EXTRACT` ailleurs et n'est pas concernée.
+
+*Processus concernés* — quatre services systemd partagent ce code, et c'est ce qui dicte l'ordre de déploiement :
+
+| Service | Rapport aux colonnes de géolocalisation |
+|---|---|
+| `pubg-clan-site-web` | **lit** (replay, débriefing, page de débogage, `/telemetry/positions`) **et écrit** (synchronisation manuelle via `manual-sync`) |
+| `pubg-clan-site-telemetry-worker` | **écrit** (analyse des fichiers PUBG) **et lit** (cellules de position, fermetures de zone) |
+| `pubg-clan-site-cron` | **prédicat seul** : `telemetry_geo_purge_count` compte via `HAS_GEO` |
+| `pubg-clan-site-telemetry-aggregates` | **aucun accès** — vérifié, il ne lit que des agrégats déjà calculés |
+
+> **Contrainte d'ordre, non négociable :** les lectures tolérantes (étape 3) doivent être **vivantes dans les
+> quatre services** avant que la moindre écriture compressée (étape 4) ne parte. Un worker mis à jour avant le web
+> produirait des matchs que le replay n'afficherait pas — sans erreur, juste des cartes vides. Les redémarrages
+> étant séparés, la fenêtre où ancien et nouveau code coexistent est inévitable : l'étape 3 la rend inoffensive.
+>
+> Les scripts manuels (`backfill-position-metrics.ts`, `backfill-zone-closures.ts`,
+> `enqueue-recent-telemetry-resync.ts`) lisent ces colonnes ou les interrogent : à mettre à jour dans la même
+> étape que les lectures, sous peine de sauter silencieusement les matchs compressés.
+
+*Tests prévus* — vitest ne collecte que `src/lib/**/*.test.ts` (convention du dépôt : un test de route vit dans
+`src/lib/` et importe le handler depuis `src/app/`) :
+
+- `geo-codec.test.ts` (nouveau) : aller-retour **exact** (vérifié sur données réelles, les deux codecs restituent
+  l'octet près) ; repli sur l'ancienne colonne quand la compressée est vide ; **tableau vide → `NULL`** plutôt
+  qu'un blob, pour que `IS NOT NULL` garde exactement le sens de l'actuel `JSON_LENGTH(…) > 0` ; blob corrompu →
+  erreur explicite plutôt qu'un tableau vide silencieux.
+- **Lecture mixte** : dans un même lot, une ligne ancienne (texte) et une ligne nouvelle (blob) doivent produire
+  le même résultat. C'est le test qui protège la période de transition, où les deux formats coexisteront des mois.
+- **Extension de l'existant** : `telemetry-geo-purge.test.ts` et `purge-telemetry-route-contracts.test.ts` — les
+  prédicats doivent couvrir les quatre colonnes, et la purge les vider toutes. Sans cela, un match compressé
+  échapperait au comptage **et** à la purge.
+- **Inchangés** : `parser.test.ts`, `match-replay.test.ts`, `match-teams.test.ts`,
+  `position-metric-raw-aggregation.test.ts` travaillent en mémoire sur des valeurs déjà analysées — ils ne voient
+  pas le stockage, et c'est précisément ce qui rend la migration bon marché.
+
+*Documentation prévue* :
+
+- `CLAUDE.md`, section des pièges : **ne jamais lire `positionSamples` / `trajectorySegments` sans passer par
+  `decodeGeo`**. C'est le piège qu'un futur développeur (ou agent) rencontrera en premier, et il échouerait en
+  silence sur les matchs compressés.
+- `docs/ops/database-performance.md` : ratios mesurés, coût CPU, et l'effet sur le comptage de purge.
+- `docs/ops/cron.md` : `telemetry_geo_purge_count` — la durée annoncée (~247 s) tombe sous la minute une fois le
+  stock compressé, et la documentation doit le dire sous peine de faire douter de la mesure.
+- Le fichier SQL de migration, commenté, appliqué par `prisma db execute` — et la vérification `migrate diff`
+  à vide ensuite, comme l'exige le dépôt.
+- `docs/sommaire.md` si un document dédié est créé.
+
+- [ ] **Compression applicative incrémentale** — piste recommandée, plan ci-dessus, en attente de validation.
+- [ ] **Compression de page InnoDB** (`PAGE_COMPRESSED=1`) — transparente, zéro changement de code, mais elle
+  **reconstruit la table** : même impératif d'espace disque que l'OPTIMIZE, donc hors de portée aujourd'hui. À
+  reconsidérer si le disque repasse largement au-dessus de la taille de la table.
+
 #### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 
 > **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des

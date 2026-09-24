@@ -1,31 +1,62 @@
+import { NextRequest } from 'next/server'
 import { getSessionFromRequest } from '@/lib/auth-session'
-import { prisma } from '@/lib/prisma'
+import {
+  MAINTAINABLE_TABLES,
+  analyzeTable,
+  assessOptimize,
+  readOptimizeRunForDisplay,
+  startOptimizeRun,
+} from '@/lib/table-maintenance'
 
-const ALLOWED_TABLES = new Set([
-  'SquadMatchTelemetry',
-  'EncounteredPlayer',
-  'ClanEncounter',
-  'Player',
-  'PositionMetricCell',
-  'PubgApiCallLog',
-  'KillEvent',
-  'CronExecution',
-])
+/**
+ * Compactage et statistiques d'index d'une table (page /settings/superuser/database).
+ *
+ * `OPTIMIZE TABLE` reconstruit intégralement la table : il dépasse largement une requête HTTP
+ * (l'ancienne version rendait un 504 Nginx pendant que MariaDB continuait en silence) et exige
+ * autant d'espace disque libre que la table elle-même. Il part donc en tâche de fond, et
+ * seulement si le verdict de `assessOptimize` l'autorise — voir `src/lib/table-maintenance.ts`.
+ *
+ * `ANALYZE TABLE`, lui, ne fait qu'échantillonner les index : il reste synchrone.
+ */
 
-export async function POST(request: Request) {
-  const session = await getSessionFromRequest(request)
-  if (!session) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+const ALLOWED_TABLES = new Set<string>(MAINTAINABLE_TABLES)
 
-  if (!session.isSuperUser) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
+async function requireSuperUser(req: NextRequest) {
+  const session = await getSessionFromRequest(req)
+  if (!session) return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) }
+  if (!session.isSuperUser) return { error: Response.json({ error: 'Forbidden' }, { status: 403 }) }
+  return { error: null }
+}
+
+export async function GET(req: NextRequest) {
+  const guard = await requireSuperUser(req)
+  if (guard.error) return guard.error
 
   try {
-    const body = (await request.json().catch(() => ({}))) as {
+    const { searchParams } = new URL(req.url)
+    const table = searchParams.get('table') || 'SquadMatchTelemetry'
+    if (!ALLOWED_TABLES.has(table)) {
+      return Response.json({ error: `Table non autorisée : ${table}` }, { status: 400 })
+    }
+
+    const [assessment, run] = await Promise.all([assessOptimize(table), readOptimizeRunForDisplay()])
+    return Response.json({ assessment, run })
+  } catch (error: unknown) {
+    console.error('Erreur lors de la lecture de l’état de compactage:', error)
+    const message = error instanceof Error ? error.message : 'Échec de la lecture de l’état de compactage'
+    return Response.json({ error: message }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const guard = await requireSuperUser(req)
+  if (guard.error) return guard.error
+
+  try {
+    const body = (await req.json().catch(() => ({}))) as {
       table?: string
       action?: 'optimize' | 'analyze'
+      force?: boolean
     }
 
     const table = body?.table || 'SquadMatchTelemetry'
@@ -35,62 +66,39 @@ export async function POST(request: Request) {
       return Response.json({ error: `Table non autorisée : ${table}` }, { status: 400 })
     }
 
-    const t0 = Date.now()
-
     if (action === 'analyze') {
-      await prisma.$executeRawUnsafe(`ANALYZE TABLE \`${table}\``)
-    } else {
-      await prisma.$queryRawUnsafe(`OPTIMIZE TABLE \`${table}\``)
+      const t0 = Date.now()
+      const stats = await analyzeTable(table)
+      return Response.json({
+        ok: true,
+        table,
+        action,
+        durationMs: Date.now() - t0,
+        stats,
+        message: `Statistiques de la table ${table} recalculées avec succès.`,
+      })
     }
 
-    const durationMs = Date.now() - t0
-
-    const [updatedStats] = await prisma.$queryRaw<
-      Array<{
-        table_name: string
-        row_count: number
-        data_size_mb: number
-        index_size_mb: number
-        total_size_mb: number
-        data_free_mb: number
-      }>
-    >`
-      SELECT 
-        table_name AS table_name,
-        table_rows AS row_count,
-        ROUND(data_length / 1024 / 1024, 2) AS data_size_mb,
-        ROUND(index_length / 1024 / 1024, 2) AS index_size_mb,
-        ROUND((data_length + index_length) / 1024 / 1024, 2) AS total_size_mb,
-        ROUND(data_free / 1024 / 1024, 2) AS data_free_mb
-      FROM information_schema.TABLES
-      WHERE table_schema = DATABASE() AND table_name = ${table};
-    `
+    const result = await startOptimizeRun(table, { force: body?.force === true })
+    if (!result.started) {
+      // 409 et non 500 : la demande est comprise, c'est l'état du serveur qui l'interdit.
+      return Response.json(
+        { error: result.assessment.reason, assessment: result.assessment },
+        { status: 409 }
+      )
+    }
 
     return Response.json({
       ok: true,
       table,
       action,
-      durationMs,
-      stats: updatedStats
-        ? {
-            tableName: String(updatedStats.table_name),
-            rowCount: Number(updatedStats.row_count || 0),
-            dataSizeMb: Number(updatedStats.data_size_mb || 0),
-            indexSizeMb: Number(updatedStats.index_size_mb || 0),
-            totalSizeMb: Number(updatedStats.total_size_mb || 0),
-            dataFreeMb: Number(updatedStats.data_free_mb || 0),
-          }
-        : null,
-      message:
-        action === 'analyze'
-          ? `Statistiques de la table ${table} recalculées avec succès.`
-          : `Table ${table} compactée avec succès : espace disque restitué.`,
+      started: true,
+      run: result.state,
+      message: `Compactage de ${table} lancé sur le serveur. Vous pouvez quitter cette page.`,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de l’optimisation de la table:', error)
-    return Response.json(
-      { error: error?.message || 'Échec de l’optimisation de la table' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Échec de l’optimisation de la table'
+    return Response.json({ error: message }, { status: 500 })
   }
 }

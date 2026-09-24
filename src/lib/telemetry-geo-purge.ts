@@ -48,7 +48,9 @@ export const GEO_PURGE_RUN_STALE_MS = 10 * 60 * 1000
  *    un custom parce qu'aucun tournoi ne le réclame encore interdirait de créer ce tournoi ensuite.
  */
 const PROTECTED = Prisma.sql`(m.placement = 1 OR m.matchType = 'custom')`
-const HAS_GEO = Prisma.sql`(t.positionSamples IS NOT NULL OR t.trajectorySegments IS NOT NULL)`
+/** Les deux formats de stockage coexistent le temps du rattrapage : les quatre colonnes comptent. */
+const HAS_GEO = Prisma.sql`(t.positionSamples IS NOT NULL OR t.trajectorySegments IS NOT NULL
+  OR t.positionSamplesGz IS NOT NULL OR t.trajectorySegmentsGz IS NOT NULL)`
 /** Date de référence d'une ligne : la génération du fichier PUBG, à 31 min près de la date de match. */
 const ROW_DATE = Prisma.sql`COALESCE(t.sourceGeneratedAt, t.parsedAt, t.createdAt)`
 
@@ -222,7 +224,8 @@ export async function purgeBatch(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0
   return prisma.$executeRaw`
     UPDATE SquadMatchTelemetry
-    SET positionSamples = NULL, trajectorySegments = NULL
+    SET positionSamples = NULL, trajectorySegments = NULL,
+        positionSamplesGz = NULL, trajectorySegmentsGz = NULL
     WHERE id IN (${Prisma.join(ids)})
   `
 }

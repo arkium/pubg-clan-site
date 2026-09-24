@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 
+import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
 import { prisma } from '@/lib/prisma'
 import type { PositionMetric } from '@/lib/position-metric-cells'
 import type { RawPositionTelemetryRow } from '@/lib/position-metric-raw-aggregation'
@@ -174,10 +175,13 @@ export async function loadRawPositionTelemetryRows(input: {
   `)
   if (matchIds.length === 0) return []
 
-  const rows = await client.$queryRaw<Array<RawPositionTelemetryRow & { squadMatchId: string }>>(Prisma.sql`
+  const rows = await client.$queryRaw<
+    Array<RawPositionTelemetryRow & { squadMatchId: string; positionSamplesGz: unknown }>
+  >(Prisma.sql`
     SELECT
       t.squadMatchId,
       t.positionSamples,
+      t.positionSamplesGz,
       t.deathSamples,
       t.killSamples,
       t.shotSamples,
@@ -202,8 +206,10 @@ export async function loadRawPositionTelemetryRows(input: {
     keysByMatch.set(entry.squadMatchId, keys)
   }
 
-  return rows.map(({ squadMatchId, ...row }) => ({
+  return rows.map(({ squadMatchId, positionSamplesGz, ...row }) => ({
     ...row,
+    // Les deux formats coexistent le temps du rattrapage.
+    positionSamples: decodeGeoColumn(positionSamplesGz, row.positionSamples),
     squadMemberKeys: keysByMatch.get(squadMatchId) ?? new Set<string>(),
   }))
 }

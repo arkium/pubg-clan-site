@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { encodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import { prisma } from '@/lib/prisma'
 
@@ -10,8 +11,9 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
   const summaryJson = JSON.stringify(input.parsed.summary)
   const weaponStatsJson = JSON.stringify(input.parsed.weaponStats)
   const memberStatsJson = JSON.stringify(input.parsed.memberStats)
-  const positionSamplesJson = JSON.stringify(input.parsed.positionSamples)
-  const trajectorySegmentsJson = JSON.stringify(input.parsed.trajectorySegments)
+  // Geolocalisation compressee (~8x) : la colonne en clair est mise a NULL.
+  const positionSamplesGz = encodeGeoColumn(input.parsed.positionSamples)
+  const trajectorySegmentsGz = encodeGeoColumn(input.parsed.trajectorySegments)
   const deathSamplesJson = JSON.stringify(input.parsed.deathSamples)
   const landingSamplesJson = JSON.stringify(input.parsed.landingSamples)
   const phaseSnapshotsJson = JSON.stringify(input.parsed.phaseSnapshots)
@@ -26,7 +28,7 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
 
   const totalBytes =
     summaryJson.length + weaponStatsJson.length + memberStatsJson.length +
-    positionSamplesJson.length + trajectorySegmentsJson.length +
+    (positionSamplesGz?.length ?? 0) + (trajectorySegmentsGz?.length ?? 0) +
     deathSamplesJson.length + landingSamplesJson.length + phaseSnapshotsJson.length +
     killSamplesJson.length + shotSamplesJson.length + damageSamplesJson.length +
     knockoutSamplesJson.length + reviveSamplesJson.length + vehicleSamplesJson.length +
@@ -37,8 +39,8 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
     summary: summaryJson.length,
     weaponStats: weaponStatsJson.length,
     memberStats: memberStatsJson.length,
-    positionSamples: positionSamplesJson.length,
-    trajectorySegments: trajectorySegmentsJson.length,
+    positionSamplesGz: positionSamplesGz?.length ?? 0,
+    trajectorySegmentsGz: trajectorySegmentsGz?.length ?? 0,
     deathSamples: deathSamplesJson.length,
     landingSamples: landingSamplesJson.length,
     phaseSnapshots: phaseSnapshotsJson.length,
@@ -60,8 +62,10 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
         summary = ${summaryJson},
         weaponStats = ${weaponStatsJson},
         memberStats = ${memberStatsJson},
-        positionSamples = ${positionSamplesJson},
-        trajectorySegments = ${trajectorySegmentsJson},
+        positionSamples = NULL,
+        trajectorySegments = NULL,
+        positionSamplesGz = ${positionSamplesGz},
+        trajectorySegmentsGz = ${trajectorySegmentsGz},
         deathSamples = ${deathSamplesJson},
         landingSamples = ${landingSamplesJson},
         phaseSnapshots = ${phaseSnapshotsJson},

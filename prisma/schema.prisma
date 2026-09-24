@@ -857,8 +857,14 @@ model SquadMatchTelemetry {
   summary            Json?
   weaponStats        Json?
   memberStats        Json?
+  /// Géolocalisation compressée (gzip du JSON, ~8x). Colonnes ajoutées le 2026-09-24 en
+  /// `ALGORITHM=INSTANT` : aucune reconstruction, donc aucun besoin d'espace disque temporaire.
+  /// Les colonnes `positionSamples` / `trajectorySegments` en clair sont conservées le temps du
+  /// rattrapage. Toute lecture passe par `decodeGeoColumn` (src/lib/pubg-telemetry/geo-codec.ts).
   positionSamples    Json?
   trajectorySegments Json?
+  positionSamplesGz    Bytes?
+  trajectorySegmentsGz Bytes?
   deathSamples       Json?
   landingSamples     Json?
   phaseSnapshots     Json?

@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 
+import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
 import { prisma } from '@/lib/prisma'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import { toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
@@ -206,7 +207,16 @@ type StoredPositionSnapshot = Pick<
   | 'vehicleSamples'
 >
 
-export function parseStoredPositionSnapshot(row: Record<keyof StoredPositionSnapshot, unknown>) {
+/**
+ * Ligne telle qu'elle sort de la base : aux colonnes historiques s'ajoutent les colonnes
+ * compressees, absentes du type en memoire `ParsedTelemetrySnapshot` (voir geo-codec).
+ */
+type StoredPositionRow = Record<keyof StoredPositionSnapshot, unknown> & {
+  positionSamplesGz?: unknown
+  trajectorySegmentsGz?: unknown
+}
+
+export function parseStoredPositionSnapshot(row: StoredPositionRow) {
   return {
     summary: {
       totalEvents: 0,
@@ -228,8 +238,8 @@ export function parseStoredPositionSnapshot(row: Record<keyof StoredPositionSnap
     killFeedSamples: [],
     throwableSamples: [],
     itemUseSamples: [],
-    positionSamples: storedArray(row.positionSamples),
-    trajectorySegments: storedArray(row.trajectorySegments),
+    positionSamples: storedArray(decodeGeoColumn(row.positionSamplesGz, row.positionSamples)),
+    trajectorySegments: storedArray(decodeGeoColumn(row.trajectorySegmentsGz, row.trajectorySegments)),
     deathSamples: storedArray(row.deathSamples),
     killSamples: storedArray(row.killSamples),
     shotSamples: storedArray(row.shotSamples),
@@ -268,6 +278,7 @@ export async function backfillPositionMetricCells(input: {
     WHERE t.status = 'success'
       AND (
         t.positionSamples IS NOT NULL OR
+        t.positionSamplesGz IS NOT NULL OR
         t.killSamples IS NOT NULL OR
         t.damageSamples IS NOT NULL
       )
@@ -286,7 +297,9 @@ export async function backfillPositionMetricCells(input: {
       where: { squadMatchId },
       select: {
         positionSamples: true,
+        positionSamplesGz: true,
         trajectorySegments: true,
+        trajectorySegmentsGz: true,
         deathSamples: true,
         killSamples: true,
         shotSamples: true,

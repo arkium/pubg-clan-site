@@ -427,6 +427,18 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Gotcha:** les mocks Prisma de ces tests listent les modèles un par un. Quand une route se met à
   utiliser un nouveau modèle, le mock renvoie `undefined` et le test casse loin de la cause réelle.
 
+#### 10. **Géolocalisation compressée — ne jamais lire la colonne directement**
+- **Issue:** depuis le 2026-09-24, `positionSamples` et `trajectorySegments` sont écrites **compressées** (gzip,
+  ~8×) dans `positionSamplesGz` / `trajectorySegmentsGz`. Les anciennes colonnes en clair subsistent tant que le
+  rattrapage n'est pas terminé : **les deux formats coexistent**.
+- **Règle:** toute lecture sélectionne la colonne `*Gz` en plus et passe les deux à `decodeGeoColumn`
+  (`src/lib/pubg-telemetry/geo-codec.ts`). Lire `positionSamples` seule rend un contenu vide sur un match
+  compressé, **sans aucune erreur** — la carte s'affiche simplement vide.
+- **Prédicats SQL:** un blob compressé est opaque au SQL. `IS NOT NULL` et `JSON_LENGTH(...) > 0` doivent couvrir
+  les quatre colonnes, et toute purge les vider toutes (voir `src/lib/telemetry-geo-purge.ts`).
+- **Déploiement:** les lectures doivent être vivantes sur les **quatre** services
+  (`web`, `telemetry-worker`, `cron`, `telemetry-aggregates`) avant toute écriture compressée.
+
 ## Gotchas connus
 
 ### Node.js 22 — `Readable.toWeb()` bug

@@ -1,3 +1,6 @@
+import { Prisma } from '@prisma/client'
+
+import { encodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 
 type BuildTelemetrySuccessBasePayloadInput = {
@@ -93,8 +96,12 @@ export function buildTelemetrySuccessPayloadWithJson(
     summary: sanitizeJsonForPrisma(parsed.summary),
     weaponStats: sanitizeJsonForPrisma(parsed.weaponStats),
     memberStats: sanitizeJsonForPrisma(parsed.memberStats),
-    positionSamples: sanitizeJsonForPrisma(parsed.positionSamples),
-    trajectorySegments: sanitizeJsonForPrisma(parsed.trajectorySegments),
+    // Geolocalisation : ecrite compressee (~8x), la colonne en clair reste vide. Toute lecture
+    // passe par `decodeGeoColumn`, qui accepte encore l'ancien format le temps du rattrapage.
+    positionSamples: Prisma.DbNull,
+    trajectorySegments: Prisma.DbNull,
+    positionSamplesGz: encodeGeoColumn(parsed.positionSamples),
+    trajectorySegmentsGz: encodeGeoColumn(parsed.trajectorySegments),
     deathSamples: sanitizeJsonForPrisma(parsed.deathSamples),
     landingSamples: sanitizeJsonForPrisma(parsed.landingSamples),
     phaseSnapshots: sanitizeJsonForPrisma(parsed.phaseSnapshots),

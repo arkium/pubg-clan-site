@@ -6,6 +6,8 @@ import {
 } from '@/lib/pubg-telemetry/persistence-payload'
 import { parseTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import telemetrySample from '@/lib/pubg-telemetry/__fixtures__/telemetry-sample.json'
+import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { Prisma } from '@prisma/client'
 
 describe('telemetry persistence payload', () => {
   it('truncates long errors to database-safe length', () => {
@@ -43,5 +45,33 @@ describe('telemetry persistence payload', () => {
     expect(fullPayload.summary.totalEvents).toBe(10)
     expect(fullPayload.weaponStats.length).toBeGreaterThan(0)
     expect(fullPayload.memberStats.length).toBeGreaterThan(0)
+  })
+
+  it('ecrit la geolocalisation compressee et laisse les colonnes en clair vides', () => {
+    // La colonne en clair doit partir a NULL cote base (`Prisma.DbNull`) : la laisser remplie
+    // annulerait tout le gain, et la remplir de `null` JSON ne viderait pas la place.
+    const parsed = parseTelemetrySnapshot(telemetrySample)
+    const payload = buildTelemetrySuccessPayloadWithJson(
+      buildTelemetrySuccessBasePayload({
+        parserVersion: 'v1',
+        parsedAt: new Date('2026-09-24T20:00:00.000Z'),
+        telemetryGeneratedAt: null,
+        contentLength: null,
+        bytesDownloaded: 0,
+      }),
+      parsed
+    )
+
+    expect(payload.positionSamples).toBe(Prisma.DbNull)
+    expect(payload.trajectorySegments).toBe(Prisma.DbNull)
+
+    if (parsed.positionSamples.length > 0) {
+      expect(Buffer.isBuffer(payload.positionSamplesGz)).toBe(true)
+      // Aller-retour : ce qui est ecrit doit etre relisible a l'identique.
+      expect(decodeGeoColumn(payload.positionSamplesGz, null)).toEqual(parsed.positionSamples)
+    } else {
+      // Un match sans position n'ecrit aucun blob : `IS NOT NULL` garde son sens.
+      expect(payload.positionSamplesGz).toBeNull()
+    }
   })
 })

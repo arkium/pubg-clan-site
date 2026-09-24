@@ -567,7 +567,38 @@ vérifié : aucun code de production n'en fait sur ces deux colonnes, seuls des 
   à vide ensuite, comme l'exige le dépôt.
 - `docs/sommaire.md` si un document dédié est créé.
 
-- [ ] **Compression applicative incrémentale** — piste recommandée, plan ci-dessus, en attente de validation.
+*État au 2026-09-24 — ✅ implémenté, non déployé*
+
+- [x] **Migration** `prisma/migrations/20260924120000_add_geo_compressed_columns` : `positionSamplesGz` et
+  `trajectorySegmentsGz` en `LONGBLOB`, **appliquée** avec `ALGORITHM=INSTANT` explicite (sans cette clause MariaDB
+  *pourrait* choisir une reconstruction, qui exigerait ~22 Go). `migrate diff` répond à nouveau
+  « empty migration » : aucune dérive.
+- [x] **Codec** `src/lib/pubg-telemetry/geo-codec.ts` : `encodeGeoColumn` (tableau vide → `NULL`, pour que
+  `IS NOT NULL` garde le sens de `JSON_LENGTH > 0`), `decodeGeoColumn` (compressé d'abord, repli sur le clair),
+  `hasGeoColumn`. Un blob illisible lève `GeoColumnDecodeError` plutôt que de rendre un tableau vide.
+- [x] **Écritures** (2 sites) : `persistence-payload.ts` et `persistence-fallback.ts` écrivent compressé et
+  mettent les colonnes en clair à `NULL`.
+- [x] **Lectures** (5 sites) : `match-replay-loader.ts`, `match-debrief-payload.ts` (débriefing **et** page de
+  débogage), `position-metric-cells.ts`, `position-metric-aggregation.ts`, `zone-closure-positions.ts`.
+- [x] **Prédicats** (4) : `position-metric-cells.ts`, `zone-closure-positions.ts` et les deux de
+  `telemetry-geo-purge.ts` couvrent les quatre colonnes ; la purge les vide toutes.
+- [x] **Rattrapage** `scripts/backfill-geo-compression.ts` : par lots, interruptible, reprenable, avec
+  `--dry-run`. **Mesuré en simulation sur 20 matchs réels : 30,3 Mo → 3,5 Mo (8,7×) en 3 s** — soit ~20 min
+  pour les 8 796 matchs porteurs de tracés.
+- [x] **Tests** : `geo-codec.test.ts` (12 cas, dont le **lot mixte** ancien/nouveau format qui protège toute la
+  période de transition, et les deux échecs visibles). Suite complète : **629 tests verts**, `tsc` propre, lint
+  sans régression.
+- [x] **Documentation** : `CLAUDE.md` piège n° 10 (ne jamais lire la colonne sans `decodeGeoColumn`),
+  `docs/ops/database-performance.md` §4bis, `docs/ops/cron.md` (durée du comptage).
+- [ ] **Déployer dans l'ordre** : les lectures doivent être vivantes sur les **quatre** services avant que les
+  écritures compressées ne partent. Comme tout est dans le même build, un déploiement unique suffit — mais les
+  redémarrages étant séparés, vérifier que les quatre unités ont bien redémarré avant de lancer le rattrapage.
+- [ ] **Lancer le rattrapage** (`npx tsx scripts/backfill-geo-compression.ts`) après déploiement, puis constater
+  la chute du temps de comptage de la purge.
+- [ ] **Supprimer les colonnes en clair** une fois le rattrapage terminé : `DROP COLUMN … ALGORITHM=INSTANT`
+  est accepté sur cette instance (vérifié, `scripts/check-instant-drop-column.ts`), donc là encore sans
+  reconstruction. À ne faire qu'après une période d'observation : tant que les colonnes existent, un retour
+  arrière reste possible.
 - [ ] **Compression de page InnoDB** (`PAGE_COMPRESSED=1`) — transparente, zéro changement de code, mais elle
   **reconstruit la table** : même impératif d'espace disque que l'OPTIMIZE, donc hors de portée aujourd'hui. À
   reconsidérer si le disque repasse largement au-dessus de la taille de la table.

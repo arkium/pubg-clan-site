@@ -18,6 +18,7 @@
  */
 import { Prisma, type PrismaClient } from '@prisma/client'
 
+import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
 import { prisma } from '@/lib/prisma'
 import { toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
@@ -273,7 +274,7 @@ export async function backfillZoneClosurePositions(input: {
     FROM SquadMatch sm
     INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
     WHERE t.status = 'success'
-      AND JSON_LENGTH(t.positionSamples) > 0
+      AND (JSON_LENGTH(t.positionSamples) > 0 OR t.positionSamplesGz IS NOT NULL)
       AND JSON_LENGTH(t.phaseSnapshots) > 0
       ${clanFilter}
       AND NOT EXISTS (SELECT 1 FROM ZoneClosurePosition z WHERE z.squadMatchId = sm.id)
@@ -287,10 +288,11 @@ export async function backfillZoneClosurePositions(input: {
     const snapshots = await client.$queryRaw<Array<{
       squadMatchId: string
       positionSamples: unknown
+      positionSamplesGz: unknown
       deathSamples: unknown
       phaseSnapshots: unknown
     }>>(Prisma.sql`
-      SELECT t.squadMatchId, t.positionSamples, t.deathSamples, t.phaseSnapshots
+      SELECT t.squadMatchId, t.positionSamples, t.positionSamplesGz, t.deathSamples, t.phaseSnapshots
       FROM SquadMatchTelemetry t
       WHERE t.squadMatchId IN (${Prisma.join(batch.map((match) => match.id))})
     `)
@@ -299,7 +301,7 @@ export async function backfillZoneClosurePositions(input: {
       rowsWritten += await persistZoneClosurePositionsForMatch(
         row.squadMatchId,
         {
-          positionSamples: asArray(row.positionSamples),
+          positionSamples: asArray(decodeGeoColumn(row.positionSamplesGz, row.positionSamples)),
           deathSamples: asArray(row.deathSamples),
           phaseSnapshots: asArray(row.phaseSnapshots),
         } as Pick<ParsedTelemetrySnapshot, 'positionSamples' | 'deathSamples' | 'phaseSnapshots'>,

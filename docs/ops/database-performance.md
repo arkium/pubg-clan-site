@@ -258,6 +258,45 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
 
 ---
 
+## 4bis. Compression de la géolocalisation (2026-09-24)
+
+`SquadMatchTelemetry` pesait **20,57 Go**, dont ~94 % dans `positionSamples` et `trajectorySegments`. Ces colonnes
+étaient des `longtext` — du JSON brut, **sans aucune compression** : le type `JSON` de MariaDB 10.11 n'est qu'un
+alias de LONGTEXT, pas un format binaire compact (`scripts/check-telemetry-storage-format.ts`).
+
+Mesuré sur un match réel de 2 214 Ko (`scripts/check-compression-feasibility.ts`) :
+
+| Codec | Taille | Ratio | Écriture | Lecture |
+|---|---|---|---|---|
+| gzip niveau 6 | 268 Ko | **8,2×** | 24 ms | **4 ms** |
+| brotli qualité 5 | 240 Ko | 9,2× | 34 ms | 5 ms |
+
+gzip a été retenu. Sur un serveur dont le buffer pool tient en 128 Mo, lire 268 Ko au lieu de 2,2 Mo **accélère**
+le replay : les 4 ms de CPU sont largement regagnées sur les entrées-sorties. Mesure du rattrapage sur 20 matchs
+réels : 30,3 Mo → 3,5 Mo, soit **8,7×**, en 3 s.
+
+**Pourquoi pas la compression de page InnoDB**, pourtant transparente et sans code : `PAGE_COMPRESSED=1` reconstruit
+la table, donc exige autant d'espace disque libre qu'elle occupe — le mur décrit en §4.4. La compression applicative
+l'évite entièrement : `ADD COLUMN` **et** `DROP COLUMN` sont acceptés en `ALGORITHM=INSTANT` sur cette instance
+(vérifié sur table jetable), donc aucune étape du cycle ne reconstruit quoi que ce soit.
+
+**Pourquoi pas « stocker moins »** : 98,6 % des échantillons de position concernent le reste du lobby, mais le
+replay les affiche — `match-replay.ts` classe chaque joueur (`0 = lobby externe, 1 = autre clan suivi,
+2 = clan consulté`). Les tronquer viderait la fonctionnalité de sa substance.
+
+**Mise en œuvre** — colonnes `positionSamplesGz` / `trajectorySegmentsGz` (`LONGBLOB`), codec partagé
+`src/lib/pubg-telemetry/geo-codec.ts`. Les deux formats coexistent : toute lecture passe par `decodeGeoColumn`,
+qui préfère la colonne compressée et retombe sur celle en clair. Le rattrapage de l'existant se fait par lots
+interruptibles (`scripts/backfill-geo-compression.ts`).
+
+> Le fichier `.ibd` **ne rétrécit pas** pour autant : l'espace libéré reste à l'intérieur et sera réutilisé par les
+> écritures suivantes. C'est l'objectif — la base cesse de grossir sans jamais exiger d'`OPTIMIZE TABLE`.
+
+**Effet de bord favorable** : le comptage de la purge de géolocalisation coûte 247 s *parce qu'il lit les blobs*.
+Sur des colonnes compressées, le même parcours lira ~2,5 Go au lieu de 22 — il devrait tomber sous la minute.
+
+---
+
 ## 5. Suivi
 
 | Échéance | Action |

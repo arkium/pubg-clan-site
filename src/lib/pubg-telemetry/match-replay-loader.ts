@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
 import { prisma } from '@/lib/prisma'
 import { mapAssetUrl, resolveGameMode, resolveMapAssetKey, resolveMapName } from '@/lib/pubg-assets'
 import { computeFlightPath, computeFlightPathFromJumps } from '@/lib/pubg-telemetry/flight-path'
@@ -26,6 +27,7 @@ type ReplayRow = {
   placement: number
   createdAt: Date
   positionSamples: unknown
+  positionSamplesGz: unknown
   deathSamples: unknown
   landingSamples: unknown
   knockoutSamples: unknown
@@ -56,6 +58,7 @@ export async function loadMatchReplay(input: {
       sm.placement,
       sm.createdAt,
       t.positionSamples,
+      t.positionSamplesGz,
       t.deathSamples,
       t.landingSamples,
       t.knockoutSamples,
@@ -84,8 +87,11 @@ export async function loadMatchReplay(input: {
   const row = rows[0]
   if (!row) return { status: 'not_found' }
 
+  // Les deux formats de stockage coexistent le temps du rattrapage : toujours decoder.
+  const positionSamples = decodeGeoColumn(row.positionSamplesGz, row.positionSamples)
+
   const memberKeys = collectLobbyAccountIds(
-    row.positionSamples,
+    positionSamples,
     row.landingSamples,
     row.deathSamples,
     row.knockoutSamples,
@@ -185,7 +191,7 @@ export async function loadMatchReplay(input: {
     currentClanId: input.currentClanId,
     currentClanTag: clan?.tag ?? null,
     identities,
-    positionSamples: row.positionSamples,
+    positionSamples,
     deathSamples: row.deathSamples,
     landingSamples: row.landingSamples,
     knockoutSamples: row.knockoutSamples,

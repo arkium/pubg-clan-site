@@ -51,9 +51,10 @@ export default function OpponentsLayout({ children }: { children: React.ReactNod
   }
 
   const tabs = [
-    { name: 'Explorer', href: '/settings/opponents', description: 'Clans découverts' },
-    { name: 'Résolution & Jobs', href: '/settings/opponents/resolution', description: 'File d’attente & Cron' },
-    { name: 'Triage', href: '/settings/opponents/triage', description: 'Recherche & Unitaire' },
+    { name: 'Clans', href: '/settings/opponents', description: 'Suivis & adverses' },
+    { name: 'Joueurs', href: '/settings/opponents/players', description: 'Annuaire transverse' },
+    { name: 'Résolution & Cron', href: '/settings/opponents/resolution', description: 'Débit API & backlog' },
+    { name: 'Triage API', href: '/settings/opponents/triage', description: 'Comptes en échec' },
   ]
 
   return (
@@ -69,7 +70,7 @@ export default function OpponentsLayout({ children }: { children: React.ReactNod
           subtitle="Vue transverse des clans suivis et des clans adverses croises en match."
         />
         <div className="mt-4 border-b border-slate-200 dark:border-slate-800">
-          <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
             {tabs.map((tab) => {
               const isActive = pathname === tab.href
               return (

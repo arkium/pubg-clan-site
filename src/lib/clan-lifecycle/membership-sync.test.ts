@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   memberUpdate: vi.fn(),
   clanFindMany: vi.fn(),
   changeFindMany: vi.fn(),
+  changeFindFirst: vi.fn(),
   changeUpdateMany: vi.fn(),
   changeCreate: vi.fn(),
   fetchStates: vi.fn(),
@@ -46,6 +47,8 @@ vi.mock('@/lib/prisma', () => {
       clan: { findMany: mocks.clanFindMany, findFirst: mocks.clanFindFirst, create: mocks.clanCreate },
       playerClanChange: {
         findMany: mocks.changeFindMany,
+        // Dédoublonnage de la trace « clan archivé » (docs/TODO/clan-archive.md).
+        findFirst: mocks.changeFindFirst,
         updateMany: mocks.changeUpdateMany,
         create: mocks.changeCreate,
       },
@@ -131,6 +134,7 @@ beforeEach(() => {
   mocks.changeUpdateMany.mockResolvedValue({ count: 0 })
   mocks.changeCreate.mockResolvedValue({ id: 'chg' })
   mocks.changeFindMany.mockResolvedValue([])
+  mocks.changeFindFirst.mockResolvedValue(null)
   mocks.clanFindMany.mockResolvedValue([SMK, KMS, UNG])
   mocks.getMode.mockResolvedValue('apply')
   mocks.getConfirmations.mockResolvedValue(3)
@@ -363,5 +367,91 @@ describe('Journal du passage', () => {
     expect(mocks.runUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'failed' }) })
     )
+  })
+})
+
+describe('Clan archivé — ni cible, ni nouvelle demande (docs/TODO/clan-archive.md)', () => {
+  const ARCHIVED = {
+    id: 300,
+    tag: 'OLD',
+    pubgClanId: 'clan.old',
+    platformShard: 'steam',
+    archivedAt: new Date('2026-09-25T10:00:00.000Z'),
+  }
+
+  // La requête des clans archivés filtre sur `archivedAt` ; les autres reçoivent les clans actifs.
+  function withArchivedClan() {
+    mocks.clanFindMany.mockImplementation(async (args: { where?: { archivedAt?: unknown } }) =>
+      args?.where?.archivedAt ? [ARCHIVED] : [SMK, KMS, UNG]
+    )
+  }
+
+  const parkedMember = () =>
+    member({ clanId: UNG.id, clan: { tag: UNG.tag, pubgClanId: null, isSystem: true } })
+
+  it('un joueur du parking resté dans un clan archivé : pas d’écart, une seule trace `ignored`', async () => {
+    withArchivedClan()
+    mocks.memberFindMany.mockResolvedValue([parkedMember()])
+    mocks.fetchStates.mockResolvedValue(new Map([['account.vvila', { kind: 'has_clan', clanId: 'clan.old' }]]))
+
+    const summary = await runMembershipSyncPass()
+
+    expect(summary.discrepanciesFound).toBe(0)
+    expect(summary.archivedClanDestinations).toBe(1)
+    // La série d'observations ouverte est close…
+    expect(mocks.changeUpdateMany).toHaveBeenCalledWith({
+      where: { clanMemberId: 11, status: 'observed' },
+      data: { status: 'ignored' },
+    })
+    // … et une trace unique, datée depuis l'archivage, est écrite.
+    expect(mocks.changeFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ newClanId: 300, status: 'ignored', detectedAt: { gte: ARCHIVED.archivedAt } }),
+      })
+    )
+    expect(mocks.changeCreate).toHaveBeenCalledTimes(1)
+    expect(mocks.changeCreate.mock.calls[0][0].data).toMatchObject({
+      clanMemberId: 11,
+      newClanId: 300,
+      newPubgClanId: 'clan.old',
+      source: 'player_sync',
+      status: 'ignored',
+      runId: 'run_1',
+    })
+    expect(mocks.memberUpdate).not.toHaveBeenCalled()
+    expect(mocks.clanFindFirst).not.toHaveBeenCalled()
+    expect(mocks.fetchClanById).not.toHaveBeenCalled()
+  })
+
+  it('n’écrit pas la trace une seconde fois pour le même archivage', async () => {
+    withArchivedClan()
+    mocks.memberFindMany.mockResolvedValue([parkedMember()])
+    mocks.fetchStates.mockResolvedValue(new Map([['account.vvila', { kind: 'has_clan', clanId: 'clan.old' }]]))
+    mocks.changeFindFirst.mockResolvedValue({ id: 'chg-old' })
+
+    const summary = await runMembershipSyncPass()
+
+    expect(summary.archivedClanDestinations).toBe(1)
+    expect(mocks.changeCreate).not.toHaveBeenCalled()
+  })
+
+  it('un membre parti d’un clan suivi vers un clan archivé part au parking, sans nouvelle demande', async () => {
+    withArchivedClan()
+    const filler = fillerMembers(19)
+    mocks.memberFindMany.mockResolvedValue([member(), ...filler])
+    mocks.fetchStates.mockResolvedValue(
+      new Map([['account.vvila', { kind: 'has_clan', clanId: 'clan.old' }], ...fillerStates(filler)])
+    )
+    mocks.changeFindMany.mockResolvedValue(priorObservations(3, 'clan.old'))
+
+    const summary = await runMembershipSyncPass()
+
+    expect(mocks.memberUpdate).toHaveBeenCalledWith({ where: { id: 11 }, data: { clanId: UNG.id } })
+    const applied = mocks.changeCreate.mock.calls.map((c) => c[0].data).find((d) => d.status === 'applied')
+    expect(applied?.source).toBe('auto_demotion')
+    // Ni recherche du clan en base, ni appel PUBG, ni demande de validation.
+    expect(summary.pendingClanRequests).toBe(0)
+    expect(mocks.clanFindFirst).not.toHaveBeenCalled()
+    expect(mocks.fetchClanById).not.toHaveBeenCalled()
   })
 })

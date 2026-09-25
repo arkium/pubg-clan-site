@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   sendEmail: vi.fn(),
   clanFindUnique: vi.fn(),
+  clanUpdate: vi.fn(),
   memberUpdate: vi.fn(),
   changeUpdateMany: vi.fn(),
   requireSuperUser: vi.fn(),
@@ -24,7 +25,8 @@ vi.mock('@/lib/email-service', () => ({ sendEmail: mocks.sendEmail }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    clan: { findUnique: mocks.clanFindUnique },
+    // `update` : le refus archive le clan (docs/TODO/clan-archive.md §3).
+    clan: { findUnique: mocks.clanFindUnique, update: mocks.clanUpdate },
     clanMember: { update: mocks.memberUpdate },
     playerClanChange: { updateMany: mocks.changeUpdateMany },
   },
@@ -68,6 +70,7 @@ beforeEach(() => {
   mocks.requireSuperUser.mockResolvedValue(null)
   mocks.sendEmail.mockResolvedValue({ delivered: true, mode: 'smtp' })
   mocks.memberUpdate.mockResolvedValue({})
+  mocks.clanUpdate.mockResolvedValue({})
   mocks.changeUpdateMany.mockResolvedValue({ count: 0 })
 })
 
@@ -137,6 +140,28 @@ describe('Refus d’une demande de clan', () => {
     })
     expect(data.closedPromotions).toBe(3)
     expect(data.message).toContain('3 mouvement(s) en attente annulé(s)')
+  })
+
+  it('archive le clan refusé : il quitte la liste « Clans en attente »', async () => {
+    mocks.clanFindUnique.mockResolvedValue(pendingClan())
+
+    const res = await rejectClan(rejectRequest(), { params })
+
+    expect(res.status).toBe(200)
+    expect(mocks.clanUpdate).toHaveBeenCalledWith({
+      where: { id: 999 },
+      data: { archivedAt: expect.any(Date), archivedReason: 'rejected' },
+    })
+  })
+
+  it('refuse (409) un clan déjà archivé, sans rien réécrire', async () => {
+    mocks.clanFindUnique.mockResolvedValue(pendingClan({ archivedAt: new Date('2026-09-20'), archivedReason: 'rejected' }))
+
+    const res = await rejectClan(rejectRequest(), { params })
+
+    expect(res.status).toBe(409)
+    expect(mocks.memberUpdate).not.toHaveBeenCalled()
+    expect(mocks.clanUpdate).not.toHaveBeenCalled()
   })
 
   it('refuse de rejeter un clan déjà actif', async () => {

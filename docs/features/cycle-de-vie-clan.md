@@ -107,6 +107,8 @@ Une observation `unknown` **casse la série** au lieu de la prolonger — sans q
 | Départ vers un clan **inconnu** | Bascule vers le parking + création du clan en attente | `auto_demotion` |
 | Départ sans clan | Bascule vers le parking | `auto_demotion` |
 | Sortie du parking vers un clan suivi | Promotion | `ungrouped_promotion` |
+| Départ vers un clan **archivé** | Bascule vers le parking, **sans** demande de validation (§12) | `auto_demotion` |
+| Joueur du parking resté dans un clan **archivé** | Aucun mouvement ; une seule trace `ignored` par archivage (§12) | `player_sync` |
 | Écart constaté sans mouvement | — | `player_sync` |
 
 > **Les mouvements automatiques ne sont validés par personne.** C'est un choix assumé : la justesse des agrégats prime sur la validation humaine. La contrepartie est qu'ils ne sont jamais silencieux — notification Discord, page publique `/clans/mutations`, et action « annuler » dans le journal SuperUser.
@@ -244,8 +246,11 @@ Séquence recommandée : `observe` → laisser passer N cycles → **relire les 
 | `src/lib/player-clan-change.ts` | Écriture du journal, constantes de `source` et `status` |
 | `src/lib/player-clan-identity.ts` | Réalignement du miroir adversaire après un mouvement (§11) |
 | `scripts/resync-player-clan-identity.ts` | Réparation des décalages déjà en base (§11) |
+| `src/lib/clan-archive-state.ts` | États actif / en attente / archivé d'un clan, clauses et constantes (§12) |
+| `src/lib/clan-archive.ts` | Arrêt de suivi et réactivation d'un clan (§12) |
 
-**Tests** : `src/lib/clan-lifecycle/*.test.ts` (safety, membership-sync, promotion, revert, discord-notifier), `src/lib/system-clan-protection.test.ts`, `src/lib/member-clan-move-permissions.test.ts`, `src/lib/clan-contact-email.test.ts`, `src/lib/player-clan-identity.test.ts`, `src/lib/encountered-player-resolution.test.ts`.
+**Tests** : `src/lib/clan-lifecycle/*.test.ts` (safety, membership-sync, promotion, revert, discord-notifier), `src/lib/system-clan-protection.test.ts`, `src/lib/member-clan-move-permissions.test.ts`, `src/lib/clan-contact-email.test.ts`, `src/lib/player-clan-identity.test.ts`, `src/lib/encountered-player-resolution.test.ts`,
+`src/lib/clan-archive.test.ts`, `src/lib/clan-archive-route-contracts.test.ts`.
 
 ---
 
@@ -404,3 +409,42 @@ court-circuite pas l'appel API.
 
 `src/lib/clan-lifecycle/{membership-sync,promotion,revert}.test.ts` — chaque
 mouvement appliqué déclenche le réalignement.
+
+---
+
+## 12. Arrêt de suivi d'un clan — clans archivés
+
+Spécification complète et historique : [docs/TODO/clan-archive.md](../TODO/clan-archive.md).
+
+Un clan en attente de validation et un clan qu'on ne suit plus ont tous deux `isActive = false`. Depuis le
+2026-09-25, `Clan.archivedAt` les distingue :
+
+| État | Condition | Où le voir |
+|---|---|---|
+| Actif | `isActive = true` | `/clans`, classements, Observatoire |
+| En attente | `isActive = false`, `archivedAt` vide | Cycle de vie → « Clans en attente » |
+| Archivé | `isActive = false`, `archivedAt` renseigné, `archivedReason` = `unfollowed` ou `rejected` | Cycle de vie → « Clans archivés » |
+
+**Arrêter le suivi** (`PATCH /api/settings/clans/[id]`, SuperUser) : depuis « Vos clans suivis » dans
+l'Observatoire, ou depuis la zone de danger des paramètres du clan. Un clan vide s'archive sur simple
+confirmation ; sinon il faut choisir le sort des membres actifs :
+- `ungrouped` → parking du shard de chaque membre, une ligne `manual_demotion` par membre ;
+- `deactivate` → fiches désactivées, `archivedReason: 'clan_unfollowed'` (à distinguer de `ungrouped_inactive`, §6).
+
+Rien n'est supprimé, et le miroir adversaire n'est pas touché : le clan PUBG des joueurs n'a pas changé.
+
+**Refuser** une demande de clan l'archive (`rejected`) : il quitte la liste d'attente. Une nouvelle demande `/join`
+visant ce clan le remet en attente. En revanche, une demande visant un clan dont le suivi a été arrêté est refusée
+(409 `CLAN_NOT_FOLLOWED`).
+
+**Réactiver** (onglet « Clans archivés », « Suivre ce clan », zone de danger) remet le clan en service sans
+réintégrer ses anciens membres : le passage quotidien promouvra ceux du parking s'ils sont toujours dans le clan
+PUBG (§4, cas A).
+
+**Dans le passage quotidien** (§3) : un clan archivé n'est jamais une cible ni une nouvelle demande. Un joueur du
+parking resté dans un clan archivé n'est plus en écart : sa série d'observations est close, et une seule ligne
+`ignored` est écrite par archivage. Avant ce changement, un joueur du parking dont le clan PUBG était un clan
+connu mais inactif accumulait une observation par nuit, sans fin.
+
+**Valider** (`approve`) un clan archivé est refusé (409) : cela réactiverait son ancien Owner et des promotions
+closes. La réactivation a sa propre action.

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { formatClanLabel, getClanFollowState } from '@/lib/clan-archive-state'
 import { upsertTrackedClanFromPubg } from '@/lib/clan-service'
 import { fetchPubgClanById } from '@/lib/pubg'
 
@@ -56,11 +57,32 @@ export async function POST(request: Request) {
 
     // 2. Upsert in database
     const trackedClan = await upsertTrackedClanFromPubg(pubgClan, platformShard)
+    const state = getClanFollowState(trackedClan)
+
+    // Un clan archivé existe déjà : l'upsert ne le remet pas en service. Répondre « succès »
+    // serait faux — l'interface propose la réactivation (docs/TODO/clan-archive.md §4.B).
+    if (state === 'archived') {
+      return Response.json(
+        {
+          error: `Le clan ${formatClanLabel(trackedClan)} n'est plus suivi. Réactivez-le pour le suivre de nouveau.`,
+          code: 'clan_archived',
+          clan: {
+            id: trackedClan.id,
+            name: trackedClan.name,
+            tag: trackedClan.tag,
+            archivedReason: trackedClan.archivedReason,
+          },
+        },
+        { status: 409 }
+      )
+    }
 
     // Note: Default roles and telemetry stats will be handled automatically by crons.
-    
+
     return Response.json({
       success: true,
+      // `pending` : le clan existait déjà en attente de validation, il n'est pas encore suivi.
+      state,
       clan: {
         id: trackedClan.id,
         name: trackedClan.name,

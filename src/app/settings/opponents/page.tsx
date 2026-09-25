@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Fragment, Suspense, useEffect, useState } from 'react'
 import {
+  Archive,
   ArrowDown,
   ArrowUp,
   ChevronDown,
@@ -20,6 +22,7 @@ import {
   Handshake,
 } from 'lucide-react'
 
+import ClanArchiveDialog from '@/components/clan/ClanArchiveDialog'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 
@@ -119,7 +122,18 @@ function SortHeader<T extends string>({
 }
 
 export default function OpponentsExplorerPage() {
+  // `?opponentsQ=` : lien « Confrontations » des clans en attente de `/settings/clan-lifecycle`.
+  // useSearchParams impose une frontière Suspense (CLAUDE.md, piège n° 5).
+  return (
+    <Suspense fallback={<p className="p-4 text-sm text-slate-600">Chargement...</p>}>
+      <OpponentsExplorer />
+    </Suspense>
+  )
+}
+
+function OpponentsExplorer() {
   const { loading, authenticated, isSuperUser } = useAuthSession()
+  const searchParams = useSearchParams()
 
   const [payload, setPayload] = useState<any>(null)
   const [loadingData, setLoadingData] = useState(false)
@@ -140,8 +154,8 @@ export default function OpponentsExplorerPage() {
   const [opponentsPage, setOpponentsPage] = useState(1)
   const [opponentsSortBy, setOpponentsSortBy] = useState<OpponentSortKey>('totalEncounters')
   const [opponentsSortDir, setOpponentsSortDir] = useState<SortDirection>('desc')
-  const [opponentsQueryInput, setOpponentsQueryInput] = useState('')
-  const [opponentsQuery, setOpponentsQuery] = useState('')
+  const [opponentsQueryInput, setOpponentsQueryInput] = useState(() => searchParams.get('opponentsQ') ?? '')
+  const [opponentsQuery, setOpponentsQuery] = useState(() => (searchParams.get('opponentsQ') ?? '').trim())
   const [opponentsFilter, setOpponentsFilter] = useState<'all' | 'favorites' | 'teammates'>('all')
 
   // Recalculation state
@@ -160,6 +174,8 @@ export default function OpponentsExplorerPage() {
   const [opponentDetails, setOpponentDetails] = useState<Record<string, DetailState<OpponentClanDetail>>>({})
 
   const [trackPending, setTrackPending] = useState<Set<string>>(new Set())
+  // Arrêt de suivi d'un clan (docs/TODO/clan-archive.md) : clan dont la boîte est ouverte.
+  const [archiveTarget, setArchiveTarget] = useState<{ id: number; name: string; tag: string } | null>(null)
   const [notifications, setNotifications] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([])
 
   function addNotification(message: string, type: 'success' | 'error' = 'success') {
@@ -643,12 +659,17 @@ Déplacer ce joueur vers ce clan ?`)) {
                       </span>
                     </span>
                   </th>
+                  <th className="w-[130px] px-2.5 py-2.5">
+                    <span className="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Suivi
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {(trackedClans?.rows.length ?? 0) === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={5} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
                       Aucun clan suivi ne correspond à ce filtre.
                     </td>
                   </tr>
@@ -694,10 +715,30 @@ Déplacer ce joueur vers ce clan ?`)) {
                             <span className="text-slate-400 dark:text-slate-600">—</span>
                           )}
                         </td>
+                        <td className="px-3 py-2.5">
+                          {row.isSystem ? (
+                            <span
+                              className="text-slate-400 dark:text-slate-600"
+                              title="Clan technique du site : son suivi ne peut pas être arrêté."
+                            >
+                              —
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setArchiveTarget({ id: row.id, name: row.name, tag: row.tag })}
+                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/40"
+                              title="Arrêter le suivi de ce clan : synchronisation coupée, historique conservé"
+                            >
+                              <Archive className="h-3 w-3" aria-hidden />
+                              Ne plus suivre
+                            </button>
+                          )}
+                        </td>
                       </tr>
                       {expandedClanId === row.id ? (
                         <tr>
-                          <td colSpan={4} className="bg-slate-50/80 dark:bg-slate-900/60 px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
+                          <td colSpan={5} className="bg-slate-50/80 dark:bg-slate-900/60 px-4 py-3 border-t border-b border-slate-200 dark:border-slate-800">
                             <ClanDetailPanel
                               detail={clanDetails[row.id]}
                               clanId={row.id}
@@ -976,8 +1017,8 @@ Déplacer ce joueur vers ce clan ?`)) {
                               onTrack={handleTrackMember}
                               trackPending={trackPending}
                               onToggleFavorite={handleFavoritePlayer}
-                              onClanTracked={() => {
-                                addNotification('Clan suivi créé avec succès !', 'success')
+                              onClanTracked={(message?: string) => {
+                                addNotification(message ?? 'Clan suivi créé avec succès !', 'success')
                                 setRefreshKey((k) => k + 1)
                               }}
                             />
@@ -1022,6 +1063,20 @@ Déplacer ce joueur vers ce clan ?`)) {
           </div>
         </div>
       </section>
+
+      {archiveTarget ? (
+        <ClanArchiveDialog
+          clan={archiveTarget}
+          onClose={() => setArchiveTarget(null)}
+          onArchived={(message) => {
+            setArchiveTarget(null)
+            addNotification(message, 'success')
+            setExpandedClanId(null)
+            setClanDetails({})
+            setRefreshKey((k) => k + 1)
+          }}
+        />
+      ) : null}
 
       {/* Floating Notifications */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
@@ -1133,7 +1188,31 @@ function OpponentDetailPanel({
       })
 
       const body = await response.json().catch(() => null)
+
+      // Clan archivé : l'API ne le remet pas en service d'elle-même (docs/TODO/clan-archive.md).
+      if (response.status === 409 && body?.code === 'clan_archived' && body?.clan?.id) {
+        if (!window.confirm(`${body.error}
+
+Le réactiver maintenant ?`)) return
+        const reactivation = await fetch(`/api/settings/clans/${body.clan.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'reactivate' }),
+        })
+        const reactivationBody = await reactivation.json().catch(() => null)
+        if (!reactivation.ok) throw new Error(reactivationBody?.error || 'Réactivation impossible')
+        setTrackClanSuccess(true)
+        if (onClanTracked) onClanTracked(reactivationBody?.message)
+        return
+      }
+
       if (!response.ok) throw new Error(body?.error || 'Erreur lors de la création du clan')
+
+      // Le clan existait déjà en attente de validation : rien n'est suivi tant qu'il n'est pas validé.
+      if (body?.state === 'pending') {
+        setTrackClanError('Ce clan attend déjà sa validation : validez-le depuis le cycle de vie des clans.')
+        return
+      }
 
       setTrackClanSuccess(true)
       if (onClanTracked) onClanTracked()

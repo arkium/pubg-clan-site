@@ -29,6 +29,12 @@ model Clan {
   // qu'on continue de suivre. Un clan systeme n'est jamais renomme ni absorbe par
   // un clan PUBG — voir docs/TODO/todo.md, chantier 0 du cycle de vie de clan.
   isSystem            Boolean   @default(false)
+  // Arret de suivi (docs/TODO/clan-archive.md) : renseigne = le clan n'est plus suivi,
+  // par decision SuperUser (`unfollowed`) ou apres refus de sa demande (`rejected`).
+  // Un clan en attente de validation a lui aussi isActive = false : seul archivedAt
+  // distingue les deux etats.
+  archivedAt          DateTime?
+  archivedReason      String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

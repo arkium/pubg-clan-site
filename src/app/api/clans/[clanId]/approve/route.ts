@@ -44,6 +44,18 @@ export async function POST(
       return Response.json({ error: 'Clan introuvable' }, { status: 404 })
     }
 
+    // Un clan archivé n'attend plus de validation : la réactivation a sa propre action, qui
+    // ne réactive ni l'ancien Owner ni des promotions closes (docs/TODO/clan-archive.md §4.B).
+    if (clan.archivedAt) {
+      return Response.json(
+        {
+          error: "Ce clan n'est plus suivi : réactivez-le depuis l'onglet « Clans archivés » du cycle de vie.",
+          code: 'clan_archived',
+        },
+        { status: 409 }
+      )
+    }
+
     // Activer le clan
     const updatedClan = await prisma.clan.update({
       where: { id: parsedClanId },

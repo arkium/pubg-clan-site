@@ -5,7 +5,8 @@ import { isSuperUserSession } from '@/middleware/auth-permission'
 /**
  * GET /api/clans
  * Récupère tous les clans actifs avec leurs statistiques précalculées depuis la DB.
- * Pour les SuperUsers, permet d'afficher également les clans en attente de validation via ?all=true.
+ * Pour les SuperUsers, `?all=true` renvoie aussi les clans inactifs : en attente de validation
+ * ET archivés (docs/TODO/clan-archive.md) — `archivedAt` les distingue.
  */
 export async function GET(request: Request) {
   try {
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
           imageUrl,
           isActive: clan.isActive,
           isSystem: clan.isSystem,
+          archivedAt: clan.archivedAt?.toISOString() ?? null,
         }
       })
     )

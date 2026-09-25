@@ -56,6 +56,8 @@ type TrackedClanRow = {
   id: number
   name: string
   tag: string
+  /** Clan technique (Ungrouped) : jamais archivable, l'interface masque l'action. */
+  isSystem: boolean
   membersCount: number
   lastMatchAt: string | null
   missingMembersCount: number
@@ -126,6 +128,7 @@ export async function GET(request: Request) {
     id: clan.id,
     name: clan.name,
     tag: clan.tag,
+    isSystem: clan.isSystem,
     membersCount: clan._count.members,
     lastMatchAt: lastMatchByClanId.get(clan.id)?.toISOString() ?? null,
     missingMembersCount: clan.missingMembersCount ?? 0,

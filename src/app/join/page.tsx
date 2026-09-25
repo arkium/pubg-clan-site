@@ -48,6 +48,8 @@ interface JoinPreviewData {
     tag: string
     existsOnSite: boolean
     isActive?: boolean
+    /** Clan dont la demande avait été refusée : la nouvelle demande le soumet de nouveau au SuperUser. */
+    reopensRejectedRequest?: boolean
   } | null
   actionType: 'join_existing' | 'create_clan'
   targetClanName: string
@@ -607,7 +609,11 @@ export default function JoinPage() {
 
             {/* Explication contextuelle claire */}
             <div className="app-modal-callout mt-4 rounded-xl border border-slate-200/80 bg-white/60 p-3.5 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
-              {previewData.actionType === 'create_clan' ? (
+              {previewData.clan?.reopensRejectedRequest ? (
+                <p>
+                  <strong className="text-slate-900 dark:text-white">Nouvelle demande :</strong> Le clan <strong>[{previewData.targetClanTag}] {previewData.targetClanName}</strong> avait été refusé. Votre demande le soumettra de nouveau à la <strong className="text-amber-600 dark:text-amber-400">validation du SuperUser</strong>.
+                </p>
+              ) : previewData.actionType === 'create_clan' ? (
                 <p>
                   <strong className="text-slate-900 dark:text-white">Fonder un clan :</strong> Ce clan n&apos;existe pas encore sur le site. Afin d&apos;éviter les bots et préserver l&apos;intégrité de la ligue, sa création doit être <strong className="text-amber-600 dark:text-amber-400">validée par le SuperUser</strong>. Une fois approuvé par l&apos;administrateur de la plateforme, le clan <strong>[{previewData.targetClanTag}] {previewData.targetClanName}</strong> sera activé et vous en serez le <strong>Propriétaire (Owner)</strong>.
                 </p>

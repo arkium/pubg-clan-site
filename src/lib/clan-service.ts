@@ -123,6 +123,18 @@ export async function ensureTrackedClanForPlayer(playerId: string, platformShard
 
     const clan = await upsertTrackedClanFromPubg(pubgClan, platformShard)
 
+    // Clan archivé : on n'y rattache personne, sinon le joueur serait actif dans un clan
+    // hors de toute synchronisation. Les appelants se replient sur le clan demandé ou sur
+    // Ungrouped (docs/TODO/clan-archive.md §4.B).
+    if (clan.archivedAt) {
+      console.info('[Clan Service] PUBG clan is archived on the site — not attaching the player', {
+        playerId,
+        platformShard,
+        clanId: clan.id,
+      })
+      return null
+    }
+
     console.info('[Clan Service] PUBG clan resolved and tracked', {
       playerId,
       platformShard,

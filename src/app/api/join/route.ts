@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { reopenRejectedClan } from '@/lib/clan-archive'
+import { decideJoinTarget } from '@/lib/clan-archive-state'
 import { searchPlayerByName, fetchPlayerClan } from '@/lib/pubg'
 import { initializeDefaultRoles } from '@/lib/role-service'
 import { notifyJoinRequest, notifyClanCreationRequest } from '@/lib/notification-service'
@@ -132,6 +134,23 @@ export async function POST(request: Request) {
       })
     }
 
+    // 3b. Clan archivé (docs/TODO/clan-archive.md) : le SuperUser a arrêté de le suivre —
+    // une demande de joueur ne défait pas cette décision. Refusé dès l'aperçu, avant toute
+    // saisie. Un clan dont la demande a été REFUSÉE, lui, est rouvert plus bas.
+    const joinTarget = clan ? decideJoinTarget(clan) : 'open'
+    if (clan && joinTarget === 'unfollowed') {
+      return Response.json(
+        {
+          error: `Le clan "${clan.name}" n'est plus suivi par la ligue : aucune demande ne peut être enregistrée. Contactez un administrateur du site pour qu'il le réactive.`,
+          code: 'CLAN_NOT_FOLLOWED',
+          clanId: clan.id,
+          clanName: clan.name,
+          clanTag: clan.tag,
+        },
+        { status: 409 }
+      )
+    }
+
     // Mode Preview : renvoie les données pour la modale de confirmation sans mutation DB
     if (mode === 'preview') {
       const targetClanName = clan?.name || pubgClanInfo?.name || pubgPlayerName
@@ -152,6 +171,8 @@ export async function POST(request: Request) {
               tag: targetClanTag,
               existsOnSite: Boolean(clan),
               isActive: clan ? clan.isActive : false,
+              // Clan refusé : la demande le soumettra de nouveau au SuperUser.
+              reopensRejectedRequest: joinTarget === 'reopen_rejected',
             }
           : null,
         actionType: clan ? 'join_existing' : 'create_clan',
@@ -200,6 +221,11 @@ export async function POST(request: Request) {
 
     if (clan) {
       // CASE 1: Clan already exists in our DB
+      // Clan refusé : la demande le remet en attente de décision SuperUser. Sans cette
+      // réouverture, elle viserait un clan archivé que personne ne regarde plus.
+      const reopenedRejectedClan =
+        joinTarget === 'reopen_rejected' ? await reopenRejectedClan(clan.id) : false
+
       // If a rejected/inactive record exists, update it to pending; otherwise create a new one
       if (existingMember) {
         clanMember = await prisma.clanMember.update({
@@ -254,12 +280,21 @@ export async function POST(request: Request) {
         console.error('[join] Failed to send join request notification:', err)
       )
 
+      // Le clan rouvert revient dans la file du SuperUser : il doit le savoir.
+      if (reopenedRejectedClan) {
+        notifyClanCreationRequest(clan.id, clan.name, clan.tag, pubgPlayerName).catch((err) =>
+          console.error('[join] Failed to notify superusers of a reopened clan:', err)
+        )
+      }
+
       response = {
         status: 'pending',
         clanId: clan.id,
         clanName: clan.name,
         memberId: clanMember.id,
-        message: `Votre demande d'adhésion au clan "${clan.name}" a été soumise avec succès. Elle est en attente d'approbation par les administrateurs.`,
+        message: reopenedRejectedClan
+          ? `Le clan "${clan.name}" avait été refusé : votre demande le soumet de nouveau à la validation du SuperUser.`
+          : `Votre demande d'adhésion au clan "${clan.name}" a été soumise avec succès. Elle est en attente d'approbation par les administrateurs.`,
       }
     } else {
       // CASE 2: Clan doesn't exist - create new clan and member

@@ -741,6 +741,57 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
   **reconstruit la table** : même impératif d'espace disque que l'OPTIMIZE, donc hors de portée aujourd'hui. À
   reconsidérer si le disque repasse largement au-dessus de la taille de la table.
 
+#### Lot 4 — Annuaire des joueurs et arrêt de suivi d'un clan — ✅ Implémentés le 2026-09-25 (non déployés, migration appliquée)
+
+- [x] **Onglet « Joueurs » de `/settings/opponents`** — implémenté, 62 tests : [players.md §11](players.md).
+  Recette manuelle du §9.D encore à faire dans un navigateur
+- [x] **Arrêt de suivi d'un clan, même vide** — état archivé distinct (`Clan.archivedAt`), route, onglet « Clans
+  archivés », zone de danger, cron et `/join` adaptés, 58 tests : [clan-archive.md §7](clan-archive.md)
+- [x] **Migration `20260925200000_add_clan_archive_fields`** (deux colonnes nullables) — appliquée le 2026-09-25,
+  `migrate diff` vide ensuite, suite complète verte (760) : [clan-archive.md §7](clan-archive.md)
+- [ ] Recette manuelle de l'arrêt de suivi dans un navigateur : [clan-archive.md §5](clan-archive.md)
+- [x] 🐞 Un clan refusé restait listé dans « Clans en attente » — vérifié en prod : aucun refus n'a encore eu lieu
+  (défaut latent) ; corrigé, le refus archive le clan : [clan-archive.md §3](clan-archive.md)
+- [x] 🐞 `PATCH /api/settings/players/[id]/favorite` répondait 500 au lieu de 404 sur un id inconnu — corrigé
+- [ ] 🐞 **Recherche de l'onglet Triage** : Prisma n'échappe pas `_` ni `%` dans `startsWith` / `contains`,
+  `Lord_Kromb` trouve aussi `LordXKromb` ([players.md §3.E](players.md)). L'annuaire échappe déjà ; Triage non
+- [ ] **Index `Player(lastSeenAt)`** — le tri par défaut de l'annuaire coûte 1,5 à 1,8 s faute d'index. Proposé,
+  non appliqué : [database-performance.md §4.6](../ops/database-performance.md)
+- [ ] **4 membres actifs sans ligne `Player`**, donc absents de l'annuaire (signalés à l'écran) :
+  [players.md §3.C](players.md)
+- [ ] ⚠️ **Constaté pendant ce lot : trois tests Vitest écrivent dans la base de `DATABASE_URL`, donc en
+  production** — `tracked-isolation.test.ts`, `drop-pressure-match-type.test.ts`,
+  `matches-cache-match-type.test.ts` créent puis suppriment des clans, membres et matchs de test (blocs
+  `finally`). `npm run test:telemetry` les exécute. Aucune ligne résiduelle après le passage du 2026-09-25.
+  À isoler (base de test dédiée, ou exclusion quand `DATABASE_URL` vise la production)
+
+#### Lot 5 — Bandeaux collants et filtre de période des pages joueurs — 📐 Cadrage validé le 2026-09-25, à implémenter
+
+Spec : [sticky.md](sticky.md). Décisions : libellé « Tous » (accordé en « Toutes ») pour **tous** les filtres,
+périodes **calendaires** partout, « Mois dernier » / « Il y a 2 mois », bandeau docké réduit à la **période** sur
+mobile, héro de `/clans` non collant, pages SuperUser non alignées, **Playwright** (Chromium + WebKit) adopté,
+persistance de la période par l'URL et une mémoire de visite.
+
+- [ ] **Phase 0 — fondations** : réglage unique de `DockingToolbar` (grille `app-container`, contenu docké,
+  hauteur du header en variable CSS, pas de saut), une seule couche collante, menus déroulants à hauteur maximale,
+  `src/lib/period.ts` + `PeriodFilter`, section 23 du design system et CLAUDE.md, test de conformité
+- [ ] 🐞 **Quatre API comptent la « Semaine » en 7 jours glissants** alors que tous les agrégats sont calendaires :
+  matchs du joueur (et bloc matchs du tableau de bord), adversaires rencontrés, calendrier d'activité, bots des
+  statistiques du clan — [sticky.md §3.C](sticky.md)
+- [ ] 🐞 **Libellés divergents** : « Tout » (positions, adversaires, calendrier d'activité), « All Time » (awards,
+  classement général), « 7 jours / 30 jours » (calendrier d'activité) — [sticky.md §3.C](sticky.md)
+- [ ] 🐞 **Menus déroulants sans hauteur maximale** : inaccessibles en bas une fois dockés sur mobile —
+  [sticky.md §3.B](sticky.md)
+- [ ] **Playwright** (Chromium + WebKit) : sans base de test — serveur local en mode visiteur, **tous** les appels
+  d'API du navigateur interceptés et les imprévus bloqués, donc aucune écriture ; scripts `test:e2e` —
+  [sticky.md §7.C](sticky.md)
+- [ ] **Persistance de la période** (confirmée) : l'URL fait foi, une mémoire de visite pré-remplit —
+  [sticky.md §4.E](sticky.md)
+- [ ] Phases 1 à 3 : migration page par page — [sticky.md §5](sticky.md)
+- [ ] **Supprimer le workflow obsolète `.github/workflows/main_smkclan.yml`** (déploiement vers une Web App Azure
+  qui ne sert plus ; la production se déploie par build autonome et systemd). Il se déclenche encore à chaque push
+  sur `main`
+
 #### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 
 > **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des

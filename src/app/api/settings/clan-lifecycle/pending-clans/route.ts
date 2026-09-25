@@ -1,3 +1,4 @@
+import { PENDING_CLAN_WHERE } from '@/lib/clan-archive-state'
 import { countPendingPromotionsForClan } from '@/lib/clan-lifecycle/pending-promotions'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
@@ -15,8 +16,10 @@ export async function GET(request: Request) {
     const permissionError = await requireSuperUser(request)
     if (permissionError) return permissionError
 
+    // `archivedAt: null` : un clan archivé (suivi arrêté ou demande refusée) a lui aussi
+    // isActive = false, mais n'attend plus aucune décision (docs/TODO/clan-archive.md §3).
     const clans = await prisma.clan.findMany({
-      where: { isActive: false, isSystem: false },
+      where: PENDING_CLAN_WHERE,
       select: {
         id: true,
         name: true,

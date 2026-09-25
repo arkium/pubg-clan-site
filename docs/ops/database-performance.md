@@ -258,6 +258,30 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
 
 ---
 
+### 4.6 Index `Player(lastSeenAt)` — annuaire des joueurs (mesuré le 2026-09-25)
+
+L'onglet « Joueurs » de `/settings/opponents` ([players.md](../TODO/players.md)) trie par défaut les 520 913
+`Player` par dernière vue. Aucun index ne commence par `lastSeenAt` : `idx_player_resolved_last_seen`
+(`clanResolvedAt, lastSeenAt`) ne sert pas un tri global, d'où un parcours complet suivi d'un tri
+(`EXPLAIN` : `type=index … Using filesort`, 442 000 lignes estimées).
+
+| Requête (25 lignes) | Temps mesuré |
+|---|---|
+| Tri par pseudo (`Player_pubgPlayerName_idx`) | 20 ms (SQL seul) |
+| Tri par dernière vue, sans filtre | 1,5 à 1,8 s (SQL seul) ; 2 s de bout en bout |
+| Non suivis (`NOT IN` de 402 joueurs), dernière vue | 2,6 s |
+| Croisés par le plus gros clan (238 589 joueurs), dernière vue | 3,4 s ; 4,1 s de bout en bout |
+| Tri par rencontres de **tous** les joueurs (agrégat complet de `ClanEncounter`, 2,1 M lignes) | **204 s** — jamais servi : le code le limite à 5 000 joueurs candidats |
+
+Candidat : `CREATE INDEX idx_player_last_seen ON Player (lastSeenAt)`, ajout en ligne
+(`ALGORITHM=INPLACE, LOCK=NONE`), de l'ordre de 20 à 25 Mo pour 520 000 lignes (datetime + clé primaire
+cuid). Effet attendu : les tris par dernière vue deviennent une lecture d'index de 25 lignes, filtre
+« non suivis » compris. **Non appliqué** : à décider, à déclarer dans `schema.prisma`
+(`@@index([lastSeenAt])`) et à passer par le `migrate diff` comme toute écriture de schéma.
+
+Mesures reproductibles : `npx tsx scripts/check-players-directory-cost.ts` (complet, contient l'agrégat de
+204 s — à lancer ponctuellement), `--edge-cases-only` (rapide) et `--directory` (code réel, lecture seule).
+
 ## 4bis. Compression de la géolocalisation (2026-09-24)
 
 `SquadMatchTelemetry` pesait **20,57 Go**, dont ~94 % dans `positionSamples` et `trajectorySegments`. Ces colonnes

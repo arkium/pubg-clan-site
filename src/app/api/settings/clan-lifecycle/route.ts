@@ -12,6 +12,7 @@ import {
   setUngroupedAutoArchive,
   setUngroupedAutoPromote,
 } from '@/lib/clan-lifecycle/config'
+import { ARCHIVED_CLAN_WHERE, PENDING_CLAN_WHERE } from '@/lib/clan-archive-state'
 import { listArchiveCandidates } from '@/lib/clan-lifecycle/ungrouped-archive'
 import { prisma } from '@/lib/prisma'
 import { PLAYER_CLAN_CHANGE_STATUSES } from '@/lib/player-clan-change'
@@ -59,14 +60,16 @@ export async function GET(request: Request) {
         }),
         prisma.playerClanChange.count({ where: { status: PLAYER_CLAN_CHANGE_STATUSES.observed } }),
         prisma.playerClanChange.count({ where: { status: PLAYER_CLAN_CHANGE_STATUSES.pending } }),
-        prisma.clan.count({ where: { isActive: false } }),
+        // En attente et archivés ont tous deux isActive = false : deux compteurs distincts.
+        prisma.clan.count({ where: PENDING_CLAN_WHERE }),
+        prisma.clan.count({ where: ARCHIVED_CLAN_WHERE }),
         prisma.clanMember.count({
           where: { isActive: true, joinStatus: 'active', clan: { is: { isSystem: true } } },
         }),
       ]),
     ])
 
-    const [unacknowledged, observed, pending, pendingClans, ungroupedMembers] = counts
+    const [unacknowledged, observed, pending, pendingClans, archivedClans, ungroupedMembers] = counts
 
     return Response.json({
       settings: { ...settings, webhookUrl: maskWebhook(settings.webhookUrl) },
@@ -81,6 +84,7 @@ export async function GET(request: Request) {
         observed,
         pending,
         pendingClans,
+        archivedClans,
         ungroupedMembers,
         archiveCandidates: candidates.candidates.length,
       },

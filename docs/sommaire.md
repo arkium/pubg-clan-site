@@ -102,6 +102,9 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | Document | Contenu |
 |---|---|
 | [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3, idées de comparaison inter-clans, suggestions de stats et fonctionnalités |
+| [Annuaire des joueurs](TODO/players.md) | Onglet « Joueurs » de `/settings/opponents` (implémenté le 2026-09-25) : statuts de suivi, filtres, mesures de coût, tests |
+| [Arrêt de suivi d'un clan](TODO/clan-archive.md) | Archivage d'un clan, même vide (implémenté le 2026-09-25) : sort des membres, réactivation, clans refusés, effets sur le cron et `/join` |
+| [Bandeaux collants et période](TODO/sticky.md) | Spec de cohérence des pages joueurs : bandeau `DockingToolbar` unique, contrôle de période partagé (« Tous », calendaire), inventaire et phases, tests et documentation |
 
 ---
 

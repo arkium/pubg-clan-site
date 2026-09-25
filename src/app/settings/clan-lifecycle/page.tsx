@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -23,7 +24,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
  * page ne permettait jusqu'ici de valider un clan en attente.
  */
 
-type TabKey = 'mutations' | 'pending' | 'ungrouped' | 'settings' | 'health'
+type TabKey = 'mutations' | 'pending' | 'archived' | 'ungrouped' | 'settings' | 'health'
 
 type Settings = {
   mode: 'observe' | 'apply'
@@ -40,6 +41,7 @@ type Counters = {
   observed: number
   pending: number
   pendingClans: number
+  archivedClans: number
   ungroupedMembers: number
   archiveCandidates: number
 }
@@ -86,8 +88,31 @@ function Badge({ count }: { count: number }) {
   )
 }
 
+const TAB_KEYS: TabKey[] = ['mutations', 'pending', 'archived', 'ungrouped', 'settings', 'health']
+
+function parseTab(value: string | null): TabKey {
+  return TAB_KEYS.find((key) => key === value) ?? 'mutations'
+}
+
 export default function ClanLifecyclePage() {
-  const [tab, setTab] = useState<TabKey>('mutations')
+  // `?tab=` sert les liens profonds de l'annuaire des joueurs ; useSearchParams impose une
+  // frontière Suspense (CLAUDE.md, piège n° 5).
+  return (
+    <Suspense
+      fallback={
+        <main className="app-container app-main">
+          <p className="text-sm text-slate-600 dark:text-slate-400">Chargement...</p>
+        </main>
+      }
+    >
+      <ClanLifecycleContent />
+    </Suspense>
+  )
+}
+
+function ClanLifecycleContent() {
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<TabKey>(() => parseTab(searchParams.get('tab')))
   const [overview, setOverview] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -142,6 +167,7 @@ export default function ClanLifecyclePage() {
   const tabs: Array<{ value: TabKey; label: string }> = [
     { value: 'mutations', label: 'Mutations' },
     { value: 'pending', label: 'Clans en attente' },
+    { value: 'archived', label: 'Clans archivés' },
     { value: 'ungrouped', label: 'Ungrouped' },
     { value: 'settings', label: 'Paramètres' },
     { value: 'health', label: 'Santé' },
@@ -212,7 +238,8 @@ export default function ClanLifecyclePage() {
           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             {counters.unacknowledged} mouvement(s) à relire
             <Badge count={counters.unacknowledged} /> · {counters.pendingClans} clan(s) en attente
-            <Badge count={counters.pendingClans} /> · {counters.ungroupedMembers} joueur(s) au
+            <Badge count={counters.pendingClans} /> · {counters.archivedClans} clan(s) archivé(s) ·{' '}
+            {counters.ungroupedMembers} joueur(s) au
             parking, dont {counters.archiveCandidates} archivable(s)
             <Badge count={counters.archiveCandidates} />
           </p>
@@ -253,6 +280,8 @@ export default function ClanLifecyclePage() {
           <UngroupedTab onChanged={refresh} onToast={showToast} />
         ) : tab === 'pending' ? (
           <PendingClansTab onChanged={refresh} onToast={showToast} />
+        ) : tab === 'archived' ? (
+          <ArchivedClansTab onChanged={refresh} onToast={showToast} />
         ) : (
           <MutationsTab onChanged={refresh} onToast={showToast} />
         )}
@@ -796,6 +825,15 @@ function PendingClansTab({
               {clan.origin === 'auto_detected' ? 'découvert automatiquement' : 'demande /join'}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400">{clan.platformShard}</span>
+            {clan.tag ? (
+              <Link
+                href={`/settings/opponents?opponentsQ=${encodeURIComponent(clan.tag)}`}
+                className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                title="Historique de confrontations de ce clan dans l’Observatoire, pour décider en connaissance de cause"
+              >
+                Confrontations
+              </Link>
+            ) : null}
             <span className="ml-auto text-xs text-slate-400">{formatDate(clan.createdAt)}</span>
           </div>
 
@@ -843,6 +881,138 @@ function PendingClansTab({
               className="app-btn app-btn--md app-btn--secondary"
             >
               Refuser
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// ------------------------------------------------------------ Clans archivés
+
+type ArchivedClan = {
+  id: number
+  name: string
+  tag: string
+  platformShard: string
+  archivedAt: string | null
+  archivedReason: string | null
+  attachedMembers: number
+}
+
+const ARCHIVE_REASON_LABELS: Record<string, string> = {
+  unfollowed: 'suivi arrêté',
+  rejected: 'demande refusée',
+}
+
+/**
+ * Clans qu'on ne suit plus, ou dont la demande a été refusée — docs/TODO/clan-archive.md §4.C.
+ * Réactiver remet le clan en service sans réintégrer ses anciens membres.
+ */
+function ArchivedClansTab({
+  onChanged,
+  onToast,
+}: {
+  onChanged: () => void
+  onToast: (text: string, tone: 'success' | 'error') => void
+}) {
+  const [clans, setClans] = useState<ArchivedClan[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [token, setToken] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        const res = await fetch('/api/settings/clan-lifecycle/archived-clans', { cache: 'no-store' })
+        const data = await res.json()
+        if (!cancelled && res.ok) setClans(data.clans ?? [])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [token])
+
+  async function reactivate(clan: ArchivedClan) {
+    if (!window.confirm(`Suivre de nouveau [${clan.tag}] ${clan.name} ? Ses anciens membres ne seront pas réintégrés automatiquement.`)) {
+      return
+    }
+
+    setBusyId(clan.id)
+    try {
+      const res = await fetch(`/api/settings/clans/${clan.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'reactivate' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'Échec')
+      onToast(data.message, 'success')
+      setToken((t) => t + 1)
+      onChanged()
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Erreur', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  if (loading) {
+    return <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Chargement…</p>
+  }
+
+  if (clans.length === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+        Aucun clan archivé. Arrêter le suivi d’un clan se fait depuis l’Observatoire (« Vos clans suivis ») ou
+        depuis les paramètres du clan.
+      </p>
+    )
+  }
+
+  return (
+    <ul className="space-y-3">
+      {clans.map((clan) => (
+        <li key={clan.id} className="app-panel-muted rounded-xl p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-slate-900 dark:text-white">
+              [{clan.tag}] {clan.name}
+            </span>
+            <span
+              className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+                clan.archivedReason === 'rejected'
+                  ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              {ARCHIVE_REASON_LABELS[clan.archivedReason ?? ''] ?? clan.archivedReason ?? 'archivé'}
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{clan.platformShard}</span>
+            <span className="ml-auto text-xs text-slate-400">archivé le {formatDate(clan.archivedAt)}</span>
+          </div>
+
+          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+            {clan.attachedMembers > 0
+              ? `${clan.attachedMembers} fiche(s) encore rattachée(s) (membres désactivés ou demandeur).`
+              : 'Aucune fiche rattachée.'}
+          </div>
+
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => void reactivate(clan)}
+              disabled={busyId === clan.id}
+              className="app-btn app-btn--md app-btn--secondary inline-flex items-center gap-2"
+            >
+              {busyId === clan.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              Réactiver le suivi
             </button>
           </div>
         </li>

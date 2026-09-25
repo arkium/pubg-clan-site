@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Settings, Users, Monitor, Trophy, MessageSquare } from 'lucide-react'
 
+import ClanFollowDangerZone from '@/components/clan/ClanFollowDangerZone'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -79,6 +80,8 @@ export default function ClanSettingsHub() {
           </Link>
         </div>
       </section>
+
+      {isSuperUser ? <ClanFollowDangerZone clanId={clanId} /> : null}
     </main>
   )
 }

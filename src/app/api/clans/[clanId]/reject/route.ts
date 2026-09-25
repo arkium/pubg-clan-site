@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { CLAN_ARCHIVE_REASONS } from '@/lib/clan-archive-state'
 import { sendClanRejectedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
 import { PLAYER_CLAN_CHANGE_STATUSES } from '@/lib/player-clan-change'
 import { prisma } from '@/lib/prisma'
@@ -11,9 +12,11 @@ import { requireSuperUser } from '@/middleware/auth-permission'
  * Pendant du `approve` existant, qui n'avait pas de contrepartie : un clan en
  * attente ne pouvait jusqu'ici qu'être validé ou rester indéfiniment en suspens.
  *
- * Le clan **n'est pas supprimé** : il reste inactif, avec son historique. Le
+ * Le clan **n'est pas supprimé** : il reste inactif, avec son historique, et passe
+ * archivé (`archivedReason: 'rejected'`) pour quitter la liste d'attente. Le
  * demandeur passe en `joinStatus: 'rejected'`, un état qui autorise explicitement
- * la ré-adhésion (voir « Cycle de vie des membres rejetés » en P1).
+ * la ré-adhésion (voir « Cycle de vie des membres rejetés » en P1) : une nouvelle
+ * demande `/join` remet le clan en attente (`decideJoinTarget`).
  */
 
 const RejectSchema = z.object({
@@ -65,6 +68,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
       )
     }
 
+    if (clan.archivedAt) {
+      return Response.json(
+        { error: 'Ce clan est déjà archivé : il n’attend plus de décision.', code: 'clan_archived' },
+        { status: 409 }
+      )
+    }
+
     const owner = clan.members.find((m) => m.roles.some((r) => r.role.name === 'Owner'))
 
     // Le demandeur passe en `rejected` — etat qui autorise une nouvelle demande —
@@ -81,6 +91,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     const { count: closedPromotions } = await prisma.playerClanChange.updateMany({
       where: { newClanId: parsedClanId, status: PLAYER_CLAN_CHANGE_STATUSES.pending },
       data: { status: PLAYER_CLAN_CHANGE_STATUSES.ignored },
+    })
+
+    // Le clan sort de la liste d'attente : sans cet état final, un clan refusé y restait
+    // indéfiniment (docs/TODO/clan-archive.md §3). Écrit en dernier : si une étape
+    // précédente échoue, le clan reste en attente et le refus peut être rejoué.
+    await prisma.clan.update({
+      where: { id: parsedClanId },
+      data: { archivedAt: new Date(), archivedReason: CLAN_ARCHIVE_REASONS.rejected },
     })
 
     // Hors chemin critique : un SMTP absent ou en panne ne doit pas empecher le refus.

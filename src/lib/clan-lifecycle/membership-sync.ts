@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { ARCHIVED_CLAN_WHERE } from '@/lib/clan-archive-state'
 import {
   chunkAccountIds,
   fetchPlayersClanStates,
@@ -78,6 +79,11 @@ export type MembershipSyncSummary = {
   movesRatioPercent: number
   /** Clans inconnus detectes et crees en attente de validation SuperUser (chantier 2, cas B). */
   pendingClanRequests: number
+  /**
+   * Joueurs du parking restes dans un clan archive : etat attendu, pas un ecart
+   * (docs/TODO/clan-archive.md). Non persiste dans ClanLifecycleRun.
+   */
+  archivedClanDestinations: number
   message?: string
   /**
    * Mouvements retenus par le passage. Expose pour que l'appelant puisse notifier
@@ -283,6 +289,7 @@ export async function runMembershipSyncPass(
     circuitBreakerTripped: false,
     movesRatioPercent: 0,
     pendingClanRequests: 0,
+    archivedClanDestinations: 0,
     movements: [],
   }
 
@@ -353,6 +360,22 @@ export async function runMembershipSyncPass(
       clans.filter((c) => c.isSystem).map((c) => [c.platformShard, c])
     )
 
+    // Clans archives (suivi arrete ou demande refusee) : jamais une cible, jamais une
+    // nouvelle demande. Le filtre sur `archivedAt` est rejoue ici par prudence.
+    const archivedClans = await prisma.clan.findMany({
+      where: ARCHIVED_CLAN_WHERE,
+      select: { id: true, tag: true, pubgClanId: true, platformShard: true, archivedAt: true },
+    })
+    const archivedClanByPubgId = new Map<string, { id: number; tag: string; archivedAt: Date }>()
+    for (const clan of archivedClans) {
+      if (!clan.pubgClanId || !clan.archivedAt) continue
+      archivedClanByPubgId.set(`${clan.platformShard}:${clan.pubgClanId}`, {
+        id: clan.id,
+        tag: clan.tag,
+        archivedAt: clan.archivedAt,
+      })
+    }
+
     const planned: PlannedMovement[] = []
     // Chantier 2, cas B : clans detectes mais absents de la base. Dedupliques par
     // identifiant PUBG — plusieurs membres peuvent partir vers le meme clan.
@@ -374,6 +397,53 @@ export async function runMembershipSyncPass(
           where: { clanMemberId: member.id, status: PLAYER_CLAN_CHANGE_STATUSES.observed },
           data: { status: PLAYER_CLAN_CHANGE_STATUSES.ignored },
         })
+        continue
+      }
+
+      // Joueur du parking reste dans un clan archive : c'est l'etat attendu d'un clan qu'on
+      // ne suit plus, pas un ecart. Sans ce cas, une observation s'ecrivait chaque nuit, sans
+      // fin. On clot la serie et on laisse UNE trace `ignored`, lisible dans le journal.
+      const archivedDestination =
+        member.clanIsSystem && state.kind === 'has_clan'
+          ? archivedClanByPubgId.get(`${member.platformShard}:${state.clanId}`)
+          : undefined
+
+      if (archivedDestination && state.kind === 'has_clan') {
+        await prisma.playerClanChange.updateMany({
+          where: { clanMemberId: member.id, status: PLAYER_CLAN_CHANGE_STATUSES.observed },
+          data: { status: PLAYER_CLAN_CHANGE_STATUSES.ignored },
+        })
+
+        // Une seule trace par archivage : un clan reactive puis archive de nouveau en
+        // produira une nouvelle.
+        const alreadyLogged = await prisma.playerClanChange.findFirst({
+          where: {
+            clanMemberId: member.id,
+            newClanId: archivedDestination.id,
+            status: PLAYER_CLAN_CHANGE_STATUSES.ignored,
+            detectedAt: { gte: archivedDestination.archivedAt },
+          },
+          select: { id: true },
+        })
+
+        if (!alreadyLogged) {
+          await recordPlayerClanChange(prisma, {
+            clanMemberId: member.id,
+            pubgAccountId: member.pubgAccountId,
+            platformShard: member.platformShard,
+            previousClanId: member.clanId,
+            previousPubgClanId: member.clanPubgId,
+            previousPubgClanTag: member.clanTag,
+            newClanId: archivedDestination.id,
+            newPubgClanId: state.clanId,
+            newPubgClanTag: archivedDestination.tag,
+            source: PLAYER_CLAN_CHANGE_SOURCES.playerSync,
+            status: PLAYER_CLAN_CHANGE_STATUSES.ignored,
+            runId: run.id,
+          })
+        }
+
+        summary.archivedClanDestinations += 1
         continue
       }
 
@@ -434,7 +504,7 @@ export async function runMembershipSyncPass(
           movementSource = member.clanIsSystem
             ? PLAYER_CLAN_CHANGE_SOURCES.ungroupedPromotion
             : PLAYER_CLAN_CHANGE_SOURCES.autoTransfer
-        } else {
+        } else if (!archivedClanByPubgId.has(`${member.platformShard}:${destinationPubgClanId}`)) {
           // Cas B : clan inconnu. On ne cree jamais un clan actif automatiquement —
           // ce serait contourner la validation SuperUser de `/join`. On enregistre
           // une demande, traitee apres la boucle.
@@ -449,6 +519,8 @@ export async function runMembershipSyncPass(
             })
           }
         }
+        // Clan archive : ni cible ni nouvelle demande. Le joueur part au parking comme vers
+        // un clan non suivi, puis y reste sans ecart (voir plus haut).
       }
 
       // Promotion depuis le parking : gouvernee par son propre interrupteur, pour

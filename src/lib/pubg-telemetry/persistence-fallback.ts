@@ -1,57 +1,65 @@
 import { Prisma } from '@prisma/client'
 
-import { encodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { encodeJsonColumn } from '@/lib/pubg-telemetry/json-codec'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import { prisma } from '@/lib/prisma'
 
+/**
+ * Écriture des sections JSON en SQL brut, utilisée quand le chemin Prisma échoue.
+ *
+ * Comme le chemin nominal (`persistence-payload.ts`), tout part compressé sauf `summary`, que cinq
+ * routes interrogent par `JSON_EXTRACT`. Les colonnes en clair sont explicitement mises à `NULL` :
+ * laisser une valeur dans les deux formats doublerait le stockage et ferait diverger les lectures.
+ */
 export async function persistTelemetryJsonFieldsWithSql(input: {
   squadMatchId: string
   parsed: ParsedTelemetrySnapshot
 }) {
   const summaryJson = JSON.stringify(input.parsed.summary)
-  const weaponStatsJson = JSON.stringify(input.parsed.weaponStats)
-  const memberStatsJson = JSON.stringify(input.parsed.memberStats)
-  // Geolocalisation compressee (~8x) : la colonne en clair est mise a NULL.
-  const positionSamplesGz = encodeGeoColumn(input.parsed.positionSamples)
-  const trajectorySegmentsGz = encodeGeoColumn(input.parsed.trajectorySegments)
-  const deathSamplesJson = JSON.stringify(input.parsed.deathSamples)
-  const landingSamplesJson = JSON.stringify(input.parsed.landingSamples)
-  const phaseSnapshotsJson = JSON.stringify(input.parsed.phaseSnapshots)
-  const killSamplesJson = JSON.stringify(input.parsed.killSamples)
-  const shotSamplesJson = JSON.stringify(input.parsed.shotSamples)
-  const damageSamplesJson = JSON.stringify(input.parsed.damageSamples)
-  const knockoutSamplesJson = JSON.stringify(input.parsed.knockoutSamples)
-  const reviveSamplesJson = JSON.stringify(input.parsed.reviveSamples)
-  const vehicleSamplesJson = JSON.stringify(input.parsed.vehicleSamples)
-  const killFeedSamplesJson = JSON.stringify(input.parsed.killFeedSamples)
-  const carePackageSamplesJson = JSON.stringify(input.parsed.carePackageSamples ?? [])
+
+  const weaponStatsGz = encodeJsonColumn(input.parsed.weaponStats)
+  const memberStatsGz = encodeJsonColumn(input.parsed.memberStats)
+  const positionSamplesGz = encodeJsonColumn(input.parsed.positionSamples)
+  const trajectorySegmentsGz = encodeJsonColumn(input.parsed.trajectorySegments)
+  const deathSamplesGz = encodeJsonColumn(input.parsed.deathSamples)
+  const landingSamplesGz = encodeJsonColumn(input.parsed.landingSamples)
+  const phaseSnapshotsGz = encodeJsonColumn(input.parsed.phaseSnapshots)
+  const killSamplesGz = encodeJsonColumn(input.parsed.killSamples)
+  const shotSamplesGz = encodeJsonColumn(input.parsed.shotSamples)
+  const damageSamplesGz = encodeJsonColumn(input.parsed.damageSamples)
+  const knockoutSamplesGz = encodeJsonColumn(input.parsed.knockoutSamples)
+  const reviveSamplesGz = encodeJsonColumn(input.parsed.reviveSamples)
+  const vehicleSamplesGz = encodeJsonColumn(input.parsed.vehicleSamples)
+  const killFeedSamplesGz = encodeJsonColumn(input.parsed.killFeedSamples)
+  const carePackageSamplesGz = encodeJsonColumn(input.parsed.carePackageSamples ?? [])
 
   const totalBytes =
-    summaryJson.length + weaponStatsJson.length + memberStatsJson.length +
-    (positionSamplesGz?.length ?? 0) + (trajectorySegmentsGz?.length ?? 0) +
-    deathSamplesJson.length + landingSamplesJson.length + phaseSnapshotsJson.length +
-    killSamplesJson.length + shotSamplesJson.length + damageSamplesJson.length +
-    knockoutSamplesJson.length + reviveSamplesJson.length + vehicleSamplesJson.length +
-    killFeedSamplesJson.length + carePackageSamplesJson.length
+    summaryJson.length +
+    [
+      weaponStatsGz,
+      memberStatsGz,
+      positionSamplesGz,
+      trajectorySegmentsGz,
+      deathSamplesGz,
+      landingSamplesGz,
+      phaseSnapshotsGz,
+      killSamplesGz,
+      shotSamplesGz,
+      damageSamplesGz,
+      knockoutSamplesGz,
+      reviveSamplesGz,
+      vehicleSamplesGz,
+      killFeedSamplesGz,
+      carePackageSamplesGz,
+    ].reduce((somme, buffer) => somme + (buffer?.length ?? 0), 0)
 
   console.info('[TelemetrySync][Sql] json-sizes', {
     squadMatchId: input.squadMatchId,
     summary: summaryJson.length,
-    weaponStats: weaponStatsJson.length,
-    memberStats: memberStatsJson.length,
+    memberStatsGz: memberStatsGz?.length ?? 0,
     positionSamplesGz: positionSamplesGz?.length ?? 0,
     trajectorySegmentsGz: trajectorySegmentsGz?.length ?? 0,
-    deathSamples: deathSamplesJson.length,
-    landingSamples: landingSamplesJson.length,
-    phaseSnapshots: phaseSnapshotsJson.length,
-    killSamples: killSamplesJson.length,
-    shotSamples: shotSamplesJson.length,
-    damageSamples: damageSamplesJson.length,
-    knockoutSamples: knockoutSamplesJson.length,
-    reviveSamples: reviveSamplesJson.length,
-    vehicleSamples: vehicleSamplesJson.length,
-    killFeedSamples: killFeedSamplesJson.length,
-    carePackageSamples: carePackageSamplesJson.length,
+    vehicleSamplesGz: vehicleSamplesGz?.length ?? 0,
     totalBytes,
   })
 
@@ -60,23 +68,36 @@ export async function persistTelemetryJsonFieldsWithSql(input: {
       UPDATE SquadMatchTelemetry
       SET
         summary = ${summaryJson},
-        weaponStats = ${weaponStatsJson},
-        memberStats = ${memberStatsJson},
+        weaponStats = NULL,
+        memberStats = NULL,
         positionSamples = NULL,
         trajectorySegments = NULL,
+        deathSamples = NULL,
+        landingSamples = NULL,
+        phaseSnapshots = NULL,
+        killSamples = NULL,
+        shotSamples = NULL,
+        damageSamples = NULL,
+        knockoutSamples = NULL,
+        reviveSamples = NULL,
+        vehicleSamples = NULL,
+        killFeedSamples = NULL,
+        carePackageSamples = NULL,
+        weaponStatsGz = ${weaponStatsGz},
+        memberStatsGz = ${memberStatsGz},
         positionSamplesGz = ${positionSamplesGz},
         trajectorySegmentsGz = ${trajectorySegmentsGz},
-        deathSamples = ${deathSamplesJson},
-        landingSamples = ${landingSamplesJson},
-        phaseSnapshots = ${phaseSnapshotsJson},
-        killSamples = ${killSamplesJson},
-        shotSamples = ${shotSamplesJson},
-        damageSamples = ${damageSamplesJson},
-        knockoutSamples = ${knockoutSamplesJson},
-        reviveSamples = ${reviveSamplesJson},
-        vehicleSamples = ${vehicleSamplesJson},
-        killFeedSamples = ${killFeedSamplesJson},
-        carePackageSamples = ${carePackageSamplesJson},
+        deathSamplesGz = ${deathSamplesGz},
+        landingSamplesGz = ${landingSamplesGz},
+        phaseSnapshotsGz = ${phaseSnapshotsGz},
+        killSamplesGz = ${killSamplesGz},
+        shotSamplesGz = ${shotSamplesGz},
+        damageSamplesGz = ${damageSamplesGz},
+        knockoutSamplesGz = ${knockoutSamplesGz},
+        reviveSamplesGz = ${reviveSamplesGz},
+        vehicleSamplesGz = ${vehicleSamplesGz},
+        killFeedSamplesGz = ${killFeedSamplesGz},
+        carePackageSamplesGz = ${carePackageSamplesGz},
         updatedAt = NOW()
       WHERE squadMatchId = ${input.squadMatchId}
     `

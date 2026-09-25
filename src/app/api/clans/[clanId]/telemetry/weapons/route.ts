@@ -14,6 +14,7 @@ import {
   weaponCategoryCode,
   weaponCategoryLabel,
 } from '@/lib/weapon-category-service'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -269,6 +270,7 @@ export async function GET(
       },
       select: {
         memberStats: true,
+        memberStatsGz: true,
         squadMatch: {
           select: {
             members: {
@@ -310,7 +312,7 @@ export async function GET(
         }
       }
 
-      const memberRows = parseSnapshotMemberStatsRows(snapshot.memberStats)
+      const memberRows = parseSnapshotMemberStatsRows(decodeTelemetryRow(snapshot).memberStats)
       for (const memberRow of memberRows) {
         const memberId = keyToMemberId.get(normalizeKey(memberRow.memberKey) ?? '')
         if (!memberId) {

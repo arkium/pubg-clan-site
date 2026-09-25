@@ -7,6 +7,7 @@ import {
   type DropPressureSample,
 } from '@/lib/drop-zone-pressure'
 import { prisma } from '@/lib/prisma'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 type LandingSample = DropPressureSample
 
@@ -169,12 +170,13 @@ export async function backfillDropPressureStats(input: {
   const snapshots = await client.$queryRaw<Array<{
     squadMatchId: string
     landingSamples: unknown
+    landingSamplesGz: unknown
   }>>(Prisma.sql`
-    SELECT t.squadMatchId, t.landingSamples
+    SELECT t.squadMatchId, t.landingSamples, t.landingSamplesGz
     FROM SquadMatchTelemetry t
     INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
     WHERE t.status = 'success'
-      AND t.landingSamples IS NOT NULL
+      AND (t.landingSamples IS NOT NULL OR t.landingSamplesGz IS NOT NULL)
       ${clanFilter}
     ORDER BY sm.createdAt ASC
     LIMIT ${limit}
@@ -182,9 +184,10 @@ export async function backfillDropPressureStats(input: {
 
   let rowsWritten = 0
   for (const snapshot of snapshots) {
+    // Les deux formats coexistent le temps du rattrapage.
     rowsWritten += await persistDropPressureStatsForMatch(
       snapshot.squadMatchId,
-      snapshot.landingSamples,
+      decodeTelemetryRow(snapshot).landingSamples,
       client
     )
   }

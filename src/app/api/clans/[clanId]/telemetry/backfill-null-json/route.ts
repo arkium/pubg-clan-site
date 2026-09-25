@@ -69,6 +69,8 @@ export async function POST(
         AND t.summary IS NULL
         AND t.weaponStats IS NULL
         AND t.memberStats IS NULL
+        AND t.weaponStatsGz IS NULL
+        AND t.memberStatsGz IS NULL
         AND EXISTS (
           SELECT 1
           FROM SquadMember sdm

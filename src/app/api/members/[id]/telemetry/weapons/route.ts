@@ -8,6 +8,7 @@ import {
 } from '@/lib/pubg-telemetry/api-contract'
 import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -260,6 +261,7 @@ export async function GET(
       },
       select: {
         memberStats: true,
+        memberStatsGz: true,
       },
     })
 
@@ -276,7 +278,7 @@ export async function GET(
     const maxDistanceByWeapon = new Map<string, number>()
 
     for (const snapshot of snapshots) {
-      const memberRows = parseSnapshotMemberStatsRows(snapshot.memberStats)
+      const memberRows = parseSnapshotMemberStatsRows(decodeTelemetryRow(snapshot).memberStats)
       const matchedMemberRows = memberRows.filter((row) => {
         const normalizedKey = normalizeKey(row.memberKey)
         return !!normalizedKey && targetKeys.has(normalizedKey)

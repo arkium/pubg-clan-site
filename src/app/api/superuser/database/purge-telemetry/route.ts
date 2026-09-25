@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
+  clearGeoPurgeRun,
   parseSelection,
   readGeoPurgeCounts,
   readGeoPurgeRunForDisplay,
@@ -64,8 +65,14 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      action?: 'start' | 'cancel' | 'recount'
+      action?: 'start' | 'cancel' | 'recount' | 'dismiss'
       olderThanDays?: number | string
+    }
+
+    // Efface le compte rendu de la derniere purge : purement cosmetique, rien n'est annule.
+    if (body.action === 'dismiss') {
+      await clearGeoPurgeRun()
+      return Response.json({ ok: true, dismissed: true })
     }
 
     if (body.action === 'cancel') {

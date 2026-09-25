@@ -56,6 +56,9 @@ export const MIN_RECLAIMABLE_MB = 512
 /** Au-delà, un run « running » a perdu son processus (une reconstruction bat toutes les 30 s). */
 export const OPTIMIZE_RUN_STALE_MS = 5 * 60 * 1000
 
+/** Duree d'affichage du compte rendu d'un compactage termine. Voir la meme regle cote purge. */
+export const OPTIMIZE_NOTICE_TTL_MS = 24 * 60 * 60 * 1000
+
 export type TableSizes = {
   tableName: string
   rowCount: number
@@ -324,7 +327,14 @@ export function isOptimizeRunStale(state: OptimizeRunState, now: Date = new Date
  */
 export async function readOptimizeRunForDisplay(now: Date = new Date()): Promise<OptimizeRunState | null> {
   const state = await readOptimizeRun()
-  if (!state || !isOptimizeRunStale(state, now)) return state
+  if (!state) return null
+
+  if (!isOptimizeRunStale(state, now)) {
+    // Un compte rendu termine est une nouvelle, pas un etat permanent.
+    if (state.status !== 'running' && isOptimizeNoticeExpired(state, now)) return null
+    return state
+  }
+
   return {
     ...state,
     status: 'failed',
@@ -332,6 +342,18 @@ export async function readOptimizeRunForDisplay(now: Date = new Date()): Promise
       'Suivi perdu : le processus qui pilotait le compactage s’est arrêté. MariaDB peut encore être en train de travailler — vérifiez la taille de la table avant de relancer.',
     finishedAt: state.updatedAt,
   }
+}
+
+/** Vrai quand le compte rendu d'un compactage termine a fait son temps. */
+export function isOptimizeNoticeExpired(state: OptimizeRunState, now: Date = new Date()): boolean {
+  if (state.status === 'running') return false
+  const finishedAt = state.finishedAt ?? state.updatedAt
+  return now.getTime() - new Date(finishedAt).getTime() > OPTIMIZE_NOTICE_TTL_MS
+}
+
+/** Efface le compte rendu affiche (bouton « Masquer »). N'annule rien. */
+export async function clearOptimizeRun(): Promise<void> {
+  await prisma.appConfig.deleteMany({ where: { key: OPTIMIZE_RUN_KEY } })
 }
 
 async function runOptimize(table: string, sizeBeforeMb: number, startedAt: string): Promise<void> {

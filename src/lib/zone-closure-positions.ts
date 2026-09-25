@@ -18,7 +18,7 @@
  */
 import { Prisma, type PrismaClient } from '@prisma/client'
 
-import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import { toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
@@ -275,7 +275,7 @@ export async function backfillZoneClosurePositions(input: {
     INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
     WHERE t.status = 'success'
       AND (JSON_LENGTH(t.positionSamples) > 0 OR t.positionSamplesGz IS NOT NULL)
-      AND JSON_LENGTH(t.phaseSnapshots) > 0
+      AND (JSON_LENGTH(t.phaseSnapshots) > 0 OR t.phaseSnapshotsGz IS NOT NULL)
       ${clanFilter}
       AND NOT EXISTS (SELECT 1 FROM ZoneClosurePosition z WHERE z.squadMatchId = sm.id)
     ORDER BY sm.createdAt ASC
@@ -290,20 +290,27 @@ export async function backfillZoneClosurePositions(input: {
       positionSamples: unknown
       positionSamplesGz: unknown
       deathSamples: unknown
+      deathSamplesGz: unknown
       phaseSnapshots: unknown
+      phaseSnapshotsGz: unknown
     }>>(Prisma.sql`
-      SELECT t.squadMatchId, t.positionSamples, t.positionSamplesGz, t.deathSamples, t.phaseSnapshots
+      SELECT t.squadMatchId,
+             t.positionSamples, t.positionSamplesGz,
+             t.deathSamples, t.deathSamplesGz,
+             t.phaseSnapshots, t.phaseSnapshotsGz
       FROM SquadMatchTelemetry t
       WHERE t.squadMatchId IN (${Prisma.join(batch.map((match) => match.id))})
     `)
 
     for (const row of snapshots) {
+      // Les deux formats coexistent le temps du rattrapage : une seule normalisation par ligne.
+      const normalisee = decodeTelemetryRow(row)
       rowsWritten += await persistZoneClosurePositionsForMatch(
         row.squadMatchId,
         {
-          positionSamples: asArray(decodeGeoColumn(row.positionSamplesGz, row.positionSamples)),
-          deathSamples: asArray(row.deathSamples),
-          phaseSnapshots: asArray(row.phaseSnapshots),
+          positionSamples: asArray(normalisee.positionSamples),
+          deathSamples: asArray(normalisee.deathSamples),
+          phaseSnapshots: asArray(normalisee.phaseSnapshots),
         } as Pick<ParsedTelemetrySnapshot, 'positionSamples' | 'deathSamples' | 'phaseSnapshots'>,
         client
       )

@@ -284,6 +284,14 @@ l'évite entièrement : `ADD COLUMN` **et** `DROP COLUMN` sont acceptés en `ALG
 replay les affiche — `match-replay.ts` classe chaque joueur (`0 = lobby externe, 1 = autre clan suivi,
 2 = clan consulté`). Les tronquer viderait la fonctionnalité de sa substance.
 
+**Extension à toutes les colonnes (2026-09-25).** La géolocalisation ne représentait que 1,28 Go des 6,99 Go de
+données vivantes ; les 5,7 Go restants ont été compressés à leur tour (**7,3×** mesuré). Projection : données
+vivantes ramenées à **~2,06 Go**, fichier reconstruit à ~2,37 Go, espace disque nécessaire au compactage
+**~2,84 Go** — contre 9,64 Go auparavant, pour 4,3 Go disponibles. C'est ce qui rend la reconstruction possible
+et permettrait de restituer **~19,6 Go** au système de fichiers.
+
+`summary` reste en clair : cinq routes l'interrogent par `JSON_EXTRACT`.
+
 **Mise en œuvre** — colonnes `positionSamplesGz` / `trajectorySegmentsGz` (`LONGBLOB`), codec partagé
 `src/lib/pubg-telemetry/geo-codec.ts`. Les deux formats coexistent : toute lecture passe par `decodeGeoColumn`,
 qui préfère la colonne compressée et retombe sur celle en clair. Le rattrapage de l'existant se fait par lots

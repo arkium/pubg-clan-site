@@ -40,6 +40,12 @@ export const GEO_PURGE_BATCH_SIZE = 250
 export const GEO_PURGE_RUN_STALE_MS = 10 * 60 * 1000
 
 /**
+ * Durée pendant laquelle le compte rendu d'une purge terminée reste affiché. Au-delà, il n'apprend
+ * plus rien et laisse croire qu'une action est en attente.
+ */
+export const GEO_PURGE_NOTICE_TTL_MS = 24 * 60 * 60 * 1000
+
+/**
  * Matchs soustraits à la purge, à la demande de l'exploitant :
  *  - **Top 1** (`placement = 1`) : les victoires sont les replays qu'on rejoue.
  *  - **Matchs personnalisés** (`matchType = 'custom'`) : support des tournois. On protège tous les
@@ -263,13 +269,35 @@ export function isRunStale(state: GeoPurgeRunState, now: Date = new Date()): boo
 export async function readGeoPurgeRunForDisplay(now: Date = new Date()): Promise<GeoPurgeRunState | null> {
   const state = await readGeoPurgeRun()
   if (!state) return null
-  if (!isRunStale(state, now)) return state
-  return {
-    ...state,
-    status: 'failed',
-    error: 'Purge interrompue : le processus qui l’exécutait s’est arrêté. Relancez-la, elle reprendra où elle en est.',
-    finishedAt: state.updatedAt,
+
+  if (isRunStale(state, now)) {
+    return {
+      ...state,
+      status: 'failed',
+      error:
+        'Purge interrompue : le processus qui l’exécutait s’est arrêté. Relancez-la, elle reprendra où elle en est.',
+      finishedAt: state.updatedAt,
+    }
   }
+
+  // Un compte rendu de purge terminée est une nouvelle, pas un état permanent : passé un jour, il
+  // n'apprend plus rien et donne l'impression d'une action encore en attente. L'enregistrement
+  // reste en base, seul l'affichage s'arrête.
+  if (state.status !== 'running' && isNoticeExpired(state, now)) return null
+
+  return state
+}
+
+/** Vrai quand le compte rendu d'un run terminé a fait son temps. */
+export function isNoticeExpired(state: GeoPurgeRunState, now: Date = new Date()): boolean {
+  if (state.status === 'running') return false
+  const finishedAt = state.finishedAt ?? state.updatedAt
+  return now.getTime() - new Date(finishedAt).getTime() > GEO_PURGE_NOTICE_TTL_MS
+}
+
+/** Efface le compte rendu affiché (bouton « Masquer »). N'annule rien, ne supprime aucune donnée. */
+export async function clearGeoPurgeRun(): Promise<void> {
+  await prisma.appConfig.deleteMany({ where: { key: GEO_PURGE_RUN_KEY } })
 }
 
 export async function requestGeoPurgeCancel(): Promise<boolean> {

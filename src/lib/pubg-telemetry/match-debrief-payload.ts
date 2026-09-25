@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 
-import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import { getPhaseLabels } from '@/lib/phase-label-service'
 import { getWeaponLabels } from '@/lib/weapon-label-service'
@@ -388,18 +388,27 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
       t.errorMessage,
       t.summary,
       t.weaponStats,
+      t.weaponStatsGz,
       t.memberStats,
+      t.memberStatsGz,
       t.positionSamples,
       t.positionSamplesGz,
       t.trajectorySegments,
       t.trajectorySegmentsGz,
       t.deathSamples,
+      t.deathSamplesGz,
       t.phaseSnapshots,
+      t.phaseSnapshotsGz,
       t.knockoutSamples,
+      t.knockoutSamplesGz,
       t.reviveSamples,
+      t.reviveSamplesGz,
       t.landingSamples,
+      t.landingSamplesGz,
       t.vehicleSamples,
+      t.vehicleSamplesGz,
       t.killFeedSamples,
+      t.killFeedSamplesGz,
       t.createdAt AS telemetryCreatedAt,
       t.updatedAt AS telemetryUpdatedAt
     FROM SquadMatch sm
@@ -421,9 +430,8 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
   if (!row) return null
 
   // Les deux formats de stockage coexistent le temps du rattrapage : on normalise une fois ici,
-  // tout l'aval (payload, page de debogage) lit ensuite la valeur en clair sans le savoir.
-  row.positionSamples = decodeGeoColumn(row.positionSamplesGz, row.positionSamples)
-  row.trajectorySegments = decodeGeoColumn(row.trajectorySegmentsGz, row.trajectorySegments)
+  // tout l'aval (payload, page de debogage) lit ensuite les valeurs en clair sans le savoir.
+  decodeTelemetryRow(row)
 
   const [killEvents, throwableStats, weaponLabels, phaseLabels, allTrackedSquadMembers] = await Promise.all([
     prisma.killEvent.findMany({

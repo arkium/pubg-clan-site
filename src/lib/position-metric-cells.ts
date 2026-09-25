@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 
-import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import { toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
@@ -211,12 +211,12 @@ type StoredPositionSnapshot = Pick<
  * Ligne telle qu'elle sort de la base : aux colonnes historiques s'ajoutent les colonnes
  * compressees, absentes du type en memoire `ParsedTelemetrySnapshot` (voir geo-codec).
  */
-type StoredPositionRow = Record<keyof StoredPositionSnapshot, unknown> & {
-  positionSamplesGz?: unknown
-  trajectorySegmentsGz?: unknown
-}
+type StoredPositionRow = Record<keyof StoredPositionSnapshot, unknown> &
+  Partial<Record<`${keyof StoredPositionSnapshot}Gz`, unknown>>
 
 export function parseStoredPositionSnapshot(row: StoredPositionRow) {
+  // Les deux formats de stockage coexistent le temps du rattrapage : une seule normalisation.
+  const normalisee = decodeTelemetryRow({ ...row })
   return {
     summary: {
       totalEvents: 0,
@@ -238,15 +238,15 @@ export function parseStoredPositionSnapshot(row: StoredPositionRow) {
     killFeedSamples: [],
     throwableSamples: [],
     itemUseSamples: [],
-    positionSamples: storedArray(decodeGeoColumn(row.positionSamplesGz, row.positionSamples)),
-    trajectorySegments: storedArray(decodeGeoColumn(row.trajectorySegmentsGz, row.trajectorySegments)),
-    deathSamples: storedArray(row.deathSamples),
-    killSamples: storedArray(row.killSamples),
-    shotSamples: storedArray(row.shotSamples),
-    damageSamples: storedArray(row.damageSamples),
-    knockoutSamples: storedArray(row.knockoutSamples),
-    reviveSamples: storedArray(row.reviveSamples),
-    vehicleSamples: storedArray(row.vehicleSamples),
+    positionSamples: storedArray(normalisee.positionSamples),
+    trajectorySegments: storedArray(normalisee.trajectorySegments),
+    deathSamples: storedArray(normalisee.deathSamples),
+    killSamples: storedArray(normalisee.killSamples),
+    shotSamples: storedArray(normalisee.shotSamples),
+    damageSamples: storedArray(normalisee.damageSamples),
+    knockoutSamples: storedArray(normalisee.knockoutSamples),
+    reviveSamples: storedArray(normalisee.reviveSamples),
+    vehicleSamples: storedArray(normalisee.vehicleSamples),
   } as ParsedTelemetrySnapshot
 }
 
@@ -280,7 +280,9 @@ export async function backfillPositionMetricCells(input: {
         t.positionSamples IS NOT NULL OR
         t.positionSamplesGz IS NOT NULL OR
         t.killSamples IS NOT NULL OR
-        t.damageSamples IS NOT NULL
+        t.killSamplesGz IS NOT NULL OR
+        t.damageSamples IS NOT NULL OR
+        t.damageSamplesGz IS NOT NULL
       )
       ${clanFilter}
       ${input.missingOnly
@@ -301,12 +303,19 @@ export async function backfillPositionMetricCells(input: {
         trajectorySegments: true,
         trajectorySegmentsGz: true,
         deathSamples: true,
+        deathSamplesGz: true,
         killSamples: true,
+        killSamplesGz: true,
         shotSamples: true,
+        shotSamplesGz: true,
         damageSamples: true,
+        damageSamplesGz: true,
         knockoutSamples: true,
+        knockoutSamplesGz: true,
         reviveSamples: true,
+        reviveSamplesGz: true,
         vehicleSamples: true,
+        vehicleSamplesGz: true,
       },
     })
     if (!snapshot) continue

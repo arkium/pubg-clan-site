@@ -3,6 +3,7 @@ import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   MAINTAINABLE_TABLES,
   analyzeTable,
+  clearOptimizeRun,
   assessOptimize,
   readOptimizeRunForDisplay,
   startOptimizeRun,
@@ -55,8 +56,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       table?: string
-      action?: 'optimize' | 'analyze'
+      action?: 'optimize' | 'analyze' | 'dismiss'
       force?: boolean
+    }
+
+    // Efface le compte rendu du dernier compactage : purement cosmetique.
+    if (body?.action === 'dismiss') {
+      await clearOptimizeRun()
+      return Response.json({ ok: true, dismissed: true })
     }
 
     const table = body?.table || 'SquadMatchTelemetry'

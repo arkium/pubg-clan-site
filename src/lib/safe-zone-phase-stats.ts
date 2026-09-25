@@ -9,6 +9,7 @@ import { Prisma, type PrismaClient } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { getMapBounds, toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 export type SafeZonePhaseStatRow = {
   squadMatchId: string
@@ -224,12 +225,17 @@ export async function loadUnpersistedSafeZoneRows(input: {
   `)
   if (matches.length === 0) return []
 
-  const snapshots = await client.$queryRaw<Array<{ squadMatchId: string; phaseSnapshots: unknown }>>(Prisma.sql`
-    SELECT t.squadMatchId, t.phaseSnapshots
+  const snapshots = await client.$queryRaw<
+    Array<{ squadMatchId: string; phaseSnapshots: unknown; phaseSnapshotsGz: unknown }>
+  >(Prisma.sql`
+    SELECT t.squadMatchId, t.phaseSnapshots, t.phaseSnapshotsGz
     FROM SquadMatchTelemetry t
     WHERE t.squadMatchId IN (${Prisma.join(matches.map((match) => match.id))})
   `)
-  const snapshotsByMatch = new Map(snapshots.map((row) => [row.squadMatchId, row.phaseSnapshots]))
+  // Les deux formats coexistent le temps du rattrapage.
+  const snapshotsByMatch = new Map(
+    snapshots.map((row) => [row.squadMatchId, decodeTelemetryRow(row).phaseSnapshots])
+  )
   return matches.flatMap((match) => buildSafeZonePhaseStatRows(match, snapshotsByMatch.get(match.id)))
 }
 
@@ -260,12 +266,16 @@ export async function backfillSafeZonePhaseStats(input: {
   let rowsWritten = 0
   for (let offset = 0; offset < pending.length; offset += batchSize) {
     const batch = pending.slice(offset, offset + batchSize)
-    const snapshots = await client.$queryRaw<Array<{ squadMatchId: string; phaseSnapshots: unknown }>>(Prisma.sql`
-      SELECT t.squadMatchId, t.phaseSnapshots
+    const snapshots = await client.$queryRaw<
+      Array<{ squadMatchId: string; phaseSnapshots: unknown; phaseSnapshotsGz: unknown }>
+    >(Prisma.sql`
+      SELECT t.squadMatchId, t.phaseSnapshotsGz, t.phaseSnapshots
       FROM SquadMatchTelemetry t
       WHERE t.squadMatchId IN (${Prisma.join(batch.map((match) => match.id))})
     `)
-    const snapshotsByMatch = new Map(snapshots.map((row) => [row.squadMatchId, row.phaseSnapshots]))
+    const snapshotsByMatch = new Map(
+      snapshots.map((row) => [row.squadMatchId, decodeTelemetryRow(row).phaseSnapshots])
+    )
     const rows = batch.flatMap((match) => buildSafeZonePhaseStatRows(match, snapshotsByMatch.get(match.id)))
     // `skipDuplicates` : une synchronisation concurrente a pu écrire le même match entre-temps.
     const result = await client.safeZonePhaseStat.createMany({ data: rows, skipDuplicates: true })

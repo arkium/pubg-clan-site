@@ -27,7 +27,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 function formatGo(mb: number | null | undefined) {
-  if (mb === null || mb === undefined) return '\u2014'
+  if (mb === null || mb === undefined) return '—'
   return `${(mb / 1024).toFixed(2)} Go`
 }
 
@@ -211,11 +211,11 @@ export default function DatabaseStatsPage() {
       setOptimizeAssessment(data.assessment)
       setOptimizeRun(data.run)
     } catch (err) {
-      console.error('Erreur lecture de l\u2019\u00e9tat de compactage:', err)
+      console.error('Erreur lecture de l’état de compactage:', err)
     }
   }, [])
 
-  // Le compactage tourne sur le serveur : on suit son avancement en relisant l'\u00e9tat.
+  // Le compactage tourne sur le serveur : on suit son avancement en relisant l'état.
   const isOptimizing = optimizeRun?.status === 'running'
   useEffect(() => {
     if (!isOptimizing) return
@@ -284,6 +284,35 @@ export default function DatabaseStatsPage() {
     }
   }
 
+  /** Efface le compte rendu de la dernière purge. N'annule rien, ne supprime aucune donnée. */
+  const handleDismissPurgeRun = async () => {
+    setPurgeRun(null)
+    try {
+      await fetch('/api/superuser/database/purge-telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dismiss' }),
+      })
+    } catch (err) {
+      console.error('Erreur lors du masquage du compte rendu de purge:', err)
+    }
+  }
+
+  /** Idem pour le compte rendu du dernier compactage. */
+  const handleDismissOptimizeRun = async () => {
+    setOptimizeRun(null)
+    setOptimizeMsg('')
+    try {
+      await fetch('/api/superuser/database/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dismiss' }),
+      })
+    } catch (err) {
+      console.error('Erreur lors du masquage du compte rendu de compactage:', err)
+    }
+  }
+
   const handleCancelPurge = async () => {
     try {
       await fetch('/api/superuser/database/purge-telemetry', {
@@ -322,15 +351,15 @@ export default function DatabaseStatsPage() {
     setOptimizeMsg('')
     setOptimizeError('')
 
-    // Le verdict affich\u00e9 ne concerne qu'une table : pour une autre, on laisse le serveur trancher
-    // (il r\u00e9\u00e9value de toute fa\u00e7on avant de lancer quoi que ce soit).
+    // Le verdict affiché ne concerne qu'une table : pour une autre, on laisse le serveur trancher
+    // (il réévalue de toute façon avant de lancer quoi que ce soit).
     const assessment = optimizeAssessment?.table === table ? optimizeAssessment : null
 
     if (action === 'optimize') {
       const verdict = assessment?.verdict
-      // Le serveur refusera de toute fa\u00e7on, mais autant ne pas faire cliquer dans le vide.
+      // Le serveur refusera de toute façon, mais autant ne pas faire cliquer dans le vide.
       if (verdict === 'blocked_disk' || verdict === 'blocked_unknown_disk') {
-        setOptimizeError(assessment?.reason ?? 'Compactage impossible dans l\u2019\u00e9tat actuel du serveur.')
+        setOptimizeError(assessment?.reason ?? 'Compactage impossible dans l’état actuel du serveur.')
         return
       }
       const gain = assessment?.sizes?.dataFreeMb ?? 0
@@ -338,9 +367,9 @@ export default function DatabaseStatsPage() {
       if (
         !confirm(
           `Compacter la table ${table} ?\n\n` +
-            `R\u00e9cup\u00e9rable : ${(gain / 1024).toFixed(2)} Go. R\u00e9\u00e9crit : ${(taille / 1024).toFixed(2)} Go.\n` +
-            `L'op\u00e9ration reconstruit enti\u00e8rement le fichier de donn\u00e9es et peut durer plusieurs dizaines de minutes.\n\n` +
-            `Elle s'ex\u00e9cute sur le serveur : vous pouvez quitter cette page.`
+            `Récupérable : ${(gain / 1024).toFixed(2)} Go. Réécrit : ${(taille / 1024).toFixed(2)} Go.\n` +
+            `L'opération reconstruit entièrement le fichier de données et peut durer plusieurs dizaines de minutes.\n\n` +
+            `Elle s'exécute sur le serveur : vous pouvez quitter cette page.`
         )
       ) {
         return
@@ -356,7 +385,7 @@ export default function DatabaseStatsPage() {
         body: JSON.stringify({
           table,
           action,
-          // Un compactage jug\u00e9 \u00ab inutile \u00bb reste permis sur demande explicite ; un compactage jug\u00e9
+          // Un compactage jugé « inutile » reste permis sur demande explicite ; un compactage jugé
           // dangereux ne l'est jamais.
           force: action === 'optimize' && assessment?.verdict === 'pointless',
         }),
@@ -377,16 +406,16 @@ export default function DatabaseStatsPage() {
 
       if (action === 'analyze') {
         const durSec = payload.durationMs ? (payload.durationMs / 1000).toFixed(1) : '1'
-        setOptimizeMsg(`${payload.message || 'Op\u00e9ration r\u00e9ussie'} en ${durSec}s.`)
+        setOptimizeMsg(`${payload.message || 'Opération réussie'} en ${durSec}s.`)
       } else {
-        setOptimizeMsg(payload.message || 'Compactage lanc\u00e9 sur le serveur.')
+        setOptimizeMsg(payload.message || 'Compactage lancé sur le serveur.')
         if (payload.run) setOptimizeRun(payload.run)
       }
 
       void fetchOptimizeState()
       void fetchStats()
     } catch (err) {
-      setOptimizeError(err instanceof Error ? err.message : '\u00c9chec de l\u2019op\u00e9ration de compactage')
+      setOptimizeError(err instanceof Error ? err.message : 'Échec de l’opération de compactage')
     } finally {
       if (action === 'analyze') setAnalyzing(false)
     }
@@ -795,7 +824,7 @@ export default function DatabaseStatsPage() {
                         Protégés (Top 1 et parties personnalisées)
                       </span>
                       <p className="mt-1 text-sm sm:text-base font-semibold text-emerald-700 dark:text-emerald-400">
-                        {selectedCount ? selectedCount.protectedMatches.toLocaleString() : '\u2014'}
+                        {selectedCount ? selectedCount.protectedMatches.toLocaleString() : '—'}
                       </p>
                     </div>
                   </div>
@@ -920,11 +949,20 @@ export default function DatabaseStatsPage() {
                     </span>
                   )}
 
+                  {/* Compte rendu d'une purge terminée : une nouvelle, pas un état permanent. Le
+                      serveur cesse de le servir au bout de 24 h, et ce bouton l'efface tout de suite. */}
                   {!isPurging && purgeRun?.status === 'done' && (
                     <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
-                      Purge terminée : {purgeRun.purged.toLocaleString()} matchs nettoyés. Utilisez &laquo; Compacter la
-                      table &raquo; ci-dessous pour rendre l&apos;espace au disque.
+                      Purge terminée le {formatDateTime(purgeRun.finishedAt ?? purgeRun.updatedAt)} :{' '}
+                      {purgeRun.purged.toLocaleString()} matchs nettoyés.
+                      <button
+                        type="button"
+                        onClick={handleDismissPurgeRun}
+                        className="ml-1 underline decoration-dotted underline-offset-2 hover:no-underline"
+                      >
+                        Masquer
+                      </button>
                     </span>
                   )}
 
@@ -932,6 +970,13 @@ export default function DatabaseStatsPage() {
                     <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
                       <Square className="h-3.5 w-3.5" />
                       Purge interrompue après {purgeRun.purged.toLocaleString()} matchs nettoyés.
+                      <button
+                        type="button"
+                        onClick={handleDismissPurgeRun}
+                        className="ml-1 underline decoration-dotted underline-offset-2 hover:no-underline"
+                      >
+                        Masquer
+                      </button>
                     </span>
                   )}
                 </div>
@@ -941,6 +986,13 @@ export default function DatabaseStatsPage() {
                     <p className="font-semibold">La purge s&apos;est arrêtée après {purgeRun.purged.toLocaleString()} matchs :</p>
                     <p className="mt-0.5">{purgeRun.error}</p>
                     <p className="mt-1">Relancer la purge reprend là où elle s&apos;est arrêtée : rien n&apos;est à défaire.</p>
+                    <button
+                      type="button"
+                      onClick={handleDismissPurgeRun}
+                      className="mt-1 underline decoration-dotted underline-offset-2 hover:no-underline"
+                    >
+                      Masquer ce message
+                    </button>
                   </div>
                 )}
 
@@ -951,20 +1003,20 @@ export default function DatabaseStatsPage() {
                   </div>
                 )}
 
-                {/* Compactage InnoDB \u2014 verdict mesur\u00e9 plut\u00f4t que bouton nu */}
+                {/* Compactage InnoDB — verdict mesuré plutôt que bouton nu */}
                 <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 sm:p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20 space-y-3">
                   <div className="flex items-start gap-3">
                     <Info className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <h4 className="text-xs sm:text-sm font-semibold text-indigo-950 dark:text-indigo-200">
-                        Pourquoi la taille affich\u00e9e ne diminue-t-elle pas imm\u00e9diatement apr\u00e8s la purge ?
+                        Pourquoi la taille affichée ne diminue-t-elle pas immédiatement après la purge ?
                       </h4>
                       <p className="text-xs text-indigo-900/80 dark:text-indigo-300/80 leading-relaxed">
-                        Sous InnoDB, vider des colonnes lib\u00e8re de l&apos;espace <strong>\u00e0 l&apos;int\u00e9rieur</strong> du fichier
-                        de donn\u00e9es (<code>.ibd</code>) mais ne le r\u00e9duit <strong>jamais</strong> automatiquement. Cet espace est
-                        r\u00e9utilis\u00e9 par les \u00e9critures suivantes : le compactage ne sert qu&apos;\u00e0 rendre la place au syst\u00e8me
-                        de fichiers. Il <strong>reconstruit la table enti\u00e8re</strong> et exige autant d&apos;espace disque libre
-                        qu&apos;elle occupe \u2014 il ne peut donc \u00eatre ni fractionn\u00e9 ni automatis\u00e9.
+                        Sous InnoDB, vider des colonnes libère de l&apos;espace <strong>à l&apos;intérieur</strong> du fichier
+                        de données (<code>.ibd</code>) mais ne le réduit <strong>jamais</strong> automatiquement. Cet espace est
+                        réutilisé par les écritures suivantes : le compactage ne sert qu&apos;à rendre la place au système
+                        de fichiers. Il <strong>reconstruit la table entière</strong> et exige autant d&apos;espace disque libre
+                        qu&apos;elle occupe — il ne peut donc être ni fractionné ni automatisé.
                       </p>
                     </div>
                   </div>
@@ -972,13 +1024,13 @@ export default function DatabaseStatsPage() {
                   {optimizeAssessment && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <div className="rounded-lg border border-indigo-200/60 bg-white/60 p-2.5 dark:border-indigo-900/40 dark:bg-slate-900/40">
-                        <span className="text-[11px] text-slate-500">Taille \u00e0 r\u00e9\u00e9crire</span>
+                        <span className="text-[11px] text-slate-500">Taille à réécrire</span>
                         <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                           {formatGo(optimizeAssessment.sizes?.totalSizeMb)}
                         </p>
                       </div>
                       <div className="rounded-lg border border-indigo-200/60 bg-white/60 p-2.5 dark:border-indigo-900/40 dark:bg-slate-900/40">
-                        <span className="text-[11px] text-slate-500">R\u00e9cup\u00e9rable (espace libre interne)</span>
+                        <span className="text-[11px] text-slate-500">Récupérable (espace libre interne)</span>
                         <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
                           {formatGo(optimizeAssessment.sizes?.dataFreeMb)}
                         </p>
@@ -1023,7 +1075,7 @@ export default function DatabaseStatsPage() {
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                       <p>
                         Compactage de <strong>{optimizeRun.table}</strong> en cours depuis{' '}
-                        {formatDateTime(optimizeRun.startedAt)}. Il s&apos;ex\u00e9cute sur le serveur : vous pouvez quitter
+                        {formatDateTime(optimizeRun.startedAt)}. Il s&apos;exécute sur le serveur : vous pouvez quitter
                         cette page.
                       </p>
                     </div>
@@ -1033,8 +1085,15 @@ export default function DatabaseStatsPage() {
                     <div className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4 shrink-0" />
                       <p>
-                        Compactage termin\u00e9 : {formatGo(optimizeRun.sizeBeforeMb)} \u2192 {formatGo(optimizeRun.sizeAfterMb)},
-                        soit {formatGo(optimizeRun.reclaimedMb)} rendus au disque.
+                        Compactage terminé : {formatGo(optimizeRun.sizeBeforeMb)} → {formatGo(optimizeRun.sizeAfterMb)},
+                        soit {formatGo(optimizeRun.reclaimedMb)} rendus au disque.{' '}
+                        <button
+                          type="button"
+                          onClick={handleDismissOptimizeRun}
+                          className="underline decoration-dotted underline-offset-2 hover:no-underline"
+                        >
+                          Masquer
+                        </button>
                       </p>
                     </div>
                   )}
@@ -1042,7 +1101,16 @@ export default function DatabaseStatsPage() {
                   {!isOptimizing && optimizeRun?.status === 'failed' && (
                     <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
-                      <p>{optimizeRun.error}</p>
+                      <p>
+                        {optimizeRun.error}{' '}
+                        <button
+                          type="button"
+                          onClick={handleDismissOptimizeRun}
+                          className="underline decoration-dotted underline-offset-2 hover:no-underline"
+                        >
+                          Masquer
+                        </button>
+                      </p>
                     </div>
                   )}
 
@@ -1065,7 +1133,7 @@ export default function DatabaseStatsPage() {
                         <HardDrive className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       )}
                       {isOptimizing
-                        ? 'Compactage en cours\u2026'
+                        ? 'Compactage en cours…'
                         : optimizeAssessment?.verdict === 'blocked_disk' ||
                           optimizeAssessment?.verdict === 'blocked_unknown_disk'
                         ? 'Compactage indisponible'

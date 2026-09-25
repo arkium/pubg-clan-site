@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client'
 
-import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import type { PositionMetric } from '@/lib/position-metric-cells'
 import type { RawPositionTelemetryRow } from '@/lib/position-metric-raw-aggregation'
@@ -176,19 +176,26 @@ export async function loadRawPositionTelemetryRows(input: {
   if (matchIds.length === 0) return []
 
   const rows = await client.$queryRaw<
-    Array<RawPositionTelemetryRow & { squadMatchId: string; positionSamplesGz: unknown }>
+    Array<RawPositionTelemetryRow & { squadMatchId: string } & Record<string, unknown>>
   >(Prisma.sql`
     SELECT
       t.squadMatchId,
       t.positionSamples,
       t.positionSamplesGz,
       t.deathSamples,
+      t.deathSamplesGz,
       t.killSamples,
+      t.killSamplesGz,
       t.shotSamples,
+      t.shotSamplesGz,
       t.damageSamples,
+      t.damageSamplesGz,
       t.knockoutSamples,
+      t.knockoutSamplesGz,
       t.reviveSamples,
-      t.vehicleSamples
+      t.reviveSamplesGz,
+      t.vehicleSamples,
+      t.vehicleSamplesGz
     FROM SquadMatchTelemetry t
     WHERE t.squadMatchId IN (${Prisma.join(matchIds.map((row) => row.squadMatchId))})
   `)
@@ -206,10 +213,12 @@ export async function loadRawPositionTelemetryRows(input: {
     keysByMatch.set(entry.squadMatchId, keys)
   }
 
-  return rows.map(({ squadMatchId, positionSamplesGz, ...row }) => ({
-    ...row,
-    // Les deux formats coexistent le temps du rattrapage.
-    positionSamples: decodeGeoColumn(positionSamplesGz, row.positionSamples),
-    squadMemberKeys: keysByMatch.get(squadMatchId) ?? new Set<string>(),
-  }))
+  // Les deux formats coexistent le temps du rattrapage : une seule normalisation par ligne.
+  return rows.map((row) => {
+    const { squadMatchId, ...reste } = decodeTelemetryRow(row)
+    return {
+      ...reste,
+      squadMemberKeys: keysByMatch.get(squadMatchId) ?? new Set<string>(),
+    }
+  })
 }

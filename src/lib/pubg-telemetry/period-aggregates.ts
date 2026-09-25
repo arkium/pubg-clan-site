@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { matchTypeMatchesFilter } from '@/lib/match-type-filter'
 import { teamModeFromMemberCount } from '@/lib/team-mode'
 import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
+import { decodeJsonColumn } from '@/lib/pubg-telemetry/json-codec'
 
 const CLAN_SYNERGY_MATCH_TYPES: ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
 const CLAN_SYNERGY_TEAM_MODES: ClanTeamModeFilter[] = ['duo', 'trio', 'squad', 'all']
@@ -495,7 +496,13 @@ async function recalculateTelemetryPeriodForClan(
   // Prisma's in-process Rust engine can panic fatally when reading malformed JSON numbers from the DB.
   // Batched at 30 to avoid the Rust engine allocating a large contiguous block (38MB+ for 200+ matches
   // causes a non-interceptable V8 Fatal Error after repeated runs due to native heap fragmentation).
-  type RawTelemetryRow = { squadMatchId: string; memberStats: string | null; weaponStats: string | null }
+  type RawTelemetryRow = {
+    squadMatchId: string
+    memberStats: string | null
+    weaponStats: string | null
+    memberStatsGz: Buffer | null
+    weaponStatsGz: Buffer | null
+  }
   const TELEMETRY_QUERY_BATCH_SIZE = 30
   const rawRows: RawTelemetryRow[] = []
   for (let i = 0; i < squadMatchIds.length; i += TELEMETRY_QUERY_BATCH_SIZE) {
@@ -503,7 +510,9 @@ async function recalculateTelemetryPeriodForClan(
     const batchRows = await prisma.$queryRaw<RawTelemetryRow[]>(Prisma.sql`
       SELECT squadMatchId,
              CAST(memberStats AS CHAR) AS memberStats,
-             CAST(weaponStats AS CHAR) AS weaponStats
+             CAST(weaponStats AS CHAR) AS weaponStats,
+             memberStatsGz,
+             weaponStatsGz
       FROM SquadMatchTelemetry
       WHERE status = 'success'
         AND squadMatchId IN (${Prisma.join(batchIds)})
@@ -514,9 +523,18 @@ async function recalculateTelemetryPeriodForClan(
   const telemetryByMatchId = new Map<string, { memberStats: unknown; weaponStats: unknown }>()
   for (const row of rawRows) {
     try {
+      // Les deux formats coexistent le temps du rattrapage.
       telemetryByMatchId.set(row.squadMatchId, {
-        memberStats: row.memberStats ? JSON.parse(row.memberStats) : null,
-        weaponStats: row.weaponStats ? JSON.parse(row.weaponStats) : null,
+        memberStats: decodeJsonColumn(
+          row.memberStatsGz,
+          row.memberStats ? JSON.parse(row.memberStats) : null,
+          'memberStats'
+        ),
+        weaponStats: decodeJsonColumn(
+          row.weaponStatsGz,
+          row.weaponStats ? JSON.parse(row.weaponStats) : null,
+          'weaponStats'
+        ),
       })
     } catch {
       console.warn('[TelemetryAggregates] Skipping record with invalid JSON', { squadMatchId: row.squadMatchId })

@@ -4,7 +4,9 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 
 import {
+  GEO_PURGE_NOTICE_TTL_MS,
   GEO_PURGE_RUN_STALE_MS,
+  isNoticeExpired,
   isRunStale,
   parseSelection,
   resolveCutoff,
@@ -57,6 +59,36 @@ describe('parseSelection', () => {
     expect(parseSelection('abc')).toBe(14)
     expect(parseSelection(null)).toBe(14)
     expect(parseSelection(undefined)).toBe(14)
+  })
+})
+
+describe('isNoticeExpired', () => {
+  const termine = (finishedAt: string): GeoPurgeRunState => ({
+    status: 'done',
+    olderThanDays: 14,
+    cutoff: null,
+    target: 2679,
+    purged: 2723,
+    startedAt: '2026-09-23T20:50:00.000Z',
+    updatedAt: finishedAt,
+    finishedAt,
+  })
+
+  it('laisse le compte rendu visible juste apres la purge', () => {
+    const fin = '2026-09-23T20:55:00.000Z'
+    expect(isNoticeExpired(termine(fin), new Date('2026-09-23T22:00:00.000Z'))).toBe(false)
+  })
+
+  it('cesse de l’afficher passe le delai : ce n’est plus une nouvelle', () => {
+    // Le compte rendu restait affiche indefiniment et laissait croire a une action en attente.
+    const fin = '2026-09-23T20:55:00.000Z'
+    const apres = new Date(new Date(fin).getTime() + GEO_PURGE_NOTICE_TTL_MS + 1000)
+    expect(isNoticeExpired(termine(fin), apres)).toBe(true)
+  })
+
+  it('n’expire jamais un run encore en cours', () => {
+    const encours = { ...termine('2026-09-23T20:55:00.000Z'), status: 'running' as const }
+    expect(isNoticeExpired(encours, new Date('2027-01-01T00:00:00.000Z'))).toBe(false)
   })
 })
 

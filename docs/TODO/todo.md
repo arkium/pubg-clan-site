@@ -671,14 +671,39 @@ Mesuré sur 8 matchs récents (`scripts/check-remaining-columns-compressibility.
 
 Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque passerait de 91 % à environ 50 %.
 
-- [ ] **Compresser les 13 colonnes JSON restantes** (`weaponStats`, `memberStats`, `deathSamples`,
-  `landingSamples`, `phaseSnapshots`, `killSamples`, `shotSamples`, `damageSamples`, `knockoutSamples`,
-  `reviveSamples`, `vehicleSamples`, `killFeedSamples`, `carePackageSamples`) sur le modèle de la
-  géolocalisation — même codec, même ajout `INSTANT`, même rattrapage par lots.
-  - **`summary` reste en clair** : cinq routes l'interrogent par `JSON_EXTRACT`
-    (`telemetry/circles`, `heatmap`, `loot`, `vehicles`). Elle pèse 0,00 Go, aucun intérêt à y toucher.
-  - **`phaseSnapshots`** porte un prédicat `JSON_LENGTH(...) > 0` (`zone-closure-positions.ts:278`) : à adapter
-    comme celui de `positionSamples`. Elle compresse à **14,1×**, c'est la meilleure du lot.
+- [x] **Compression étendue à toutes les colonnes JSON** — implémentée le 2026-09-25, **non déployée**.
+  - **Migration** `20260925090000_compress_remaining_json_columns` : 13 colonnes `LONGBLOB` en
+    `ALGORITHM=INSTANT`. **À appliquer par `npx prisma migrate deploy` sur le serveur** — pas de `db execute`
+    depuis un poste de développement, c'est ce qui avait provoqué le `P3018` du 2026-09-24.
+  - **Codec généralisé** : `geo-codec.ts` devient `json-codec.ts`. `COMPRESSED_JSON_COLUMNS` fait foi,
+    `decodeTelemetryRow(row)` normalise une ligne entière en un appel — un seul point de passage plutôt que
+    quinze décodages par site, la dispersion étant la première source d'oubli.
+  - **`summary` reste en clair** : cinq routes l'interrogent par `JSON_EXTRACT`.
+  - **Écritures** : `persistence-payload.ts` et `persistence-fallback.ts`, 15 colonnes compressées, colonnes en
+    clair à `NULL`.
+  - **Lectures** : 15 sites normalisés — replay, débriefing, cellules de position, agrégation, fermetures de
+    zone, zones sûres, pression de drop, agrégats de période, armes (clan et membre), zones de saut (clan et
+    membre), récupérations.
+  - **Prédicats étendus aux deux formats** : `backfill-null-json` (le piège signalé — sans cela tout match
+    compressé aurait été resynchronisé inutilement), `drop-pressure-persistence`, les deux routes de zones de
+    saut, `zone-closure-positions` (`phaseSnapshots`), `position-metric-cells`,
+    `telemetry-recoveries-overview`, `recoveries`, et `scripts/enqueue-recent-telemetry-resync.ts`.
+  - **Rattrapage** `scripts/backfill-json-compression.ts` : par lots, interruptible, `--dry-run`. **Garde-fou
+    structurel** — chaque valeur est compressée puis immédiatement décompressée et comparée à l'original ; la
+    colonne en clair n'est vidée que si la restitution est exacte, sinon la ligne est laissée intacte et
+    signalée. **Une perte de données est structurellement impossible.**
+  - **Tests** : `json-codec.test.ts` (18 cas) dont le **lot mixte** ancien/nouveau format, l'exclusion de
+    `summary`, la normalisation partielle (chaque site sélectionne son sous-ensemble) et les échecs nommant la
+    colonne fautive ; `persistence-payload.test.ts` vérifie que **les 15 colonnes** partent à `NULL` avec
+    aller-retour exact. **640 tests verts**, `tsc` propre, lint sans régression.
+  - **Documentation** : `CLAUDE.md` piège n° 10 réécrit (liste des colonnes, règle `decodeTelemetryRow`,
+    piège de `backfill-null-json`, ordre de déploiement), `docs/ops/database-performance.md` §4bis.
+
+- [ ] **Déployer dans l'ordre** : `migrate deploy` (les colonnes), puis le code sur les quatre services, puis
+  seulement le rattrapage. Les écritures compressées démarrent dès le déploiement du code — d'où l'importance
+  que les quatre unités aient redémarré.
+- [ ] **Lancer le rattrapage** : `npx tsx scripts/backfill-json-compression.ts --dry-run` d'abord, puis sans le
+  drapeau. Rafraîchir ensuite `scripts/refresh-table-live-size.ts` pour que la page réévalue le compactage.
 - [ ] **Puis compacter** (`OPTIMIZE`), une fois la mesure de poids réel rafraîchie et le verdict de la page
   passé au vert.
 

@@ -15,6 +15,7 @@ import {
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
 import { getMapBounds, clamp01 } from '@/lib/pubg-telemetry/position-heatmap'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 
@@ -144,6 +145,7 @@ export async function GET(
       pubgAccountId: string | null
       pubgPlayerName: string
       landingSamples: unknown
+      landingSamplesGz: unknown
     }
 
     const rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
@@ -154,13 +156,14 @@ export async function GET(
         cm.displayName AS memberName,
         cm.pubgAccountId,
         cm.pubgPlayerName,
-        t.landingSamples
+        t.landingSamples,
+        t.landingSamplesGz
       FROM SquadMatchTelemetry t
       INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
       INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
       INNER JOIN ClanMember cm ON cm.id = sdm.memberId
       WHERE t.status = 'success'
-        AND t.landingSamples IS NOT NULL
+        AND (t.landingSamples IS NOT NULL OR t.landingSamplesGz IS NOT NULL)
         AND cm.clanId = ${parsedClanId}
         ${dateFilter}
       ORDER BY sm.createdAt DESC
@@ -173,7 +176,8 @@ export async function GET(
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
-      const samples = parseLandingSamples(row.landingSamples)
+      // Les deux formats coexistent le temps du rattrapage.
+      const samples = parseLandingSamples(decodeTelemetryRow(row).landingSamples)
       const pressureSamples: DropPressureSample[] = samples.flatMap((sample) => {
         const memberKey =
           typeof sample.memberKey === 'string' ? sample.memberKey.trim().toLowerCase() : ''

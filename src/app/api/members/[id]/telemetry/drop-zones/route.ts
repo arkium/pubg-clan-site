@@ -15,6 +15,7 @@ import {
 } from '@/lib/pubg-telemetry/api-contract'
 import { clamp01, getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type DropZonesScope = 'self' | 'member' | 'clan' | 'best'
@@ -52,6 +53,7 @@ type RawRow = {
   squadMatchId: string
   mapName: string
   landingSamples: unknown
+  landingSamplesGz: unknown
 }
 
 const GRID_SIZE = 40
@@ -229,12 +231,13 @@ export async function GET(
         SELECT
           t.squadMatchId,
           sm.mapName,
-          t.landingSamples
+          t.landingSamples,
+          t.landingSamplesGz
         FROM SquadMatchTelemetry t
         INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
         INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
         WHERE t.status = 'success'
-          AND t.landingSamples IS NOT NULL
+          AND (t.landingSamples IS NOT NULL OR t.landingSamplesGz IS NOT NULL)
           AND sdm.memberId = ${effectiveMemberId}
           ${dateFilter}
         ORDER BY sm.createdAt DESC
@@ -251,13 +254,14 @@ export async function GET(
           SELECT DISTINCT
             t.squadMatchId,
             sm.mapName,
-            t.landingSamples
+            t.landingSamples,
+            t.landingSamplesGz
           FROM SquadMatchTelemetry t
           INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
           INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
           INNER JOIN ClanMember cm ON cm.id = sdm.memberId
           WHERE t.status = 'success'
-            AND t.landingSamples IS NOT NULL
+            AND (t.landingSamples IS NOT NULL OR t.landingSamplesGz IS NOT NULL)
             AND cm.clanId = ${clanId}
             ${dateFilter}
           ORDER BY sm.createdAt DESC
@@ -406,7 +410,8 @@ export async function GET(
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
-      const samples = parseLandingSamples(row.landingSamples)
+      // Les deux formats coexistent le temps du rattrapage.
+      const samples = parseLandingSamples(decodeTelemetryRow(row).landingSamples)
       const pressureSamples: DropPressureSample[] = samples.flatMap((sample) => {
         const memberKey =
           typeof sample.memberKey === 'string' ? sample.memberKey.trim().toLowerCase() : ''

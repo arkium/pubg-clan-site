@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 
-import { decodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import { mapAssetUrl, resolveGameMode, resolveMapAssetKey, resolveMapName } from '@/lib/pubg-assets'
 import { computeFlightPath, computeFlightPathFromJumps } from '@/lib/pubg-telemetry/flight-path'
@@ -60,14 +60,22 @@ export async function loadMatchReplay(input: {
       t.positionSamples,
       t.positionSamplesGz,
       t.deathSamples,
+      t.deathSamplesGz,
       t.landingSamples,
+      t.landingSamplesGz,
       t.knockoutSamples,
+      t.knockoutSamplesGz,
       t.reviveSamples,
+      t.reviveSamplesGz,
       t.phaseSnapshots,
+      t.phaseSnapshotsGz,
       t.vehicleSamples,
+      t.vehicleSamplesGz,
       t.summary,
       t.killFeedSamples,
-      t.carePackageSamples
+      t.killFeedSamplesGz,
+      t.carePackageSamples,
+      t.carePackageSamplesGz
     FROM SquadMatch sm
     INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
     WHERE sm.id = ${input.matchId}
@@ -87,11 +95,12 @@ export async function loadMatchReplay(input: {
   const row = rows[0]
   if (!row) return { status: 'not_found' }
 
-  // Les deux formats de stockage coexistent le temps du rattrapage : toujours decoder.
-  const positionSamples = decodeGeoColumn(row.positionSamplesGz, row.positionSamples)
+  // Les deux formats de stockage coexistent le temps du rattrapage : une seule normalisation ici,
+  // tout l'aval lit ensuite les valeurs en clair sans le savoir.
+  decodeTelemetryRow(row)
 
   const memberKeys = collectLobbyAccountIds(
-    positionSamples,
+    row.positionSamples,
     row.landingSamples,
     row.deathSamples,
     row.knockoutSamples,
@@ -191,7 +200,7 @@ export async function loadMatchReplay(input: {
     currentClanId: input.currentClanId,
     currentClanTag: clan?.tag ?? null,
     identities,
-    positionSamples,
+    positionSamples: row.positionSamples,
     deathSamples: row.deathSamples,
     landingSamples: row.landingSamples,
     knockoutSamples: row.knockoutSamples,

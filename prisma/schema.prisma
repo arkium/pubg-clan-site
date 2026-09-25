@@ -865,6 +865,21 @@ model SquadMatchTelemetry {
   trajectorySegments Json?
   positionSamplesGz    Bytes?
   trajectorySegmentsGz Bytes?
+  /// Reste des colonnes JSON, compressees le 2026-09-25 (gzip, ~7,3x). `summary` reste en clair :
+  /// cinq routes l'interrogent par JSON_EXTRACT, ce qu'un blob rendrait impossible.
+  weaponStatsGz        Bytes?
+  memberStatsGz        Bytes?
+  deathSamplesGz       Bytes?
+  landingSamplesGz     Bytes?
+  phaseSnapshotsGz     Bytes?
+  killSamplesGz        Bytes?
+  shotSamplesGz        Bytes?
+  damageSamplesGz      Bytes?
+  knockoutSamplesGz    Bytes?
+  reviveSamplesGz      Bytes?
+  vehicleSamplesGz     Bytes?
+  killFeedSamplesGz    Bytes?
+  carePackageSamplesGz Bytes?
   deathSamples       Json?
   landingSamples     Json?
   phaseSnapshots     Json?

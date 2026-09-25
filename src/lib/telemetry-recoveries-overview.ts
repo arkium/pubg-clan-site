@@ -50,7 +50,8 @@ export async function getTelemetryRecoveriesOverview(
       t.errorCode,
       t.errorMessage,
       CASE
-        WHEN t.summary IS NOT NULL OR t.weaponStats IS NOT NULL OR t.memberStats IS NOT NULL THEN 1
+        WHEN t.summary IS NOT NULL OR t.weaponStatsGz IS NOT NULL OR t.memberStatsGz IS NOT NULL
+                 OR t.weaponStats IS NOT NULL OR t.memberStats IS NOT NULL THEN 1
         ELSE 0
       END AS hasParsedPayload
     FROM (

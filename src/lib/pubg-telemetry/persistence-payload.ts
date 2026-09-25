@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 
-import { encodeGeoColumn } from '@/lib/pubg-telemetry/geo-codec'
+import { encodeJsonColumn } from '@/lib/pubg-telemetry/json-codec'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 
 type BuildTelemetrySuccessBasePayloadInput = {
@@ -93,25 +93,40 @@ export function buildTelemetrySuccessPayloadWithJson(
 ) {
   return {
     ...basePayload,
+    // `summary` reste en clair : cinq routes l'interrogent en SQL par JSON_EXTRACT.
     summary: sanitizeJsonForPrisma(parsed.summary),
-    weaponStats: sanitizeJsonForPrisma(parsed.weaponStats),
-    memberStats: sanitizeJsonForPrisma(parsed.memberStats),
-    // Geolocalisation : ecrite compressee (~8x), la colonne en clair reste vide. Toute lecture
-    // passe par `decodeGeoColumn`, qui accepte encore l'ancien format le temps du rattrapage.
+    // Tout le reste part compressé (~7 à 9×), les colonnes en clair à NULL. Aucune lecture ne doit
+    // les toucher directement : `decodeTelemetryRow` s'en charge, et accepte encore l'ancien
+    // format le temps du rattrapage (src/lib/pubg-telemetry/json-codec.ts).
+    weaponStats: Prisma.DbNull,
+    memberStats: Prisma.DbNull,
     positionSamples: Prisma.DbNull,
     trajectorySegments: Prisma.DbNull,
-    positionSamplesGz: encodeGeoColumn(parsed.positionSamples),
-    trajectorySegmentsGz: encodeGeoColumn(parsed.trajectorySegments),
-    deathSamples: sanitizeJsonForPrisma(parsed.deathSamples),
-    landingSamples: sanitizeJsonForPrisma(parsed.landingSamples),
-    phaseSnapshots: sanitizeJsonForPrisma(parsed.phaseSnapshots),
-    killSamples: sanitizeJsonForPrisma(parsed.killSamples),
-    shotSamples: sanitizeJsonForPrisma(parsed.shotSamples),
-    damageSamples: sanitizeJsonForPrisma(parsed.damageSamples),
-    knockoutSamples: sanitizeJsonForPrisma(parsed.knockoutSamples),
-    reviveSamples: sanitizeJsonForPrisma(parsed.reviveSamples),
-    vehicleSamples: sanitizeJsonForPrisma(parsed.vehicleSamples),
-    killFeedSamples: sanitizeJsonForPrisma(parsed.killFeedSamples),
-    carePackageSamples: sanitizeJsonForPrisma(parsed.carePackageSamples ?? []),
+    deathSamples: Prisma.DbNull,
+    landingSamples: Prisma.DbNull,
+    phaseSnapshots: Prisma.DbNull,
+    killSamples: Prisma.DbNull,
+    shotSamples: Prisma.DbNull,
+    damageSamples: Prisma.DbNull,
+    knockoutSamples: Prisma.DbNull,
+    reviveSamples: Prisma.DbNull,
+    vehicleSamples: Prisma.DbNull,
+    killFeedSamples: Prisma.DbNull,
+    carePackageSamples: Prisma.DbNull,
+    weaponStatsGz: encodeJsonColumn(parsed.weaponStats),
+    memberStatsGz: encodeJsonColumn(parsed.memberStats),
+    positionSamplesGz: encodeJsonColumn(parsed.positionSamples),
+    trajectorySegmentsGz: encodeJsonColumn(parsed.trajectorySegments),
+    deathSamplesGz: encodeJsonColumn(parsed.deathSamples),
+    landingSamplesGz: encodeJsonColumn(parsed.landingSamples),
+    phaseSnapshotsGz: encodeJsonColumn(parsed.phaseSnapshots),
+    killSamplesGz: encodeJsonColumn(parsed.killSamples),
+    shotSamplesGz: encodeJsonColumn(parsed.shotSamples),
+    damageSamplesGz: encodeJsonColumn(parsed.damageSamples),
+    knockoutSamplesGz: encodeJsonColumn(parsed.knockoutSamples),
+    reviveSamplesGz: encodeJsonColumn(parsed.reviveSamples),
+    vehicleSamplesGz: encodeJsonColumn(parsed.vehicleSamples),
+    killFeedSamplesGz: encodeJsonColumn(parsed.killFeedSamples),
+    carePackageSamplesGz: encodeJsonColumn(parsed.carePackageSamples ?? []),
   }
 }

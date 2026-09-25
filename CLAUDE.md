@@ -427,17 +427,28 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Gotcha:** les mocks Prisma de ces tests listent les modèles un par un. Quand une route se met à
   utiliser un nouveau modèle, le mock renvoie `undefined` et le test casse loin de la cause réelle.
 
-#### 10. **Géolocalisation compressée — ne jamais lire la colonne directement**
-- **Issue:** depuis le 2026-09-24, `positionSamples` et `trajectorySegments` sont écrites **compressées** (gzip,
-  ~8×) dans `positionSamplesGz` / `trajectorySegmentsGz`. Les anciennes colonnes en clair subsistent tant que le
-  rattrapage n'est pas terminé : **les deux formats coexistent**.
-- **Règle:** toute lecture sélectionne la colonne `*Gz` en plus et passe les deux à `decodeGeoColumn`
-  (`src/lib/pubg-telemetry/geo-codec.ts`). Lire `positionSamples` seule rend un contenu vide sur un match
-  compressé, **sans aucune erreur** — la carte s'affiche simplement vide.
-- **Prédicats SQL:** un blob compressé est opaque au SQL. `IS NOT NULL` et `JSON_LENGTH(...) > 0` doivent couvrir
-  les quatre colonnes, et toute purge les vider toutes (voir `src/lib/telemetry-geo-purge.ts`).
-- **Déploiement:** les lectures doivent être vivantes sur les **quatre** services
-  (`web`, `telemetry-worker`, `cron`, `telemetry-aggregates`) avant toute écriture compressée.
+#### 10. **Colonnes JSON compressées — ne jamais les lire directement**
+- **Issue:** depuis le 2026-09-25, **toutes** les colonnes JSON volumineuses de `SquadMatchTelemetry` sont
+  écrites **compressées** (gzip, ~7 à 9×) dans des colonnes `*Gz` : `positionSamples`, `trajectorySegments`,
+  `weaponStats`, `memberStats`, `deathSamples`, `landingSamples`, `phaseSnapshots`, `killSamples`,
+  `shotSamples`, `damageSamples`, `knockoutSamples`, `reviveSamples`, `vehicleSamples`, `killFeedSamples`,
+  `carePackageSamples`. Liste faisant foi : `COMPRESSED_JSON_COLUMNS` dans
+  `src/lib/pubg-telemetry/json-codec.ts`.
+- **`summary` reste en clair**, volontairement : cinq routes l'interrogent en SQL par `JSON_EXTRACT`
+  (`telemetry/circles`, `heatmap`, `loot`, `vehicles`). La compresser casserait ces agrégats **sans erreur**,
+  ils tomberaient simplement à zéro.
+- **Règle de lecture:** sélectionner la colonne `*Gz` en plus de celle en clair, puis passer la ligne à
+  **`decodeTelemetryRow(row)`** — un seul appel par requête, qui normalise toutes les colonnes présentes. Lire
+  la colonne en clair seule rend `null` sur un match compressé, **sans aucune erreur** : la page s'affiche vide.
+- **Prédicats SQL:** un blob compressé est opaque au SQL. Tout `IS NOT NULL` ou `JSON_LENGTH(...) > 0` doit
+  couvrir les deux colonnes. Attention en particulier à `telemetry/backfill-null-json`, qui repère les matchs à
+  réparer par `weaponStats IS NULL AND memberStats IS NULL` : sans extension aux colonnes `*Gz`, **tout match
+  compressé passerait pour un match à réparer** et serait resynchronisé inutilement.
+- **Les deux formats coexistent** tant que le rattrapage (`scripts/backfill-json-compression.ts`) n'a pas
+  terminé : `decodeTelemetryRow` gère le mélange, ne jamais supposer l'un ou l'autre.
+- **Déploiement:** les lectures doivent être vivantes sur les **quatre** services (`web`, `telemetry-worker`,
+  `cron`, `telemetry-aggregates` — ce dernier lit `memberStats` via `period-aggregates.ts`) avant toute
+  écriture compressée.
 
 ## Gotchas connus
 

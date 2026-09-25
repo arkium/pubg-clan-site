@@ -190,7 +190,7 @@ async function report() {
   const downgraded = await prisma.$queryRaw<Array<{ errorCode: string | null; n: bigint }>>(Prisma.sql`
     SELECT t.errorCode, COUNT(*) AS n FROM SquadMatchTelemetry t
     WHERE t.status = 'failed' AND t.lastAttemptAt >= ${parsedBefore}
-      AND t.positionSamples IS NOT NULL AND JSON_LENGTH(t.positionSamples) > 0
+      AND (JSON_LENGTH(t.positionSamples) > 0 OR t.positionSamplesGz IS NOT NULL)
     GROUP BY t.errorCode`)
   console.log('Matchs repassés en failed avec leurs données intactes :',
     Object.fromEntries(downgraded.map((row) => [row.errorCode ?? 'sans code', Number(row.n)])))
@@ -202,7 +202,7 @@ async function restoreDowngraded(write: boolean) {
 
   const where = Prisma.sql`
     WHERE status = 'failed' AND lastAttemptAt >= ${since}
-      AND positionSamples IS NOT NULL AND JSON_LENGTH(positionSamples) > 0`
+      AND (JSON_LENGTH(positionSamples) > 0 OR positionSamplesGz IS NOT NULL)`
   const [count] = await prisma.$queryRaw<Array<{ n: bigint }>>(Prisma.sql`SELECT COUNT(*) AS n FROM SquadMatchTelemetry ${where}`)
   console.log(`Matchs à remettre en success : ${Number(count.n)}`)
   if (!write) {

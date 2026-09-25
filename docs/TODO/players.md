@@ -160,7 +160,62 @@ La page [`/settings/clan-lifecycle`](file:///d:/Sources/pubg-clan-site/src/app/s
 
 ---
 
-## 5. Interactions & Flux Croisés : Comment les deux pages communiquent
+## 5. Comment « Ne plus suivre un clan » (Désactivation & Sort des membres)
+
+Vous avez tout à fait raison : l'application sait aujourd'hui ajouter un clan à suivre (via l'Observatoire ou `/join`), mais **comment arrêter de suivre un clan devenu inactif, dissous ou qu'on ne souhaite plus monitorer ?**
+
+### A. La réalité de la base de données : `Clan.isActive`
+Dans le modèle Prisma (`schema.prisma`), le champ existe déjà nativement :
+```prisma
+model Clan {
+  id        Int      @id @default(autoincrement())
+  name      String
+  tag       String
+  isActive  Boolean  @default(true) // false = clan archivé / non suivi
+  // ...
+}
+```
+Toutes les requêtes de l'application (les crons de synchronisation de matchs, les classements, le menu `/clans` et la table des clans suivis dans `/settings/opponents`) filtrent déjà systématiquement sur :
+```typescript
+where: { isActive: true }
+```
+
+### B. Pourquoi l'archivage logique (`isActive = false`) et jamais de `DELETE` ?
+Supprimer brutalement un clan (`DELETE FROM Clan`) est destructeur et dangereux : un clan est lié à des centaines de matchs télémétriques, des événements de duels (`KillEvent`), des trophées et des participations à des tournois.
+* **L'archivage logique (`isActive = false`)** est la solution standard :
+  1. **Arrêt immédiat des appels PUBG** : Le cron nocturne de synchronisation des matchs (`matches-sync-service`) ignore instantanément ce clan ➔ Économie immédiate de quota API.
+  2. **Disparition de la navigation publique** : Le clan n'apparaît plus dans la liste `/clans`, ni dans les classements, ni dans la sélection de clan.
+  3. **Préservation de l'intégrité historique** : L'historique des matchs passés, des duels némésis et des tournois reste intact pour tous les autres clans qui l'ont affronté.
+
+### C. Le sort des membres lors de l'arrêt du suivi
+Lorsqu'un SuperUser décide d'arrêter de suivre un clan, deux options doivent lui être proposées :
+1. **Option 1 : Arrêter également le suivi des membres (`isActive: false` sur les `ClanMember`)**
+   * Choix recommandé si le clan est dissous ou que les joueurs ne jouent plus : coupe complètement la synchronisation PUBG de ces joueurs.
+2. **Option 2 : Conserver les joueurs au parking `Ungrouped` (`Clan.isSystem = true`)**
+   * Choix recommandé si les joueurs continuent de jouer en solo ou cherchent une nouvelle équipe : ils sont déplacés vers le parking technique. On continue de synchroniser leurs statistiques individuelles, et s'ils rejoignent un autre clan suivi du site, le cron de `clan-lifecycle` les promouvra automatiquement !
+
+### D. Où cette action doit-elle se situer dans l'interface ?
+Deux emplacements ergonomiques sont prévus pour le SuperUser :
+1. **Dans `/settings/opponents` (Onglet `Clans`)** :
+   * Dans le tableau *« Vos clans suivis »*, ajouter un bouton d'action contextuel sur chaque ligne : **« Ne plus suivre ce clan »** (icône d'archivage / désactivation).
+   * Ouvre une boîte de dialogue de confirmation avec le choix du sort des membres (*Désactiver les membres* ou *Les déplacer vers Ungrouped*).
+2. **Dans `/clans/[clanId]/settings` (Paramètres du clan)** :
+   * Ajouter une **« Zone de danger »** en bas de page, visible uniquement par le SuperUser : bouton rouge *« Désactiver le suivi de ce clan »*.
+
+### E. L'API à brancher (`PATCH /api/settings/clans/[id]`)
+Une route simple et sécurisée (réservée `requireSuperUser`) :
+```typescript
+// PATCH /api/settings/clans/[id]
+{
+  "isActive": false,
+  "membersDisposition": "ungrouped" // ou "deactivate"
+}
+```
+Si `membersDisposition === 'ungrouped'`, la transaction déplace les `ClanMember` actifs vers le clan technique `Ungrouped` du même shard et journalise la mutation (`source: manualTransfer`).
+
+---
+
+## 6. Interactions & Flux Croisés : Comment les deux pages communiquent
 
 La clarté pour le SuperUser repose sur la compréhension des **4 passerelles** entre l'Observatoire et le Cycle de Vie :
 
@@ -197,7 +252,7 @@ flowchart LR
 
 ---
 
-## 6. Plan d'Harmonisation & Navigation Recommandée
+## 7. Plan d'Harmonisation & Navigation Recommandée
 
 Pour offrir une interface sans friction, nous recommandons les ajustements suivants :
 
@@ -229,7 +284,7 @@ Remplacer le découpage actuel par 4 onglets transparents :
 
 ---
 
-## 7. Faisabilité Technique & Modèle de Données
+## 8. Faisabilité Technique & Modèle de Données
 
 Toutes les briques nécessaires sont déjà en place dans la base de données :
 
@@ -270,7 +325,7 @@ model ClanMember {
 
 ---
 
-## 8. Tests de Contrôle & Stratégie de Validation
+## 9. Tests de Contrôle & Stratégie de Validation
 
 Pour garantir l'intégrité des données, la sécurité et la non-régression de l'écosystème, des tests de contrôle rigoureux doivent encadrer cette évolution.
 

@@ -702,8 +702,34 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
 - [ ] **Déployer dans l'ordre** : `migrate deploy` (les colonnes), puis le code sur les quatre services, puis
   seulement le rattrapage. Les écritures compressées démarrent dès le déploiement du code — d'où l'importance
   que les quatre unités aient redémarré.
-- [ ] **Lancer le rattrapage** : `npx tsx scripts/backfill-json-compression.ts --dry-run` d'abord, puis sans le
-  drapeau. Rafraîchir ensuite `scripts/refresh-table-live-size.ts` pour que la page réévalue le compactage.
+- [x] **Déployé et rattrapé le 2026-09-25.** État vérifié :
+
+  | Mesure | Avant compression | Après |
+  |---|---|---|
+  | Données vivantes | 6,99 Go | **1,38 Go** (mieux que les 2,06 projetés) |
+  | Lignes encore en clair | 6 670 | **0** sur 19 148 |
+  | Lignes compressées | 0 | 18 790 |
+  | Mesure du poids réel | 130 s | 25 s |
+
+  - **Relecture vérifiée de bout en bout** (`scripts/check-compression-readback.ts`) : sur 8 matchs récents,
+    **les 15 sections se décodent**, avec des volumes plausibles (≈5 700 positions, ≈100 joueurs dans
+    `memberStats`, ≈53 armes). Aucun échec.
+  - **Le code déployé écrit bien en compressé** (`scripts/check-worker-writes-compressed.ts`) : les dix matchs
+    analysés le 2026-09-25 vers 15h00 sont tous au nouveau format. Le point était critique — un worker resté à
+    l'ancien code aurait rendu du vide sur tout ce qui venait d'être compressé.
+
+- [ ] **Compacter — c'est maintenant possible.** `scripts/refresh-table-live-size.ts` du 2026-09-25 :
+
+  | Mesure | Valeur |
+  |---|---|
+  | Le fichier `.ibd` occupe | 17,75 Go |
+  | Fichier reconstruit ≈ | **1,59 Go** |
+  | Espace disque libre nécessaire ≈ | **1,91 Go** (contre 9,64 avant, et ~4 Go disponibles) |
+  | Espace rendu au système de fichiers ≈ | **16,16 Go** |
+
+  Le verdict de la page doit être passé au vert. Opération en ligne (les écritures continuent) mais très
+  sollicitante en entrées-sorties sur une VM mutualisée : à lancer à un moment calme. Le disque devrait passer
+  de 91 % à environ 58 %.
 - [ ] **Puis compacter** (`OPTIMIZE`), une fois la mesure de poids réel rafraîchie et le verdict de la page
   passé au vert.
 

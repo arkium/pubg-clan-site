@@ -25,7 +25,7 @@ vi.mock('node:fs/promises', () => ({ statfs: mocks.statfs }))
 
 import {
   DISK_HEADROOM_RATIO,
-  MIN_RECLAIMABLE_MB,
+  LIVE_SIZE_KEY,
   assessOptimize,
   isOptimizeRunStale,
   startOptimizeRun,
@@ -62,6 +62,27 @@ function mockDisk(freeMb: number | null) {
   mocks.statfs.mockResolvedValue({ bsize: MO, bavail: freeMb, blocks: freeMb * 4 })
 }
 
+/**
+ * Poids réel des données, tel que le publie `scripts/refresh-table-live-size.ts`. Absent, le
+ * verdict retombe sur la taille du fichier : prudent, donc bloquant.
+ */
+function mockLiveSize(liveDataMb: number, ageMs = 0) {
+  mocks.findUnique.mockImplementation(({ where }: { where: { key: string } }) =>
+    Promise.resolve(
+      where.key === LIVE_SIZE_KEY
+        ? {
+            value: JSON.stringify({
+              table: 'SquadMatchTelemetry',
+              liveDataMb,
+              measuredAt: new Date(Date.now() - ageMs).toISOString(),
+              durationMs: 130_000,
+            }),
+          }
+        : null
+    )
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.findUnique.mockResolvedValue(null)
@@ -90,8 +111,9 @@ describe('assessOptimize', () => {
     expect(a.disk.measured).toBe(false)
   })
 
-  it('juge le compactage inutile quand il n’y a presque rien à récupérer', async () => {
-    mockDatabase({ totalMb: 20_570, freeInFileMb: MIN_RECLAIMABLE_MB - 1 })
+  it('juge le compactage inutile quand le fichier colle déjà aux données', async () => {
+    mockDatabase({ totalMb: 8_000, freeInFileMb: 10 })
+    mockLiveSize(7_600) // reconstruit à ~8 740 Mo : rien à gagner
     mockDisk(40_000)
 
     const a = await assessOptimize('SquadMatchTelemetry')
@@ -100,13 +122,51 @@ describe('assessOptimize', () => {
     expect(a.reason).toContain('réutilisé')
   })
 
-  it('autorise quand le disque suit et que le gain est réel', async () => {
-    mockDatabase({ totalMb: 15_000, freeInFileMb: 7_000 })
-    mockDisk(40_000)
+  it('autorise quand le disque suit et que la reconstruction gagnerait vraiment', async () => {
+    // Cas réel du 2026-09-24 après compression : 20,57 Go de fichier pour 6,99 Go de données.
+    mockDatabase({ totalMb: 20_570, freeInFileMb: 4_400 })
+    mockLiveSize(6_990)
+    mockDisk(12_000)
 
     const a = await assessOptimize('SquadMatchTelemetry')
 
     expect(a.verdict).toBe('useful')
+    expect(a.rebuiltSizeMb).toBe(Math.round(6_990 * 1.15))
+    expect(a.reclaimableMb).toBeGreaterThan(11_000)
+  })
+
+  it('dimensionne le besoin disque sur les données vivantes, pas sur la taille du fichier', async () => {
+    // Sans cette règle, un fichier de 20,57 Go exigerait ~24,7 Go libres et interdirait à tort une
+    // reconstruction qui n'en demande que ~9,6 : c'est le défaut corrigé le 2026-09-24.
+    mockDatabase({ totalMb: 20_570, freeInFileMb: 4_400 })
+    mockLiveSize(6_990)
+    mockDisk(12_000)
+
+    const a = await assessOptimize('SquadMatchTelemetry')
+
+    expect(a.requiredMb).toBeLessThan(20_570)
+    expect(a.requiredMb).toBe(Math.round(Math.round(6_990 * 1.15) * DISK_HEADROOM_RATIO))
+  })
+
+  it('reste prudent tant qu’aucune mesure de poids réel n’est disponible', async () => {
+    mockDatabase({ totalMb: 20_570, freeInFileMb: 4_400 })
+    mockDisk(12_000) // suffirait pour les données vivantes, pas pour le fichier entier
+
+    const a = await assessOptimize('SquadMatchTelemetry')
+
+    expect(a.liveSize).toBeNull()
+    expect(a.verdict).toBe('blocked_disk')
+  })
+
+  it('ignore une mesure trop ancienne pour fonder une décision', async () => {
+    mockDatabase({ totalMb: 20_570, freeInFileMb: 4_400 })
+    mockLiveSize(6_990, 8 * 24 * 60 * 60 * 1000)
+    mockDisk(12_000)
+
+    const a = await assessOptimize('SquadMatchTelemetry')
+
+    expect(a.liveSize).toBeNull()
+    expect(a.verdict).toBe('blocked_disk')
   })
 })
 
@@ -133,6 +193,7 @@ describe('startOptimizeRun', () => {
 
   it('accepte un compactage jugé inutile seulement sur demande explicite', async () => {
     mockDatabase({ totalMb: 15_000, freeInFileMb: 10 })
+    mockLiveSize(14_000)
     mockDisk(40_000)
 
     expect((await startOptimizeRun('SquadMatchTelemetry')).started).toBe(false)

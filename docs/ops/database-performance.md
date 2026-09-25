@@ -292,8 +292,17 @@ interruptibles (`scripts/backfill-geo-compression.ts`).
 > Le fichier `.ibd` **ne rétrécit pas** pour autant : l'espace libéré reste à l'intérieur et sera réutilisé par les
 > écritures suivantes. C'est l'objectif — la base cesse de grossir sans jamais exiger d'`OPTIMIZE TABLE`.
 
-**Effet de bord favorable** : le comptage de la purge de géolocalisation coûte 247 s *parce qu'il lit les blobs*.
-Sur des colonnes compressées, le même parcours lira ~2,5 Go au lieu de 22 — il devrait tomber sous la minute.
+**Résultat en production (2026-09-24)** — rattrapage de 6 670 matchs en 24 min, 11 409 Mo → 1 312 Mo :
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Poids moyen de la géoloc par match | ~1 900 Ko | **209 Ko** (9,1×) |
+| Parcours complet de la table | **247 s** | **22,4 s** |
+| `DATA_FREE` | 1,57 Go | 4,40 Go |
+
+Le comptage de la purge coûtait 247 s *parce qu'il lisait les blobs* : il tient désormais en 22 s. `DATA_FREE`
+sous-estime l'espace réellement réutilisable — InnoDB n'y compte que les extents entièrement libérés, alors que
+~10 Go de pages de blob ont été rendues au segment.
 
 ---
 

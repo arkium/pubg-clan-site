@@ -593,8 +593,95 @@ vérifié : aucun code de production n'en fait sur ces deux colonnes, seuls des 
 - [ ] **Déployer dans l'ordre** : les lectures doivent être vivantes sur les **quatre** services avant que les
   écritures compressées ne partent. Comme tout est dans le même build, un déploiement unique suffit — mais les
   redémarrages étant séparés, vérifier que les quatre unités ont bien redémarré avant de lancer le rattrapage.
-- [ ] **Lancer le rattrapage** (`npx tsx scripts/backfill-geo-compression.ts`) après déploiement, puis constater
-  la chute du temps de comptage de la purge.
+- [x] **Rattrapage exécuté en production le 2026-09-24** : **6 670 matchs, 11 409 Mo → 1 312 Mo (8,7×) en 24 min.**
+  Contrôle après coup (`scripts/check-compression-outcome.ts`) :
+
+  | Mesure | Avant | Après |
+  |---|---|---|
+  | Lignes avec géoloc en clair | 6 670 | **0** |
+  | Lignes avec géoloc compressée | 0 | 6 672 |
+  | Poids moyen par match | ~1 900 Ko | **209 Ko** (9,1×) |
+  | **Parcours complet de la table** (comptage de purge) | **247 s** | **22,4 s** (11×) |
+  | `DATA_FREE` (espace libre interne) | 1,57 Go | 4,40 Go |
+
+  Le fichier `.ibd` reste à 20,57 Go, comme prévu : l'espace libéré est à l'intérieur et sera réutilisé par les
+  écritures suivantes. `DATA_FREE` **sous-estime** d'ailleurs cet espace : InnoDB n'y compte que les extents
+  entièrement libérés, alors que ~10 Go de pages de blob ont été rendues au segment.
+
+  La prédiction « le comptage tombera sous la minute » est vérifiée : **22,4 s**. Le cron nocturne n'a donc plus
+  rien d'une opération lourde.
+> **Purge exécutée le 2026-09-23 à 20h50** (état conservé dans `AppConfig.telemetry_geo_purge_run`) :
+> **2 723 matchs nettoyés en 5 min 21 s**, seuil 14 jours, borne au 2026-09-09. C'est **deux fois plus rapide**
+> que les 10 à 12 min estimées, et cela explique la volumétrie observée après compression (11 977 lignes sans
+> géoloc). La cible annoncée était 2 679 : 44 matchs de plus ont franchi le seuil pendant l'exécution, ce qui est
+> le comportement attendu.
+
+> **Renversement du 2026-09-24 — le compactage est redevenu possible, et c'est lui qui rend le disque.**
+>
+> Supprimer les colonnes en clair ne libère **aucun octet** : elles sont déjà vides, leurs pages de blob ont été
+> rendues au fichier par le rattrapage. C'est un nettoyage de schéma, pas un gain d'espace.
+>
+> En revanche, la mesure du poids réel (`scripts/check-real-data-size.ts`, `refresh-table-live-size.ts`) change
+> la donne sur l'`OPTIMIZE` :
+>
+> | Mesure | Valeur |
+> |---|---|
+> | Le fichier `.ibd` occupe | 17,75 Go |
+> | Les données pèsent réellement | **6,99 Go** |
+> | Fichier reconstruit ≈ | 8,03 Go |
+> | Espace disque libre nécessaire ≈ | **9,64 Go** (contre ~22,6 Go avant compression) |
+> | Espace rendu au système de fichiers ≈ | **9,71 Go** |
+>
+> Un `OPTIMIZE` écrit un fichier neuf dimensionné par les **lignes vivantes**, pas par l'ancien fichier : le
+> besoin a fondu avec la compression. À décider au vu du `df -h` réel du serveur.
+
+- [x] **Défaut corrigé dans le garde-fou** (2026-09-24) : il dimensionnait le besoin disque sur `DATA_LENGTH`
+  (la taille du fichier), ce qui aurait interdit à tort la reconstruction ci-dessus — 24,7 Go exigés au lieu des
+  9,6 réels. Il se fonde désormais sur une mesure du poids réel publiée dans `AppConfig`
+  (`scripts/refresh-table-live-size.ts`, ~130 s), et **reste bloquant tant qu'aucune mesure récente n'existe** :
+  le doute ne profite pas à l'opération. 5 tests ajoutés (13 au total sur ce module).
+
+**Diagnostic disque du 2026-09-24 — 4,3 Go libres, 91 % occupés**
+
+`du` et `ls` sur le serveur (fournis par l'exploitant) :
+
+| Chemin | Taille |
+|---|---|
+| `/var/lib/mysql/pubg_clan_smk` | **28 Go** |
+| `/home/smk/apps` (application entière) | 1,7 Go |
+| `ibdata1` / `ib_logfile0` / `ibtmp1` | 76 Mo / 96 Mo / 12 Mo |
+| Bases Dolibarr | 177 Mo |
+
+**Hypothèse de l'undo écartée** : `ibdata1` ne fait que 76 Mo, aucun fichier `undo_*`. Les réécritures de masse
+(purge puis compression, ~16 Go de lignes) n'ont donc rien laissé derrière elles. `log_bin` est à `OFF`, le
+journal des requêtes lentes tient en 631 lignes : **aucun fichier parasite à supprimer**.
+
+**Il n'y a pas de fuite.** Le fichier de `SquadMatchTelemetry` a grossi de 16,1 Go (17/09) à ~22 Go avant que la
+compression n'arrive ; la purge et le rattrapage ont libéré ~14 Go **à l'intérieur** du fichier, qui ne rétrécit
+pas. La croissance, elle, est désormais quasi nulle (~0,06 Go/jour contre 0,5 avant compression).
+
+**Seule issue pour rendre l'espace au système : compresser les colonnes JSON restantes, puis reconstruire.**
+Mesuré sur 8 matchs récents (`scripts/check-remaining-columns-compressibility.ts`) : **7,3×** sur les
+13 colonnes encore en clair.
+
+| Étape | Données vivantes | Fichier reconstruit | Disque libre nécessaire |
+|---|---|---|---|
+| Aujourd'hui | 6,99 Go | 8,03 Go | **9,64 Go** — impossible (4,3 disponibles) |
+| Après compression du reste | **2,06 Go** | 2,37 Go | **2,84 Go** — **réalisable** |
+
+Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque passerait de 91 % à environ 50 %.
+
+- [ ] **Compresser les 13 colonnes JSON restantes** (`weaponStats`, `memberStats`, `deathSamples`,
+  `landingSamples`, `phaseSnapshots`, `killSamples`, `shotSamples`, `damageSamples`, `knockoutSamples`,
+  `reviveSamples`, `vehicleSamples`, `killFeedSamples`, `carePackageSamples`) sur le modèle de la
+  géolocalisation — même codec, même ajout `INSTANT`, même rattrapage par lots.
+  - **`summary` reste en clair** : cinq routes l'interrogent par `JSON_EXTRACT`
+    (`telemetry/circles`, `heatmap`, `loot`, `vehicles`). Elle pèse 0,00 Go, aucun intérêt à y toucher.
+  - **`phaseSnapshots`** porte un prédicat `JSON_LENGTH(...) > 0` (`zone-closure-positions.ts:278`) : à adapter
+    comme celui de `positionSamples`. Elle compresse à **14,1×**, c'est la meilleure du lot.
+- [ ] **Puis compacter** (`OPTIMIZE`), une fois la mesure de poids réel rafraîchie et le verdict de la page
+  passé au vert.
+
 - [ ] **Supprimer les colonnes en clair** une fois le rattrapage terminé : `DROP COLUMN … ALGORITHM=INSTANT`
   est accepté sur cette instance (vérifié, `scripts/check-instant-drop-column.ts`), donc là encore sans
   reconstruction. À ne faire qu'après une période d'observation : tant que les colonnes existent, un retour

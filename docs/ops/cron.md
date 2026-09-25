@@ -151,9 +151,10 @@ sur une fenêtre de dates.
 (`telemetry_geo_purge_run`), la page ne fait que le lire, on peut donc la quitter. Un run dont le
 battement de cœur dépasse 10 min est requalifié « interrompu ».
 
-**Durée :** ~247 s tant que la géolocalisation est stockée en clair. Une fois le stock compressé
+**Durée :** **22 s** depuis la compression de la géolocalisation (2026-09-24). Elle était de ~247 s tant que les
+colonnes étaient stockées en clair — le parcours lisait alors 22 Go de blobs. Historique et détail
 (`scripts/backfill-geo-compression.ts`, voir [database-performance.md](database-performance.md#4bis-compression-de-la-géolocalisation-2026-09-24)),
-le même parcours lira ~2,5 Go au lieu de 22 et devrait tomber sous la minute.
+dans [database-performance.md](database-performance.md#4bis-compression-de-la-géolocalisation-2026-09-24).
 
 **Diagnostic :** `npx tsx scripts/check-purge-telemetry-status.ts` (volumétrie et durées),
 `scripts/check-purge-protections.ts` (poids des protections), `scripts/check-purge-collateral.ts`

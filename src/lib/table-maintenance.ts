@@ -33,6 +33,20 @@ export const MAINTAINABLE_TABLES = [
 
 export const OPTIMIZE_RUN_KEY = 'table_optimize_run'
 
+/**
+ * Poids reel des donnees vivantes, mesure a part (`scripts/refresh-table-live-size.ts`).
+ *
+ * `DATA_LENGTH` mesure ce que le fichier occupe, pas ce que les lignes pesent. L'ecart peut etre
+ * enorme : le 2026-09-24, apres compression de la geolocalisation, `SquadMatchTelemetry` occupait
+ * 20,57 Go pour **6,99 Go de donnees reelles**. Or un `OPTIMIZE` ecrit un fichier neuf dimensionne
+ * par les lignes vivantes : l'espace disque necessaire suit le poids reel, pas la taille du
+ * fichier actuel. Se fier a `DATA_LENGTH` interdirait a tort une reconstruction devenue possible.
+ */
+export const LIVE_SIZE_KEY = 'table_live_size'
+
+/** Au-dela, la mesure est trop vieille pour fonder une decision : on repasse au calcul prudent. */
+export const LIVE_SIZE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
 /** Marge appliquée à la taille de la table pour estimer l'espace disque nécessaire. */
 export const DISK_HEADROOM_RATIO = 1.2
 
@@ -68,11 +82,24 @@ export type OptimizeVerdict =
   | 'blocked_unknown_disk'
   | 'running'
 
+export type LiveSize = {
+  table: string
+  liveDataMb: number
+  measuredAt: string
+  durationMs: number
+}
+
 export type OptimizeAssessment = {
   table: string
   sizes: TableSizes | null
   disk: DiskSpace
+  /** Mesure du poids reel, si elle est disponible et recente. */
+  liveSize: LiveSize | null
+  /** Taille estimee du fichier reconstruit. */
+  rebuiltSizeMb: number
   requiredMb: number
+  /** Espace qui serait rendu au systeme de fichiers. */
+  reclaimableMb: number
   verdict: OptimizeVerdict
   reason: string
 }
@@ -165,6 +192,56 @@ export async function readDiskSpace(): Promise<DiskSpace> {
   }
 }
 
+/**
+ * Somme la taille reelle des colonnes volumineuses. Parcours complet (~130 s mesurees) : reserve a
+ * un script ou a un cron, jamais au rendu d'une page.
+ */
+export async function measureLiveDataSize(table: string): Promise<LiveSize> {
+  const startedAt = Date.now()
+  const [row] = await prisma.$queryRawUnsafe<Array<{ octets: bigint | null }>>(
+    `SELECT SUM(
+       COALESCE(OCTET_LENGTH(positionSamplesGz), 0) + COALESCE(OCTET_LENGTH(trajectorySegmentsGz), 0) +
+       COALESCE(OCTET_LENGTH(positionSamples), 0) + COALESCE(OCTET_LENGTH(trajectorySegments), 0) +
+       COALESCE(OCTET_LENGTH(summary), 0) + COALESCE(OCTET_LENGTH(weaponStats), 0) +
+       COALESCE(OCTET_LENGTH(memberStats), 0) + COALESCE(OCTET_LENGTH(deathSamples), 0) +
+       COALESCE(OCTET_LENGTH(landingSamples), 0) + COALESCE(OCTET_LENGTH(phaseSnapshots), 0) +
+       COALESCE(OCTET_LENGTH(killSamples), 0) + COALESCE(OCTET_LENGTH(shotSamples), 0) +
+       COALESCE(OCTET_LENGTH(damageSamples), 0) + COALESCE(OCTET_LENGTH(knockoutSamples), 0) +
+       COALESCE(OCTET_LENGTH(reviveSamples), 0) + COALESCE(OCTET_LENGTH(vehicleSamples), 0) +
+       COALESCE(OCTET_LENGTH(killFeedSamples), 0) + COALESCE(OCTET_LENGTH(carePackageSamples), 0)
+     ) AS octets FROM \`${table}\``
+  )
+  return {
+    table,
+    liveDataMb: Math.round(Number(row?.octets ?? 0) / 1024 / 1024),
+    measuredAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt,
+  }
+}
+
+export async function readLiveSize(table: string, now: Date = new Date()): Promise<LiveSize | null> {
+  const row = await prisma.appConfig.findUnique({ where: { key: LIVE_SIZE_KEY } })
+  if (!row?.value) return null
+  try {
+    const stored = JSON.parse(row.value) as LiveSize
+    if (stored.table !== table) return null
+    if (now.getTime() - new Date(stored.measuredAt).getTime() > LIVE_SIZE_TTL_MS) return null
+    return stored
+  } catch {
+    console.error('[table-maintenance] mesure de poids reel illisible dans AppConfig')
+    return null
+  }
+}
+
+export async function writeLiveSize(value: LiveSize): Promise<void> {
+  const payload = JSON.stringify(value)
+  await prisma.appConfig.upsert({
+    where: { key: LIVE_SIZE_KEY },
+    update: { value: payload },
+    create: { key: LIVE_SIZE_KEY, value: payload },
+  })
+}
+
 function describe(verdict: OptimizeVerdict, sizes: TableSizes | null, disk: DiskSpace, requiredMb: number): string {
   const go = (mb: number) => `${(mb / 1024).toFixed(2)} Go`
   switch (verdict) {
@@ -175,29 +252,45 @@ function describe(verdict: OptimizeVerdict, sizes: TableSizes | null, disk: Disk
     case 'blocked_disk':
       return `Espace disque insuffisant : ${go(disk.freeMb ?? 0)} libres pour ${go(requiredMb)} nécessaires. Le compactage réécrit la table entière avant de remplacer l'ancien fichier.`
     case 'pointless':
-      return `Seulement ${go(sizes?.dataFreeMb ?? 0)} à récupérer pour ${go(sizes?.totalSizeMb ?? 0)} à réécrire : le compactage ne vaut pas son coût. L'espace libre dans le fichier est de toute façon réutilisé par les écritures suivantes.`
+      return `Trop peu à récupérer pour ${go(sizes?.totalSizeMb ?? 0)} à réécrire : le compactage ne vaut pas son coût. L'espace libre dans le fichier est de toute façon réutilisé par les écritures suivantes.`
     case 'useful':
-      return `${go(sizes?.dataFreeMb ?? 0)} seraient rendus au disque. L'opération réécrit ${go(sizes?.totalSizeMb ?? 0)} et peut durer plusieurs dizaines de minutes.`
+      return `Le fichier passerait de ${go(sizes?.totalSizeMb ?? 0)} à environ ${go(requiredMb / DISK_HEADROOM_RATIO)} : l'opération réécrit les lignes vivantes et peut durer plusieurs dizaines de minutes.`
   }
 }
 
 export async function assessOptimize(table: string): Promise<OptimizeAssessment> {
-  const [sizes, disk, run] = await Promise.all([
+  const [sizes, disk, run, liveSize] = await Promise.all([
     readTableSizes(table),
     readDiskSpace(),
     readOptimizeRunForDisplay(),
+    readLiveSize(table),
   ])
 
-  const requiredMb = Math.round((sizes?.totalSizeMb ?? 0) * DISK_HEADROOM_RATIO)
+  const totalSizeMb = sizes?.totalSizeMb ?? 0
+  // Le fichier reconstruit est dimensionne par les lignes vivantes. Sans mesure recente, on
+  // retombe sur la taille du fichier : prudent, donc bloquant plutot que permissif.
+  const rebuiltSizeMb = liveSize ? Math.round(liveSize.liveDataMb * 1.15) : totalSizeMb
+  const requiredMb = Math.round(rebuiltSizeMb * DISK_HEADROOM_RATIO)
+  const reclaimableMb = Math.max(0, Math.round(totalSizeMb - rebuiltSizeMb))
 
   let verdict: OptimizeVerdict
   if (run?.status === 'running') verdict = 'running'
   else if (!disk.measured || disk.freeMb === null) verdict = 'blocked_unknown_disk'
   else if (disk.freeMb < requiredMb) verdict = 'blocked_disk'
-  else if ((sizes?.dataFreeMb ?? 0) < MIN_RECLAIMABLE_MB) verdict = 'pointless'
+  else if (reclaimableMb < MIN_RECLAIMABLE_MB) verdict = 'pointless'
   else verdict = 'useful'
 
-  return { table, sizes, disk, requiredMb, verdict, reason: describe(verdict, sizes, disk, requiredMb) }
+  return {
+    table,
+    sizes,
+    disk,
+    liveSize,
+    rebuiltSizeMb,
+    requiredMb,
+    reclaimableMb,
+    verdict,
+    reason: describe(verdict, sizes, disk, requiredMb),
+  }
 }
 
 export async function readOptimizeRun(): Promise<OptimizeRunState | null> {

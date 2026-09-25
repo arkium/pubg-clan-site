@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
+import { getPeriodStart } from '@/lib/period'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
@@ -36,19 +37,8 @@ function parsePeriod(value: string | null): Period {
   return 'all'
 }
 
-function getPeriodStart(period: Period): Date | null {
-  if (period === 'all') {
-    return null
-  }
-
-  const now = new Date()
-
-  if (period === 'week') {
-    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  }
-
-  return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-}
+// `getPeriodStart` (src/lib/period.ts) : semaine et mois calendaires, comme les autres pages.
+// Ils étaient glissants (7 / 30 jours) jusqu'au 2026-09-25 (docs/TODO/sticky.md §3.C).
 
 function toMondayIndex(day: number) {
   return (day + 6) % 7

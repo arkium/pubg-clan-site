@@ -9,7 +9,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DropZoneMapViewport, {
   type DropZoneMapViewportHandle,
 } from '@/components/drop-zones/DropZoneMapViewport'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
@@ -20,7 +24,7 @@ import {
   type TacticalPhase,
 } from '@/lib/tactical-phase'
 
-type TelemetryPeriod = 'week' | 'month' | 'all'
+type TelemetryPeriod = StandardPeriod
 type HeatmapCategory = 'combat' | 'equipe'
 type HeatmapView =
   | 'kill'
@@ -99,12 +103,6 @@ type PositionsHeatmapResponse = {
   }
   note: string | null
 }
-
-const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tout' },
-]
 
 const CATEGORY_OPTIONS: Array<{ value: HeatmapCategory; label: string }> = [
   { value: 'combat', label: 'Combat' },
@@ -383,15 +381,12 @@ function ClanPositionsHeatmapContent() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
-  // Lien préfiltré depuis les tableaux de bord (`?map=&view=&period=`) : sert d'état initial, les filtres de la
-  // page prennent le relais ensuite.
+  // Lien préfiltré depuis les tableaux de bord (`?map=&view=`) : sert d'état initial, les filtres de la
+  // page prennent le relais ensuite. La période, elle, vit dans l'URL (`?period=`, docs/TODO/sticky.md §4.E).
   const linkedView = searchParams.get('view')
   const linkedCategory = linkedView ? categoryForView(linkedView) : null
-  const linkedPeriod = searchParams.get('period')
 
-  const [period, setPeriod] = useState<TelemetryPeriod>(
-    linkedPeriod === 'month' || linkedPeriod === 'all' ? linkedPeriod : 'week'
-  )
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [mapName, setMapName] = useState(searchParams.get('map') ?? '')
   const [memberKey, setMemberKey] = useState('')
   const [phase, setPhase] = useState<TacticalPhase>('all')
@@ -417,7 +412,7 @@ function ClanPositionsHeatmapContent() {
   }
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -471,7 +466,7 @@ function ClanPositionsHeatmapContent() {
     return () => {
       cancelled = true
     }
-  }, [clanId, period, mapName, memberKey, phase])
+  }, [clanId, period, periodReady, mapName, memberKey, phase])
 
   const layers = useMemo(() => {
     if (!payload) return [] as HeatmapLayer[]
@@ -561,21 +556,13 @@ function ClanPositionsHeatmapContent() {
   const selectedMemberLabel =
     memberKey.length > 0
       ? payload?.members.find((entry) => entry.memberKey === memberKey)?.memberLabel ?? memberKey
-      : 'Tous les membres'
+      : 'Tous'
 
-  const periodLabel = PERIOD_OPTIONS.find((entry) => entry.value === period)?.label ?? 'Semaine'
   const categoryLabel = CATEGORY_OPTIONS.find((entry) => entry.value === category)?.label ?? 'Combat'
   const viewLabelCurrent = view === 'all'
     ? 'Tous'
     : VIEW_OPTIONS_BY_CATEGORY[category].find((entry) => entry.value === view)?.label ?? viewLabel(view, role)
   const selectedPhaseLabel = tacticalPhaseLabel(phase)
-
-  const periodItems = PERIOD_OPTIONS.map((entry) => ({
-    key: `period-${entry.value}`,
-    label: entry.label,
-    active: period === entry.value,
-    onSelect: () => setPeriod(entry.value),
-  }))
 
   function selectMap(nextMapName: string) {
     setMapName(nextMapName)
@@ -673,393 +660,406 @@ function ClanPositionsHeatmapContent() {
 
   if (!clanId) {
     return (
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-      <NavigationTrail
-        currentLabel="Positions & Top 10"
-        currentHref={`/clans/${clanId}/stats/positions`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
+      <div className="app-container app-main flex-1">
+        <NavigationTrail
+          currentLabel="Positions & Top 10"
+          currentHref={`/clans/${clanId}/stats/positions`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
         <p className="text-sm text-red-600">Clan invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main mx-auto w-full max-w-7xl flex-1 px-4 py-8">
-      <NavigationTrail
-        currentLabel="Positions & Top 10"
-        currentHref={`/clans/${clanId}/stats/positions`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <header
-        className="relative mb-5 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/cartographie-tactique.jpg')` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Compass className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Cartographie tactique</h1>
-          </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Zones de combat et d&apos;entraide par ville, joueur et période.
-          </p>
-        </div>
-      </header>
-
-      <section className="app-panel mb-5 p-4">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-period-filter"
-              label="Periode"
-              currentLabel={periodLabel}
-              items={periodItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-map-filter"
-              label="Carte"
-              currentLabel={payload?.selectedMap ? mapDisplayName(payload.selectedMap, payload.mapLabels) : 'Aucune carte'}
-              items={mapItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-phase-filter"
-              label="Phase cercle"
-              currentLabel={selectedPhaseLabel}
-              items={phaseItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-member-filter"
-              label="Joueur"
-              currentLabel={selectedMemberLabel}
-              items={memberItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-category-filter"
-              label="Categorie"
-              currentLabel={categoryLabel}
-              items={categoryItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="positions-view-filter"
-              label="Vue"
-              currentLabel={viewLabelCurrent}
-              items={viewItems}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200 pt-3 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-6">
-          {LEGEND_BY_CATEGORY[category].map((item) => (
-            <div key={item.label}>
-              <p className="font-semibold text-slate-700">
-                <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: item.color }} />
-                {item.label}
-              </p>
-              <p className="text-slate-500">{item.desc}</p>
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Positions & Top 10"
+          currentHref={`/clans/${clanId}/stats/positions`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/cartographie-tactique.jpg')` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Compass className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Cartographie tactique</h1>
             </div>
-          ))}
-        </div>
-        {usesDensityGradation && heatRanges.length > 0 ? (
-          <div className="mt-4 border-t border-slate-200 pt-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-slate-700">
-                Gradation de {viewLabelCurrent.toLowerCase()} · échelle logarithmique
-              </p>
-              <p className="text-xs text-slate-500">
-                Seuil visible {formatNumber(minimumHeat)} · maximum {formatNumber(maxCellCount)}
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
-              {heatRanges.map((range) => (
-                <div key={`${range.min}-${range.max}`} className="flex items-center gap-2 text-slate-600">
-                  <span className="h-3 w-5 shrink-0 rounded-sm border border-black/10" style={{ backgroundColor: range.color }} />
-                  <span><strong className="font-semibold text-slate-700">{range.label}</strong> {heatRangeLabel(range)}</span>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Zones de combat et d&apos;entraide par ville, joueur et période.
+            </p>
+          </div>
+        </header>
+      </div>
+
+      <DockingToolbar ariaLabel="Filtres de la cartographie tactique">
+        {({ compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+            {!compact ? (
+              <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="positions-map-filter"
+                    variant="compact"
+                    label="Carte"
+                    currentLabel={payload?.selectedMap ? mapDisplayName(payload.selectedMap, payload.mapLabels) : 'Aucune carte'}
+                    items={mapItems}
+                    visibilityClass=""
+                    className="w-full"
+                  />
                 </div>
-              ))}
-            </div>
-          </div>
-        ) : view === 'all' ? (
-          <p className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
-            Vue combinée : la couleur identifie la métrique ; la taille et l’opacité indiquent son intensité relative.
-          </p>
-        ) : null}
-      </section>
 
-      {loading ? <p className="mb-4 text-sm text-slate-600">Chargement des heatmaps positions...</p> : null}
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-      {!loading && !error && payload ? (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-            <span className="text-slate-600">Matchs analyses: {formatNumber(analyzedMatches)}</span>
-            <span className="text-slate-600">
-              Événements visibles: {formatNumber(visibleEventCount)}
-            </span>
-            <span className="text-slate-600">
-              Cellules visibles: {formatNumber(visibleRenderedCells)} / {formatNumber(totalRenderedCells)}
-            </span>
-            <span className="text-slate-600">
-              Intensite max: {formatNumber(maxCellCount)}
-            </span>
-          </div>
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="positions-phase-filter"
+                    variant="compact"
+                    label="Phase cercle"
+                    currentLabel={selectedPhaseLabel}
+                    items={phaseItems}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
 
-          <div className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des zones</p>
-                <h2 className="mt-1 text-lg font-semibold text-gray-900">
-                  {topZones[0]
-                    ? `Zone principale : ${topZones[0].location.name}`
-                    : 'Aucune zone urbaine identifiée'}
-                </h2>
-                <p className="mt-1 text-xs text-gray-500">
-                  Classement des villes pour la vue {viewLabelCurrent.toLowerCase()}.
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="positions-member-filter"
+                    variant="compact"
+                    label="Joueur"
+                    currentLabel={selectedMemberLabel}
+                    items={memberItems}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="positions-category-filter"
+                    variant="compact"
+                    label="Catégorie"
+                    currentLabel={categoryLabel}
+                    items={categoryItems}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="positions-view-filter"
+                    variant="compact"
+                    label="Vue"
+                    currentLabel={viewLabelCurrent}
+                    items={viewItems}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
+
+      <div className="app-container app-gutter">
+        {/* Légende de la carte : une note, elle reste dans la page et ne suit pas le bandeau. */}
+        <section className="app-panel mb-5 p-4">
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-6">
+            {LEGEND_BY_CATEGORY[category].map((item) => (
+              <div key={item.label}>
+                <p className="font-semibold text-slate-700">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: item.color }} />
+                  {item.label}
+                </p>
+                <p className="text-slate-500">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          {usesDensityGradation && heatRanges.length > 0 ? (
+            <div className="mt-4 border-t border-slate-200 pt-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-700">
+                  Gradation de {viewLabelCurrent.toLowerCase()} · échelle logarithmique
+                </p>
+                <p className="text-xs text-slate-500">
+                  Seuil visible {formatNumber(minimumHeat)} · maximum {formatNumber(maxCellCount)}
                 </p>
               </div>
-              <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
-                <MobileDropdownNav
-                  id="positions-location-filter"
-                  label="Ville"
-                  currentLabel={selectedLocationLabel}
-                  items={locationItems}
-                  visibilityClass=""
-                  className="w-full"
-                />
-                <span className="pb-2 text-xs text-gray-500">{selectedMapLabel}</span>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                {heatRanges.map((range) => (
+                  <div key={`${range.min}-${range.max}`} className="flex items-center gap-2 text-slate-600">
+                    <span className="h-3 w-5 shrink-0 rounded-sm border border-black/10" style={{ backgroundColor: range.color }} />
+                    <span><strong className="font-semibold text-slate-700">{range.label}</strong> {heatRangeLabel(range)}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            {topZones.length > 0 ? (
-              <div className="app-table-shell overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="app-table-head">
-                    <tr>
-                      <th className="w-16 px-3 py-2 text-center">Rang</th>
-                      <th className="px-3 py-2 text-left">Ville</th>
-                      <th className="px-3 py-2 text-right">Événements</th>
-                      <th className="px-3 py-2 text-right">Part visible</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topZones.map((zone, index) => {
-                      const rank = index + 1
-                      const medal = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null
-                      return (
-                        <tr key={zone.location.id} className={`app-table-row ${rank <= 3 ? `app-table-row--top${rank}` : ''}`}>
-                          <td className="px-3 py-3 text-center font-semibold">
-                            {medal ? (
-                              <Image src={`/icons/medal-${medal}.svg`} alt={`Médaille, rang ${rank}`} width={24} height={24} className="mx-auto h-6 w-6" />
-                            ) : rank}
-                          </td>
-                          <td className="px-3 py-3 font-medium text-gray-900">
-                            <button
-                              type="button"
-                              className="hover:text-cyan-600 hover:underline"
-                              onClick={() => {
-                                setSelectedLocationId(zone.location.id)
-                                mapViewportRef.current?.focusLocation(zone.location)
-                              }}
-                            >
-                              {zone.location.name}
-                            </button>
-                          </td>
-                          <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-900">{formatNumber(zone.count)}</td>
-                          <td className="px-3 py-3 text-right tabular-nums text-gray-600">
-                            {totalCellCount > 0 ? `${((zone.count / totalCellCount) * 100).toFixed(1).replace('.', ',')} %` : '0 %'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="app-panel-muted rounded-lg px-4 py-5 text-sm text-gray-500">
-                Aucune zone urbaine identifiée pour cette vue.
-              </p>
-            )}
-          </div>
+          ) : view === 'all' ? (
+            <p className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
+              Vue combinée : la couleur identifie la métrique ; la taille et l’opacité indiquent son intensité relative.
+            </p>
+          ) : null}
+        </section>
 
-          <div>
-            <DropZoneMapViewport
-              ref={mapViewportRef}
-              boundariesVisible={showLocationBoundaries}
-              onBoundariesVisibleChange={setShowLocationBoundaries}
-              onSwipeMap={handleSwipeMap}
-            >
-              {payload.selectedMap ? (
-                <>
-                  <Image
-                    src={mapAssetPath(payload.selectedMap)}
-                    alt={selectedMapLabel}
-                    fill
-                    className="object-cover opacity-80 brightness-[0.72] saturate-[0.8] contrast-[1.08]"
-                    sizes="(max-width: 1280px) 100vw, 70vw"
-                    unoptimized
+        {loading && !payload ? <p className="mb-4 text-sm text-slate-600">Chargement des heatmaps positions...</p> : null}
+        {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+        {!error && payload ? (
+          <section
+            aria-busy={loading}
+            className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm${loading ? ' opacity-60' : ''}`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <span className="text-slate-600">Matchs analyses: {formatNumber(analyzedMatches)}</span>
+              <span className="text-slate-600">
+                Événements visibles: {formatNumber(visibleEventCount)}
+              </span>
+              <span className="text-slate-600">
+                Cellules visibles: {formatNumber(visibleRenderedCells)} / {formatNumber(totalRenderedCells)}
+              </span>
+              <span className="text-slate-600">
+                Intensite max: {formatNumber(maxCellCount)}
+              </span>
+            </div>
+
+            <div className="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des zones</p>
+                  <h2 className="mt-1 text-lg font-semibold text-gray-900">
+                    {topZones[0]
+                      ? `Zone principale : ${topZones[0].location.name}`
+                      : 'Aucune zone urbaine identifiée'}
+                  </h2>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Classement des villes pour la vue {viewLabelCurrent.toLowerCase()}.
+                  </p>
+                </div>
+                <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                  <MobileDropdownNav
+                    id="positions-location-filter"
+                    label="Ville"
+                    currentLabel={selectedLocationLabel}
+                    items={locationItems}
+                    visibilityClass=""
+                    className="w-full"
                   />
-                  <div className="absolute inset-0 bg-slate-950/20" />
-                </>
-              ) : null}
+                  <span className="pb-2 text-xs text-gray-500">{selectedMapLabel}</span>
+                </div>
+              </div>
+              {topZones.length > 0 ? (
+                <div className="app-table-shell overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="app-table-head">
+                      <tr>
+                        <th className="w-16 px-3 py-2 text-center">Rang</th>
+                        <th className="px-3 py-2 text-left">Ville</th>
+                        <th className="px-3 py-2 text-right">Événements</th>
+                        <th className="px-3 py-2 text-right">Part visible</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topZones.map((zone, index) => {
+                        const rank = index + 1
+                        const medal = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null
+                        return (
+                          <tr key={zone.location.id} className={`app-table-row ${rank <= 3 ? `app-table-row--top${rank}` : ''}`}>
+                            <td className="px-3 py-3 text-center font-semibold">
+                              {medal ? (
+                                <Image src={`/icons/medal-${medal}.svg`} alt={`Médaille, rang ${rank}`} width={24} height={24} className="mx-auto h-6 w-6" />
+                              ) : rank}
+                            </td>
+                            <td className="px-3 py-3 font-medium text-gray-900">
+                              <button
+                                type="button"
+                                className="hover:text-cyan-600 hover:underline"
+                                onClick={() => {
+                                  setSelectedLocationId(zone.location.id)
+                                  mapViewportRef.current?.focusLocation(zone.location)
+                                }}
+                              >
+                                {zone.location.name}
+                              </button>
+                            </td>
+                            <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-900">{formatNumber(zone.count)}</td>
+                            <td className="px-3 py-3 text-right tabular-nums text-gray-600">
+                              {totalCellCount > 0 ? `${((zone.count / totalCellCount) * 100).toFixed(1).replace('.', ',')} %` : '0 %'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="app-panel-muted rounded-lg px-4 py-5 text-sm text-gray-500">
+                  Aucune zone urbaine identifiée pour cette vue.
+                </p>
+              )}
+            </div>
 
-              <div className="absolute inset-0 overflow-hidden">
-                {showLocationBoundaries ? activeLocations.map((location) => (
-                  <div
-                    key={location.id}
-                    className={`pointer-events-none absolute z-10 rounded-full border ${
-                      selectedLocationId === location.id
-                        ? 'border-cyan-300 bg-cyan-300/15 shadow-[0_0_20px_rgba(103,232,249,0.45)]'
-                        : 'border-white/25 bg-transparent'
-                    }`}
-                    style={{
-                      left: `${location.xPct}%`,
-                      top: `${location.yPct}%`,
-                      width: `${location.radiusPct * 2}%`,
-                      aspectRatio: '1',
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  >
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/75 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
-                      {location.name}
-                    </span>
-                  </div>
-                )) : null}
-                <>
-                    {payload.safeZoneOverlay ? (
-                      <svg
-                        className="absolute inset-0 h-full w-full"
-                        viewBox="0 0 100 100"
-                        preserveAspectRatio="none"
-                        style={{ pointerEvents: 'none' }}
-                      >
-                        <circle
-                          cx={payload.safeZoneOverlay.x}
-                          cy={payload.safeZoneOverlay.y}
-                          r={payload.safeZoneOverlay.r}
-                          fill="rgba(52, 211, 153, 0.06)"
-                          stroke="rgba(52, 211, 153, 0.7)"
-                          strokeWidth={0.5}
-                          strokeDasharray="2 1.5"
-                        />
-                      </svg>
-                    ) : null}
-                    {layers.map((layer) => {
-                      const layerMaxCount = layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)
-                      return layer.cells.map((cell) => {
-                        const ratio = layerMaxCount > 0 ? clamp01(cell.count / layerMaxCount) : 0
-                        if (usesDensityGradation && cell.count < minimumHeat) return null
+            <div>
+              <DropZoneMapViewport
+                ref={mapViewportRef}
+                boundariesVisible={showLocationBoundaries}
+                onBoundariesVisibleChange={setShowLocationBoundaries}
+                onSwipeMap={handleSwipeMap}
+              >
+                {payload.selectedMap ? (
+                  <>
+                    <Image
+                      src={mapAssetPath(payload.selectedMap)}
+                      alt={selectedMapLabel}
+                      fill
+                      className="object-cover opacity-80 brightness-[0.72] saturate-[0.8] contrast-[1.08]"
+                      sizes="(max-width: 1280px) 100vw, 70vw"
+                      unoptimized
+                    />
+                    <div className="absolute inset-0 bg-slate-950/20" />
+                  </>
+                ) : null}
 
-                        const heatRange = usesDensityGradation ? heatRangeForCount(cell.count, heatRanges) : null
-                        const intensity = usesDensityGradation
-                          ? logarithmicIntensity(cell.count, minimumHeat, layerMaxCount)
-                          : ratio
-                        const left = ((cell.xIndex + 0.5) / payload.gridSize) * 100
-                        const top = ((cell.yIndex + 0.5) / payload.gridSize) * 100
-                        const size = pointSize(ratio)
+                <div className="absolute inset-0 overflow-hidden">
+                  {showLocationBoundaries ? activeLocations.map((location) => (
+                    <div
+                      key={location.id}
+                      className={`pointer-events-none absolute z-10 rounded-full border ${
+                        selectedLocationId === location.id
+                          ? 'border-cyan-300 bg-cyan-300/15 shadow-[0_0_20px_rgba(103,232,249,0.45)]'
+                          : 'border-white/25 bg-transparent'
+                      }`}
+                      style={{
+                        left: `${location.xPct}%`,
+                        top: `${location.yPct}%`,
+                        width: `${location.radiusPct * 2}%`,
+                        aspectRatio: '1',
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    >
+                      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-slate-950/75 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-sm">
+                        {location.name}
+                      </span>
+                    </div>
+                  )) : null}
+                  <>
+                      {payload.safeZoneOverlay ? (
+                        <svg
+                          className="absolute inset-0 h-full w-full"
+                          viewBox="0 0 100 100"
+                          preserveAspectRatio="none"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          <circle
+                            cx={payload.safeZoneOverlay.x}
+                            cy={payload.safeZoneOverlay.y}
+                            r={payload.safeZoneOverlay.r}
+                            fill="rgba(52, 211, 153, 0.06)"
+                            stroke="rgba(52, 211, 153, 0.7)"
+                            strokeWidth={0.5}
+                            strokeDasharray="2 1.5"
+                          />
+                        </svg>
+                      ) : null}
+                      {layers.map((layer) => {
+                        const layerMaxCount = layer.cells.reduce((max, cell) => Math.max(max, cell.count), 0)
+                        return layer.cells.map((cell) => {
+                          const ratio = layerMaxCount > 0 ? clamp01(cell.count / layerMaxCount) : 0
+                          if (usesDensityGradation && cell.count < minimumHeat) return null
 
-                        if (layer.dot) {
-                          const dotSize = 12 + Math.sqrt(ratio) * 16
-                          const markerColor = `rgb(${layer.color})`
+                          const heatRange = usesDensityGradation ? heatRangeForCount(cell.count, heatRanges) : null
+                          const intensity = usesDensityGradation
+                            ? logarithmicIntensity(cell.count, minimumHeat, layerMaxCount)
+                            : ratio
+                          const left = ((cell.xIndex + 0.5) / payload.gridSize) * 100
+                          const top = ((cell.yIndex + 0.5) / payload.gridSize) * 100
+                          const size = pointSize(ratio)
+
+                          if (layer.dot) {
+                            const dotSize = 12 + Math.sqrt(ratio) * 16
+                            const markerColor = `rgb(${layer.color})`
+                            return (
+                              <div
+                                key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
+                                className="absolute z-20 flex items-center justify-center rounded-full border-2 border-white/90 font-black text-slate-950"
+                                style={{
+                                  left: `${left}%`,
+                                  top: `${top}%`,
+                                  width: `${dotSize}px`,
+                                  height: `${dotSize}px`,
+                                  transform: 'translate(-50%, -50%)',
+                                  backgroundColor: markerColor,
+                                  boxShadow: `0 0 0 2px rgba(2, 6, 23, 0.78), 0 0 ${8 + ratio * 10}px rgba(${layer.color}, 0.9)`,
+                                }}
+                                title={`${layer.label} · ${heatRange?.label ?? 'Intensité relative'} · ${formatNumber(cell.count)} événements`}
+                              >
+                                {cell.count > 1 ? (
+                                  <span className="text-[9px] leading-none">
+                                    {cell.count}
+                                  </span>
+                                ) : null}
+                              </div>
+                            )
+                          }
+                          if (usesDensityGradation && heatRange) {
+                            return (
+                              <div
+                                key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
+                                className="absolute z-20 rounded-[28%] border border-white/75"
+                                style={{
+                                  left: `${left}%`,
+                                  top: `${top}%`,
+                                  width: `${100 / payload.gridSize}%`,
+                                  height: `${100 / payload.gridSize}%`,
+                                  transform: 'translate(-50%, -50%)',
+                                  backgroundColor: heatRange.color,
+                                  boxShadow: '0 0 0 1px rgba(2, 6, 23, 0.7), 0 2px 8px rgba(2, 6, 23, 0.5)',
+                                  opacity: 0.62 + intensity * 0.33,
+                                }}
+                                title={`${layer.label} · ${heatRange.label} · ${formatNumber(cell.count)} événements`}
+                              />
+                            )
+                          }
                           return (
                             <div
                               key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
-                              className="absolute z-20 flex items-center justify-center rounded-full border-2 border-white/90 font-black text-slate-950"
+                              className="absolute z-20 rounded-[30%] border border-white/70"
                               style={{
                                 left: `${left}%`,
                                 top: `${top}%`,
-                                width: `${dotSize}px`,
-                                height: `${dotSize}px`,
+                                width: `${size}px`,
+                                height: `${size}px`,
                                 transform: 'translate(-50%, -50%)',
-                                backgroundColor: markerColor,
-                                boxShadow: `0 0 0 2px rgba(2, 6, 23, 0.78), 0 0 ${8 + ratio * 10}px rgba(${layer.color}, 0.9)`,
+                                backgroundColor: `rgba(${layer.color}, ${0.68 + ratio * 0.27})`,
+                                boxShadow: `0 0 0 1px rgba(2, 6, 23, 0.72), 0 0 ${5 + ratio * 8}px rgba(${layer.color}, 0.65)`,
                               }}
-                              title={`${layer.label} · ${heatRange?.label ?? 'Intensité relative'} · ${formatNumber(cell.count)} événements`}
-                            >
-                              {cell.count > 1 ? (
-                                <span className="text-[9px] leading-none">
-                                  {cell.count}
-                                </span>
-                              ) : null}
-                            </div>
-                          )
-                        }
-                        if (usesDensityGradation && heatRange) {
-                          return (
-                            <div
-                              key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
-                              className="absolute z-20 rounded-[28%] border border-white/75"
-                              style={{
-                                left: `${left}%`,
-                                top: `${top}%`,
-                                width: `${100 / payload.gridSize}%`,
-                                height: `${100 / payload.gridSize}%`,
-                                transform: 'translate(-50%, -50%)',
-                                backgroundColor: heatRange.color,
-                                boxShadow: '0 0 0 1px rgba(2, 6, 23, 0.7), 0 2px 8px rgba(2, 6, 23, 0.5)',
-                                opacity: 0.62 + intensity * 0.33,
-                              }}
-                              title={`${layer.label} · ${heatRange.label} · ${formatNumber(cell.count)} événements`}
+                              title={`${layer.label} x:${cell.xIndex} y:${cell.yIndex} c:${cell.count}`}
                             />
                           )
-                        }
-                        return (
-                          <div
-                            key={`${layer.key}-${cell.xIndex}-${cell.yIndex}`}
-                            className="absolute z-20 rounded-[30%] border border-white/70"
-                            style={{
-                              left: `${left}%`,
-                              top: `${top}%`,
-                              width: `${size}px`,
-                              height: `${size}px`,
-                              transform: 'translate(-50%, -50%)',
-                              backgroundColor: `rgba(${layer.color}, ${0.68 + ratio * 0.27})`,
-                              boxShadow: `0 0 0 1px rgba(2, 6, 23, 0.72), 0 0 ${5 + ratio * 8}px rgba(${layer.color}, 0.65)`,
-                            }}
-                            title={`${layer.label} x:${cell.xIndex} y:${cell.yIndex} c:${cell.count}`}
-                          />
-                        )
-                      })
-                    })}
-                </>
-              </div>
+                        })
+                      })}
+                  </>
+                </div>
 
-              <div className="absolute bottom-4 left-4 z-30 rounded border border-cyan-300/35 bg-slate-950/80 px-4 py-2 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Carte visible</p>
-                <p className="mt-0.5 text-lg font-bold leading-tight text-white">{selectedMapLabel}</p>
-                {payload.safeZoneOverlay ? (
-                  <p className="mt-1 text-[10px] text-emerald-200">Cercle vert : zone de sécurité moyenne</p>
-                ) : null}
-              </div>
-            </DropZoneMapViewport>
-          </div>
-        </section>
-      ) : null}
-    </main>
+                <div className="absolute bottom-4 left-4 z-30 rounded border border-cyan-300/35 bg-slate-950/80 px-4 py-2 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] backdrop-blur-sm">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">Carte visible</p>
+                  <p className="mt-0.5 text-lg font-bold leading-tight text-white">{selectedMapLabel}</p>
+                  {payload.safeZoneOverlay ? (
+                    <p className="mt-1 text-[10px] text-emerald-200">Cercle vert : zone de sécurité moyenne</p>
+                  ) : null}
+                </div>
+              </DropZoneMapViewport>
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </div>
   )
 }
 

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getPeriodStart } from '@/lib/period'
 import { requireNavPermission } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
@@ -12,17 +13,8 @@ function parsePeriod(value: string | null): Period {
   return value === 'week' || value === 'month' ? value : 'all'
 }
 
-function getPeriodStart(period: Period): Date | null {
-  if (period === 'week') {
-    return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  }
-
-  if (period === 'month') {
-    return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  }
-
-  return null
-}
+// `getPeriodStart` (src/lib/period.ts) : semaine et mois calendaires, comme le reste de la page
+// statistiques. Ils étaient glissants (7 / 30 jours) jusqu'au 2026-09-25 (docs/TODO/sticky.md §3.C).
 
 // Lecture seule, ouverte à tout membre du clan (même permission que la page
 // stats générale) — contrairement à /api/clans/[clanId]/encountered-players

@@ -1,127 +1,168 @@
 'use client'
 
-import React from 'react'
+import React, { useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+
 import { useStickyToolbar } from '@/hooks/useStickyToolbar'
+
+/** Sous cette largeur, le bandeau docké ne garde que la période (docs/TODO/sticky.md §2). */
+const MOBILE_QUERY = '(max-width: 639px)'
+
+function subscribeMobile(onChange: () => void) {
+  const query = window.matchMedia(MOBILE_QUERY)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+
+export type DockingToolbarState = {
+  /** Le bandeau est collé sous le header. */
+  isSticky: boolean
+  /** Collé ET sur mobile : la page ne rend que sa période (§2). */
+  compact: boolean
+}
 
 export interface DockingToolbarProps {
   /**
-   * Contenu à afficher dans la barre d'outils.
-   * Peut être un ReactNode direct ou une fonction de rendu recevant { isSticky: boolean }.
+   * Contenu du bandeau, ou fonction de rendu recevant `{ isSticky, compact }`. Une seule
+   * arborescence dans les deux états : les contrôles restent montés (un champ garde son focus à
+   * la bascule) ; compteurs, dates et notes ne sont rendus qu'au repos (`{!isSticky && …}`) ;
+   * en mode `compact`, seule la période reste.
    */
-  children: React.ReactNode | ((props: { isSticky: boolean }) => React.ReactNode)
-
-  /**
-   * Variante esthétique du bandeau :
-   * - 'card' (par défaut) : carte moderne arrondie `rounded-3xl border shadow-md backdrop-blur-md` au repos,
-   *   puis bandeau pleine largeur `border-b` en mode sticky.
-   * - 'panel' : utilise les classes de design system standard `app-panel` au repos,
-   *   puis `border-b border-[var(--app-border)] bg-[var(--app-surface)]` en mode sticky.
-   */
-  variant?: 'card' | 'panel'
-
-  /**
-   * Classe de largeur maximale pour le conteneur intérieur (défaut: 'max-w-6xl')
-   */
-  maxWidthClass?: string
-
-  /**
-   * Marges extérieures au repos (défaut: 'my-4 sm:my-6')
-   */
-  restingMarginClass?: string
-
-  /**
-   * Padding et agencement de la carte au repos
-   */
-  restingPanelClassName?: string
-
-  /**
-   * Padding et agencement du conteneur intérieur en mode sticky
-   */
-  stickyInnerClassName?: string
-
-  /**
-   * Classes additionnelles pour le conteneur sticky externe
-   */
-  stickyHeaderClassName?: string
-
-  /**
-   * Classe racine optionnelle
-   */
+  children: React.ReactNode | ((state: DockingToolbarState) => React.ReactNode)
+  /** `panel` (défaut, pages joueurs) ; `card` réservé à l'administration existante. */
+  variant?: 'panel' | 'card'
+  /** Une page sans période ne docke rien sur mobile (docs/TODO/sticky.md §2). */
+  dockOnMobile?: boolean
+  /** Nom accessible du bandeau. */
+  ariaLabel?: string
   className?: string
+}
 
-  /**
-   * Décalages par rapport au haut de l'écran pour la détection sticky (défaut: desktop 58px, mobile 72px)
-   */
-  topOffsets?: { desktop: number; mobile: number }
+const RESTING_INNER: Record<NonNullable<DockingToolbarProps['variant']>, string> = {
+  panel: 'app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center',
+  card: 'flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/95 px-5 py-4 shadow-md backdrop-blur-md dark:border-slate-800/90 dark:bg-slate-900/95 sm:flex-row sm:items-center',
+}
+
+const DOCKED_OUTER: Record<NonNullable<DockingToolbarProps['variant']>, string> = {
+  panel: 'border-b border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm backdrop-blur-md',
+  card: 'border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95',
 }
 
 /**
- * Composant DockingToolbar
+ * Bandeau de filtres d'une page — standard des pages joueurs (docs/TODO/sticky.md §4.A,
+ * docs/ui/index.html §23).
  *
- * Implémente le pattern de bandeau adaptatif :
- * - Au repos : boîte centrée avec marges et coins arrondis, alignée avec le contenu de la page.
- * - Au défilement (sticky) : passe en pleine largeur sous le header avec uniquement `border-b`
- *   sans aucune bordure parasite ni débordement d'angles arrondis.
- * - Le contenu intérieur reste centré et aligné sur la grille du site.
+ * - Au repos : panneau aligné sur la grille du site (`app-container`, 64rem).
+ * - Docké : pleine largeur de la colonne de contenu, collé sous le header à
+ *   `var(--app-header-height)`, seulement `border-b`, sans transition géométrique.
+ * - La hauteur perdue à la bascule est réservée par un espaceur : le contenu ne saute pas.
+ * - La hauteur du bandeau est publiée dans `--app-toolbar-height` (marges de défilement).
+ *
+ * À placer HORS de tout conteneur de largeur (`main.app-main-flush` pleine largeur, blocs internes
+ * en `app-container app-gutter`), sinon il ne peut pas s'étendre une fois docké.
  */
 export function DockingToolbar({
   children,
-  variant = 'card',
-  maxWidthClass = 'max-w-6xl',
-  restingMarginClass = 'my-4 sm:my-6',
-  restingPanelClassName,
-  stickyInnerClassName,
-  stickyHeaderClassName,
+  variant = 'panel',
+  dockOnMobile = true,
+  ariaLabel = 'Filtres de la page',
   className = '',
-  topOffsets = { desktop: 71, mobile: 73 },
 }: DockingToolbarProps) {
-  const { isSticky, sentinelRef } = useStickyToolbar(topOffsets)
+  const { isSticky: pastHeader, sentinelRef } = useStickyToolbar()
+  const isMobile = useSyncExternalStore(subscribeMobile, () => window.matchMedia(MOBILE_QUERY).matches, () => false)
 
-  const content = typeof children === 'function' ? children({ isSticky }) : children
+  const isSticky = pastHeader && (dockOnMobile || !isMobile)
+  const compact = isSticky && isMobile
+  const content = typeof children === 'function' ? children({ isSticky, compact }) : children
 
-  const isPanelVariant = variant === 'panel'
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const spacerRef = useRef<HTMLDivElement | null>(null)
+  const restingHeightRef = useRef(0)
 
-  // Conteneur de largeur pour le panel standard
-  const restingContainerClass = isPanelVariant && maxWidthClass === 'app-container'
-    ? `app-container px-4 ${restingMarginClass} ${className}`.trim()
-    : `mx-auto w-full ${maxWidthClass} px-4 ${restingMarginClass} ${className}`.trim()
+  // Mesures en direct dans le DOM, sans état React : l'espaceur est ajusté avant l'affichage.
+  useLayoutEffect(() => {
+    const bar = barRef.current
+    if (!bar) return
 
-  const restingCardClass = restingPanelClassName
-    ? restingPanelClassName
-    : isPanelVariant
-    ? 'app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center'
-    : 'flex flex-col gap-3 rounded-3xl border border-slate-200/90 bg-white/95 px-5 py-4 shadow-md backdrop-blur-md dark:border-slate-800/90 dark:bg-slate-900/95'
+    // La mesure force un calcul de mise en page où l'espaceur n'est pas encore ajusté : le contenu
+    // semble bouger, et l'ancrage de défilement du navigateur « corrigerait » la position de lecture —
+    // jusqu'à ramener la page en haut sur mobile, où le bandeau au repos est haut. L'ancrage est donc
+    // suspendu le temps que l'espaceur compense, puis rétabli deux images plus tard.
+    const root = document.documentElement
+    let restoreFrame = 0
+    const suspendScrollAnchoring = () => {
+      root.style.setProperty('overflow-anchor', 'none')
+      cancelAnimationFrame(restoreFrame)
+      restoreFrame = requestAnimationFrame(() => {
+        restoreFrame = requestAnimationFrame(() => root.style.removeProperty('overflow-anchor'))
+      })
+    }
 
-  const stickyHeaderClass = stickyHeaderClassName
-    ? stickyHeaderClassName
-    : isPanelVariant
-    ? 'border-b border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm backdrop-blur-md'
-    : 'border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95'
+    const measure = () => {
+      suspendScrollAnchoring()
+      const style = getComputedStyle(bar)
+      const total = bar.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom)
+      if (bar.dataset.docked === 'true') {
+        const gap = Math.max(0, restingHeightRef.current - total)
+        if (spacerRef.current) spacerRef.current.style.height = `${gap}px`
+      } else {
+        restingHeightRef.current = total
+        if (spacerRef.current) spacerRef.current.style.height = '0px'
+      }
+      document.documentElement.style.setProperty('--app-toolbar-height', `${bar.offsetHeight}px`)
+    }
 
-  const stickyInnerClass = stickyInnerClassName
-    ? stickyInnerClassName
-    : isPanelVariant && maxWidthClass === 'app-container'
-    ? 'app-container flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center'
-    : `mx-auto flex w-full ${maxWidthClass} flex-col gap-3 px-4 py-4`
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(bar)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(restoreFrame)
+      root.style.removeProperty('overflow-anchor')
+    }
+  }, [isSticky])
+
+  useLayoutEffect(
+    () => () => {
+      document.documentElement.style.removeProperty('--app-toolbar-height')
+    },
+    []
+  )
 
   return (
     <>
-      {/* Sentinelle invisible pour la détection via IntersectionObserver */}
-      <div ref={sentinelRef} className="h-0 w-full pointer-events-none opacity-0" aria-hidden="true" />
+      {/* Sentinelle invisible : sa sortie par le haut déclenche le docking. */}
+      <div ref={sentinelRef} data-docking-sentinel="" className="pointer-events-none h-0 w-full opacity-0" aria-hidden="true" />
 
-      {isSticky ? (
-        <div className={`sticky top-[73px] lg:top-[71px] z-30 w-full ${stickyHeaderClass} ${className}`.trim()}>
-          <div className={stickyInnerClass}>
-            {content}
-          </div>
+      <div
+        ref={barRef}
+        role="region"
+        aria-label={ariaLabel}
+        data-docking-toolbar=""
+        data-docked={isSticky ? 'true' : 'false'}
+        data-compact={compact ? 'true' : 'false'}
+        style={isSticky ? { top: 'var(--app-header-height)' } : undefined}
+        className={[
+          // Au repos : des paddings, pas des marges. Une marge fusionnerait avec celle du bloc précédent à
+          // travers la sentinelle (hauteur nulle), et l'espaceur compterait un espace qui n'existe pas.
+          isSticky ? `sticky z-30 w-full ${DOCKED_OUTER[variant]}` : 'app-container app-gutter py-4 sm:py-6',
+          className,
+        ]
+          .join(' ')
+          .trim()}
+      >
+        <div
+          className={
+            isSticky
+              ? `app-container app-gutter flex flex-col gap-3 sm:flex-row sm:items-center ${compact ? 'py-2' : 'py-3'}`
+              : RESTING_INNER[variant]
+          }
+        >
+          {content}
         </div>
-      ) : (
-        <div className={restingContainerClass}>
-          <div className={restingCardClass}>
-            {content}
-          </div>
-        </div>
-      )}
+      </div>
+
+      {/* Réserve la hauteur perdue à la bascule (mesurée ci-dessus). */}
+      <div ref={spacerRef} aria-hidden="true" style={{ height: 0 }} />
     </>
   )
 }

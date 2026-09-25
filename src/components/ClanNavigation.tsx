@@ -12,6 +12,7 @@ import { ClanSwitchModal } from '@/components/clan/ClanSwitchModal'
 import { PlayerSwitchModal } from '@/components/clan/PlayerSwitchModal'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { useHeaderHeightPublisher } from '@/hooks/useStickyToolbar'
 import { usePlayerStats } from '@/hooks/usePlayerStats'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
@@ -216,6 +217,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
 
   const menuButtonRef = useRef<HTMLButtonElement | null>(null)
+  // Hauteur réelle du header, pour les bandeaux collants (docs/TODO/sticky.md §4.A).
+  const headerRef = useHeaderHeightPublisher()
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
@@ -1098,7 +1101,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         </aside>
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+          <header ref={headerRef} data-app-header="" className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
             <div className="w-full px-4 py-3 sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2 sm:gap-3">

@@ -5,12 +5,17 @@ import { useParams } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
 type HeatmapScope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
-type HeatmapPeriod = 'week' | 'month' | 'all'
+// Semaine et mois calendaires, comme partout ailleurs (docs/TODO/sticky.md §2).
+type HeatmapPeriod = StandardPeriod
 
 type HeatmapCell = {
   day: string
@@ -93,14 +98,15 @@ export default function MemberHeatmapPage() {
   const [scope, setScope] = useState<HeatmapScope>('self')
   const [targetMemberId, setTargetMemberId] = useState<number | null>(null)
   const [bestMode, setBestMode] = useState<BestMode>('duo')
-  const [period, setPeriod] = useState<HeatmapPeriod>('all')
+  // Période de la page : URL, puis mémoire de la visite, puis « Tous » (docs/TODO/sticky.md §4.E).
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'all')
   const [mapName, setMapName] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<HeatmapPayload | null>(null)
 
   useEffect(() => {
-    if (!memberId) {
+    if (!memberId || !periodReady) {
       return
     }
 
@@ -137,7 +143,6 @@ export default function MemberHeatmapPage() {
           if (scope === 'member' && data.selected.targetMemberId) {
             setTargetMemberId(data.selected.targetMemberId)
           }
-          setPeriod(data.selected.period)
           setMapName(data.selected.mapName)
         }
       } catch (loadError) {
@@ -157,18 +162,18 @@ export default function MemberHeatmapPage() {
     return () => {
       cancelled = true
     }
-  }, [bestMode, mapName, memberId, period, scope, targetMemberId])
+  }, [bestMode, mapName, memberId, period, periodReady, scope, targetMemberId])
 
   if (!memberId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Heatmap"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
-      </main>
+      </div>
     )
   }
 
@@ -225,33 +230,6 @@ export default function MemberHeatmapPage() {
         setScope('best')
         setTargetMemberId(null)
       },
-    },
-  ]
-
-  const periodLabelMap: Record<HeatmapPeriod, string> = {
-    week: '7 jours',
-    month: '30 jours',
-    all: 'Tout',
-  }
-
-  const periodItems: MobileDropdownNavItem[] = [
-    {
-      key: 'week',
-      label: '7 jours',
-      active: period === 'week',
-      onSelect: () => setPeriod('week'),
-    },
-    {
-      key: 'month',
-      label: '30 jours',
-      active: period === 'month',
-      onSelect: () => setPeriod('month'),
-    },
-    {
-      key: 'all',
-      label: 'Tout',
-      active: period === 'all',
-      onSelect: () => setPeriod('all'),
     },
   ]
 
@@ -313,233 +291,188 @@ export default function MemberHeatmapPage() {
   ]
 
   return (
-    <main className="app-container app-main space-y-4">
-      <NavigationTrail
-        currentLabel="Heatmap"
-        currentHref={`/members/${memberId}/heatmap`}
-        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
-      />
-      <section className="mb-5">
-        <MemberPageHeader
-          title="Calendrier d'activite"
-          subtitle="Repartition de l'activite par jour et par heure."
-          showBackButton={false}
-          backgroundImage="/heatmap.jpg"
-          icon={<CalendarDays className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-4">
+        <NavigationTrail
+          currentLabel="Heatmap"
+          currentHref={`/members/${memberId}/heatmap`}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
         />
-      </section>
-
-      <section className="app-panel mb-5 p-4">
-        <div>
-          <div className="flex flex-wrap items-end gap-3">
-          <MobileDropdownNav
-            id={`heatmap-scope-${memberId}`}
-            label="Filtre"
-            currentLabel={scopeLabelMap[scope]}
-            items={scopeItems}
-            variant="compact"
-            visibilityClass="block"
-            className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-            leftIcon={(
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                <path
-                  d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                />
-              </svg>
-            )}
+        <section>
+          <MemberPageHeader
+            title="Calendrier d'activite"
+            subtitle="Repartition de l'activite par jour et par heure."
+            showBackButton={false}
+            backgroundImage="/heatmap.jpg"
+            icon={<CalendarDays className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
           />
+        </section>
+      </div>
 
-          <MobileDropdownNav
-            id={`heatmap-period-${memberId}`}
-            label="Periode"
-            currentLabel={periodLabelMap[period]}
-            items={periodItems}
-            variant="compact"
-            visibilityClass="block"
-            className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-            leftIcon={(
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                <path
-                  d="M6 2.5h1.5V4H12V2.5h1.5V4h2A1.5 1.5 0 0 1 17 5.5v10a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5v-10A1.5 1.5 0 0 1 4.5 4h1.5V2.5Zm9.5 6h-11"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          />
-
-          <MobileDropdownNav
-            id={`heatmap-map-${memberId}`}
-            label="Carte PUBG"
-            currentLabel={selectedMapLabel}
-            items={mapItems}
-            variant="compact"
-            visibilityClass="block"
-            className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-            leftIcon={(
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                <path
-                  d="M3.5 5.5 8 4l4 1.5L16.5 4v10.5L12 16l-4-1.5-4.5 1.5V5.5Z"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          />
-
-          {scope === 'member' ? (
-            <MobileDropdownNav
-              id={`heatmap-member-${memberId}`}
-              label="Joueur"
-              currentLabel={selectedMemberLabel}
-              items={memberItems}
-              variant="compact"
-              visibilityClass="block"
-              className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-              leftIcon={(
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                  <path
-                    d="M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm-5.5 5.3a5.5 5.5 0 0 1 11 0"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+      <DockingToolbar ariaLabel="Filtres du calendrier d'activité">
+        {({ isSticky, compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+              {!compact ? (
+                <>
+                  <MobileDropdownNav
+                    id={`heatmap-scope-${memberId}`}
+                    label="Filtre"
+                    currentLabel={scopeLabelMap[scope]}
+                    items={scopeItems}
+                    variant="compact"
+                    visibilityClass="block"
+                    className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+                    leftIcon={(
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                        <path
+                          d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
                   />
-                </svg>
-              )}
-            />
-          ) : null}
 
-          {scope === 'best' ? (
-            <MobileDropdownNav
-              id={`heatmap-best-mode-${memberId}`}
-              label="Formation"
-              currentLabel={bestModeLabelMap[bestMode]}
-              items={bestModeItems}
-              variant="compact"
-              visibilityClass="block"
-              className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-              leftIcon={(
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                  <path
-                    d="M4.5 15.5h11M4.5 10h11M4.5 4.5h11"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
+                  <MobileDropdownNav
+                    id={`heatmap-map-${memberId}`}
+                    label="Carte PUBG"
+                    currentLabel={selectedMapLabel}
+                    items={mapItems}
+                    variant="compact"
+                    visibilityClass="block"
+                    className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+                    leftIcon={(
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                        <path
+                          d="M3.5 5.5 8 4l4 1.5L16.5 4v10.5L12 16l-4-1.5-4.5 1.5V5.5Z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
                   />
-                </svg>
-              )}
-            />
-          ) : null}
 
-          <div className="w-full rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900">
-            <p className="mt-1 font-medium">{payload?.scopeLabel ?? 'Chargement...'}</p>
-            <p className="mt-1 text-xs text-cyan-800">{payload?.matchCount ?? 0} match(s) utilises</p>
-          </div>
+                  {scope === 'member' ? (
+                    <MobileDropdownNav
+                      id={`heatmap-member-${memberId}`}
+                      label="Joueur"
+                      currentLabel={selectedMemberLabel}
+                      items={memberItems}
+                      variant="compact"
+                      visibilityClass="block"
+                      className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+                      leftIcon={(
+                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                          <path
+                            d="M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm-5.5 5.3a5.5 5.5 0 0 1 11 0"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    />
+                  ) : null}
 
-          </div>
-        </div>
-      </section>
-
-      {error ? (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
-      ) : null}
-
-      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        {loading ? (
-          <p className="text-sm text-gray-500">Chargement de la heatmap...</p>
-        ) : !payload || payload.heatmap.length === 0 ? (
-          <p className="text-sm text-gray-500">Aucune activite disponible pour ce filtre.</p>
-        ) : (
-          <div className="space-y-4">
-            {/* KPI Cards */}
-            <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
-                <p className="text-sm font-medium text-gray-500">Temps de jeu total</p>
-                <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
-                  {formatPlaytime(payload.playtimeSeconds)}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Cumulé sur la période
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
-                <p className="text-sm font-medium text-gray-500">Jours actifs</p>
-                <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
-                  {payload.activeDays} <span className="text-sm font-medium text-gray-500">jours</span>
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  Avec au moins un match
-                </p>
-              </div>
+                  {scope === 'best' ? (
+                    <MobileDropdownNav
+                      id={`heatmap-best-mode-${memberId}`}
+                      label="Formation"
+                      currentLabel={bestModeLabelMap[bestMode]}
+                      items={bestModeItems}
+                      variant="compact"
+                      visibilityClass="block"
+                      className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
+                      leftIcon={(
+                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                          <path
+                            d="M4.5 15.5h11M4.5 10h11M4.5 4.5h11"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      )}
+                    />
+                  ) : null}
+                </>
+              ) : null}
             </div>
-
-            <div className="md:hidden">
-              <div className="mb-2 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
-                <div />
-                {DAY_LABELS.map((dayLabel, dayIndex) => (
-                  <div key={`mobile-day-head-${dayLabel}`} className="text-center text-[10px] text-gray-500">
-                    <div className="font-semibold text-gray-600">{dayLabel}</div>
-                    <div>{countsByDay.get(dayIndex) ?? 0}</div>
-                  </div>
-                ))}
+            {!isSticky ? (
+              <div className="w-full rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900">
+                <p className="mt-1 font-medium">{payload?.scopeLabel ?? 'Chargement...'}</p>
+                <p className="mt-1 text-xs text-cyan-800">{payload?.matchCount ?? 0} match(s) utilises</p>
               </div>
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
 
-              {Array.from({ length: 24 }, (_, hour) => (
-                <div key={`mobile-hour-${hour}`} className="mb-1 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
-                  <div className="flex items-center justify-end pr-1 text-[10px] text-gray-500">{hourLabel(hour)}</div>
+      <div className="app-container app-gutter space-y-4">
+        {error ? (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        ) : null}
 
-                  {DAY_LABELS.map((dayLabel, dayIndex) => {
-                    const count = getCellCount(dayIndex, hour)
-
-                    return (
-                      <div
-                        key={`mobile-${dayLabel}-${hour}`}
-                        className={`h-5 rounded ${cellTone(count, payload.maxCellCount)}`}
-                        title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
-                      />
-                    )
-                  })}
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+          {loading && !payload ? (
+            <p className="text-sm text-gray-500">Chargement de la heatmap...</p>
+          ) : !payload || payload.heatmap.length === 0 ? (
+            <p className="text-sm text-gray-500">Aucune activite disponible pour ce filtre.</p>
+          ) : (
+            <div aria-busy={loading} className={loading ? 'space-y-4 opacity-60' : 'space-y-4'}>
+              {/* KPI Cards */}
+              <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
+                  <p className="text-sm font-medium text-gray-500">Temps de jeu total</p>
+                  <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
+                    {formatPlaytime(payload.playtimeSeconds)}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Cumulé sur la période
+                  </p>
                 </div>
-              ))}
-            </div>
 
-            <div className="hidden md:block">
-              <div className="w-full">
-                <div className="mb-2 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]">
+                <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
+                  <p className="text-sm font-medium text-gray-500">Jours actifs</p>
+                  <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
+                    {payload.activeDays} <span className="text-sm font-medium text-gray-500">jours</span>
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Avec au moins un match
+                  </p>
+                </div>
+              </div>
+
+              <div className="md:hidden">
+                <div className="mb-2 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
                   <div />
-                  {Array.from({ length: 24 }, (_, hour) => (
-                    <div key={`hour-head-${hour}`} className="text-center text-[10px] text-gray-500">
-                      {hour % 2 === 0 ? hourLabel(hour) : ''}
+                  {DAY_LABELS.map((dayLabel, dayIndex) => (
+                    <div key={`mobile-day-head-${dayLabel}`} className="text-center text-[10px] text-gray-500">
+                      <div className="font-semibold text-gray-600">{dayLabel}</div>
+                      <div>{countsByDay.get(dayIndex) ?? 0}</div>
                     </div>
                   ))}
                 </div>
 
-                {DAY_LABELS.map((dayLabel, dayIndex) => (
-                  <div
-                    key={`day-${dayLabel}`}
-                    className="mb-1 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]"
-                  >
-                    <div className="flex items-center justify-between pr-1 text-[11px] text-gray-700 lg:pr-2 lg:text-xs">
-                      <span className="font-semibold">{dayLabel}</span>
-                      <span className="text-[9px] text-gray-500 lg:text-[10px]">{countsByDay.get(dayIndex) ?? 0}</span>
-                    </div>
+                {Array.from({ length: 24 }, (_, hour) => (
+                  <div key={`mobile-hour-${hour}`} className="mb-1 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
+                    <div className="flex items-center justify-end pr-1 text-[10px] text-gray-500">{hourLabel(hour)}</div>
 
-                    {Array.from({ length: 24 }, (_, hour) => {
+                    {DAY_LABELS.map((dayLabel, dayIndex) => {
                       const count = getCellCount(dayIndex, hour)
 
                       return (
                         <div
-                          key={`${dayLabel}-${hour}`}
-                          className={`h-5 rounded lg:h-6 ${cellTone(count, payload.maxCellCount)}`}
+                          key={`mobile-${dayLabel}-${hour}`}
+                          className={`h-5 rounded ${cellTone(count, payload.maxCellCount)}`}
                           title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
                         />
                       )
@@ -547,21 +480,58 @@ export default function MemberHeatmapPage() {
                   </div>
                 ))}
               </div>
-            </div>
 
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>Faible</span>
-              <div className="h-3 w-6 rounded bg-slate-100" />
-              <div className="h-3 w-6 rounded bg-cyan-100" />
-              <div className="h-3 w-6 rounded bg-cyan-200" />
-              <div className="h-3 w-6 rounded bg-cyan-300" />
-              <div className="h-3 w-6 rounded bg-cyan-400" />
-              <div className="h-3 w-6 rounded bg-cyan-500" />
-              <span>Forte</span>
+              <div className="hidden md:block">
+                <div className="w-full">
+                  <div className="mb-2 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]">
+                    <div />
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <div key={`hour-head-${hour}`} className="text-center text-[10px] text-gray-500">
+                        {hour % 2 === 0 ? hourLabel(hour) : ''}
+                      </div>
+                    ))}
+                  </div>
+
+                  {DAY_LABELS.map((dayLabel, dayIndex) => (
+                    <div
+                      key={`day-${dayLabel}`}
+                      className="mb-1 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]"
+                    >
+                      <div className="flex items-center justify-between pr-1 text-[11px] text-gray-700 lg:pr-2 lg:text-xs">
+                        <span className="font-semibold">{dayLabel}</span>
+                        <span className="text-[9px] text-gray-500 lg:text-[10px]">{countsByDay.get(dayIndex) ?? 0}</span>
+                      </div>
+
+                      {Array.from({ length: 24 }, (_, hour) => {
+                        const count = getCellCount(dayIndex, hour)
+
+                        return (
+                          <div
+                            key={`${dayLabel}-${hour}`}
+                            className={`h-5 rounded lg:h-6 ${cellTone(count, payload.maxCellCount)}`}
+                            title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
+                          />
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span>Faible</span>
+                <div className="h-3 w-6 rounded bg-slate-100" />
+                <div className="h-3 w-6 rounded bg-cyan-100" />
+                <div className="h-3 w-6 rounded bg-cyan-200" />
+                <div className="h-3 w-6 rounded bg-cyan-300" />
+                <div className="h-3 w-6 rounded bg-cyan-400" />
+                <div className="h-3 w-6 rounded bg-cyan-500" />
+                <span>Forte</span>
+              </div>
             </div>
-          </div>
-        )}
-      </section>
-    </main>
+          )}
+        </section>
+      </div>
+    </div>
   )
 }

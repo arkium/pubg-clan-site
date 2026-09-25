@@ -4,11 +4,15 @@ import { Trophy } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
-type AwardPeriod = 'week' | 'month' | 'all'
+type AwardPeriod = StandardPeriod
 type AwardScope = 'normal' | 'all'
 
 type AwardWinner = {
@@ -34,15 +38,9 @@ type ClanAwardsResponse = {
   awards: ClanAward[]
 }
 
-const PERIOD_OPTIONS: Array<{ value: AwardPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'All Time' },
-]
-
 const SCOPE_OPTIONS: Array<{ value: AwardScope; label: string }> = [
   { value: 'normal', label: 'Normal' },
-  { value: 'all', label: 'Tout' },
+  { value: 'all', label: 'Tous' },
 ]
 
 const MEDAL_BY_RANK = ['🥇', '🥈', '🥉'] as const
@@ -125,7 +123,8 @@ export default function ClanAwardsPage() {
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
 
-  const [period, setPeriod] = useState<AwardPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [scope, setScope] = useState<AwardScope>('normal')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -180,7 +179,7 @@ export default function ClanAwardsPage() {
   )
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -199,7 +198,7 @@ export default function ClanAwardsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, period, scope, loadAwards])
+  }, [clanId, period, periodReady, scope, loadAwards])
 
   const handleRefresh = useCallback(async () => {
     if (!clanId) {
@@ -216,140 +215,136 @@ export default function ClanAwardsPage() {
   }
 
   return (
-    <main className="app-container app-main flex-1 space-y-6">
-      <NavigationTrail
-        currentLabel="Awards"
-        currentHref={`/clans/${clanId}/awards`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <header
-        className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/awards.jpg')` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <button
-          type="button"
-          className="absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 disabled:opacity-60 sm:right-4 sm:top-4 sm:px-3 sm:py-1.5 sm:text-sm"
-          onClick={() => {
-            void handleRefresh()
-          }}
-          disabled={refreshing || loading}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-6">
+        <NavigationTrail
+          currentLabel="Awards"
+          currentHref={`/clans/${clanId}/awards`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/awards.jpg')` }}
         >
-          {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
-        </button>
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Trophy className="h-4 w-4 text-yellow-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Awards du clan</h1>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <button
+            type="button"
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 disabled:opacity-60 sm:right-4 sm:top-4 sm:px-3 sm:py-1.5 sm:text-sm"
+            onClick={() => {
+              void handleRefresh()
+            }}
+            disabled={refreshing || loading}
+          >
+            {refreshing ? 'Rafraichissement...' : 'Rafraichir'}
+          </button>
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Trophy className="h-4 w-4 text-yellow-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Awards du clan</h1>
+            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Distinctions fun calculées à la volée.
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Distinctions fun calculées à la volée.
-          </p>
-        </div>
-      </header>
+        </header>
+      </div>
 
-      <section className="app-panel space-y-4 p-4">
-        <div className="flex flex-wrap items-start gap-6">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Periode</p>
-            <SegmentedControl
-              options={PERIOD_OPTIONS}
-              value={period}
-              onChange={setPeriod}
-              size="sm"
-              fullWidthOnMobile
-              className="w-full sm:w-auto"
-            />
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Mode de calcul</p>
-            <SegmentedControl
-              options={SCOPE_OPTIONS}
-              value={scope}
-              onChange={setScope}
-              size="sm"
-              fullWidthOnMobile
-              className="w-full sm:w-auto"
-            />
-          </div>
-        </div>
-
-        <div className="app-panel-muted flex flex-col gap-2 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            {!loading && payload ? (
-              <>
-                <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 font-semibold text-gray-900 shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                  {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
-                </span>
-                <span className="font-medium text-gray-600 dark:text-slate-300">pris en compte</span>
-              </>
-            ) : (
-              <span className="text-gray-500 dark:text-slate-400">Comptage des matchs en cours...</span>
-            )}
-          </div>
-
-          <div className="text-gray-600 dark:text-slate-300 sm:text-right">
-            {scope === 'normal' ? (
-              <span>
-                <strong className="font-semibold text-gray-900 dark:text-white">Normal :</strong> Matchs officiels uniquement en duo, trio et squad (exclut casual/bots, customs et modes spéciaux).
-              </span>
-            ) : (
-              <span>
-                <strong className="font-semibold text-gray-900 dark:text-white">Tout :</strong> Tous les types de matchs en duo, trio et squad (inclut officiels, compétitifs, parties personnalisées et casual/bots).
-              </span>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {loading ? (
-        <section className="app-panel p-4 text-sm text-gray-600 dark:text-slate-300">Chargement des awards...</section>
-      ) : null}
-
-      {error ? <section className="app-panel p-4 text-sm text-rose-800 dark:text-rose-300">{error}</section> : null}
-
-      {!loading && !error && payload ? (
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {payload.awards.map((award) => {
-            const emoji = AWARD_EMOJI_BY_KEY[award.key] ?? '🏅'
-
-            return (
-              <article key={award.key} className="app-panel p-4">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{award.key.replaceAll('_', ' ')}</p>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{award.label}</h2>
-                  </div>
-                  <span className="text-2xl" aria-hidden="true">
-                    {emoji}
-                  </span>
+      <DockingToolbar ariaLabel="Filtres des awards">
+        {({ isSticky, compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+              {!compact ? (
+                <div role="group" aria-label="Mode de calcul">
+                  <SegmentedControl options={SCOPE_OPTIONS} value={scope} onChange={setScope} size="sm" wrap />
+                </div>
+              ) : null}
+            </div>
+            {!isSticky ? (
+              <div className="app-panel-muted flex flex-col gap-2 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2">
+                  {!loading && payload ? (
+                    <>
+                      <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 font-semibold text-gray-900 shadow-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                        {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
+                      </span>
+                      <span className="font-medium text-gray-600 dark:text-slate-300">pris en compte</span>
+                    </>
+                  ) : (
+                    <span className="text-gray-500 dark:text-slate-400">Comptage des matchs en cours...</span>
+                  )}
                 </div>
 
-                <p className="text-sm text-gray-600 dark:text-slate-300">{award.description}</p>
+                <div className="text-gray-600 dark:text-slate-300 sm:text-right">
+                  {scope === 'normal' ? (
+                    <span>
+                      <strong className="font-semibold text-gray-900 dark:text-white">Normal :</strong> Matchs officiels uniquement en duo, trio et squad (exclut casual/bots, customs et modes spéciaux).
+                    </span>
+                  ) : (
+                    <span>
+                      <strong className="font-semibold text-gray-900 dark:text-white">Tous :</strong> Tous les types de matchs en duo, trio et squad (inclut officiels, compétitifs, parties personnalisées et casual/bots).
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
 
-                {award.top3.length > 0 ? (
-                  <ol className="mt-4 overflow-hidden rounded-lg app-panel-muted">
-                    {award.top3.map((entry, index) => (
-                      <li key={entry.memberId} className="flex items-center gap-3 px-3 py-2.5">
-                        <span className="text-xl" aria-hidden="true">{MEDAL_BY_RANK[index]}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{entry.memberName}</p>
-                          <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{formatAwardValue(award, entry.value)}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <div className="app-panel-muted mt-4 p-3 text-sm text-gray-600 dark:text-slate-400">
-                    Pas de donnees sur cette periode.
+      <div className="app-container app-gutter space-y-6">
+        {loading && !payload ? (
+          <section className="app-panel p-4 text-sm text-gray-600 dark:text-slate-300">Chargement des awards...</section>
+        ) : null}
+
+        {error ? <section className="app-panel p-4 text-sm text-rose-800 dark:text-rose-300">{error}</section> : null}
+
+        {!error && payload ? (
+          <section
+            aria-busy={loading}
+            className={`grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3${loading ? ' opacity-60' : ''}`}
+          >
+            {payload.awards.map((award) => {
+              const emoji = AWARD_EMOJI_BY_KEY[award.key] ?? '🏅'
+
+              return (
+                <article key={award.key} className="app-panel p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{award.key.replaceAll('_', ' ')}</p>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{award.label}</h2>
+                    </div>
+                    <span className="text-2xl" aria-hidden="true">
+                      {emoji}
+                    </span>
                   </div>
-                )}
-              </article>
-            )
-          })}
-        </section>
-      ) : null}
-    </main>
+
+                  <p className="text-sm text-gray-600 dark:text-slate-300">{award.description}</p>
+
+                  {award.top3.length > 0 ? (
+                    <ol className="mt-4 overflow-hidden rounded-lg app-panel-muted">
+                      {award.top3.map((entry, index) => (
+                        <li key={entry.memberId} className="flex items-center gap-3 px-3 py-2.5">
+                          <span className="text-xl" aria-hidden="true">{MEDAL_BY_RANK[index]}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{entry.memberName}</p>
+                            <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{formatAwardValue(award, entry.value)}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <div className="app-panel-muted mt-4 p-3 text-sm text-gray-600 dark:text-slate-400">
+                      Pas de donnees sur cette periode.
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </section>
+        ) : null}
+      </div>
+    </div>
   )
 }

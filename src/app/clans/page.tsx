@@ -100,37 +100,41 @@ export default function ClansPage() {
 
   if (authLoading) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         <p className="text-sm text-gray-600">Verification de la session...</p>
-      </main>
+      </div>
     )
   }
 
   if ((!authenticated && !isVisitor) || !canSwitchClan) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         <p className="text-sm text-gray-600">Redirection...</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main">
-      <header
-        className="sticky top-20 z-30 mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat transition-all duration-500 ease-in-out sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('${hoveredClan?.imageUrl || '/banner-frenchchicken-gg.jpg'}')`, backgroundPosition: 'center 35%' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-[#0b0f19]/80 to-transparent transition-opacity duration-500 ease-in-out" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Users className="h-4 w-4 text-blue-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Sélectionnez votre clan</h1>
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    // Le héro défile avec la page : seul le bandeau de tri et de recherche reste disponible.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter mb-4">
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat transition-[background-image] duration-500 ease-in-out sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('${hoveredClan?.imageUrl || '/banner-frenchchicken-gg.jpg'}')`, backgroundPosition: 'center 35%' }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f19] via-[#0b0f19]/80 to-transparent transition-opacity duration-500 ease-in-out" />
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Users className="h-4 w-4 text-blue-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Sélectionnez votre clan</h1>
+            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Choisissez le clan à consulter pour afficher les membres et les données associées.
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Choisissez le clan à consulter pour afficher les membres et les données associées.
-          </p>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <ClanSelector
         clans={clans}
@@ -144,7 +148,7 @@ export default function ClansPage() {
       />
 
       {/* Chantier 1 : les mouvements automatiques ne doivent jamais etre silencieux. */}
-      <div className="mt-8 flex justify-center">
+      <div className="app-container app-gutter mt-8 flex justify-center">
         <Link
           href="/clans/mutations"
           className="app-panel-muted inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
@@ -153,6 +157,6 @@ export default function ClansPage() {
           Historique des mouvements de clan
         </Link>
       </div>
-    </main>
+    </div>
   )
 }

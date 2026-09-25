@@ -1,7 +1,8 @@
 import { Layers } from 'lucide-react'
 
-import WeaponCategoryPeriodFilter from '@/components/WeaponCategoryPeriodFilter'
-import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
+import WeaponCategoryToolbar from '@/components/WeaponCategoryToolbar'
+import type { SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
+import { STANDARD_PERIODS, parsePeriod as parseStandardPeriod, type StandardPeriod } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 import { weaponIconUrl } from '@/lib/pubg-assets/asset-url'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -10,7 +11,7 @@ import {
   type WeaponCategory,
 } from '@/lib/weapons/weapon-categories'
 
-type Period = 'week' | 'month' | 'all'
+type Period = StandardPeriod
 
 type PageProps = {
   params: Promise<{ clanId: string }>
@@ -18,8 +19,7 @@ type PageProps = {
 }
 
 function parsePeriod(value: string | undefined): Period {
-  if (value === 'month' || value === 'all') return value
-  return 'week'
+  return parseStandardPeriod(value, STANDARD_PERIODS, 'week')
 }
 
 function getIsoWeek(date: Date): number {
@@ -224,172 +224,167 @@ export default async function WeaponCategoryAliasesPage({ params, searchParams }
     items: entries.filter((entry) => entry.category === category),
   })).filter((group) => group.items.length > 0)
 
-  const sectionNavItems: StickySectionNavItem[] = grouped.map((group) => ({
+  const sectionNavItems: SectionAnchorNavItem[] = grouped.map((group) => ({
     id: `sec-cat-${group.category}`,
     label: group.category,
     icon: 'category',
   }))
 
   return (
-    <main className="app-container app-main space-y-6">
-      <NavigationTrail
-        currentLabel="Catégories d'armes"
-        currentHref={`/clans/${clanId}/stats/weapons/categories`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <header
-        className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/weapon-categories.jpg')` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Layers className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Catégories armes</h1>
-          </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Classement des armes par catégorie.
-          </p>
-        </div>
-      </header>
-
-      <section className="app-panel p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Période</p>
-        <WeaponCategoryPeriodFilter clanId={parsedClanId} period={period} />
-      </section>
-
-      {grouped.length > 0 ? (
-        <StickySectionNav
-          ariaLabel="Navigation des catégories d'armes"
-          items={sectionNavItems}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Catégories d'armes"
+          currentHref={`/clans/${clanId}/stats/weapons/categories`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
-      ) : null}
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/weapon-categories.jpg')` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Layers className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Catégories armes</h1>
+            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Classement des armes par catégorie.
+            </p>
+          </div>
+        </header>
+      </div>
 
-      <section className="space-y-4">
-        {grouped.map((group) => {
-          const info = CATEGORY_INFO[group.category]
-          return (
-            <article id={`sec-cat-${group.category}`} key={group.category} className="app-panel scroll-mt-40 overflow-hidden">
-              {/* Category header */}
-              <div className="border-b border-gray-200 px-4 py-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-bold tracking-wider text-white">
-                    {group.category}
-                  </span>
-                  <h2 className="text-base font-bold text-gray-900">
-                    {CATEGORY_LABELS[group.category]}
-                  </h2>
-                  <span className="ml-auto shrink-0 text-xs text-gray-400">
-                    {group.items.length} armes
-                  </span>
-                </div>
+      <WeaponCategoryToolbar serverPeriod={period} sections={sectionNavItems} />
 
-                {info && (
-                  <>
-                    <p className="text-sm italic text-gray-500">{info.tagline}</p>
+      <div className="app-container app-gutter">
+        <section className="space-y-4">
+          {grouped.map((group) => {
+            const info = CATEGORY_INFO[group.category]
+            return (
+              <article id={`sec-cat-${group.category}`} key={group.category} className="app-panel overflow-hidden">
+                {/* Category header */}
+                <div className="border-b border-gray-200 px-4 py-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-bold tracking-wider text-white">
+                      {group.category}
+                    </span>
+                    <h2 className="text-base font-bold text-gray-900">
+                      {CATEGORY_LABELS[group.category]}
+                    </h2>
+                    <span className="ml-auto shrink-0 text-xs text-gray-400">
+                      {group.items.length} armes
+                    </span>
+                  </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <p className="text-sm text-gray-700">{info.description}</p>
+                  {info && (
+                    <>
+                      <p className="text-sm italic text-gray-500">{info.tagline}</p>
 
-                      <div className="flex gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
-                        <span className="mt-0.5 shrink-0 text-base leading-none">🎯</span>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-900">Conseil Pro</p>
-                          <p className="mt-0.5 text-sm text-gray-600">{info.tip}</p>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <p className="text-sm text-gray-700">{info.description}</p>
+
+                        <div className="flex gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                          <span className="mt-0.5 shrink-0 text-base leading-none">🎯</span>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-900">Conseil Pro</p>
+                            <p className="mt-0.5 text-sm text-gray-600">{info.tip}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </>
-                )}
-              </div>
+                    </>
+                  )}
+                </div>
 
-              {/* Weapon cards */}
-              {(() => {
-                const itemsWithKills = group.items.map((entry) => {
-                  const telemetryId = KEY_TO_TELEMETRY_ID[entry.key]
-                  const clanKills = telemetryId ? (killsByTelemetryId.get(telemetryId) ?? 0) : 0
-                  return { entry, telemetryId, clanKills }
-                })
-                const rankMap = new Map(
-                  [...itemsWithKills]
-                    .filter((item) => item.clanKills > 0)
-                    .sort((a, b) => b.clanKills - a.clanKills)
-                    .slice(0, 3)
-                    .map((item, i) => [item.entry.key, i + 1])
-                )
+                {/* Weapon cards */}
+                {(() => {
+                  const itemsWithKills = group.items.map((entry) => {
+                    const telemetryId = KEY_TO_TELEMETRY_ID[entry.key]
+                    const clanKills = telemetryId ? (killsByTelemetryId.get(telemetryId) ?? 0) : 0
+                    return { entry, telemetryId, clanKills }
+                  })
+                  const rankMap = new Map(
+                    [...itemsWithKills]
+                      .filter((item) => item.clanKills > 0)
+                      .sort((a, b) => b.clanKills - a.clanKills)
+                      .slice(0, 3)
+                      .map((item, i) => [item.entry.key, i + 1])
+                  )
 
-                return (
-                  <div className="p-4">
-                    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                      {itemsWithKills.map(({ entry, telemetryId, clanKills }) => {
-                        const rank = rankMap.get(entry.key) ?? null
+                  return (
+                    <div className="p-4">
+                      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                        {itemsWithKills.map(({ entry, telemetryId, clanKills }) => {
+                          const rank = rankMap.get(entry.key) ?? null
 
-                        return (
-                          <li
-                            key={entry.key}
-                            className="relative aspect-[3/2] overflow-hidden rounded-xl bg-gradient-to-b from-slate-700 to-slate-900 shadow-md"
-                          >
-                            {telemetryId ? (
-                              <img
-                                src={weaponIconUrl(telemetryId)}
-                                alt={entry.key}
-                                className="absolute inset-0 h-full w-full object-contain px-3 py-4"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="h-12 w-12 rounded-full bg-slate-600" />
+                          return (
+                            <li
+                              key={entry.key}
+                              className="relative aspect-[3/2] overflow-hidden rounded-xl bg-gradient-to-b from-slate-700 to-slate-900 shadow-md"
+                            >
+                              {telemetryId ? (
+                                <img
+                                  src={weaponIconUrl(telemetryId)}
+                                  alt={entry.key}
+                                  className="absolute inset-0 h-full w-full object-contain px-3 py-4"
+                                />
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="h-12 w-12 rounded-full bg-slate-600" />
+                                </div>
+                              )}
+
+                              {/* Medal badge — top left */}
+                              {rank !== null && (
+                                <div className={[
+                                  'absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow-md ring-1',
+                                  rank === 1 ? 'bg-yellow-400 text-yellow-950 ring-yellow-300' :
+                                  rank === 2 ? 'bg-slate-300 text-slate-800 ring-slate-200' :
+                                               'bg-amber-800 text-amber-100 ring-amber-700',
+                                ].join(' ')}>
+                                  #{rank}
+                                </div>
+                              )}
+
+                              {/* Bottom gradient + weapon name */}
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-10">
+                                <p className="truncate text-sm font-bold leading-tight text-white">
+                                  {entry.key}
+                                </p>
+                                {(() => {
+                                  const aliasLine = entry.aliases.join(' · ')
+                                  return aliasLine !== entry.key ? (
+                                    <p className="truncate text-[11px] leading-tight text-slate-400">
+                                      {aliasLine}
+                                    </p>
+                                  ) : null
+                                })()}
                               </div>
-                            )}
 
-                            {/* Medal badge — top left */}
-                            {rank !== null && (
-                              <div className={[
-                                'absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow-md ring-1',
-                                rank === 1 ? 'bg-yellow-400 text-yellow-950 ring-yellow-300' :
-                                rank === 2 ? 'bg-slate-300 text-slate-800 ring-slate-200' :
-                                             'bg-amber-800 text-amber-100 ring-amber-700',
-                              ].join(' ')}>
-                                #{rank}
-                              </div>
-                            )}
-
-                            {/* Bottom gradient + weapon name */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-10">
-                              <p className="truncate text-sm font-bold leading-tight text-white">
-                                {entry.key}
-                              </p>
-                              {(() => {
-                                const aliasLine = entry.aliases.join(' · ')
-                                return aliasLine !== entry.key ? (
-                                  <p className="truncate text-[11px] leading-tight text-slate-400">
-                                    {aliasLine}
+                              {/* Kills badge — top right */}
+                              {clanKills > 0 && (
+                                <div className="absolute right-2 top-2 rounded-lg bg-black/60 px-2 py-1 text-center backdrop-blur-sm ring-1 ring-white/10">
+                                  <p className="text-sm font-bold tabular-nums leading-none text-white">
+                                    {clanKills.toLocaleString('fr-FR')}
                                   </p>
-                                ) : null
-                              })()}
-                            </div>
-
-                            {/* Kills badge — top right */}
-                            {clanKills > 0 && (
-                              <div className="absolute right-2 top-2 rounded-lg bg-black/60 px-2 py-1 text-center backdrop-blur-sm ring-1 ring-white/10">
-                                <p className="text-sm font-bold tabular-nums leading-none text-white">
-                                  {clanKills.toLocaleString('fr-FR')}
-                                </p>
-                                <p className="mt-0.5 text-[10px] leading-none text-slate-400">
-                                  kills
-                                </p>
-                              </div>
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                )
-              })()}
-            </article>
-          )
-        })}
-      </section>
-    </main>
+                                  <p className="mt-0.5 text-[10px] leading-none text-slate-400">
+                                    kills
+                                  </p>
+                                </div>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )
+                })()}
+              </article>
+            )
+          })}
+        </section>
+      </div>
+    </div>
   )
 }

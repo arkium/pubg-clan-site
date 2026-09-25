@@ -10,7 +10,11 @@ import DropZoneMapViewport, {
 } from '@/components/drop-zones/DropZoneMapViewport'
 import DropPressureLegend from '@/components/drop-zones/DropPressureLegend'
 import DropPressureMarker from '@/components/drop-zones/DropPressureMarker'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS } from '@/lib/period'
 
 import {
   DROP_PRESSURE_LEVELS,
@@ -70,12 +74,6 @@ type DropZonesResponse = {
     }
   }
 }
-
-const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
 
 const VIEW_MODE_OPTIONS: Array<{ value: DropZonesViewMode; label: string }> = [
   { value: 'mix', label: 'Mixte' },
@@ -224,7 +222,8 @@ export default function ClanDropZonesPage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
-  const [period, setPeriod] = useState<TelemetryPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [viewMode, setViewMode] = useState<DropZonesViewMode>('mix')
   const [selectedMap, setSelectedMap] = useState('')
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null)
@@ -235,7 +234,7 @@ export default function ClanDropZonesPage() {
   const [payload, setPayload] = useState<DropZonesResponse | null>(null)
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -277,7 +276,7 @@ export default function ClanDropZonesPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, period])
+  }, [clanId, period, periodReady])
 
   const maps = useMemo(() => {
     const names = new Set<string>()
@@ -423,191 +422,110 @@ export default function ClanDropZonesPage() {
 
   if (!clanId) {
     return (
-      <main className="app-container app-main">
-      <NavigationTrail
-        currentLabel="Zones de drop"
-        currentHref={`/clans/${clanId}/drop-zones`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
+      <div className="app-container app-main flex-1">
+        <NavigationTrail
+          currentLabel="Zones de drop"
+          currentHref={`/clans/${clanId}/drop-zones`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
         <p className="text-sm text-red-600">Clan invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main">
-      <NavigationTrail
-        currentLabel="Zones de drop"
-        currentHref={`/clans/${clanId}/drop-zones`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <header
-        className="relative mb-5 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/drop2.jpg')` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Flame className="h-4 w-4 text-orange-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Drop Zones</h1>
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Zones de drop"
+          currentHref={`/clans/${clanId}/drop-zones`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/drop2.jpg')` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Flame className="h-4 w-4 text-orange-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Drop Zones</h1>
+            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Zones de saut préférées et points chauds à l&apos;atterrissage.
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Zones de saut préférées et points chauds à l&apos;atterrissage.
-          </p>
-        </div>
-      </header>
+        </header>
 
-      <section className="app-panel mb-5 p-4">
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="min-w-0">
-              <MobileDropdownNav
-                id="drop-zones-period-filter"
-                label="Periode"
-                currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Selectionner'}
-                items={PERIOD_OPTIONS.map((option) => ({
-                  key: `period-${option.value}`,
-                  label: option.label,
-                  active: period === option.value,
-                  onSelect: () => setPeriod(option.value),
-                }))}
-                visibilityClass=""
-                className="w-full"
-              />
-            </div>
+      </div>
 
-            <div className="min-w-0">
-              <MobileDropdownNav
-                id="drop-zones-view-filter"
-                label="Affichage"
-                currentLabel={VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'}
-                items={VIEW_MODE_OPTIONS.map((option) => ({
-                  key: `view-${option.value}`,
-                  label: option.label,
-                  active: viewMode === option.value,
-                  onSelect: () => setViewMode(option.value),
-                }))}
-                visibilityClass=""
-                className="w-full"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <MobileDropdownNav
-                id="drop-zones-map-filter"
-                label="Carte"
-                currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
-                items={maps.map((mapName) => ({
-                  key: `map-${mapName}`,
-                  label: mapDisplayName(mapName, {}),
-                  active: activeMap === mapName,
-                  onSelect: () => selectMap(mapName),
-                }))}
-                visibilityClass=""
-                className="w-full"
-              />
-            </div>
-
-            <div className="min-w-0">
-              <MobileDropdownNav
-                id="drop-zones-member-filter"
-                label="Joueur"
-                currentLabel={selectedMemberId ? members.find(m => m.id === selectedMemberId)?.name ?? 'Joueur' : 'Tous'}
-                items={[
-                  {
-                    key: 'member-all',
-                    label: 'Tous les joueurs',
-                    active: selectedMemberId === null,
-                    onSelect: () => {
-                      setSelectedMemberId(null)
-                      setSelectedLocationId('')
-                      mapViewportRef.current?.reset()
-                    },
-                  },
-                  ...members.map((entry) => ({
-                    key: `member-${entry.id}`,
-                    label: entry.name,
-                    active: selectedMemberId === entry.id,
-                    onSelect: () => {
-                      setSelectedMemberId(entry.id)
-                      setSelectedLocationId('')
-                      mapViewportRef.current?.reset()
-                    },
-                  })),
-                ]}
-                visibilityClass=""
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 text-xs text-slate-600">
-            <div>
-              <p className="font-semibold text-slate-700">Points</p>
-              <p>Atterrissage de chaque membre du clan — 1 point par match, coloré par joueur.</p>
-            </div>
-            <div>
-              <p className="font-semibold text-slate-700">Heatmap</p>
-              <p>Tous les joueurs de chaque match, adversaires compris — intensité = fréquence de la zone.</p>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {loading ? <p className="mb-4 text-sm text-slate-600">Chargement des drop zones...</p> : null}
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-
-      {!loading && !error && payload ? (
-        maps.length > 0 ? (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-              <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
-              <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
-              <span className="text-slate-600">Dropzones visibles: {formatNumber(filteredPoints.length)}</span>
-              <span className="text-slate-600">
-                Pression moyenne: {pressureStats.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
-              </span>
-              <span className="text-slate-600">Maximum: {formatNumber(pressureStats.maximum)}</span>
-              <span className="text-slate-600">
-                Hot drops: {pressureStats.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
-              </span>
-              <span className="text-slate-600">
-                Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
-              </span>
-            </div>
-
-            <div className="border-b border-slate-200 bg-white px-4 py-4">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des dropzones</p>
-                  <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                    {favoriteCity
-                      ? `Dropzone favorite : ${favoriteCity.location.name}`
-                      : 'Aucun atterrissage dans une ville configuree'}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {formatNumber(locatedPointCount)} en ville · {formatNumber(mapPoints.length - locatedPointCount)} hors périmètre
-                  </p>
+      <DockingToolbar ariaLabel="Filtres des zones de drop">
+        {({ isSticky, compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+            {!compact ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="drop-zones-view-filter"
+                    variant="compact"
+                    label="Affichage"
+                    currentLabel={VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'}
+                    items={VIEW_MODE_OPTIONS.map((option) => ({
+                      key: `view-${option.value}`,
+                      label: option.label,
+                      active: viewMode === option.value,
+                      onSelect: () => setViewMode(option.value),
+                    }))}
+                    visibilityClass=""
+                    className="w-full"
+                  />
                 </div>
 
-                <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                <div className="min-w-0">
                   <MobileDropdownNav
-                    id="clan-drop-zones-location-filter"
-                    label="Ville"
-                    currentLabel={selectedLocation?.name ?? 'Toutes les villes'}
+                    id="drop-zones-map-filter"
+                    variant="compact"
+                    label="Carte"
+                    currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
+                    items={maps.map((mapName) => ({
+                      key: `map-${mapName}`,
+                      label: mapDisplayName(mapName, {}),
+                      active: activeMap === mapName,
+                      onSelect: () => selectMap(mapName),
+                    }))}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="drop-zones-member-filter"
+                    variant="compact"
+                    label="Joueur"
+                    currentLabel={selectedMemberId ? members.find(m => m.id === selectedMemberId)?.name ?? 'Joueur' : 'Tous'}
                     items={[
                       {
-                        key: 'all-locations',
-                        label: 'Toutes les villes',
-                        active: !selectedLocation,
-                        onSelect: () => selectLocation(null),
+                        key: 'member-all',
+                        label: 'Tous',
+                        active: selectedMemberId === null,
+                        onSelect: () => {
+                          setSelectedMemberId(null)
+                          setSelectedLocationId('')
+                          mapViewportRef.current?.reset()
+                        },
                       },
-                      ...activeLocations.map((location) => ({
-                        key: location.id,
-                        label: location.name,
-                        active: selectedLocation?.id === location.id,
-                        onSelect: () => selectLocation(location),
+                      ...members.map((entry) => ({
+                        key: `member-${entry.id}`,
+                        label: entry.name,
+                        active: selectedMemberId === entry.id,
+                        onSelect: () => {
+                          setSelectedMemberId(entry.id)
+                          setSelectedLocationId('')
+                          mapViewportRef.current?.reset()
+                        },
                       })),
                     ]}
                     visibilityClass=""
@@ -615,32 +533,182 @@ export default function ClanDropZonesPage() {
                   />
                 </div>
               </div>
+            ) : null}
+            {!isSticky ? (
+              <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 text-xs text-slate-600">
+                <div>
+                  <p className="font-semibold text-slate-700">Points</p>
+                  <p>Atterrissage de chaque membre du clan — 1 point par match, coloré par joueur.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-700">Heatmap</p>
+                  <p>Tous les joueurs de chaque match, adversaires compris — intensité = fréquence de la zone.</p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
 
-              {topCityStats.length > 0 ? (
-                <>
-                  <div className="app-table-shell hidden overflow-hidden md:block">
-                    <table className="w-full table-fixed text-sm">
-                      <colgroup>
-                        <col style={{ width: '8%' }} />
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '13%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '24%' }} />
-                      </colgroup>
-                      <thead className="app-table-head text-xs uppercase tracking-wide">
-                        <tr>
-                          <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
-                          <th className="px-4 py-3 text-left whitespace-nowrap">Dropzone</th>
-                          <th className="px-4 py-3 text-right whitespace-nowrap">Atterrissages</th>
-                          <th className="px-4 py-3 text-right whitespace-nowrap">Part</th>
-                          <th className="px-4 py-3 text-right whitespace-nowrap">Matchs</th>
-                          <th className="px-4 py-3 text-right whitespace-nowrap">Membres</th>
-                          <th className="px-4 py-3 text-left whitespace-nowrap">Membre principal</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+      <div className="app-container app-gutter">
+        {loading && !payload ? <p className="mb-4 text-sm text-slate-600">Chargement des drop zones...</p> : null}
+        {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+
+        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+        {!error && payload ? (
+          maps.length > 0 ? (
+            <section
+              aria-busy={loading}
+              className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm${loading ? ' opacity-60' : ''}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
+                <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
+                <span className="text-slate-600">Dropzones visibles: {formatNumber(filteredPoints.length)}</span>
+                <span className="text-slate-600">
+                  Pression moyenne: {pressureStats.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                </span>
+                <span className="text-slate-600">Maximum: {formatNumber(pressureStats.maximum)}</span>
+                <span className="text-slate-600">
+                  Hot drops: {pressureStats.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+                </span>
+                <span className="text-slate-600">
+                  Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
+                </span>
+              </div>
+
+              <div className="border-b border-slate-200 bg-white px-4 py-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des dropzones</p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                      {favoriteCity
+                        ? `Dropzone favorite : ${favoriteCity.location.name}`
+                        : 'Aucun atterrissage dans une ville configuree'}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {formatNumber(locatedPointCount)} en ville · {formatNumber(mapPoints.length - locatedPointCount)} hors périmètre
+                    </p>
+                  </div>
+
+                  <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                    <MobileDropdownNav
+                      id="clan-drop-zones-location-filter"
+                      label="Ville"
+                      currentLabel={selectedLocation?.name ?? 'Toutes les villes'}
+                      items={[
+                        {
+                          key: 'all-locations',
+                          label: 'Toutes les villes',
+                          active: !selectedLocation,
+                          onSelect: () => selectLocation(null),
+                        },
+                        ...activeLocations.map((location) => ({
+                          key: location.id,
+                          label: location.name,
+                          active: selectedLocation?.id === location.id,
+                          onSelect: () => selectLocation(location),
+                        })),
+                      ]}
+                      visibilityClass=""
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                {topCityStats.length > 0 ? (
+                  <>
+                    <div className="app-table-shell hidden overflow-hidden md:block">
+                      <table className="w-full table-fixed text-sm">
+                        <colgroup>
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '25%' }} />
+                          <col style={{ width: '13%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '24%' }} />
+                        </colgroup>
+                        <thead className="app-table-head text-xs uppercase tracking-wide">
+                          <tr>
+                            <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
+                            <th className="px-4 py-3 text-left whitespace-nowrap">Dropzone</th>
+                            <th className="px-4 py-3 text-right whitespace-nowrap">Atterrissages</th>
+                            <th className="px-4 py-3 text-right whitespace-nowrap">Part</th>
+                            <th className="px-4 py-3 text-right whitespace-nowrap">Matchs</th>
+                            <th className="px-4 py-3 text-right whitespace-nowrap">Membres</th>
+                            <th className="px-4 py-3 text-left whitespace-nowrap">Membre principal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topCityStats.map((stat, index) => {
+                            const rank = index + 1
+                            const rowClassName = rank === 1
+                              ? 'app-table-row app-table-row--top1'
+                              : rank === 2
+                                ? 'app-table-row app-table-row--top2'
+                                : rank === 3
+                                  ? 'app-table-row app-table-row--top3'
+                                  : 'app-table-row'
+
+                            return (
+                              <tr
+                                key={stat.location.id}
+                                className={`${rowClassName}${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
+                              >
+                                <td className="px-4 py-3 text-center">
+                                  {rank <= 3 ? (
+                                    <span className={`app-podium-badge ${
+                                      rank === 1
+                                        ? 'app-podium-badge--gold'
+                                        : rank === 2
+                                          ? 'app-podium-badge--silver'
+                                          : 'app-podium-badge--bronze'
+                                    }`}>
+                                      #{rank}
+                                    </span>
+                                  ) : (
+                                    <span className="font-semibold text-gray-500">#{rank}</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 font-medium text-gray-900">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectLocation(stat.location)}
+                                    className="max-w-full truncate text-left font-semibold text-cyan-700 hover:underline"
+                                  >
+                                    {stat.location.name}
+                                  </button>
+                                  <p className="mt-1 text-xs font-normal text-gray-500">
+                                    Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
+                                  </p>
+                                </td>
+                                <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
+                                <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
+                                <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
+                                <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
+                                <td className="px-4 py-3 font-medium text-gray-700">
+                                  {stat.topMember ? (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <span className="app-avatar flex h-7 w-7 shrink-0 items-center justify-center text-xs font-semibold text-gray-700">
+                                        {stat.topMember.name.charAt(0).toUpperCase()}
+                                      </span>
+                                      <span className="min-w-0 truncate">{stat.topMember.name}</span>
+                                      <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                                        {formatNumber(stat.topMember.count)}
+                                      </span>
+                                    </span>
+                                  ) : '—'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="app-table-shell overflow-hidden md:hidden">
+                      <ul>
                         {topCityStats.map((stat, index) => {
                           const rank = index + 1
                           const rowClassName = rank === 1
@@ -652,258 +720,191 @@ export default function ClanDropZonesPage() {
                                 : 'app-table-row'
 
                           return (
-                            <tr
+                            <li
                               key={stat.location.id}
-                              className={`${rowClassName}${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
+                              className={`${rowClassName} p-3${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
                             >
-                              <td className="px-4 py-3 text-center">
-                                {rank <= 3 ? (
-                                  <span className={`app-podium-badge ${
-                                    rank === 1
-                                      ? 'app-podium-badge--gold'
-                                      : rank === 2
-                                        ? 'app-podium-badge--silver'
-                                        : 'app-podium-badge--bronze'
-                                  }`}>
-                                    #{rank}
-                                  </span>
-                                ) : (
-                                  <span className="font-semibold text-gray-500">#{rank}</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 font-medium text-gray-900">
-                                <button
-                                  type="button"
-                                  onClick={() => selectLocation(stat.location)}
-                                  className="max-w-full truncate text-left font-semibold text-cyan-700 hover:underline"
-                                >
-                                  {stat.location.name}
-                                </button>
-                                <p className="mt-1 text-xs font-normal text-gray-500">
-                                  Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
-                                </p>
-                              </td>
-                              <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
-                              <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
-                              <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
-                              <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
-                              <td className="px-4 py-3 font-medium text-gray-700">
-                                {stat.topMember ? (
-                                  <span className="flex min-w-0 items-center gap-2">
-                                    <span className="app-avatar flex h-7 w-7 shrink-0 items-center justify-center text-xs font-semibold text-gray-700">
-                                      {stat.topMember.name.charAt(0).toUpperCase()}
-                                    </span>
-                                    <span className="min-w-0 truncate">{stat.topMember.name}</span>
-                                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700">
-                                      {formatNumber(stat.topMember.count)}
-                                    </span>
-                                  </span>
-                                ) : '—'}
-                              </td>
-                            </tr>
+                              <div className="flex items-start gap-3">
+                                <span className={`app-podium-badge mt-0.5 ${
+                                  rank === 1
+                                    ? 'app-podium-badge--gold'
+                                    : rank === 2
+                                      ? 'app-podium-badge--silver'
+                                      : rank === 3
+                                        ? 'app-podium-badge--bronze'
+                                        : 'border-gray-200 bg-gray-100 text-gray-700'
+                                }`}>
+                                  #{rank}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectLocation(stat.location)}
+                                    className="block max-w-full truncate text-left text-sm font-semibold text-cyan-700 hover:underline"
+                                  >
+                                    {stat.location.name}
+                                  </button>
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    {formatNumber(stat.matches)} match{stat.matches > 1 ? 's' : ''} · {formatNumber(stat.members)} membre{stat.members > 1 ? 's' : ''}
+                                  </p>
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
+                                  </p>
+                                  {stat.topMember ? (
+                                    <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-700">
+                                      <span className="font-medium">Membre principal :</span>
+                                      <span className="truncate">{stat.topMember.name}</span>
+                                      <span className="shrink-0 font-semibold tabular-nums">({formatNumber(stat.topMember.count)})</span>
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <p className="text-base font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</p>
+                                  <p className="text-xs text-gray-500 tabular-nums">
+                                    {stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+                                  </p>
+                                </div>
+                              </div>
+                            </li>
                           )
                         })}
-                      </tbody>
-                    </table>
-                  </div>
+                      </ul>
+                    </div>
+                  </>
+                ) : null}
+              </div>
 
-                  <div className="app-table-shell overflow-hidden md:hidden">
-                    <ul>
-                      {topCityStats.map((stat, index) => {
-                        const rank = index + 1
-                        const rowClassName = rank === 1
-                          ? 'app-table-row app-table-row--top1'
-                          : rank === 2
-                            ? 'app-table-row app-table-row--top2'
-                            : rank === 3
-                              ? 'app-table-row app-table-row--top3'
-                              : 'app-table-row'
-
-                        return (
-                          <li
-                            key={stat.location.id}
-                            className={`${rowClassName} p-3${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <span className={`app-podium-badge mt-0.5 ${
-                                rank === 1
-                                  ? 'app-podium-badge--gold'
-                                  : rank === 2
-                                    ? 'app-podium-badge--silver'
-                                    : rank === 3
-                                      ? 'app-podium-badge--bronze'
-                                      : 'border-gray-200 bg-gray-100 text-gray-700'
-                              }`}>
-                                #{rank}
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <button
-                                  type="button"
-                                  onClick={() => selectLocation(stat.location)}
-                                  className="block max-w-full truncate text-left text-sm font-semibold text-cyan-700 hover:underline"
-                                >
-                                  {stat.location.name}
-                                </button>
-                                <p className="mt-1 text-xs text-gray-500">
-                                  {formatNumber(stat.matches)} match{stat.matches > 1 ? 's' : ''} · {formatNumber(stat.members)} membre{stat.members > 1 ? 's' : ''}
-                                </p>
-                                <p className="mt-1 text-xs text-gray-500">
-                                  Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
-                                </p>
-                                {stat.topMember ? (
-                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-700">
-                                    <span className="font-medium">Membre principal :</span>
-                                    <span className="truncate">{stat.topMember.name}</span>
-                                    <span className="shrink-0 font-semibold tabular-nums">({formatNumber(stat.topMember.count)})</span>
-                                  </p>
-                                ) : null}
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <p className="text-base font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</p>
-                                <p className="text-xs text-gray-500 tabular-nums">
-                                  {stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
-                                </p>
-                              </div>
-                            </div>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                </>
-              ) : null}
-            </div>
-
-            <DropZoneMapViewport
-              ref={mapViewportRef}
-              boundariesVisible={showLocationBoundaries}
-              onBoundariesVisibleChange={setShowLocationBoundaries}
-              onSwipeMap={handleSwipeMap}
-            >
-              {activeMap ? (
-                <>
-                  <Image
-                    src={mapAssetPath(activeMap)}
-                    alt={mapDisplayName(activeMap, {})}
-                    fill
-                    className="object-cover opacity-85"
-                    sizes="(max-width: 1280px) 100vw, 70vw"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
-                </>
-              ) : null}
-
-              <div className="absolute inset-0 overflow-hidden">
-                {(viewMode === 'mix' || viewMode === 'heatmap') ? (
-                  <div
-                    className="absolute inset-0 grid"
-                    style={{
-                      gridTemplateColumns: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
-                      gridTemplateRows: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
-                      zIndex: 10,
-                    }}
-                  >
-                    {visibleHeatmap.map((cell) => {
-                      const rangeIndex = heatRanges.findIndex((entry) => cell.count <= entry.max)
-                      const range = heatRanges[rangeIndex]
-                      const opacity = heatOpacity(cell.count, minimumHeat, maxHeat)
-
-                      return (
-                        <div
-                          key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
-                          style={{
-                            gridColumn: cell.xIndex + 1,
-                            gridRow: cell.yIndex + 1,
-                            backgroundColor: range?.color ?? 'transparent',
-                            borderRadius: '35%',
-                            opacity,
-                          }}
-                          title={`Zone ${cell.xIndex}/${cell.yIndex} - ${formatNumber(cell.count)} atterrissage${cell.count > 1 ? 's' : ''} - ${range?.label ?? 'Aucune activite'}`}
-                        />
-                      )
-                    })}
-                  </div>
+              <DropZoneMapViewport
+                ref={mapViewportRef}
+                boundariesVisible={showLocationBoundaries}
+                onBoundariesVisibleChange={setShowLocationBoundaries}
+                onSwipeMap={handleSwipeMap}
+              >
+                {activeMap ? (
+                  <>
+                    <Image
+                      src={mapAssetPath(activeMap)}
+                      alt={mapDisplayName(activeMap, {})}
+                      fill
+                      className="object-cover opacity-85"
+                      sizes="(max-width: 1280px) 100vw, 70vw"
+                      unoptimized
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
+                  </>
                 ) : null}
 
-                {showLocationBoundaries
-                  ? activeLocations.map((location) => (
-                      <div
-                        key={`location:${location.id}`}
-                        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
-                        style={{
-                          left: `${location.xPct}%`,
-                          top: `${location.yPct}%`,
-                          width: `${location.radiusPct * 2}%`,
-                          aspectRatio: '1',
-                          border: `2px solid ${
-                            selectedLocation?.id === location.id
-                              ? 'rgb(103 232 249)'
-                              : 'rgba(255, 255, 255, 0.88)'
-                          }`,
-                          borderRadius: '50%',
-                          backgroundColor:
-                            selectedLocation?.id === location.id
-                              ? 'rgb(34 211 238 / 0.15)'
-                              : 'rgb(255 255 255 / 0.05)',
-                          boxShadow:
-                            selectedLocation?.id === location.id
-                              ? '0 0 0 2px rgb(255 255 255 / 0.8)'
-                              : undefined,
-                          zIndex: 15,
-                        }}
-                        title={location.name}
-                      />
-                    ))
-                  : null}
+                <div className="absolute inset-0 overflow-hidden">
+                  {(viewMode === 'mix' || viewMode === 'heatmap') ? (
+                    <div
+                      className="absolute inset-0 grid"
+                      style={{
+                        gridTemplateColumns: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
+                        zIndex: 10,
+                      }}
+                    >
+                      {visibleHeatmap.map((cell) => {
+                        const rangeIndex = heatRanges.findIndex((entry) => cell.count <= entry.max)
+                        const range = heatRanges[rangeIndex]
+                        const opacity = heatOpacity(cell.count, minimumHeat, maxHeat)
 
-                {(viewMode === 'mix' || viewMode === 'points')
-                  ? filteredPoints.map((point, idx) => {
-                      const pointLocation = locationForPoint(point, activeLocations)
-                      const pressure = DROP_PRESSURE_LEVELS[point.pressureLevel]
+                        return (
+                          <div
+                            key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
+                            style={{
+                              gridColumn: cell.xIndex + 1,
+                              gridRow: cell.yIndex + 1,
+                              backgroundColor: range?.color ?? 'transparent',
+                              borderRadius: '35%',
+                              opacity,
+                            }}
+                            title={`Zone ${cell.xIndex}/${cell.yIndex} - ${formatNumber(cell.count)} atterrissage${cell.count > 1 ? 's' : ''} - ${range?.label ?? 'Aucune activite'}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : null}
 
-                      return (
-                        <DropPressureMarker
-                          key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
-                          xPct={point.xPct}
-                          yPct={point.yPct}
-                          pressureLevel={point.pressureLevel}
-                          borderColor={hashColor(`${point.memberId}:${point.memberName}`)}
-                          title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${dropPressureTooltip(point)} · ${pressure.label}`}
+                  {showLocationBoundaries
+                    ? activeLocations.map((location) => (
+                        <div
+                          key={`location:${location.id}`}
+                          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+                          style={{
+                            left: `${location.xPct}%`,
+                            top: `${location.yPct}%`,
+                            width: `${location.radiusPct * 2}%`,
+                            aspectRatio: '1',
+                            border: `2px solid ${
+                              selectedLocation?.id === location.id
+                                ? 'rgb(103 232 249)'
+                                : 'rgba(255, 255, 255, 0.88)'
+                            }`,
+                            borderRadius: '50%',
+                            backgroundColor:
+                              selectedLocation?.id === location.id
+                                ? 'rgb(34 211 238 / 0.15)'
+                                : 'rgb(255 255 255 / 0.05)',
+                            boxShadow:
+                              selectedLocation?.id === location.id
+                                ? '0 0 0 2px rgb(255 255 255 / 0.8)'
+                                : undefined,
+                            zIndex: 15,
+                          }}
+                          title={location.name}
                         />
-                      )
-                    })
-                  : null}
-              </div>
-            </DropZoneMapViewport>
+                      ))
+                    : null}
 
-            {(viewMode === 'mix' || viewMode === 'points') ? <DropPressureLegend /> : null}
+                  {(viewMode === 'mix' || viewMode === 'points')
+                    ? filteredPoints.map((point, idx) => {
+                        const pointLocation = locationForPoint(point, activeLocations)
+                        const pressure = DROP_PRESSURE_LEVELS[point.pressureLevel]
 
-            {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
-              <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-700">
-                  <span className="font-semibold text-slate-900">Densite relative</span>
-                  {heatRanges.map((range) => (
-                    <span key={`${range.min}-${range.max}`} className="inline-flex items-center gap-1.5">
-                      <span
-                        className="h-3.5 w-3.5 border border-black/15"
-                        style={{ backgroundColor: range.color }}
-                        aria-hidden="true"
-                      />
-                      <span>{range.label} {heatRangeLabel(range)}</span>
-                    </span>
-                  ))}
-                  <span className="text-slate-500">
-                    Seuil : {formatNumber(minimumHeat)} · Maximum : {formatNumber(maxHeat)} atterrissage{maxHeat > 1 ? 's' : ''}
-                  </span>
+                        return (
+                          <DropPressureMarker
+                            key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
+                            xPct={point.xPct}
+                            yPct={point.yPct}
+                            pressureLevel={point.pressureLevel}
+                            borderColor={hashColor(`${point.memberId}:${point.memberName}`)}
+                            title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${dropPressureTooltip(point)} · ${pressure.label}`}
+                          />
+                        )
+                      })
+                    : null}
                 </div>
-              </div>
-            ) : null}
-          </section>
-        ) : (
-          <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>
-        )
-      ) : null}
-    </main>
+              </DropZoneMapViewport>
+
+              {(viewMode === 'mix' || viewMode === 'points') ? <DropPressureLegend /> : null}
+
+              {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
+                <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-700">
+                    <span className="font-semibold text-slate-900">Densite relative</span>
+                    {heatRanges.map((range) => (
+                      <span key={`${range.min}-${range.max}`} className="inline-flex items-center gap-1.5">
+                        <span
+                          className="h-3.5 w-3.5 border border-black/15"
+                          style={{ backgroundColor: range.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{range.label} {heatRangeLabel(range)}</span>
+                      </span>
+                    ))}
+                    <span className="text-slate-500">
+                      Seuil : {formatNumber(minimumHeat)} · Maximum : {formatNumber(maxHeat)} atterrissage{maxHeat > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>
+          )
+        ) : null}
+      </div>
+    </div>
   )
 }

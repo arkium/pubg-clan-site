@@ -4,7 +4,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
@@ -14,7 +13,6 @@ import type {
   DashboardMatch,
   DashboardMatchSortDirection,
   DashboardMatchSortKey,
-  DashboardPeriod,
 } from '@/types/dashboard'
 
 const MAP_LABELS: Record<string, string> = {
@@ -111,8 +109,6 @@ interface MatchHistoryProps {
   matches: DashboardMatch[]
   totalCount: number
   mapLabels?: Record<string, string>
-  period: DashboardPeriod
-  onPeriodChange: (p: DashboardPeriod) => void
   limit: number
   offset: number
   onOffsetChange: (o: number) => void
@@ -123,17 +119,12 @@ interface MatchHistoryProps {
   title?: string
   subtitle?: string
   unframed?: boolean
-  /** Filtre sur une date exacte (YYYY-MM-DD) — prioritaire sur `period` quand renseigne. */
-  date?: string
-  onDateChange?: (date: string) => void
 }
 
 export default function MatchHistory({
   matches,
   totalCount,
   mapLabels,
-  period,
-  onPeriodChange,
   limit,
   offset,
   onOffsetChange,
@@ -144,16 +135,8 @@ export default function MatchHistory({
   title = 'Historique des matchs',
   subtitle,
   unframed = false,
-  date,
-  onDateChange,
 }: MatchHistoryProps) {
   const router = useRouter()
-  const periods: DashboardPeriod[] = ['week', 'month', 'all']
-  const periodLabels: Record<DashboardPeriod, string> = {
-    week: 'Semaine',
-    month: 'Mois',
-    all: 'Tous',
-  }
 
   function handleSort(key: DashboardMatchSortKey) {
     if (key === sortKey) {
@@ -169,51 +152,14 @@ export default function MatchHistory({
 
   return (
     <section className={unframed ? undefined : 'rounded-lg border border-gray-200 bg-white shadow-sm'}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          {subtitle ? <p className="text-xs text-gray-500">{subtitle}</p> : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {onDateChange ? (
-            <div className="flex items-center gap-1">
-              <input
-                type="date"
-                value={date ?? ''}
-                onChange={(event) => {
-                  onDateChange(event.target.value)
-                  onOffsetChange(0)
-                }}
-                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700"
-                aria-label="Filtrer par date exacte"
-              />
-              {date ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDateChange('')
-                    onOffsetChange(0)
-                  }}
-                  className="text-xs text-gray-500 underline hover:text-gray-700"
-                >
-                  Effacer
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          <SegmentedControl
-            options={periods.map((p) => ({ value: p, label: periodLabels[p] }))}
-            value={period}
-            onChange={(nextPeriod) => {
-              onPeriodChange(nextPeriod)
-              onOffsetChange(0)
-            }}
-            size="xs"
-          />
-        </div>
+      {/* Période et date se choisissent dans le bandeau de la page (docs/TODO/sticky.md §4). */}
+      <div className="border-b border-gray-200 px-4 py-3">
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        {subtitle ? <p className="text-xs text-gray-500">{subtitle}</p> : null}
       </div>
 
-      {loading ? (
+      {/* Rechargement : la liste précédente reste affichée, estompée (la page ne se replie pas). */}
+      {loading && matches.length === 0 ? (
         <div className="flex items-center justify-center py-10">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
         </div>
@@ -222,7 +168,7 @@ export default function MatchHistory({
           Aucun match enregistré pour cette période.
         </p>
       ) : (
-        <>
+        <div aria-busy={loading} className={loading ? 'opacity-60' : undefined}>
           <div className="space-y-3 md:hidden">
             {matches.map((m) => {
               const modeIcon = getModeIcon(m.gameMode)
@@ -400,7 +346,7 @@ export default function MatchHistory({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </section>
   )

@@ -400,19 +400,19 @@ export default function MemberStatsPage() {
 
   if (!memberId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Statistiques"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main space-y-4">
+    <div className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
         currentLabel="Statistiques globales"
         currentHref={`/members/${memberId}/stats`}
@@ -697,6 +697,6 @@ export default function MemberStatsPage() {
         statsError={statsError}
         lastRefreshedAt={lastRefreshedAt}
       />
-    </main>
+    </div>
   )
 }

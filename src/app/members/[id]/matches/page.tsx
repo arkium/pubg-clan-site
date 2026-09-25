@@ -6,11 +6,14 @@ import { History } from 'lucide-react'
 
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 import type {
   DashboardMatchSortDirection,
   DashboardMatchSortKey,
-  DashboardPeriod,
   MatchesResponse,
 } from '@/types/dashboard'
 
@@ -30,7 +33,11 @@ export default function MatchesPage() {
 
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [error, setError] = useState('')
-  const [historyPeriod, setHistoryPeriod] = useState<DashboardPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period: historyPeriod, setPeriod: setHistoryPeriod, ready: periodReady } = usePagePeriod(
+    STANDARD_PERIODS,
+    'week'
+  )
   const [historyDate, setHistoryDate] = useState('')
   const [historyOffset, setHistoryOffset] = useState(0)
   const [historySortKey, setHistorySortKey] = useState<DashboardMatchSortKey>('pubgCreatedAt')
@@ -42,7 +49,7 @@ export default function MatchesPage() {
   })
 
   useEffect(() => {
-    if (!memberId) {
+    if (!memberId || !periodReady) {
       return
     }
 
@@ -94,27 +101,36 @@ export default function MatchesPage() {
     historySortDir,
     historySortKey,
     memberId,
+    periodReady,
   ])
 
+  function changePeriod(value: StandardPeriod) {
+    setHistoryPeriod(value)
+    setHistoryOffset(0)
+  }
+
+  function changeDate(value: string) {
+    setHistoryDate(value)
+    setHistoryOffset(0)
+  }
 
   if (!memberId) {
     return (
-      <main className="app-page-surface min-h-screen px-4 py-8 space-y-4">
-        <div className="mx-auto max-w-6xl">
-          <NavigationTrail
-            currentLabel="Matchs"
-            currentHref={`/members`}
-            fallbackParent={{ href: `/members`, label: 'Membres' }}
-          />
-          <p className="mt-4 text-sm text-red-600">ID joueur invalide.</p>
-        </div>
-      </main>
+      <div className="app-container app-main flex-1">
+        <NavigationTrail
+          currentLabel="Matchs"
+          currentHref={`/members`}
+          fallbackParent={{ href: `/members`, label: 'Membres' }}
+        />
+        <p className="mt-4 text-sm text-red-600">ID joueur invalide.</p>
+      </div>
     )
   }
 
   return (
-    <main className="app-page-surface min-h-screen px-4 py-8 space-y-4">
-      <div className="mx-auto max-w-6xl space-y-6">
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-6">
         <NavigationTrail
           currentLabel="Matchs récents"
           currentHref={`/members/${memberId}/matches`}
@@ -127,7 +143,37 @@ export default function MatchesPage() {
           backgroundImage="/matchesplayer.jpg"
           icon={<History className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
         />
+      </div>
 
+      <DockingToolbar ariaLabel="Filtres de l'historique des matchs">
+        {({ compact }) => (
+          <>
+            <PeriodFilter periods={STANDARD_PERIODS} value={historyPeriod} onChange={changePeriod} />
+            {!compact ? (
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <input
+                  type="date"
+                  value={historyDate}
+                  onChange={(event) => changeDate(event.target.value)}
+                  className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700"
+                  aria-label="Filtrer par date exacte"
+                />
+                {historyDate ? (
+                  <button
+                    type="button"
+                    onClick={() => changeDate('')}
+                    className="text-xs text-gray-500 underline hover:text-gray-700"
+                  >
+                    Effacer
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )}
+      </DockingToolbar>
+
+      <div className="app-container app-gutter space-y-6">
         <section className="app-panel overflow-hidden">
           <div className="border-t border-slate-200">
             <MatchHistory
@@ -136,13 +182,6 @@ export default function MatchesPage() {
               mapLabels={historyData.mapLabels}
               title="Tes dernieres parties"
               subtitle="Revis ton historique."
-              period={historyPeriod}
-              onPeriodChange={(value) => {
-                setHistoryPeriod(value)
-                setHistoryOffset(0)
-              }}
-              date={historyDate}
-              onDateChange={setHistoryDate}
               limit={HISTORY_LIMIT}
               offset={historyOffset}
               onOffsetChange={setHistoryOffset}
@@ -162,8 +201,7 @@ export default function MatchesPage() {
         {error ? (
           <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
         ) : null}
-
       </div>
-    </main>
+    </div>
   )
 }

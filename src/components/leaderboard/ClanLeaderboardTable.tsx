@@ -5,9 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Crown, Swords, Target, Activity, UserM
 import Image from 'next/image'
 import Link from 'next/link'
 
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import type { ClanLeaderboardEntry } from '@/app/api/clans-leaderboard/route'
-import type { LeaderboardPeriod } from '@/types/leaderboard'
 
 export type SortBy = 'powerScore' | 'activeMembers' | 'winRate' | 'avgDamage' | 'avgKills' | 'avgKnocks'
 
@@ -94,17 +92,8 @@ function ClanPodium({ topClans, sortBy }: { topClans: ClanLeaderboardEntry[], so
   )
 }
 
-export function ClanLeaderboardTable({
-  entries,
-  period,
-  periodOptions,
-  onPeriodChange,
-}: {
-  entries: ClanLeaderboardEntry[]
-  period?: LeaderboardPeriod
-  periodOptions?: { value: LeaderboardPeriod; label: string }[]
-  onPeriodChange?: (period: LeaderboardPeriod) => void
-}) {
+/** La période se choisit dans le bandeau de la page (docs/TODO/sticky.md §4). */
+export function ClanLeaderboardTable({ entries }: { entries: ClanLeaderboardEntry[] }) {
   const [sortBy, setSortBy] = useState<SortBy>('powerScore')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
@@ -149,19 +138,6 @@ export function ClanLeaderboardTable({
             <h2 className="text-lg font-semibold text-[var(--theme-ui-text)]">Classement détaillé</h2>
             <p className="text-xs text-gray-500">Cliquez sur une colonne pour modifier le classement.</p>
           </div>
-          {periodOptions && period && onPeriodChange ? (
-            <div className="shrink-0">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 sm:text-right">Période</p>
-              <SegmentedControl
-                options={periodOptions}
-                value={period}
-                onChange={onPeriodChange}
-                size="sm"
-                fullWidthOnMobile
-                className="w-full sm:w-auto"
-              />
-            </div>
-          ) : null}
         </div>
         <div className="px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="app-table-shell overflow-x-auto">

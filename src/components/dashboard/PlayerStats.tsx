@@ -2,15 +2,7 @@ import Image from 'next/image'
 
 import { DISTINCTION_BADGE_META, isDistinctionBadgeKey } from '@/lib/distinction-badges'
 import type { DashboardStats as DashboardStatsType, ClanAverage, DashboardProgression } from '@/types/dashboard'
-import type { DashboardPeriod } from '@/types/dashboard'
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import ProgressionChart from '@/components/dashboard/ProgressionChart'
-
-const PERIOD_LABELS: Record<DashboardPeriod, string> = {
-  week: 'Semaine',
-  month: 'Mois',
-  all: 'Tous',
-}
 
 interface StatCardProps {
   label: string
@@ -41,35 +33,23 @@ function StatCard({ label, value, sub, trend, highlight }: StatCardProps) {
   )
 }
 
+/** La période se choisit dans le bandeau du tableau de bord (docs/TODO/sticky.md §4). */
 interface PlayerStatsProps {
   stats: DashboardStatsType | null
   clanAverage: ClanAverage | null
   progression: DashboardProgression[]
-  period: DashboardPeriod
-  onPeriodChange: (period: DashboardPeriod) => void
 }
 
 export default function PlayerStats({
   stats,
   clanAverage,
   progression,
-  period,
-  onPeriodChange,
 }: PlayerStatsProps) {
   if (!stats) {
     return (
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Stats principales</h2>
-          <SegmentedControl
-            options={(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => ({
-              value,
-              label: PERIOD_LABELS[value],
-            }))}
-            value={period}
-            onChange={onPeriodChange}
-            size="sm"
-          />
         </div>
         <p className="text-sm text-gray-500">
           Aucune donnée disponible pour cette période. Les stats sont calculées automatiquement
@@ -107,18 +87,6 @@ export default function PlayerStats({
             </span>
           )}
         </div>
-
-        <SegmentedControl
-          options={(['week', 'month', 'all'] as DashboardPeriod[]).map((value) => ({
-            value,
-            label: PERIOD_LABELS[value],
-          }))}
-          value={period}
-          onChange={onPeriodChange}
-          size="sm"
-          wrap
-          fullWidthOnMobile
-        />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

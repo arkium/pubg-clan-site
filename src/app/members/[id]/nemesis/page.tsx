@@ -8,6 +8,7 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 import WeaponSelect from '@/components/ui/WeaponSelect'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { resolveWeaponName } from '@/lib/pubg-assets'
 
@@ -227,136 +228,143 @@ export default function MemberNemesisPage() {
 
   if (!memberId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Némésis"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
         <p className="text-sm text-rose-700">Identifiant joueur invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main space-y-4">
-      <NavigationTrail
-        currentLabel="Némésis"
-        currentHref={`/members/${memberId}/nemesis`}
-        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
-      />
-      <MemberPageHeader
-        title="Némésis"
-        subtitle="Qui vous a le plus tué, et qui vous avez le plus tué."
-        showBackButton={false}
-        backgroundImage="/nemesis.jpg"
-        icon={<Skull className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
-      />
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-4">
+        <NavigationTrail
+          currentLabel="Némésis"
+          currentHref={`/members/${memberId}/nemesis`}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+        />
+        <MemberPageHeader
+          title="Némésis"
+          subtitle="Qui vous a le plus tué, et qui vous avez le plus tué."
+          showBackButton={false}
+          backgroundImage="/nemesis.jpg"
+          icon={<Skull className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+        />
+      </div>
 
       {payload ? (
-        <section className="app-panel p-4">
+        // Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2).
+        <DockingToolbar ariaLabel="Filtre des némésis" dockOnMobile={false}>
           <WeaponSelect
             label="Filtrer par arme"
             value={weaponFilter}
             weapons={payload.availableWeapons}
             onChange={setWeaponFilter}
-            className="max-w-xs"
+            className="w-full max-w-xs"
           />
-        </section>
+        </DockingToolbar>
       ) : null}
 
-      {loading ? <p className="text-sm text-slate-600">Chargement...</p> : null}
-      {!loading && error ? (
-        <section className="app-panel p-4 text-sm text-rose-800">{error}</section>
-      ) : null}
+      <div className="app-container app-gutter space-y-4">
+        {loading && !payload ? <p className="text-sm text-slate-600">Chargement...</p> : null}
+        {!loading && error ? (
+          <section className="app-panel p-4 text-sm text-rose-800">{error}</section>
+        ) : null}
 
-      {!loading && payload ? (
-        <>
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Morts trackées</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalDeathsTracked}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Kills trackés</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalKillsTracked}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Ratio K/D tracké</p>
-              <p className="mt-2 text-2xl font-bold text-sky-700">
-                {formatRatio(payload.totalKillsTracked, payload.totalDeathsTracked)}
-              </p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Bots neutralisés</p>
-              <p className="mt-2 text-2xl font-bold text-emerald-700">{payload.botKillCount}</p>
-            </article>
-            <article className="app-panel p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Tué par un bot</p>
-              <p className="mt-2 text-2xl font-bold text-slate-500">{payload.botDeathCount}</p>
-            </article>
-          </section>
+        {payload ? (
+          // Pendant un rechargement, les résultats précédents restent affichés : la page ne se replie pas.
+          <div aria-busy={loading} className={loading ? 'space-y-4 opacity-60' : 'space-y-4'}>
+            <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              <article className="app-panel p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Morts trackées</p>
+                <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalDeathsTracked}</p>
+              </article>
+              <article className="app-panel p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Kills trackés</p>
+                <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalKillsTracked}</p>
+              </article>
+              <article className="app-panel p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Ratio K/D tracké</p>
+                <p className="mt-2 text-2xl font-bold text-sky-700">
+                  {formatRatio(payload.totalKillsTracked, payload.totalDeathsTracked)}
+                </p>
+              </article>
+              <article className="app-panel p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Bots neutralisés</p>
+                <p className="mt-2 text-2xl font-bold text-emerald-700">{payload.botKillCount}</p>
+              </article>
+              <article className="app-panel p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Tué par un bot</p>
+                <p className="mt-2 text-2xl font-bold text-slate-500">{payload.botDeathCount}</p>
+              </article>
+            </section>
 
-          {payload.topDeathWeapons.length > 0 ? (
-            <section className="app-panel p-4">
-              <h2 className="text-lg font-semibold text-slate-900">Armes qui vous tuent le plus</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Toutes armes confondues, tous adversaires confondus — reste global même si un filtre est actif ci-dessus.
-              </p>
-              <div className="mt-3 space-y-1.5">
-                {payload.topDeathWeapons.map((entry) => {
-                  const max = payload.topDeathWeapons[0]?.count || 1
-                  const widthPercent = Math.max(8, Math.round((entry.count / max) * 100))
+            {payload.topDeathWeapons.length > 0 ? (
+              <section className="app-panel p-4">
+                <h2 className="text-lg font-semibold text-slate-900">Armes qui vous tuent le plus</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Toutes armes confondues, tous adversaires confondus — reste global même si un filtre est actif ci-dessus.
+                </p>
+                <div className="mt-3 space-y-1.5">
+                  {payload.topDeathWeapons.map((entry) => {
+                    const max = payload.topDeathWeapons[0]?.count || 1
+                    const widthPercent = Math.max(8, Math.round((entry.count / max) * 100))
 
-                  return (
-                    <div key={entry.weaponName} className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-white">
-                        <WeaponIcon id={entry.weaponName} size="sm" />
-                      </span>
-                      <span className="w-32 shrink-0 truncate text-sm text-slate-700">
-                        {resolveWeaponName(entry.weaponName)}
-                      </span>
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                        <span
-                          className="block h-full rounded-full bg-rose-400"
-                          style={{ width: `${widthPercent}%` }}
-                        />
-                      </span>
-                      <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
-                        {entry.count}
-                      </span>
-                    </div>
-                  )
-                })}
+                    return (
+                      <div key={entry.weaponName} className="flex items-center gap-2">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-white">
+                          <WeaponIcon id={entry.weaponName} size="sm" />
+                        </span>
+                        <span className="w-32 shrink-0 truncate text-sm text-slate-700">
+                          {resolveWeaponName(entry.weaponName)}
+                        </span>
+                        <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <span
+                            className="block h-full rounded-full bg-rose-400"
+                            style={{ width: `${widthPercent}%` }}
+                          />
+                        </span>
+                        <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
+                          {entry.count}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="grid gap-4 lg:grid-cols-2">
+              <div className="app-panel p-4">
+                <h2 className="text-lg font-semibold text-slate-900">Qui vous a le plus tué</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Bots exclus (voir &laquo; Tué par un bot &raquo;) — {payload.environmentalDeathCount} mort(s) par la zone/l&apos;environnement également exclue(s), sans tueur réel.
+                </p>
+                <OpponentList
+                  rows={payload.topKillers}
+                  tone="danger"
+                  emptyLabel="Aucune donnée pour l'instant."
+                />
+              </div>
+
+              <div className="app-panel p-4">
+                <h2 className="text-lg font-semibold text-slate-900">Qui vous avez le plus tué</h2>
+                <p className="mt-1 text-xs text-slate-500">Les bots sont exclus de ce classement — voir &laquo; Bots neutralisés &raquo; ci-dessus.</p>
+                <OpponentList
+                  rows={payload.topVictims}
+                  tone="success"
+                  emptyLabel="Aucune donnée pour l'instant."
+                />
               </div>
             </section>
-          ) : null}
-
-          <section className="grid gap-4 lg:grid-cols-2">
-            <div className="app-panel p-4">
-              <h2 className="text-lg font-semibold text-slate-900">Qui vous a le plus tué</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Bots exclus (voir &laquo; Tué par un bot &raquo;) — {payload.environmentalDeathCount} mort(s) par la zone/l&apos;environnement également exclue(s), sans tueur réel.
-              </p>
-              <OpponentList
-                rows={payload.topKillers}
-                tone="danger"
-                emptyLabel="Aucune donnée pour l'instant."
-              />
-            </div>
-
-            <div className="app-panel p-4">
-              <h2 className="text-lg font-semibold text-slate-900">Qui vous avez le plus tué</h2>
-              <p className="mt-1 text-xs text-slate-500">Les bots sont exclus de ce classement — voir &laquo; Bots neutralisés &raquo; ci-dessus.</p>
-              <OpponentList
-                rows={payload.topVictims}
-                tone="success"
-                emptyLabel="Aucune donnée pour l'instant."
-              />
-            </div>
-          </section>
-        </>
-      ) : null}
-    </main>
+          </div>
+        ) : null}
+      </div>
+    </div>
   )
 }

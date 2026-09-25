@@ -7,7 +7,9 @@ import ChallengeCard from '@/components/ChallengeCard'
 import ChallengeCreator from '@/components/ChallengeCreator'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { ChallengeDuration, ChallengeRewards } from '@/lib/challenge-service'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type Participant = {
   memberId: number
@@ -44,6 +46,8 @@ const TAB_LABELS: Record<Tab, string> = {
   pending: 'À venir',
   create: '+ Créer',
 }
+
+const TAB_OPTIONS = (Object.entries(TAB_LABELS) as [Tab, string][]).map(([value, label]) => ({ value, label }))
 
 async function fetchChallengesData(clanId: number, status: Tab) {
   if (status === 'create') return []
@@ -155,59 +159,52 @@ export default function ChallengesPage() {
   if (!clanId) return null
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <NavigationTrail
-        currentLabel="Défis"
-        currentHref={`/clans/${clanId}/challenges`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Challenges du clan</h1>
-
-      <div className="mb-6 flex gap-2 border-b border-gray-200">
-        {(Object.entries(TAB_LABELS) as [Tab, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              tab === key
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Défis"
+          currentHref={`/clans/${clanId}/challenges`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+        <h1 className="text-2xl font-bold text-gray-900">Challenges du clan</h1>
       </div>
 
-      {tab === 'create' ? (
-        <div className="rounded border border-gray-200 bg-white p-6">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Créer un challenge</h2>
-          <ChallengeCreator onSubmit={handleCreate} loading={creating} />
-        </div>
-      ) : null}
+      {/* Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). */}
+      <DockingToolbar ariaLabel="Statut des challenges" dockOnMobile={false}>
+        <SegmentedControl options={TAB_OPTIONS} value={tab} onChange={setTab} size="sm" wrap />
+      </DockingToolbar>
 
-      {tab !== 'create' ? (
-        <>
-          {loading ? <p className="text-sm text-gray-500">Chargement...</p> : null}
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          {!loading && !error && challenges.length === 0 ? (
-            <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-500">
-              Aucun challenge{' '}
-              {tab === 'active' ? 'actif' : tab === 'ended' ? 'terminé' : 'à venir'}.
-            </p>
-          ) : null}
-          <div className="space-y-4">
-            {challenges.map((challenge) => (
-              <ChallengeCard
-                key={challenge.id}
-                challenge={challenge}
-                onJoin={handleJoin}
-              />
-            ))}
+      <div className="app-container app-gutter">
+        {tab === 'create' ? (
+          <div className="rounded border border-gray-200 bg-white p-6">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Créer un challenge</h2>
+            <ChallengeCreator onSubmit={handleCreate} loading={creating} />
           </div>
-        </>
-      ) : null}
-    </main>
+        ) : null}
+
+        {tab !== 'create' ? (
+          <>
+            {loading ? <p className="text-sm text-gray-500">Chargement...</p> : null}
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {!loading && !error && challenges.length === 0 ? (
+              <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-500">
+                Aucun challenge{' '}
+                {tab === 'active' ? 'actif' : tab === 'ended' ? 'terminé' : 'à venir'}.
+              </p>
+            ) : null}
+            <div className="space-y-4">
+              {challenges.map((challenge) => (
+                <ChallengeCard
+                  key={challenge.id}
+                  challenge={challenge}
+                  onJoin={handleJoin}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
   )
 }

@@ -6,14 +6,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { Crosshair } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
 import WeaponIcon from '@/components/ui/WeaponIcon'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { PERIOD_LABELS, STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 import { getWeaponCategory, type WeaponCategory } from '@/lib/weapons/weapon-categories'
 
-type TelemetryPeriod = 'week' | 'month' | 'all'
+type TelemetryPeriod = StandardPeriod
 
 type MemberWeaponRow = {
   weaponName: string
@@ -99,12 +102,6 @@ type WeaponMasteryResponse = {
 type MasterySortKey = 'weapon' | 'kills' | 'knockouts' | 'damage' | 'headshots' | 'longestKillDistance' | 'level'
 type WeaponCategoryFilter = 'ALL' | WeaponCategory
 
-const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
-
 const PAGE_SIZE = 10
 
 const WEAPON_CATEGORY_OPTIONS: Array<{ value: WeaponCategoryFilter; label: string }> = [
@@ -148,7 +145,7 @@ function resolveThrowableLabel(itemId: string) {
     .replace(/_/g, ' ')
 }
 
-const MEMBER_WEAPONS_SECTION_LINKS: StickySectionNavItem[] = [
+const MEMBER_WEAPONS_SECTION_LINKS: SectionAnchorNavItem[] = [
   { id: 'sec-member-weapons-mastery', label: 'Maîtrise armes', icon: 'combat' },
   { id: 'sec-member-weapons-telemetry', label: 'Stats télémétrie', icon: 'other' },
 ]
@@ -245,7 +242,8 @@ export default function MemberWeaponsPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
 
-  const [period, setPeriod] = useState<TelemetryPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MemberWeaponsResponse | null>(null)
@@ -299,9 +297,7 @@ export default function MemberWeaponsPage() {
     }
   }, [memberId])
 
-  const periodLabel = useMemo(() => {
-    return PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Semaine'
-  }, [period])
+  const periodLabel = PERIOD_LABELS[period]
 
   const latestMasteryRefreshAt = useMemo(() => {
     if (masteryRows.length === 0) {
@@ -664,7 +660,7 @@ export default function MemberWeaponsPage() {
   }
 
   useEffect(() => {
-    if (!memberId) {
+    if (!memberId || !periodReady) {
       return
     }
 
@@ -715,428 +711,427 @@ export default function MemberWeaponsPage() {
     return () => {
       cancelled = true
     }
-  }, [memberId, period, reloadNonce])
+  }, [memberId, period, periodReady, reloadNonce])
 
   if (!memberId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Maîtrise armes"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main space-y-4">
-      <NavigationTrail
-        currentLabel="Armes favorites"
-        currentHref={`/members/${memberId}/weapons`}
-        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
-      />
-      <section className="mb-6">
-        <MemberPageHeader
-          title="Vos armes"
-          subtitle="Top armes, headshots et distance moyenne."
-          showBackButton={false}
-          backgroundImage="/weaponsplayer2.jpg"
-          icon={<Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-4">
+        <NavigationTrail
+          currentLabel="Armes favorites"
+          currentHref={`/members/${memberId}/weapons`}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
         />
-      </section>
-
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="member-weapons-period-filter"
-              label="Période"
-              currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Sélectionner'}
-              items={PERIOD_OPTIONS.map((option) => ({
-                key: `period-${option.value}`,
-                label: option.label,
-                active: period === option.value,
-                onSelect: () => setPeriod(option.value),
-              }))}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="member-weapons-category-filter"
-              label="Catégorie"
-              currentLabel={WEAPON_CATEGORY_OPTIONS.find((option) => option.value === selectedCategory)?.label ?? 'Sélectionner'}
-              items={WEAPON_CATEGORY_OPTIONS.map((option) => ({
-                key: `category-${option.value}`,
-                label: option.label,
-                active: selectedCategory === option.value,
-                onSelect: () => setSelectedCategory(option.value),
-              }))}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-        </div>
-      </section>
-
-      <StickySectionNav
-        ariaLabel="Navigation des sections armes"
-        items={MEMBER_WEAPONS_SECTION_LINKS}
-        topClassName="top-24"
-        activeOffset={260}
-        className="mb-6"
-      />
-
-      <section id="sec-member-weapons-mastery" className="mb-6 app-panel scroll-mt-40 p-4">
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Maîtrise armes (carrière)</h2>
-            <p className="text-sm text-gray-600">
-              Source PUBG weapon mastery : kills, neutralisations, dégâts, headshots, distance et niveau global par arme.
-            </p>
-            {latestMasteryRefreshAt ? (
-              <p className="mt-1 text-xs text-gray-500">
-                Dernière synchro : {formatDateTime(latestMasteryRefreshAt)}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className="app-btn app-btn--sm app-btn--secondary"
-            disabled={masteryLoading || masteryRefreshing}
-            onClick={() => {
-              void refreshWeaponMastery()
-            }}
-          >
-            {masteryRefreshing ? 'Rafraîchissement...' : 'Rafraîchir'}
-          </button>
-        </div>
-
-        {masteryError ? (
-          <p className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            {masteryError}
-          </p>
-        ) : null}
-
-        {masteryLoading ? (
-          <p className="text-sm text-gray-600">Chargement de la maitrise armes...</p>
-        ) : null}
-
-        {!masteryLoading && masteryRows.length === 0 ? (
-          <p className="text-sm text-gray-600">Aucune donnée de maîtrise disponible.</p>
-        ) : null}
-
-        {!masteryLoading && masteryRows.length > 0 ? (
-          <>
-            <div className="app-table-shell overflow-x-auto">
-              <table className="min-w-full text-sm">
-              <thead className="app-table-head text-left text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-3 py-2">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('weapon')}>
-                      Arme{masterySortLabel('weapon')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('kills')}>
-                      Kills{masterySortLabel('kills')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('knockouts')}>
-                      Neutralisations{masterySortLabel('knockouts')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('damage')}>
-                      Dégâts{masterySortLabel('damage')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      className="font-semibold"
-                      title="Coups en tête portés avec cette arme (donnée API PUBG), pas des kills en headshot"
-                      onClick={() => handleMasterySortClick('headshots')}
-                    >
-                      Headshots{masterySortLabel('headshots')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('longestKillDistance')}>
-                      Distance{masterySortLabel('longestKillDistance')}
-                    </button>
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('level')}>
-                      Niveau{masterySortLabel('level')}
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedMasteryRows.map((row) => {
-                  return (
-                    <tr key={row.weaponId} className="app-table-row">
-                      <td className="px-3 py-2 text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <WeaponIcon id={row.weaponId} label={row.weaponName} size="sm" />
-                          <span>{row.weaponName}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.knockouts)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(Math.round(row.damage))}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.longestKillDistance)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.level)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              </table>
-            </div>
-
-            {sortedMasteryRows.length > PAGE_SIZE ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
-                <p>
-                  Lignes {masteryPaginationRange.start}-{masteryPaginationRange.end} sur {sortedMasteryRows.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setMasteryCurrentPage(1)}
-                    disabled={masteryCurrentPage === 1}
-                  >
-                    Premiere
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setMasteryCurrentPage((page) => Math.max(1, page - 1))}
-                    disabled={masteryCurrentPage === 1}
-                  >
-                    Precedent
-                  </button>
-                  <span className="tabular-nums text-xs font-semibold text-gray-500">
-                    Page {masteryCurrentPage} / {totalMasteryPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setMasteryCurrentPage((page) => Math.min(totalMasteryPages, page + 1))}
-                    disabled={masteryCurrentPage === totalMasteryPages}
-                  >
-                    Suivant
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setMasteryCurrentPage(totalMasteryPages)}
-                    disabled={masteryCurrentPage === totalMasteryPages}
-                  >
-                    Derniere
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </section>
-
-      {loading ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
-      {error ? (
-        <section className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
-          <p>{error}</p>
-          <button
-            type="button"
-            onClick={() => setReloadNonce((current) => current + 1)}
-            className="app-btn app-btn--sm app-btn--secondary mt-3"
-          >
-            Reessayer
-          </button>
+        <section>
+          <MemberPageHeader
+            title="Vos armes"
+            subtitle="Top armes, headshots et distance moyenne."
+            showBackButton={false}
+            backgroundImage="/weaponsplayer2.jpg"
+            icon={<Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+          />
         </section>
-      ) : null}
-      {!loading && !error && payload?.note ? (
-        <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {payload.note}
-        </p>
-      ) : null}
 
-      {!loading && !error ? (
-        payload && payload.rows.length > 0 ? (
-          <section id="sec-member-weapons-telemetry" className="app-panel scroll-mt-40 p-4">
-            <div className="mb-3">
-              <h2 className="text-lg font-semibold text-gray-900">Stats armes (télémétrie)</h2>
-              <p className="text-sm text-gray-600">
-                Période active : {periodLabel}. Performance détaillée par arme sur la catégorie sélectionnée.
-              </p>
+      </div>
+
+      <DockingToolbar ariaLabel="Filtres des armes du joueur">
+        {({ compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+              {!compact ? (
+                <div className="min-w-0 flex-1 sm:max-w-xs">
+                  <MobileDropdownNav
+                    id="member-weapons-category-filter"
+                    label="Catégorie"
+                    variant="compact"
+                    currentLabel={WEAPON_CATEGORY_OPTIONS.find((option) => option.value === selectedCategory)?.label ?? 'Sélectionner'}
+                    items={WEAPON_CATEGORY_OPTIONS.map((option) => ({
+                      key: `category-${option.value}`,
+                      label: option.label,
+                      active: selectedCategory === option.value,
+                      onSelect: () => setSelectedCategory(option.value),
+                    }))}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
+              ) : null}
             </div>
-            <div className="app-table-shell overflow-x-auto">
-              <table className="min-w-full text-sm">
+            {/* Ancres : seconde ligne du bandeau, jamais un second élément collant (sticky.md §4.B). */}
+            {!compact ? (
+              <SectionAnchorNav ariaLabel="Navigation des sections armes" items={MEMBER_WEAPONS_SECTION_LINKS} />
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
+
+      <div className="app-container app-gutter space-y-4">
+        <section id="sec-member-weapons-mastery" className="mb-6 app-panel p-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Maîtrise armes (carrière)</h2>
+              <p className="text-sm text-gray-600">
+                Source PUBG weapon mastery : kills, neutralisations, dégâts, headshots, distance et niveau global par arme.
+              </p>
+              {latestMasteryRefreshAt ? (
+                <p className="mt-1 text-xs text-gray-500">
+                  Dernière synchro : {formatDateTime(latestMasteryRefreshAt)}
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="app-btn app-btn--sm app-btn--secondary"
+              disabled={masteryLoading || masteryRefreshing}
+              onClick={() => {
+                void refreshWeaponMastery()
+              }}
+            >
+              {masteryRefreshing ? 'Rafraîchissement...' : 'Rafraîchir'}
+            </button>
+          </div>
+
+          {masteryError ? (
+            <p className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {masteryError}
+            </p>
+          ) : null}
+
+          {masteryLoading ? (
+            <p className="text-sm text-gray-600">Chargement de la maitrise armes...</p>
+          ) : null}
+
+          {!masteryLoading && masteryRows.length === 0 ? (
+            <p className="text-sm text-gray-600">Aucune donnée de maîtrise disponible.</p>
+          ) : null}
+
+          {!masteryLoading && masteryRows.length > 0 ? (
+            <>
+              <div className="app-table-shell overflow-x-auto">
+                <table className="min-w-full text-sm">
                 <thead className="app-table-head text-left text-xs uppercase tracking-wide">
                   <tr>
                     <th className="px-3 py-2">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('weapon')}>
-                        Arme{sortLabel('weapon')}
+                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('weapon')}>
+                        Arme{masterySortLabel('weapon')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('kills')}>
-                        Kills{sortLabel('kills')}
+                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('kills')}>
+                        Kills{masterySortLabel('kills')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('headshotRate')}>
-                        Headshots %{sortLabel('headshotRate')}
+                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('knockouts')}>
+                        Neutralisations{masterySortLabel('knockouts')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('shotsFired')}>
-                        Tirs{sortLabel('shotsFired')}
+                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('damage')}>
+                        Dégâts{masterySortLabel('damage')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('hitsLanded')}>
-                        Touches{sortLabel('hitsLanded')}
+                      <button
+                        type="button"
+                        className="font-semibold"
+                        title="Coups en tête portés avec cette arme (donnée API PUBG), pas des kills en headshot"
+                        onClick={() => handleMasterySortClick('headshots')}
+                      >
+                        Headshots{masterySortLabel('headshots')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
-                        Précision{sortLabel('accuracy')}
+                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('longestKillDistance')}>
+                        Distance{masterySortLabel('longestKillDistance')}
                       </button>
                     </th>
                     <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
-                        Distance moyenne{sortLabel('avgDistance')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('maxDistance')}>
-                        Distance max{sortLabel('maxDistance')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleSortClick('matchCount')}>
-                        Matchs{sortLabel('matchCount')}
+                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('level')}>
+                        Niveau{masterySortLabel('level')}
                       </button>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRows.map((row) => {
-                    const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
-                    const podiumRank = podiumByWeapon.get(row.weaponName)
-                    const podiumTone =
-                      podiumRank === 1
-                        ? 'app-podium-badge--gold'
-                        : podiumRank === 2
-                          ? 'app-podium-badge--silver'
-                          : 'app-podium-badge--bronze'
-
+                  {paginatedMasteryRows.map((row) => {
                     return (
-                      <tr key={row.weaponName} className="app-table-row">
+                      <tr key={row.weaponId} className="app-table-row">
                         <td className="px-3 py-2 text-gray-900">
                           <div className="flex items-center gap-2">
-                            <WeaponIcon id={row.weaponName} size="sm" />
-                            <span>{row.weaponLabel ?? row.weaponName}</span>
-                            {podiumRank ? (
-                              <span className={`app-podium-badge ${podiumTone}`}>
-                                #{podiumRank}
-                              </span>
-                            ) : null}
+                            <WeaponIcon id={row.weaponId} label={row.weaponName} size="sm" />
+                            <span>{row.weaponName}</span>
                           </div>
                         </td>
                         <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.shotsFired)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.hitsLanded)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.accuracy)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.matchCount)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.knockouts)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(Math.round(row.damage))}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.longestKillDistance)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.level)}</td>
                       </tr>
                     )
                   })}
                 </tbody>
-              </table>
-            </div>
-
-            {sortedRows.length > PAGE_SIZE ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
-                <p>
-                  Lignes {paginationRange.start}-{paginationRange.end} sur {sortedRows.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                  >
-                    Premiere
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Precedent
-                  </button>
-                  <span className="tabular-nums text-xs font-semibold text-gray-500">
-                    Page {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Suivant
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn app-btn--sm app-btn--secondary"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                  >
-                    Derniere
-                  </button>
-                </div>
+                </table>
               </div>
-            ) : null}
-          </section>
-        ) : null
-      ) : null}
 
-      {throwablesLoaded && throwableItems.length > 0 ? (
-        <section id="sec-member-throwables" className="mb-6 app-panel scroll-mt-40 p-4">
-          <div className="mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">Lancers</h2>
-            <p className="text-sm text-gray-600">
-              Grenades, fumigènes, flashbangs... {throwableTotal} lancer{throwableTotal > 1 ? 's' : ''} au total.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {throwableItems.map((item) => (
-              <span
-                key={item.itemId}
-                className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
-              >
-                <WeaponIcon id={item.itemId} size="sm" />
-                <span className="font-medium text-gray-800">{resolveThrowableLabel(item.itemId)}</span>
-                <span className="font-bold text-gray-900">×{item.count}</span>
-              </span>
-            ))}
-          </div>
+              {sortedMasteryRows.length > PAGE_SIZE ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                  <p>
+                    Lignes {masteryPaginationRange.start}-{masteryPaginationRange.end} sur {sortedMasteryRows.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setMasteryCurrentPage(1)}
+                      disabled={masteryCurrentPage === 1}
+                    >
+                      Premiere
+                    </button>
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setMasteryCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={masteryCurrentPage === 1}
+                    >
+                      Precedent
+                    </button>
+                    <span className="tabular-nums text-xs font-semibold text-gray-500">
+                      Page {masteryCurrentPage} / {totalMasteryPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setMasteryCurrentPage((page) => Math.min(totalMasteryPages, page + 1))}
+                      disabled={masteryCurrentPage === totalMasteryPages}
+                    >
+                      Suivant
+                    </button>
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setMasteryCurrentPage(totalMasteryPages)}
+                      disabled={masteryCurrentPage === totalMasteryPages}
+                    >
+                      Derniere
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </section>
-      ) : null}
-    </main>
+
+        {loading && !payload ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
+        {error ? (
+          <section className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
+            <p>{error}</p>
+            <button
+              type="button"
+              onClick={() => setReloadNonce((current) => current + 1)}
+              className="app-btn app-btn--sm app-btn--secondary mt-3"
+            >
+              Reessayer
+            </button>
+          </section>
+        ) : null}
+        {!error && payload?.note ? (
+          <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {payload.note}
+          </p>
+        ) : null}
+
+        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+        {!error && (!loading || payload) ? (
+          payload && payload.rows.length > 0 ? (
+            <section
+              id="sec-member-weapons-telemetry"
+              aria-busy={loading}
+              className={`app-panel p-4${loading ? ' opacity-60' : ''}`}
+            >
+              <div className="mb-3">
+                <h2 className="text-lg font-semibold text-gray-900">Stats armes (télémétrie)</h2>
+                <p className="text-sm text-gray-600">
+                  Période active : {periodLabel}. Performance détaillée par arme sur la catégorie sélectionnée.
+                </p>
+              </div>
+              <div className="app-table-shell overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="app-table-head text-left text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="px-3 py-2">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('weapon')}>
+                          Arme{sortLabel('weapon')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('kills')}>
+                          Kills{sortLabel('kills')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('headshotRate')}>
+                          Headshots %{sortLabel('headshotRate')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('shotsFired')}>
+                          Tirs{sortLabel('shotsFired')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('hitsLanded')}>
+                          Touches{sortLabel('hitsLanded')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
+                          Précision{sortLabel('accuracy')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
+                          Distance moyenne{sortLabel('avgDistance')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('maxDistance')}>
+                          Distance max{sortLabel('maxDistance')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className="font-semibold" onClick={() => handleSortClick('matchCount')}>
+                          Matchs{sortLabel('matchCount')}
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRows.map((row) => {
+                      const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
+                      const podiumRank = podiumByWeapon.get(row.weaponName)
+                      const podiumTone =
+                        podiumRank === 1
+                          ? 'app-podium-badge--gold'
+                          : podiumRank === 2
+                            ? 'app-podium-badge--silver'
+                            : 'app-podium-badge--bronze'
+
+                      return (
+                        <tr key={row.weaponName} className="app-table-row">
+                          <td className="px-3 py-2 text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <WeaponIcon id={row.weaponName} size="sm" />
+                              <span>{row.weaponLabel ?? row.weaponName}</span>
+                              {podiumRank ? (
+                                <span className={`app-podium-badge ${podiumTone}`}>
+                                  #{podiumRank}
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.shotsFired)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.hitsLanded)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.accuracy)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.matchCount)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {sortedRows.length > PAGE_SIZE ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                  <p>
+                    Lignes {paginationRange.start}-{paginationRange.end} sur {sortedRows.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      Premiere
+                    </button>
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Precedent
+                    </button>
+                    <span className="tabular-nums text-xs font-semibold text-gray-500">
+                      Page {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Suivant
+                    </button>
+                    <button
+                      type="button"
+                      className="app-btn app-btn--sm app-btn--secondary"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Derniere
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null
+        ) : null}
+
+        {throwablesLoaded && throwableItems.length > 0 ? (
+          <section id="sec-member-throwables" className="mb-6 app-panel p-4">
+            <div className="mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Lancers</h2>
+              <p className="text-sm text-gray-600">
+                Grenades, fumigènes, flashbangs... {throwableTotal} lancer{throwableTotal > 1 ? 's' : ''} au total.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {throwableItems.map((item) => (
+                <span
+                  key={item.itemId}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
+                >
+                  <WeaponIcon id={item.itemId} size="sm" />
+                  <span className="font-medium text-gray-800">{resolveThrowableLabel(item.itemId)}</span>
+                  <span className="font-bold text-gray-900">×{item.count}</span>
+                </span>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </div>
   )
 }

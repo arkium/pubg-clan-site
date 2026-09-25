@@ -7,6 +7,7 @@ import { Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
@@ -152,23 +153,24 @@ export default function ClanMembersPage() {
 
   if (authLoading) {
     return (
-      <main className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
         <p className="text-sm text-gray-600">Verification de la session...</p>
-      </main>
+      </div>
     )
   }
 
   if ((!authenticated && !authDisabled) || !clanId) {
     return (
-      <main className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-4 py-10">
         <p className="text-sm text-gray-600">Redirection...</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <div className="members-page app-page-surface min-h-screen">
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="members-page app-page-surface app-main-flush min-h-screen">
+      <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Membres"
           currentHref={`/clans/${clanId}/members`}
@@ -176,7 +178,7 @@ export default function ClanMembersPage() {
         />
 
         <header
-          className="relative mb-8 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/members.jpg')`, backgroundPosition: 'center 20%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
@@ -190,7 +192,32 @@ export default function ClanMembersPage() {
             </p>
           </div>
         </header>
+      </div>
 
+      {/* Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). */}
+      <DockingToolbar ariaLabel="Tri des membres" dockOnMobile={false}>
+        <MobileDropdownNav
+          id={`members-sort-${clanId}`}
+          label="Trier les joueurs"
+          currentLabel={sortOrder === 'az' ? 'Nom A-Z' : 'Nom Z-A'}
+          items={sortItems}
+          variant="compact"
+          visibilityClass="block"
+          className="w-full max-w-xs sm:w-auto"
+          leftIcon={(
+            <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+              <path
+                d="M6 4.5h8M6 10h5.5M6 15.5h3"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
+        />
+      </DockingToolbar>
+
+      <div className="app-container app-gutter">
         <div className="members-panel rounded bg-white p-4 shadow sm:p-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-center gap-4">
@@ -204,25 +231,6 @@ export default function ClanMembersPage() {
                 </Link>
               )}
             </div>
-            <MobileDropdownNav
-              id={`members-sort-${clanId}`}
-              label="Trier les joueurs"
-              currentLabel={sortOrder === 'az' ? 'Nom A-Z' : 'Nom Z-A'}
-              items={sortItems}
-              variant="compact"
-              visibilityClass="block"
-              className="w-full max-w-xs sm:w-auto"
-              leftIcon={(
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                  <path
-                    d="M6 4.5h8M6 10h5.5M6 15.5h3"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
-            />
           </div>
           {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
           {loading ? <TableSkeleton /> : null}

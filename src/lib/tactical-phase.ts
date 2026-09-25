@@ -5,7 +5,8 @@ export const TACTICAL_PHASE_OPTIONS: Array<{
   label: string
   phases: number[]
 }> = [
-  { value: 'all', label: 'Toutes les phases', phases: [] },
+  // Option « sans filtre » : « Toutes », le libellé du filtre dit déjà de quoi (docs/TODO/sticky.md §2).
+  { value: 'all', label: 'Toutes', phases: [] },
   { value: 'early', label: 'Début de partie · phases 1–2', phases: [1, 2] },
   { value: 'mid', label: 'Milieu de partie · phases 3–4', phases: [3, 4] },
   { value: 'late', label: 'Fin de partie · phases 5–8', phases: [5, 6, 7, 8] },

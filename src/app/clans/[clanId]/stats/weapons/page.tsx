@@ -4,14 +4,18 @@ import { Crosshair } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 import WeaponIcon from '@/components/ui/WeaponIcon'
 import VehicleIcon from '@/components/ui/VehicleIcon'
 import { weaponIconUrl, vehicleIconUrl } from '@/lib/pubg-assets'
 import { isVehicleKey } from '@/lib/pubg-assets/vehicle-detection'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
-type TelemetryPeriod = 'week' | 'month' | 'all'
+type TelemetryPeriod = StandardPeriod
 
 type ClanWeaponRow = {
   memberId: number
@@ -46,12 +50,6 @@ type ClanWeaponsResponse = {
 
 type SortKey = 'player' | 'weapon' | 'kills' | 'headshotRate' | 'shotsFired' | 'hitsLanded' | 'accuracy' | 'avgDistance' | 'maxDistance' | 'totalDamage' | 'matchCount'
 type SortDirection = 'asc' | 'desc'
-
-const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
 
 const PAGE_SIZE = 10
 
@@ -117,7 +115,8 @@ export default function ClanTelemetryWeaponsPage() {
   const params = useParams()
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
 
-  const [period, setPeriod] = useState<TelemetryPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<ClanWeaponsResponse | null>(null)
@@ -371,7 +370,7 @@ export default function ClanTelemetryWeaponsPage() {
   }, [currentPage, totalPages])
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -418,340 +417,341 @@ export default function ClanTelemetryWeaponsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, period])
+  }, [clanId, period, periodReady])
 
   if (!clanId) {
     return (
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+      <div className="app-container app-main flex-1">
       <NavigationTrail
         currentLabel="Armes du clan"
         currentHref={`/clans/${clanId}/stats/weapons`}
         fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
       />
         <p className="text-sm text-red-600">Clan invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <NavigationTrail
-        currentLabel="Armes du clan"
-        currentHref={`/clans/${clanId}/stats/weapons`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/weapons.jpg')` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Les armes du clan</h1>
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Armes du clan"
+          currentHref={`/clans/${clanId}/stats/weapons`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/weapons.jpg')` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Les armes du clan</h1>
+            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Classement des armes par joueur.
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Classement des armes par joueur.
-          </p>
-        </div>
-      </header>
+        </header>
+      </div>
 
-      <section className="mb-6 space-y-4 rounded border border-gray-200 bg-white p-4">
-        <div className="grid gap-3 lg:grid-cols-3">
-          <MobileDropdownNav
-            id="weapon-period-dropdown"
-            label="Période"
-            variant="compact"
-            currentLabel={PERIOD_OPTIONS.find((p) => p.value === period)?.label ?? 'Semaine'}
-            visibilityClass="block"
-            items={PERIOD_OPTIONS.map((p) => ({
-              key: p.value,
-              label: p.label,
-              active: p.value === period,
-              onSelect: () => setPeriod(p.value),
-            }))}
-          />
+      <DockingToolbar ariaLabel="Filtres des armes du clan">
+        {({ isSticky, compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+              {!isSticky && !loading && payload?.matchCount !== undefined ? (
+                <p className="text-xs text-gray-500">
+                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+                    {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
+                  </span>
+                  {' '}pris en compte
+                </p>
+              ) : null}
+            </div>
 
-          <MobileDropdownNav
-            id="weapon-category-dropdown"
-            label="Catégorie"
-            variant="compact"
-            currentLabel={availableCategories.find((c) => c.value === activeCategory)?.label ?? activeCategory}
-            visibilityClass="block"
-            items={availableCategories.map((c) => ({
-              key: c.value,
-              label: c.label,
-              active: c.value === activeCategory,
-              onSelect: () => setActiveCategory(c.value),
-            }))}
-          />
+            {!compact && (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <MobileDropdownNav
+                  id="weapon-category-dropdown"
+                  label="Catégorie"
+                  variant="compact"
+                  currentLabel={availableCategories.find((c) => c.value === activeCategory)?.label ?? activeCategory}
+                  visibilityClass="block"
+                  items={availableCategories.map((c) => ({
+                    key: c.value,
+                    label: c.label,
+                    active: c.value === activeCategory,
+                    onSelect: () => setActiveCategory(c.value),
+                  }))}
+                />
 
-          <MobileDropdownNav
-            id="weapon-player-dropdown"
-            label="Joueur"
-            variant="compact"
-            currentLabel={activePlayer}
-            visibilityClass="block"
-            items={availablePlayers.map((p) => ({
-              key: p.value,
-              label: p.label,
-              active: p.value === activePlayer,
-              onSelect: () => setActivePlayer(p.value),
-            }))}
-          />
+                <MobileDropdownNav
+                  id="weapon-player-dropdown"
+                  label="Joueur"
+                  variant="compact"
+                  currentLabel={activePlayer}
+                  visibilityClass="block"
+                  items={availablePlayers.map((p) => ({
+                    key: p.value,
+                    label: p.label,
+                    active: p.value === activePlayer,
+                    onSelect: () => setActivePlayer(p.value),
+                  }))}
+                />
 
-          <MobileDropdownNav
-            id="weapon-sort-dropdown"
-            label="Trier par (décroissant)"
-            variant="compact"
-            currentLabel={SORT_OPTIONS.find((s) => s.value === sortKey)?.label ?? 'Kills'}
-            visibilityClass="md:hidden"
-            items={SORT_OPTIONS.map((s) => ({
-              key: s.value,
-              label: s.label,
-              active: s.value === sortKey && sortDirection === 'desc',
-              onSelect: () => selectSortDescending(s.value),
-            }))}
-          />
-        </div>
+                <MobileDropdownNav
+                  id="weapon-sort-dropdown"
+                  label="Trier par (décroissant)"
+                  variant="compact"
+                  currentLabel={SORT_OPTIONS.find((s) => s.value === sortKey)?.label ?? 'Kills'}
+                  visibilityClass="md:hidden"
+                  items={SORT_OPTIONS.map((s) => ({
+                    key: s.value,
+                    label: s.label,
+                    active: s.value === sortKey && sortDirection === 'desc',
+                    onSelect: () => selectSortDescending(s.value),
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </DockingToolbar>
 
-        {!loading && payload?.matchCount !== undefined ? (
-          <p className="text-xs text-gray-500">
-            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
-              {payload.matchCount} match{payload.matchCount !== 1 ? 's' : ''}
-            </span>
-            {' '}pris en compte
+      <div className="app-container app-gutter">
+        {loading && !payload ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
+        {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+        {!error && payload?.note ? (
+          <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {payload.note}
           </p>
         ) : null}
-      </section>
 
-      {loading ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-      {!loading && !error && payload?.note ? (
-        <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {payload.note}
-        </p>
-      ) : null}
+        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+        {!error && (!loading || payload) ? (
+          payload && payload.rows.length > 0 ? (
+            <section aria-busy={loading} className={`app-panel p-4${loading ? ' opacity-60' : ''}`}>
+              {/* Mobile : vue cartes (< md) */}
+              <div className="space-y-3 md:hidden">
+                {paginatedRows.map((row) => {
+                  const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
+                  const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
+                  const podiumTone =
+                    podiumRank === 1
+                      ? 'app-podium-badge--gold'
+                      : podiumRank === 2
+                        ? 'app-podium-badge--silver'
+                        : 'app-podium-badge--bronze'
 
-      {!loading && !error ? (
-        payload && payload.rows.length > 0 ? (
-          <section className="app-panel p-4">
-            {/* Mobile : vue cartes (< md) */}
-            <div className="space-y-3 md:hidden">
-              {paginatedRows.map((row) => {
-                const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
-                const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
-                const podiumTone =
-                  podiumRank === 1
-                    ? 'app-podium-badge--gold'
-                    : podiumRank === 2
-                      ? 'app-podium-badge--silver'
-                      : 'app-podium-badge--bronze'
-
-                return (
-                  <div
-                    key={`${row.memberId}:${row.weaponName}`}
-                    className="relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3"
-                  >
-                    <WeaponWatermark weaponName={row.weaponName} />
-                    <div className="relative">
-                      <div className="mb-3 flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="truncate text-base font-semibold text-gray-900">{row.weaponLabel ?? row.weaponName}</p>
-                            {podiumRank ? (
-                              <span className={`app-podium-badge ${podiumTone} shrink-0`}>#{podiumRank}</span>
-                            ) : null}
+                  return (
+                    <div
+                      key={`${row.memberId}:${row.weaponName}`}
+                      className="relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3"
+                    >
+                      <WeaponWatermark weaponName={row.weaponName} />
+                      <div className="relative">
+                        <div className="mb-3 flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="truncate text-base font-semibold text-gray-900">{row.weaponLabel ?? row.weaponName}</p>
+                              {podiumRank ? (
+                                <span className={`app-podium-badge ${podiumTone} shrink-0`}>#{podiumRank}</span>
+                              ) : null}
+                            </div>
+                            <p className="mt-0.5 truncate text-sm text-gray-600">{row.displayName}</p>
                           </div>
-                          <p className="mt-0.5 truncate text-sm text-gray-600">{row.displayName}</p>
                         </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        <div className={statTileClass('kills')}>
-                          <p className={statLabelClass('kills')}>Kills</p>
-                          <p className={statValueClass('kills')}>{formatNumber(row.kills)}</p>
-                        </div>
-                        <div className={statTileClass('totalDamage')}>
-                          <p className={statLabelClass('totalDamage')}>Damages</p>
-                          <p className={statValueClass('totalDamage')}>
-                            {typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}
-                          </p>
-                        </div>
-                        <div className={statTileClass('headshotRate')}>
-                          <p className={statLabelClass('headshotRate')}>HS%</p>
-                          <p className={statValueClass('headshotRate')}>{formatPercent(headshotRate)}</p>
-                        </div>
-                        <div className={statTileClass('accuracy')}>
-                          <p className={statLabelClass('accuracy')}>Précision</p>
-                          <p className={statValueClass('accuracy')}>{formatPercent(row.accuracy)}</p>
-                        </div>
-                        <div className={statTileClass('avgDistance')}>
-                          <p className={statLabelClass('avgDistance')}>Dist. moy.</p>
-                          <p className={statValueClass('avgDistance')}>{formatMeters(row.avgDistance)}</p>
-                        </div>
-                        <div className={statTileClass('shotsFired')}>
-                          <p className={statLabelClass('shotsFired')}>Tirs</p>
-                          <p className={statValueClass('shotsFired')}>{formatNumber(row.shotsFired)}</p>
-                        </div>
-                        <div className={statTileClass('hitsLanded')}>
-                          <p className={statLabelClass('hitsLanded')}>Touches</p>
-                          <p className={statValueClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</p>
-                        </div>
-                        <div className={statTileClass('matchCount')}>
-                          <p className={statLabelClass('matchCount')}>Matchs</p>
-                          <p className={statValueClass('matchCount')}>{formatNumber(row.matchCount)}</p>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          <div className={statTileClass('kills')}>
+                            <p className={statLabelClass('kills')}>Kills</p>
+                            <p className={statValueClass('kills')}>{formatNumber(row.kills)}</p>
+                          </div>
+                          <div className={statTileClass('totalDamage')}>
+                            <p className={statLabelClass('totalDamage')}>Damages</p>
+                            <p className={statValueClass('totalDamage')}>
+                              {typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}
+                            </p>
+                          </div>
+                          <div className={statTileClass('headshotRate')}>
+                            <p className={statLabelClass('headshotRate')}>HS%</p>
+                            <p className={statValueClass('headshotRate')}>{formatPercent(headshotRate)}</p>
+                          </div>
+                          <div className={statTileClass('accuracy')}>
+                            <p className={statLabelClass('accuracy')}>Précision</p>
+                            <p className={statValueClass('accuracy')}>{formatPercent(row.accuracy)}</p>
+                          </div>
+                          <div className={statTileClass('avgDistance')}>
+                            <p className={statLabelClass('avgDistance')}>Dist. moy.</p>
+                            <p className={statValueClass('avgDistance')}>{formatMeters(row.avgDistance)}</p>
+                          </div>
+                          <div className={statTileClass('shotsFired')}>
+                            <p className={statLabelClass('shotsFired')}>Tirs</p>
+                            <p className={statValueClass('shotsFired')}>{formatNumber(row.shotsFired)}</p>
+                          </div>
+                          <div className={statTileClass('hitsLanded')}>
+                            <p className={statLabelClass('hitsLanded')}>Touches</p>
+                            <p className={statValueClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</p>
+                          </div>
+                          <div className={statTileClass('matchCount')}>
+                            <p className={statLabelClass('matchCount')}>Matchs</p>
+                            <p className={statValueClass('matchCount')}>{formatNumber(row.matchCount)}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Desktop : tableau complet (md+) */}
-            <div className="app-table-shell hidden overflow-x-auto md:block">
-              <table className="min-w-full text-sm">
-                <thead className="app-table-head text-left text-xs uppercase tracking-wide">
-                  <tr>
-                    <th className="px-3 py-2">
-                      <button type="button" className={headerButtonClass('player')} onClick={() => handleSortClick('player')}>
-                        Joueur{sortLabel('player')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2">
-                      <button type="button" className={headerButtonClass('weapon')} onClick={() => handleSortClick('weapon')}>
-                        Arme{sortLabel('weapon')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('kills')} onClick={() => handleSortClick('kills')}>
-                        Kills{sortLabel('kills')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('headshotRate')} onClick={() => handleSortClick('headshotRate')}>
-                        Headshots %{sortLabel('headshotRate')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('shotsFired')} onClick={() => handleSortClick('shotsFired')}>
-                        Tirs{sortLabel('shotsFired')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('hitsLanded')} onClick={() => handleSortClick('hitsLanded')}>
-                        Touches{sortLabel('hitsLanded')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('accuracy')} onClick={() => handleSortClick('accuracy')}>
-                        Precision{sortLabel('accuracy')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('avgDistance')} onClick={() => handleSortClick('avgDistance')}>
-                        Distance moyenne{sortLabel('avgDistance')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('totalDamage')} onClick={() => handleSortClick('totalDamage')}>
-                        Damages{sortLabel('totalDamage')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('maxDistance')} onClick={() => handleSortClick('maxDistance')}>
-                        Distance max{sortLabel('maxDistance')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className={headerButtonClass('matchCount')} onClick={() => handleSortClick('matchCount')}>
-                        Matchs{sortLabel('matchCount')}
-                      </button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedRows.map((row) => {
-                    const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
-                    const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
-                    const podiumTone =
-                      podiumRank === 1
-                        ? 'app-podium-badge--gold'
-                        : podiumRank === 2
-                          ? 'app-podium-badge--silver'
-                          : 'app-podium-badge--bronze'
-
-                    return (
-                      <tr key={`${row.memberId}:${row.weaponName}`} className="app-table-row">
-                        <td className={sortedCellClassLeft('player')}>
-                          <div className="font-medium text-gray-900">{row.displayName}</div>
-                        </td>
-                        <td className={`${sortedCellClassLeft('weapon')} text-gray-900`}>
-                          <div className="flex items-center gap-3">
-                            {isVehicleKey(row.weaponName) ? (
-                              <VehicleIcon id={row.weaponName} size="3xl" />
-                            ) : (
-                              <WeaponIcon id={row.weaponName} size="2xl" />
-                            )}
-                            <span>{row.weaponLabel ?? row.weaponName}</span>
-                            {podiumRank ? (
-                              <span className={`app-podium-badge ${podiumTone}`}>#{podiumRank}</span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className={sortedCellClass('kills')}>{formatNumber(row.kills)}</td>
-                        <td className={sortedCellClass('headshotRate')}>{formatPercent(headshotRate)}</td>
-                        <td className={sortedCellClass('shotsFired')}>{formatNumber(row.shotsFired)}</td>
-                        <td className={sortedCellClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</td>
-                        <td className={sortedCellClass('accuracy')}>{formatPercent(row.accuracy)}</td>
-                        <td className={sortedCellClass('avgDistance')}>{formatMeters(row.avgDistance)}</td>
-                        <td className={sortedCellClass('totalDamage')}>{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
-                        <td className={sortedCellClass('maxDistance')}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
-                        <td className={sortedCellClass('matchCount')}>{formatNumber(row.matchCount)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {filteredRows.length > PAGE_SIZE ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
-                <p>
-                  Lignes {paginationRange.start}-{paginationRange.end} sur {filteredRows.length}
-                </p>
-                <div className="app-pagination">
-                  <button
-                    type="button"
-                    className="app-pagination-button"
-                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    disabled={currentPage === 1}
-                    aria-label="Page precedente"
-                    title="Page precedente"
-                  >
-                    ←
-                  </button>
-                  <span className="app-pagination-label">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="app-pagination-button"
-                    onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    disabled={currentPage === totalPages}
-                    aria-label="Page suivante"
-                    title="Page suivante"
-                  >
-                    →
-                  </button>
-                </div>
+                  )
+                })}
               </div>
-            ) : null}
-          </section>
-        ) : (
-          <p className="text-sm text-gray-600">Aucune donnee armes pour cette periode.</p>
-        )
-      ) : null}
-    </main>
+
+              {/* Desktop : tableau complet (md+) */}
+              <div className="app-table-shell hidden overflow-x-auto md:block">
+                <table className="min-w-full text-sm">
+                  <thead className="app-table-head text-left text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="px-3 py-2">
+                        <button type="button" className={headerButtonClass('player')} onClick={() => handleSortClick('player')}>
+                          Joueur{sortLabel('player')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2">
+                        <button type="button" className={headerButtonClass('weapon')} onClick={() => handleSortClick('weapon')}>
+                          Arme{sortLabel('weapon')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('kills')} onClick={() => handleSortClick('kills')}>
+                          Kills{sortLabel('kills')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('headshotRate')} onClick={() => handleSortClick('headshotRate')}>
+                          Headshots %{sortLabel('headshotRate')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('shotsFired')} onClick={() => handleSortClick('shotsFired')}>
+                          Tirs{sortLabel('shotsFired')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('hitsLanded')} onClick={() => handleSortClick('hitsLanded')}>
+                          Touches{sortLabel('hitsLanded')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('accuracy')} onClick={() => handleSortClick('accuracy')}>
+                          Precision{sortLabel('accuracy')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('avgDistance')} onClick={() => handleSortClick('avgDistance')}>
+                          Distance moyenne{sortLabel('avgDistance')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('totalDamage')} onClick={() => handleSortClick('totalDamage')}>
+                          Damages{sortLabel('totalDamage')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('maxDistance')} onClick={() => handleSortClick('maxDistance')}>
+                          Distance max{sortLabel('maxDistance')}
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-right">
+                        <button type="button" className={headerButtonClass('matchCount')} onClick={() => handleSortClick('matchCount')}>
+                          Matchs{sortLabel('matchCount')}
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRows.map((row) => {
+                      const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
+                      const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
+                      const podiumTone =
+                        podiumRank === 1
+                          ? 'app-podium-badge--gold'
+                          : podiumRank === 2
+                            ? 'app-podium-badge--silver'
+                            : 'app-podium-badge--bronze'
+
+                      return (
+                        <tr key={`${row.memberId}:${row.weaponName}`} className="app-table-row">
+                          <td className={sortedCellClassLeft('player')}>
+                            <div className="font-medium text-gray-900">{row.displayName}</div>
+                          </td>
+                          <td className={`${sortedCellClassLeft('weapon')} text-gray-900`}>
+                            <div className="flex items-center gap-3">
+                              {isVehicleKey(row.weaponName) ? (
+                                <VehicleIcon id={row.weaponName} size="3xl" />
+                              ) : (
+                                <WeaponIcon id={row.weaponName} size="2xl" />
+                              )}
+                              <span>{row.weaponLabel ?? row.weaponName}</span>
+                              {podiumRank ? (
+                                <span className={`app-podium-badge ${podiumTone}`}>#{podiumRank}</span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className={sortedCellClass('kills')}>{formatNumber(row.kills)}</td>
+                          <td className={sortedCellClass('headshotRate')}>{formatPercent(headshotRate)}</td>
+                          <td className={sortedCellClass('shotsFired')}>{formatNumber(row.shotsFired)}</td>
+                          <td className={sortedCellClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</td>
+                          <td className={sortedCellClass('accuracy')}>{formatPercent(row.accuracy)}</td>
+                          <td className={sortedCellClass('avgDistance')}>{formatMeters(row.avgDistance)}</td>
+                          <td className={sortedCellClass('totalDamage')}>{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
+                          <td className={sortedCellClass('maxDistance')}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
+                          <td className={sortedCellClass('matchCount')}>{formatNumber(row.matchCount)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {filteredRows.length > PAGE_SIZE ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                  <p>
+                    Lignes {paginationRange.start}-{paginationRange.end} sur {filteredRows.length}
+                  </p>
+                  <div className="app-pagination">
+                    <button
+                      type="button"
+                      className="app-pagination-button"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                      aria-label="Page precedente"
+                      title="Page precedente"
+                    >
+                      ←
+                    </button>
+                    <span className="app-pagination-label">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="app-pagination-button"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                      aria-label="Page suivante"
+                      title="Page suivante"
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <p className="text-sm text-gray-600">Aucune donnee armes pour cette periode.</p>
+          )
+        ) : null}
+      </div>
+    </div>
   )
 }

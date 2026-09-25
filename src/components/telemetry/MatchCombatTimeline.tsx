@@ -315,8 +315,8 @@ export function MatchCombatTimeline({
         <div className="flex flex-col gap-6 relative">
           {groupedByPhase.map(([phase, phaseEvents]) => (
             <div key={phase} className="flex flex-col gap-2.5">
-              {/* Phase Marker */}
-              <div className="sticky top-2 z-10 flex items-center gap-2.5 py-1">
+              {/* Phase Marker : collé sous le header du site (et non à 8 px du haut, où il passait dessous). */}
+              <div className="sticky top-[calc(var(--app-header-height)+0.5rem)] z-10 flex items-center gap-2.5 py-1">
                 <span className="px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-blue-950/90 border border-blue-700/80 text-blue-200 shadow-md backdrop-blur-md">
                   Phase {phase}
                 </span>

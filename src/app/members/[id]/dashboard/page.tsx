@@ -13,7 +13,11 @@ import PlayerStats from '@/components/dashboard/PlayerStats'
 import MatchHistory from '@/components/dashboard/MatchHistory'
 import SquadFrequency from '@/components/dashboard/SquadFrequency'
 import ComparisonRadar from '@/components/dashboard/ComparisonRadar'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { PERIOD_LABELS, STANDARD_PERIODS, periodOptions, type StandardPeriod } from '@/lib/period'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import TeamPlayCompositionsCard from '@/components/member/TeamPlayCompositionsCard'
 import PlacementBadge from '@/components/ui/PlacementBadge'
@@ -71,11 +75,7 @@ type MemberTelemetryPlaystyleResponse = {
 
 const TELEMETRY_COMPARISON_PERIODS: TelemetryComparisonPeriod[] = ['week', 'month', 'all']
 
-const TELEMETRY_COMPARISON_PERIOD_LABELS: Record<TelemetryComparisonPeriod, string> = {
-  week: 'Semaine',
-  month: 'Mois',
-  all: 'Tous',
-}
+const TELEMETRY_COMPARISON_PERIOD_LABELS: Record<TelemetryComparisonPeriod, string> = PERIOD_LABELS
 
 function formatTelemetryScore(value: number) {
   return Math.max(0, value).toFixed(1)
@@ -104,11 +104,8 @@ function formatTelemetryCount(value: number) {
 }
 
 
-const COMPARISON_PERIOD_OPTIONS: Array<{ value: TelemetryComparisonPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
+/** Sélecteur propre à la comparaison de tendances : il choisit la période comparée à la suivante. */
+const COMPARISON_PERIOD_OPTIONS = periodOptions(TELEMETRY_COMPARISON_PERIODS)
 
 function getReferencePeriod(period: TelemetryComparisonPeriod): TelemetryComparisonPeriod | null {
   if (period === 'week') return 'month'
@@ -196,8 +193,9 @@ export default function DashboardPage() {
   const memberNavItems = useSectionNavItems('member-section', clanId, memberId)
     .filter(item => item.navKey !== 'member.dashboard')
 
-  const [period, setPeriod] = useState<DashboardPeriod>('week')
-  const [matchPeriod, setMatchPeriod] = useState<DashboardPeriod>('week')
+  // Période du tableau de bord (stats, drop, villes, style de jeu, matchs) : URL, puis mémoire de la
+  // visite, puis semaine (docs/TODO/sticky.md §4.E). La comparaison de tendances garde son sélecteur.
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [matchOffset, setMatchOffset] = useState(0)
   const [matchSortKey, setMatchSortKey] = useState<DashboardMatchSortKey>('pubgCreatedAt')
   const [matchSortDir, setMatchSortDir] = useState<DashboardMatchSortDirection>('desc')
@@ -219,14 +217,20 @@ export default function DashboardPage() {
   const [cityInsightsError, setCityInsightsError] = useState('')
   const MATCH_LIMIT = 10
 
-  const { data, loading, error } = usePlayerDashboard(memberId, period)
+  const readyMemberId = periodReady ? memberId : null
+  const { data, loading, error } = usePlayerDashboard(readyMemberId, period)
   const {
     data: matchData,
     loading: matchLoading,
-  } = usePlayerMatches(memberId, matchPeriod, MATCH_LIMIT, matchOffset, matchSortKey, matchSortDir)
+  } = usePlayerMatches(readyMemberId, period, MATCH_LIMIT, matchOffset, matchSortKey, matchSortDir)
+
+  function changePeriod(next: StandardPeriod) {
+    setPeriod(next)
+    setMatchOffset(0)
+  }
 
   useEffect(() => {
-    if (!memberId) return
+    if (!memberId || !periodReady) return
     let cancelled = false
 
     async function loadCityInsights() {
@@ -257,10 +261,10 @@ export default function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [memberId, period])
+  }, [memberId, period, periodReady])
 
   useEffect(() => {
-    if (!memberId) {
+    if (!memberId || !periodReady) {
       return
     }
 
@@ -307,7 +311,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [memberId, period])
+  }, [memberId, period, periodReady])
 
   useEffect(() => {
     if (!memberId) {
@@ -477,9 +481,9 @@ export default function DashboardPage() {
   const comparisonRefStats = comparisonRefPeriod ? telemetryComparison[comparisonRefPeriod] : null
 
   return (
-    <div className="app-page-surface min-h-screen">
-      {/* Content */}
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:py-8">
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-6">
         <NavigationTrail
           currentLabel="Dashboard"
           currentHref={`/members/${memberId}/dashboard`}
@@ -496,7 +500,7 @@ export default function DashboardPage() {
         />
 
         {memberNavItems.length > 0 && (
-          <section className="app-panel p-6 mb-6">
+          <section className="app-panel p-6">
             <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Joueur</h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {memberNavItems.map((item) => {
@@ -516,19 +520,33 @@ export default function DashboardPage() {
           </section>
         )}
 
+      </div>
+
+      <DockingToolbar ariaLabel="Période du tableau de bord">
+        {({ isSticky }) => (
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={changePeriod} />
+            {!isSticky ? (
+              <p className="text-xs text-gray-500">
+                Stats, drop, villes, style de jeu et matchs suivent cette période ; la comparaison de tendances garde la sienne.
+              </p>
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
+
+      <div className="app-container app-gutter space-y-6">
         {/* Stats principales */}
         <PlayerStats
           stats={stats}
           clanAverage={clanAverage}
           progression={progression}
-          period={period}
-          onPeriodChange={setPeriod}
         />
 
         <DropPressureStatsPanel
           stats={dropPressure}
           href={`/members/${memberId}/drop-zones`}
-          periodLabel={period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Tous'}
+          periodLabel={PERIOD_LABELS[period]}
           ranking={dropPressureRanking}
           timeline={dropPressureTimeline}
           currentMemberId={memberId}
@@ -538,7 +556,7 @@ export default function DashboardPage() {
           insights={cityInsights}
           loading={cityInsightsLoading}
           error={cityInsightsError}
-          periodLabel={period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Tous'}
+          periodLabel={PERIOD_LABELS[period]}
           positionsHref={clanId ? `/clans/${clanId}/stats/positions` : undefined}
           scope="member"
         />
@@ -555,14 +573,15 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {loadingTelemetry ? (
+          {/* Rechargement : le style de jeu précédent reste affiché, estompé (la page ne se replie pas). */}
+          {loadingTelemetry && !telemetryStats ? (
             <div className="flex items-center justify-center py-12">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
             </div>
           ) : telemetryError ? (
             <p className="px-5 py-5 text-sm text-amber-700">{telemetryError}</p>
           ) : telemetryStats ? (
-            <div className="divide-y divide-gray-100">
+            <div aria-busy={loadingTelemetry} className={loadingTelemetry ? 'divide-y divide-gray-100 opacity-60' : 'divide-y divide-gray-100'}>
 
               {/* ── 3 jauges arc ── */}
               <div className="grid grid-cols-3 divide-x divide-gray-100">
@@ -1209,11 +1228,6 @@ export default function DashboardPage() {
           matches={matchData.matches}
           totalCount={matchData.totalCount}
           mapLabels={matchData.mapLabels}
-          period={matchPeriod}
-          onPeriodChange={(p) => {
-            setMatchPeriod(p)
-            setMatchOffset(0)
-          }}
           limit={MATCH_LIMIT}
           offset={matchOffset}
           onOffsetChange={setMatchOffset}

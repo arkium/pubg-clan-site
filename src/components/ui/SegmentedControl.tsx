@@ -50,6 +50,7 @@ export default function SegmentedControl<T extends string>({
             }
           }}
           disabled={option.disabled}
+          aria-pressed={option.value === value}
           className={[
             'app-segmented-control__item font-medium transition-colors',
             sizeClass,

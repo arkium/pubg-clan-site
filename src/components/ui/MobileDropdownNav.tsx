@@ -82,6 +82,8 @@ export default function MobileDropdownNav({
           id={id}
           type="button"
           className="member-section-nav-mobile-trigger"
+          // Intitulé + valeur : le nom reste complet quand l'intitulé visible est masqué (bandeau docké).
+          aria-label={`${label} : ${currentLabel}`}
           aria-expanded={open}
           aria-controls={`${id}-menu`}
           onClick={() => setOpen((current) => !current)}

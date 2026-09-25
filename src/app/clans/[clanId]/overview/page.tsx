@@ -22,6 +22,9 @@ import { useClanOverview } from '@/hooks/useClanOverview'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanMatchesCache } from '@/hooks/useClanMatchesCache'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { PERIOD_LABELS, STANDARD_PERIODS } from '@/lib/period'
 import type { ClanMatchTypeFilter, ClanTeamModeFilter, SquadPeriod } from '@/types/squad-matches'
 import type {
   DropPressureDashboardStats,
@@ -32,17 +35,18 @@ import type { CityInsights } from '@/types/city-insights'
 
 
 
-const OVERVIEW_PERIOD_OPTIONS: Array<{ value: SquadPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
-
 const MATCH_TYPE_OPTIONS: Array<{ value: ClanMatchTypeFilter; label: string }> = [
   { value: 'official', label: 'Officiel' },
   { value: 'casual', label: 'Casual' },
   { value: 'custom', label: 'Custom' },
   { value: 'all', label: 'Tous' },
+]
+
+const TEAM_MODE_OPTIONS: Array<{ value: ClanTeamModeFilter; label: string }> = [
+  { value: 'all', label: 'Tous' },
+  { value: 'duo', label: 'Duo' },
+  { value: 'trio', label: 'Trio' },
+  { value: 'squad', label: 'Squad' },
 ]
 
 function parseClanId(value: string | string[] | undefined) {
@@ -197,12 +201,6 @@ function getPeriodDateRangeLabel(period: Exclude<SquadPeriod, 'all'>) {
   const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
   return `du ${fmtDate(start)} au ${fmtDate(end)}`
-}
-
-function periodTitle(period: SquadPeriod) {
-  if (period === 'week') return 'Semaine'
-  if (period === 'month') return 'Mois'
-  return 'Tous'
 }
 
 type RosterSortKey = 'matchesPlayed' | 'wins' | 'totalKills' | 'avgDamage' | 'avgKA'
@@ -461,14 +459,18 @@ export default function ClanOverviewPage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
 
   const { data, loading, error } = useClanOverview(clanId)
-  const [selectedPeriod, setSelectedPeriod] = useState<SquadPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period: selectedPeriod, setPeriod: setSelectedPeriod, ready: periodReady } = usePagePeriod(
+    STANDARD_PERIODS,
+    'week'
+  )
   const [selectedMatchType, setSelectedMatchType] = useState<ClanMatchTypeFilter>('official')
   const [selectedMode, setSelectedMode] = useState<ClanTeamModeFilter>('all')
   const [rosterSortKey, setRosterSortKey] = useState<RosterSortKey>('matchesPlayed')
   const [rosterSortDirection, setRosterSortDirection] = useState<'asc' | 'desc'>('desc')
 
   const { data: cacheData, loading: cacheLoading, error: cacheError } = useClanMatchesCache(
-    clanId,
+    periodReady ? clanId : null,
     selectedPeriod,
     selectedMatchType
   )
@@ -498,7 +500,7 @@ export default function ClanOverviewPage() {
 
 
   useEffect(() => {
-    if (!clanId) return
+    if (!clanId || !periodReady) return
     let cancelled = false
 
     async function loadCityInsights() {
@@ -532,10 +534,10 @@ export default function ClanOverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, selectedPeriod, selectedMatchType, selectedMode])
+  }, [clanId, periodReady, selectedPeriod, selectedMatchType, selectedMode])
 
   useEffect(() => {
-    if (!clanId) return
+    if (!clanId || !periodReady) return
     let cancelled = false
 
     async function loadDropPressure() {
@@ -580,7 +582,7 @@ export default function ClanOverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, selectedPeriod, selectedMatchType, selectedMode])
+  }, [clanId, periodReady, selectedPeriod, selectedMatchType, selectedMode])
 
   if (!clanId) return null
 
@@ -663,7 +665,7 @@ export default function ClanOverviewPage() {
 
   return (
     <>
-    <div className="app-container px-4 pt-8">
+    <div className="app-container app-gutter pt-8">
       <NavigationTrail
         currentLabel="Vue d'ensemble"
         currentHref={`/clans/${clanId}/overview`}
@@ -683,7 +685,7 @@ export default function ClanOverviewPage() {
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Bloc 1 — Fiche PUBG officielle */}
-          <header className="app-panel relative overflow-hidden mb-6 min-h-[300px]">
+          <header className="app-panel relative overflow-hidden min-h-[300px]">
             {!pubg ? (
               <div className="p-6">
                 <h1 className="mb-2 text-base font-semibold text-gray-900">
@@ -733,7 +735,7 @@ export default function ClanOverviewPage() {
           </header>
 
           {clanNavItems.length > 0 && (
-            <section className="app-panel p-6 mb-6">
+            <section className="app-panel p-6">
               <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {clanNavItems.map((item) => {
@@ -756,52 +758,49 @@ export default function ClanOverviewPage() {
       )}
     </div>
 
-    {/* Bandeau de filtres (période + type de match + mode d'équipe) — filtre toutes les stats de la page.
-        Rendu via DockingToolbar pour occuper toute la largeur une fois collé au header. */}
+    {/* Bandeau de filtres (période + type de match + mode d'équipe) — filtre toutes les stats de la
+        page. Standard des pages joueurs : docs/TODO/sticky.md §4.A. */}
     {!loading && !error && data && (
-      <DockingToolbar variant="panel" maxWidthClass="app-container">
-        <div className="flex w-full flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-              {tracked?.membersCount ?? 0} membres trackés
-            </span>
-            {cacheData?.computedAt && (
-              <span>Données mises à jour le {new Date(cacheData.computedAt).toLocaleString('fr-FR')}</span>
+      <DockingToolbar ariaLabel="Filtres de la vue d'ensemble">
+        {({ isSticky, compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            {!isSticky && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+                  {tracked?.membersCount ?? 0} membres trackés
+                </span>
+                {cacheData?.computedAt && (
+                  <span>Données mises à jour le {new Date(cacheData.computedAt).toLocaleString('fr-FR')}</span>
+                )}
+              </div>
             )}
+            <div className="flex flex-wrap items-center gap-3">
+              <PeriodFilter periods={STANDARD_PERIODS} value={selectedPeriod} onChange={setSelectedPeriod} />
+              {!compact && (
+                <SegmentedControl
+                  options={MATCH_TYPE_OPTIONS}
+                  value={selectedMatchType}
+                  onChange={setSelectedMatchType}
+                  size="sm"
+                  className="shrink-0"
+                />
+              )}
+              {!compact && (
+                <SegmentedControl
+                  options={TEAM_MODE_OPTIONS}
+                  value={selectedMode}
+                  onChange={setSelectedMode}
+                  size="sm"
+                  className="shrink-0"
+                />
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <SegmentedControl
-              options={OVERVIEW_PERIOD_OPTIONS}
-              value={selectedPeriod}
-              onChange={setSelectedPeriod as any}
-              size="sm"
-              className="shrink-0"
-            />
-            <SegmentedControl
-              options={MATCH_TYPE_OPTIONS}
-              value={selectedMatchType}
-              onChange={setSelectedMatchType as any}
-              size="sm"
-              className="shrink-0"
-            />
-            <SegmentedControl
-              options={[
-                { value: 'all', label: 'Tous' },
-                { value: 'duo', label: 'Duo' },
-                { value: 'trio', label: 'Trio' },
-                { value: 'squad', label: 'Squad' },
-              ]}
-              value={selectedMode}
-              onChange={setSelectedMode as any}
-              size="sm"
-              className="shrink-0"
-            />
-          </div>
-        </div>
+        )}
       </DockingToolbar>
     )}
 
-    <div className="app-container px-4 pb-8">
+    <div className="app-container app-gutter pb-8">
       {!loading && !error && data && (
         <div className="space-y-6">
           {/* Bloc 2 — Statistiques et Analyses */}
@@ -829,7 +828,7 @@ export default function ClanOverviewPage() {
               </div>
             )}
 
-            {cacheLoading && (
+            {cacheLoading && !cacheData && (
               <div className="space-y-3">
                 <Skeleton className="h-6 w-1/3" />
                 <Skeleton className="h-4 w-full" />
@@ -837,8 +836,9 @@ export default function ClanOverviewPage() {
               </div>
             )}
 
-            {!cacheLoading && cacheData && (
-              <>
+            {/* Pendant un rechargement, les stats précédentes restent affichées : la page ne se replie pas. */}
+            {cacheData && (
+              <div aria-busy={cacheLoading} className={cacheLoading ? 'opacity-60' : undefined}>
                 {(() => {
                   const modePerformanceEntry =
                     selectedMode === 'all'
@@ -1068,7 +1068,7 @@ export default function ClanOverviewPage() {
                     <SquadSynergies clanId={clanId} period={selectedPeriod} matchType={selectedMatchType} mode={selectedMode} synergies={cacheData.payload.byMode[selectedMode].synergies as any} />
                   </div>
                 )}
-              </>
+              </div>
             )}
           </section>
 
@@ -1084,7 +1084,7 @@ export default function ClanOverviewPage() {
             insights={cityInsights}
             loading={cityInsightsLoading}
             error={cityInsightsError}
-            periodLabel={`${OVERVIEW_PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label ?? ''} · ${MATCH_TYPE_OPTIONS.find((option) => option.value === selectedMatchType)?.label ?? ''}`}
+            periodLabel={`${PERIOD_LABELS[selectedPeriod]} · ${MATCH_TYPE_OPTIONS.find((option) => option.value === selectedMatchType)?.label ?? ''}`}
             positionsHref={`/clans/${clanId}/stats/positions`}
           />
 

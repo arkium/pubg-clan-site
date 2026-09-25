@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import type { NotificationItem, NotificationType } from '@/types/notifications'
@@ -103,14 +104,14 @@ export default function NotificationsPage() {
 
   if (!memberId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Notifications"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
         <p className="text-sm text-red-600">Invalid member id.</p>
-      </main>
+      </div>
     )
   }
 
@@ -232,23 +233,27 @@ export default function NotificationsPage() {
   ]
 
   return (
-    <main className="app-container app-main space-y-4">
-      <NavigationTrail
-        currentLabel="Notifications"
-        currentHref={`/members/${memberId}/notifications`}
-        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
-      />
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <MemberPageHeader
-          title="Notifications"
-          subtitle={`${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
-          showBackButton={false}
-          framed={false}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-4">
+        <NavigationTrail
+          currentLabel="Notifications"
+          currentHref={`/members/${memberId}/notifications`}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
         />
-      </section>
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <MemberPageHeader
+            title="Notifications"
+            subtitle={`${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
+            showBackButton={false}
+            framed={false}
+          />
+        </section>
+      </div>
 
-      <div className="mb-4 rounded border border-gray-200 bg-white p-4">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+      {/* Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). */}
+      <DockingToolbar ariaLabel="Filtres des notifications" dockOnMobile={false}>
+        <div className="grid w-full gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <div className="grid gap-3 md:grid-cols-2">
             <MobileDropdownNav
               id={`notifications-status-${memberId}`}
@@ -305,74 +310,76 @@ export default function NotificationsPage() {
             </button>
           </div>
         </div>
-      </div>
+      </DockingToolbar>
 
-      {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      <div className="app-container app-gutter space-y-4">
+        {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-      {!loading && notifications.length === 0 ? (
-        <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-600">
-          Aucune notification pour ce filtre.
-        </p>
-      ) : null}
+        {!loading && notifications.length === 0 ? (
+          <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-600">
+            Aucune notification pour ce filtre.
+          </p>
+        ) : null}
 
-      {!loading && notifications.length > 0 ? (
-        <ul className="space-y-3">
-          {notifications.map((notification) => (
-            <li
-              key={notification.id}
-              className={`rounded border p-4 ${notification.read ? 'border-gray-200 bg-white' : 'border-blue-100 bg-blue-50'}`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
-                  <p className="text-sm text-gray-700">{notification.message}</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {formatTypeLabel(notification.type)} · {new Date(notification.createdAt).toLocaleString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!notification.read ? (
+        {!loading && notifications.length > 0 ? (
+          <ul className="space-y-3">
+            {notifications.map((notification) => (
+              <li
+                key={notification.id}
+                className={`rounded border p-4 ${notification.read ? 'border-gray-200 bg-white' : 'border-blue-100 bg-blue-50'}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                    <p className="text-sm text-gray-700">{notification.message}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {formatTypeLabel(notification.type)} · {new Date(notification.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!notification.read ? (
+                      <button
+                        type="button"
+                        onClick={() => void markAsRead(notification.id)}
+                        className="rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                      >
+                        Marquer lue
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      onClick={() => void markAsRead(notification.id)}
-                      className="rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                      onClick={() => void deleteNotification(notification.id)}
+                      className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
                     >
-                      Marquer lue
+                      Supprimer
                     </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => void deleteNotification(notification.id)}
-                    className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-                  >
-                    Supprimer
-                  </button>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
-      <div className="mt-6 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setOffset((current) => Math.max(0, current - limit))}
-          disabled={offset === 0}
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
-        >
-          Aller a la page precedente
-        </button>
-        <button
-          type="button"
-          onClick={() => setOffset((current) => current + limit)}
-          disabled={notifications.length < limit}
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
-        >
-          Aller a la page suivante
-        </button>
+        <div className="mt-6 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setOffset((current) => Math.max(0, current - limit))}
+            disabled={offset === 0}
+            className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+          >
+            Aller a la page precedente
+          </button>
+          <button
+            type="button"
+            onClick={() => setOffset((current) => current + limit)}
+            disabled={notifications.length < limit}
+            className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
+          >
+            Aller a la page suivante
+          </button>
+        </div>
       </div>
-    </main>
+    </div>
   )
 }

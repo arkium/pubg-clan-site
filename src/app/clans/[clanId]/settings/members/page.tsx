@@ -1214,7 +1214,8 @@ export default function ClanMembersSettingsPage() {
       {!loading && !error ? (
         <>
           {/* Bandeau d'outils adaptatif (Composant réutilisable DockingToolbar) */}
-          <DockingToolbar>
+          {/* Administration : garde la variante `card` (docs/TODO/sticky.md §4.A). */}
+          <DockingToolbar variant="card" ariaLabel="Outils de gestion des membres">
             {renderToolbarContent()}
           </DockingToolbar>
 

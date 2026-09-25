@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { STANDARD_PERIODS, getPeriodStart, parsePeriod } from '@/lib/period'
 import { getMapLabels } from '@/lib/map-label-service'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
 import { NextRequest } from 'next/server'
@@ -13,18 +14,10 @@ function parseMemberId(id: string) {
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null
 }
 
+// Semaine et mois calendaires, comme les autres pages — ils étaient glissants (7 / 30 jours)
+// jusqu'au 2026-09-25 (docs/TODO/sticky.md §3.C).
 function getPeriodDateFilter(period: string | null): Date | null {
-  if (period === 'week') {
-    const d = new Date()
-    d.setDate(d.getDate() - 7)
-    return d
-  }
-  if (period === 'month') {
-    const d = new Date()
-    d.setDate(d.getDate() - 30)
-    return d
-  }
-  return null
+  return getPeriodStart(parsePeriod(period, STANDARD_PERIODS, 'all'))
 }
 
 /** Parses a "YYYY-MM-DD" query param into a [start, end) day range, or null if absent/invalid. */

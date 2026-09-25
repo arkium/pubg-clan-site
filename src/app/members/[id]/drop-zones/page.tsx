@@ -11,8 +11,12 @@ import DropZoneMapViewport, {
 import DropPressureLegend from '@/components/drop-zones/DropPressureLegend'
 import DropPressureMarker from '@/components/drop-zones/DropPressureMarker'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS } from '@/lib/period'
 
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
@@ -93,12 +97,6 @@ type DropZonesResponse = {
     heatmap: HeatmapCell[]
   }
 }
-
-const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
 
 const VIEW_MODE_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: 'mix', label: 'Mixte' },
@@ -256,7 +254,8 @@ export default function MemberDropZonesPage() {
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
   const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
-  const [period, setPeriod] = useState<TelemetryPeriod>('week')
+  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [viewMode, setViewMode] = useState<ViewMode>('mix')
   const [scope, setScope] = useState<DropZonesScope>('self')
   const [targetMemberId, setTargetMemberId] = useState<number | null>(null)
@@ -269,7 +268,7 @@ export default function MemberDropZonesPage() {
   const [payload, setPayload] = useState<DropZonesResponse | null>(null)
 
   useEffect(() => {
-    if (!memberId) {
+    if (!memberId || !periodReady) {
       return
     }
 
@@ -340,7 +339,7 @@ export default function MemberDropZonesPage() {
     return () => {
       cancelled = true
     }
-  }, [bestMode, memberId, period, scope, targetMemberId])
+  }, [bestMode, memberId, period, periodReady, scope, targetMemberId])
 
   const scopeLabelMap = useMemo<Record<DropZonesScope, string>>(
     () => Object.fromEntries(SCOPE_OPTIONS.map((entry) => [entry.value, entry.label])) as Record<
@@ -489,510 +488,512 @@ export default function MemberDropZonesPage() {
 
   if (!memberId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Drop Zones"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
         <p className="text-sm text-red-600">ID joueur invalide.</p>
-      </main>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main space-y-4">
-      <NavigationTrail
-        currentLabel="Zones de drop"
-        currentHref={`/members/${memberId}/drop-zones`}
-        fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
-      />
-      <section className="mb-5">
-        <MemberPageHeader
-          title="Drop zones"
-          subtitle="Positions d'atterrissage du joueur (points + zones d'influence) selon la période."
-          showBackButton={false}
-          backgroundImage="/drop-zones.jpg"
-          icon={<MapPin className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter space-y-4">
+        <NavigationTrail
+          currentLabel="Zones de drop"
+          currentHref={`/members/${memberId}/drop-zones`}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
         />
-      </section>
+        <section>
+          <MemberPageHeader
+            title="Drop zones"
+            subtitle="Positions d'atterrissage du joueur (points + zones d'influence) selon la période."
+            showBackButton={false}
+            backgroundImage="/drop-zones.jpg"
+            icon={<MapPin className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+          />
+        </section>
+      </div>
 
-      <section className="app-panel mb-5 p-4">
-        <div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="member-drop-zones-scope-filter"
-              label="Filtre"
-              currentLabel={scopeLabelMap[scope]}
-              items={SCOPE_OPTIONS.map((option) => ({
-                key: `scope-${option.value}`,
-                label: option.label,
-                active: scope === option.value,
-                onSelect: () => {
-                  setScope(option.value)
-                  if (option.value !== 'member') {
-                    setTargetMemberId(null)
-                  }
-                },
-              }))}
-              visibilityClass=""
-              className="w-full"
-              leftIcon={(
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                  <path
-                    d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
+      <DockingToolbar ariaLabel="Filtres des zones de drop du joueur">
+        {({ compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+            {!compact ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="member-drop-zones-scope-filter"
+                    variant="compact"
+                    label="Filtre"
+                    currentLabel={scopeLabelMap[scope]}
+                    items={SCOPE_OPTIONS.map((option) => ({
+                      key: `scope-${option.value}`,
+                      label: option.label,
+                      active: scope === option.value,
+                      onSelect: () => {
+                        setScope(option.value)
+                        if (option.value !== 'member') {
+                          setTargetMemberId(null)
+                        }
+                      },
+                    }))}
+                    visibilityClass=""
+                    className="w-full"
+                    leftIcon={(
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
+                        <path
+                          d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
                   />
-                </svg>
-              )}
-            />
-          </div>
-
-          {scope === 'member' ? (
-            <div className="min-w-0">
-              <MobileDropdownNav
-                id="member-drop-zones-target-member-filter"
-                label="Joueur"
-                currentLabel={selectedMemberOption?.displayName ?? 'Selectionner'}
-                items={memberOptions.map((entry) => ({
-                  key: `member-${entry.id}`,
-                  label: entry.displayName,
-                  active: targetMemberId === entry.id,
-                  onSelect: () => setTargetMemberId(entry.id),
-                }))}
-                visibilityClass=""
-                className="w-full"
-              />
-            </div>
-          ) : null}
-
-          {scope === 'best' ? (
-            <div className="min-w-0">
-              <MobileDropdownNav
-                id="member-drop-zones-best-mode-filter"
-                label="Formation"
-                currentLabel={bestModeLabelMap[bestMode]}
-                items={BEST_MODE_OPTIONS.map((option) => ({
-                  key: `best-${option.value}`,
-                  label: option.label,
-                  active: bestMode === option.value,
-                  onSelect: () => setBestMode(option.value),
-                }))}
-                visibilityClass=""
-                className="w-full"
-              />
-            </div>
-          ) : null}
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="member-drop-zones-period-filter"
-              label="Periode"
-              currentLabel={PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? 'Selectionner'}
-              items={PERIOD_OPTIONS.map((option) => ({
-                key: `period-${option.value}`,
-                label: option.label,
-                active: period === option.value,
-                onSelect: () => setPeriod(option.value),
-              }))}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="member-drop-zones-view-filter"
-              label="Affichage"
-              currentLabel={
-                VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'
-              }
-              items={VIEW_MODE_OPTIONS.map((option) => ({
-                key: `view-${option.value}`,
-                label: option.label,
-                active: viewMode === option.value,
-                onSelect: () => setViewMode(option.value),
-              }))}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          <div className="min-w-0">
-            <MobileDropdownNav
-              id="member-drop-zones-map-filter"
-              label="Carte"
-              currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
-              items={maps.map((mapName) => ({
-                key: `map-${mapName}`,
-                label: mapDisplayName(mapName, {}),
-                active: activeMap === mapName,
-                onSelect: () => selectMap(mapName),
-              }))}
-              visibilityClass=""
-              className="w-full"
-            />
-          </div>
-
-          </div>
-        </div>
-      </section>
-
-      {loading ? <p className="mb-4 text-sm text-slate-600">Chargement des drop zones...</p> : null}
-      {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-
-      {!loading && !error ? (
-        maps.length > 0 && payload ? (
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-              <span className="font-medium text-slate-800">Filtre: {payload?.meta.scopeLabel ?? scopeLabelMap[scope]}</span>
-              <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
-              <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
-              <span className="text-slate-600">Dropzones visibles: {formatNumber(filteredPoints.length)}</span>
-              <span className="text-slate-600">
-                Pression moyenne: {pressureStats.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
-              </span>
-              <span className="text-slate-600">Maximum: {formatNumber(pressureStats.maximum)}</span>
-              <span className="text-slate-600">
-                Hot drops: {pressureStats.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
-              </span>
-              <span className="text-slate-600">
-                Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
-              </span>
-            </div>
-
-            <div className="border-b border-slate-200 bg-white px-4 py-4">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des dropzones</p>
-                  <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                    {favoriteCity
-                      ? `Dropzone favorite : ${favoriteCity.location.name}`
-                      : 'Aucun atterrissage dans une ville configuree'}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {formatNumber(locatedPointCount)} en ville · {formatNumber(mapPoints.length - locatedPointCount)} hors périmètre
-                  </p>
                 </div>
 
-                <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                {scope === 'member' ? (
+                  <div className="min-w-0">
+                    <MobileDropdownNav
+                      id="member-drop-zones-target-member-filter"
+                    variant="compact"
+                      label="Joueur"
+                      currentLabel={selectedMemberOption?.displayName ?? 'Selectionner'}
+                      items={memberOptions.map((entry) => ({
+                        key: `member-${entry.id}`,
+                        label: entry.displayName,
+                        active: targetMemberId === entry.id,
+                        onSelect: () => setTargetMemberId(entry.id),
+                      }))}
+                      visibilityClass=""
+                      className="w-full"
+                    />
+                  </div>
+                ) : null}
+
+                {scope === 'best' ? (
+                  <div className="min-w-0">
+                    <MobileDropdownNav
+                      id="member-drop-zones-best-mode-filter"
+                    variant="compact"
+                      label="Formation"
+                      currentLabel={bestModeLabelMap[bestMode]}
+                      items={BEST_MODE_OPTIONS.map((option) => ({
+                        key: `best-${option.value}`,
+                        label: option.label,
+                        active: bestMode === option.value,
+                        onSelect: () => setBestMode(option.value),
+                      }))}
+                      visibilityClass=""
+                      className="w-full"
+                    />
+                  </div>
+                ) : null}
+
+                <div className="min-w-0">
                   <MobileDropdownNav
-                    id="member-drop-zones-location-filter"
-                    label="Ville"
-                    currentLabel={selectedLocation?.name ?? 'Toutes les villes'}
-                    items={[
-                      {
-                        key: 'all-locations',
-                        label: 'Toutes les villes',
-                        active: !selectedLocation,
-                        onSelect: () => selectLocation(null),
-                      },
-                      ...activeLocations.map((location) => ({
-                        key: location.id,
-                        label: location.name,
-                        active: selectedLocation?.id === location.id,
-                        onSelect: () => selectLocation(location),
-                      })),
-                    ]}
+                    id="member-drop-zones-view-filter"
+                    variant="compact"
+                    label="Affichage"
+                    currentLabel={
+                      VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'
+                    }
+                    items={VIEW_MODE_OPTIONS.map((option) => ({
+                      key: `view-${option.value}`,
+                      label: option.label,
+                      active: viewMode === option.value,
+                      onSelect: () => setViewMode(option.value),
+                    }))}
+                    visibilityClass=""
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <MobileDropdownNav
+                    id="member-drop-zones-map-filter"
+                    variant="compact"
+                    label="Carte"
+                    currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
+                    items={maps.map((mapName) => ({
+                      key: `map-${mapName}`,
+                      label: mapDisplayName(mapName, {}),
+                      active: activeMap === mapName,
+                      onSelect: () => selectMap(mapName),
+                    }))}
                     visibilityClass=""
                     className="w-full"
                   />
                 </div>
               </div>
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
 
-              {topCityStats.length > 0 ? (
-                <>
-                  <div className="app-table-shell hidden overflow-hidden md:block">
-                    <table className="w-full table-fixed text-sm">
-                      <colgroup>
-                        <col style={{ width: '8%' }} />
-                        <col style={{ width: '25%' }} />
-                        <col style={{ width: '13%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '10%' }} />
-                        <col style={{ width: '24%' }} />
-                      </colgroup>
-                      <thead className="app-table-head text-xs uppercase tracking-wide">
-                      <tr>
-                        <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
-                        <th className="px-4 py-3 text-left whitespace-nowrap">Dropzone</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">Atterrissages</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">Part</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">Matchs</th>
-                        <th className="px-4 py-3 text-right whitespace-nowrap">Membres</th>
-                        <th className="px-4 py-3 text-left whitespace-nowrap">Membre principal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topCityStats.map((stat, index) => {
-                        const rank = index + 1
-                        const rowClassName = rank === 1
-                          ? 'app-table-row app-table-row--top1'
-                          : rank === 2
-                            ? 'app-table-row app-table-row--top2'
-                            : rank === 3
-                              ? 'app-table-row app-table-row--top3'
-                              : 'app-table-row'
+      <div className="app-container app-gutter space-y-4">
+        {loading && !payload ? <p className="mb-4 text-sm text-slate-600">Chargement des drop zones...</p> : null}
+        {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
 
-                        return (
-                        <tr
-                          key={stat.location.id}
-                          className={`${rowClassName}${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
-                        >
-                          <td className="px-4 py-3 text-center">
-                            {rank <= 3 ? (
-                              <span className={`app-podium-badge ${
-                                rank === 1
-                                  ? 'app-podium-badge--gold'
-                                  : rank === 2
-                                    ? 'app-podium-badge--silver'
-                                    : 'app-podium-badge--bronze'
-                              }`}>
-                                #{rank}
-                              </span>
-                            ) : (
-                              <span className="font-semibold text-gray-500">#{rank}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 font-medium text-gray-900">
-                            <button
-                              type="button"
-                              onClick={() => selectLocation(stat.location)}
-                              className="max-w-full truncate text-left font-semibold text-cyan-700 hover:underline"
-                            >
-                              {stat.location.name}
-                            </button>
-                            <p className="mt-1 text-xs font-normal text-gray-500">
-                              Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
-                          <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
-                          <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
-                          <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
-                          <td className="px-4 py-3 font-medium text-gray-700">
-                            {stat.topMember
-                              ? (
-                                  <span className="flex min-w-0 items-center gap-2">
-                                    <span className="app-avatar flex h-7 w-7 shrink-0 items-center justify-center text-xs font-semibold text-gray-700">
-                                      {stat.topMember.name.charAt(0).toUpperCase()}
-                                    </span>
-                                    <span className="min-w-0 truncate">{stat.topMember.name}</span>
-                                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700">
-                                      {formatNumber(stat.topMember.count)}
-                                    </span>
-                                  </span>
-                                )
-                              : '—'}
-                          </td>
-                        </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  </div>
-
-                  <div className="app-table-shell overflow-hidden md:hidden">
-                    <ul>
-                      {topCityStats.map((stat, index) => {
-                        const rank = index + 1
-                        const rowClassName = rank === 1
-                          ? 'app-table-row app-table-row--top1'
-                          : rank === 2
-                            ? 'app-table-row app-table-row--top2'
-                            : rank === 3
-                              ? 'app-table-row app-table-row--top3'
-                              : 'app-table-row'
-
-                        return (
-                          <li
-                            key={stat.location.id}
-                            className={`${rowClassName} p-3${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <span className={`app-podium-badge mt-0.5 ${
-                                rank === 1
-                                  ? 'app-podium-badge--gold'
-                                  : rank === 2
-                                    ? 'app-podium-badge--silver'
-                                    : rank === 3
-                                      ? 'app-podium-badge--bronze'
-                                      : 'border-gray-200 bg-gray-100 text-gray-700'
-                              }`}>
-                                #{rank}
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <button
-                                  type="button"
-                                  onClick={() => selectLocation(stat.location)}
-                                  className="block max-w-full truncate text-left text-sm font-semibold text-cyan-700 hover:underline"
-                                >
-                                  {stat.location.name}
-                                </button>
-                                <p className="mt-1 text-xs text-gray-500">
-                                  {formatNumber(stat.matches)} match{stat.matches > 1 ? 's' : ''} · {formatNumber(stat.members)} membre{stat.members > 1 ? 's' : ''}
-                                </p>
-                                <p className="mt-1 text-xs text-gray-500">
-                                  Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
-                                </p>
-                                {stat.topMember ? (
-                                  <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-700">
-                                    <span className="font-medium">Membre principal :</span>
-                                    <span className="truncate">{stat.topMember.name}</span>
-                                    <span className="shrink-0 font-semibold tabular-nums">({formatNumber(stat.topMember.count)})</span>
-                                  </p>
-                                ) : null}
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <p className="text-base font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</p>
-                                <p className="text-xs text-gray-500 tabular-nums">
-                                  {stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
-                                </p>
-                              </div>
-                            </div>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                </>
-              ) : null}
-            </div>
-
-            <DropZoneMapViewport
-              ref={mapViewportRef}
-              boundariesVisible={showLocationBoundaries}
-              onBoundariesVisibleChange={setShowLocationBoundaries}
-              onSwipeMap={handleSwipeMap}
+        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+        {!error && (!loading || payload) ? (
+          maps.length > 0 && payload ? (
+            <section
+              aria-busy={loading}
+              className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm${loading ? ' opacity-60' : ''}`}
             >
-              {activeMap ? (
-                <>
-                  <Image
-                    src={mapAssetPath(activeMap)}
-                    alt={mapDisplayName(activeMap, {})}
-                    fill
-                    className="object-cover opacity-85"
-                    sizes="100vw"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
-                </>
-              ) : null}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <span className="font-medium text-slate-800">Filtre: {payload?.meta.scopeLabel ?? scopeLabelMap[scope]}</span>
+                <span className="font-medium text-slate-800">Carte: {activeMap ? mapDisplayName(activeMap, {}) : 'Aucune'}</span>
+                <span className="text-slate-600">Matchs analyses: {formatNumber(displayedMatchCount)}</span>
+                <span className="text-slate-600">Dropzones visibles: {formatNumber(filteredPoints.length)}</span>
+                <span className="text-slate-600">
+                  Pression moyenne: {pressureStats.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                </span>
+                <span className="text-slate-600">Maximum: {formatNumber(pressureStats.maximum)}</span>
+                <span className="text-slate-600">
+                  Hot drops: {pressureStats.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+                </span>
+                <span className="text-slate-600">
+                  Cellules visibles: {formatNumber(visibleHeatmap.length)} / {formatNumber(filteredHeatmap.length)}
+                </span>
+              </div>
 
-              <div className="absolute inset-0 overflow-hidden">
-                {(viewMode === 'mix' || viewMode === 'heatmap') ? (
-                  <div
-                    className="absolute inset-0 grid"
-                    style={{
-                      gridTemplateColumns: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
-                      gridTemplateRows: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
-                      zIndex: 10,
-                    }}
-                  >
-                    {visibleHeatmap.map((cell) => {
-                      const rangeIndex = heatRanges.findIndex((entry) => cell.count <= entry.max)
-                      const range = heatRanges[rangeIndex]
-                      const opacity = heatOpacity(cell.count, minimumHeat, maxHeat)
-
-                      return (
-                        <div
-                          key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
-                          style={{
-                            gridColumn: cell.xIndex + 1,
-                            gridRow: cell.yIndex + 1,
-                            backgroundColor: range?.color ?? 'transparent',
-                            borderRadius: '35%',
-                            opacity,
-                          }}
-                          title={`Zone ${cell.xIndex}/${cell.yIndex} - ${formatNumber(cell.count)} atterrissage${cell.count > 1 ? 's' : ''} - ${range?.label ?? 'Aucune activite'}`}
-                        />
-                      )
-                    })}
+              <div className="border-b border-slate-200 bg-white px-4 py-4">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-slate-500">Top 5 des dropzones</p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                      {favoriteCity
+                        ? `Dropzone favorite : ${favoriteCity.location.name}`
+                        : 'Aucun atterrissage dans une ville configuree'}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {formatNumber(locatedPointCount)} en ville · {formatNumber(mapPoints.length - locatedPointCount)} hors périmètre
+                    </p>
                   </div>
+
+                  <div className="grid min-w-full gap-3 sm:min-w-0 sm:grid-cols-[minmax(13rem,1fr)_auto] sm:items-end">
+                    <MobileDropdownNav
+                      id="member-drop-zones-location-filter"
+                      label="Ville"
+                      currentLabel={selectedLocation?.name ?? 'Toutes les villes'}
+                      items={[
+                        {
+                          key: 'all-locations',
+                          label: 'Toutes les villes',
+                          active: !selectedLocation,
+                          onSelect: () => selectLocation(null),
+                        },
+                        ...activeLocations.map((location) => ({
+                          key: location.id,
+                          label: location.name,
+                          active: selectedLocation?.id === location.id,
+                          onSelect: () => selectLocation(location),
+                        })),
+                      ]}
+                      visibilityClass=""
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                {topCityStats.length > 0 ? (
+                  <>
+                    <div className="app-table-shell hidden overflow-hidden md:block">
+                      <table className="w-full table-fixed text-sm">
+                        <colgroup>
+                          <col style={{ width: '8%' }} />
+                          <col style={{ width: '25%' }} />
+                          <col style={{ width: '13%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '10%' }} />
+                          <col style={{ width: '24%' }} />
+                        </colgroup>
+                        <thead className="app-table-head text-xs uppercase tracking-wide">
+                        <tr>
+                          <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Dropzone</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Atterrissages</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Part</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Matchs</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Membres</th>
+                          <th className="px-4 py-3 text-left whitespace-nowrap">Membre principal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topCityStats.map((stat, index) => {
+                          const rank = index + 1
+                          const rowClassName = rank === 1
+                            ? 'app-table-row app-table-row--top1'
+                            : rank === 2
+                              ? 'app-table-row app-table-row--top2'
+                              : rank === 3
+                                ? 'app-table-row app-table-row--top3'
+                                : 'app-table-row'
+
+                          return (
+                          <tr
+                            key={stat.location.id}
+                            className={`${rowClassName}${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
+                          >
+                            <td className="px-4 py-3 text-center">
+                              {rank <= 3 ? (
+                                <span className={`app-podium-badge ${
+                                  rank === 1
+                                    ? 'app-podium-badge--gold'
+                                    : rank === 2
+                                      ? 'app-podium-badge--silver'
+                                      : 'app-podium-badge--bronze'
+                                }`}>
+                                  #{rank}
+                                </span>
+                              ) : (
+                                <span className="font-semibold text-gray-500">#{rank}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-gray-900">
+                              <button
+                                type="button"
+                                onClick={() => selectLocation(stat.location)}
+                                className="max-w-full truncate text-left font-semibold text-cyan-700 hover:underline"
+                              >
+                                {stat.location.name}
+                              </button>
+                              <p className="mt-1 text-xs font-normal text-gray-500">
+                                Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
+                              </p>
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
+                            <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
+                            <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
+                            <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
+                            <td className="px-4 py-3 font-medium text-gray-700">
+                              {stat.topMember
+                                ? (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <span className="app-avatar flex h-7 w-7 shrink-0 items-center justify-center text-xs font-semibold text-gray-700">
+                                        {stat.topMember.name.charAt(0).toUpperCase()}
+                                      </span>
+                                      <span className="min-w-0 truncate">{stat.topMember.name}</span>
+                                      <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700">
+                                        {formatNumber(stat.topMember.count)}
+                                      </span>
+                                    </span>
+                                  )
+                                : '—'}
+                            </td>
+                          </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                    </div>
+
+                    <div className="app-table-shell overflow-hidden md:hidden">
+                      <ul>
+                        {topCityStats.map((stat, index) => {
+                          const rank = index + 1
+                          const rowClassName = rank === 1
+                            ? 'app-table-row app-table-row--top1'
+                            : rank === 2
+                              ? 'app-table-row app-table-row--top2'
+                              : rank === 3
+                                ? 'app-table-row app-table-row--top3'
+                                : 'app-table-row'
+
+                          return (
+                            <li
+                              key={stat.location.id}
+                              className={`${rowClassName} p-3${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className={`app-podium-badge mt-0.5 ${
+                                  rank === 1
+                                    ? 'app-podium-badge--gold'
+                                    : rank === 2
+                                      ? 'app-podium-badge--silver'
+                                      : rank === 3
+                                        ? 'app-podium-badge--bronze'
+                                        : 'border-gray-200 bg-gray-100 text-gray-700'
+                                }`}>
+                                  #{rank}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectLocation(stat.location)}
+                                    className="block max-w-full truncate text-left text-sm font-semibold text-cyan-700 hover:underline"
+                                  >
+                                    {stat.location.name}
+                                  </button>
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    {formatNumber(stat.matches)} match{stat.matches > 1 ? 's' : ''} · {formatNumber(stat.members)} membre{stat.members > 1 ? 's' : ''}
+                                  </p>
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
+                                  </p>
+                                  {stat.topMember ? (
+                                    <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-700">
+                                      <span className="font-medium">Membre principal :</span>
+                                      <span className="truncate">{stat.topMember.name}</span>
+                                      <span className="shrink-0 font-semibold tabular-nums">({formatNumber(stat.topMember.count)})</span>
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <p className="text-base font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</p>
+                                  <p className="text-xs text-gray-500 tabular-nums">
+                                    {stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
+                                  </p>
+                                </div>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+
+              <DropZoneMapViewport
+                ref={mapViewportRef}
+                boundariesVisible={showLocationBoundaries}
+                onBoundariesVisibleChange={setShowLocationBoundaries}
+                onSwipeMap={handleSwipeMap}
+              >
+                {activeMap ? (
+                  <>
+                    <Image
+                      src={mapAssetPath(activeMap)}
+                      alt={mapDisplayName(activeMap, {})}
+                      fill
+                      className="object-cover opacity-85"
+                      sizes="100vw"
+                      unoptimized
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-950/45 via-transparent to-slate-950/55" />
+                  </>
                 ) : null}
 
-                {showLocationBoundaries
-                  ? activeLocations.map((location) => (
-                      <div
-                        key={`location:${location.id}`}
-                        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
-                        style={{
-                          left: `${location.xPct}%`,
-                          top: `${location.yPct}%`,
-                          width: `${location.radiusPct * 2}%`,
-                          aspectRatio: '1',
-                          border: `2px solid ${
-                            selectedLocation?.id === location.id
-                              ? 'rgb(103 232 249)'
-                              : 'rgba(255, 255, 255, 0.88)'
-                          }`,
-                          borderRadius: '50%',
-                          backgroundColor:
-                            selectedLocation?.id === location.id
-                              ? 'rgb(34 211 238 / 0.15)'
-                              : 'rgb(255 255 255 / 0.05)',
-                          boxShadow:
-                            selectedLocation?.id === location.id
-                              ? '0 0 0 2px rgb(255 255 255 / 0.8)'
-                              : undefined,
-                          zIndex: 15,
-                        }}
-                        title={location.name}
-                      />
-                    ))
-                  : null}
+                <div className="absolute inset-0 overflow-hidden">
+                  {(viewMode === 'mix' || viewMode === 'heatmap') ? (
+                    <div
+                      className="absolute inset-0 grid"
+                      style={{
+                        gridTemplateColumns: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${payload.data.gridSize || 40}, minmax(0, 1fr))`,
+                        zIndex: 10,
+                      }}
+                    >
+                      {visibleHeatmap.map((cell) => {
+                        const rangeIndex = heatRanges.findIndex((entry) => cell.count <= entry.max)
+                        const range = heatRanges[rangeIndex]
+                        const opacity = heatOpacity(cell.count, minimumHeat, maxHeat)
 
-                {(viewMode === 'mix' || viewMode === 'points')
-                  ? filteredPoints.map((point, idx) => {
-                      const pointLocation = locationForPoint(point, activeLocations)
-                      const pressure = DROP_PRESSURE_LEVELS[point.pressureLevel]
+                        return (
+                          <div
+                            key={`h:${cell.mapName}:${cell.xIndex}:${cell.yIndex}`}
+                            style={{
+                              gridColumn: cell.xIndex + 1,
+                              gridRow: cell.yIndex + 1,
+                              backgroundColor: range?.color ?? 'transparent',
+                              borderRadius: '35%',
+                              opacity,
+                            }}
+                            title={`Zone ${cell.xIndex}/${cell.yIndex} - ${formatNumber(cell.count)} atterrissage${cell.count > 1 ? 's' : ''} - ${range?.label ?? 'Aucune activite'}`}
+                          />
+                        )
+                      })}
+                    </div>
+                  ) : null}
 
-                      return (
-                        <DropPressureMarker
-                          key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
-                          xPct={point.xPct}
-                          yPct={point.yPct}
-                          pressureLevel={point.pressureLevel}
-                          borderColor="#ffffff"
-                          title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${dropPressureTooltip(point)} · ${pressure.label}`}
+                  {showLocationBoundaries
+                    ? activeLocations.map((location) => (
+                        <div
+                          key={`location:${location.id}`}
+                          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+                          style={{
+                            left: `${location.xPct}%`,
+                            top: `${location.yPct}%`,
+                            width: `${location.radiusPct * 2}%`,
+                            aspectRatio: '1',
+                            border: `2px solid ${
+                              selectedLocation?.id === location.id
+                                ? 'rgb(103 232 249)'
+                                : 'rgba(255, 255, 255, 0.88)'
+                            }`,
+                            borderRadius: '50%',
+                            backgroundColor:
+                              selectedLocation?.id === location.id
+                                ? 'rgb(34 211 238 / 0.15)'
+                                : 'rgb(255 255 255 / 0.05)',
+                            boxShadow:
+                              selectedLocation?.id === location.id
+                                ? '0 0 0 2px rgb(255 255 255 / 0.8)'
+                                : undefined,
+                            zIndex: 15,
+                          }}
+                          title={location.name}
                         />
-                      )
-                    })
-                  : null}
-              </div>
-            </DropZoneMapViewport>
+                      ))
+                    : null}
 
-            {(viewMode === 'mix' || viewMode === 'points') ? <DropPressureLegend /> : null}
+                  {(viewMode === 'mix' || viewMode === 'points')
+                    ? filteredPoints.map((point, idx) => {
+                        const pointLocation = locationForPoint(point, activeLocations)
+                        const pressure = DROP_PRESSURE_LEVELS[point.pressureLevel]
 
-            {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
-              <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-700">
-                  <span className="font-semibold text-slate-900">Densite relative</span>
-                  {heatRanges.map((range) => (
-                    <span key={`${range.min}-${range.max}`} className="inline-flex items-center gap-1.5">
-                      <span
-                        className="h-3.5 w-3.5 border border-black/15"
-                        style={{ backgroundColor: range.color }}
-                        aria-hidden="true"
-                      />
-                      <span>{range.label} {heatRangeLabel(range)}</span>
-                    </span>
-                  ))}
-                  <span className="text-slate-500">
-                    Seuil : {formatNumber(minimumHeat)} · Maximum : {formatNumber(maxHeat)} atterrissage{maxHeat > 1 ? 's' : ''}
-                  </span>
+                        return (
+                          <DropPressureMarker
+                            key={`p:${point.matchId}:${point.memberId}:${point.x}:${point.y}:${idx}`}
+                            xPct={point.xPct}
+                            yPct={point.yPct}
+                            pressureLevel={point.pressureLevel}
+                            borderColor="#ffffff"
+                            title={`${point.memberName} · ${pointLocation?.name ?? 'Hors ville'} · ${dropPressureTooltip(point)} · ${pressure.label}`}
+                          />
+                        )
+                      })
+                    : null}
                 </div>
-              </div>
-            ) : null}
-          </section>
-        ) : (
-          <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>
-        )
-      ) : null}
-    </main>
+              </DropZoneMapViewport>
+
+              {(viewMode === 'mix' || viewMode === 'points') ? <DropPressureLegend /> : null}
+
+              {(viewMode === 'mix' || viewMode === 'heatmap') && heatRanges.length > 0 ? (
+                <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-700">
+                    <span className="font-semibold text-slate-900">Densite relative</span>
+                    {heatRanges.map((range) => (
+                      <span key={`${range.min}-${range.max}`} className="inline-flex items-center gap-1.5">
+                        <span
+                          className="h-3.5 w-3.5 border border-black/15"
+                          style={{ backgroundColor: range.color }}
+                          aria-hidden="true"
+                        />
+                        <span>{range.label} {heatRangeLabel(range)}</span>
+                      </span>
+                    ))}
+                    <span className="text-slate-500">
+                      Seuil : {formatNumber(minimumHeat)} · Maximum : {formatNumber(maxHeat)} atterrissage{maxHeat > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>
+          )
+        ) : null}
+      </div>
+    </div>
   )
 }

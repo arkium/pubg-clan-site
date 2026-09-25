@@ -134,7 +134,8 @@ export default function CityInsightsPanel({
         <SegmentedControl options={METRIC_OPTIONS} value={metric} onChange={setMetric} wrap fullWidthOnMobile />
       </div>
 
-      {loading ? (
+      {/* Rechargement : les villes précédentes restent affichées, estompées (la page ne se replie pas). */}
+      {loading && !insights ? (
         <div className="mt-4 space-y-2">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-32 w-full" />
@@ -147,7 +148,7 @@ export default function CityInsightsPanel({
           cartes ; les positions des matchs les plus anciens ont pu être purgées.
         </p>
       ) : (
-        <>
+        <div aria-busy={loading} className={loading ? 'opacity-60' : undefined}>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="app-panel-muted p-3">
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase text-slate-500">
@@ -234,7 +235,7 @@ export default function CityInsightsPanel({
           ) : null}
 
           <CityTimeline insights={insights} metric={metric} />
-        </>
+        </div>
       )}
     </section>
   )

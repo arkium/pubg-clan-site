@@ -5,14 +5,17 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, CalendarRange, ChartNoAxesColumnIncreasing, RefreshCw } from 'lucide-react'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
-import StickySectionNav, { type StickySectionNavItem } from '@/components/ui/StickySectionNav'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { PERIOD_LABELS, STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
-type TelemetryPeriod = 'week' | 'month' | 'all'
+type TelemetryPeriod = StandardPeriod
 
 type ClanPlaystyleRow = {
   memberId: number
@@ -204,13 +207,7 @@ const METRIC_GROUPS: Array<{ title: string; metrics: MetricDefinition[] }> = [
   },
 ]
 
-const PLAYSTYLE_PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
-
-type StatsSectionIcon = NonNullable<StickySectionNavItem['icon']>
+type StatsSectionIcon = NonNullable<SectionAnchorNavItem['icon']>
 
 function getSectionIcon(label: string): StatsSectionIcon {
   if (label === 'Engagement') return 'other' // we reuse the other icon or create a new one, but let's reuse
@@ -223,7 +220,7 @@ function getSectionIcon(label: string): StatsSectionIcon {
   return 'playstyle'
 }
 
-const STATS_SECTION_LINKS: StickySectionNavItem[] = [
+const STATS_SECTION_LINKS: SectionAnchorNavItem[] = [
   { id: 'sec-playstyle', label: 'Playstyle', icon: 'playstyle' as const },
   ...METRIC_GROUPS.map((group, index) => ({
     id: `sec-metric-${index + 1}`,
@@ -581,7 +578,13 @@ export default function ClanStatsPage() {
   const [data, setData] = useState<ClanStatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [telemetryPeriod, setTelemetryPeriod] = useState<TelemetryPeriod>('week')
+  // Une seule période pour toute la page (statistiques, style de jeu, bots) : URL, puis mémoire de la
+  // visite, puis semaine (docs/TODO/sticky.md §4.E).
+  const {
+    period: telemetryPeriod,
+    setPeriod: setTelemetryPeriod,
+    ready: periodReady,
+  } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [playstyleRows, setPlaystyleRows] = useState<ClanPlaystyleRow[]>([])
   const [loadingPlaystyle, setLoadingPlaystyle] = useState(false)
   const [playstyleError, setPlaystyleError] = useState('')
@@ -597,7 +600,7 @@ export default function ClanStatsPage() {
   }, [clanId, router, setClanId])
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -637,10 +640,10 @@ export default function ClanStatsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, telemetryPeriod])
+  }, [clanId, periodReady, telemetryPeriod])
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -686,10 +689,10 @@ export default function ClanStatsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, telemetryPeriod])
+  }, [clanId, periodReady, telemetryPeriod])
 
   useEffect(() => {
-    if (!clanId) {
+    if (!clanId || !periodReady) {
       return
     }
 
@@ -717,7 +720,7 @@ export default function ClanStatsPage() {
     return () => {
       cancelled = true
     }
-  }, [clanId, telemetryPeriod])
+  }, [clanId, periodReady, telemetryPeriod])
 
   const groupedMetrics = useMemo(() => {
     const members = data?.members ?? []
@@ -746,481 +749,488 @@ export default function ClanStatsPage() {
     return null
   }
 
+  const hasStats = Boolean(data && data.members.length > 0)
+
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-      <NavigationTrail
-        currentLabel="Statistiques"
-        currentHref={`/clans/${clanId}/stats`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-      <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/clan-stats2.jpg')` }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <ChartNoAxesColumnIncreasing className="h-4 w-4 text-emerald-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-              {data?.clan?.name ?? `Clan #${clanId}`} · Statistiques
-            </h1>
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    <div className="app-main-flush flex-1">
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Statistiques"
+          currentHref={`/clans/${clanId}/stats`}
+          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        />
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/clan-stats2.jpg')` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <ChartNoAxesColumnIncreasing className="h-4 w-4 text-emerald-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+                {data?.clan?.name ?? `Clan #${clanId}`} · Statistiques
+              </h1>
+            </div>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+              Vue clan complète avec top 3 pour chaque statistique.
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Vue clan complète avec top 3 pour chaque statistique.
-          </p>
-        </div>
-      </header>
+        </header>
+      </div>
 
-      {loading ? <CardSkeleton className="mb-6" /> : null}
-      {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
+      <DockingToolbar ariaLabel="Filtres des statistiques du clan">
+        {({ compact }) => (
+          <div className="flex w-full flex-col gap-3">
+            <PeriodFilter periods={STANDARD_PERIODS} value={telemetryPeriod} onChange={setTelemetryPeriod} />
+            {/* Ancres : seconde ligne du bandeau, jamais un second élément collant (sticky.md §4.B). */}
+            {!compact && hasStats ? (
+              <SectionAnchorNav ariaLabel="Navigation des sections statistiques" items={STATS_SECTION_LINKS} />
+            ) : null}
+          </div>
+        )}
+      </DockingToolbar>
 
-      {!loading && !error ? (
-        data && data.members.length > 0 ? (
-          <div className="space-y-6">
-            <StickySectionNav
-              ariaLabel="Navigation des sections statistiques"
-              items={STATS_SECTION_LINKS}
-            />
+      <div className="app-container app-gutter">
+        {loading && !data ? <CardSkeleton className="mb-6" /> : null}
+        {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
 
-            <section id="sec-playstyle" className="scroll-mt-40 rounded border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                    <SectionBadgeIcon icon="playstyle" />
-                    Carte playstyle clan
-                  </h2>
-                  <p className="text-sm text-gray-600">Repartition agressif / support / discipline zone via telemetry.</p>
+        {!error && !(loading && !data) ? (
+          data && hasStats ? (
+            // Pendant un rechargement, les statistiques précédentes restent affichées : la page ne se replie pas.
+            <div aria-busy={loading} className={loading ? 'space-y-6 opacity-60' : 'space-y-6'}>
+              <section id="sec-playstyle" className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                      <SectionBadgeIcon icon="playstyle" />
+                      Carte playstyle clan
+                    </h2>
+                    <p className="text-sm text-gray-600">Repartition agressif / support / discipline zone via telemetry.</p>
+                  </div>
                 </div>
-                <SegmentedControl
-                  options={PLAYSTYLE_PERIOD_OPTIONS}
-                  value={telemetryPeriod}
-                  onChange={setTelemetryPeriod}
-                  size="sm"
-                  fullWidthOnMobile
-                  className="w-full sm:w-auto"
-                />
-              </div>
 
-              {loadingPlaystyle ? <p className="text-sm text-gray-600">Chargement de la telemetrie playstyle...</p> : null}
-              {playstyleError ? <p className="text-sm text-amber-700">{playstyleError}</p> : null}
+                {loadingPlaystyle ? <p className="text-sm text-gray-600">Chargement de la telemetrie playstyle...</p> : null}
+                {playstyleError ? <p className="text-sm text-amber-700">{playstyleError}</p> : null}
 
-              {!loadingPlaystyle && !playstyleError ? (
-                playstyleRows.length > 0 ? (
-                  <>
-                    {/* ── 3 Role cards ── */}
-                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                      {([
-                        {
-                          roleLabel: 'Fragger',
-                          metricLabel: 'Agressivité',
-                          hint: 'kills · KO · dégâts',
-                          value: playstyleAverages.aggression,
-                          color: '#ef4444',
-                          top: playstyleTopAggressive,
-                          getScore: (r: ClanPlaystyleRow) => r.aggressionScore,
-                          icon: (
-                            <svg viewBox="0 0 100 100" className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" aria-hidden="true">
-                              <circle cx="50" cy="50" r="42" strokeWidth="5"/>
-                              <circle cx="50" cy="50" r="16" strokeWidth="5"/>
-                              <circle cx="50" cy="50" r="4" fill="currentColor" stroke="none"/>
-                              <line x1="50" y1="3" x2="50" y2="29" strokeWidth="5" strokeLinecap="round"/>
-                              <line x1="50" y1="71" x2="50" y2="97" strokeWidth="5" strokeLinecap="round"/>
-                              <line x1="3" y1="50" x2="29" y2="50" strokeWidth="5" strokeLinecap="round"/>
-                              <line x1="71" y1="50" x2="97" y2="50" strokeWidth="5" strokeLinecap="round"/>
-                            </svg>
-                          ),
-                          valueClass: 'text-red-600',
-                          labelClass: 'text-red-500',
-                        },
-                        {
-                          roleLabel: 'Medic',
-                          metricLabel: 'Support',
-                          hint: 'revives · 0% = aucun revive',
-                          value: playstyleAverages.support,
-                          color: '#0ea5e9',
-                          top: playstyleTopSupport,
-                          getScore: (r: ClanPlaystyleRow) => r.supportScore,
-                          icon: (
-                            <svg viewBox="0 0 100 100" className="h-5 w-5 text-sky-500" fill="currentColor" aria-hidden="true">
-                              <rect x="6" y="22" width="88" height="65" rx="10" opacity="0.18"/>
-                              <rect x="6" y="22" width="88" height="65" rx="10" fill="none" stroke="currentColor" strokeWidth="5"/>
-                              <rect x="36" y="6" width="28" height="25" rx="6" fill="none" stroke="currentColor" strokeWidth="5"/>
-                              <rect x="42" y="39" width="16" height="34" rx="4"/>
-                              <rect x="33" y="48" width="34" height="16" rx="4"/>
-                            </svg>
-                          ),
-                          valueClass: 'text-sky-600',
-                          labelClass: 'text-sky-500',
-                        },
-                        {
-                          roleLabel: 'Ghost',
-                          metricLabel: 'Discipline zone',
-                          hint: '100% = jamais touché par la blue zone',
-                          value: playstyleAverages.zoneDiscipline,
-                          color: '#10b981',
-                          top: playstyleTopDiscipline,
-                          getScore: (r: ClanPlaystyleRow) => r.zoneDisciplineScore,
-                          icon: (
-                            <svg viewBox="0 0 100 100" className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" aria-hidden="true">
-                              <circle cx="50" cy="50" r="44" strokeWidth="4" opacity="0.25"/>
-                              <circle cx="50" cy="50" r="30" strokeWidth="5" opacity="0.55"/>
-                              <circle cx="50" cy="50" r="16" strokeWidth="6" opacity="0.8"/>
-                              <circle cx="50" cy="50" r="5" fill="currentColor" stroke="none"/>
-                            </svg>
-                          ),
-                          valueClass: 'text-emerald-700',
-                          labelClass: 'text-emerald-600',
-                        },
-                      ] as const).map(({ roleLabel, metricLabel, hint, value, color, top, getScore, icon, valueClass, labelClass }) => {
-                        const maxScore = top.length > 0 ? getScore(top[0]) : 0
+                {!loadingPlaystyle && !playstyleError ? (
+                  playstyleRows.length > 0 ? (
+                    <>
+                      {/* ── 3 Role cards ── */}
+                      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                        {([
+                          {
+                            roleLabel: 'Fragger',
+                            metricLabel: 'Agressivité',
+                            hint: 'kills · KO · dégâts',
+                            value: playstyleAverages.aggression,
+                            color: '#ef4444',
+                            top: playstyleTopAggressive,
+                            getScore: (r: ClanPlaystyleRow) => r.aggressionScore,
+                            icon: (
+                              <svg viewBox="0 0 100 100" className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" aria-hidden="true">
+                                <circle cx="50" cy="50" r="42" strokeWidth="5"/>
+                                <circle cx="50" cy="50" r="16" strokeWidth="5"/>
+                                <circle cx="50" cy="50" r="4" fill="currentColor" stroke="none"/>
+                                <line x1="50" y1="3" x2="50" y2="29" strokeWidth="5" strokeLinecap="round"/>
+                                <line x1="50" y1="71" x2="50" y2="97" strokeWidth="5" strokeLinecap="round"/>
+                                <line x1="3" y1="50" x2="29" y2="50" strokeWidth="5" strokeLinecap="round"/>
+                                <line x1="71" y1="50" x2="97" y2="50" strokeWidth="5" strokeLinecap="round"/>
+                              </svg>
+                            ),
+                            valueClass: 'text-red-600',
+                            labelClass: 'text-red-500',
+                          },
+                          {
+                            roleLabel: 'Medic',
+                            metricLabel: 'Support',
+                            hint: 'revives · 0% = aucun revive',
+                            value: playstyleAverages.support,
+                            color: '#0ea5e9',
+                            top: playstyleTopSupport,
+                            getScore: (r: ClanPlaystyleRow) => r.supportScore,
+                            icon: (
+                              <svg viewBox="0 0 100 100" className="h-5 w-5 text-sky-500" fill="currentColor" aria-hidden="true">
+                                <rect x="6" y="22" width="88" height="65" rx="10" opacity="0.18"/>
+                                <rect x="6" y="22" width="88" height="65" rx="10" fill="none" stroke="currentColor" strokeWidth="5"/>
+                                <rect x="36" y="6" width="28" height="25" rx="6" fill="none" stroke="currentColor" strokeWidth="5"/>
+                                <rect x="42" y="39" width="16" height="34" rx="4"/>
+                                <rect x="33" y="48" width="34" height="16" rx="4"/>
+                              </svg>
+                            ),
+                            valueClass: 'text-sky-600',
+                            labelClass: 'text-sky-500',
+                          },
+                          {
+                            roleLabel: 'Ghost',
+                            metricLabel: 'Discipline zone',
+                            hint: '100% = jamais touché par la blue zone',
+                            value: playstyleAverages.zoneDiscipline,
+                            color: '#10b981',
+                            top: playstyleTopDiscipline,
+                            getScore: (r: ClanPlaystyleRow) => r.zoneDisciplineScore,
+                            icon: (
+                              <svg viewBox="0 0 100 100" className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" aria-hidden="true">
+                                <circle cx="50" cy="50" r="44" strokeWidth="4" opacity="0.25"/>
+                                <circle cx="50" cy="50" r="30" strokeWidth="5" opacity="0.55"/>
+                                <circle cx="50" cy="50" r="16" strokeWidth="6" opacity="0.8"/>
+                                <circle cx="50" cy="50" r="5" fill="currentColor" stroke="none"/>
+                              </svg>
+                            ),
+                            valueClass: 'text-emerald-700',
+                            labelClass: 'text-emerald-600',
+                          },
+                        ] as const).map(({ roleLabel, metricLabel, hint, value, color, top, getScore, icon, valueClass, labelClass }) => {
+                          const maxScore = top.length > 0 ? getScore(top[0]) : 0
+                          return (
+                            <article key={roleLabel} className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                              {/* Jauge centrée — même design que le dashboard */}
+                              <div className="flex flex-col items-center gap-1">
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{roleLabel}</p>
+                                <div className="relative flex items-center justify-center" style={{ width: 88, height: 88 }}>
+                                  <ArcGauge value={value} color={color} size={88} />
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+                                    {icon}
+                                    <span className={`text-sm font-bold leading-none ${valueClass}`}>
+                                      {value.toFixed(0)}%
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="text-xs font-semibold text-gray-700">{metricLabel} moy.</p>
+                                <p className="px-1 text-center text-[10px] leading-tight text-gray-400">{hint}</p>
+                              </div>
+                              {/* Top 3 joueurs */}
+                              <div className="mt-3 border-t border-gray-100 pt-3">
+                                {maxScore === 0 ? (
+                                  <p className="text-center text-[11px] italic text-gray-400">
+                                    Aucun joueur avec ce score
+                                  </p>
+                                ) : (
+                                  <div className="space-y-2.5">
+                                    {top.map((entry) => {
+                                      const score = getScore(entry)
+                                      const pct = (score / maxScore) * 100
+                                      return (
+                                        <div key={entry.memberId} className="space-y-1">
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="truncate text-gray-700">{entry.displayName}</span>
+                                            <span className="ml-2 shrink-0 font-semibold" style={{ color }}>{score.toFixed(0)}%</span>
+                                          </div>
+                                          <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
+                                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+
+                      {/* ── 4 Thematic cards ── */}
+                      {(() => {
+                        const avg = playstyleAverages
+                        const footDist = avg.avgOnFootDistanceMeters
+                        const vehDist = avg.avgVehicleDistanceMeters
+                        const totalDist = footDist + vehDist
+                        const footPct = totalDist > 0 ? (footDist / totalDist) * 100 : 0
+                        const vehPct = totalDist > 0 ? (vehDist / totalDist) * 100 : 0
+                        const totalKm = totalDist / 10 / 1000
+                        const safe = avg.avgSafeZonePresencePercent
+                        const outZone = avg.avgCircleDelayPercent
+                        const healHP = avg.avgHealAmount
+                        const dmgTaken = avg.avgDamageTaken
+                        const healRatio = dmgTaken > 0 ? Math.min(100, (healHP / dmgTaken) * 100) : 0
+                        const totalMatches = playstyleRows.reduce((acc, r) => acc + r.matchesPlayed, 0)
                         return (
-                          <article key={roleLabel} className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                            {/* Jauge centrée — même design que le dashboard */}
-                            <div className="flex flex-col items-center gap-1">
-                              <p className={`text-[10px] font-bold uppercase tracking-widest ${labelClass}`}>{roleLabel}</p>
-                              <div className="relative flex items-center justify-center" style={{ width: 88, height: 88 }}>
-                                <ArcGauge value={value} color={color} size={88} />
-                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                                  {icon}
-                                  <span className={`text-sm font-bold leading-none ${valueClass}`}>
-                                    {value.toFixed(0)}%
+                          <div className="grid gap-3 sm:grid-cols-2">
+
+                            {/* Mobilité */}
+                            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                              <div className="mb-1 flex items-center gap-2.5">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+                                    <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V9h2.038A2 2 0 0115 11.1V15h.95a2.5 2.5 0 014.9 0H20a1 1 0 001-1v-3.268A3 3 0 0019.142 8.5L17 7h-4a2 2 0 00-2 2v1H4V5a1 1 0 00-1-1H3z"/>
+                                  </svg>
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-gray-900">Profil de mobilité</p>
+                                  <p className="text-xs text-gray-400">
+                                    Moy. {totalKm.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km / match · {playstyleRows.length} joueurs
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="my-3 flex h-3 overflow-hidden rounded-full bg-gray-200">
+                                <div className="bg-blue-400 transition-all duration-500" style={{ width: `${footPct}%` }} />
+                                <div className="bg-pink-400 transition-all duration-500" style={{ width: `${vehPct}%` }} />
+                              </div>
+                              <div className="mb-3 flex gap-3 text-[11px] text-gray-400">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
+                                  {footPct.toFixed(0)}% à pied
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-pink-400" />
+                                  {vehPct.toFixed(0)}% véhicule
+                                </span>
+                              </div>
+                              <div className="space-y-2 border-t border-gray-100 pt-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span aria-hidden="true">👣</span> À pied (moy)
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">{formatTelemetryMeters(footDist)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span aria-hidden="true">🚗</span> Véhicule (moy)
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">{formatTelemetryMeters(vehDist)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span aria-hidden="true">⚡</span> Vitesse max (moy)
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {formatTelemetrySpeedKph(avg.maxVehicleSpeedKph)}{' '}
+                                    <span className="text-xs font-normal text-gray-400">km/h</span>
                                   </span>
                                 </div>
                               </div>
-                              <p className="text-xs font-semibold text-gray-700">{metricLabel} moy.</p>
-                              <p className="px-1 text-center text-[10px] leading-tight text-gray-400">{hint}</p>
                             </div>
-                            {/* Top 3 joueurs */}
-                            <div className="mt-3 border-t border-gray-100 pt-3">
-                              {maxScore === 0 ? (
-                                <p className="text-center text-[11px] italic text-gray-400">
-                                  Aucun joueur avec ce score
-                                </p>
-                              ) : (
-                                <div className="space-y-2.5">
-                                  {top.map((entry) => {
-                                    const score = getScore(entry)
-                                    const pct = (score / maxScore) * 100
-                                    return (
-                                      <div key={entry.memberId} className="space-y-1">
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="truncate text-gray-700">{entry.displayName}</span>
-                                          <span className="ml-2 shrink-0 font-semibold" style={{ color }}>{score.toFixed(0)}%</span>
-                                        </div>
-                                        <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
-                                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
-                                        </div>
-                                      </div>
-                                    )
-                                  })}
+
+                            {/* Gestion du cercle */}
+                            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                              <div className="mb-1 flex items-center gap-2.5">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+                                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                                  </svg>
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-gray-900">Gestion du cercle</p>
+                                  <p className="text-xs text-gray-400">{safe.toFixed(0)}% du temps en zone sûre</p>
                                 </div>
-                              )}
+                              </div>
+                              <div className="my-3 flex h-3 overflow-hidden rounded-full bg-gray-200">
+                                <div className="bg-emerald-400 transition-all duration-500" style={{ width: `${Math.min(100, safe)}%` }} />
+                                <div className="bg-red-400 transition-all duration-500" style={{ width: `${Math.min(100 - Math.min(100, safe), Math.max(0, outZone))}%` }} />
+                              </div>
+                              <div className="mb-3 flex gap-3 text-[11px] text-gray-400">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+                                  Safe {safe.toFixed(0)}%
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
+                                  Hors zone {outZone.toFixed(0)}%
+                                </span>
+                              </div>
+                              <div className="space-y-2 border-t border-gray-100 pt-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">Blue zone hits</span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {formatTelemetryScore(avg.avgBlueZoneHits)}{' '}
+                                    <span className="text-xs font-normal text-gray-400">evt/m</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">First contact</span>
+                                  <span className="text-sm font-bold text-gray-900">Phase {formatTelemetryScore(avg.avgFirstContactPhase)}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">Retard cercle</span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {zoneDelayCoverage ? formatSeconds(avg.avgCircleDelaySeconds) : 'N/D'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">Hors zone</span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {zoneDelayCoverage ? formatTelemetryPercent(outZone) : 'N/D'}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </article>
+
+                            {/* Survie & Soins */}
+                            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                              <div className="mb-1 flex items-center gap-2.5">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-500">
+                                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd"/>
+                                  </svg>
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-gray-900">Survie &amp; Soins</p>
+                                  <p className="text-xs text-gray-400">
+                                    {healHP.toFixed(0)} HP soignés · {dmgTaken.toFixed(0)} dmg reçus
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="my-3 flex h-3 overflow-hidden rounded-full bg-red-100">
+                                <div className="bg-rose-400 transition-all duration-500" style={{ width: `${healRatio}%` }} />
+                              </div>
+                              <p className="mb-3 text-[11px] text-gray-400">
+                                Soins couvrent {healRatio.toFixed(0)}% des dégâts reçus
+                              </p>
+                              <div className="space-y-2 border-t border-gray-100 pt-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span aria-hidden="true">🩹</span> Soins
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {formatTelemetryScore(avg.avgHealsUsed)}{' '}
+                                    <span className="text-xs font-normal text-gray-400">/m</span>
+                                    <span className="ml-1.5 text-xs text-gray-500">({healHP.toFixed(0)} HP)</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span aria-hidden="true">💊</span> Boosts
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {formatTelemetryScore(avg.avgBoostsUsed)}{' '}
+                                    <span className="text-xs font-normal text-gray-400">/m</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="flex items-center gap-2 text-xs text-gray-600">
+                                    <span aria-hidden="true">🎯</span> Dégâts reçus
+                                  </span>
+                                  <span className="text-sm font-bold text-gray-900">{formatTelemetryScore(dmgTaken)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Contexte */}
+                            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
+                              <div className="mb-3 flex items-center gap-2.5">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+                                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                                  </svg>
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-gray-900">Contexte</p>
+                                  <p className="text-xs text-gray-400">
+                                    {playstyleRows.length} joueurs analysés sur la période
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">Joueurs avec données</span>
+                                  <span className="text-sm font-bold text-gray-900">{playstyleRows.length}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">Matchs analysés (total)</span>
+                                  <span className="text-sm font-bold text-gray-900">{totalMatches.toLocaleString('fr-FR')}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">Positions obs. (moy)</span>
+                                  <span className="text-sm font-bold text-gray-900">
+                                    {formatTelemetryScore(avg.avgPositionEvents)}{' '}
+                                    <span className="text-xs font-normal text-gray-400">evt/m</span>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                          </div>
                         )
-                      })}
-                    </div>
-
-                    {/* ── 4 Thematic cards ── */}
-                    {(() => {
-                      const avg = playstyleAverages
-                      const footDist = avg.avgOnFootDistanceMeters
-                      const vehDist = avg.avgVehicleDistanceMeters
-                      const totalDist = footDist + vehDist
-                      const footPct = totalDist > 0 ? (footDist / totalDist) * 100 : 0
-                      const vehPct = totalDist > 0 ? (vehDist / totalDist) * 100 : 0
-                      const totalKm = totalDist / 10 / 1000
-                      const safe = avg.avgSafeZonePresencePercent
-                      const outZone = avg.avgCircleDelayPercent
-                      const healHP = avg.avgHealAmount
-                      const dmgTaken = avg.avgDamageTaken
-                      const healRatio = dmgTaken > 0 ? Math.min(100, (healHP / dmgTaken) * 100) : 0
-                      const totalMatches = playstyleRows.reduce((acc, r) => acc + r.matchesPlayed, 0)
-                      return (
-                        <div className="grid gap-3 sm:grid-cols-2">
-
-                          {/* Mobilité */}
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                            <div className="mb-1 flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
-                                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-                                  <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
-                                  <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V9h2.038A2 2 0 0115 11.1V15h.95a2.5 2.5 0 014.9 0H20a1 1 0 001-1v-3.268A3 3 0 0019.142 8.5L17 7h-4a2 2 0 00-2 2v1H4V5a1 1 0 00-1-1H3z"/>
-                                </svg>
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold text-gray-900">Profil de mobilité</p>
-                                <p className="text-xs text-gray-400">
-                                  Moy. {totalKm.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km / match · {playstyleRows.length} joueurs
-                                </p>
-                              </div>
-                            </div>
-                            <div className="my-3 flex h-3 overflow-hidden rounded-full bg-gray-200">
-                              <div className="bg-blue-400 transition-all duration-500" style={{ width: `${footPct}%` }} />
-                              <div className="bg-pink-400 transition-all duration-500" style={{ width: `${vehPct}%` }} />
-                            </div>
-                            <div className="mb-3 flex gap-3 text-[11px] text-gray-400">
-                              <span className="flex items-center gap-1.5">
-                                <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
-                                {footPct.toFixed(0)}% à pied
-                              </span>
-                              <span className="flex items-center gap-1.5">
-                                <span className="inline-block h-2 w-2 rounded-full bg-pink-400" />
-                                {vehPct.toFixed(0)}% véhicule
-                              </span>
-                            </div>
-                            <div className="space-y-2 border-t border-gray-100 pt-3">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-gray-600">
-                                  <span aria-hidden="true">👣</span> À pied (moy)
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">{formatTelemetryMeters(footDist)}</span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-gray-600">
-                                  <span aria-hidden="true">🚗</span> Véhicule (moy)
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">{formatTelemetryMeters(vehDist)}</span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-gray-600">
-                                  <span aria-hidden="true">⚡</span> Vitesse max (moy)
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {formatTelemetrySpeedKph(avg.maxVehicleSpeedKph)}{' '}
-                                  <span className="text-xs font-normal text-gray-400">km/h</span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Gestion du cercle */}
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                            <div className="mb-1 flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
-                                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-                                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
-                                </svg>
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold text-gray-900">Gestion du cercle</p>
-                                <p className="text-xs text-gray-400">{safe.toFixed(0)}% du temps en zone sûre</p>
-                              </div>
-                            </div>
-                            <div className="my-3 flex h-3 overflow-hidden rounded-full bg-gray-200">
-                              <div className="bg-emerald-400 transition-all duration-500" style={{ width: `${Math.min(100, safe)}%` }} />
-                              <div className="bg-red-400 transition-all duration-500" style={{ width: `${Math.min(100 - Math.min(100, safe), Math.max(0, outZone))}%` }} />
-                            </div>
-                            <div className="mb-3 flex gap-3 text-[11px] text-gray-400">
-                              <span className="flex items-center gap-1.5">
-                                <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-                                Safe {safe.toFixed(0)}%
-                              </span>
-                              <span className="flex items-center gap-1.5">
-                                <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
-                                Hors zone {outZone.toFixed(0)}%
-                              </span>
-                            </div>
-                            <div className="space-y-2 border-t border-gray-100 pt-3">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Blue zone hits</span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {formatTelemetryScore(avg.avgBlueZoneHits)}{' '}
-                                  <span className="text-xs font-normal text-gray-400">evt/m</span>
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">First contact</span>
-                                <span className="text-sm font-bold text-gray-900">Phase {formatTelemetryScore(avg.avgFirstContactPhase)}</span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Retard cercle</span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {zoneDelayCoverage ? formatSeconds(avg.avgCircleDelaySeconds) : 'N/D'}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Hors zone</span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {zoneDelayCoverage ? formatTelemetryPercent(outZone) : 'N/D'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Survie & Soins */}
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                            <div className="mb-1 flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-500">
-                                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-                                  <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd"/>
-                                </svg>
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold text-gray-900">Survie &amp; Soins</p>
-                                <p className="text-xs text-gray-400">
-                                  {healHP.toFixed(0)} HP soignés · {dmgTaken.toFixed(0)} dmg reçus
-                                </p>
-                              </div>
-                            </div>
-                            <div className="my-3 flex h-3 overflow-hidden rounded-full bg-red-100">
-                              <div className="bg-rose-400 transition-all duration-500" style={{ width: `${healRatio}%` }} />
-                            </div>
-                            <p className="mb-3 text-[11px] text-gray-400">
-                              Soins couvrent {healRatio.toFixed(0)}% des dégâts reçus
-                            </p>
-                            <div className="space-y-2 border-t border-gray-100 pt-3">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-gray-600">
-                                  <span aria-hidden="true">🩹</span> Soins
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {formatTelemetryScore(avg.avgHealsUsed)}{' '}
-                                  <span className="text-xs font-normal text-gray-400">/m</span>
-                                  <span className="ml-1.5 text-xs text-gray-500">({healHP.toFixed(0)} HP)</span>
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-gray-600">
-                                  <span aria-hidden="true">💊</span> Boosts
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {formatTelemetryScore(avg.avgBoostsUsed)}{' '}
-                                  <span className="text-xs font-normal text-gray-400">/m</span>
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-gray-600">
-                                  <span aria-hidden="true">🎯</span> Dégâts reçus
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">{formatTelemetryScore(dmgTaken)}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Contexte */}
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4">
-                            <div className="mb-3 flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-                                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
-                                </svg>
-                              </span>
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold text-gray-900">Contexte</p>
-                                <p className="text-xs text-gray-400">
-                                  {playstyleRows.length} joueurs analysés sur la période
-                                </p>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Joueurs avec données</span>
-                                <span className="text-sm font-bold text-gray-900">{playstyleRows.length}</span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Matchs analysés (total)</span>
-                                <span className="text-sm font-bold text-gray-900">{totalMatches.toLocaleString('fr-FR')}</span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">Positions obs. (moy)</span>
-                                <span className="text-sm font-bold text-gray-900">
-                                  {formatTelemetryScore(avg.avgPositionEvents)}{' '}
-                                  <span className="text-xs font-normal text-gray-400">evt/m</span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                        </div>
-                      )
-                    })()}
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-600">Aucune donnee telemetry playstyle pour cette periode.</p>
-                )
-              ) : null}
-            </section>
-
-            {botStats && botStats.matchesWithData > 0 ? (
-              <section className="app-panel relative overflow-hidden p-4">
-                <span className="absolute inset-y-0 left-0 w-1 bg-cyan-500" aria-hidden="true" />
-                <div className="flex flex-wrap items-center justify-between gap-4 pl-1">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-500">
-                      <Bot className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="text-lg font-bold text-gray-900">Ambiance de lobby</h2>
-                      <p className="text-sm text-gray-600">
-                        Présence moyenne de bots sur la période sélectionnée.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                    <div className="sm:text-right">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Bots moyens</p>
-                      <p className="mt-0.5 text-[2rem] font-black leading-none tabular-nums text-cyan-500">
-                        {botStats.avgBotsPerMatch !== null ? botStats.avgBotsPerMatch.toFixed(1) : '-'}
-                        <span className="ml-1 text-xs font-semibold text-gray-500">/ match</span>
-                      </p>
-                    </div>
-                    <p className="app-performer-pill app-performer-pill--value gap-1.5">
-                      <ChartNoAxesColumnIncreasing className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
-                      {botStats.matchesWithData} matchs mesurés
-                    </p>
-                  </div>
-                </div>
+                      })()}
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-600">Aucune donnee telemetry playstyle pour cette periode.</p>
+                  )
+                ) : null}
               </section>
-            ) : null}
 
-            {groupedMetrics.map((group, index) => (
-              <section
-                key={group.title}
-                id={`sec-metric-${index + 1}`}
-                className="scroll-mt-40 rounded border border-gray-200 bg-white p-4 shadow-sm"
-              >
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                    <SectionBadgeIcon icon={getSectionIcon(group.title)} />
-                    {group.title}
-                  </h2>
-                  {group.title === 'Engagement' ? (
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <p className="app-meta-pill gap-1.5">
-                        <CalendarRange className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
-                        {PLAYSTYLE_PERIOD_OPTIONS.find((option) => option.value === data.period)?.label}
-                      </p>
-                      {data.statsRecalculation.runsPerDay !== null ? (
-                        <p
-                          className="app-meta-pill gap-1.5"
-                          title={`Cron ${data.statsRecalculation.expression} (${data.statsRecalculation.timezone})`}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5 text-cyan-500" aria-hidden="true" />
-                          Agrégats recalculés {data.statsRecalculation.runsPerDay} fois/jour via cron
+              {botStats && botStats.matchesWithData > 0 ? (
+                <section className="app-panel relative overflow-hidden p-4">
+                  <span className="absolute inset-y-0 left-0 w-1 bg-cyan-500" aria-hidden="true" />
+                  <div className="flex flex-wrap items-center justify-between gap-4 pl-1">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-500">
+                        <Bot className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="text-lg font-bold text-gray-900">Ambiance de lobby</h2>
+                        <p className="text-sm text-gray-600">
+                          Présence moyenne de bots sur la période sélectionnée.
                         </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {group.rows.map((row) => (
-                    <article key={row.metric.key} className="rounded border border-gray-200 p-3">
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-gray-900">{row.metric.label}</p>
-                        <p className="text-sm font-bold text-blue-700">Clan: {row.metric.format(row.clanValue)}</p>
                       </div>
-                      <TopThreeList metric={row.metric} topThree={row.topThree} />
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-600">Aucune statistique globale disponible pour ce clan.</p>
-        )
-      ) : null}
-    </main>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                      <div className="sm:text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">Bots moyens</p>
+                        <p className="mt-0.5 text-[2rem] font-black leading-none tabular-nums text-cyan-500">
+                          {botStats.avgBotsPerMatch !== null ? botStats.avgBotsPerMatch.toFixed(1) : '-'}
+                          <span className="ml-1 text-xs font-semibold text-gray-500">/ match</span>
+                        </p>
+                      </div>
+                      <p className="app-performer-pill app-performer-pill--value gap-1.5">
+                        <ChartNoAxesColumnIncreasing className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                        {botStats.matchesWithData} matchs mesurés
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {groupedMetrics.map((group, index) => (
+                <section
+                  key={group.title}
+                  id={`sec-metric-${index + 1}`}
+                  className="rounded border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                      <SectionBadgeIcon icon={getSectionIcon(group.title)} />
+                      {group.title}
+                    </h2>
+                    {group.title === 'Engagement' ? (
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <p className="app-meta-pill gap-1.5">
+                          <CalendarRange className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                          {PERIOD_LABELS[data.period]}
+                        </p>
+                        {data.statsRecalculation.runsPerDay !== null ? (
+                          <p
+                            className="app-meta-pill gap-1.5"
+                            title={`Cron ${data.statsRecalculation.expression} (${data.statsRecalculation.timezone})`}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5 text-cyan-500" aria-hidden="true" />
+                            Agrégats recalculés {data.statsRecalculation.runsPerDay} fois/jour via cron
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {group.rows.map((row) => (
+                      <article key={row.metric.key} className="rounded border border-gray-200 p-3">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-900">{row.metric.label}</p>
+                          <p className="text-sm font-bold text-blue-700">Clan: {row.metric.format(row.clanValue)}</p>
+                        </div>
+                        <TopThreeList metric={row.metric} topThree={row.topThree} />
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">Aucune statistique globale disponible pour ce clan.</p>
+          )
+        ) : null}
+      </div>
+    </div>
   )
 }

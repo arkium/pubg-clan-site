@@ -5,6 +5,7 @@ import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import Link from 'next/link'
 
 import { matchDebriefPath, matchTelemetryAuditPath } from '@/lib/match-links'
+import { PERIOD_LABELS } from '@/lib/period'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
@@ -23,13 +24,6 @@ interface SquadMatchListProps {
   telemetryFileStatusByMatchId?: Record<string, 'available' | 'missing' | 'oversized' | 'unknown'>
   /** Ajoute un lien secondaire vers la vue d'audit technique (pages de pilotage de la télémétrie). */
   showAuditLink?: boolean
-}
-
-function periodLabel(period: SquadPeriod) {
-  if (period === 'week') return 'semaine'
-  if (period === 'month') return 'mois'
-  if (period === 'month-1') return 'mois-1'
-  return 'mois-2'
 }
 
 function formatMatchDay(value: string) {
@@ -164,7 +158,7 @@ export default function SquadMatchList({
       <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold text-gray-900">{title}</h2>
         <p className="text-sm text-gray-600">
-          {emptyMessage ?? `Aucun match en squad pour le clan #${clanId} sur la période ${periodLabel(period)}.`}
+          {emptyMessage ?? `Aucun match en squad pour le clan #${clanId} sur la période « ${PERIOD_LABELS[period]} ».`}
         </p>
       </section>
     )

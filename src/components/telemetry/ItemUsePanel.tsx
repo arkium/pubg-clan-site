@@ -3,25 +3,20 @@
 import { useMemo } from 'react'
 
 import ItemIcon from '@/components/ui/ItemIcon'
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { resolveItemName } from '@/lib/pubg-assets'
-import type { ItemUsePeriod, ItemUseStats } from '@/lib/item-use-stats'
+import type { ItemUseStats } from '@/lib/item-use-stats'
 
+/**
+ * La période se choisit dans le bandeau de la page (`DockingToolbar` + `PeriodFilter`,
+ * docs/TODO/sticky.md §4) : le panneau n'affiche que les résultats.
+ */
 type ItemUsePanelProps = {
   stats: ItemUseStats | null
   loading?: boolean
   error?: string
-  period: ItemUsePeriod
-  onPeriodChange: (period: ItemUsePeriod) => void
   scope: 'clan' | 'member'
 }
-
-export const ITEM_USE_PERIOD_OPTIONS: Array<{ value: ItemUsePeriod; label: string }> = [
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tous' },
-]
 
 /** Familles renvoyées par la télémétrie (`item.subCategory`). Une famille inconnue garde son libellé brut. */
 const FAMILY_LABELS: Record<string, string> = {
@@ -45,14 +40,7 @@ const formatShare = (value: number) => `${value.toLocaleString('fr-FR', { maximu
 const familyLabel = (subCategory: string) => FAMILY_LABELS[subCategory] ?? subCategory
 const familyColor = (subCategory: string) => FAMILY_COLORS[subCategory] ?? '#64748b'
 
-export default function ItemUsePanel({
-  stats,
-  loading,
-  error,
-  period,
-  onPeriodChange,
-  scope,
-}: ItemUsePanelProps) {
+export default function ItemUsePanel({ stats, loading, error, scope }: ItemUsePanelProps) {
   const perMatch = useMemo(
     () => (stats && stats.matchCount > 0 ? stats.totalCount / stats.matchCount : 0),
     [stats]
@@ -60,18 +48,6 @@ export default function ItemUsePanel({
 
   return (
     <div className="space-y-5">
-      <section className="app-panel p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Période</p>
-            <p className="text-sm text-gray-600">
-              {scope === 'clan' ? 'Objets consommés par le clan' : 'Objets consommés par le membre'}
-            </p>
-          </div>
-          <SegmentedControl options={ITEM_USE_PERIOD_OPTIONS} value={period} onChange={onPeriodChange} wrap />
-        </div>
-      </section>
-
       {loading && !stats ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />

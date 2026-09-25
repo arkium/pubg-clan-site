@@ -186,9 +186,9 @@ export default function TournamentDetailPage() {
 
   if (!tournamentId) {
     return (
-      <main className="app-container app-main">
+      <div className="app-container app-main flex-1">
         <p className="text-sm text-red-600">Tournoi invalide.</p>
-      </main>
+      </div>
     )
   }
 
@@ -201,7 +201,7 @@ export default function TournamentDetailPage() {
   const podium = displayedStandings.slice(0, 3)
 
   return (
-    <main className="app-container app-main space-y-5">
+    <div className="app-container app-main flex-1 space-y-5">
       <NavigationTrail
         currentLabel={tournament?.title ?? 'Tournoi'}
         currentHref={`/tournaments/${tournamentId}`}
@@ -550,6 +550,6 @@ export default function TournamentDetailPage() {
           ) : null}
         </>
       ) : null}
-    </main>
+    </div>
   )
 }

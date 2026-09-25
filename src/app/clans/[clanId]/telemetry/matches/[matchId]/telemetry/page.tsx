@@ -921,14 +921,14 @@ export default function TelemetryMatchDetailPage() {
 
   if (!clanId || !matchId) {
     return (
-      <main className="app-container app-main space-y-4">
+      <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Détail du match"
           currentHref={`/clans/${clanId}/telemetry/matches`}
           fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
         />
         <p className="text-sm text-rose-700">Identifiants invalides.</p>
-      </main>
+      </div>
     )
   }
 
@@ -1135,7 +1135,7 @@ export default function TelemetryMatchDetailPage() {
     telemetry?.memberStats === null
 
   return (
-    <main className="app-container app-main space-y-4">
+    <div className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
         currentLabel={`Match ${matchId.slice(0, 8)}...`}
         currentHref={`/clans/${clanId}/telemetry/matches/${matchId}/telemetry`}
@@ -1836,7 +1836,7 @@ export default function TelemetryMatchDetailPage() {
                   setRawPhaseFilter(Number.isFinite(parsed) && parsed > 0 ? parsed : 'all')
                 }}
               >
-                <option value="all">Toutes les phases</option>
+                <option value="all">Toutes</option>
                 {rawPhaseOptions.map((phase) => (
                   <option key={phase} value={String(phase)}>
                     {formatPhaseFilterLabel(phase, phaseLabels)}
@@ -1995,6 +1995,6 @@ export default function TelemetryMatchDetailPage() {
           </section>
         </>
       ) : null}
-    </main>
+    </div>
   )
 }

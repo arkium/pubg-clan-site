@@ -19,7 +19,8 @@ export default function WeaponSelect({
   value,
   weapons,
   onChange,
-  allLabel = 'Toutes les armes',
+  // Option « sans filtre » : « Toutes », le libellé du filtre dit déjà de quoi (docs/TODO/sticky.md §2).
+  allLabel = 'Toutes',
   className,
 }: WeaponSelectProps) {
   const [open, setOpen] = useState(false)

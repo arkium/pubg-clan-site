@@ -2562,6 +2562,15 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte du débriefing tactique~~ — ✅ Complété le 2026-09-26
+
+Maquette Claude Design « Débrief télémétrie » — [debriefing.md](../features/debriefing.md) :
+- [x] Thème clair réel (jetons `--debrief-*`), onglets accessibles portés par `?tab=`, chronologie en liste, replay à
+      panneau latéral, cartes de joueur, duels avec score et barres de zones, bande des équipes paginée.
+- [x] Bugs corrigés : plusieurs « #1 » (équipe partie avant l'avion), lancers jamais affichés, distances de la
+      télémétrie en centimètres, « Arme » générique sur les mises à terre.
+- [ ] Parser : distances de `memberStats` en mètres, sans le vol ni le parachute.
+
 #### ~~Vitrine publique de l'accueil (`/`)~~ — ✅ Complété le 2026-09-26
 
 Maquette Claude Design « Accueil chickendinner » adaptée au site multi-clans — [accueil.md](../features/accueil.md) :

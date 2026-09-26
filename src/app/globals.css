@@ -3377,3 +3377,158 @@ html[data-app-theme='dark'] .home-showcase {
     animation: none !important;
   }
 }
+
+/* ── Débriefing tactique — docs/features/debriefing.md ──────────────────────────────────────────── */
+/* Couleurs sémantiques des événements (kill, mort, mise à terre, rappel, coéquipier) et de leurs fonds,
+   en clair et en sombre. Tout le reste du débriefing passe par les jetons --theme-ui-*. */
+.debrief {
+  --debrief-pos: rgb(5 150 105);
+  --debrief-neg: rgb(225 29 72);
+  --debrief-warn: rgb(180 83 9);
+  --debrief-sky: rgb(2 132 199);
+  --debrief-mate: rgb(15 118 110);
+  --debrief-pos-row: rgb(16 185 129 / 0.06);
+  --debrief-neg-row: rgb(244 63 94 / 0.05);
+  --debrief-neg-soft: rgb(255 228 230);
+  --debrief-warn-soft: rgb(254 243 199);
+  --debrief-sky-soft: rgb(224 242 254);
+  --debrief-track: var(--theme-ui-surface-strong);
+  --debrief-track-strong: rgb(203 213 225);
+  --debrief-link: var(--theme-ui-accent-text);
+}
+
+html[data-app-theme='dark'] .debrief {
+  --debrief-pos: rgb(52 211 153);
+  --debrief-neg: rgb(251 113 133);
+  --debrief-warn: rgb(251 191 36);
+  --debrief-sky: rgb(125 211 252);
+  --debrief-mate: rgb(94 234 212);
+  --debrief-pos-row: rgb(16 185 129 / 0.07);
+  --debrief-neg-row: rgb(244 63 94 / 0.07);
+  --debrief-neg-soft: rgb(244 63 94 / 0.15);
+  --debrief-warn-soft: rgb(245 158 11 / 0.15);
+  --debrief-sky-soft: rgb(14 165 233 / 0.15);
+  --debrief-track: rgb(2 6 23);
+  --debrief-track-strong: rgb(51 65 85);
+  --debrief-link: rgb(165 180 252);
+}
+
+/* Contrôle segmenté et puces du débriefing : état actif en accent (refonte UI §6 bis). */
+.debrief-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--debrief-track);
+  border: 1px solid var(--theme-ui-border);
+}
+
+.debrief-seg > button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-ui-text-secondary);
+}
+
+.debrief-seg > button[aria-pressed='true'] {
+  font-weight: 600;
+  background: var(--theme-ui-surface);
+  color: var(--theme-ui-accent-text);
+  box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring);
+}
+
+html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
+  background: var(--theme-ui-accent-soft);
+}
+
+.debrief-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9999px;
+  border: 1px solid var(--theme-ui-border);
+  background: var(--theme-ui-surface);
+  color: var(--theme-ui-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.debrief-chip[aria-pressed='true'] {
+  border-color: var(--theme-ui-accent-ring);
+  background: var(--theme-ui-accent-soft);
+  color: var(--theme-ui-accent-text);
+  font-weight: 600;
+}
+
+.debrief-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.debrief-icon-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--theme-ui-border);
+  background: var(--theme-ui-surface);
+  color: var(--theme-ui-text);
+}
+
+.debrief-icon-btn:hover:not(:disabled) {
+  background: var(--theme-ui-hover);
+}
+
+.debrief-icon-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.debrief-row {
+  border-bottom: 1px solid var(--theme-ui-border);
+}
+
+.debrief-row--kill {
+  background: var(--debrief-pos-row);
+  box-shadow: inset 3px 0 0 var(--debrief-pos);
+}
+
+.debrief-row--death {
+  background: var(--debrief-neg-row);
+  box-shadow: inset 3px 0 0 var(--debrief-neg);
+}
+
+.debrief-switch {
+  display: inline-flex;
+  width: 30px;
+  height: 18px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 9999px;
+  background: var(--debrief-track-strong);
+}
+
+.debrief-switch::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+}
+
+[aria-pressed='true'] > .debrief-switch,
+[aria-checked='true'] > .debrief-switch {
+  justify-content: flex-end;
+  background: var(--theme-ui-accent);
+}
+
+.debrief :focus-visible {
+  outline: 2px solid var(--theme-ui-accent-ring);
+  outline-offset: 2px;
+}

@@ -15,7 +15,13 @@ const TITLE = 'chickendinner.fr — stats, classements et Top 1 des clans PUBG'
 const DESCRIPTION =
   'Le QG des clans PUBG : chaque partie importée, chaque kill compté, chaque top 1 fêté. Classement des clans, ' +
   'comparateur, tournois et débriefs de parties, au même endroit.'
-const SHARE_IMAGE = { url: '/5ec73c01-216b-4991-99cf-5ac7fdbaff30.jpg', width: 1024, height: 434, alt: 'Squad PUBG face au désert' }
+// Image dédiée au partage (ratio ≈ 1,91:1 des aperçus Discord, Facebook, X).
+const SHARE_IMAGE = {
+  url: '/chickendinnerfr.jpg',
+  width: 1024,
+  height: 541,
+  alt: 'Une escouade PUBG face au nom chickendinner.fr sculpté dans la roche du désert',
+}
 
 /**
  * Métadonnées de la vitrine (docs/features/accueil.md) : titre, description, aperçu de partage (Open Graph, carte

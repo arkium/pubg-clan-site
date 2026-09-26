@@ -39,7 +39,7 @@ connexion, on arrive toujours sur son tableau de bord, pas sur la vitrine.
 | Membres connectés | Voient aussi la vitrine, **en plein écran** (plus de redirection vers `/clans`) ; entrée « Accueil » dans le menu latéral. Page d'arrivée après connexion **inchangée** (tableau de bord) |
 | « #1 / 26 équipes » (maquette) | **Gardé**, sans migration : la télémétrie l'enregistre déjà (`numAliveTeams` des instantanés de phase). Vérifié contre l'API PUBG (29 `rosters` = 29). Partie sans télémétrie : « #1 » seul |
 | Sous-domaine inconnu | Redirige vers la **vitrine** `/` (au lieu de `/clans`) ; un sous-domaine connu mène toujours à la vue d'ensemble de son clan (`fd.chickendinner.fr` → `/clans/28/overview`) |
-| Métadonnées | Titre, description, adresse canonique, aperçu de partage Open Graph et carte large (image du héros, 1024 × 434), adresse de base tirée de `NEXT_PUBLIC_APP_URL` |
+| Métadonnées | Titre, description, adresse canonique, aperçu de partage Open Graph et carte large (image dédiée `public/chickendinnerfr.jpg`, 1024 × 541, ratio ≈ 1,91:1), adresse de base tirée de `NEXT_PUBLIC_APP_URL` |
 | « Kill feed en direct » | Ce n'est pas du temps réel : une rotation des kills remarquables des 8 dernières victoires, relue au plus toutes les 5 minutes |
 
 ---
@@ -116,4 +116,3 @@ couleurs dans les deux thèmes. Le reste passe par les jetons (`--page-surface`,
 
 - **Contenu indexable** : les métadonnées sont servies, mais compteurs et Top 1 arrivent après l'appel d'API (rendu
   client) ; un moteur de recherche voit surtout le héros. À reprendre si le référencement devient un objectif.
-- **Image de partage** : celle du héros (1024 × 434) ; une image dédiée 1200 × 630 serait mieux cadrée.

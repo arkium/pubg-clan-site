@@ -46,9 +46,12 @@ type MatchTelemetryRow = {
   squadMatchId: string
   pubgMatchId: string
   gameMode: string
+  matchType: string
   mapName: string
   placement: number
   createdAt: Date
+  /** `MAX(Match.duration)` des membres suivis ; `null` si aucune ligne `Match` (import incomplet). */
+  durationSeconds: number | null
   totalKills: number
   totalDamage: number
   totalAssists: number
@@ -292,7 +295,7 @@ function buildMatchCombatEvents(params: {
       targetName: victim.name,
       targetClanTag: victim.clanTag,
       targetAffiliation: victim.affiliation,
-      weaponName: pair.knocker?.damageCauser || 'Arme',
+      weaponName: pair.knocker?.damageCauser || undefined, // arme inconnue : rien plutôt qu'un « Arme » générique
       damageReason: pair.knocker?.damageReason ?? null,
       distanceMeters: dist,
       isClanActor: knocker.isClan,
@@ -368,9 +371,11 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
       sm.id AS squadMatchId,
       sm.pubgMatchId,
       sm.gameMode,
+      sm.matchType,
       sm.mapName,
       sm.placement,
       sm.createdAt,
+      (SELECT MAX(m.duration) FROM \`Match\` m WHERE m.pubgMatchId = sm.pubgMatchId) AS durationSeconds,
       sm.totalKills,
       sm.totalDamage,
       sm.totalAssists,
@@ -480,6 +485,8 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
         assists: true,
         revives: true,
         placement: true,
+        walkDistance: true,
+        rideDistance: true,
         member: {
           select: {
             displayName: true,
@@ -775,7 +782,9 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
       id: row.squadMatchId,
       pubgMatchId: row.pubgMatchId,
       gameMode: row.gameMode,
+      matchType: row.matchType,
       mapName: row.mapName,
+      durationSeconds: row.durationSeconds !== null && Number(row.durationSeconds) > 0 ? Number(row.durationSeconds) : null,
       clanTag,
       otherTrackedClans,
       // Classement de l'équipe mise en avant (une manche de tournoi réunit plusieurs équipes suivies).
@@ -793,6 +802,10 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
         assists: entry.assists,
         revives: entry.revives,
         placement: entry.placement,
+        // Mètres, API PUBG. Les distances de la télémétrie (memberStats) sont en centimètres et comptent le vol
+        // et le parachute : elles ne servent pas à l'affichage.
+        walkDistance: Math.round(entry.walkDistance),
+        rideDistance: Math.round(entry.rideDistance),
       })),
       /** Équipes du lobby, par classement final — bande de sélection des escouades. */
       teams: teams.map((team) => {
@@ -802,6 +815,11 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
           placement: team.placement,
           placementEstimated: team.placementEstimated,
           kills: team.kills,
+          // Secondes depuis le début du match (comme la chronologie) ; `null` : équipe en vie à la fin.
+          eliminatedAt:
+            team.eliminatedAtEpoch !== null
+              ? Math.max(0, Math.round(team.eliminatedAtEpoch - row.createdAt.getTime() / 1000))
+              : null,
           tag: trackedClan?.tag ?? team.tag,
           clanName: trackedClan?.name ?? null,
           trackedClanId: trackedClan?.id ?? null,

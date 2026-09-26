@@ -56,6 +56,44 @@ describe('listMatchTeams', () => {
     expect(teams.map((team) => team.teamId)).toEqual([1, 4, 3, 2])
   })
 
+  it('ne classe pas « en vie à la fin » une équipe partie avant l’avion quand le lobby a son classement de fin', () => {
+    // Cas réel du 2026-09-26 : deux équipes sans classement ni mort passaient #1 estimé, à côté du vainqueur.
+    const teams = listMatchTeams({
+      memberStats: [
+        { memberKey: 'account.win', teamId: 1, teamPlacement: 1, kills: 5 },
+        { memberKey: 'account.second', teamId: 2, teamPlacement: 2, kills: 1 },
+        { memberKey: 'account.leaver', teamId: 3, kills: 0 },
+      ],
+      positionSamples: [],
+      identities: {},
+      deathSamples: [{ memberKey: 'account.second', teamId: 2, timestampSeconds: 1_790_437_000 }],
+    })
+
+    const byTeam = new Map(teams.map((team) => [team.teamId, team]))
+    expect(byTeam.get(3)).toMatchObject({ placement: null, placementEstimated: false, eliminatedAtEpoch: null })
+    expect(teams.filter((team) => team.placement === 1)).toHaveLength(1)
+    expect(teams.at(-1)?.teamId).toBe(3)
+  })
+
+  it('date l’élimination d’une équipe à la mort de son dernier joueur', () => {
+    const teams = listMatchTeams({
+      memberStats: [
+        { memberKey: 'account.a', teamId: 1, teamPlacement: 3, kills: 0 },
+        { memberKey: 'account.b', teamId: 1, teamPlacement: 3, kills: 0 },
+        { memberKey: 'account.c', teamId: 2, teamPlacement: 1, kills: 2 },
+      ],
+      positionSamples: [],
+      identities: {},
+      deathSamples: [
+        { memberKey: 'account.a', teamId: 1, timestampSeconds: 400 },
+        { memberKey: 'account.b', teamId: 1, timestampSeconds: 650 },
+      ],
+    })
+    const byTeam = new Map(teams.map((team) => [team.teamId, team]))
+    expect(byTeam.get(1)?.eliminatedAtEpoch).toBe(650)
+    expect(byTeam.get(2)?.eliminatedAtEpoch).toBeNull()
+  })
+
   it('reprend l’équipe des positions quand memberStats ne la porte pas', () => {
     const index = buildTeamIndex([{ memberKey: 'Account.X' }], [{ memberKey: 'account.x', teamId: 12 }])
     expect(index.get('account.x')).toBe(12)

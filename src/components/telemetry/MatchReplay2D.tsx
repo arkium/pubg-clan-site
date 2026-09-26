@@ -2,9 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Crosshair,
   Focus,
-  Gauge,
   HeartHandshake,
   Package,
   Pause,
@@ -15,7 +13,6 @@ import {
   Route,
   ShieldAlert,
   Skull,
-  Target,
   Users,
 } from 'lucide-react'
 
@@ -471,9 +468,12 @@ export function MatchReplay2D({
   data: rawData,
   focusTeamId = null,
   focusTag = null,
+  startAt = null,
   className = '',
 }: {
   data: MatchReplayData
+  /** « Voir dans le replay » depuis la chronologie : instant à atteindre ; `key` change à chaque demande. */
+  startAt?: { seconds: number; key: number } | null
   /** Équipe choisie dans la bande des escouades du débriefing ; `null` = escouade du clan consulté. */
   focusTeamId?: number | null
   focusTag?: string | null
@@ -1364,6 +1364,16 @@ export function MatchReplay2D({
     setDisplaySeconds(Math.floor(timeRef.current))
   }
 
+  // Positionnement demandé de l'extérieur (chronologie) : la lecture reste en pause à cet instant.
+  const startAtKey = startAt?.key ?? null
+  const startAtSeconds = startAt?.seconds ?? null
+  useEffect(() => {
+    if (startAtKey === null || startAtSeconds === null) return
+    timeRef.current = Math.max(0, Math.min(duration, startAtSeconds))
+    if (scrubberRef.current) scrubberRef.current.value = String(timeRef.current)
+    setDisplaySeconds(Math.floor(timeRef.current))
+  }, [startAtKey, startAtSeconds, duration])
+
   function resetCamera() {
     cameraRef.current = { cx: 0.5, cy: 0.5, zoom: MIN_ZOOM }
     followRef.current = null
@@ -1427,363 +1437,345 @@ export function MatchReplay2D({
     },
   ]
 
+  const visibilityOptions: Array<{ value: VisibilityMode; label: string; title?: string }> = [
+    {
+      value: 'squad',
+      label: data.match.clanTag ? `Escouade [${data.match.clanTag}]` : 'Escouade',
+      title: 'Escouade analysée et adversaires au contact direct',
+    },
+    ...(hasTrackedClans
+      ? [{ value: 'tracked' as const, label: 'Clans suivis', title: `Clans suivis présents : ${data.match.trackedClanTags.join(', ')}` }]
+      : []),
+    { value: 'all', label: `Global (${data.match.totalPlayers})` },
+  ]
+
   return (
-    <div className={`flex flex-col gap-3 ${className}`} ref={containerRef}>
-      {/* --- Barre de transport --- */}
-      <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-        <button
-          type="button"
-          onClick={togglePlay}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 text-sm font-bold transition-colors"
-        >
-          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          {playing ? 'Pause' : 'Lecture'}
-        </button>
-
-        <div className="font-mono text-lg font-black text-white tabular-nums">
-          {formatClock(displaySeconds)}
-          <span className="ml-1 text-xs font-semibold text-slate-400">/ {formatClock(duration)}</span>
-        </div>
-
-        <input
-          ref={scrubberRef}
-          type="range"
-          min={0}
-          max={duration}
-          step={0.1}
-          defaultValue={0}
-          onChange={(event) => seekTo(Number(event.target.value))}
-          className="flex-1 min-w-[180px] accent-amber-500"
-          aria-label="Position dans le match"
-        />
-
-        <div className="inline-flex items-center rounded-lg p-0.5 bg-slate-950 border border-slate-800">
-          <Gauge className="w-3.5 h-3.5 mx-1.5 text-slate-400" />
-          {SPEEDS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => changeSpeed(value)}
-              className={`px-2 py-1 rounded-md text-xs font-mono font-bold transition-colors ${
-                speed === value ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              ×{value}
-            </button>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => seekTo(0)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Début
-        </button>
-      </div>
-
-      {/* --- Filtres de visibilité --- */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-        <div className="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800 text-xs sm:text-sm">
-          <button
-            type="button"
-            onClick={() => changeVisibility('squad')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
-              visibility === 'squad'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                : 'text-slate-400 hover:text-slate-200'
+    <div
+      className={`grid items-start gap-3.5 lg:[grid-template-columns:minmax(0,1fr)_300px] ${className}`}
+      ref={containerRef}
+    >
+      <div className="flex min-w-0 flex-col gap-2.5">
+        {/* --- Canevas (toujours sombre : c'est la carte) --- */}
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={() => {
+              dragRef.current = null
+              setDragging(false)
+            }}
+            aria-label="Replay 2D de la partie"
+            className={`app-panel aspect-square w-full touch-none select-none bg-slate-950 p-0 ${
+              zoom > MIN_ZOOM ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'
             }`}
-            title="Escouade du clan et adversaires au contact direct"
-          >
-            Escouade {data.match.clanTag ? `[${data.match.clanTag}]` : ''}
-          </button>
-          {hasTrackedClans && (
-            <button
-              type="button"
-              onClick={() => changeVisibility('tracked')}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
-                visibility === 'tracked'
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title={`Clans suivis présents : ${data.match.trackedClanTags.join(', ')}`}
-            >
-              Clans suivis
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => changeVisibility('all')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
-              visibility === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Global ({data.match.totalPlayers})
-          </button>
-        </div>
+          />
 
-        <div className="flex items-center gap-3 text-xs font-semibold text-slate-300">
-          <span className="inline-flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-emerald-400" />
-            {aliveSquadCount}/{squadPlayers.length} en vie
-          </span>
-          {zoneAtCurrentTime && (
-            <>
-              <span className="text-slate-600">•</span>
-              <span className="font-mono">Phase {Math.max(1, currentPhase)}</span>
-              <span className="text-slate-600">•</span>
-              <span className="font-mono">
-                {zoneAtCurrentTime.alive} joueurs · {zoneAtCurrentTime.teams} équipes
+          <div className="absolute left-3 top-3 z-30 flex max-w-[calc(100%-12rem)] flex-col items-start gap-2">
+            <div className="flex gap-1.5">
+              <span className="rounded-lg bg-slate-950/75 px-2.5 py-1 text-[13px] font-bold tabular-nums text-white">
+                {formatClock(displaySeconds)}
               </span>
-            </>
+              {currentPhase > 0 && (
+                <span className="rounded-lg bg-slate-950/75 px-2.5 py-1 text-xs font-bold text-sky-200">Phase {currentPhase}</span>
+              )}
+            </div>
+
+            {flight && heading !== null && layers.aircraft && (
+              <div className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950/80 px-3 text-xs font-semibold text-white shadow-lg backdrop-blur">
+                {/* L'icône Lucide pointe nativement au nord-est (45°). */}
+                <Plane
+                  className="h-4 w-4 shrink-0 text-sky-300"
+                  style={{ transform: `rotate(${heading - 45}deg)` }}
+                  aria-hidden="true"
+                />
+                <span className="whitespace-nowrap tabular-nums">
+                  Cap C-130 : {String(heading).padStart(3, '0')}° {compassCardinal(heading)}
+                </span>
+                {flight.source === 'landings' ? (
+                  <span
+                    className="whitespace-nowrap rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200"
+                    title="Cet axe est déduit des points d’atterrissage : l’appareil n’a pas été suivi directement."
+                  >
+                    axe estimé
+                  </span>
+                ) : null}
+                {aircraftInFlight && jumpers.length > 0 && (
+                  <span className="hidden whitespace-nowrap tabular-nums text-slate-400 sm:inline">
+                    · {jumpedCount}/{jumpers.length} sautés
+                  </span>
+                )}
+              </div>
+            )}
+
+            {activeRecall && activeRecallHeading !== null && layers.aircraft && (
+              <div className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-950/80 px-3 text-xs font-semibold text-amber-100 shadow-lg backdrop-blur">
+                <Plane
+                  className="h-4 w-4 shrink-0 text-amber-300"
+                  style={{ transform: `rotate(${activeRecallHeading - 45}deg)` }}
+                  aria-hidden="true"
+                />
+                <span className="whitespace-nowrap tabular-nums">
+                  Avion de rappel : {String(activeRecallHeading).padStart(3, '0')}° {compassCardinal(activeRecallHeading)}
+                </span>
+                <span className="hidden whitespace-nowrap tabular-nums text-amber-200/70 sm:inline">
+                  · {activeRecall.riders} rappelé{activeRecall.riders > 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+
+            {layers.crates && landedCrates.length > 0 && (
+              <div className="hidden h-8 items-center gap-2 rounded-lg bg-slate-950/70 px-2.5 text-[11px] font-semibold text-slate-300 backdrop-blur sm:inline-flex">
+                <Package className="h-3.5 w-3.5 text-rose-400" aria-hidden="true" />
+                <span className="whitespace-nowrap tabular-nums">{crateSummaryLabel(landedCrates, displaySeconds)}</span>
+              </div>
+            )}
+
+            {mapUnavailable && (
+              <div className="rounded-lg bg-rose-950/80 px-3 py-1.5 text-xs font-semibold text-rose-200">
+                Fond de carte indisponible pour « {data.match.mapName} » — grille de repli affichée
+              </div>
+            )}
+          </div>
+
+          <MapZoomControl zoom={zoom} max={MAX_ZOOM} onZoomChange={(next) => applyZoom(next)} onReset={resetCamera} />
+
+          {/* Journal de combat flottant */}
+          {killFeed.length > 0 && (
+            <div className="absolute bottom-3 left-3 flex max-w-[70%] flex-col gap-1">
+              {killFeed.map((event) => {
+                const actor = event.a !== null ? playersByIndex[event.a] : null
+                const victim = event.v !== null ? playersByIndex[event.v] : null
+                return (
+                  <div
+                    key={event.id}
+                    className="inline-flex items-center gap-2 rounded-lg bg-slate-950/85 px-2.5 py-1 text-[11px] font-semibold text-slate-200 backdrop-blur-sm"
+                  >
+                    <span className="tabular-nums text-slate-400">{formatClock(event.t)}</span>
+                    {event.k === 'kill' && <Skull className="h-3.5 w-3.5 shrink-0 text-rose-400" aria-label="Kill" />}
+                    {event.k === 'knock' && <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-label="Mise à terre" />}
+                    {event.k === 'revive' && (
+                      <HeartHandshake className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-label="Réanimation" />
+                    )}
+                    {event.k === 'recall' && <Plane className="h-3.5 w-3.5 shrink-0 text-sky-400" aria-label="Rappel" />}
+
+                    {event.k === 'recall' ? (
+                      <>
+                        <span style={{ color: actor ? colorOf(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
+                        <span className="text-sky-300">revient par rappel</span>
+                      </>
+                    ) : event.k === 'kill' && !actor ? (
+                      <>
+                        <span style={{ color: victim ? colorOf(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
+                        <span className="text-rose-300">éliminé</span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ color: actor ? colorOf(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
+                        <span className={event.k === 'revive' ? 'text-emerald-300' : 'text-slate-400'}>
+                          {event.k === 'revive' ? 'réanime' : '→'}
+                        </span>
+                        <span style={{ color: victim ? colorOf(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
+                      </>
+                    )}
+                    {event.w && <span className="text-slate-400">{weaponLabel(event.w)}</span>}
+                    {event.dist !== null && event.dist > 0 && <span className="tabular-nums text-slate-400">{event.dist} m</span>}
+                    {event.hs && <span className="font-bold text-amber-300">Tête</span>}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
-      </div>
 
-      {/* --- Calques & accès rapide aux phases --- */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-bold uppercase tracking-wider text-slate-400">Calques</span>
-          {layerToggles
-            .filter((toggle) => !toggle.hidden)
-            .map((toggle) => (
+        {/* --- Barre de lecture, sous la carte : elle reste visible pendant la lecture --- */}
+        <div className="app-panel flex flex-wrap items-center gap-3 px-3 py-2.5">
+          <button
+            type="button"
+            onClick={togglePlay}
+            aria-label={playing ? 'Pause' : 'Lecture'}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] text-white"
+            style={{ background: 'var(--theme-ui-accent)' }}
+          >
+            {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
+          </button>
+          <span className="text-[13px] font-bold tabular-nums">
+            {formatClock(displaySeconds)} <span className="font-medium text-gray-500">/ {formatClock(duration)}</span>
+          </span>
+          <input
+            ref={scrubberRef}
+            type="range"
+            min={0}
+            max={duration}
+            step={0.1}
+            defaultValue={0}
+            onChange={(event) => seekTo(Number(event.target.value))}
+            className="min-w-[140px] flex-1"
+            style={{ accentColor: 'var(--theme-ui-accent)' }}
+            aria-label="Position dans le match"
+          />
+          <div className="debrief-seg" role="group" aria-label="Vitesse de lecture">
+            {SPEEDS.map((value) => (
               <button
-                key={toggle.key}
+                key={value}
                 type="button"
-                aria-pressed={toggle.disabledReason ? false : layers[toggle.key]}
-                disabled={Boolean(toggle.disabledReason)}
-                title={toggle.disabledReason}
-                onClick={() => toggleLayer(toggle.key)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  layers[toggle.key] && !toggle.disabledReason
-                    ? 'bg-sky-500/15 border-sky-500/40 text-sky-200'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
+                aria-pressed={speed === value}
+                onClick={() => changeSpeed(value)}
+                className="!h-[26px] !px-2 !text-xs"
               >
-                {toggle.icon}
-                {toggle.label}
-              </button>
-            ))}
-        </div>
-
-        {(phaseStarts.length > 0 || flightTiming || recallFlights.length > 0) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-bold uppercase tracking-wider text-slate-400">Aller à</span>
-            {flightTiming && (
-              <button
-                type="button"
-                onClick={() => seekTo(Math.max(0, Math.floor(flightTiming.startT)))}
-                className={`px-2.5 py-1 rounded-md border text-xs font-bold transition-colors ${
-                  aircraftInFlight
-                    ? 'bg-sky-500/15 border-sky-500/40 text-sky-200'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white'
-                }`}
-                title="Passage de l'avion au-dessus de la carte"
-              >
-                Largage
-              </button>
-            )}
-            {recallFlights.map((recall, index) => (
-              <button
-                key={`recall-${recall.timing.startT}`}
-                type="button"
-                onClick={() => seekTo(Math.max(0, Math.floor(recall.timing.startT)))}
-                className={`px-2 py-1 rounded-md border text-xs font-mono font-bold transition-colors ${
-                  activeRecall === recall
-                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white'
-                }`}
-                title={`Avion de rappel n°${index + 1} — survol ${formatClock(recall.timing.startT)} → ${formatClock(recall.timing.endT)}, ${recall.riders} joueur(s) rappelé(s)`}
-              >
-                R{index + 1}
-              </button>
-            ))}
-            {phaseStarts.map(({ phase, t }) => (
-              <button
-                key={phase}
-                type="button"
-                onClick={() => seekTo(t)}
-                className={`px-2 py-1 rounded-md border text-xs font-mono font-bold transition-colors ${
-                  currentPhase === phase
-                    ? 'bg-blue-600 border-blue-500 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white'
-                }`}
-                title={`Début de la phase ${phase} (${formatClock(t)})`}
-              >
-                P{phase}
+                ×{String(value).replace('.', ',')}
               </button>
             ))}
           </div>
-        )}
+          <button
+            type="button"
+            onClick={() => seekTo(0)}
+            className="debrief-icon-btn h-[30px] w-[30px]"
+            aria-label="Revenir au début"
+            title="Revenir au début"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      {/* --- Canevas --- */}
-      <div className="relative">
-        <canvas
-          ref={canvasRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={() => {
-            dragRef.current = null
-            setDragging(false)
-          }}
-          className={`w-full aspect-square rounded-2xl border-2 border-slate-800 bg-slate-950 shadow-2xl touch-none select-none ${
-            zoom > MIN_ZOOM ? (dragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'
-          }`}
-        />
-
-        <div className="absolute left-3 top-3 z-30 flex max-w-[calc(100%-12rem)] flex-col items-start gap-2">
-          {flight && heading !== null && layers.aircraft && (
-            <div className="inline-flex h-10 items-center gap-2 rounded border border-white/25 bg-slate-950/80 px-3 text-xs font-semibold text-white shadow-lg backdrop-blur">
-              {/* L'icône Lucide pointe nativement au nord-est (45°). */}
-              <Plane
-                className="h-4 w-4 shrink-0 text-sky-300"
-                style={{ transform: `rotate(${heading - 45}deg)` }}
-                aria-hidden="true"
-              />
-              <span className="font-mono tabular-nums whitespace-nowrap">
-                Cap C-130 : {String(heading).padStart(3, '0')}° {compassCardinal(heading)}
+      {/* --- Panneau latéral (sous la carte sur mobile) --- */}
+      <aside className="flex flex-col gap-3" aria-label="Réglages du replay">
+        <div className="app-panel flex flex-col gap-2 p-3">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Joueurs affichés</span>
+          <div className="debrief-seg flex-wrap" role="group" aria-label="Joueurs affichés">
+            {visibilityOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={visibility === option.value}
+                onClick={() => changeVisibility(option.value)}
+                title={option.title}
+                className="!px-2.5 !text-xs"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className="flex flex-wrap gap-x-2 text-xs text-gray-500">
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" aria-hidden="true" />
+              {aliveSquadCount}/{squadPlayers.length} en vie
+            </span>
+            {zoneAtCurrentTime && (
+              <span className="tabular-nums">
+                · {zoneAtCurrentTime.alive} joueurs · {zoneAtCurrentTime.teams} équipes
               </span>
-              {flight.source === 'landings' ? (
-                <span
-                  className="whitespace-nowrap rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200"
-                  title="Cet axe est déduit des points d’atterrissage : l’appareil n’a pas été suivi directement."
-                >
-                  axe estimé
-                </span>
-              ) : null}
-              {aircraftInFlight && jumpers.length > 0 && (
-                <span className="hidden sm:inline font-mono tabular-nums text-slate-400 whitespace-nowrap">
-                  · {jumpedCount}/{jumpers.length} sautés
-                </span>
-              )}
-            </div>
-          )}
-
-          {activeRecall && activeRecallHeading !== null && layers.aircraft && (
-            <div className="inline-flex h-10 items-center gap-2 rounded border border-amber-400/40 bg-slate-950/80 px-3 text-xs font-semibold text-amber-100 shadow-lg backdrop-blur">
-              <Plane
-                className="h-4 w-4 shrink-0 text-amber-300"
-                style={{ transform: `rotate(${activeRecallHeading - 45}deg)` }}
-                aria-hidden="true"
-              />
-              <span className="font-mono tabular-nums whitespace-nowrap">
-                Avion de rappel : {String(activeRecallHeading).padStart(3, '0')}° {compassCardinal(activeRecallHeading)}
-              </span>
-              <span className="hidden sm:inline font-mono tabular-nums text-amber-200/70 whitespace-nowrap">
-                · {activeRecall.riders} rappelé{activeRecall.riders > 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
-
-          {layers.crates && landedCrates.length > 0 && (
-            <div className="hidden sm:inline-flex h-8 items-center gap-2 rounded border border-white/15 bg-slate-950/70 px-2.5 text-[11px] font-semibold text-slate-300 backdrop-blur">
-              <Package className="h-3.5 w-3.5 text-rose-400" aria-hidden="true" />
-              <span className="font-mono tabular-nums whitespace-nowrap">{crateSummaryLabel(landedCrates, displaySeconds)}</span>
-            </div>
-          )}
-
-          {mapUnavailable && (
-            <div className="px-3 py-1.5 rounded-lg bg-rose-950/80 border border-rose-800 text-xs font-semibold text-rose-300">
-              Fond de carte indisponible pour « {data.match.mapName} » — grille de repli affichée
-            </div>
-          )}
+            )}
+          </p>
         </div>
 
-        <MapZoomControl zoom={zoom} max={MAX_ZOOM} onZoomChange={(next) => applyZoom(next)} onReset={resetCamera} />
-
-        {/* Journal de combat flottant */}
-        {killFeed.length > 0 && (
-          <div className="absolute left-3 bottom-3 flex flex-col gap-1 max-w-[70%]">
-            {killFeed.map((event) => {
-              const actor = event.a !== null ? playersByIndex[event.a] : null
-              const victim = event.v !== null ? playersByIndex[event.v] : null
+        <div className="app-panel flex flex-col gap-2 p-3">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+            <Focus className="h-3.5 w-3.5" aria-hidden="true" /> Suivi caméra
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {squadPlayers.map((player) => {
+              const isDead = isDeadAt(player, displaySeconds)
               return (
-                <div
-                  key={event.id}
-                  className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-950/85 border border-slate-800 text-[11px] font-semibold text-slate-200 backdrop-blur-sm"
+                <button
+                  key={player.key}
+                  type="button"
+                  aria-pressed={follow === player.i}
+                  onClick={() => toggleFollow(player.i)}
+                  title={
+                    player.aff === 2
+                      ? `${player.n} — membre ${data.match.clanTag ? `[${data.match.clanTag}]` : 'du clan'}`
+                      : `${player.n} — coéquipier${player.t ? ` [${player.t}]` : ''}, hors clan`
+                  }
+                  className={`debrief-chip font-semibold ${isDead ? 'opacity-50' : ''}`}
+                  style={{ color: follow === player.i ? undefined : 'var(--theme-ui-text)' }}
                 >
-                  <span className="font-mono text-slate-500">{formatClock(event.t)}</span>
-                  {event.k === 'kill' && <Skull className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
-                  {event.k === 'knock' && (
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  )}
-                  {event.k === 'revive' && (
-                    <HeartHandshake className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  )}
-                  {event.k === 'recall' && <Plane className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-
-                  {event.k === 'recall' ? (
-                    <>
-                      <span style={{ color: actor ? colorOf(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
-                      <span className="text-sky-300">revient par rappel</span>
-                    </>
-                  ) : event.k === 'kill' && !actor ? (
-                    <>
-                      <span style={{ color: victim ? colorOf(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
-                      <span className="text-rose-300">éliminé</span>
-                    </>
+                  {isDead ? (
+                    <Skull className="h-3 w-3" aria-label="Éliminé" />
                   ) : (
-                    <>
-                      <span style={{ color: actor ? colorOf(actor) : '#94a3b8' }}>{actor?.n ?? '—'}</span>
-                      <span className={event.k === 'revive' ? 'text-emerald-300' : 'text-slate-500'}>
-                        {event.k === 'revive' ? 'réanime' : '→'}
-                      </span>
-                      <span style={{ color: victim ? colorOf(victim) : '#94a3b8' }}>{victim?.n ?? '—'}</span>
-                    </>
+                    <span className="h-2 w-2 rounded-full" style={{ background: colorOf(player) }} aria-hidden="true" />
                   )}
-                  {event.w && <span className="text-slate-400 font-mono">{weaponLabel(event.w)}</span>}
-                  {event.dist !== null && event.dist > 0 && (
-                    <span className="text-slate-500 font-mono">{event.dist} m</span>
-                  )}
-                  {event.hs && <Target className="w-3 h-3 text-rose-300" />}
-                </div>
+                  {player.n}
+                </button>
               )
             })}
           </div>
-        )}
-      </div>
-
-      {/* --- Roster de l'escouade avec suivi caméra --- */}
-      <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-        <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-          <Focus className="w-3.5 h-3.5 text-cyan-400" /> Suivi caméra
-        </span>
-        {squadPlayers.map((player) => {
-          const isDead = isDeadAt(player, displaySeconds)
-          return (
-            <button
-              key={player.key}
-              type="button"
-              onClick={() => toggleFollow(player.i)}
-              title={
-                player.aff === 2
-                  ? `${player.n} — membre ${data.match.clanTag ? `[${data.match.clanTag}]` : 'du clan'}`
-                  : `${player.n} — coéquipier${player.t ? ` [${player.t}]` : ''}, hors clan`
-              }
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors ${
-                follow === player.i
-                  ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-200'
-                  : 'bg-slate-950 border-slate-800 hover:text-white'
-              } ${isDead ? 'opacity-50' : ''}`}
-              style={follow === player.i ? undefined : { color: colorOf(player) }}
-            >
-              {isDead ? <Skull className="w-3.5 h-3.5" /> : <Crosshair className="w-3.5 h-3.5" />}
-              {player.n}
+          {follow !== null && (
+            <button type="button" onClick={resetCamera} className="self-start text-xs font-semibold hover:underline" style={{ color: 'var(--debrief-link)' }}>
+              Libérer la caméra
             </button>
-          )
-        })}
-        {follow !== null && (
-          <button
-            type="button"
-            onClick={resetCamera}
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition-colors"
-          >
-            Libérer la caméra
-          </button>
+          )}
+        </div>
+
+        <div className="app-panel flex flex-col gap-1 p-3">
+          <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Calques</span>
+          {layerToggles
+            .filter((toggle) => !toggle.hidden)
+            .map((toggle) => {
+              const on = !toggle.disabledReason && layers[toggle.key]
+              return (
+                <button
+                  key={toggle.key}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  disabled={Boolean(toggle.disabledReason)}
+                  title={toggle.disabledReason}
+                  onClick={() => toggleLayer(toggle.key)}
+                  className="flex min-h-8 items-center gap-2.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="debrief-switch" aria-hidden="true" />
+                  {toggle.label}
+                </button>
+              )
+            })}
+        </div>
+
+        {(phaseStarts.length > 0 || flightTiming || recallFlights.length > 0) && (
+          <div className="app-panel flex flex-col gap-2 p-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Aller à</span>
+            <div className="flex flex-wrap gap-1.5">
+              {flightTiming && (
+                <button
+                  type="button"
+                  aria-pressed={aircraftInFlight}
+                  onClick={() => seekTo(Math.max(0, Math.floor(flightTiming.startT)))}
+                  className="debrief-chip !h-7 !rounded-lg"
+                  title="Passage de l'avion au-dessus de la carte"
+                >
+                  Avion
+                </button>
+              )}
+              {recallFlights.map((recall, index) => (
+                <button
+                  key={`recall-${recall.timing.startT}`}
+                  type="button"
+                  aria-pressed={activeRecall === recall}
+                  onClick={() => seekTo(Math.max(0, Math.floor(recall.timing.startT)))}
+                  className="debrief-chip !h-7 !rounded-lg"
+                  title={`Avion de rappel n°${index + 1} — survol ${formatClock(recall.timing.startT)} → ${formatClock(recall.timing.endT)}, ${recall.riders} joueur(s) rappelé(s)`}
+                >
+                  Rappel n°{index + 1}
+                </button>
+              ))}
+              {phaseStarts.map(({ phase, t }) => (
+                <button
+                  key={phase}
+                  type="button"
+                  aria-pressed={currentPhase === phase}
+                  onClick={() => seekTo(t)}
+                  className="debrief-chip !h-7 !rounded-lg tabular-nums"
+                  title={`Début de la phase ${phase} (${formatClock(t)})`}
+                >
+                  P{phase}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
-      </div>
+      </aside>
     </div>
   )
 }

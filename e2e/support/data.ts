@@ -372,3 +372,99 @@ export function homeShowcase(): HomeShowcasePayload {
     ],
   }
 }
+
+/** Débriefing d'une partie (`GET /api/clans/1/matches/<id>/telemetry`) : 9 équipes, escouade [ALFA] + un coéquipier. */
+export const DEBRIEF_MATCH_ID = 'match-debrief-1'
+const DEBRIEF_START = Date.parse('2026-09-21T20:00:00.000Z') / 1000
+
+export function debriefTelemetry(teamId: number | null = null) {
+  const focusTeam = teamId ?? 1
+  const teams = Array.from({ length: 9 }, (_, index) => ({
+    teamId: index + 1,
+    placement: index + 1,
+    placementEstimated: false,
+    kills: 12 - index,
+    eliminatedAt: index === 0 ? null : 1600 - index * 150,
+    tag: index === 0 ? 'ALFA' : `T${index + 1}`,
+    clanName: index === 0 ? 'Clan ALFA' : null,
+    trackedClanId: index === 0 ? CLAN_ID : null,
+    players: [`${CALLSIGNS[index]} 1`, `${CALLSIGNS[index]} 2`],
+  }))
+  const combat = (id: string, type: string, t: number, phase: number, extra: Record<string, unknown>) => ({
+    id,
+    type,
+    timestamp: t,
+    phaseNumber: phase,
+    actorAffiliation: 'external',
+    targetAffiliation: 'external',
+    ...extra,
+  })
+  return {
+    ok: true,
+    data: {
+      match: {
+        id: DEBRIEF_MATCH_ID,
+        pubgMatchId: 'pubg-debrief-1',
+        gameMode: 'squad-fpp',
+        matchType: 'official',
+        mapName: 'Baltic_Main',
+        durationSeconds: 1632,
+        placement: focusTeam,
+        createdAt: new Date(DEBRIEF_START * 1000).toISOString(),
+        members: [
+          { memberId: 1, displayName: 'Joueur Alpha', kills: 5, damage: 812, assists: 2, revives: 1, placement: 1, walkDistance: 2410, rideDistance: 0 },
+          { memberId: 2, displayName: 'Joueur Bravo', kills: 2, damage: 431, assists: 1, revives: 0, placement: 1, walkDistance: 1980, rideDistance: 3300 },
+        ],
+        clanTag: 'ALFA',
+        otherTrackedClans: [],
+        teams,
+        focus: { teamId: focusTeam, clanId: CLAN_ID, tag: 'ALFA', clanName: 'Clan ALFA' },
+      },
+      telemetry: {
+        status: 'success',
+        weaponStats: [{ weaponName: 'WeapHK416_C', kills: 4, damageDealt: 620, shotsFired: 120, hitsLanded: 40 }],
+        memberStats: [
+          { memberKey: 'account.alpha', weapons: [{ shotsFired: 100, hitsLanded: 30 }], damageTaken: 250 },
+          { memberKey: 'account.mate', weapons: [{ shotsFired: 40, hitsLanded: 8 }], damageTaken: 180 },
+        ],
+        phaseSnapshots: [
+          { isGame: 0.1, timestampSeconds: 10, numAliveTeams: 26 },
+          { isGame: 1, timestampSeconds: 120, numAliveTeams: 26 },
+          { isGame: 2, timestampSeconds: 480, numAliveTeams: 20 },
+        ],
+        squadBodyZones: {
+          available: true,
+          dealt: [
+            { zone: 'head', hits: 4, damage: 220 },
+            { zone: 'torso', hits: 11, damage: 480 },
+          ],
+          taken: [{ zone: 'legs', hits: 3, damage: 90 }],
+        },
+      },
+      combatEvents: [
+        combat('e1', 'knock', 95, 1, { actorName: 'Joueur Alpha', actorAffiliation: 'current_clan', isSquadActor: true, targetName: 'Rival Un', distanceMeters: 42 }),
+        combat('e2', 'kill', 130, 1, {
+          actorName: 'Joueur Alpha', actorAffiliation: 'current_clan', isSquadActor: true, targetName: 'Rival Un', targetClanTag: 'RIV',
+          weaponName: 'WeapHK416_C', damageReason: 'HeadShot', distanceMeters: 42,
+        }),
+        combat('e3', 'kill', 500, 2, { actorName: 'Rival Deux', targetName: 'Joueur Bravo', targetAffiliation: 'current_clan', isSquadTarget: true, weaponName: 'WeapAWM_C', distanceMeters: 310 }),
+        combat('e4', 'kill', 520, 2, { actorName: 'Rival Trois', targetName: 'Rival Quatre', weaponName: 'WeapM16A4_C', distanceMeters: 60 }),
+        combat('e5', 'recall', 700, 2, { actorName: 'Joueur Bravo', actorAffiliation: 'current_clan', isSquadActor: true, targetName: '' }),
+      ],
+      killEvents: [
+        { id: 'k1', killerName: 'Joueur Alpha', victimName: 'Rival Un', victimClanTag: 'RIV', killerClanTag: 'ALFA', damageCauser: 'WeapHK416_C', distance: 42, headshot: true, timestampSeconds: DEBRIEF_START + 130, isClanKill: true, isClanVictim: false, isSquadKill: true, isSquadVictim: false, source: 'sync' },
+        { id: 'k2', killerName: 'Rival Deux', victimName: 'Joueur Bravo', victimClanTag: 'ALFA', killerClanTag: null, damageCauser: 'WeapAWM_C', distance: 310, headshot: false, timestampSeconds: DEBRIEF_START + 500, isClanKill: false, isClanVictim: true, isSquadKill: false, isSquadVictim: true, source: 'telemetry' },
+      ],
+      throwableStats: [
+        { memberId: 1, itemId: 'Item_Weapon_SmokeBomb_C', count: 2 },
+        { memberId: 1, itemId: 'Item_Weapon_Grenade_C', count: 1 },
+      ],
+      squadMates: [
+        { accountId: 'account.mate', name: 'Coéquipier Kilo', clanTag: 'KIL', teamId: 1, bot: false, kills: 1, damage: 264, knockouts: 1, revives: 1, recalls: 0, deaths: 0, headshots: 0, damageTaken: 180, trackedClan: null, pubgClanCheckedAt: null },
+      ],
+      killFeedAvailable: true,
+      weaponLabels: { WeapHK416_C: 'M416', WeapAWM_C: 'AWM' },
+      memberIdentityMap: { 'account.alpha': { name: 'Joueur Alpha', clanTag: 'ALFA', clanId: CLAN_ID } },
+    },
+  }
+}

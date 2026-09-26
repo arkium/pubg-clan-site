@@ -16,6 +16,11 @@ export type MatchTeamSummary = {
    */
   placementEstimated: boolean
   kills: number
+  /**
+   * Horodatage (celui de `deathSamples`, secondes epoch) de la mort du dernier joueur de l'équipe ; `null` si un
+   * joueur au moins n'est jamais mort (équipe en vie à la fin, ou partie quittée avant l'avion).
+   */
+  eliminatedAtEpoch: number | null
   players: Array<{ accountId: string; name: string }>
   /** Clans suivis présents dans l'équipe, du plus représenté au moins représenté. */
   trackedClanIds: number[]
@@ -80,6 +85,8 @@ export function listMatchTeams(input: {
   }
 
   const teams = new Map<number, MatchTeamSummary & { clanIds: number[]; tags: string[] }>()
+  // Classement de fin de partie lu dans la télémétrie (LogMatchEnd, parses depuis le 2026-09-16).
+  let hasTelemetryPlacement = false
   for (const row of parseRows(input.memberStats)) {
     const key = toKey(row.memberKey)
     const teamId = teamByKey.get(key)
@@ -92,6 +99,7 @@ export function listMatchTeams(input: {
         placement: null,
         placementEstimated: false,
         kills: 0,
+        eliminatedAtEpoch: null,
         players: [],
         trackedClanIds: [],
         tag: null,
@@ -100,6 +108,7 @@ export function listMatchTeams(input: {
       }
     teams.set(teamId, team)
 
+    if (toNumber(row.teamPlacement) > 0) hasTelemetryPlacement = true
     const placement = toNumber(row.teamPlacement) || toNumber(input.trackedPlacements?.[key])
     if (placement > 0 && (team.placement === null || placement < team.placement)) team.placement = placement
     team.kills += toNumber(row.kills)
@@ -131,10 +140,18 @@ export function listMatchTeams(input: {
       ? lastDeathByTeam.get(team.teamId) ?? 0
       : Number.POSITIVE_INFINITY
   const allTeams = Array.from(teams.values())
+  for (const team of allTeams) {
+    const time = eliminationTime(team)
+    team.eliminatedAtEpoch = Number.isFinite(time) && time > 0 ? time : null
+  }
   if (lastDeathByTeam.size > 0) {
     for (const team of allTeams) {
       if (team.placement !== null) continue
       const time = eliminationTime(team)
+      // Classement de fin connu pour le lobby, mais pas pour cette équipe, et aucun de ses joueurs n'est
+      // mort : elle n'était plus là à la fin (partie quittée avant l'avion). Sans cette garde, elle passait
+      // « en vie à la fin », donc #1 estimé, à côté du vrai vainqueur (constaté le 2026-09-26).
+      if (!Number.isFinite(time) && hasTelemetryPlacement) continue
       team.placement = 1 + allTeams.filter((other) => other !== team && eliminationTime(other) > time).length
       team.placementEstimated = true
     }

@@ -12,6 +12,8 @@ import {
   memberWeaponMastery,
   memberWeapons,
   homeShowcase,
+  debriefTelemetry,
+  DEBRIEF_MATCH_ID,
 } from './data'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
@@ -69,4 +71,12 @@ export function mockClansLeaderboard(api: ApiMock) {
 /** Vitrine publique de l'accueil : une seule API, publique. */
 export function mockHomeShowcase(api: ApiMock) {
   api.on('GET', '/api/home/showcase', { body: homeShowcase() })
+}
+
+/** Débriefing : l'équipe demandée (`?teamId=`) est renvoyée comme escouade analysée ; le replay est indisponible. */
+export function mockMatchDebrief(api: ApiMock) {
+  const base = `/api/clans/${CLAN_ID}/matches/${DEBRIEF_MATCH_ID}`
+  api
+    .on('GET', `${base}/telemetry`, (url) => ({ body: debriefTelemetry(Number(url.searchParams.get('teamId')) || null) }))
+    .on('GET', `${base}/replay`, { status: 404, body: { ok: false, error: { message: 'Replay indisponible pour ce match.' } } })
 }

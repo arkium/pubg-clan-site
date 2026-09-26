@@ -448,3 +448,19 @@ connu mais inactif accumulait une observation par nuit, sans fin.
 
 **Valider** (`approve`) un clan archivé est refusé (409) : cela réactiverait son ancien Owner et des promotions
 closes. La réactivation a sa propre action.
+
+## 13. Sous-domaine du clan
+
+Spec : [docs/TODO/chickendinnerfr.md](../TODO/chickendinnerfr.md). Chaque clan actif (hors clan système) reçoit un
+sous-domaine unique (`Clan.subdomain`) — `smk.chickendinner.fr` redirige vers sa vue d'ensemble.
+
+- **Attribution** (`src/lib/clan-subdomain-service.ts`, `ensureClanSubdomain`) : à la **validation** d'un clan
+  (`approve`), à la **création** d'un clan suivi depuis PUBG et à la **réactivation** d'un clan archivé. Jamais sur
+  un clan en attente. Elle ne fait jamais échouer l'activation : un oubli se rattrape par
+  `scripts/backfill-clan-subdomains.ts`.
+- **Règle** : le tag en minuscules s'il est valide, non réservé, libre et porté par ce seul clan actif ; sinon le
+  nom normalisé ; sinon un suffixe `-2`, `-3`… Deux clans actifs au même tag n'ont ni l'un ni l'autre le tag seul.
+- **Stabilité** : un changement de tag ou de nom ne modifie pas le sous-domaine. Un clan archivé garde le sien (il
+  redirige vers `/clans` tant que le clan n'est pas réactivé).
+- **Modification** : réservée au SuperUser, dans les paramètres du clan (« Adresse du clan »). L'ancien
+  sous-domaine est libéré immédiatement.

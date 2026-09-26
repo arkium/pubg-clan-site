@@ -30,7 +30,8 @@
 |---|---|---|
 | `APP_URL` | `https://clan.example.com` | Oui |
 | `NEXT_PUBLIC_APP_URL` | `https://clan.example.com` | Oui |
-| `INTERNAL_APP_URL` | `http://127.0.0.1:3000` | Oui (worker cron) |
+| `INTERNAL_APP_URL` | `http://127.0.0.1:3000` | Oui (worker cron ; lecture des sous-domaines par le proxy) |
+| `CLAN_SUBDOMAIN_ROOT` | `chickendinner.fr` | Non — absente, les sous-domaines de clan ne redirigent pas (voir « Sous-domaines de clan ») |
 | `AUTH_BOOTSTRAP_SECRET` | chaîne aléatoire longue | Oui |
 | `AUTH_ALLOW_LEGACY_ACTOR_ID` | `false` | Non (défaut `false`) |
 
@@ -295,6 +296,33 @@ L'application web écoute par défaut sur `127.0.0.1:3000`. En amont, Nginx gèr
 >     }
 > }
 > ```
+
+### Sous-domaines de clan (`<clan>.chickendinner.fr`)
+
+Spec : [docs/TODO/chickendinnerfr.md](../TODO/chickendinnerfr.md). Chaque clan actif a un sous-domaine
+(`Clan.subdomain`) qui **redirige** (307) vers sa vue d'ensemble ; un sous-domaine inconnu redirige vers `/clans`.
+Le DNS wildcard `*.chickendinner.fr` est déjà en place. Dans l'ordre :
+
+1. **Certificat wildcard** — Let's Encrypt ne le délivre que par validation DNS-01, avec le plugin `certbot` du
+   registrar :
+   ```bash
+   sudo certbot certonly --dns-<registrar> --dns-<registrar>-credentials /root/.secrets/<registrar>.ini      -d chickendinner.fr -d '*.chickendinner.fr'
+   sudo certbot renew --dry-run   # le renouvellement automatique doit passer
+   ```
+2. **Nginx** — le bloc HTTPS existant et le bloc HTTP de redirection vers HTTPS acceptent les sous-domaines :
+   ```nginx
+   server_name chickendinner.fr *.chickendinner.fr;
+   ssl_certificate     /etc/letsencrypt/live/chickendinner.fr/fullchain.pem;
+   ssl_certificate_key /etc/letsencrypt/live/chickendinner.fr/privkey.pem;
+   ```
+   Les en-têtes `Host` et `X-Forwarded-Proto` doivent rester transmis (bloc ci-dessus). Vérifier
+   `https://smk.chickendinner.fr` (certificat valide) avant l'étape suivante.
+3. **Variable** — `CLAN_SUBDOMAIN_ROOT=chickendinner.fr` dans le `.env` partagé, puis redémarrer le web.
+
+Le proxy ne lit jamais la base : il charge la table `sous-domaine → clan` depuis
+`GET /api/internal/clan-subdomains` (par `INTERNAL_APP_URL`) et la garde 5 minutes en mémoire. Un sous-domaine
+modifié par un SuperUser est donc actif sous 5 minutes. Rattrapage d'un clan actif sans sous-domaine :
+`npx tsx scripts/backfill-clan-subdomains.ts` (simulation), puis `--apply`.
 
 ---
 

@@ -106,6 +106,8 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Annuaire des joueurs](TODO/players.md) | Onglet « Joueurs » de `/settings/opponents` (implémenté le 2026-09-25) : statuts de suivi, filtres, mesures de coût, tests |
 | [Arrêt de suivi d'un clan](TODO/clan-archive.md) | Archivage d'un clan, même vide (implémenté le 2026-09-25) : sort des membres, réactivation, clans refusés, effets sur le cron et `/join` |
 | [Bandeaux collants et période](TODO/sticky.md) | Spec de cohérence des pages joueurs : bandeau `DockingToolbar` unique, contrôle de période partagé (« Tous », calendaire), inventaire et phases, tests et documentation — **implémentée le 2026-09-26** |
+| [Sous-domaine par clan](TODO/chickendinnerfr.md) | Spec : `<clan>.chickendinner.fr` redirige vers la vue d'ensemble du clan ; champ `Clan.subdomain` unique, certificat wildcard, redirection dans le proxy sans Prisma |
+| [Liens courts](TODO/url-masking.md) | Spec : `/m/<match>`, `/t/<tournoi>` et `/j/<joueur>` redirigent vers les adresses canoniques (cuid tel quel, sans migration) ; clan d'un match partagé ; liens des embeds Discord fabriqués par le cron |
 
 ---
 

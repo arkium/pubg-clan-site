@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#d9dde3;font-family:'Inter',system-ui,sans-serif;}
+a{color:#818cf8;text-decoration:none;}
+a:hover{color:#a5b4fc;text-decoration:underline;}
+</style>
+</helmet>
+
+<section data-screen-label="Tour 3" style="display:flex;flex-direction:column;gap:28px;padding:64px 64px 0;">
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:1500px;">
+    <p style="margin:0;font-size:14px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#64748b;">Tour 3 · proposition 2b en thème clair et sur mobile</p>
+    <p style="margin:0;font-size:17px;line-height:1.5;color:#334155;text-wrap:pretty;">Chaque écran est montré au repos et une fois le bandeau docké, en respectant <code>docs/TODO/sticky.md</code>. Sur ordinateur, le bandeau docké couvre toute la colonne sous le header, garde les contrôles seuls (sans titres, compteur ni note), a une bordure basse uniquement et reste aligné sur la grille de 64rem. Sur mobile (&lt; 640px), il ne garde que la période. Sur mobile, le tableau devient une liste compacte (<code>docs/ui/tables.md</code>) et le tri passe par une rangée de puces qui ne se docke pas.</p>
+  </div>
+  <div style="display:flex;gap:48px;align-items:flex-start;flex-wrap:wrap;">
+
+  <!-- 3a desktop clair repos -->
+  <div id="3a" style="display:flex;flex-direction:column;gap:14px;">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="background:#4f46e5;color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:4px 12px;">3a</span><span style="font-size:20px;font-weight:700;color:#0f172a;">Ordinateur · clair · au repos</span></div>
+    <div style="width:1280px;display:flex;background:#f8fafc;color:#0f172a;overflow:hidden;border-radius:6px;box-shadow:0 20px 50px -30px rgba(15,23,42,.45);">
+      <aside style="width:280px;flex-shrink:0;border-right:1px solid #e2e8f0;background:rgba(255,255,255,.95);display:flex;flex-direction:column;">
+        <div style="height:65px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:0 16px;">
+          <div style="display:inline-flex;gap:4px;border-radius:9999px;border:1px solid #e2e8f0;background:rgba(255,255,255,.9);padding:4px;box-shadow:0 1px 2px rgba(0,0,0,.05);">
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;background:#e0f2fe;color:#0369a1;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M10 4.25a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM9.25 1.5h1.5v2.25h-1.5V1.5Zm0 14.75h1.5V18.5h-1.5v-2.25ZM1.5 9.25h2.25v1.5H1.5v-1.5Zm14.75 0h2.25v1.5h-2.25v-1.5Zm-11.5-6.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm9.1 9.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm-9.1 1.59 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Zm9.1-9.1 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Z"></path></svg></span>
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;color:#64748b;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M13.8 3.2a7.25 7.25 0 1 0 3 13.7 7.6 7.6 0 0 1-3-13.7ZM10 15.5A5.5 5.5 0 1 1 10 4.5a6.75 6.75 0 0 0 0 11Z"></path></svg></span>
+          </div>
+          <span style="display:inline-block;width:20px;height:20px;background:#64748b;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;"></span>
+        </div>
+        <nav style="flex:1;padding:16px;display:grid;gap:4px;align-content:start;">
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:600;background:rgba(99,102,241,.08);color:#312e81;box-shadow:inset 2px 0 0 #6366f1;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:#6366f1;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;"></span>Les clans</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;"></span>Ligue</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;"></span>Comparateur</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;"></span>Tournois</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;"></span>Se connecter</a>
+        </nav>
+        <div style="border-top:1px solid #e2e8f0;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+          <span style="display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;box-shadow:inset 0 0 0 1px rgba(217,119,6,.4);">V</span>
+          <span style="flex:1;"><span style="display:block;font-size:13px;font-weight:600;">Visiteur</span><span style="display:block;font-size:12px;color:#64748b;">Lecture seule</span></span>
+          <a style="font-size:12px;font-weight:600;color:#4f46e5;">Connexion</a>
+        </div>
+      </aside>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+        <header style="border-bottom:1px solid #e2e8f0;background:rgba(255,255,255,.9);padding:12px 24px;display:flex;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid #e2e8f0;background:rgba(248,250,252,.5);padding:6px 12px;">
+            <img src="public/pubg.png" alt="" style="width:32px;height:32px;border-radius:8px;object-fit:cover;background:#0f172a;">
+            <div><p style="margin:0;font-size:12px;font-weight:700;line-height:1.25;">Clan Démo [DEMO]</p><p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;">Mode visiteur</p></div>
+            <span style="display:inline-block;width:14px;height:14px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid #e2e8f0;background:rgba(248,250,252,.5);padding:6px 12px;">
+            <div style="display:flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:4px;background:#e2e8f0;"><span style="display:inline-block;width:14px;height:14px;background:#475569;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;"></span></div>
+            <div><span style="display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;">Joueur</span><span style="display:block;font-size:12px;font-weight:700;color:#475569;">Choisir…</span></div>
+            <span style="display:inline-block;width:14px;height:14px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+        </header>
+        <main style="flex:1;">
+          <div style="max-width:1024px;margin:0 auto;padding:24px 16px 48px;box-sizing:border-box;display:flex;flex-direction:column;gap:20px;">
+            <div style="display:flex;align-items:center;font-size:13px;color:#64748b;"><span style="display:inline-block;width:16px;height:16px;margin-right:4px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;"></span>Vue d'ensemble</div>
+            <header style="position:relative;height:144px;overflow:hidden;border-radius:14px;background:url(public/leaderboard.jpg) center 30%/cover no-repeat;">
+              <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(2,6,23,.9) 0%,rgba(2,6,23,.5) 55%,rgba(2,6,23,.1) 100%);"></div>
+              <div style="position:absolute;inset:0;padding:22px 24px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;"><span style="display:inline-block;width:22px;height:22px;background:#facc15;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;"></span><h1 style="margin:0;font-size:26px;line-height:32px;font-weight:700;letter-spacing:-.02em;color:#fff;">Classement du clan</h1></div>
+                <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#e2e8f0;"><span style="border-radius:9999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);padding:2px 10px;font-weight:600;color:#fff;">24 membres</span><span style="width:6px;height:6px;border-radius:9999px;background:#34d399;"></span><span>Synchronisé le 21/09 à 22:00</span></div>
+              </div>
+            </header>
+            <div style="border:1px solid #e2e8f0;border-radius:12px;background:#fff;box-shadow:0 4px 6px -1px rgba(15,23,42,.04),0 2px 4px -2px rgba(15,23,42,.04);padding:12px 14px;display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;">
+              <sc-for list="{{ segsC }}" as="g" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">{{ g.title }}<sc-if value="{{ g.hasInfo }}" hint-placeholder-val="{{ false }}"><span title="« Tous » regroupe les matchs d'escouade du clan (Duo, Trio, Squad), sans les parties en Solo." style="display:inline-block;width:14px;height:14px;cursor:help;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/info.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/info.svg) center/contain no-repeat;"></span></sc-if></span>
+                  <div style="display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:#f1f5f9;border:1px solid #e2e8f0;">
+                    <sc-for list="{{ g.items }}" as="o" hint-placeholder-count="3">
+                      <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="display:inline-flex;align-items:center;gap:6px;border:0;height:30px;padding:0 12px;border-radius:7px;background:#fff;color:#4338ca;box-shadow:0 1px 2px rgba(15,23,42,.08),inset 0 0 0 1px rgba(99,102,241,.45);font:600 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+                      <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="display:inline-flex;align-items:center;gap:6px;border:0;height:30px;padding:0 12px;border-radius:7px;background:transparent;color:#475569;font:500 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+              <sc-for list="{{ podiumC }}" as="p" hint-placeholder-count="3">
+                <div style="border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:16px 18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 4px 6px -1px rgba(15,23,42,.04);">
+                  <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <span style="border-radius:9999px;border:1px solid {{ p.pb.b }};background:{{ p.pb.bg }};color:{{ p.pb.c }};padding:3px 9px;font-size:11px;font-weight:700;line-height:1;">#{{ p.rank }}</span>
+                    <span style="display:inline-flex;gap:4px;"><sc-for list="{{ p.badges }}" as="b" hint-placeholder-count="0"><img src="{{ b.icon }}" width="20" height="20" alt="{{ b.label }}" title="{{ b.label }}"></sc-for></span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <span style="display:flex;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border:1px solid #e2e8f0;background:#f8fafc;border-radius:12px;font-size:14px;font-weight:700;color:#334155;box-sizing:border-box;">{{ p.initial }}</span>
+                    <div style="flex:1;min-width:0;"><p style="margin:0;font-size:15px;font-weight:700;">{{ p.name }}</p><p style="margin:0;font-size:12px;color:#64748b;">{{ p.matches }} matchs · {{ p.kpm }} K/M</p></div>
+                    <div style="text-align:right;"><p style="margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;">{{ p.metric }}</p><p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6366f1;">{{ p.metricLabel }}</p></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-right:4px;">Distinctions</span>
+              <sc-for list="{{ performers }}" as="p" hint-placeholder-count="5">
+                <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 5px;border-radius:9999px;background:#fff;border:1px solid #e2e8f0;font-size:13px;"><img src="{{ p.icon }}" width="22" height="22" alt=""><span style="color:#64748b;">{{ p.labelFr }}</span><span style="font-weight:600;">{{ p.name }}</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:#334155;">{{ p.short }}</span></span>
+              </sc-for>
+            </div>
+            <div style="border:1px solid #e2e8f0;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 4px 6px -1px rgba(15,23,42,.04);">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <colgroup><col style="width:52px"><col><sc-for list="{{ headC }}" as="h" hint-placeholder-count="8"><col style="background:{{ h.tint }};"></sc-for><sc-if value="{{ showModesC }}" hint-placeholder-val="{{ true }}"><col><col><col></sc-if></colgroup>
+                <thead>
+                  <tr style="border-bottom:1px solid #e2e8f0;background:#f8fafc;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#64748b;">
+                    <th style="padding:10px 0 10px 16px;text-align:left;font-weight:600;">#</th><th style="padding:10px 12px;text-align:left;font-weight:600;">Joueur</th>
+                    <sc-for list="{{ headC }}" as="h" hint-placeholder-count="8"><th onClick="{{ h.onClick }}" title="{{ h.hint }}" style="padding:10px 9px;text-align:right;font-weight:600;white-space:nowrap;cursor:{{ h.cursor }};color:{{ h.color }};">{{ h.label }}{{ h.arrow }}</th></sc-for>
+                    <sc-if value="{{ showModesC }}" hint-placeholder-val="{{ true }}"><th style="padding:10px 9px;text-align:right;border-left:1px solid #e2e8f0;"><img src="public/icons/squads/duo.svg" width="16" height="16" alt="Duo" style="vertical-align:middle;"></th><th style="padding:10px 9px;text-align:right;"><img src="public/icons/squads/trio.svg" width="16" height="16" alt="Trio" style="vertical-align:middle;"></th><th style="padding:10px 16px 10px 12px;text-align:right;"><img src="public/icons/squads/squad.svg" width="16" height="16" alt="Squad" style="vertical-align:middle;"></th></sc-if>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ rowsC }}" as="r" hint-placeholder-count="10">
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                      <td style="padding:10px 0 10px 16px;"><sc-if value="{{ r.podium }}" hint-placeholder-val="{{ false }}"><span style="border-radius:9999px;border:1px solid {{ r.pb.b }};background:{{ r.pb.bg }};color:{{ r.pb.c }};padding:3px 7px;font-size:10px;font-weight:700;line-height:1;">#{{ r.rank }}</span></sc-if><sc-if value="{{ r.notPodium }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;font-weight:600;color:#94a3b8;padding-left:6px;">{{ r.rank }}</span></sc-if></td>
+                      <td style="padding:10px 12px;"><div style="display:flex;align-items:center;gap:10px;"><span style="display:flex;width:28px;height:28px;flex-shrink:0;align-items:center;justify-content:center;border:1px solid #e2e8f0;background:#fff;border-radius:9px;font-size:11px;font-weight:700;color:#334155;box-sizing:border-box;">{{ r.initial }}</span><a style="font-weight:600;color:#0f172a;white-space:nowrap;">{{ r.name }}</a><span style="display:inline-flex;gap:3px;"><sc-for list="{{ r.badges }}" as="b" hint-placeholder-count="0"><img src="{{ b.icon }}" width="16" height="16" alt="{{ b.label }}" title="{{ b.label }}"></sc-for></span></div></td>
+                      <td style="padding:10px 9px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">{{ r.kills }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">{{ r.kpm }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#334155;">{{ r.damageFr }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#334155;">{{ r.matches }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#334155;">{{ r.won }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#334155;">{{ r.wrFr }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#64748b;white-space:nowrap;">{{ r.timeFr }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#64748b;">{{ r.activeDays }} j</td>
+                      <sc-if value="{{ showModesC }}" hint-placeholder-val="{{ true }}"><td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#64748b;border-left:1px solid #f1f5f9;">{{ r.duo }}</td><td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#64748b;">{{ r.trio }}</td><td style="padding:10px 16px 10px 12px;text-align:right;font-variant-numeric:tabular-nums;color:#64748b;">{{ r.squad }}</td></sc-if>
+                    </tr>
+                  </sc-for>
+                </tbody>
+                <tfoot>
+                  <tr style="background:#f8fafc;font-weight:700;font-variant-numeric:tabular-nums;border-top:1px solid #e2e8f0;">
+                    <td style="padding:12px 0 12px 16px;"></td><td style="padding:12px;">Total clan</td><td style="padding:12px 9px;text-align:right;">{{ totC.kills }}</td><td style="padding:12px 9px;text-align:right;">{{ totC.kpm }}</td><td style="padding:12px 9px;text-align:right;">{{ totC.damageFr }}</td><td style="padding:12px 9px;text-align:right;">{{ totC.matches }}</td><td style="padding:12px 9px;text-align:right;">{{ totC.won }}</td><td style="padding:12px 9px;text-align:right;">{{ totC.wrFr }}</td><td style="padding:12px 9px;text-align:right;white-space:nowrap;">{{ totC.timeFr }}</td><td style="padding:12px 9px;text-align:right;color:#94a3b8;">—</td>
+                    <sc-if value="{{ showModesC }}" hint-placeholder-val="{{ true }}"><td style="padding:12px 9px;text-align:right;border-left:1px solid #e2e8f0;">{{ totC.duo }}</td><td style="padding:12px 9px;text-align:right;">{{ totC.trio }}</td><td style="padding:12px 16px 12px 12px;text-align:right;">{{ totC.squad }}</td></sc-if>
+                  </tr>
+                </tfoot>
+              </table>
+              <button onClick="{{ toggleAllC }}" style="all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:flex;justify-content:center;padding:12px;border-top:1px solid #e2e8f0;font-size:13px;font-weight:600;color:#4f46e5;">{{ showMoreC }}</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3b desktop clair docké -->
+  <div id="3b" style="display:flex;flex-direction:column;gap:14px;">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="background:#4f46e5;color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:4px 12px;">3b</span><span style="font-size:20px;font-weight:700;color:#0f172a;">Ordinateur · clair · bandeau docké (fenêtre 1280×800)</span></div>
+    <div style="width:1280px;height:800px;display:flex;background:#f8fafc;color:#0f172a;overflow:hidden;border-radius:6px;box-shadow:0 20px 50px -30px rgba(15,23,42,.45);">
+      <aside style="width:280px;flex-shrink:0;border-right:1px solid #e2e8f0;background:rgba(255,255,255,.95);display:flex;flex-direction:column;">
+        <div style="height:65px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:0 16px;">
+          <div style="display:inline-flex;gap:4px;border-radius:9999px;border:1px solid #e2e8f0;background:rgba(255,255,255,.9);padding:4px;box-shadow:0 1px 2px rgba(0,0,0,.05);">
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;background:#e0f2fe;color:#0369a1;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M10 4.25a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM9.25 1.5h1.5v2.25h-1.5V1.5Zm0 14.75h1.5V18.5h-1.5v-2.25ZM1.5 9.25h2.25v1.5H1.5v-1.5Zm14.75 0h2.25v1.5h-2.25v-1.5Zm-11.5-6.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm9.1 9.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm-9.1 1.59 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Zm9.1-9.1 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Z"></path></svg></span>
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;color:#64748b;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M13.8 3.2a7.25 7.25 0 1 0 3 13.7 7.6 7.6 0 0 1-3-13.7ZM10 15.5A5.5 5.5 0 1 1 10 4.5a6.75 6.75 0 0 0 0 11Z"></path></svg></span>
+          </div>
+          <span style="display:inline-block;width:20px;height:20px;background:#64748b;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;"></span>
+        </div>
+        <nav style="flex:1;padding:16px;display:grid;gap:4px;align-content:start;">
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:600;background:rgba(99,102,241,.08);color:#312e81;box-shadow:inset 2px 0 0 #6366f1;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:#6366f1;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;"></span>Les clans</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;"></span>Ligue</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;"></span>Comparateur</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;"></span>Tournois</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:#475569;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;"></span>Se connecter</a>
+        </nav>
+        <div style="border-top:1px solid #e2e8f0;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+          <span style="display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9999px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;box-shadow:inset 0 0 0 1px rgba(217,119,6,.4);">V</span>
+          <span style="flex:1;"><span style="display:block;font-size:13px;font-weight:600;">Visiteur</span><span style="display:block;font-size:12px;color:#64748b;">Lecture seule</span></span>
+          <a style="font-size:12px;font-weight:600;color:#4f46e5;">Connexion</a>
+        </div>
+      </aside>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+        <header style="height:71px;box-sizing:border-box;align-items:center;border-bottom:1px solid #e2e8f0;background:rgba(255,255,255,.9);padding:12px 24px;display:flex;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid #e2e8f0;background:rgba(248,250,252,.5);padding:6px 12px;">
+            <img src="public/pubg.png" alt="" style="width:32px;height:32px;border-radius:8px;object-fit:cover;background:#0f172a;">
+            <div><p style="margin:0;font-size:12px;font-weight:700;line-height:1.25;">Clan Démo [DEMO]</p><p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;">Mode visiteur</p></div>
+            <span style="display:inline-block;width:14px;height:14px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid #e2e8f0;background:rgba(248,250,252,.5);padding:6px 12px;">
+            <div style="display:flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:4px;background:#e2e8f0;"><span style="display:inline-block;width:14px;height:14px;background:#475569;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;"></span></div>
+            <div><span style="display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;">Joueur</span><span style="display:block;font-size:12px;font-weight:700;color:#475569;">Choisir…</span></div>
+            <span style="display:inline-block;width:14px;height:14px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+        </header>
+        <div style="background:#fff;border-bottom:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,.05);">
+          <div style="max-width:1024px;margin:0 auto;padding:10px 16px;box-sizing:border-box;display:flex;align-items:center;gap:12px;">
+            <sc-for list="{{ segsC }}" as="g" hint-placeholder-count="3">
+              <div style="display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:#f1f5f9;border:1px solid #e2e8f0;">
+                <sc-for list="{{ g.items }}" as="o" hint-placeholder-count="3">
+                  <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="display:inline-flex;align-items:center;gap:6px;border:0;height:28px;padding:0 11px;border-radius:7px;background:#fff;color:#4338ca;box-shadow:0 1px 2px rgba(15,23,42,.08),inset 0 0 0 1px rgba(99,102,241,.45);font:600 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+                  <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="display:inline-flex;align-items:center;gap:6px;border:0;height:28px;padding:0 11px;border-radius:7px;background:transparent;color:#475569;font:500 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+                </sc-for>
+              </div>
+            </sc-for>
+            <span style="margin-left:auto;font-size:12px;color:#64748b;white-space:nowrap;">Tri : <b style="color:#4338ca;">Kills ↓</b></span>
+          </div>
+        </div>
+        <div style="flex:1;">
+          <div style="max-width:1024px;margin:0 auto;padding:0 16px;box-sizing:border-box;">
+            <div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;background:#fff;">
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <colgroup><col style="width:52px"><col><col style="width:64px;background:rgba(99,102,241,.06);"><col style="width:64px"><col style="width:80px"><col style="width:68px"><col style="width:56px"><col style="width:84px"><col style="width:76px"><col style="width:64px"><col><col><col></colgroup>
+                <tbody>
+                  <sc-for list="{{ rowsCDocked }}" as="r" hint-placeholder-count="7">
+                    <tr style="border-bottom:1px solid #f1f5f9;height:57px;">
+                      <td style="padding:10px 0 10px 16px;font-size:12px;font-weight:600;color:#94a3b8;"><span style="padding-left:6px;">{{ r.rank }}</span></td>
+                      <td style="padding:10px 12px;"><div style="display:flex;align-items:center;gap:10px;"><span style="display:flex;width:28px;height:28px;align-items:center;justify-content:center;border:1px solid #e2e8f0;border-radius:9px;font-size:11px;font-weight:700;color:#334155;box-sizing:border-box;">{{ r.initial }}</span><span style="font-weight:600;white-space:nowrap;">{{ r.name }}</span></div></td>
+                      <td style="padding:10px 9px;text-align:right;font-weight:600;">{{ r.kills }}</td><td style="padding:10px 9px;text-align:right;font-weight:600;">{{ r.kpm }}</td><td style="padding:10px 9px;text-align:right;color:#334155;">{{ r.damageFr }}</td><td style="padding:10px 9px;text-align:right;color:#334155;">{{ r.matches }}</td><td style="padding:10px 9px;text-align:right;color:#334155;">{{ r.won }}</td><td style="padding:10px 9px;text-align:right;color:#334155;">{{ r.wrFr }}</td><td style="padding:10px 9px;text-align:right;color:#64748b;white-space:nowrap;">{{ r.timeFr }}</td><td style="padding:10px 9px;text-align:right;color:#64748b;">{{ r.activeDays }} j</td><td style="padding:10px 9px;text-align:right;color:#64748b;border-left:1px solid #f1f5f9;">{{ r.duo }}</td><td style="padding:10px 9px;text-align:right;color:#64748b;">{{ r.trio }}</td><td style="padding:10px 16px 10px 12px;text-align:right;color:#64748b;">{{ r.squad }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul style="margin:0;padding-left:20px;width:1240px;font-size:15px;line-height:1.55;color:#334155;display:flex;flex-direction:column;gap:4px;">
+      <li>Le bandeau se colle à <code>var(--app-header-height)</code>, avec une bordure basse seulement, et couvre la colonne ; son contenu reste sur la grille de 1024px.</li>
+      <li>Au docking, les titres de groupe et l'info-bulle disparaissent (<code>{!isSticky &amp;&amp; …}</code>) ; les boutons restent montés.</li>
+      <li>Ajout proposé : un rappel du tri à droite, en texte seul, pour savoir quel critère on lit une fois l'en-tête du tableau sorti de l'écran. L'en-tête du tableau n'est pas collant (une seule couche collante, §4.B).</li>
+    </ul>
+  </div>
+
+  <!-- 3c mobile repos -->
+  <div id="3c" style="display:flex;flex-direction:column;gap:14px;">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="background:#4f46e5;color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:4px 12px;">3c</span><span style="font-size:20px;font-weight:700;color:#0f172a;">Mobile 375 · au repos</span></div>
+    <div style="width:375px;background:#f8fafc;color:#0f172a;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px -30px rgba(15,23,42,.45);border:1px solid #e2e8f0;">
+      <header style="height:60px;box-sizing:border-box;border-bottom:1px solid #e2e8f0;background:rgba(255,255,255,.95);padding:10px 12px;display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-flex;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border-radius:12px;border:1px solid #e2e8f0;background:#fff;"><span style="display:inline-block;width:18px;height:18px;background:#334155;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/menu.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/menu.svg) center/contain no-repeat;"></span></span>
+        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:40px;box-sizing:border-box;border-radius:12px;border:1px solid #e2e8f0;background:#fff;padding:0 10px 0 6px;">
+          <img src="public/pubg.png" alt="" style="width:28px;height:28px;border-radius:7px;background:#0f172a;">
+          <div style="min-width:0;flex:1;"><p style="margin:0;font-size:13px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Clan Démo <span style="color:#94a3b8;font-weight:600;">DEMO</span></p><p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;">Visiteur</p></div>
+          <span style="display:inline-block;width:14px;height:14px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+        </div>
+        <span title="Choisir un joueur" style="display:inline-flex;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border-radius:12px;border:1px solid #e2e8f0;background:#fff;"><span style="display:inline-block;width:18px;height:18px;background:#475569;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;"></span></span>
+      </header>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;align-items:center;font-size:13px;color:#64748b;"><span style="display:inline-block;width:16px;height:16px;margin-right:2px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;"></span>Vue d'ensemble</div>
+        <header style="position:relative;height:120px;overflow:hidden;border-radius:14px;background:url(public/leaderboard.jpg) center 30%/cover no-repeat;">
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(2,6,23,.9),rgba(2,6,23,.2));"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:12px 14px;display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:18px;height:18px;background:#facc15;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;"></span><h1 style="margin:0;font-size:19px;font-weight:700;color:#fff;letter-spacing:-.01em;">Classement du clan</h1></div>
+            <p style="margin:0;font-size:12px;color:#e2e8f0;">24 membres · synchro 21/09 22:00</p>
+          </div>
+        </header>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:12px;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;gap:2px;padding:3px;border-radius:10px;background:#f1f5f9;border:1px solid #e2e8f0;">
+            <sc-for list="{{ perM }}" as="o" hint-placeholder-count="3">
+              <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="flex:1;border:0;height:34px;border-radius:7px;background:#fff;color:#4338ca;box-shadow:0 1px 2px rgba(15,23,42,.08),inset 0 0 0 1px rgba(99,102,241,.45);font:600 14px Inter,sans-serif;">{{ o.label }}</button></sc-if>
+              <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="flex:1;border:0;height:34px;border-radius:7px;background:transparent;color:#475569;font:500 14px Inter,sans-serif;cursor:pointer;">{{ o.label }}</button></sc-if>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Type de match</span>
+            <div style="display:flex;gap:6px;overflow-x:auto;">
+              <sc-for list="{{ typeM }}" as="o" hint-placeholder-count="4">
+                <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="flex-shrink:0;border:1px solid rgba(99,102,241,.5);height:32px;padding:0 12px;border-radius:9999px;background:rgba(99,102,241,.08);color:#4338ca;font:600 13px Inter,sans-serif;">{{ o.label }}</button></sc-if>
+                <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="flex-shrink:0;border:1px solid #e2e8f0;height:32px;padding:0 12px;border-radius:9999px;background:#fff;color:#475569;font:500 13px Inter,sans-serif;cursor:pointer;">{{ o.label }}</button></sc-if>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Mode d'escouade<span title="« Tous » regroupe Duo, Trio et Squad, sans le Solo." style="display:inline-block;width:14px;height:14px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/info.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/info.svg) center/contain no-repeat;"></span></span>
+            <div style="display:flex;gap:6px;overflow-x:auto;">
+              <sc-for list="{{ modeM }}" as="o" hint-placeholder-count="5">
+                <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(99,102,241,.5);height:32px;padding:0 11px;border-radius:9999px;background:rgba(99,102,241,.08);color:#4338ca;font:600 13px Inter,sans-serif;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+                <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="flex-shrink:0;display:inline-flex;align-items:center;gap:5px;border:1px solid #e2e8f0;height:32px;padding:0 11px;border-radius:9999px;background:#fff;color:#475569;font:500 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">
+          <sc-for list="{{ performers }}" as="p" hint-placeholder-count="5">
+            <div style="flex-shrink:0;width:132px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:10px;display:flex;flex-direction:column;gap:4px;">
+              <div style="display:flex;align-items:center;gap:6px;"><img src="{{ p.icon }}" width="20" height="20" alt=""><span style="font-size:11px;font-weight:600;color:#64748b;">{{ p.labelFr }}</span></div>
+              <span style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ p.name }}</span>
+              <span style="font-size:12px;color:#334155;font-variant-numeric:tabular-nums;">{{ p.short }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">Trier par</span>
+          <div style="display:flex;gap:6px;overflow-x:auto;">
+            <sc-for list="{{ sortM }}" as="o" hint-placeholder-count="7">
+              <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="flex-shrink:0;border:0;height:30px;padding:0 12px;border-radius:9999px;background:#312e81;color:#fff;font:600 12px Inter,sans-serif;">{{ o.label }} ↓</button></sc-if>
+              <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="flex-shrink:0;border:1px solid #e2e8f0;height:30px;padding:0 12px;border-radius:9999px;background:#fff;color:#475569;font:500 12px Inter,sans-serif;cursor:pointer;">{{ o.label }}</button></sc-if>
+            </sc-for>
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;background:#fff;">
+          <sc-for list="{{ rowsM }}" as="r" hint-placeholder-count="8">
+            <div style="border-bottom:1px solid #f1f5f9;">
+              <button onClick="{{ r.onToggle }}" style="all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;min-height:56px;">
+                <span style="width:30px;flex-shrink:0;display:flex;justify-content:center;"><sc-if value="{{ r.podium }}" hint-placeholder-val="{{ false }}"><span style="border-radius:9999px;border:1px solid {{ r.pb.b }};background:{{ r.pb.bg }};color:{{ r.pb.c }};padding:3px 6px;font-size:10px;font-weight:700;line-height:1;">#{{ r.rank }}</span></sc-if><sc-if value="{{ r.notPodium }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;font-weight:600;color:#94a3b8;">{{ r.rank }}</span></sc-if></span>
+                <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                  <span style="display:flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:#0f172a;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.name }}</span><sc-for list="{{ r.badges }}" as="b" hint-placeholder-count="0"><img src="{{ b.icon }}" width="14" height="14" alt="{{ b.label }}"></sc-for></span>
+                  <span style="font-size:12px;color:#64748b;">{{ r.matches }} matchs · {{ r.kpm }} K/M · {{ r.wrFr }}</span>
+                </span>
+                <span style="text-align:right;"><span style="display:block;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;color:#0f172a;">{{ r.metric }}</span><span style="display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6366f1;">{{ r.metricLabel }}</span></span>
+                <span style="font-size:11px;color:#94a3b8;width:10px;">{{ r.chevron }}</span>
+              </button>
+              <sc-if value="{{ r.open }}" hint-placeholder-val="{{ false }}">
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 12px 12px 52px;">
+                  <div style="background:#f8fafc;border-radius:8px;padding:6px 8px;"><p style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Dégâts</p><p style="margin:0;font-size:13px;font-weight:600;">{{ r.damageFr }}</p></div>
+                  <div style="background:#f8fafc;border-radius:8px;padding:6px 8px;"><p style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Top 1</p><p style="margin:0;font-size:13px;font-weight:600;">{{ r.won }}</p></div>
+                  <div style="background:#f8fafc;border-radius:8px;padding:6px 8px;"><p style="margin:0;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Temps</p><p style="margin:0;font-size:13px;font-weight:600;">{{ r.timeFr }}</p></div>
+                  <div style="background:#f8fafc;border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:5px;"><img src="public/icons/squads/duo.svg" width="14" height="14" alt="Duo"><span style="font-size:13px;font-weight:600;">{{ r.duo }}</span></div>
+                  <div style="background:#f8fafc;border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:5px;"><img src="public/icons/squads/trio.svg" width="14" height="14" alt="Trio"><span style="font-size:13px;font-weight:600;">{{ r.trio }}</span></div>
+                  <div style="background:#f8fafc;border-radius:8px;padding:6px 8px;display:flex;align-items:center;gap:5px;"><img src="public/icons/squads/squad.svg" width="14" height="14" alt="Squad"><span style="font-size:13px;font-weight:600;">{{ r.squad }}</span></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <button onClick="{{ toggleAllM }}" style="all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:flex;justify-content:center;padding:12px;font-size:13px;font-weight:600;color:#4f46e5;">{{ showMoreM }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3d mobile docké -->
+  <div id="3d" style="display:flex;flex-direction:column;gap:14px;">
+    <div style="display:flex;align-items:center;gap:12px;"><span style="background:#4f46e5;color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:4px 12px;">3d</span><span style="font-size:20px;font-weight:700;color:#0f172a;">Mobile 375 · docké</span></div>
+    <div style="width:375px;height:740px;display:flex;flex-direction:column;background:#f8fafc;color:#0f172a;border-radius:24px;overflow:hidden;box-shadow:0 20px 50px -30px rgba(15,23,42,.45);border:1px solid #e2e8f0;">
+      <header style="height:60px;flex-shrink:0;box-sizing:border-box;border-bottom:1px solid #e2e8f0;background:rgba(255,255,255,.95);padding:10px 12px;display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;border-radius:12px;border:1px solid #e2e8f0;background:#fff;"><span style="display:inline-block;width:18px;height:18px;background:#334155;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/menu.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/menu.svg) center/contain no-repeat;"></span></span>
+        <div style="flex:1;display:flex;align-items:center;gap:8px;height:40px;box-sizing:border-box;border-radius:12px;border:1px solid #e2e8f0;background:#fff;padding:0 10px 0 6px;"><img src="public/pubg.png" alt="" style="width:28px;height:28px;border-radius:7px;"><div style="flex:1;"><p style="margin:0;font-size:13px;font-weight:700;line-height:1.1;">Clan Démo <span style="color:#94a3b8;font-weight:600;">DEMO</span></p><p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#b45309;">Visiteur</p></div></div>
+        <span style="display:inline-flex;width:40px;height:40px;align-items:center;justify-content:center;border-radius:12px;border:1px solid #e2e8f0;background:#fff;"><span style="display:inline-block;width:18px;height:18px;background:#475569;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;"></span></span>
+      </header>
+      <div style="flex-shrink:0;background:#fff;border-bottom:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,.05);padding:8px 16px;">
+        <div style="display:flex;gap:2px;padding:3px;border-radius:10px;background:#f1f5f9;border:1px solid #e2e8f0;">
+          <sc-for list="{{ perM }}" as="o" hint-placeholder-count="3">
+            <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="flex:1;border:0;height:32px;border-radius:7px;background:#fff;color:#4338ca;box-shadow:0 1px 2px rgba(15,23,42,.08),inset 0 0 0 1px rgba(99,102,241,.45);font:600 14px Inter,sans-serif;">{{ o.label }}</button></sc-if>
+            <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="flex:1;border:0;height:32px;border-radius:7px;background:transparent;color:#475569;font:500 14px Inter,sans-serif;cursor:pointer;">{{ o.label }}</button></sc-if>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:1;overflow:hidden;padding:0 16px;">
+        <div style="border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px;background:#fff;">
+          <sc-for list="{{ rowsMDocked }}" as="r" hint-placeholder-count="8">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;min-height:56px;box-sizing:border-box;border-bottom:1px solid #f1f5f9;">
+              <span style="width:30px;text-align:center;font-size:12px;font-weight:600;color:#94a3b8;">{{ r.rank }}</span>
+              <span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:600;">{{ r.name }}</span><span style="display:block;font-size:12px;color:#64748b;">{{ r.matches }} matchs · {{ r.kpm }} K/M · {{ r.wrFr }}</span></span>
+              <span style="text-align:right;"><span style="display:block;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;">{{ r.metric }}</span><span style="display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6366f1;">{{ r.metricLabel }}</span></span>
+              <span style="font-size:11px;color:#94a3b8;width:10px;">▾</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <ul style="margin:0;padding-left:20px;width:360px;font-size:14px;line-height:1.55;color:#334155;display:flex;flex-direction:column;gap:4px;">
+      <li>Période seule, pleine largeur, 32px de haut : c'est <code>compact</code> dans <code>DockingToolbar</code>.</li>
+      <li>Header ramené à 60px (bouton joueur en icône, « Mode visiteur » sur une ligne) : il ne passe plus sur deux lignes et libère 35px de plus.</li>
+      <li>Chaque ligne fait au moins 56px et se déplie au toucher (cibles de 44px ou plus).</li>
+    </ul>
+  </div>
+
+  </div>
+</section>
+
+<section data-screen-label="Tour 2" style="display:flex;flex-direction:column;gap:48px;padding:64px;">
+
+<!-- ================= AUDIT ================= -->
+<div id="audit" style="width:2624px;box-sizing:border-box;background:#fff;border-radius:16px;padding:56px 64px;color:#0f172a;display:flex;flex-direction:column;gap:36px;">
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <p style="margin:0;font-size:14px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#64748b;">arkium/pubg-clan-site · main @ 1f70dd7 · page /clans/[clanId]/leaderboard</p>
+    <h1 style="margin:0;font-size:42px;font-weight:700;letter-spacing:-.02em;">Classement du clan : audit mis à jour</h1>
+    <p style="margin:0;font-size:18px;line-height:1.5;color:#475569;max-width:1300px;text-wrap:pretty;">Refait à partir de la branche à jour : <code>leaderboard/page.tsx</code>, <code>Leaderboard.tsx</code>, <code>LeaderboardStats.tsx</code>, <code>DockingToolbar</code>, <code>ClanNavigation</code>, <code>globals.css</code>, <code>docs/ui/*</code> et les captures Playwright <code>classement-repos-*</code>. <a href="#2a">2a</a> recrée l'écran actuel (thème sombre, le thème par défaut) avec les données de démo des tests e2e, et <a href="#2b">2b</a> est la proposition adaptée.</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,0.8fr) minmax(0,1.2fr) minmax(0,1fr);gap:24px;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#059669;">Déjà réglé dans cette version</p>
+      <div style="border:1px solid #d1fae5;background:#f0fdf4;border-radius:12px;padding:18px 20px;">
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.5;color:#14532d;">
+          <li>Police Inter via <code>next/font</code> (fin d'Arial).</li>
+          <li>Sidebar neutre : un seul état actif slate, plus de 5 teintes.</li>
+          <li>Bandeau de filtres collant (<code>DockingToolbar</code>) et fil de retour.</li>
+          <li>Accents corrigés (« Connecté », « Vérification… »).</li>
+          <li>Doc UI structurée (<code>docs/ui/themes.md</code>, <code>patterns.md</code>, <code>tables.md</code>).</li>
+          <li><code>app-podium-badge</code> créé pour les rangs 1–3.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e11d48;">Encore incohérent</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;">
+          <p style="margin:0;font-size:16px;font-weight:700;">Rangs : emoji vs badges</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;text-wrap:pretty;">Le classement affiche 🥇🥈🥉 alors que Drop zones, Armes, Cartes et Némésis utilisent <code>app-podium-badge</code>.</p>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;">
+          <p style="margin:0;font-size:16px;font-weight:700;">Tri hors du tableau</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;text-wrap:pretty;">Un segmented de 7 options au-dessus du tableau, alors que <code>patterns.md</code> documente le tri au clic sur l'en-tête (<code>handleSortClick</code>).</p>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;">
+          <p style="margin:0;font-size:16px;font-weight:700;">État actif illisible en sombre</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;text-wrap:pretty;"><code>--theme-toggle-item-active-bg</code> = slate-800 sur fond slate-950 : « Semaine », « Officiel », « Tous » se distinguent à peine. <code>--theme-ui-accent</code> (indigo-400) existe mais n'est pas utilisé.</p>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;">
+          <p style="margin:0;font-size:16px;font-weight:700;">Règles de thème contredites</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;text-wrap:pretty;"><code>themes.md</code> interdit <code>dark:</code>, mais <code>ClanNavigation</code> et <code>DockingToolbar</code> (variant card) l'utilisent. Le fil de retour est en <code>zinc</code> dans une UI <code>slate</code>.</p>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;">
+          <p style="margin:0;font-size:16px;font-weight:700;">Rayons et bordures</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;text-wrap:pretty;">Top performers et Classement sont en <code>rounded</code> (4px) dans une page où le bandeau est <code>rounded-2xl</code>, le panneau filtres et le tableau 12px.</p>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;">
+          <p style="margin:0;font-size:16px;font-weight:700;">Langue</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;color:#475569;text-wrap:pretty;">Damage, Winner, Win Rate, Top performers, Casual, Custom, « TOP Kills/Matchs », et « Actifs » tronqué. Info-bulle du bouton sidebar : « RǸduire » (<code>\u01F8</code>).</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#b45309;">Densité et lisibilité</p>
+      <div style="border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;">
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.5;color:#334155;">
+          <li>Avant la 1re ligne du tableau : bandeau 208px, 3 groupes de filtres, une note de 2 lignes, 5 cartes Top performers, un titre, un paragraphe et le tri.</li>
+          <li>14 colonnes en <code>table-fixed</code> dans 936px : colonnes de 56px, en-têtes tronqués.</li>
+          <li>Sans progression, chaque valeur porte un « • » gris (5 par ligne, 24 lignes).</li>
+          <li>En mode d'escouade « Duo », les colonnes Solo/Trio/Squad restent affichées alors qu'elles valent 0.</li>
+          <li>Les distinctions ne sont plus signalées dans le tableau : le lien entre cartes et lignes est perdu.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#0f172a;color:#e2e8f0;border-radius:14px;padding:28px 32px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px;">
+    <div style="display:flex;flex-direction:column;gap:6px;"><p style="margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#818cf8;">1 · Accent</p><p style="margin:0;font-size:15px;line-height:1.5;color:#cbd5e1;">Brancher les états actifs (segmented, tri, focus, liens) sur <code>--theme-ui-accent</code>. Les couleurs de mode et de rôle restent des palettes de données.</p></div>
+    <div style="display:flex;flex-direction:column;gap:6px;"><p style="margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#818cf8;">2 · Tableau</p><p style="margin:0;font-size:15px;line-height:1.5;color:#cbd5e1;">Tri par en-tête, colonne triée teintée, <code>app-podium-badge</code>, distinctions en icônes, tendances masquées quand la progression est vide, colonnes de mode masquées hors « Tous ».</p></div>
+    <div style="display:flex;flex-direction:column;gap:6px;"><p style="margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#818cf8;">3 · En-tête</p><p style="margin:0;font-size:15px;line-height:1.5;color:#cbd5e1;">Bandeau réduit à 144px, compteur et synchro dans le bandeau, filtres sur une ligne avec libellés, note déplacée dans une info-bulle.</p></div>
+    <div style="display:flex;flex-direction:column;gap:6px;"><p style="margin:0;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#818cf8;">4 · Hiérarchie</p><p style="margin:0;font-size:15px;line-height:1.5;color:#cbd5e1;">Podium du critère trié à la place des 5 grandes cartes ; distinctions en bandeau compact ; 10 lignes puis « Afficher plus » (<code>ShowMoreToggle</code>).</p></div>
+  </div>
+</div>
+
+<div style="display:flex;gap:64px;align-items:flex-start;">
+
+<!-- ================= 2a : ACTUEL ================= -->
+<div id="2a" style="display:flex;flex-direction:column;gap:16px;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="background:#0f172a;color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:4px 12px;">2a</span>
+    <span style="font-size:22px;font-weight:700;color:#0f172a;">Actuel — main, thème sombre, données e2e</span>
+  </div>
+  <div style="width:1280px;display:flex;background:radial-gradient(ellipse at top,#020617 0%,#0b1120 45%,#111827 100%);color:#e2e8f0;overflow:hidden;border-radius:6px;box-shadow:0 20px 50px -30px rgba(15,23,42,.6);">
+    <aside style="width:280px;flex-shrink:0;border-right:1px solid rgba(30,41,59,.8);background:#020617;display:flex;flex-direction:column;">
+      <div style="height:65px;box-sizing:border-box;display:flex;align-items:center;border-bottom:1px solid rgba(30,41,59,.8);padding:0 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+          <div style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;border:1px solid #334155;background:rgba(2,6,23,.8);padding:4px;box-shadow:inset 0 2px 4px rgba(0,0,0,.1);">
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;color:#94a3b8;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M10 4.25a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM9.25 1.5h1.5v2.25h-1.5V1.5Zm0 14.75h1.5V18.5h-1.5v-2.25ZM1.5 9.25h2.25v1.5H1.5v-1.5Zm14.75 0h2.25v1.5h-2.25v-1.5Zm-11.5-6.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm9.1 9.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm-9.1 1.59 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Zm9.1-9.1 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Z"></path></svg></span>
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;background:#1e293b;color:#fcd34d;box-shadow:0 1px 2px rgba(0,0,0,.05);"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M13.8 3.2a7.25 7.25 0 1 0 3 13.7 7.6 7.6 0 0 1-3-13.7ZM10 15.5A5.5 5.5 0 1 1 10 4.5a6.75 6.75 0 0 0 0 11Z"></path></svg></span>
+          </div>
+          <span style="padding:6px;border-radius:8px;color:#64748b;display:inline-flex;"><span style="display:inline-block;width:20px;height:20px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;"></span></span>
+        </div>
+      </div>
+      <div style="flex:1;padding:16px;">
+        <nav style="display:grid;gap:8px;">
+          <a style="display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:700;background:#1e293b;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;"></span>Les clans</a>
+          <a style="display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:600;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;"></span>Ligue</a>
+          <a style="display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:600;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;"></span>Comparateur</a>
+          <a style="display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:600;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;"></span>Tournois</a>
+          <a style="display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:600;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;"></span>Se connecter</a>
+        </nav>
+      </div>
+      <div style="border-top:1px solid rgba(30,41,59,.8);padding:8px 16px;">
+        <div style="margin-top:16px;display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid rgba(245,158,11,.5);background:rgba(69,26,3,.35);padding:6px 10px;">
+          <span style="display:inline-flex;width:32px;height:32px;flex-shrink:0;align-items:center;justify-content:center;border-radius:9999px;background:#f59e0b;color:#fff;font-size:12px;font-weight:700;">V</span>
+          <span style="display:block;"><span style="display:block;font-size:12px;font-weight:600;color:#fef3c7;">Visiteur</span><span style="display:block;font-size:11px;font-weight:500;color:#f59e0b;">Visiteur</span></span>
+        </div>
+      </div>
+    </aside>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+      <header style="border-bottom:1px solid #334155;background:rgba(15,23,42,.9);">
+        <div style="padding:12px 24px;display:flex;align-items:center;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid rgba(30,41,59,.8);background:rgba(15,23,42,.5);padding:6px 12px;">
+            <img src="public/pubg.png" alt="Logo du clan" style="width:32px;height:32px;border-radius:8px;object-fit:cover;background:#0f172a;">
+            <div style="display:flex;flex-direction:column;">
+              <p style="margin:0;font-size:12px;font-weight:700;line-height:1.25;color:#e2e8f0;">Clan Démo [DEMO]</p>
+              <p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#f59e0b;">Mode visiteur</p>
+            </div>
+            <span style="display:inline-block;width:14px;height:14px;margin-left:2px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid rgba(30,41,59,.8);background:rgba(15,23,42,.3);padding:6px 12px;color:#94a3b8;">
+            <div style="display:flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:4px;background:#1e293b;color:#94a3b8;"><svg viewBox="0 0 20 20" width="14" height="14"><path fill="currentColor" d="M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM5.5 7a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Zm-2 10.5c0-2.31 2.37-4.22 5.09-4.87a6.03 6.03 0 0 1 2.82 0c2.72.65 5.09 2.56 5.09 4.87v.25a.75.75 0 0 1-.75.75H4.25a.75.75 0 0 1-.75-.75v-.25Z"></path></svg></div>
+            <div style="display:flex;flex-direction:column;">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Joueur</span>
+              <span style="font-size:12px;font-weight:700;line-height:1.25;color:#94a3b8;">Choisir...</span>
+            </div>
+            <span style="display:inline-block;width:14px;height:14px;margin-left:2px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+        </div>
+      </header>
+
+      <main style="flex:1;background:#020617;">
+        <div style="max-width:1024px;margin:0 auto;padding:32px 16px 0;box-sizing:border-box;">
+          <div style="margin-bottom:16px;display:flex;align-items:center;font-size:14px;color:#a1a1aa;"><span style="display:inline-block;width:16px;height:16px;margin-right:4px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;"></span>Retour à Vue d'ensemble</div>
+          <header style="position:relative;min-height:208px;overflow:hidden;border-radius:16px;background:url(public/leaderboard.jpg) center top/cover no-repeat;">
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85),rgba(0,0,0,.3),transparent);"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 20px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="display:inline-block;width:24px;height:24px;background:#facc15;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;"></span>
+                <h1 style="margin:0;font-size:24px;line-height:32px;font-weight:700;letter-spacing:-.025em;color:#fff;text-shadow:0 4px 3px rgba(0,0,0,.07),0 2px 2px rgba(0,0,0,.06);">Classement du clan</h1>
+              </div>
+              <p style="margin:4px 0 0;font-size:14px;font-weight:500;color:#e5e7eb;">Performances individuelles par période, type de match et mode d'escouade.</p>
+            </div>
+          </header>
+        </div>
+
+        <div style="max-width:1024px;margin:0 auto;padding:24px 16px;box-sizing:border-box;">
+          <div style="border:1px solid #1e293b;border-radius:12px;background:#0f172a;box-shadow:0 4px 6px -1px rgba(2,6,23,.6),0 2px 4px -2px rgba(2,6,23,.6);padding:16px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:#94a3b8;">
+              <span style="display:inline-flex;align-items:center;border-radius:9999px;border:1px solid #334155;background:#111827;padding:2px 10px;font-size:12px;font-weight:600;color:#cbd5e1;">24 membres</span>
+              <span>Derniers matchs récupérés le 21/09/2026 22:00:00</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+              <sc-for list="{{ segsA }}" as="g" hint-placeholder-count="3">
+                <div style="display:inline-flex;flex-wrap:wrap;border:1px solid #334155;background:rgba(2,6,23,.65);border-radius:12px;overflow:hidden;padding:2px;">
+                  <sc-for list="{{ g.items }}" as="o" hint-placeholder-count="3">
+                    <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="border:0;padding:6px 16px;font:600 14px/20px Inter,sans-serif;background:#1e293b;color:#f8fafc;box-shadow:inset 0 0 0 1px #475569;border-radius:{{ o.radius }};cursor:pointer;">{{ o.label }}</button></sc-if>
+                    <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="border:0;padding:6px 16px;font:500 14px/20px Inter,sans-serif;background:transparent;color:#cbd5e1;cursor:pointer;">{{ o.label }}</button></sc-if>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:0;font-size:11px;line-height:1.625;color:#94a3b8;"><span style="font-weight:600;color:#cbd5e1;">Note :</span> Le mode <span style="font-weight:600;color:#cbd5e1;">« Tous »</span> regroupe l'ensemble des matchs d'escouade du clan (Duo, Trio, Squad), sans les parties en Solo. Les statistiques individuelles en solo sont accessibles via le filtre <span style="font-weight:600;color:#cbd5e1;">« Solo »</span>.</p>
+          </div>
+        </div>
+
+        <div style="max-width:1024px;margin:0 auto;padding:0 16px 32px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px;">
+          <section style="border-radius:4px;border:1px solid #334155;background:#0f172a;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);">
+            <h2 style="margin:0 0 12px;font-size:18px;line-height:28px;font-weight:600;color:#e2e8f0;">Top performers</h2>
+            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;">
+              <sc-for list="{{ performers }}" as="p" hint-placeholder-count="5">
+                <article style="display:flex;flex-direction:column;border-radius:4px;border:1px solid #334155;background:#0f172a;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);">
+                  <p style="margin:0 0 4px;font-size:12px;line-height:16px;font-weight:600;text-transform:uppercase;letter-spacing:.025em;color:#94a3b8;">{{ p.title }}</p>
+                  <div style="display:flex;flex:1;flex-direction:column;align-items:flex-start;gap:6px;">
+                    <span style="font-size:16px;line-height:20px;font-weight:700;color:#e2e8f0;">{{ p.name }}</span>
+                    <p style="margin:0;font-size:14px;line-height:20px;color:#93c5fd;">{{ p.value }}</p>
+                    <span style="margin-top:auto;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(252,211,77,.6);border-radius:8px;padding:4px 10px;font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;background:rgba(146,64,14,.34);color:#fef3c7;"><img src="{{ p.icon }}" width="20" height="20" alt="">{{ p.label }}</span>
+                  </div>
+                </article>
+              </sc-for>
+            </div>
+          </section>
+
+          <section style="border-radius:4px;border:1px solid #334155;background:#0f172a;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05);">
+            <div style="margin-bottom:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;">
+              <h2 style="margin:0;font-size:18px;line-height:28px;font-weight:600;color:#e2e8f0;">Classement</h2>
+              <div style="display:inline-flex;border:1px solid #334155;background:rgba(2,6,23,.65);border-radius:12px;overflow:hidden;padding:2px;">
+                <sc-for list="{{ sortsA }}" as="o" hint-placeholder-count="7">
+                  <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="border:0;padding:6px 16px;font:600 14px/20px Inter,sans-serif;background:#1e293b;color:#f8fafc;box-shadow:inset 0 0 0 1px #475569;border-radius:{{ o.radius }};cursor:pointer;white-space:nowrap;">{{ o.label }}</button></sc-if>
+                  <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="border:0;padding:6px 16px;font:500 14px/20px Inter,sans-serif;background:transparent;color:#cbd5e1;cursor:pointer;white-space:nowrap;">{{ o.label }}</button></sc-if>
+                </sc-for>
+              </div>
+            </div>
+            <p style="margin:0 0 12px;font-size:12px;line-height:16px;color:#94a3b8;">Ce tableau est recalculé selon la période sélectionnée, triable via le toggle, avec le détail des éliminations par mode (Solo, Duo, Trio, Squad).</p>
+            <div style="border:1px solid #1e293b;border-radius:12px;background:#0f172a;overflow:hidden;box-shadow:0 4px 6px -1px rgba(2,6,23,.6),0 2px 4px -2px rgba(2,6,23,.6);">
+              <table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:14px;line-height:20px;">
+                <colgroup><col style="width:4%"><col style="width:18%"><col style="width:6%"><col style="width:6%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:6%"><col style="width:6%"><col style="width:6%"><col style="width:6%"></colgroup>
+                <thead style="background:#111827;color:#94a3b8;font-size:12px;line-height:16px;text-transform:uppercase;letter-spacing:.025em;">
+                  <tr style="border-bottom:1px solid #1e293b;">
+                    <th style="padding:12px 16px;text-align:center;white-space:nowrap;">Rang</th><th style="padding:12px 16px;text-align:left;">Joueur</th><th style="padding:12px 16px;text-align:right;">Kills</th><th style="padding:12px 16px;text-align:right;">Matchs</th><th style="padding:12px 16px;text-align:right;">Damage</th><th style="padding:12px 16px;text-align:right;">K/M</th><th style="padding:12px 16px;text-align:right;">Winner</th><th style="padding:12px 16px;text-align:right;white-space:nowrap;">Win Rate</th>
+                    <th style="padding:12px 16px;"><div style="display:flex;justify-content:flex-end;"><span style="display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid rgba(250,204,21,.6);background:rgba(161,98,7,.34);box-sizing:border-box;"><img src="public/icons/squads/solo.svg" width="16" height="16" alt="Solo"></span></div></th>
+                    <th style="padding:12px 16px;"><div style="display:flex;justify-content:flex-end;"><span style="display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid rgba(56,189,248,.65);background:rgba(12,74,110,.42);box-sizing:border-box;"><img src="public/icons/squads/duo.svg" width="16" height="16" alt="Duo"></span></div></th>
+                    <th style="padding:12px 16px;"><div style="display:flex;justify-content:flex-end;"><span style="display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid rgba(167,139,250,.68);background:rgba(76,29,149,.4);box-sizing:border-box;"><img src="public/icons/squads/trio.svg" width="16" height="16" alt="Trio"></span></div></th>
+                    <th style="padding:12px 16px;"><div style="display:flex;justify-content:flex-end;"><span style="display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid rgba(52,211,153,.65);background:rgba(6,95,70,.42);box-sizing:border-box;"><img src="public/icons/squads/squad.svg" width="16" height="16" alt="Squad"></span></div></th>
+                    <th style="padding:12px 16px;text-align:right;">Temps</th><th style="padding:12px 16px;text-align:right;">Actifs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ rowsA }}" as="r" hint-placeholder-count="24">
+                    <tr style="border-bottom:1px solid #1e293b;background:{{ r.rowBgA }};">
+                      <td style="padding:12px 16px;text-align:center;font-weight:600;color:#cbd5e1;">{{ r.rankLabel }}</td>
+                      <td style="padding:12px 16px;font-weight:500;color:#e2e8f0;">
+                        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                          <span style="display:flex;width:32px;height:32px;flex-shrink:0;align-items:center;justify-content:center;border:1px solid rgba(148,163,184,.42);background:rgba(15,23,42,.9);border-radius:16px;box-shadow:0 0 0 1px rgba(255,255,255,.12);font-size:12px;font-weight:600;color:#cbd5e1;box-sizing:border-box;">{{ r.initial }}</span>
+                          <span style="font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.name }}</span>
+                        </div>
+                      </td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;"><span style="display:block;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;">{{ r.kills }}</span><sc-if value="{{ showDeltaA }}" hint-placeholder-val="{{ true }}"><span style="display:block;margin-top:2px;font-size:12px;line-height:16px;font-weight:600;color:#94a3b8;">•</span></sc-if></td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;"><span style="display:block;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;">{{ r.matches }}</span><sc-if value="{{ showDeltaA }}" hint-placeholder-val="{{ true }}"><span style="display:block;margin-top:2px;font-size:12px;line-height:16px;font-weight:600;color:#94a3b8;">•</span></sc-if></td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;"><span style="display:block;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;">{{ r.damage }}</span><sc-if value="{{ showDeltaA }}" hint-placeholder-val="{{ true }}"><span style="display:block;margin-top:2px;font-size:12px;line-height:16px;font-weight:600;color:#94a3b8;">•</span></sc-if></td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;font-weight:600;color:#cbd5e1;font-variant-numeric:tabular-nums;">{{ r.kpm }}</td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;"><span style="display:block;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;">{{ r.won }}</span><sc-if value="{{ showDeltaA }}" hint-placeholder-val="{{ true }}"><span style="display:block;margin-top:2px;font-size:12px;line-height:16px;font-weight:600;color:#94a3b8;">•</span></sc-if></td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;"><span style="display:block;font-weight:600;color:#e2e8f0;font-variant-numeric:tabular-nums;">{{ r.wr }}</span><sc-if value="{{ showDeltaA }}" hint-placeholder-val="{{ true }}"><span style="display:block;margin-top:2px;font-size:12px;line-height:16px;font-weight:600;color:#94a3b8;">•</span></sc-if></td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;color:#cbd5e1;">{{ r.solo }}</td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;color:#cbd5e1;">{{ r.duo }}</td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;color:#cbd5e1;">{{ r.trio }}</td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;color:#cbd5e1;">{{ r.squad }}</td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;color:#94a3b8;white-space:nowrap;">{{ r.time }}</td>
+                      <td style="padding:12px 16px;text-align:right;vertical-align:top;color:#94a3b8;">{{ r.activeDays }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+                <tfoot>
+                  <tr style="background:#111827;">
+                    <td style="padding:12px 16px;text-align:center;font-weight:600;color:#cbd5e1;">-</td><td style="padding:12px 16px;font-weight:600;color:#e2e8f0;">Total</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.kills }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.matches }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.damage }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.kpm }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.won }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.wr }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">0</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.duo }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.trio }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#e2e8f0;">{{ tot.squad }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#94a3b8;white-space:nowrap;">{{ tot.time }}</td><td style="padding:12px 16px;text-align:right;font-weight:600;color:#94a3b8;">-</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+      <footer style="border-top:1px solid #334155;background:rgba(15,23,42,.9);">
+        <div style="max-width:1280px;margin:0 auto;padding:24px;"><div style="padding:16px;display:flex;flex-direction:column;align-items:center;">
+          <p style="margin:0;font-size:14px;font-weight:600;color:#e2e8f0;">© 2026 Arkium</p>
+          <span style="margin-top:4px;display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:9999px;border:1px solid #334155;background:#0f172a;color:#94a3b8;box-sizing:border-box;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.12l3.71-3.9a.75.75 0 1 1 1.08 1.04l-4.25 4.46a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z"></path></svg></span>
+        </div></div>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 2b : PROPOSITION ================= -->
+<div id="2b" style="display:flex;flex-direction:column;gap:16px;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="background:#4f46e5;color:#fff;font-weight:700;font-size:18px;border-radius:8px;padding:4px 12px;">2b</span>
+    <span style="font-size:22px;font-weight:700;color:#0f172a;">Proposition — même shell, page recomposée</span>
+  </div>
+  <div style="width:1280px;display:flex;background:#020617;color:#e2e8f0;overflow:hidden;border-radius:6px;box-shadow:0 20px 50px -30px rgba(15,23,42,.6);">
+    <aside style="width:280px;flex-shrink:0;border-right:1px solid rgba(30,41,59,.8);background:#020617;display:flex;flex-direction:column;">
+      <div style="height:65px;box-sizing:border-box;display:flex;align-items:center;border-bottom:1px solid rgba(30,41,59,.8);padding:0 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+          <div style="display:inline-flex;align-items:center;gap:4px;border-radius:9999px;border:1px solid #334155;background:rgba(2,6,23,.8);padding:4px;">
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;color:#94a3b8;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M10 4.25a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM9.25 1.5h1.5v2.25h-1.5V1.5Zm0 14.75h1.5V18.5h-1.5v-2.25ZM1.5 9.25h2.25v1.5H1.5v-1.5Zm14.75 0h2.25v1.5h-2.25v-1.5Zm-11.5-6.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm9.1 9.1 1.06-1.06 1.59 1.59-1.06 1.06-1.59-1.59Zm-9.1 1.59 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Zm9.1-9.1 1.59-1.59 1.06 1.06-1.59 1.59-1.06-1.06Z"></path></svg></span>
+            <span style="display:inline-flex;width:36px;height:36px;align-items:center;justify-content:center;border-radius:9999px;background:#1e293b;color:#fcd34d;"><svg viewBox="0 0 20 20" width="16" height="16"><path fill="currentColor" d="M13.8 3.2a7.25 7.25 0 1 0 3 13.7 7.6 7.6 0 0 1-3-13.7ZM10 15.5A5.5 5.5 0 1 1 10 4.5a6.75 6.75 0 0 0 0 11Z"></path></svg></span>
+          </div>
+          <span title="Réduire" style="padding:6px;border-radius:8px;color:#64748b;display:inline-flex;"><span style="display:inline-block;width:20px;height:20px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/panel-left-close.svg) center/contain no-repeat;"></span></span>
+        </div>
+      </div>
+      <div style="flex:1;padding:16px;">
+        <nav style="display:grid;gap:4px;">
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:600;background:rgba(129,140,248,.12);color:#e0e7ff;box-shadow:inset 2px 0 0 #818cf8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:#818cf8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/users.svg) center/contain no-repeat;"></span>Les clans</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:500;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/trophy.svg) center/contain no-repeat;"></span>Ligue</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:500;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chart-no-axes-column.svg) center/contain no-repeat;"></span>Comparateur</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:500;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/swords.svg) center/contain no-repeat;"></span>Tournois</a>
+          <a style="display:flex;align-items:center;gap:10px;border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;font-weight:500;color:#94a3b8;text-decoration:none;"><span style="display:inline-block;width:16px;height:16px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/log-in.svg) center/contain no-repeat;"></span>Se connecter</a>
+        </nav>
+      </div>
+      <div style="border-top:1px solid rgba(30,41,59,.8);padding:12px 16px;display:flex;align-items:center;gap:10px;">
+        <span style="display:inline-flex;width:32px;height:32px;flex-shrink:0;align-items:center;justify-content:center;border-radius:9999px;background:#1e293b;color:#fcd34d;font-size:12px;font-weight:700;box-shadow:inset 0 0 0 1px rgba(245,158,11,.5);">V</span>
+        <span style="flex:1;"><span style="display:block;font-size:13px;font-weight:600;color:#e2e8f0;">Visiteur</span><span style="display:block;font-size:12px;color:#94a3b8;">Lecture seule</span></span>
+        <a style="font-size:12px;font-weight:600;color:#a5b4fc;">Connexion</a>
+      </div>
+    </aside>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+      <header style="border-bottom:1px solid #1e293b;background:rgba(15,23,42,.9);">
+        <div style="padding:12px 24px;display:flex;align-items:center;gap:12px;">
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid #1e293b;background:rgba(15,23,42,.5);padding:6px 12px;">
+            <img src="public/pubg.png" alt="Logo du clan" style="width:32px;height:32px;border-radius:8px;object-fit:cover;">
+            <div style="display:flex;flex-direction:column;">
+              <p style="margin:0;font-size:12px;font-weight:700;line-height:1.25;color:#e2e8f0;">Clan Démo [DEMO]</p>
+              <p style="margin:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#f59e0b;">Mode visiteur</p>
+            </div>
+            <span style="display:inline-block;width:14px;height:14px;margin-left:2px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border-radius:12px;border:1px solid #1e293b;background:rgba(15,23,42,.3);padding:6px 12px;">
+            <div style="display:flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:4px;background:#1e293b;color:#94a3b8;"><span style="display:inline-block;width:14px;height:14px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/user.svg) center/contain no-repeat;"></span></div>
+            <div style="display:flex;flex-direction:column;">
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;">Joueur</span>
+              <span style="font-size:12px;font-weight:700;line-height:1.25;color:#94a3b8;">Choisir…</span>
+            </div>
+            <span style="display:inline-block;width:14px;height:14px;margin-left:2px;background:#94a3b8;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevrons-up-down.svg) center/contain no-repeat;"></span>
+          </div>
+        </div>
+      </header>
+
+      <main style="flex:1;background:#020617;">
+        <div style="max-width:1024px;margin:0 auto;padding:24px 16px 48px;box-sizing:border-box;display:flex;flex-direction:column;gap:20px;">
+          <div style="display:flex;align-items:center;font-size:13px;color:#94a3b8;"><span style="display:inline-block;width:16px;height:16px;margin-right:4px;background:currentColor;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/chevron-left.svg) center/contain no-repeat;"></span>Vue d'ensemble</div>
+
+          <header style="position:relative;height:144px;overflow:hidden;border-radius:14px;background:url(public/leaderboard.jpg) center 30%/cover no-repeat;">
+            <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(2,6,23,.92) 0%,rgba(2,6,23,.55) 55%,rgba(2,6,23,.15) 100%);"></div>
+            <div style="position:absolute;inset:0;padding:22px 24px;display:flex;flex-direction:column;justify-content:flex-end;gap:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="display:inline-block;width:22px;height:22px;background:#facc15;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/crown.svg) center/contain no-repeat;"></span>
+                <h1 style="margin:0;font-size:26px;line-height:32px;font-weight:700;letter-spacing:-.02em;color:#fff;">Classement du clan</h1>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#cbd5e1;">
+                <span style="display:inline-flex;align-items:center;border-radius:9999px;background:rgba(15,23,42,.7);border:1px solid rgba(148,163,184,.3);padding:2px 10px;font-weight:600;color:#e2e8f0;">24 membres</span>
+                <span style="width:6px;height:6px;border-radius:9999px;background:#34d399;"></span>
+                <span>Synchronisé le 21/09 à 22:00</span>
+              </div>
+            </div>
+          </header>
+
+          <div style="position:sticky;top:0;z-index:5;border:1px solid #1e293b;border-radius:12px;background:#0f172a;padding:12px 14px;display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;">
+            <sc-for list="{{ segsB }}" as="g" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <span style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;">{{ g.title }}<sc-if value="{{ g.hasInfo }}" hint-placeholder-val="{{ false }}"><span title="« Tous » regroupe les matchs d'escouade du clan (Duo, Trio, Squad), sans les parties en Solo." style="display:inline-flex;width:14px;height:14px;cursor:help;"><span style="display:inline-block;width:14px;height:14px;background:#64748b;-webkit-mask:url(https://unpkg.com/lucide-static@0.460.0/icons/info.svg) center/contain no-repeat;mask:url(https://unpkg.com/lucide-static@0.460.0/icons/info.svg) center/contain no-repeat;"></span></span></sc-if></span>
+                <div style="display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:#020617;border:1px solid #1e293b;">
+                  <sc-for list="{{ g.items }}" as="o" hint-placeholder-count="3">
+                    <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}"><button style="display:inline-flex;align-items:center;gap:6px;border:0;height:30px;padding:0 12px;border-radius:7px;background:rgba(129,140,248,.16);color:#e0e7ff;box-shadow:inset 0 0 0 1px rgba(129,140,248,.5);font:600 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt=""></sc-if>{{ o.label }}</button></sc-if>
+                    <sc-if value="{{ o.inactive }}" hint-placeholder-val="{{ true }}"><button onClick="{{ o.onClick }}" style="display:inline-flex;align-items:center;gap:6px;border:0;height:30px;padding:0 12px;border-radius:7px;background:transparent;color:#94a3b8;font:500 13px Inter,sans-serif;cursor:pointer;"><sc-if value="{{ o.icon }}" hint-placeholder-val="{{ false }}"><img src="{{ o.icon }}" width="14" height="14" alt="" style="opacity:.7;"></sc-if>{{ o.label }}</button></sc-if>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+            <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+              <div style="border:1px solid #1e293b;border-radius:12px;background:#0f172a;padding:16px 18px;display:flex;flex-direction:column;gap:14px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;border:1px solid {{ p.pb.b }};background:{{ p.pb.bg }};color:{{ p.pb.c }};padding:3px 9px;font-size:11px;font-weight:700;line-height:1;">#{{ p.rank }}</span>
+                  <span style="display:inline-flex;gap:4px;"><sc-for list="{{ p.badges }}" as="b" hint-placeholder-count="0"><img src="{{ b.icon }}" width="20" height="20" alt="{{ b.label }}" title="{{ b.label }}"></sc-for></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="display:flex;width:40px;height:40px;flex-shrink:0;align-items:center;justify-content:center;border:1px solid rgba(148,163,184,.42);background:#111827;border-radius:12px;font-size:14px;font-weight:700;color:#e2e8f0;box-sizing:border-box;">{{ p.initial }}</span>
+                  <div style="flex:1;min-width:0;">
+                    <p style="margin:0;font-size:15px;font-weight:700;color:#f1f5f9;">{{ p.name }}</p>
+                    <p style="margin:0;font-size:12px;color:#94a3b8;">{{ p.matches }} matchs · {{ p.kpm }} K/M</p>
+                  </div>
+                  <div style="text-align:right;">
+                    <p style="margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:#fff;">{{ p.metric }}</p>
+                    <p style="margin:0;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#818cf8;">{{ p.metricLabel }}</p>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-right:4px;">Distinctions</span>
+            <sc-for list="{{ performers }}" as="p" hint-placeholder-count="5">
+              <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 5px;border-radius:9999px;background:#0f172a;border:1px solid #1e293b;font-size:13px;">
+                <img src="{{ p.icon }}" width="22" height="22" alt="">
+                <span style="color:#94a3b8;">{{ p.labelFr }}</span>
+                <span style="font-weight:600;color:#e2e8f0;">{{ p.name }}</span>
+                <span style="font-size:12px;font-variant-numeric:tabular-nums;color:#cbd5e1;">{{ p.short }}</span>
+              </span>
+            </sc-for>
+          </div>
+
+          <div style="border:1px solid #1e293b;border-radius:12px;background:#0f172a;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <colgroup>
+                <col style="width:52px"><col>
+                <sc-for list="{{ headB }}" as="h" hint-placeholder-count="8"><col style="background:{{ h.tint }};"></sc-for>
+                <sc-if value="{{ showModes }}" hint-placeholder-val="{{ true }}"><col><col><col></sc-if>
+              </colgroup>
+              <thead>
+                <tr style="border-bottom:1px solid #1e293b;background:#111827;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;">
+                  <th style="padding:10px 0 10px 16px;text-align:left;font-weight:600;">#</th>
+                  <th style="padding:10px 12px;text-align:left;font-weight:600;">Joueur</th>
+                  <sc-for list="{{ headB }}" as="h" hint-placeholder-count="8">
+                    <th onClick="{{ h.onClick }}" title="{{ h.hint }}" style="padding:10px 9px;text-align:right;font-weight:600;white-space:nowrap;cursor:{{ h.cursor }};color:{{ h.color }};">{{ h.label }}{{ h.arrow }}</th>
+                  </sc-for>
+                  <sc-if value="{{ showModes }}" hint-placeholder-val="{{ true }}">
+                    <th style="padding:10px 9px;text-align:right;border-left:1px solid #1e293b;"><img src="public/icons/squads/duo.svg" width="16" height="16" alt="Duo" title="Kills en duo clan" style="vertical-align:middle;"></th>
+                    <th style="padding:10px 9px;text-align:right;"><img src="public/icons/squads/trio.svg" width="16" height="16" alt="Trio" title="Kills en trio clan" style="vertical-align:middle;"></th>
+                    <th style="padding:10px 16px 10px 12px;text-align:right;"><img src="public/icons/squads/squad.svg" width="16" height="16" alt="Squad" title="Kills en squad clan" style="vertical-align:middle;"></th>
+                  </sc-if>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ rowsB }}" as="r" hint-placeholder-count="10">
+                  <tr style="border-bottom:1px solid #1e293b;">
+                    <td style="padding:10px 0 10px 16px;">
+                      <sc-if value="{{ r.podium }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;border:1px solid {{ r.pb.b }};background:{{ r.pb.bg }};color:{{ r.pb.c }};padding:3px 7px;font-size:10px;font-weight:700;line-height:1;">#{{ r.rank }}</span></sc-if>
+                      <sc-if value="{{ r.notPodium }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;font-weight:600;color:#64748b;font-variant-numeric:tabular-nums;padding-left:6px;">{{ r.rank }}</span></sc-if>
+                    </td>
+                    <td style="padding:10px 12px;">
+                      <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="display:flex;width:28px;height:28px;flex-shrink:0;align-items:center;justify-content:center;border:1px solid rgba(148,163,184,.3);background:#111827;border-radius:9px;font-size:11px;font-weight:700;color:#cbd5e1;box-sizing:border-box;">{{ r.initial }}</span>
+                        <a style="font-weight:600;color:#e2e8f0;white-space:nowrap;">{{ r.name }}</a>
+                        <span style="display:inline-flex;gap:3px;"><sc-for list="{{ r.badges }}" as="b" hint-placeholder-count="0"><img src="{{ b.icon }}" width="16" height="16" alt="{{ b.label }}" title="{{ b.label }}"></sc-for></span>
+                      </div>
+                    </td>
+                    <td style="padding:10px 9px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:#f1f5f9;">{{ r.kills }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:#f1f5f9;">{{ r.kpm }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#cbd5e1;">{{ r.damageFr }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#cbd5e1;">{{ r.matches }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#cbd5e1;">{{ r.won }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#cbd5e1;">{{ r.wrFr }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;white-space:nowrap;">{{ r.timeFr }}</td>
+                    <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">{{ r.activeDays }} j</td>
+                    <sc-if value="{{ showModes }}" hint-placeholder-val="{{ true }}">
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;border-left:1px solid #1e293b;">{{ r.duo }}</td>
+                      <td style="padding:10px 9px;text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">{{ r.trio }}</td>
+                      <td style="padding:10px 16px 10px 12px;text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">{{ r.squad }}</td>
+                    </sc-if>
+                  </tr>
+                </sc-for>
+              </tbody>
+              <tfoot>
+                <tr style="background:#111827;font-weight:700;font-variant-numeric:tabular-nums;color:#e2e8f0;">
+                  <td style="padding:12px 0 12px 16px;"></td>
+                  <td style="padding:12px;">Total clan</td>
+                  <td style="padding:12px 9px;text-align:right;">{{ totB.kills }}</td><td style="padding:12px 9px;text-align:right;">{{ totB.kpm }}</td><td style="padding:12px 9px;text-align:right;">{{ totB.damageFr }}</td><td style="padding:12px 9px;text-align:right;">{{ totB.matches }}</td><td style="padding:12px 9px;text-align:right;">{{ totB.won }}</td><td style="padding:12px 9px;text-align:right;">{{ totB.wrFr }}</td><td style="padding:12px 9px;text-align:right;white-space:nowrap;">{{ totB.timeFr }}</td><td style="padding:12px 9px;text-align:right;color:#64748b;">—</td>
+                  <sc-if value="{{ showModes }}" hint-placeholder-val="{{ true }}"><td style="padding:12px 9px;text-align:right;border-left:1px solid #1e293b;">{{ totB.duo }}</td><td style="padding:12px 9px;text-align:right;">{{ totB.trio }}</td><td style="padding:12px 16px 12px 12px;text-align:right;">{{ totB.squad }}</td></sc-if>
+                </tr>
+              </tfoot>
+            </table>
+            <button onClick="{{ toggleAll }}" style="all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:6px;padding:12px;border-top:1px solid #1e293b;font-size:13px;font-weight:600;color:#a5b4fc;">{{ showMoreLabel }}</button>
+          </div>
+          <p style="margin:0;font-size:12px;color:#64748b;">Clic sur un en-tête pour trier. Win rate et K/M des distinctions : minimum 3 matchs. Les variations s'affichent dès que la progression de la période précédente est disponible.</p>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CALLSIGNS = ['Alpha','Bravo','Charlie','Delta','Echo','Foxtrot','Golf','Hotel','India','Juliett','Kilo','Lima','Mike','November','Oscar','Papa','Quebec','Romeo','Sierra','Tango','Uniform','Victor','Whiskey','Xray'];
+const FACTOR = { week: 1, month: 4, all: 20 };
+const ICON = {
+  top_killer: 'public/icons/distinctions/top-killer.svg', top_damage: 'public/icons/distinctions/top-damage.svg',
+  best_wr: 'public/icons/distinctions/best-wr.svg', mvp: 'public/icons/distinctions/mvp.svg', best_kpm: 'public/icons/distinctions/best-kpm.svg',
+};
+const fr2 = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const hm = (s) => Math.floor(s / 3600) + 'h' + String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+const hmFr = (s) => Math.floor(s / 3600) + ' h ' + String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+const PODIUM = [
+  { b: 'rgba(251,191,36,.6)', bg: 'rgba(120,53,15,.5)', c: '#fde68a' },
+  { b: 'rgba(148,163,184,.55)', bg: 'rgba(51,65,85,.7)', c: '#e2e8f0' },
+  { b: 'rgba(251,146,60,.55)', bg: 'rgba(124,45,18,.55)', c: '#fed7aa' },
+];
+const ROW_BG = ['rgba(251,191,36,.34)', 'rgba(245,158,11,.28)', 'rgba(217,119,6,.22)'];
+
+function players(period) {
+  const f = FACTOR[period];
+  return CALLSIGNS.map((c, i) => {
+    const matches = (30 - i) * f, won = Math.max(0, Math.round(matches * 0.1)), kills = (60 - i * 2) * f;
+    return {
+      id: i + 1, name: 'Joueur ' + c, initial: 'J', matches, won, kills, damage: kills * 120,
+      kpmV: kills / matches, wrV: won / matches, solo: 0,
+      duo: Math.round(kills * 0.2), trio: Math.round(kills * 0.3), squad: Math.round(kills * 0.5),
+      timeS: matches * 1500, activeDays: Math.min(7 * f, 30),
+    };
+  });
+}
+const KEY = { kills: (p) => p.kills, kpm: (p) => p.kpmV, damage: (p) => p.damage, winRate: (p) => p.wrV, matches: (p) => p.matches, timePlayed: (p) => p.timeS, activeDays: (p) => p.activeDays };
+function sorted(list, key, dir) {
+  const f = KEY[key], m = dir === 'asc' ? -1 : 1;
+  return list.map((p, i) => [p, i]).sort((a, b) => m * (f(b[0]) - f(a[0])) || a[1] - b[1]).map((x) => x[0]);
+}
+function distinctions(list) {
+  const wm = list.filter((p) => p.matches > 0), w3 = list.filter((p) => p.matches >= 3);
+  const best = (arr, fn) => arr.reduce((b, e) => (!b || fn(e) > fn(b) ? e : b), null);
+  const maxK = Math.max(...wm.map((p) => p.kills), 1), maxD = Math.max(...wm.map((p) => p.damage), 1);
+  return {
+    top_killer: best(list.filter((p) => p.kills > 0), (p) => p.kills),
+    top_damage: best(wm, (p) => p.damage),
+    best_wr: best(w3, (p) => p.wrV),
+    mvp: best(wm, (p) => p.kills / maxK + p.damage / maxD + p.wrV),
+    best_kpm: best(w3.length ? w3 : wm, (p) => p.kpmV),
+  };
+}
+function totals(list) {
+  const t = list.reduce((a, p) => { a.kills += p.kills; a.matches += p.matches; a.damage += p.damage; a.won += p.won; a.duo += p.duo; a.trio += p.trio; a.squad += p.squad; a.time += p.timeS; return a; }, { kills: 0, matches: 0, damage: 0, won: 0, duo: 0, trio: 0, squad: 0, time: 0 });
+  const wr = t.matches ? (t.won / t.matches) * 100 : 0;
+  return { ...t, kpm: fr2(t.matches ? t.kills / t.matches : 0), wr: wr.toFixed(1) + '%', wrFr: wr.toFixed(1).replace('.', ',') + ' %', time: hm(t.time), timeFr: hmFr(t.time), damageFr: t.damage.toLocaleString('fr-FR') };
+}
+
+class Component extends DCLogic {
+  state = { periodA: 'week', typeA: 'official', modeA: 'all', sortA: 'kills', periodB: 'week', typeB: 'official', modeB: 'all', sortB: 'kills', dirB: 'desc', showAll: false, periodC: 'week', typeC: 'official', modeC: 'all', sortC: 'kills', dirC: 'desc', showAllC: false, periodM: 'week', typeM: 'official', modeM: 'all', sortM: 'kills', showAllM: false, openM: 1 };
+
+  seg(opts, cur, key, icons) {
+    return opts.map(([v, l], i) => ({
+      label: l, active: v === cur, inactive: v !== cur, icon: icons ? icons[v] || '' : '',
+      radius: i === 0 ? '10px 0 0 10px' : i === opts.length - 1 ? '0 10px 10px 0' : '0',
+      onClick: () => this.setState({ [key]: v }),
+    }));
+  }
+
+  renderVals() {
+    const s = this.state;
+    const PER = [['week', 'Semaine'], ['month', 'Mois'], ['all', 'Tous']];
+    const TYPE = [['official', 'Officiel'], ['casual', 'Casual'], ['custom', 'Custom'], ['all', 'Tous']];
+    const MODE = [['all', 'Tous'], ['solo', 'Solo'], ['duo', 'Duo'], ['trio', 'Trio'], ['squad', 'Squad']];
+    const modeIcons = { solo: 'public/icons/squads/solo.svg', duo: 'public/icons/squads/duo.svg', trio: 'public/icons/squads/trio.svg', squad: 'public/icons/squads/squad.svg' };
+
+    // 2a
+    const baseA = players(s.periodA);
+    const rowsA = sorted(baseA, s.sortA, 'desc').map((p, i) => ({
+      ...p, rankLabel: ['🥇', '🥈', '🥉'][i] || String(i + 1), rowBgA: ROW_BG[i] || 'transparent',
+      kpm: fr2(p.kpmV), wr: (p.wrV * 100).toFixed(1) + '%', time: hm(p.timeS),
+    }));
+    const dA = distinctions(baseA);
+    const performers = [
+      ['Top Killer', 'top_killer', 'Top Killer', 'Top killer', (p) => p.kills + ' kills', (p) => String(p.kills)],
+      ['Top Damage', 'top_damage', 'Top Damage', 'Dégâts', (p) => p.damage + ' dmg', (p) => p.damage.toLocaleString('fr-FR')],
+      ['Best Win Rate', 'best_wr', 'Best Win Rate', 'Win rate', (p) => (p.wrV * 100).toFixed(1) + '% (' + p.matches + ' matchs)', (p) => (p.wrV * 100).toFixed(1).replace('.', ',') + ' %'],
+      ['MVP', 'mvp', 'MVP', 'MVP', (p) => p.kills + 'K / ' + p.damage + 'D / ' + (p.wrV * 100).toFixed(0) + '%WR', () => ''],
+      ['TOP Kills/Matchs', 'best_kpm', 'Best K/M', 'K/M', (p) => fr2(p.kpmV) + ' K/M', (p) => fr2(p.kpmV)],
+    ].map(([title, key, label, labelFr, val, short]) => {
+      const p = dA[key];
+      return { title, label, labelFr, icon: ICON[key], name: p.name, value: val(p), short: short(p) };
+    });
+
+    // 2b
+    const baseB = players(s.periodB);
+    const dB = distinctions(baseB);
+    const badgesOf = {};
+    Object.entries(dB).forEach(([k, p]) => { (badgesOf[p.id] = badgesOf[p.id] || []).push({ icon: ICON[k], label: performers.find((x) => x.icon === ICON[k]).label }); });
+    const listB = sorted(baseB, s.sortB, s.dirB).map((p, i) => ({
+      ...p, rank: i + 1, podium: i < 3, notPodium: i >= 3, pb: PODIUM[i] || PODIUM[1],
+      badges: badgesOf[p.id] || [], kpm: fr2(p.kpmV), damageFr: p.damage.toLocaleString('fr-FR'),
+      wrFr: (p.wrV * 100).toFixed(1).replace('.', ',') + ' %', timeFr: hmFr(p.timeS),
+    }));
+    const metric = {
+      kills: ['Kills', (r) => String(r.kills)], kpm: ['K/M', (r) => r.kpm], damage: ['Dégâts', (r) => r.damageFr],
+      winRate: ['Win rate', (r) => r.wrFr], matches: ['Matchs', (r) => String(r.matches)],
+      timePlayed: ['Temps de jeu', (r) => r.timeFr], activeDays: ['Jours actifs', (r) => r.activeDays + ' j'],
+    }[s.sortB];
+    const heads = [['kills', 'Kills'], ['kpm', 'K/M'], ['damage', 'Dégâts'], ['matches', 'Matchs'], [null, 'Top 1'], ['winRate', 'Win rate'], ['timePlayed', 'Temps'], ['activeDays', 'Jours']];
+    const headB = heads.map(([k, l]) => ({
+      label: l, arrow: k && k === s.sortB ? (s.dirB === 'desc' ? ' ↓' : ' ↑') : '',
+      color: k && k === s.sortB ? '#a5b4fc' : '#94a3b8', cursor: k ? 'pointer' : 'default',
+      tint: k && k === s.sortB ? 'rgba(129,140,248,.07)' : 'transparent', hint: k ? 'Trier par ' + l.toLowerCase() : 'Victoires (top 1)',
+      onClick: () => { if (!k) return; this.setState((st) => (st.sortB === k ? { dirB: st.dirB === 'desc' ? 'asc' : 'desc' } : { sortB: k, dirB: 'desc' })); },
+    }));
+
+    // 3 : clair desktop + mobile
+    const LPOD = [
+      { b: 'rgba(217,119,6,.6)', bg: 'rgba(254,243,199,.9)', c: '#92400e' },
+      { b: 'rgba(100,116,139,.5)', bg: 'rgba(226,232,240,.9)', c: '#1e293b' },
+      { b: 'rgba(180,83,9,.55)', bg: 'rgba(255,237,213,.9)', c: '#7c2d12' },
+    ];
+    const board = (period, sort, dir) => {
+      const base = players(period), d = distinctions(base), bo = {};
+      Object.entries(d).forEach(([k, p]) => { (bo[p.id] = bo[p.id] || []).push({ icon: ICON[k], label: performers.find((x) => x.icon === ICON[k]).label }); });
+      const mt = { kills: ['Kills', (r) => String(r.kills)], kpm: ['K/M', (r) => r.kpm], damage: ['Dégâts', (r) => r.damageFr], winRate: ['Win rate', (r) => r.wrFr], matches: ['Matchs', (r) => String(r.matches)], timePlayed: ['Temps', (r) => r.timeFr], activeDays: ['Jours actifs', (r) => r.activeDays + ' j'] }[sort];
+      const list = sorted(base, sort, dir).map((p, i) => {
+        const r = { ...p, rank: i + 1, podium: i < 3, notPodium: i >= 3, pb: LPOD[i] || LPOD[1], badges: bo[p.id] || [], kpm: fr2(p.kpmV), damageFr: p.damage.toLocaleString('fr-FR'), wrFr: (p.wrV * 100).toFixed(1).replace('.', ',') + ' %', timeFr: hmFr(p.timeS) };
+        r.metric = mt[1](r); r.metricLabel = mt[0]; return r;
+      });
+      return { list, tot: totals(base) };
+    };
+    const C = board(s.periodC, s.sortC, s.dirC);
+    const headC = heads.map(([k, l]) => ({
+      label: l, arrow: k && k === s.sortC ? (s.dirC === 'desc' ? ' ↓' : ' ↑') : '',
+      color: k && k === s.sortC ? '#4f46e5' : '#64748b', cursor: k ? 'pointer' : 'default',
+      tint: k && k === s.sortC ? 'rgba(99,102,241,.06)' : 'transparent', hint: k ? 'Trier par ' + l.toLowerCase() : 'Victoires (top 1)',
+      onClick: () => { if (!k) return; this.setState((st) => (st.sortC === k ? { dirC: st.dirC === 'desc' ? 'asc' : 'desc' } : { sortC: k, dirC: 'desc' })); },
+    }));
+    const M = board(s.periodM, s.sortM, 'desc');
+    const rowsM = M.list.slice(0, s.showAllM ? 24 : 8).map((r) => ({ ...r, open: s.openM === r.id, closed: s.openM !== r.id, chevron: s.openM === r.id ? '▴' : '▾', onToggle: () => this.setState((st) => ({ openM: st.openM === r.id ? null : r.id })) }));
+    const extra = {
+      segsC: [
+        { title: 'Période', hasInfo: false, items: this.seg(PER, s.periodC, 'periodC') },
+        { title: 'Type de match', hasInfo: false, items: this.seg(TYPE, s.typeC, 'typeC') },
+        { title: "Mode d'escouade", hasInfo: true, items: this.seg(MODE, s.modeC, 'modeC', modeIcons) },
+      ],
+      podiumC: C.list.slice(0, 3), headC, rowsC: s.showAllC ? C.list : C.list.slice(0, 10), rowsCDocked: C.list.slice(4, 11),
+      totC: C.tot, showModesC: s.modeC === 'all',
+      showMoreC: s.showAllC ? 'Réduire à 10 joueurs' : 'Afficher les 14 autres joueurs', toggleAllC: () => this.setState({ showAllC: !s.showAllC }),
+      perM: this.seg(PER, s.periodM, 'periodM'), typeM: this.seg(TYPE, s.typeM, 'typeM'), modeM: this.seg(MODE, s.modeM, 'modeM', modeIcons),
+      sortM: [['kills', 'Kills'], ['kpm', 'K/M'], ['damage', 'Dégâts'], ['winRate', 'Win rate'], ['matches', 'Matchs'], ['timePlayed', 'Temps'], ['activeDays', 'Jours actifs']].map(([v, l]) => ({ label: l, active: v === s.sortM, inactive: v !== s.sortM, onClick: () => this.setState({ sortM: v }) })),
+      podiumM: M.list.slice(0, 3), rowsM, rowsMDocked: M.list.slice(5, 13),
+      showMoreM: s.showAllM ? 'Réduire' : 'Afficher les 16 autres', toggleAllM: () => this.setState({ showAllM: !s.showAllM }),
+      sortLabelM: M.list[0].metricLabel,
+    };
+    return {
+      ...extra,
+      segsA: [this.seg(PER, s.periodA, 'periodA'), this.seg(TYPE, s.typeA, 'typeA'), this.seg(MODE, s.modeA, 'modeA')].map((items) => ({ items })),
+      sortsA: this.seg([['kills', 'Kills'], ['kpm', 'K/M'], ['damage', 'Damage'], ['winRate', 'Win Rate'], ['matches', 'Matchs'], ['timePlayed', 'Temps de jeu'], ['activeDays', 'Jours Actifs']], s.sortA, 'sortA'),
+      rowsA, showDeltaA: s.periodA !== 'all', performers, tot: totals(baseA), totB: totals(baseB),
+      segsB: [
+        { title: 'Période', hasInfo: false, items: this.seg(PER, s.periodB, 'periodB') },
+        { title: 'Type de match', hasInfo: false, items: this.seg(TYPE, s.typeB, 'typeB') },
+        { title: "Mode d'escouade", hasInfo: true, items: this.seg(MODE, s.modeB, 'modeB', modeIcons) },
+      ],
+      podium: listB.slice(0, 3).map((r) => ({ ...r, metric: metric[1](r), metricLabel: metric[0] })),
+      headB, rowsB: s.showAll ? listB : listB.slice(0, 10), showModes: s.modeB === 'all',
+      showMoreLabel: s.showAll ? 'Réduire à 10 joueurs' : 'Afficher les ' + (listB.length - 10) + ' autres joueurs',
+      toggleAll: () => this.setState({ showAll: !s.showAll }),
+    };
+  }
+}
+</script>
+</body>
+</html>

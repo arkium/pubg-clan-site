@@ -795,6 +795,29 @@ persistance de la période par l'URL et une mémoire de visite.
   qui ne sert plus ; la production se déploie par build autonome et systemd). Il se déclenche encore à chaque push
   sur `main`
 
+#### Lot 6 — Sous-domaine par clan (`<clan>.chickendinner.fr`) — 📐 Cadrage validé le 2026-09-26, à implémenter
+
+Spec : [chickendinnerfr.md](chickendinnerfr.md). Décisions : **redirection** vers `chickendinner.fr/clans/<id>/overview`
+(pas de sous-domaine persistant), champ **`Clan.subdomain` unique** plutôt que le tag, tags en double (`kms`, `fr`)
+remplacés par le nom de chaque clan. DNS wildcard déjà en place.
+
+- [x] Code : `src/lib/clan-subdomain.ts`, champ et migration, attribution à l'activation, route interne, proxy,
+  réglage SuperUser, script de remplissage, tests (2026-09-26)
+- [x] Migration et remplissage en production (accord du 2026-09-26) : 29 clans actifs, `kms` et `fr` par le nom
+- [ ] Certificat wildcard (validation DNS) et `server_name` Nginx
+- [ ] `CLAN_SUBDOMAIN_ROOT` en production
+
+#### Lot 7 — Liens courts (`/m/<match>`, `/t/<tournoi>`, `/j/<joueur>`) — 📐 Cadrage validé le 2026-09-26, à implémenter
+
+Spec : [url-masking.md](url-masking.md). Redirections 307 vers les adresses canoniques, cuid tel quel (ni Sqids, ni
+migration). 16 % des matchs réunissent plusieurs clans : clan porté par le sous-domaine, sinon page de choix.
+
+- [ ] `src/lib/short-links.ts` (base publique unique), pages `/m/[matchId]` et `/t/…`, exception `/m/` du proxy
+- [ ] Embeds Discord (Top 1, tournois) sur les liens courts, noms des joueurs cliquables
+- [ ] 🐞 Base publique : `APP_URL` et `NEXT_PUBLIC_APP_URL` lues dans deux ordres différents
+  (`auth-service.ts`, `discord-service.ts`) ; base vide → embed sans lien, sans avertissement
+- [ ] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron
+
 #### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 
 > **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des

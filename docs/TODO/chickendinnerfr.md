@@ -1,101 +1,172 @@
-**Oui, c'est tout à fait possible**, et c'est une excellente idée pour donner une identité forte et une URL dédiée à chaque clan.
+# Sous-domaine par clan — `<clan>.chickendinner.fr`
 
-Voici un tour d'horizon de comment cela fonctionne et de ce qu'il faut prévoir techniquement :
-
----
-
-### 1. Deux manières de l'implémenter
-
-#### Option A : La redirection simple (301 / 302)
-* **Comportement** : Le joueur tape `smk.chickendinner.fr` et son navigateur est redirigé vers `chickendinner.fr/clans/1/overview`.
-* **Avantages** :
-  * Très simple à implémenter.
-  * Zéro casse-tête de sessions ou de cookies d'authentification (tout le monde reste sur le domaine principal).
-
-#### Option B : Le sous-domaine persistant (Multi-tenancy / Rewrite)
-* **Comportement** : L'URL reste `smk.chickendinner.fr` (et `smk.chickendinner.fr/members`, `smk.chickendinner.fr/stats`, etc.). Next.js réécrit l'URL en interne de façon transparente.
-* **Avantages** :
-  * Rendu ultra-pro et immersif, chaque clan a l'impression d'avoir son propre site web dédié.
-* **Point d'attention** :
-  * Le cookie de session (`pubg_clan_session`) doit être configuré avec `domain: '.chickendinner.fr'` pour être partagé entre le domaine principal et les sous-domaines.
+> **Spécification — cadrage validé le 2026-09-26 ; étapes 1 et 2 du §5 faites le 2026-09-26 (code, migration,
+> 29 sous-domaines attribués) ; étapes 3 et 4 (certificat, Nginx, `CLAN_SUBDOMAIN_ROOT`) à faire sur le serveur**
+> *Destiné à l'équipe de développement.*
+>
+> Première version : une note d'opportunité. Revue contre le code et l'infrastructure le 2026-09-26 : le DNS est
+> prêt, mais le tag de clan ne peut pas servir de clé (doublons en base), et le sous-domaine « persistant » casserait
+> la session et les liens internes (§3).
 
 ---
 
-### 2. Comment ça se met en place techniquement ?
+## 1. Le besoin
 
-#### 1. Côté DNS : Le Wildcard (`*`)
-Pour éviter d'avoir à créer une entrée DNS manuelle à chaque fois qu'un clan est créé :
-* Tu ajoutes un enregistrement DNS **Wildcard** chez ton registrar (ex: OVH, Cloudflare, etc.) :
-  ```text
-  Type: A
-  Nom : *.chickendinner.fr
-  Valeur : <IP_DE_TON_SERVEUR>
-  ```
-  *(Et de même pour `chickendinner.fr` et `@`)*. N'importe quel sous-domaine pointera ainsi automatiquement vers ton serveur.
-
-#### 2. Côté Certificat SSL (HTTPS)
-* Il faudra générer un certificat **Wildcard Let's Encrypt** couvrant `chickendinner.fr` et `*.chickendinner.fr`.
-* Cela se fait simplement via `certbot` avec le plugin DNS de ton registrar (ou via un reverse-proxy comme Nginx / Caddy / Traefik, ou automatiquement si tu passes par Cloudflare).
-
-#### 3. Côté Nginx (Reverse Proxy)
-Dans la configuration Nginx du serveur :
-```nginx
-server {
-    server_name chickendinner.fr *.chickendinner.fr;
-    
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-#### 4. Côté Code (Next.js & Base de données)
-Ton application est déjà très bien structurée pour cela :
-1. **Modèle Prisma** : La table `Clan` possède déjà le champ `tag` (ex: `SMK`, `BEE`).
-2. **Middleware / Proxy** : Dans [src/proxy.ts](file:///d:/Sources/pubg-clan-site/src/proxy.ts), Next.js intercepte la requête et peut inspecter l'hôte :
-   ```typescript
-   const host = request.headers.get('host') ?? ''
-   // Si host === 'smk.chickendinner.fr'
-   const subdomain = host.split('.')[0]?.toLowerCase()
-   
-   // Exclure www, api, etc.
-   if (subdomain && !['www', 'api', 'admin'].includes(subdomain)) {
-     // Option A : Redirection vers le clan correspondant
-     return NextResponse.redirect(new URL(`/clans/${clanId}/overview`, request.url))
-     
-     // Ou Option B : Rewrite transparent
-     // return NextResponse.rewrite(new URL(`/clans/${clanId}${pathname}`, request.url))
-   }
-   ```
+Donner à chaque clan une adresse courte et mémorisable — `smk.chickendinner.fr` — qui mène directement à sa vue
+d'ensemble, sans que le joueur ait à passer par la liste des clans. Tout nouveau clan doit obtenir son adresse sans
+action manuelle sur le DNS, le certificat ou Nginx.
 
 ---
 
-### 3. Et quand j'ajoute un nouveau clan : est-ce automatique ?
+## 2. Décisions
 
-**OUI, c'est 100% automatique et instantané.**
-
-Dès que tu ajoutes un nouveau clan (qu'il soit créé via `/join`, approuvé dans le cycle de vie ou suivi depuis l'Observatoire), **son sous-domaine fonctionne immédiatement à la seconde même**, sans aucune action manuelle de ta part :
-
-1. **Zéro action DNS** : Grâce à l'enregistrement Wildcard `*.chickendinner.fr`, tous les sous-domaines possibles pointent déjà vers ton serveur.
-2. **Zéro action SSL** : Le certificat Wildcard Let's Encrypt couvre déjà nativement `*.chickendinner.fr` pour le HTTPS.
-3. **Zéro action Nginx** : Nginx écoute déjà `*.chickendinner.fr` et passe la requête à Next.js.
-4. **Résolution dynamique dans Next.js** :
-   * Quand une requête arrive pour `ratz.chickendinner.fr`, Next.js extrait le préfixe `ratz`.
-   * Il interroge la table `Clan` : `SELECT id FROM Clan WHERE LOWER(tag) = 'ratz' AND isActive = true`.
-   * Dès que le clan existe en base de données, la redirection (ou le rewrite) s'active instantanément.
-
-#### Les 3 règles d'or à prévoir :
-* **Mots réservés (Blacklist)** : Ignorer les sous-domaines techniques (`www`, `api`, `admin`, `mail`, `dev`, `status`) pour éviter qu'un clan ne masque une route système.
-* **Sous-domaine inconnu** : Si quelqu'un tape `bidon.chickendinner.fr` (aucun clan actif correspondant en base), Next.js redirige simplement vers la page d'accueil principale `chickendinner.fr`.
-* **Casse & Caractères** : Les noms de domaine web sont toujours en minuscules (`[a-z0-9-]`). Le tag PUBG (ex: `SMK` ou `BEE`) est simplement converti en minuscules (`smk`, `bee`) pour faire la correspondance.
+| Sujet | Décision | Date |
+|---|---|---|
+| Comportement | **Redirection** (option A) : `smk.chickendinner.fr/…` → `https://chickendinner.fr/clans/<id>/overview`. Le site reste sur un seul domaine | 2026-09-26 |
+| Sous-domaine persistant (option B, réécriture interne) | **Écarté** : cookie de session à élargir à tous les sous-domaines, liens internes `/clans/<id>/…` à réécrire, clan sélectionné (`localStorage`) perdu d'un sous-domaine à l'autre (§3.C) | 2026-09-26 |
+| Clé de correspondance | **Champ dédié `Clan.subdomain`, unique**, et non le tag PUBG : le tag n'est pas unique et peut changer ou être repris (§3.B) | 2026-09-26 |
+| Tags en double | Aucun des deux clans ne reçoit le tag seul : chacun reçoit un sous-domaine tiré de son **nom** (§4.B) | 2026-09-26 |
+| Sous-domaine inconnu ou réservé | Redirection **temporaire** vers `https://chickendinner.fr/clans` (jamais 301 : le navigateur la mémoriserait) | 2026-09-26 |
 
 ---
 
-### En résumé
-C'est totalement réalisable, très courant dans les applications SaaS ou communautaires, et ton architecture actuelle s'y prête parfaitement. 
+## 3. État au 2026-09-26
 
-Si tu prends le domaine, on pourra configurer ensemble le DNS wildcard, le SSL et la logique dans [src/proxy.ts](file:///d:/Sources/pubg-clan-site/src/proxy.ts) dès que tu seras prêt !
+### A. Infrastructure (vérifiée)
+
+| Élément | État |
+|---|---|
+| DNS `chickendinner.fr` | ✅ pointe vers le serveur de production (217.182.143.43) |
+| DNS wildcard `*.chickendinner.fr` | ✅ déjà en place : un sous-domaine inventé résout vers la même adresse |
+| Certificat HTTPS | ❌ couvre `chickendinner.fr` seulement : `https://smk.chickendinner.fr` échoue (nom de certificat incorrect) |
+| Nginx (1.24, Ubuntu) | ⚠️ à étendre : `server_name` du domaine principal seulement |
+
+### B. Les tags ne peuvent pas servir de clé
+
+`Clan.tag` n'a aucune contrainte d'unicité (seuls `[name, platformShard]` et `[pubgClanId, platformShard]` en ont). Sur
+30 clans actifs, **deux tags sont partagés** :
+
+| Tag | Clans |
+|---|---|
+| `kms` | KilslMS (id 2), KeepMoveSurvive (id 180) |
+| `fr` | FR-Alliance-BE (id 7), teambaguette (id 24) |
+
+Tous les tags actuels sont par ailleurs compatibles DNS (`[a-z0-9]`, une fois en minuscules). Un tag PUBG peut
+changer, ou être repris par un autre clan : une adresse fondée sur le tag changerait de destinataire sans prévenir.
+
+### C. Pourquoi pas le sous-domaine persistant
+
+- Le cookie `pubg_clan_session` est limité à l'hôte exact (`buildCookieOptions`, sans `domain`) : il faudrait
+  `domain: '.chickendinner.fr'`, et tout sous-domaine le recevrait.
+- Tous les liens internes sont écrits `/clans/${clanId}/…` : réécrits sous un sous-domaine, ils produiraient des
+  chemins doublés ou deux schémas d'URL mêlés.
+- `selectedClanId` (`localStorage`) est propre à chaque origine : chaque sous-domaine repartirait de zéro — et
+  aggraverait le bug connu du premier visiteur renvoyé vers `/clans` ([tests-e2e.md](../ops/tests-e2e.md#points-connus)).
+- Les liens absolus des e-mails et de Discord (`NEXT_PUBLIC_APP_URL`) resteraient sur le domaine principal.
+
+### D. Le proxy
+
+`src/proxy.ts` tourne sous Node (Next 16) et appelle déjà `/api/setup/status` à **chaque** requête. Le piège n° 4
+du CLAUDE.md y interdit Prisma. Ajouter une lecture en base par page sur une VM partagée n'est pas souhaitable :
+la correspondance doit être mise en cache.
+
+---
+
+## 4. Le standard cible
+
+### A. Données
+
+- Nouveau champ `Clan.subdomain String? @unique` (`VarChar(63)`), en minuscules, `[a-z0-9-]`, sans tiret en début
+  ni en fin, 2 à 63 caractères.
+- **Mots réservés**, jamais attribués : `www`, `api`, `admin`, `mail`, `smtp`, `imap`, `pop`, `ftp`, `dev`,
+  `staging`, `test`, `status`, `static`, `cdn`, `assets`, `app`, `auth`, `login`. Liste unique dans
+  `src/lib/clan-subdomain.ts`, avec la normalisation et la validation.
+- Le clan système (`isSystem`) n'a pas de sous-domaine.
+
+### B. Attribution
+
+- **Par défaut** : le tag en minuscules, s'il est valide, non réservé et libre.
+- **Sinon** (tag déjà pris, réservé ou invalide) : le nom du clan normalisé (minuscules, accents retirés, caractères
+  hors `[a-z0-9]` remplacés par `-`, tirets consécutifs fusionnés). En dernier recours, suffixe numérique (`-2`, `-3`…).
+- **Doublons actuels** (décision du 2026-09-26) — aucun des deux clans ne garde le tag seul :
+
+  | Clan | Sous-domaine |
+  |---|---|
+  | KilslMS (id 2) | `kilslms` |
+  | KeepMoveSurvive (id 180) | `keepmovesurvive` |
+  | FR-Alliance-BE (id 7) | `fr-alliance-be` |
+  | teambaguette (id 24) | `teambaguette` |
+
+- **Nouveau clan** : attribution automatique quand le clan devient actif (validation dans le cycle de vie, ajout
+  depuis l'Observatoire). Un changement de tag ultérieur **ne modifie pas** le sous-domaine : l'adresse reste stable.
+- **Modification** : réservée au SuperUser (réglages du clan) ; l'ancien sous-domaine est libéré immédiatement.
+- **Clan archivé ou désactivé** : son sous-domaine redirige vers `/clans` (sous-domaine conservé, pour une
+  réactivation).
+
+### C. Redirection (`src/proxy.ts`)
+
+- Hôte `<x>.chickendinner.fr` (domaine racine lu depuis une variable d'environnement, par exemple
+  `CLAN_SUBDOMAIN_ROOT=chickendinner.fr` ; absente → fonctionnalité désactivée, donc sans effet en local) :
+  - `<x>` attribué à un clan actif → **307** vers `https://chickendinner.fr/clans/<id>/overview` ;
+  - `<x>` inconnu, réservé, ou clan inactif → **307** vers `https://chickendinner.fr/clans`.
+- Le chemin du sous-domaine est ignoré (`smk.chickendinner.fr/stats` → vue d'ensemble) : pas de second schéma d'URL.
+  Seule exception : `/m/<match>` → `https://chickendinner.fr/m/<match>?c=<sous-domaine>` (lien court de
+  débriefing, [url-masking.md](url-masking.md) §4.C).
+- Le domaine racine, `www`, `localhost` et les adresses IP ne sont jamais traités comme des sous-domaines.
+- **Aucune lecture Prisma dans le proxy** : il appelle une route interne légère
+  (`GET /api/internal/clan-subdomains`, sur le modèle de `/api/setup/status`) qui renvoie la table
+  `sous-domaine → id` des clans actifs ; le proxy la garde en cache mémoire quelques minutes. Une modification
+  d'attribution est donc visible au plus tard à l'expiration du cache.
+- La redirection passe **avant** la logique d'installation et de session : un sous-domaine n'affiche jamais de page.
+
+### D. Infrastructure
+
+1. **Certificat wildcard** Let's Encrypt couvrant `chickendinner.fr` et `*.chickendinner.fr`. Il exige une
+   validation **DNS-01** : `certbot` avec le plugin du registrar (renouvellement automatique à vérifier).
+2. **Nginx** : `server_name chickendinner.fr *.chickendinner.fr;` sur le bloc HTTPS existant (en-têtes `Host`,
+   `X-Forwarded-Proto` déjà transmis), et le bloc HTTP de redirection vers HTTPS étendu aux sous-domaines.
+3. Rien à faire au DNS : le wildcard est en place.
+
+---
+
+## 5. Plan
+
+1. **Code** (sans effet en production tant que `CLAN_SUBDOMAIN_ROOT` n'est pas défini) : `src/lib/clan-subdomain.ts`,
+   champ Prisma et migration, attribution à l'activation d'un clan, route interne, redirection dans le proxy,
+   réglage SuperUser.
+2. **Migration en production** — *avec accord explicite* : `migrate diff` lu avant, puis ajout de la colonne et de
+   l'index unique ; remplissage des clans actifs par un script `scripts/backfill-clan-subdomains.ts` en mode
+   simulation d'abord (liste des attributions affichée), puis écriture.
+3. **Certificat puis Nginx** sur le serveur ; vérifier `https://smk.chickendinner.fr` avant d'aller plus loin.
+4. Définir `CLAN_SUBDOMAIN_ROOT` et redémarrer `web`.
+
+---
+
+## 6. Tests
+
+| Fichier | Contenu |
+|---|---|
+| `src/lib/clan-subdomain.test.ts` | Normalisation (casse, accents, caractères interdits, tirets), validation (longueur, mots réservés), attribution : tag libre, tag pris → nom, nom pris → suffixe ; les quatre attributions du §4.B |
+| `src/lib/clan-subdomain-proxy.test.ts` | Extraction de l'hôte : racine, `www`, `localhost`, IP, sous-domaine ; 307 vers la vue d'ensemble, 307 vers `/clans` si inconnu ou réservé ; fonctionnalité inactive sans `CLAN_SUBDOMAIN_ROOT` ; cache (un seul appel à la route interne par période) |
+| Contrat de la route interne | Ne renvoie que les clans actifs non système ; ne renvoie ni nom ni donnée autre que `sous-domaine → id` |
+
+Recette manuelle en production : `smk.chickendinner.fr`, `kilslms.chickendinner.fr`, un sous-domaine inventé,
+`www.chickendinner.fr`, en HTTP et en HTTPS ; certificat valide sur chacun.
+
+---
+
+## 7. Documentation
+
+| Document | Mise à jour |
+|---|---|
+| [docs/ops/deployment.md](../ops/deployment.md) | Certificat wildcard (DNS-01, renouvellement), `server_name` avec wildcard, variable `CLAN_SUBDOMAIN_ROOT` |
+| [docs/features/cycle-de-vie-clan.md](../features/cycle-de-vie-clan.md) | Attribution du sous-domaine à l'activation, stabilité au changement de tag |
+| CLAUDE.md | Variable d'environnement ; règle « pas de Prisma dans le proxy » rappelée avec la route interne |
+| [docs/sommaire.md](../sommaire.md), [todo.md](todo.md) | Entrée du chantier |
+
+---
+
+## 8. Questions ouvertes
+
+- Registrar du domaine : conditionne le plugin `certbot` pour la validation DNS.
+- Faut-il montrer l'adresse du clan sur sa vue d'ensemble (lien copiable) ? Proposé, non décidé.

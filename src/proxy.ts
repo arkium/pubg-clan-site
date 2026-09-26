@@ -1,5 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
+import {
+  createSubdomainTargetsCache,
+  extractSubdomainLabel,
+  fetchSubdomainTargets,
+  readSubdomainRoot,
+  subdomainRedirectLocation,
+} from '@/lib/clan-subdomain-host'
+
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
 const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join'])
 const PUBLIC_PATHS = new Set(['/login', '/activate', '/reset-password', '/join'])
@@ -29,8 +37,33 @@ async function getSetupState(origin: string): Promise<'first_run' | 'pending_act
   }
 }
 
+// Table `sous-domaine → clan`, gardée en mémoire par le process web (docs/TODO/chickendinnerfr.md §4.C).
+let subdomainTargetsCache: ReturnType<typeof createSubdomainTargetsCache> | null = null
+
+/** Redirection d'un sous-domaine de clan, ou `null` (fonctionnalité inactive ou hôte ordinaire). */
+async function clanSubdomainRedirect(request: NextRequest): Promise<string | null> {
+  const root = readSubdomainRoot()
+  if (!root) return null
+  const label = extractSubdomainLabel(request.headers.get('host'), root)
+  if (!label) return null
+
+  subdomainTargetsCache ??= createSubdomainTargetsCache(() => fetchSubdomainTargets(request.nextUrl.origin))
+  return subdomainRedirectLocation({
+    label,
+    pathname: request.nextUrl.pathname,
+    root,
+    targets: await subdomainTargetsCache(),
+  })
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, origin } = request.nextUrl
+
+  // Un sous-domaine de clan n'affiche jamais de page : il redirige, avant toute autre logique.
+  const subdomainLocation = await clanSubdomainRedirect(request)
+  if (subdomainLocation) {
+    return NextResponse.redirect(subdomainLocation, 307)
+  }
 
   const setupState = await getSetupState(origin)
 

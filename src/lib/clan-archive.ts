@@ -12,6 +12,7 @@ import {
   PLAYER_CLAN_CHANGE_STATUSES,
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
+import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -263,6 +264,8 @@ export async function reactivateClan(clanId: number): Promise<ReactivateClanResu
     throw new ClanFollowError('state_changed', 409, 'L’état du clan a changé pendant l’opération : rechargez la page.')
   }
 
+  // Le sous-domaine conservé pendant l'arrêt de suivi redevient actif ; un clan qui n'en avait pas en reçoit un.
+  await assignClanSubdomainSafely(clanId, 'réactivation')
   return { outcome: 'reactivated', clan: identity }
 }
 

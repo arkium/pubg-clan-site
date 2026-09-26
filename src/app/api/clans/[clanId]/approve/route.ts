@@ -1,6 +1,7 @@
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { sendClanApprovedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
 import { applyPendingPromotionsForClan } from '@/lib/clan-lifecycle/pending-promotions'
+import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { createNotificationForMember } from '@/lib/notification-service'
@@ -61,6 +62,9 @@ export async function POST(
       where: { id: parsedClanId },
       data: { isActive: true },
     })
+
+    // Adresse <sous-domaine>.chickendinner.fr attribuée à l'entrée dans la ligue (sans bloquer la validation).
+    await assignClanSubdomainSafely(parsedClanId, 'validation')
 
     // Chantier 2 : le clan vient d'entrer dans la ligue, les mouvements que le cron
     // avait laisses en attente peuvent maintenant s'appliquer. Hors transaction de

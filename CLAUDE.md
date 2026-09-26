@@ -375,6 +375,7 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `AUTH_BOOTSTRAP_SECRET` | SuperUser activation token | `.env` |
 | `SMTP_URL` (optional) | Email delivery (reports, notifications) | `.env` |
 | `ENABLE_CRON_JOBS` | Toggle cron scheduling | `.env` (default: `true`) |
+| `CLAN_SUBDOMAIN_ROOT` (optional) | Sous-domaines de clan (`chickendinner.fr`) ; absente = redirection désactivée | `.env` |
 
 **Note:** Prisma CLI commands read `.env`, not `.env.local`. Keep `DATABASE_URL` in `.env` for migrations.
 
@@ -400,6 +401,9 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Issue:** Prisma imports cause bundling errors in edge middleware
 - **Location:** `src/proxy.ts` (no Prisma, no session logic allowed)
 - **Fix:** Delegate to `/api/auth/session` for session checks
+- **Sous-domaines de clan:** même règle — le proxy lit la table `sous-domaine → clan` par
+  `GET /api/internal/clan-subdomains` et la garde en cache (`src/lib/clan-subdomain-host.ts`) ; tout ce qu'il
+  importe doit rester sans Prisma (`src/lib/clan-subdomain.ts` est pur, le service Prisma est à part).
 
 #### 5. **useSearchParams() SSR Hydration Mismatch**
 - **Issue:** Next.js 16 warns if `useSearchParams()` used in Server-rendered page

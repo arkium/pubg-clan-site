@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
 import { prisma } from '@/lib/prisma'
 import {
   fetchClanMembers,
@@ -88,7 +89,7 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
   }
 
   if (existingClan) {
-    return prisma.clan.update({
+    const updated = await prisma.clan.update({
       where: { id: existingClan.id },
       data: {
         name: pubgClan.name,
@@ -98,9 +99,12 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
         clanStats: toJsonInput(clanStats),
       },
     })
+    // Rattrapage d'un clan actif sans sous-domaine ; un clan qui en a déjà un le garde (tag changé ou non).
+    await assignClanSubdomainSafely(updated.id, 'mise à jour depuis PUBG')
+    return updated
   }
 
-  return prisma.clan.create({
+  const created = await prisma.clan.create({
     data: {
       name: pubgClan.name,
       tag: pubgClan.tag,
@@ -109,6 +113,9 @@ export async function upsertTrackedClanFromPubg(pubgClan: PubgClan, platformShar
       clanStats: toJsonInput(clanStats),
     },
   })
+  // Clan suivi actif dès sa création : son adresse <sous-domaine>.chickendinner.fr existe aussitôt.
+  await assignClanSubdomainSafely(created.id, 'nouveau clan suivi')
+  return created
 }
 
 export async function ensureTrackedClanForPlayer(playerId: string, platformShard: string) {

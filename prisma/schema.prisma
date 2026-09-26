@@ -35,6 +35,9 @@ model Clan {
   // distingue les deux etats.
   archivedAt          DateTime?
   archivedReason      String?
+  // Adresse <sous-domaine>.chickendinner.fr (docs/TODO/chickendinnerfr.md) : attribuee une fois,
+  // stable au changement de tag, nulle pour le clan systeme et les clans jamais actives.
+  subdomain           String?   @unique @db.VarChar(63)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

@@ -317,7 +317,7 @@ vitrine, dans cet ordre :
 
 | Bloc | Contenu | Filtré par le bandeau ? |
 |---|---|---|
-| Vitrine | Image du clan (réglage `login_welcome_image_url`, page « Accueil login » ; à défaut `/clans/default_clan.jpg` comme le sélecteur de clan, avec un raccourci « Ajouter l’image du clan » pour qui a accès au réglage) ; fiche PUBG : tag, nom, **niveau** (`clanStats.pubg.raw.attributes.clanLevel` — la colonne `Clan.clanLevel` est vide pour tous les clans), membres PUBG (`clanStats.pubg.memberCount`) et suivis, dernière sync ; palmarès : top 1 du mois, rang en **Ligue des clans** (mois), kills depuis le début du suivi (`tracked.aggregated.totalKills`), tournoi gagné s'il y en a un, sinon parties du mois | Non |
+| Vitrine | Image du clan (réglage `login_welcome_image_url`, page « Accueil login » ; à défaut, ou si elle ne se charge plus, `/clans/default_clan.jpg` comme le sélecteur de clan, avec un raccourci « Ajouter l’image du clan » pour qui a accès au réglage) ; fiche PUBG : tag, nom, **niveau** (`clanStats.pubg.raw.attributes.clanLevel` — la colonne `Clan.clanLevel` est vide pour tous les clans), membres PUBG (`clanStats.pubg.memberCount`) et suivis, dernière sync ; palmarès : top 1 du mois, rang en **Ligue des clans** (mois), kills depuis le début du suivi (`tracked.aggregated.totalKills`), tournoi gagné s'il y en a un, sinon parties du mois | Non |
 | Briefing de la semaine | Trois faits illustrés, chacun avec son lien : dernier top 1 de la semaine (carte, heure, kills, MVP) → débriefing ; plus long kill de la semaine (`KillEvent`, distance en cm → m, tête, clan de la victime) → replay (`?tab=replay`) ; série de soirées consécutives avec un top 1 (journée de jeu, « au moins N » si elle remonte au début des soirées lues) → soirées. Carte de repli quand un fait manque | Non (semaine ISO) |
 | Bandeau de filtres | Période, type de match, mode — inchangé ; il ne filtre que ce qui suit | — |
 | Chiffres clés | Kills, Top 1, Dégâts moyens, Parties (`KpiGrid`, même composant que Matchs et Soirée), chacun avec un lien : Top fraggers (Classement), Revoir les top 1 (Matchs), Stats armes, Soirées | Oui |
@@ -330,6 +330,19 @@ Données de la vitrine : `GET /api/clans/[clanId]/overview/showcase` (`src/lib/c
 `src/lib/clan-showcase.ts`), même permission que la vue d'ensemble, gardée 5 minutes en mémoire par clan (~450 ms à froid
 pour Aurore_Funeste). Le classement de la Ligue est calculé par `computeClansLeaderboard` (`src/lib/clans-leaderboard.ts`),
 partagé avec `GET /api/clans-leaderboard` ; les tournois gagnés par `listTournamentOverviews()`.
+
+**Image d'un clan introuvable** (2026-09-27) : une image téléversée vit dans `public/uploads/clans/`, hors git ; le
+lien reste en base même si le fichier disparaît du serveur (cas de FR-Alliance-BE, `/uploads/clans/clan-7-….jpg` en 404).
+Aucun endroit ne laisse alors un cadre vide :
+
+| Endroit | Repli |
+|---|---|
+| Vitrine (vue d'ensemble) | `useImageFallback` (`src/hooks/useImageFallback.ts`) : `/clans/default_clan.jpg` ; pour qui a accès au réglage, le raccourci devient « Remplacer l'image du clan » |
+| Annuaire `/clans` (fonds de carte) | `clanBackgroundImage` (`src/lib/clan-image.ts`) : l'image par défaut posée **sous** celle du clan, en second calque CSS ; le navigateur l'affiche si la première ne se charge pas |
+| Connexion, activation, activation en attente | `useImageFallback` : `/squad.jpg` |
+| Header, fenêtre de changement de clan | `onError` déjà en place : `/pubg.png` |
+
+Pour réparer un clan, il suffit de téléverser à nouveau son image depuis « Accueil login ».
 
 **Blocs déplacés** (décision du 2026-09-26 : rien n'est supprimé du site) :
 

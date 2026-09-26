@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import pubgLogo from '@/assets/pubg-logo-official.webp'
+import { useImageFallback } from '@/hooks/useImageFallback'
 import FirstRunSetup from '@/components/FirstRunSetup'
 import PendingActivation from '@/components/PendingActivation'
 
@@ -57,7 +58,9 @@ function LoginPageContent() {
   const [submitting, setSubmitting] = useState(false)
   const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_GLOBAL_WELCOME)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
-  const heroImageUrl = welcome.imageUrl?.trim() ? welcome.imageUrl : '/squad.jpg'
+  // Image absente ou qui ne se charge plus (fichier téléversé disparu) : visuel par défaut, jamais un cadre vide.
+  const heroImage = useImageFallback(welcome.imageUrl, '/squad.jpg')
+  const heroImageUrl = heroImage.src
 
   useEffect(() => {
     let cancelled = false
@@ -182,6 +185,7 @@ function LoginPageContent() {
         <div className="relative flex flex-col justify-between overflow-hidden bg-slate-950 p-7 text-white sm:p-10">
           <img
             src={heroImageUrl}
+            onError={heroImage.onError}
             alt="Visuel PUBG"
             className={`absolute inset-0 h-full w-full object-cover opacity-60 ${
               heroImageUrl === '/squad.jpg' ? 'object-[center_35%] scale-105' : 'object-center'
@@ -210,6 +214,7 @@ function LoginPageContent() {
                 <div className="shrink-0 pt-1 lg:hidden">
                   <img
                     src={heroImageUrl}
+                    onError={heroImage.onError}
                     alt="Logo du clan"
                     className="h-14 w-14 rounded-xl border border-white/30 object-cover shadow"
                   />

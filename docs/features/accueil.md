@@ -13,7 +13,7 @@
 
 | Bloc | Contenu |
 |---|---|
-| Héros (toujours sombre, photo) | Nom du site (sans logo, retiré le 2026-09-26), navigation publique (Ligue des clans, Comparateur, Tournois), « Se connecter » (« Mon espace » pour un connecté), « Rejoindre » ; boussole animée ; compteurs « joueurs » et « kills cette semaine » ; kill feed ; titre, accroche et appels à l'action |
+| Héros (toujours sombre, photo) | Nom du site (sans logo, retiré le 2026-09-26), navigation publique (Les clans, Ligue des clans, Comparateur, Tournois), « Se connecter » (« Mon espace » pour un connecté), « Rejoindre » ; boussole animée ; compteurs « joueurs » et « kills cette semaine » ; kill feed ; titre, accroche et appels à l'action |
 | Kill feed (sous le héros, sous 1024 px) | Le même feed, en carte |
 | Chicken Dinner | Carrousel des **3 derniers Top 1** du site : « #1 / N équipes », carte, date, durée, clan, kills, dégâts, kill le plus long, équipe (armes, MVP), lien vers le débriefing |
 | Rejoindre | Trois étapes, « Demander à rejoindre » (`/join`), puis `/clans` : « Voir les clans » pour un connecté, « Parcourir en visiteur » en mode visiteur, rien sinon |

@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 
+import { useImageFallback } from '@/hooks/useImageFallback'
+
 const RESEND_COOLDOWN_SECONDS = 45
 
 type WelcomeSettings = {
@@ -28,6 +30,8 @@ const DEFAULT_WELCOME: WelcomeSettings = {
 
 export default function PendingActivation() {
   const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_WELCOME)
+  // Image téléversée disparue du serveur : visuel par défaut plutôt qu'un cadre vide.
+  const welcomeImage = useImageFallback(welcome.imageUrl, '/squad.jpg')
   const [clanLabel, setClanLabel] = useState<string | null>(null)
   const [invite, setInvite] = useState<PendingInvite | null>(null)
   const [loading, setLoading] = useState(true)
@@ -146,7 +150,8 @@ export default function PendingActivation() {
         <div className="relative bg-slate-900 p-7 text-white sm:p-10">
           {welcome.imageUrl ? (
             <Image
-              src={welcome.imageUrl}
+              src={welcomeImage.src}
+              onError={welcomeImage.onError}
               alt="Visuel du clan"
               fill
               sizes="(min-width: 1024px) 55vw, 100vw"

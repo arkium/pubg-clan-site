@@ -1,5 +1,5 @@
 import { expect, test } from './support/api'
-import { CLAN_ID } from './support/data'
+import { CLAN_ID, clanOverview } from './support/data'
 import { mockClanOverview } from './support/pages'
 
 /**
@@ -27,6 +27,19 @@ test('vitrine : niveau, membres et palmarès', async ({ page }) => {
   await expect(hero).toContainText('Ligue des clans · sur 29')
   // Aucun tournoi gagné : la quatrième case montre les parties du mois.
   await expect(hero).toContainText('parties ce mois')
+})
+
+test('image du clan introuvable : image par défaut, jamais un cadre vide', async ({ api, page }) => {
+  // Fichier téléversé disparu du serveur (dossier public/uploads hors git) : le lien reste en base.
+  const overview = clanOverview()
+  api.on('GET', `/api/clans/${CLAN_ID}/overview`, {
+    body: { ...overview, clan: { ...overview.clan, imageUrl: '/uploads/clans/clan-disparu.jpg' } },
+  })
+  await page.waitForLoadState('networkidle')
+  await page.reload()
+  const image = page.getByLabel('Fiche du clan').locator('img').first()
+  await expect(image).toHaveAttribute('src', '/clans/default_clan.jpg')
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 })
 
 test('briefing : trois faits illustrés, chacun avec son lien', async ({ page }) => {

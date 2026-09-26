@@ -28,6 +28,7 @@ const FEED_INTERVAL_MS = 2400
 const COMPASS = ['N', '15', '30', 'NE', '60', '75', 'E', '105', '120', 'SE', '150', '165', 'S', '195', '210', 'SO', '240', '255', 'O', '285', '300', 'NO', '330', '345']
 
 const NAV_LINKS = [
+  { href: '/clans', label: 'Les clans' },
   { href: '/clans-leaderboard', label: 'Ligue des clans' },
   { href: '/clans/comparator', label: 'Comparateur' },
   { href: '/tournaments', label: 'Tournois' },

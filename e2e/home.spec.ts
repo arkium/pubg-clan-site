@@ -74,12 +74,14 @@ test('ordinateur : compteurs et navigation dans le héros', async ({ page }, tes
   await expect(page.getByText('KILLS CETTE SEMAINE', { exact: true })).toBeVisible()
   await expect(page.getByText('399', { exact: true })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Navigation publique' }).getByRole('link', { name: 'Tournois' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Navigation publique' }).getByRole('link', { name: 'Les clans' })).toHaveAttribute('href', '/clans')
 })
 
 test('mobile et tablette : le menu ouvre la navigation publique', async ({ page }, testInfo) => {
   test.skip(!isNarrow(testInfo), 'navigation affichée dans le héros sur ordinateur')
   await page.getByRole('button', { name: 'Ouvrir le menu' }).click()
   const menu = page.locator('#home-mobile-menu')
+  await expect(menu.getByRole('link', { name: 'Les clans' })).toHaveAttribute('href', '/clans')
   await expect(menu.getByRole('link', { name: 'Ligue des clans' })).toHaveAttribute('href', '/clans-leaderboard')
   await page.getByRole('button', { name: 'Fermer le menu' }).click()
   await expect(menu).toHaveCount(0)

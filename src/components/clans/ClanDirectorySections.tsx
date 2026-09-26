@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ChevronRight, Medal, Pin, Trophy } from 'lucide-react'
 
-import { DEFAULT_CLAN_IMAGE } from '@/components/clan-overview/ClanOverviewSections'
+import { clanBackgroundImage } from '@/lib/clan-image'
 import { frDecimal } from '@/lib/match-sessions'
 import { relativeLastGame } from '@/lib/clan-directory'
 
@@ -103,7 +103,7 @@ export function PinnedClanCard({ clan, label, onOpen }: { clan: DirectoryClan; l
         className="relative flex min-h-[200px] flex-col justify-end overflow-hidden rounded-2xl border bg-cover bg-center text-left text-white"
         style={{
           backgroundColor: '#0b1120',
-          backgroundImage: `url('${clan.imageUrl ?? DEFAULT_CLAN_IMAGE}')`,
+          backgroundImage: clanBackgroundImage(clan.imageUrl),
           borderColor: 'var(--theme-ui-accent-ring)',
           boxShadow: '0 0 0 3px var(--theme-ui-accent-soft)',
         }}
@@ -163,7 +163,7 @@ export function ClanOfMomentCard({ clan, leagueSize, onOpen }: { clan: Directory
         onOpen={onOpen}
         label={`Clan du moment : ${clan.name}`}
         className="relative flex min-h-[200px] flex-col justify-end overflow-hidden rounded-2xl border bg-cover bg-center text-left text-white"
-        style={{ backgroundColor: '#0b1120', backgroundImage: `url('${clan.imageUrl ?? DEFAULT_CLAN_IMAGE}')`, borderColor: 'var(--game-gold-ring)' }}
+        style={{ backgroundColor: '#0b1120', backgroundImage: clanBackgroundImage(clan.imageUrl), borderColor: 'var(--game-gold-ring)' }}
       >
         <span className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/55 to-slate-950/15" aria-hidden="true" />
         <span className="absolute left-3 top-3 -rotate-2 rounded-md bg-amber-400 px-2.5 py-0.5 text-[11px] font-black tracking-[0.05em] text-amber-950">
@@ -204,7 +204,7 @@ export function ActiveClanCard({ clan, active, onOpen }: { clan: DirectoryClan; 
     >
       <span
         className="relative h-16 w-16 shrink-0 rounded-xl bg-cover bg-center"
-        style={{ backgroundColor: '#0b1120', backgroundImage: `url('${clan.imageUrl ?? DEFAULT_CLAN_IMAGE}')` }}
+        style={{ backgroundColor: '#0b1120', backgroundImage: clanBackgroundImage(clan.imageUrl) }}
         aria-hidden="true"
       >
         {clan.playedTonight > 0 && (
@@ -268,7 +268,7 @@ export function SleepingClans({
               >
                 <span
                   className="h-8 w-8 shrink-0 rounded-lg bg-cover bg-center grayscale-[0.6]"
-                  style={{ backgroundColor: '#0b1120', backgroundImage: `url('${clan.imageUrl ?? DEFAULT_CLAN_IMAGE}')` }}
+                  style={{ backgroundColor: '#0b1120', backgroundImage: clanBackgroundImage(clan.imageUrl) }}
                   aria-hidden="true"
                 />
                 <b className="text-[13px]">{clan.name}</b>

@@ -51,3 +51,8 @@ next-env.d.ts
 # pubg assets visuels (générés par npm run sync:pubg-assets)
 /public/icons/pubg/
 server.txt
+
+# Playwright (docs/ops/tests-e2e.md)
+/test-results/
+/playwright-report/
+/blob-report/

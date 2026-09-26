@@ -133,7 +133,7 @@ La page `awards/page.tsx` applique la fonction `formatAwardValue(award, value)` 
 Client Component (`'use client'`). Structure :
 
 1. **En-tête** (`app-panel`) : titre, description, bouton Rafraichir, `ClanSectionNav`.
-2. **Sélecteur de période** (`app-panel`) : `SegmentedControl` Semaine / Mois / All Time + compteur de matchs.
+2. **Bandeau de filtres** (`DockingToolbar`) : `PeriodFilter` Semaine / Mois / Tous, mode de calcul Normal / Tous ; compteur de matchs et explication au repos seulement.
 3. **Grille d'awards** : `grid-cols-1 md:grid-cols-2 xl:grid-cols-3`, une carte `app-panel` par award.
 
 Chaque carte award contient :

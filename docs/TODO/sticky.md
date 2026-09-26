@@ -1,8 +1,8 @@
 # Bandeaux collants et filtre de période — cohérence des pages joueurs
 
-> **Spécification — cadrage validé le 2026-09-25, à implémenter (phase 0 d'abord)**
-> *Référence design system : [`docs/ui/index.html#sticky-toolbar`](../ui/index.html#sticky-toolbar) (section 23),
-> à mettre à jour par ce chantier (§8)*
+> **Spécification — cadrage validé le 2026-09-25, implémentée le 2026-09-26 (phases 0 à 3)**
+> *Référence design system : [`docs/ui/index.html#sticky-toolbar`](../ui/index.html#sticky-toolbar) (section 23,
+> réécrite). Ce qui a changé par rapport au texte ci-dessous pendant l'implémentation : §11.*
 > *Destiné à l'équipe de développement.*
 >
 > Revue contre le code le 2026-09-25 : la première version de ce document tenait les pages existantes pour un
@@ -463,3 +463,31 @@ pages SuperUser non alignées ; Playwright avec Chromium et WebKit, sans base de
 Action hors chantier, signalée dans [todo.md](todo.md) : supprimer le workflow obsolète
 [main_smkclan.yml](../../.github/workflows/main_smkclan.yml). Il se déclenche encore à chaque push sur `main` et tente
 un déploiement vers une Web App Azure qui ne sert plus.
+
+---
+
+## 11. Bilan de l'implémentation (2026-09-26)
+
+Toutes les pages de l'inventaire (§6) sont migrées ; `StickySectionNav` et `WeaponCategoryPeriodFilter` sont
+supprimés, remplacés par `SectionAnchorNav` et `WeaponCategoryToolbar`. La colonne « Collant aujourd'hui » du §6
+décrit l'état **avant** le chantier. Le test de conformité (`src/lib/ui-conformance.test.ts`) démarre sans liste
+d'exceptions : toutes les pages déclarées sont conformes.
+
+Écarts avec le texte ci-dessus, décidés pendant l'implémentation :
+
+| Sujet | Spécification | Implémentation | Pourquoi |
+|---|---|---|---|
+| Racine d'une page à bandeau (§4.A) | `main.app-main` pleine largeur | `div.app-main-flush` ; blocs internes `app-container app-gutter` | Le shell fournit déjà `<main>` : un second serait invalide. `app-main` ajoutait un padding horizontal qui empêchait le bandeau docké de couvrir la colonne |
+| Masquage sur mobile docké (§4.A) | Une classe dédiée du composant | Drapeau `compact` de la fonction de rendu | Une seule mécanique, lisible dans la page |
+| Changement de période (§4.E) | `router.replace(…, { scroll: false })` | `window.history.replaceState` (API documentée de Next 16, `useSearchParams` suit) ; `router.replace` gardé pour la seule page rendue côté serveur (catégories d'armes) | Pas de rendu serveur inutile pour des pages qui chargent leurs données elles-mêmes |
+| Pages à contrôles de section | `members/[id]/stats`, page télémétrie d'un match, `/tournaments/[tournamentId]` au standard du bandeau | Contrôles laissés dans leur section, sans bandeau | Saison / ranked, filtre de phase d'un tableau et granularité d'un classement ne filtrent pas la page |
+| Bloc matchs du tableau de bord | Sa propre période | Suit la période du bandeau | Une seule période par page ; la comparaison de tendances garde son sélecteur, propre à sa section |
+| Espacement au repos | Marges `my-4 sm:my-6` | Paddings `py-4 sm:py-6` | Les marges fusionnaient à travers la sentinelle avec celle du bloc précédent : l'espaceur comptait 24 px de trop (saut mesuré par Playwright) |
+| Anti-saut | Espaceur | Espaceur **et** ancrage de défilement suspendu pendant la bascule | Sur mobile, l'ancrage du navigateur ramenait la page en haut au moment du docking (mesuré par Playwright) |
+| Rechargement | — | Résultats précédents gardés, estompés (`aria-busy`) pendant un changement de filtre, sur toutes les pages à bandeau | Sinon la page se repliait sous le bandeau docké et remontait |
+| Menus déroulants dans le bandeau docké | — | Intitulé visible masqué, conservé dans le nom accessible du bouton | Bandeau docké moins haut sur les pages cartographiques |
+| Accessibilité des boutons segmentés | — | `aria-pressed` sur chaque bouton de `SegmentedControl` | État sélectionné annoncé, et testable |
+| Défaut des pages | Inchangé | Inchangé (semaine, sauf objets, adversaires, statistiques par carte et calendrier : « Tous » ; fin de zone : mois) | — |
+
+Découvert par les tests, hors de ce chantier : un **premier** visiteur qui ouvre directement une page de clan est
+renvoyé vers `/clans` (`useSelectedClan`) — suivi dans [todo.md](todo.md) et [tests-e2e.md](../ops/tests-e2e.md).

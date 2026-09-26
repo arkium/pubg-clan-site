@@ -37,17 +37,73 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
 
 <SegmentedControl
   options={[
-    { value: 'week', label: 'Semaine' },
-    { value: 'month', label: 'Mois' },
-    { value: 'all', label: 'Tout' },
+    { value: 'official', label: 'Officiel' },
+    { value: 'all', label: 'Tous' },
   ]}
-  value={period}
-  onChange={setPeriod}
+  value={matchType}
+  onChange={setMatchType}
   size="xs"
 />
 ```
 
-Usages actuels : `PlayerStats`, `MatchHistory`, `ProgressionChart`, `SquadFrequency`.
+Chaque bouton porte `aria-pressed`. Pour la **période**, ne pas l'utiliser directement : `PeriodFilter` (ci-dessous).
+L'option « sans filtre » s'écrit « Tous », ou « Toutes » pour un filtre féminin (carte, catégorie, ville, arme).
+
+---
+
+### `DockingToolbar`
+
+Fichier : `src/components/ui/DockingToolbar.tsx` (export nommé)
+
+Rôle : **le** bandeau de filtres d'une page joueur. Au repos, panneau aligné sur la grille ; au défilement, collé sous
+le header sur toute la largeur de la colonne. Règles complètes : `docs/ui/index.html#sticky-toolbar`, décisions :
+`docs/TODO/sticky.md`.
+
+```tsx
+<DockingToolbar ariaLabel="Filtres du classement" /* dockOnMobile={false} si pas de période */>
+  {({ isSticky, compact }) => (
+    <div className="flex w-full flex-col gap-3">
+      {!isSticky && <p>{/* compteurs, notes : au repos */}</p>}
+      <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+      {!compact && <SegmentedControl … />}
+    </div>
+  )}
+</DockingToolbar>
+```
+
+- À placer hors de tout conteneur de largeur : page en `div.app-main-flush`, blocs internes en `app-container app-gutter`.
+- `variant="card"` réservé à l'administration existante (`settings/members`).
+- Attributs de test : `data-docking-toolbar`, `data-docked`, `data-compact`, sentinelle `data-docking-sentinel`.
+
+---
+
+### `PeriodFilter` et `usePagePeriod`
+
+Fichiers : `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts`
+
+Rôle : le contrôle de période unique (boutons segmentés, libellés Semaine / Mois / Tous / Mois dernier / Il y a 2 mois,
+semaine ISO et mois civils) et la résolution de la période d'une page.
+
+```tsx
+const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'week')
+useEffect(() => { if (!ready) return; /* charger */ }, [period, ready])
+<PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+```
+
+- L'URL fait foi (`?period=`), puis la mémoire de la visite (`sessionStorage`), puis le défaut. Changer de période
+  remplace l'URL par `history.replaceState` (ni rendu serveur, ni remontée) ; `{ serverRendered: true }` pour une page
+  rendue côté serveur à partir de `?period=`.
+- `useSearchParams` exige une frontière `Suspense` : posée par les layouts `clans/[clanId]` et `members/[id]`.
+- Jeux de périodes : `STANDARD_PERIODS` (semaine, mois, tous), `MATCH_PERIODS` (semaine, mois, mois dernier, il y a 2 mois).
+
+---
+
+### `SectionAnchorNav`
+
+Fichier : `src/components/ui/SectionAnchorNav.tsx`
+
+Rôle : liens d'ancre d'une page, rendus comme seconde ligne du `DockingToolbar` (jamais un second élément collant).
+Une ligne qui défile horizontalement ; le lien actif suit la lecture et reste visible. Remplace `StickySectionNav`.
 
 ---
 

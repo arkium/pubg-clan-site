@@ -29,6 +29,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:telemetry": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
     "sync:pubg-assets": "tsx scripts/sync-pubg-assets.ts",
     "clanid:instability": "tsx scripts/measure-pubg-clanid-instability.ts"
   },

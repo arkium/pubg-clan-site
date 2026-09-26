@@ -117,6 +117,19 @@ Toute nouvelle page doit utiliser `.app-container` et `.app-main` :
 - `.app-container` : largeur max 1024px, centré (variable `--app-content-max-width: 64rem`)
 - `.app-main` : padding horizontal et vertical standard (`--app-page-padding-x: 1rem`, `--app-page-padding-y: 2rem`)
 
+**Page à filtres (bandeau collant)** — le shell fournit déjà `<main>` : la page ouvre un `div` pleine largeur pour que
+le bandeau docké couvre toute la colonne ; ses blocs internes portent `app-container app-gutter`.
+
+```tsx
+<div className="app-main-flush flex-1">
+  <div className="app-container app-gutter">{/* fil d'Ariane, en-tête — sans marge basse finale */}</div>
+  <DockingToolbar ariaLabel="Filtres de …">{({ isSticky, compact }) => (/* contrôles */)}</DockingToolbar>
+  <div className="app-container app-gutter">{/* contenu */}</div>
+</div>
+```
+
+Règles complètes : `docs/ui/index.html#sticky-toolbar` ; décisions : `docs/TODO/sticky.md`.
+
 ### 2. Navigation de section
 
 Inclure `<ClanSectionNav />` en haut de page pour les pages sous `/clans/[clanId]/`.
@@ -166,6 +179,9 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Badge nom de joueur | `PlayerNameBadge` | `src/components/ui/PlayerNameBadge.tsx` |
 | Menu dropdown mobile | `MobileDropdownNav` | `src/components/ui/MobileDropdownNav.tsx` |
 | Zoom d'une carte interactive `[ − \| ⊙ 1× \| + ]` | `MapZoomControl` + `@/lib/map-zoom` | `src/components/ui/MapZoomControl.tsx` — règles dans `docs/ui/index.html#zoom-carte` |
+| Bandeau de filtres d'une page (collant sous le header) | `DockingToolbar` | `src/components/ui/DockingToolbar.tsx` — règles dans `docs/ui/index.html#sticky-toolbar` |
+| Filtre de période (Semaine / Mois / Tous…) | `PeriodFilter` + `usePagePeriod` | `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts` |
+| Ancres de section (seconde ligne du bandeau) | `SectionAnchorNav` | `src/components/ui/SectionAnchorNav.tsx` |
 
 **Règle :** Ne jamais réécrire ces composants inline dans une page. Ne pas écrire les classes `app-placement-badge*` directement.
 
@@ -177,7 +193,10 @@ Ne jamais lire/écrire le thème directement depuis une page — passer par les 
 
 ### 8. Checklist nouvelle page
 
-- [ ] Structure `app-container` + `app-main`
+- [ ] Structure `app-container` + `app-main` — ou, si la page a des filtres, `app-main-flush` + `DockingToolbar`
+- [ ] Période : `PeriodFilter` + `usePagePeriod` (jamais d'état local ni de libellés propres) ; « Tous » / « Toutes » pour les options sans filtre
+- [ ] Changer un filtre ne replie pas la page : résultats précédents gardés, estompés, pendant le rechargement
+- [ ] Page ajoutée à la liste de `src/lib/ui-conformance.test.ts` si elle a un bandeau
 - [ ] Navigation de section incluse (`ClanSectionNav` ou équivalent)
 - [ ] Panneaux avec `.app-panel` / `.app-panel-muted` (pas de couleurs hardcodées)
 - [ ] Couleurs de texte/fond via classes Tailwind remappées ou tokens CSS
@@ -450,6 +469,15 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
   `cron`, `telemetry-aggregates` — ce dernier lit `memberStats` via `period-aggregates.ts`) avant toute
   écriture compressée.
 
+#### 11. **Playwright (`e2e/`) — aucun test n'écrit en base**
+- **Règle:** chaque test intercepte **tous** les appels `/api/**` du navigateur (`e2e/support/api.ts`) ; un appel sans
+  réponse figée est bloqué et fait échouer le test. Une page qui appelle une nouvelle API → ajouter sa réponse dans
+  `e2e/support/pages.ts`, jamais laisser passer l'appel.
+- **Serveur:** le serveur local de `.env` (mode visiteur, `ENABLE_CRON_JOBS="false"` — à vérifier avant de lancer) ;
+  seules les lectures du rendu serveur (état d'installation) atteignent la base.
+- **Gotcha:** `locator.click()` ramène d'abord un élément collant à sa position d'origine (le bandeau se dédocke) :
+  cliquer dans un bandeau docké avec `clickInPlace` (`e2e/support/layout.ts`). Détails : `docs/ops/tests-e2e.md`.
+
 ## Gotchas connus
 
 ### Node.js 22 — `Readable.toWeb()` bug
@@ -505,6 +533,8 @@ npm run build                        # Production standalone build
 npm run start                        # Run production server (requires .next/standalone)
 npm run lint                         # Run ESLint
 npm run test:telemetry               # Vitest — nom historique, exécute TOUT src/lib/**/*.test.ts
+npm run test:e2e                     # Playwright (e2e/) — serveur local, TOUTES les API du navigateur interceptées
+npm run test:e2e:update              # Régénère les captures de référence (docs/ops/tests-e2e.md)
 ```
 
 ### Règle d'emplacement des scripts

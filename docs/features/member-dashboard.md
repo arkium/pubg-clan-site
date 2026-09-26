@@ -136,7 +136,7 @@ Tri côté UI via `SegmentedControl` : Matchs / Kills / Win Rate.
 
 Le bloc `MatchHistory` en bas de page réutilise `GET /api/members/[id]/matches` (mode historique importé). Voir `docs/features/matches.md` pour le détail.
 
-Particularité : ce bloc utilise `matchPeriod` (fenêtre glissante 7/30 jours), pas les périodes calendaires des stats dashboard.
+Depuis le 2026-09-26, ce bloc suit la période du bandeau de la page (`usePagePeriod`, semaine ISO et mois civil comme le reste du tableau de bord) ; il n'a plus de sélecteur propre. Seule la comparaison de tendances garde le sien.
 
 **Composant :** `src/components/dashboard/MatchHistory.tsx`
 
@@ -267,7 +267,7 @@ Les périodes ne sont pas homogènes entre tous les blocs du dashboard :
 | `stats` / `clanAverage` | `PlayerStats` par clé ISO/calendaire | Calendaire (semaine/mois calendaires) |
 | `topPerformances` / `squads` | Agrégation live | Calendaire (semaine/mois calendaires) |
 | `progression` | `PlayerStats` sur 4 semaines ISO | Calendaire |
-| `MatchHistory` | `Match` via l'API matches | Glissante (7 ou 30 jours) |
+| `MatchHistory` | `Match` via l'API matches | Calendaire (période du bandeau) |
 
 La bascule de `period` met à jour les blocs stats, squads préférés et meilleures performances, mais pas l'historique des matchs (piloté par `matchPeriod` séparé).
 

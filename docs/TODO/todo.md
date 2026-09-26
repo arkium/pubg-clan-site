@@ -765,29 +765,32 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
   `finally`). `npm run test:telemetry` les exécute. Aucune ligne résiduelle après le passage du 2026-09-25.
   À isoler (base de test dédiée, ou exclusion quand `DATABASE_URL` vise la production)
 
-#### Lot 5 — Bandeaux collants et filtre de période des pages joueurs — 📐 Cadrage validé le 2026-09-25, à implémenter
+#### Lot 5 — Bandeaux collants et filtre de période des pages joueurs — ✅ Implémenté le 2026-09-26
 
 Spec : [sticky.md](sticky.md). Décisions : libellé « Tous » (accordé en « Toutes ») pour **tous** les filtres,
 périodes **calendaires** partout, « Mois dernier » / « Il y a 2 mois », bandeau docké réduit à la **période** sur
 mobile, héro de `/clans` non collant, pages SuperUser non alignées, **Playwright** (Chromium + WebKit) adopté,
 persistance de la période par l'URL et une mémoire de visite.
 
-- [ ] **Phase 0 — fondations** : réglage unique de `DockingToolbar` (grille `app-container`, contenu docké,
+- [x] **Phase 0 — fondations** : réglage unique de `DockingToolbar` (grille `app-container`, contenu docké,
   hauteur du header en variable CSS, pas de saut), une seule couche collante, menus déroulants à hauteur maximale,
   `src/lib/period.ts` + `PeriodFilter`, section 23 du design system et CLAUDE.md, test de conformité
-- [ ] 🐞 **Quatre API comptent la « Semaine » en 7 jours glissants** alors que tous les agrégats sont calendaires :
+- [x] 🐞 **Quatre API comptent la « Semaine » en 7 jours glissants** alors que tous les agrégats sont calendaires :
   matchs du joueur (et bloc matchs du tableau de bord), adversaires rencontrés, calendrier d'activité, bots des
   statistiques du clan — [sticky.md §3.C](sticky.md)
-- [ ] 🐞 **Libellés divergents** : « Tout » (positions, adversaires, calendrier d'activité), « All Time » (awards,
+- [x] 🐞 **Libellés divergents** : « Tout » (positions, adversaires, calendrier d'activité), « All Time » (awards,
   classement général), « 7 jours / 30 jours » (calendrier d'activité) — [sticky.md §3.C](sticky.md)
-- [ ] 🐞 **Menus déroulants sans hauteur maximale** : inaccessibles en bas une fois dockés sur mobile —
+- [x] 🐞 **Menus déroulants sans hauteur maximale** : inaccessibles en bas une fois dockés sur mobile —
   [sticky.md §3.B](sticky.md)
-- [ ] **Playwright** (Chromium + WebKit) : sans base de test — serveur local en mode visiteur, **tous** les appels
+- [x] **Playwright** (Chromium + WebKit) : sans base de test — serveur local en mode visiteur, **tous** les appels
   d'API du navigateur interceptés et les imprévus bloqués, donc aucune écriture ; scripts `test:e2e` —
   [sticky.md §7.C](sticky.md)
-- [ ] **Persistance de la période** (confirmée) : l'URL fait foi, une mémoire de visite pré-remplit —
+- [x] **Persistance de la période** (confirmée) : l'URL fait foi, une mémoire de visite pré-remplit —
   [sticky.md §4.E](sticky.md)
-- [ ] Phases 1 à 3 : migration page par page — [sticky.md §5](sticky.md)
+- [x] Phases 1 à 3 : migration page par page — [sticky.md §5](sticky.md)
+- [ ] 🐞 **Premier visiteur sur un lien direct de clan renvoyé vers `/clans`** (course dans `useSelectedClan` entre
+  `setClanId` et la lecture asynchrone du mode visiteur) — découvert par les tests Playwright, hors de ce lot —
+  [tests-e2e.md](../ops/tests-e2e.md#points-connus)
 - [ ] **Supprimer le workflow obsolète `.github/workflows/main_smkclan.yml`** (déploiement vers une Web App Azure
   qui ne sert plus ; la production se déploie par build autonome et systemd). Il se déclenche encore à chaque push
   sur `main`

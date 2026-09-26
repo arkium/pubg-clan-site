@@ -214,7 +214,7 @@ Déclenché si au moins un query param (`period`, `limit`, `offset`) est présen
 | `sortBy` | `pubgCreatedAt`, `kills`, `damageDealt`, `placement` | `pubgCreatedAt` |
 | `sortDirection` | `asc`, `desc` | `desc` |
 
-Note : les périodes `week` et `month` sont des fenêtres **glissantes** (7 et 30 jours), pas calendaires — contrairement au leaderboard et à la page matchs clan.
+Note : depuis le 2026-09-26, `week` et `month` sont **calendaires** (semaine ISO depuis lundi 00:00, mois civil — `src/lib/period.ts`), comme le leaderboard et la page matchs clan. La période et la date exacte se choisissent dans le bandeau de la page.
 
 **Colonne `clanMode`** : pour chaque match de l'historique, l'API calcule le mode clan via `SquadMember`/`SquadMatch` :
 - `solo` : pas de `SquadMember` ou compteur ≤ 1.

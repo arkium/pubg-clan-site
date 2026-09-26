@@ -88,6 +88,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | Document | Contenu |
 |---|---|
 | [Dev setup](ops/dev-setup.md) | Installation Windows/VSCode, Node 22 via nvm-windows, extensions VSCode, .env, multi-terminaux, problèmes courants |
+| [Tests de rendu (Playwright)](ops/tests-e2e.md) | `npm run test:e2e` : bandeaux collants, période, captures ; toutes les API interceptées, aucune écriture en base |
 | [Déploiement production](ops/deployment.md) | Variables d'env, build, 4 processus à démarrer, units systemd, migration DB, rollback, healthchecks |
 | [Cron](ops/cron.md) | Jobs planifiés (dont `clan_lifecycle_membership_sync` et `db_maintenance`), actions manuelles, tables CronExecution et ClanLifecycleRun, pages de pilotage, variables d'env |
 | [Performance de la base](ops/database-performance.md) | État mesuré de MariaDB (mémoire, requêtes lentes, index), script `db-health`, sélection en deux paliers du cron de résolution, recommandations en attente |
@@ -104,7 +105,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3, idées de comparaison inter-clans, suggestions de stats et fonctionnalités |
 | [Annuaire des joueurs](TODO/players.md) | Onglet « Joueurs » de `/settings/opponents` (implémenté le 2026-09-25) : statuts de suivi, filtres, mesures de coût, tests |
 | [Arrêt de suivi d'un clan](TODO/clan-archive.md) | Archivage d'un clan, même vide (implémenté le 2026-09-25) : sort des membres, réactivation, clans refusés, effets sur le cron et `/join` |
-| [Bandeaux collants et période](TODO/sticky.md) | Spec de cohérence des pages joueurs : bandeau `DockingToolbar` unique, contrôle de période partagé (« Tous », calendaire), inventaire et phases, tests et documentation |
+| [Bandeaux collants et période](TODO/sticky.md) | Spec de cohérence des pages joueurs : bandeau `DockingToolbar` unique, contrôle de période partagé (« Tous », calendaire), inventaire et phases, tests et documentation — **implémentée le 2026-09-26** |
 
 ---
 

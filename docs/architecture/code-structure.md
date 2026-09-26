@@ -163,7 +163,7 @@ app/api/
 | `ClanSectionNav.tsx` | Navigation de section pour les pages clan |
 | `MemberSectionNav.tsx` | Navigation de section pour les pages membre |
 | `SettingsSectionNav.tsx` | Navigation de section pour les pages settings |
-| `ClanSelector.tsx` | Sélecteur de clan actif |
+| `clans/` | Annuaire des clans (`/clans`) : clan épinglé, clan du moment, clans actifs, en sommeil ([clans.md](../features/clans.md) §6 bis) |
 | `Leaderboard.tsx` | Tableau de classement (en-têtes triables, liste mobile) |
 | `SquadMatchList.tsx` | Liste des matchs squad |
 | `SquadSynergies.tsx` | Visualisation des synergies |

@@ -176,15 +176,15 @@ La session est invalidée :
 
 **Page :** `/clans`  
 **API :** `GET /api/clans`  
-**Composant :** `ClanSelector`
+**Composants :** `src/components/clans/ClanDirectorySections.tsx` (annuaire refondu le 2026-09-26, voir [clans.md](clans.md) §6 bis)
 
 ### Contrôle d'accès
 
 La page applique deux gardes :
 1. **Authentification** : redirection vers `/login` si pas de session.
-2. **Permission switch clan** : `canSwitchClan` est `true` seulement si `isSuperUser = true`. Si absent, redirection vers `/members`.
+2. **Permission switch clan** : `canSwitchClan` est `true` pour un SuperUser, ou pour un visiteur en mode visiteur. Sinon, redirection vers `/members`.
 
-La page est donc réservée aux SuperUsers.
+La page est donc réservée aux SuperUsers et aux visiteurs.
 
 ### Chargement des clans
 
@@ -309,7 +309,7 @@ La route `POST /api/join` requiert une session mais pas de rôle clan — tout u
 | `src/app/api/auth/bootstrap-owner-invite/route.ts` | Bootstrap Owner initial |
 | `src/app/api/auth/profile/route.ts` | Profil utilisateur |
 | `src/app/api/clans/route.ts` | Liste des clans |
-| `src/components/ClanSelector.tsx` | Composant de sélection de clan |
+| `src/components/clans/ClanDirectorySections.tsx` | Annuaire des clans (sélection de clan) |
 | `src/hooks/useAuthSession.ts` | Hook état de session |
 | `src/hooks/useSelectedClan.ts` | Hook persistance clan sélectionné |
 | `src/lib/auth-service.ts` | Logique métier auth |

@@ -89,7 +89,6 @@ const TOOLBAR_PAGES = [
 
 /** Composants partagés qui rendent le bandeau pour la page qui les importe. */
 const TOOLBAR_COMPONENTS: Record<string, string> = {
-  '@/components/ClanSelector': 'src/components/ClanSelector.tsx',
   '@/components/WeaponCategoryToolbar': 'src/components/WeaponCategoryToolbar.tsx',
 }
 
@@ -265,7 +264,7 @@ describe('ui-conformance — refonte UI (docs/TODO/refonte-ui.md §7)', () => {
   })
 
   it('pas de segmented de tri au-dessus d’un tableau (SortableTh)', () => {
-    // Un tableau se trie par ses en-têtes ; une liste de cartes sans en-têtes (ClanSelector) garde son segmented.
+    // Un tableau se trie par ses en-têtes ; une liste de cartes sans en-têtes (annuaire des clans) garde son segmented.
     const withTable = UI_SOURCES.filter((file) => read(file).includes('<table'))
     expect(
       offenders(/<SegmentedControl[\s\S]{0,80}?options=\{SORT_OPTIONS/, REFONTE_EXCEPTIONS.sortSegmented, withTable)

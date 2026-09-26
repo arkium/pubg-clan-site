@@ -2562,6 +2562,14 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte de l'annuaire des clans (`/clans`)~~ — ✅ Complété le 2026-09-26
+
+Maquette Claude Design « Clans » — [clans.md](../features/clans.md) §6 bis :
+- [x] Bandeau commun, totaux sur une ligne, recherche et tri collants, clan épinglé (mon clan / dernier consulté),
+      clan du moment, clans actifs (activité 7 jours, joueurs de la soirée, rang en Ligue), clans en sommeil repliés.
+- [x] `GET /api/clans/directory` (cache 5 min) ; `ClanSelector` supprimé.
+- [ ] « En jeu maintenant » impossible tant que la synchronisation est horaire (délai d'import médian > 45 min).
+
 #### ~~Refonte de la vue d'ensemble du clan (« vitrine »)~~ — ✅ Complété le 2026-09-26
 
 Maquette Claude Design « Vue ensemble clan » — [clans.md](../features/clans.md) §6 :

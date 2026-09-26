@@ -90,3 +90,36 @@ export function mockMatchDebrief(api: ApiMock) {
 export function mockClanMatches(api: ApiMock) {
   api.on('GET', `/api/clans/${CLAN_ID}/matches`, (url) => ({ body: clanMatchesResponse(url.searchParams.get('period') ?? 'week') }))
 }
+
+/**
+ * Annuaire des clans : quatre clans (dont le clan technique et un clan en sommeil) et leur activité. Dates relatives à
+ * l'heure du test, pour que la mise en sommeil (14 jours) ne dépende pas du jour où il tourne.
+ */
+export function mockClanDirectory(api: ApiMock) {
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
+  api
+    .on('GET', '/api/clans', {
+      body: [
+        { id: CLAN_ID, name: 'Clan Démo', tag: 'DEMO', platformShard: 'steam', membersCount: 24, matchesCount: 120, killsCount: 480, timePlayedSeconds: 180000, imageUrl: null },
+        { id: 2, name: 'Clan Témoin', tag: 'TEMO', platformShard: 'steam', membersCount: 12, matchesCount: 64, killsCount: 200, timePlayedSeconds: 90000, imageUrl: null },
+        { id: 3, name: 'Clan Meute', tag: 'MEUT', platformShard: 'steam', membersCount: 30, matchesCount: 300, killsCount: 1500, timePlayedSeconds: 400000, imageUrl: null },
+        { id: 4, name: 'Clan Endormi', tag: 'ZZZ', platformShard: 'steam', membersCount: 8, matchesCount: 40, killsCount: 90, timePlayedSeconds: 50000, imageUrl: null },
+        { id: 99, name: 'Ungrouped', tag: 'UNG', platformShard: 'steam', membersCount: 5, matchesCount: 10, killsCount: 20, timePlayedSeconds: 10000, imageUrl: null, isSystem: true },
+      ],
+    })
+    .on('GET', '/api/clans/directory', {
+      body: {
+        generatedAt: hoursAgo(0),
+        tonight: { date: '2026-09-26', players: 11 },
+        leagueSize: 29,
+        clanOfMomentId: 3,
+        activity: [
+          { clanId: CLAN_ID, games7: 25, wins7: 5, playedTonight: 3, lastMatchAt: hoursAgo(2), leagueRank: 3 },
+          { clanId: 2, games7: 10, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(30), leagueRank: 12 },
+          { clanId: 3, games7: 64, wins7: 7, playedTonight: 8, lastMatchAt: hoursAgo(1), leagueRank: 1 },
+          { clanId: 4, games7: 0, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(24 * 20), leagueRank: null },
+          { clanId: 99, games7: 4, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(50), leagueRank: null },
+        ],
+      },
+    })
+}

@@ -33,7 +33,8 @@ export function PlaceCell({ place, title }: { place: number; title?: string }) {
   )
 }
 
-export type BannerChip = { icon: LucideIcon; text: string; gold?: boolean }
+/** Pastille du bandeau : neutre, or (top 1) ou verte avec un point (activité de la soirée). */
+export type BannerChip = { icon?: LucideIcon; text: string; gold?: boolean; live?: boolean }
 
 /**
  * Bandeau d'image partagé par la liste des matchs et la page d'une soirée. Hauteurs reprises de l'ancien bandeau de
@@ -73,10 +74,18 @@ export function MatchesBanner({
               <li
                 key={chip.text}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-semibold ${
-                  chip.gold ? 'border-amber-400 bg-amber-400/90 text-amber-950' : 'border-white/25 bg-white/15 text-white'
+                  chip.gold
+                    ? 'border-amber-400 bg-amber-400/90 text-amber-950'
+                    : chip.live
+                      ? 'border-emerald-400/60 bg-emerald-500/25 text-white'
+                      : 'border-white/25 bg-white/15 text-white'
                 }`}
               >
-                <ChipIcon className="h-3 w-3" aria-hidden="true" />
+                {chip.live ? (
+                  <span className="h-[7px] w-[7px] rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgb(52_211_153/0.3)]" aria-hidden="true" />
+                ) : ChipIcon ? (
+                  <ChipIcon className="h-3 w-3" aria-hidden="true" />
+                ) : null}
                 {chip.text}
               </li>
             )

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import {
   Award,
   CalendarDays,
+  ImagePlus,
   Crosshair,
   Handshake,
   Medal,
@@ -40,15 +41,22 @@ function pct(value: number) {
 
 // ── Vitrine ──────────────────────────────────────────────────────────────────────────────────────
 
+/** Image d'un clan sans image propre : la même que le sélecteur de clan. */
+export const DEFAULT_CLAN_IMAGE = '/clans/default_clan.jpg'
+
 export function ClanShowcaseHero({
   image,
+  imageSettingsHref,
   tag,
   name,
   syncedLabel,
   trackedMembers,
   showcase,
 }: {
-  image: string
+  /** Image du clan (réglage `login_welcome_image_url`) ; `null` : image par défaut. */
+  image: string | null
+  /** Lien vers le réglage de l'image, pour qui peut le modifier ; affiché seulement quand l'image manque. */
+  imageSettingsHref?: string | null
   tag: string | null
   name: string
   syncedLabel: string | null
@@ -72,12 +80,21 @@ export function ClanShowcaseHero({
   return (
     <header className="app-panel relative min-h-[300px] overflow-hidden p-0 text-white" aria-label="Fiche du clan">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover object-[center_35%]" />
+      <img src={image ?? DEFAULT_CLAN_IMAGE} alt="" className="absolute inset-0 h-full w-full object-cover object-[center_35%]" />
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/50 to-slate-950/10" aria-hidden="true" />
       <div className="relative flex min-h-[300px] flex-col justify-end gap-3.5 p-4 sm:px-8 sm:py-7">
         <div className="flex flex-wrap items-center gap-2">
           {tag && <span className="rounded-md bg-amber-400 px-2.5 py-0.5 text-xs font-extrabold tracking-[0.06em] text-amber-950">[{tag}]</span>}
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Fiche PUBG officielle</span>
+          {!image && imageSettingsHref && (
+            <Link
+              href={imageSettingsHref}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-slate-950/55 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur hover:bg-slate-950/75"
+            >
+              <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+              Ajouter l’image du clan
+            </Link>
+          )}
           {syncedLabel && (
             <span className="inline-flex items-center gap-1.5 text-[11px] text-white/60">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />

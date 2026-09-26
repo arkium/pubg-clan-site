@@ -17,6 +17,9 @@ test.beforeEach(async ({ api, page }) => {
 test('vitrine : niveau, membres et palmarès', async ({ page }) => {
   const hero = page.getByLabel('Fiche du clan')
   await expect(hero.getByLabel('Niveau 17')).toBeVisible()
+  // Clan sans image propre : celle du sélecteur de clan ; pas de raccourci de réglage pour un visiteur.
+  await expect(hero.locator('img').first()).toHaveAttribute('src', '/clans/default_clan.jpg')
+  await expect(hero.getByRole('link', { name: 'Ajouter l’image du clan' })).toHaveCount(0)
   await expect(hero).toContainText('55 membres PUBG')
   await expect(hero).toContainText('97')
   await expect(hero).toContainText('chicken dinners ce mois')

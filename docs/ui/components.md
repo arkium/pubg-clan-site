@@ -576,11 +576,11 @@ Comportement identique à `ClanSectionNav` : filtre, ordre, libellés personnali
 
 ---
 
-### `ClanSelector`
+### Annuaire des clans
 
-Fichier : `src/components/ClanSelector.tsx`
+Fichier : `src/components/clans/ClanDirectorySections.tsx` (remplace `ClanSelector`, supprimé le 2026-09-26)
 
-Rôle : sélecteur de clan dans le header de l'application. Permet à l'utilisateur de basculer entre ses clans. Écrit le clan actif dans `localStorage` via `useSelectedClan`.
+Rôle : sections de la page `/clans` — clan épinglé, clan du moment, cartes des clans actifs, clans en sommeil. Ouvrir un clan écrit le clan actif dans `localStorage` via `useSelectedClan`.
 
 ---
 
@@ -594,7 +594,7 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 | `Leaderboard` | `src/components/Leaderboard.tsx` | Classement du clan : `SortableTh`, `RankCell`, colonnes de mode en « Tous », total, `MobileRankList` |
 | `SquadSynergies` | `src/components/SquadSynergies.tsx` | Fréquence des équipes jouant ensemble |
 | `SquadMatchList` | `src/components/SquadMatchList.tsx` | Liste des matchs d'une squad |
-| `SessionRecap` | `src/components/SessionRecap.tsx` | Récapitulatif d'une soirée de jeu |
+| `SessionLogbook` | `src/components/matches/SessionLogbook.tsx` | Carnet des soirées (page Matchs) |
 | `ProgressionChart` | `src/components/dashboard/ProgressionChart.tsx` | Graphe d'évolution d'une métrique |
 | `WeaponCategoryPeriodFilter` | `src/components/WeaponCategoryPeriodFilter.tsx` | Filtre période pour les stats armes par catégorie |
 | `MemberLifetimeStatsPanel` | `src/components/MemberLifetimeStatsPanel.tsx` | Panneau stats lifetime d'un membre |

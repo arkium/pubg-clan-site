@@ -317,7 +317,7 @@ vitrine, dans cet ordre :
 
 | Bloc | Contenu | Filtré par le bandeau ? |
 |---|---|---|
-| Vitrine | Fiche PUBG : tag, nom, **niveau** (`clanStats.pubg.raw.attributes.clanLevel` — la colonne `Clan.clanLevel` est vide pour tous les clans), membres PUBG (`clanStats.pubg.memberCount`) et suivis, dernière sync ; palmarès : top 1 du mois, rang en **Ligue des clans** (mois), kills depuis le début du suivi (`tracked.aggregated.totalKills`), tournoi gagné s'il y en a un, sinon parties du mois | Non |
+| Vitrine | Image du clan (réglage `login_welcome_image_url`, page « Accueil login » ; à défaut `/clans/default_clan.jpg` comme le sélecteur de clan, avec un raccourci « Ajouter l’image du clan » pour qui a accès au réglage) ; fiche PUBG : tag, nom, **niveau** (`clanStats.pubg.raw.attributes.clanLevel` — la colonne `Clan.clanLevel` est vide pour tous les clans), membres PUBG (`clanStats.pubg.memberCount`) et suivis, dernière sync ; palmarès : top 1 du mois, rang en **Ligue des clans** (mois), kills depuis le début du suivi (`tracked.aggregated.totalKills`), tournoi gagné s'il y en a un, sinon parties du mois | Non |
 | Briefing de la semaine | Trois faits illustrés, chacun avec son lien : dernier top 1 de la semaine (carte, heure, kills, MVP) → débriefing ; plus long kill de la semaine (`KillEvent`, distance en cm → m, tête, clan de la victime) → replay (`?tab=replay`) ; série de soirées consécutives avec un top 1 (journée de jeu, « au moins N » si elle remonte au début des soirées lues) → soirées. Carte de repli quand un fait manque | Non (semaine ISO) |
 | Bandeau de filtres | Période, type de match, mode — inchangé ; il ne filtre que ce qui suit | — |
 | Chiffres clés | Kills, Top 1, Dégâts moyens, Parties (`KpiGrid`, même composant que Matchs et Soirée), chacun avec un lien : Top fraggers (Classement), Revoir les top 1 (Matchs), Stats armes, Soirées | Oui |
@@ -339,6 +339,37 @@ partagé avec `GET /api/clans-leaderboard` ; les tournois gagnés par `listTourn
 | Top performers (kills, dégâts, survie) | Page Awards (`ClanTopPerformers`), parties officielles, tous modes |
 | Awards du mode (6 cartes, libellés anglais) | Retirés : la page Awards couvre ces distinctions |
 | Roster des performances | Retiré : Membres (liste) et Classement (statistiques triables) |
+
+---
+
+## 6 bis. Annuaire des clans (`/clans`) — refonte du 2026-09-26
+
+Maquette Claude Design « Clans » (écrans 12a à 12e). Page réservée aux SuperUsers et aux visiteurs (mode visiteur) ; un
+membre est renvoyé vers ses pages (contrôle inchangé, voir [auth.md](auth.md) §7).
+
+| Bloc | Contenu |
+|---|---|
+| Bandeau | `MatchesBanner` commun (« Les clans »), pastilles « N clans suivis » et « N joueurs ont joué ce soir » |
+| Totaux | Une ligne : clans, joueurs, parties, heures de jeu, kills, « depuis le début du suivi » (`quickStats` de `GET /api/clans`) |
+| Bandeau collant | Recherche par nom ou tag (crochets et casse ignorés) et tri Activité / Nom / Effectif / Parties (`DockingToolbar`) |
+| À la une | **Clan épinglé** : son clan pour un connecté (« Mon clan »), le clan mémorisé pour un visiteur (« Dernier clan consulté ») ; **Clan du moment** : le plus de top 1 sur 7 jours, au moins 5 parties, puis le meilleur taux (jamais le clan technique). Masqué pendant une recherche |
+| Clans actifs | Partie dans les 14 derniers jours ; carte compacte : image, pastille « ● N » (joueurs de la soirée), effectif, parties ensemble en 7 jours, dernière partie en relatif, top 1 en 7 jours et rang en Ligue (mois). Tri par activité par défaut : joueurs de la soirée, parties en 7 jours, dernière partie |
+| En sommeil | Sans partie depuis 14 jours : liste repliée et grisée |
+
+**Décisions du 2026-09-26**
+
+- « En jeu ce soir » de la maquette → **« ont joué ce soir »** : joueurs distincts ayant une partie dans la soirée en
+  cours (journée de jeu, `sessionDateOf`). Les parties arrivent par la synchronisation horaire : seules ~6 % sont en base
+  moins de 15 minutes après leur fin, plus de la moitié après 2 h ; un « en jeu maintenant » serait presque toujours à 0.
+- « +4 places en Ligue » (clan du moment) : **retiré**, aucun historique du rang n'est conservé ; remplacé par le rang du
+  mois.
+- « Parties » = parties **ensemble** (`SquadMatch`, au moins deux membres suivis) ; « dernière partie » =
+  `Clan.lastMatchAt`, solo compris. Un clan qui ne joue qu'en solo affiche donc « 0 partie ensemble · dernière partie ce soir ».
+
+**Données** : `GET /api/clans` (inchangée : liste, image, `quickStats`) et `GET /api/clans/directory`
+(`src/lib/clan-directory-service.ts`, logique pure dans `src/lib/clan-directory.ts`) : par clan, parties et top 1 sur 7
+jours glissants, joueurs de la soirée, dernière partie, rang en Ligue ; joueurs de la soirée tous clans confondus ; clan
+du moment. Aucune donnée nominative ; gardée 5 minutes (~180 ms à froid). `ClanSelector` est supprimé.
 
 ---
 
@@ -370,6 +401,7 @@ Les routes sensibles vérifient l'appartenance au clan ET le rôle. Le SuperUser
 | `/api/clans/[clanId]/members/[memberId]/role` | `PUT` | Change le rôle d'un membre |
 | `/api/clans/[clanId]/members/[memberId]/invite` | `POST` | Envoie une invitation par email ou lien |
 | `/api/clans/[clanId]/overview` | `GET` | Données overview du clan (clanStats JSON) |
+| `/api/clans/directory` | `GET` | Annuaire : activité 7 jours, joueurs de la soirée, rang en Ligue, clan du moment (cache 5 min) |
 | `/api/clans/[clanId]/overview/showcase` | `GET` | Vitrine : niveau, palmarès, briefing de la semaine, indices de navigation (cache 5 min) |
 | `/api/clans/[clanId]/pubg-diff` | `GET` | Diff membres PUBG officiels vs membres trackés |
 | `/api/clans/[clanId]/sync-matches` | `POST` | Sync les matchs PUBG pour tous les membres actifs |

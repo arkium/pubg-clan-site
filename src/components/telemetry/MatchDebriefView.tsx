@@ -246,7 +246,7 @@ function MateBadge({ mate }: { mate: Pick<SquadMateApi, 'clanTag' | 'trackedClan
   return (
     <span
       className="text-[10px] font-bold uppercase tracking-[0.04em]"
-      style={{ color: 'var(--debrief-mate)' }}
+      style={{ color: 'var(--game-mate)' }}
       title={`Coéquipier sans fiche membre sur le site : statistiques issues de la télémétrie.${
         mate.clanTag ? ` Tag [${mate.clanTag}] = clan PUBG${checkedOn ? ` relevé le ${checkedOn}` : ''}, il peut avoir changé depuis.` : ''
       }`}
@@ -260,7 +260,7 @@ function TelemetryChip() {
   return (
     <span
       className="rounded border px-1 text-[10px] font-bold"
-      style={{ borderColor: 'var(--debrief-mate)', color: 'var(--debrief-mate)' }}
+      style={{ borderColor: 'var(--game-mate)', color: 'var(--game-mate)' }}
       title="Frag retrouvé dans le kill-feed de la télémétrie : le clan du joueur n'avait pas synchronisé ce match."
     >
       télémétrie
@@ -372,7 +372,7 @@ function TeamStrip({
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="inline-flex h-[22px] shrink-0 items-center gap-1 rounded-md border border-gray-200 px-1.5 text-xs font-extrabold tabular-nums">
-                    {winner && <Crown className="h-3 w-3" style={{ color: 'var(--debrief-warn)' }} aria-label="Vainqueur" />}
+                    {winner && <Crown className="h-3 w-3" style={{ color: 'var(--game-warn)' }} aria-label="Vainqueur" />}
                     {team.placement !== null && team.placement <= 3 && !team.placementEstimated && !winner && (
                       <RankCell rank={team.placement} size="xs" />
                     )}
@@ -388,12 +388,12 @@ function TeamStrip({
                 </span>
                 <span className="flex items-center gap-2.5 whitespace-nowrap text-xs tabular-nums text-gray-500">
                   <span className="inline-flex items-center gap-1">
-                    <Crosshair className="h-3 w-3" style={{ color: 'var(--debrief-neg)' }} aria-hidden="true" />
+                    <Crosshair className="h-3 w-3" style={{ color: 'var(--game-neg)' }} aria-hidden="true" />
                     <b className="text-gray-900">{team.kills}</b> kills
                   </span>
                   <span className="inline-flex min-w-0 items-center gap-1 overflow-hidden">
                     {winner ? (
-                      <Trophy className="h-3 w-3 shrink-0" style={{ color: 'var(--debrief-warn)' }} aria-hidden="true" />
+                      <Trophy className="h-3 w-3 shrink-0" style={{ color: 'var(--game-warn)' }} aria-hidden="true" />
                     ) : (
                       <Skull className="h-3 w-3 shrink-0" aria-hidden="true" />
                     )}
@@ -402,14 +402,14 @@ function TeamStrip({
                 </span>
                 <span
                   className="relative block h-1 rounded-full"
-                  style={{ background: 'var(--debrief-track-strong)' }}
+                  style={{ background: 'var(--game-track-strong)' }}
                   title={durationSeconds ? `Survie : ${survival} % de la partie` : undefined}
                 >
                   <span
                     className="absolute inset-y-0 left-0 rounded-full"
                     style={{
                       width: `${durationSeconds ? survival : 0}%`,
-                      background: selected ? 'var(--theme-ui-accent)' : winner ? 'var(--debrief-warn)' : 'var(--theme-ui-text-muted)',
+                      background: selected ? 'var(--theme-ui-accent)' : winner ? 'var(--game-warn)' : 'var(--theme-ui-text-muted)',
                     }}
                   />
                   {durationSeconds
@@ -449,7 +449,7 @@ function TeamStrip({
                 className="h-1.5 rounded-full"
                 style={{
                   width: index === currentPage ? 20 : 6,
-                  background: index === currentPage ? 'var(--theme-ui-accent)' : 'var(--debrief-track-strong)',
+                  background: index === currentPage ? 'var(--theme-ui-accent)' : 'var(--game-track-strong)',
                 }}
               />
             ))}
@@ -476,9 +476,9 @@ function TournamentRoundBanner({ tournament, focusClanId }: { tournament: Tourna
     <section className="app-panel flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <Trophy className="h-5 w-5 shrink-0" style={{ color: 'var(--debrief-warn)' }} aria-hidden="true" />
+          <Trophy className="h-5 w-5 shrink-0" style={{ color: 'var(--game-warn)' }} aria-hidden="true" />
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--debrief-warn)' }}>
+            <p className="text-xs font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--game-warn)' }}>
               Manche {tournament.roundNumber} / {tournament.totalRounds}
             </p>
             <p className="truncate text-base font-extrabold">{tournament.title}</p>
@@ -791,7 +791,7 @@ export function MatchDebriefView({
 
   if (loading) {
     return (
-      <main className="debrief app-container app-main space-y-4">
+      <main className="debrief game-ui app-container app-main space-y-4">
         <NavigationTrail currentLabel="Débriefing" currentHref={pageHref} fallbackParent={fallbackParent} />
         <CardSkeleton className="h-48" />
         <CardSkeleton className="h-96" />
@@ -801,13 +801,13 @@ export function MatchDebriefView({
 
   if (error || !match) {
     return (
-      <main className="debrief app-container app-main space-y-4">
+      <main className="debrief game-ui app-container app-main space-y-4">
         <NavigationTrail currentLabel="Erreur" currentHref={pageHref} fallbackParent={fallbackParent} />
         <div className="app-panel p-6" role="alert">
-          <p className="font-semibold" style={{ color: 'var(--debrief-neg)' }}>
+          <p className="font-semibold" style={{ color: 'var(--game-neg)' }}>
             {error || 'Match introuvable.'}
           </p>
-          <Link href={fallbackParent.href} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline" style={{ color: 'var(--debrief-link)' }}>
+          <Link href={fallbackParent.href} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> {clanId ? 'Retour à la liste des matchs' : 'Retour au tournoi'}
           </Link>
         </div>
@@ -824,21 +824,21 @@ export function MatchDebriefView({
       value: numberFormat.format(clanTotals.kills + mateTotals.kills),
       sub: squadMates.length > 0 ? `dont coéquipiers : ${mateTotals.kills}` : 'escouade',
       icon: Skull,
-      color: 'var(--debrief-neg)',
+      color: 'var(--game-neg)',
     },
     {
       label: 'Dégâts',
       value: numberFormat.format(Math.round(clanTotals.damage + mateTotals.damage)),
       sub: squadMates.length > 0 ? `dont coéquipiers : ${numberFormat.format(Math.round(mateTotals.damage))}` : 'escouade',
       icon: Flame,
-      color: 'var(--debrief-warn)',
+      color: 'var(--game-warn)',
     },
     {
       label: 'Assistances',
       value: numberFormat.format(clanTotals.assists),
       sub: squadMates.length > 0 ? 'membres suivis' : 'escouade',
       icon: Target,
-      color: 'var(--debrief-sky)',
+      color: 'var(--game-sky)',
       title: squadMates.length > 0 ? 'La télémétrie ne compte pas les assistances : seules celles des membres suivis sont connues.' : undefined,
     },
     {
@@ -846,7 +846,7 @@ export function MatchDebriefView({
       value: numberFormat.format(clanTotals.revives + mateTotals.revives),
       sub: 'escouade',
       icon: HeartHandshake,
-      color: 'var(--debrief-pos)',
+      color: 'var(--game-pos)',
     },
   ]
 
@@ -859,14 +859,14 @@ export function MatchDebriefView({
       <li key={kill.id} className="debrief-row flex items-center gap-2.5 px-3.5 py-2 text-[13px]">
         <span className="w-10 shrink-0 text-xs tabular-nums text-gray-500">{at}</span>
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          <b className="truncate" style={{ color: won ? (kill.isClanKill ? 'var(--debrief-pos)' : 'var(--debrief-mate)') : 'var(--theme-ui-text)' }}>
+          <b className="truncate" style={{ color: won ? (kill.isClanKill ? 'var(--game-pos)' : 'var(--game-mate)') : 'var(--theme-ui-text)' }}>
             {!won && kill.killerClanTag ? `[${kill.killerClanTag}] ` : ''}
             {kill.killerName}
           </b>
           <span className="shrink-0 text-gray-500" aria-hidden="true">
             →
           </span>
-          <span className="truncate" style={{ color: won ? 'var(--theme-ui-text-secondary)' : kill.isClanVictim ? 'var(--debrief-neg)' : 'var(--debrief-mate)' }}>
+          <span className="truncate" style={{ color: won ? 'var(--theme-ui-text-secondary)' : kill.isClanVictim ? 'var(--game-neg)' : 'var(--game-mate)' }}>
             {won && kill.victimClanTag ? `[${kill.victimClanTag}] ` : ''}
             {kill.victimName}
           </span>
@@ -882,7 +882,7 @@ export function MatchDebriefView({
   }
 
   return (
-    <main className="debrief app-container app-main flex flex-col gap-4">
+    <main className="debrief game-ui app-container app-main flex flex-col gap-4">
       <NavigationTrail
         currentLabel={`Débriefing #${match.placement} · ${resolveMapName(match.mapName)}`}
         currentHref={pageHref}
@@ -934,7 +934,7 @@ export function MatchDebriefView({
           <ul className="flex flex-wrap gap-1.5" aria-label="Escouade">
             {focusMembers.map((member) => (
               <li key={member.memberId} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs">
-                <span className="font-bold" style={{ color: 'var(--debrief-pos)' }}>
+                <span className="font-bold" style={{ color: 'var(--game-pos)' }}>
                   {member.displayName}
                 </span>
                 <span className="tabular-nums text-gray-500">
@@ -946,10 +946,10 @@ export function MatchDebriefView({
               <li
                 key={mate.accountId}
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed bg-gray-50 px-2.5 py-1 text-xs"
-                style={{ borderColor: 'var(--debrief-mate)' }}
+                style={{ borderColor: 'var(--game-mate)' }}
                 title={`${mate.name} — ${mate.knockouts} mise(s) à terre, ${mate.revives} réanimation(s), ${mate.recalls} rappel(s), ${mate.deaths} mort(s). Statistiques issues de la télémétrie.`}
               >
-                <span className="font-bold" style={{ color: 'var(--debrief-mate)' }}>
+                <span className="font-bold" style={{ color: 'var(--game-mate)' }}>
                   {mate.name}
                 </span>
                 <MateBadge mate={mate} />
@@ -988,7 +988,7 @@ export function MatchDebriefView({
         />
       )}
       {refreshError && (
-        <p className="text-xs font-semibold" style={{ color: 'var(--debrief-neg)' }} role="alert">
+        <p className="text-xs font-semibold" style={{ color: 'var(--game-neg)' }} role="alert">
           {refreshError}
         </p>
       )}
@@ -1052,7 +1052,7 @@ export function MatchDebriefView({
             {replayLoading && <CardSkeleton className="h-96" />}
             {replayError && !replayLoading && (
               <div className="app-panel flex flex-col items-start gap-3 p-6 text-sm font-semibold" role="alert">
-                <p style={{ color: 'var(--debrief-neg)' }}>{replayError}</p>
+                <p style={{ color: 'var(--game-neg)' }}>{replayError}</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -1081,12 +1081,12 @@ export function MatchDebriefView({
               {squadCards.map((card) => {
                 const accuracy = accuracyOf(card.stats)
                 const mate = card.mate
-                const color = mate ? 'var(--debrief-mate)' : 'var(--debrief-pos)'
+                const color = mate ? 'var(--game-mate)' : 'var(--game-pos)'
                 return (
                   <article
                     key={card.key}
                     className={`app-panel flex flex-col gap-3 p-3.5 ${mate ? 'border-dashed' : ''}`}
-                    style={mate ? { borderColor: 'var(--debrief-mate)' } : undefined}
+                    style={mate ? { borderColor: 'var(--game-mate)' } : undefined}
                   >
                     <div className="flex items-center gap-2.5">
                       <span
@@ -1138,10 +1138,10 @@ export function MatchDebriefView({
                           <span className="text-gray-500">—</span>
                         )}
                       </div>
-                      <div className="h-1.5 rounded-full" style={{ background: 'var(--debrief-track)' }}>
+                      <div className="h-1.5 rounded-full" style={{ background: 'var(--game-track)' }}>
                         <div
                           className="h-1.5 rounded-full"
-                          style={{ width: `${Math.min(100, (accuracy.percent ?? 0) * 2)}%`, background: 'var(--debrief-pos)' }}
+                          style={{ width: `${Math.min(100, (accuracy.percent ?? 0) * 2)}%`, background: 'var(--game-pos)' }}
                         />
                       </div>
                     </div>
@@ -1169,7 +1169,7 @@ export function MatchDebriefView({
                     const shots = Number(weapon.shotsFired) || 0
                     const hits = Number(weapon.hitsLanded) || 0
                     const percent = shots > 0 ? Math.round((hits / shots) * 100) : null
-                    const tone = percent === null ? 'var(--theme-ui-text-muted)' : percent >= 30 ? 'var(--debrief-pos)' : percent >= 22 ? 'var(--debrief-warn)' : 'var(--debrief-neg)'
+                    const tone = percent === null ? 'var(--theme-ui-text-muted)' : percent >= 30 ? 'var(--game-pos)' : percent >= 22 ? 'var(--game-warn)' : 'var(--game-neg)'
                     return (
                       <div key={weapon.weaponName} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
                         <div className="flex items-baseline justify-between gap-2">
@@ -1179,7 +1179,7 @@ export function MatchDebriefView({
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--debrief-track)' }}>
+                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--game-track)' }}>
                             <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, (percent ?? 0) * 2)}%`, background: tone }} />
                           </div>
                           <span className="w-12 text-right text-xs font-bold tabular-nums">{percent !== null ? `${percent} %` : '—'}</span>
@@ -1197,8 +1197,8 @@ export function MatchDebriefView({
           <section className="flex flex-col gap-3.5">
             <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))]">
               {[
-                { title: 'Duels gagnés', score: `+${squadKills.length}`, color: 'var(--debrief-pos)', rows: squadKills, won: true, empty: 'Aucune élimination enregistrée.' },
-                { title: 'Duels perdus', score: `−${squadDeaths.length}`, color: 'var(--debrief-neg)', rows: squadDeaths, won: false, empty: 'Aucun membre éliminé.' },
+                { title: 'Duels gagnés', score: `+${squadKills.length}`, color: 'var(--game-pos)', rows: squadKills, won: true, empty: 'Aucune élimination enregistrée.' },
+                { title: 'Duels perdus', score: `−${squadDeaths.length}`, color: 'var(--game-neg)', rows: squadDeaths, won: false, empty: 'Aucun membre éliminé.' },
               ].map((column) => (
                 <div key={column.title} className="app-panel overflow-hidden p-0">
                   <div className="debrief-row flex items-baseline justify-between px-3.5 py-3" style={{ boxShadow: `inset 3px 0 0 ${column.color}` }}>
@@ -1240,7 +1240,7 @@ export function MatchDebriefView({
                   {(['dealt', 'taken'] as const).map((direction) => {
                     const breakdown = squadBodyZones?.[direction]
                     const summary = zoneBars(breakdown)
-                    const color = direction === 'dealt' ? 'var(--debrief-pos)' : 'var(--debrief-neg)'
+                    const color = direction === 'dealt' ? 'var(--game-pos)' : 'var(--game-neg)'
                     return (
                       <div key={direction} className="app-panel-muted flex gap-3.5 px-3.5 py-3">
                         <div className="hidden w-[92px] shrink-0 sm:block">
@@ -1266,7 +1266,7 @@ export function MatchDebriefView({
                           {summary.bars.map((bar) => (
                             <div key={bar.zone} className="grid items-center gap-2 text-xs tabular-nums [grid-template-columns:62px_1fr_72px]">
                               <span className="text-gray-700">{bar.label}</span>
-                              <div className="h-2 rounded-full" style={{ background: 'var(--debrief-track)' }}>
+                              <div className="h-2 rounded-full" style={{ background: 'var(--game-track)' }}>
                                 <div className="h-2 rounded-full" style={{ width: `${bar.widthPercent}%`, background: color }} />
                               </div>
                               <span className="text-right text-gray-500">

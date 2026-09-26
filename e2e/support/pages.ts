@@ -4,6 +4,7 @@ import {
   MEMBER_ID,
   clanMatchesStats,
   clanOverview,
+  clanShowcase,
   clanWeapons,
   clansLeaderboardResponse,
   itemUseStats,
@@ -13,6 +14,7 @@ import {
   memberWeapons,
   homeShowcase,
   debriefTelemetry,
+  clanMatchesResponse,
   DEBRIEF_MATCH_ID,
 } from './data'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
@@ -35,7 +37,10 @@ export function mockClanOverview(api: ApiMock) {
     // Panneaux secondaires : état « sans données », rendu par la page comme en production.
     .on('GET', `/api/clans/${CLAN_ID}/city-insights`, { body: { insights: null, error: 'Aucune ville sur cette période.' } })
     .on('GET', `/api/clans/${CLAN_ID}/drop-pressure-stats`, { body: { stats: null, error: 'Aucun atterrissage sur cette période.' } })
-    .on('GET', `/api/clans/${CLAN_ID}/telemetry/synergies`, { body: { rows: [] } })
+    .on('GET', `/api/clans/${CLAN_ID}/overview/showcase`, { body: clanShowcase() })
+    .on('GET', `/api/clans/${CLAN_ID}/telemetry/synergies`, {
+      body: { rows: [{ memberAId: 1, memberAName: 'Joueur Alpha', memberBId: 2, memberBName: 'Joueur Bravo', reviveCount: 9, recallCount: 0, coKillCount: 4, sharedDamageEvents: 0 }] },
+    })
 }
 
 export function mockClanItems(api: ApiMock) {
@@ -79,4 +84,9 @@ export function mockMatchDebrief(api: ApiMock) {
   api
     .on('GET', `${base}/telemetry`, (url) => ({ body: debriefTelemetry(Number(url.searchParams.get('teamId')) || null) }))
     .on('GET', `${base}/replay`, { status: 404, body: { ok: false, error: { message: 'Replay indisponible pour ce match.' } } })
+}
+
+/** Matchs du clan et page d'une soirée : une seule API, lue avec la période de l'URL. */
+export function mockClanMatches(api: ApiMock) {
+  api.on('GET', `/api/clans/${CLAN_ID}/matches`, (url) => ({ body: clanMatchesResponse(url.searchParams.get('period') ?? 'week') }))
 }

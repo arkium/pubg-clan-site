@@ -152,9 +152,14 @@ Note : la période `all` n'est pas disponible sur cette page. Le filtre `gameMod
 
 Pour chaque mode (`duo`, `trio`, `squad`) : `matches`, `kills`, `wins`, `losses`, `damage`, `assists`, `durationSeconds`.
 
-**`sessions` — Récapitulatif par date**
+**`sessions` — Récapitulatif par soirée**
 
-Regroupement par date ISO `YYYY-MM-DD`. Pour chaque session :
+Regroupement par **journée de jeu** (`sessionDateOf`, `src/lib/match-sessions.ts`, décision du 2026-09-26) : date de Paris,
+la journée commençant à **06:00**. Une partie jouée avant 6 h compte dans la soirée de la veille : une soirée qui passe minuit
+reste entière. Auparavant, la date UTC (`createdAt.slice(0, 10)`) rangeait une partie de 00:30 à la veille et faisait
+commencer « la soirée du 26 » par les parties de la nuit du 25. La même règle sert la page de la soirée, la page de pilotage
+de la télémétrie, les liens des récupérations et le lien retour du débriefing (`fromDate`). Une soirée à cheval sur deux
+mois apparaît dans chacun des deux, avec les parties de la période. Pour chaque session :
 - Liste des matchs du jour.
 - `totalDuration`, `totalKills`, `totalDamage`, `winRate`.
 - Membres uniques présents dans la session.
@@ -184,15 +189,37 @@ Trois classements (top 5 chacun) :
 
 **`mapLabels`** : alias des noms de cartes via `getMapLabels()`.
 
+**`squads[].teamCount`** : équipes au départ de chaque partie (« #3 / 26 »), lues dans les instantanés de phase de la
+télémétrie (`teamCountFromPhaseSnapshots`) ; `null` sans télémétrie analysée.
+
+**Colonnes compressées** : la route lit `weaponStats`, `memberStats` et `phaseSnapshots` avec leurs colonnes `*Gz` et
+les normalise par `decodeTelemetryRow` (CLAUDE.md, piège n° 10). Avant le 2026-09-26, elle ne lisait que les colonnes en
+clair : les 10 482 parties de septembre n'avaient plus ni « Top armes » ni « Stats joueurs » sur la page de pilotage.
+
+### Refonte du 2026-09-26 (maquette Claude Design « Matchs et soirées », écrans 10a à 10f)
+
+| Audit de la maquette | Réponse |
+|---|---|
+| La soirée n'avait pas de bandeau | `MatchesBanner` commun aux deux pages : image (celle de la carte du premier top 1 de la soirée, sinon de sa première partie), titre, pastilles « 7 parties · 2 h 41 · 1 chicken dinner ». Hauteurs de l'ancien bandeau conservées (règle : ne jamais changer la hauteur d'un bandeau d'image) |
+| Deux styles de chiffres clés, libellés différents | `KpiGrid` sur les deux pages : Kills, Dégâts, Top 1, Parties, Temps de jeu (liste) ; Kills, Dégâts, Meilleure place, Place moyenne (soirée) |
+| Récap par soirée chargé (pastilles, tableau à 6 colonnes, modes non joués à 0) | Carnet des soirées (`SessionLogbook`) : bloc date, une case par partie colorée par la place (or top 1, vert ≤ 5, bleu ≤ 10), joueurs, modes joués, trois chiffres |
+| Cartes de match techniques | Carte de fin de partie (`MatchResultCard`) : image de la carte, « #3/26 », tampon « Chicken dinner », kills par joueur en barres, Kills / Dégâts / Réa., télémétrie réduite à un point ; « Débriefing » ou « État » (audit). `SquadMatchList` reste pour la page de pilotage de la télémétrie |
+| Navigation entre soirées sans date | Bandeau collant : soirée précédente et suivante datées (« ven. 25 »), sept soirées voisines, soirée courante en accent ; « Soirée n / N » sur mobile |
+| Divers (« Liste complete », « 14.3% », tons de mode pensés pour le clair) | Français partout, virgule décimale, couleurs par jetons `--game-*` (`.game-ui`) en clair et en sombre |
+
+Plan de vol de la soirée (`SessionFlightPlan`) : une étape par partie dans l'ordre du jeu, reliées en pointillés, avec
+miniature de carte, heure, `PlacementBadge` et couronne sur un top 1 ; un clic met la carte de la partie en avant.
+Répartition par mode en barre (Duo, Trio, Squad, avec `TeamModeBadge`). Défilement horizontal au-delà de la largeur.
+
+**Écart constaté avec la maquette** : elle imaginait 5 à 7 parties par soirée. Les clans actifs en jouent bien plus (Aurore_Funeste :
+1 123 parties en septembre, jusqu'à ~60 par jour, plusieurs escouades en parallèle). Le carnet passe les cases à la ligne,
+le plan de vol défile ; aucune donnée n'est tronquée.
+
 ### Navigation par session
 
-Depuis "Récap par soirée", chaque carte de date est cliquable et ouvre `/clans/[clanId]/matches/session/[date]`.
-
-La sous-page :
-- Valide la date au format `YYYY-MM-DD`.
-- Affiche la liste complète des matchs de la date (sans limite).
-- Calcule `previousDate` et `nextDate` pour la navigation entre sessions.
-- Réutilise les composants `SquadMatchList`, `PlacementBadge`, `PlayerNameBadge`, `TeamModeBadge`.
+Depuis le carnet, chaque soirée ouvre `/clans/[clanId]/matches/session/[date]` (`?period=` et `?gameMode=` repris).
+La sous-page valide la date (`YYYY-MM-DD`), filtre les parties par `sessionDateOf`, calcule la soirée précédente et
+suivante, et affiche plan de vol et cartes.
 
 ---
 
@@ -264,8 +291,12 @@ La télémétrie est un pipeline distinct (`src/lib/pubg-telemetry/`) qui parse 
 | `src/app/clans/[clanId]/matches/page.tsx` | Page matchs clan |
 | `src/app/clans/[clanId]/matches/session/[date]/page.tsx` | Sous-page détail par date |
 | `src/app/members/[id]/matches/page.tsx` | Page matchs membre |
-| `src/components/SessionRecap.tsx` | Cartes récap cliquables |
-| `src/components/SquadMatchList.tsx` | Rendu des cartes match |
+| `src/components/matches/MatchesUi.tsx` | Bandeau, indicateurs, case de place (communs aux deux pages) |
+| `src/components/matches/SessionLogbook.tsx` | Carnet des soirées (page Matchs) |
+| `src/components/matches/SessionFlightPlan.tsx` | Plan de vol d'une soirée |
+| `src/components/matches/MatchResultCard.tsx` | Carte de fin de partie |
+| `src/lib/match-sessions.ts` | Journée de jeu (`sessionDateOf`), bilan de soirée, modes, soirées voisines, libellés |
+| `src/components/SquadMatchList.tsx` | Cartes techniques (page de pilotage de la télémétrie) |
 | `src/components/SquadSynergies.tsx` | Synergies avec badges joueurs |
 | `src/lib/pubg.ts` | `fetchRecentMatchIds()`, `fetchMatchDetails()` |
 | `src/types/squad-matches.ts` | Types contrat de données matchs clan |

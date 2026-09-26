@@ -2,8 +2,11 @@ import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { teamCountFromPhaseSnapshots } from '@/lib/home-showcase'
 import { getMapLabels } from '@/lib/map-label-service'
+import { sessionDateOf } from '@/lib/match-sessions'
 import { prisma } from '@/lib/prisma'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import type {
   ClanModePerformanceEntry,
   ClanMatchesResponse,
@@ -316,18 +319,25 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
     })
 
+    // Colonnes compressées depuis le 2026-09-25 (CLAUDE.md, piège n° 10) : lire les deux formats, puis normaliser par
+    // decodeTelemetryRow. Lire la colonne en clair seule rendait `null` sur tout match récent, sans erreur.
     const telemetryRows = squadMatches.length
       ? await prisma.$queryRaw<Array<{
           squadMatchId: string
           summary: unknown
           weaponStats: unknown
+          weaponStatsGz: Uint8Array | null
           memberStats: unknown
+          memberStatsGz: Uint8Array | null
+          phaseSnapshots: unknown
+          phaseSnapshotsGz: Uint8Array | null
         }>>(Prisma.sql`
-          SELECT squadMatchId, summary, weaponStats, memberStats
+          SELECT squadMatchId, summary, weaponStats, weaponStatsGz, memberStats, memberStatsGz, phaseSnapshots, phaseSnapshotsGz
           FROM SquadMatchTelemetry
           WHERE squadMatchId IN (${Prisma.join(squadMatches.map((match) => match.id))})
         `)
       : []
+    for (const row of telemetryRows) decodeTelemetryRow(row)
 
     const telemetryExtraByMatchId = new Map(
       telemetryRows.map((row) => [row.squadMatchId, row])
@@ -364,6 +374,8 @@ export async function GET(
       placement: match.placement,
       createdAt: match.createdAt.toISOString(),
       durationSeconds: durationByMatchId.get(match.pubgMatchId) ?? 0,
+      // Équipes au départ (« #3 / 26 »), lues dans la télémétrie ; `null` sans télémétrie analysée.
+      teamCount: teamCountFromPhaseSnapshots(telemetryExtraByMatchId.get(match.id)?.phaseSnapshots),
       // Recalculé depuis les SquadMember (déjà filtrés par clan ci-dessus)
       // plutôt que depuis SquadMatch.totalKills/totalDamage/totalAssists/
       // totalRevives — ces colonnes ne reflètent que le clan ayant créé la
@@ -529,7 +541,8 @@ export async function GET(
         mode.losses += 1
       }
 
-      const date = match.createdAt.slice(0, 10)
+      // Soirée = journée de jeu à Paris, commençant à 06:00 (docs/features/matches.md).
+      const date = sessionDateOf(match.createdAt)
       const session = sessionsMap.get(date) ?? {
         date,
         matches: [],

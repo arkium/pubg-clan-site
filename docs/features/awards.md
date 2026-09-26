@@ -135,6 +135,8 @@ Client Component (`'use client'`). Structure :
 1. **En-tête** (`app-panel`) : titre, description, bouton Rafraichir, `ClanSectionNav`.
 2. **Bandeau de filtres** (`DockingToolbar`) : `PeriodFilter` Semaine / Mois / Tous, mode de calcul Normal / Tous ; compteur de matchs et explication au repos seulement.
 3. **Grille d'awards** : `grid-cols-1 md:grid-cols-2 xl:grid-cols-3`, une carte `app-panel` par award.
+4. **Podium des performances** (depuis le 2026-09-26, déplacé de la vue d'ensemble) : `ClanTopPerformers` → `TopPerformers`
+   (kills, dégâts, survie), sur la période de la page, parties officielles, tous modes.
 
 Chaque carte award contient :
 - Clé de l'award en label secondaire (uppercase)

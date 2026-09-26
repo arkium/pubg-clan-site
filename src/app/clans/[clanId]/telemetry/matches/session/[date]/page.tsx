@@ -9,6 +9,7 @@ import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
+import { sessionDateOf } from '@/lib/match-sessions'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
 function parseClanId(value: string | string[] | undefined) {
@@ -292,7 +293,7 @@ export default function TelemetrySessionDatePage() {
 
   const sessionMatches = useMemo(() => {
     if (!date) return []
-    return squads.filter((match) => match.createdAt.slice(0, 10) === date)
+    return squads.filter((match) => sessionDateOf(match.createdAt) === date)
   }, [date, squads])
 
   const sessionMatchIds = useMemo(() => sessionMatches.map((match) => match.id), [sessionMatches])
@@ -543,7 +544,7 @@ export default function TelemetrySessionDatePage() {
   }, [clanId, telemetrySyncMode])
 
   const sortedSessionDates = useMemo(
-    () => Array.from(new Set(squads.map((match) => match.createdAt.slice(0, 10)))).sort((a, b) => b.localeCompare(a)),
+    () => Array.from(new Set(squads.map((match) => sessionDateOf(match.createdAt)))).sort((a, b) => b.localeCompare(a)),
     [squads]
   )
 

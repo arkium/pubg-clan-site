@@ -1,22 +1,20 @@
 'use client'
 
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { Clock3, Crosshair, Gauge, ShieldCheck, Swords, type LucideIcon } from 'lucide-react'
+import { CalendarDays, Clock3, Crosshair, Flame, Gamepad2, Swords, Trophy } from 'lucide-react'
 
-import SquadMatchList from '@/components/SquadMatchList'
+import { KpiGrid, MatchesBanner, type Kpi } from '@/components/matches/MatchesUi'
+import SessionLogbook from '@/components/matches/SessionLogbook'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
-import SessionRecap from '@/components/SessionRecap'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import { useAuthSession } from '@/hooks/useAuthSession'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import { PERIOD_LABELS } from '@/lib/period'
+import { formatPlayTime, frDecimal, periodChipLabel } from '@/lib/match-sessions'
 
 /** Les matchs du clan ne proposent que la semaine et le mois : une période mémorisée « Tous » est ignorée. */
 const CLAN_MATCH_PERIODS = ['week', 'month'] as const
@@ -31,62 +29,23 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function formatDuration(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
+const numberFormat = new Intl.NumberFormat('fr-FR')
 
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  }
-
-  return `${minutes}m`
+function ModeIcon({ mode }: { mode: 'duo' | 'trio' | 'squad' }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/icons/squads/${mode}.svg`} width={14} height={14} alt="" aria-hidden="true" />
 }
 
-function MatchStatCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string
-  value: string
-  detail: string
-  icon: LucideIcon
-  tone: 'red' | 'amber' | 'emerald' | 'blue' | 'cyan'
-}) {
-  const toneClasses = {
-    red: 'border-red-500/20 bg-red-500/10 text-red-500',
-    amber: 'border-amber-500/20 bg-amber-500/10 text-amber-500',
-    emerald: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500',
-    blue: 'border-blue-500/20 bg-blue-500/10 text-blue-500',
-    cyan: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-500',
-  }
-
-  return (
-    <article className="app-panel-muted flex min-h-40 flex-col p-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-h-8 text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</p>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-      </div>
-      <p className="mt-3 text-right text-[1.75rem] font-black leading-none tabular-nums text-gray-900">
-        {value}
-      </p>
-      <p className="mt-auto pt-2 text-right text-[11px] font-medium text-gray-500">{detail}</p>
-    </article>
-  )
-}
-
+/**
+ * Matchs du clan — refonte du 2026-09-26 (docs/features/matches.md, maquette Claude Design « Matchs et soirées »,
+ * écrans 10a, 10c, 10e) : bandeau commun avec la page d'une soirée, indicateurs, carnet des soirées.
+ */
 export default function ClanMatchesPage() {
   const params = useParams()
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
-  const { activeMemberId } = useAuthSession()
 
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
-  const dashboardHref = activeMemberId ? `/members/${activeMemberId}/dashboard` : '/members'
   // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready: periodReady } = usePagePeriod(CLAN_MATCH_PERIODS, 'week')
   const [gameMode, setGameMode] = useState('')
@@ -94,8 +53,6 @@ export default function ClanMatchesPage() {
   const {
     clanName,
     availableModes,
-    mapLabels,
-    squads,
     stats,
     sessions,
     loading,
@@ -107,13 +64,28 @@ export default function ClanMatchesPage() {
   const gameModeOptions = useMemo(
     () => [
       { value: '', label: 'Tous' },
-      { value: 'duo', label: 'Duo', disabled: !availableModes.includes('duo') },
-      { value: 'trio', label: 'Trio', disabled: !availableModes.includes('trio') },
-      { value: 'squad', label: 'Squad', disabled: !availableModes.includes('squad') },
+      { value: 'duo', label: 'Duo', icon: <ModeIcon mode="duo" />, disabled: !availableModes.includes('duo') },
+      { value: 'trio', label: 'Trio', icon: <ModeIcon mode="trio" />, disabled: !availableModes.includes('trio') },
+      { value: 'squad', label: 'Squad', icon: <ModeIcon mode="squad" />, disabled: !availableModes.includes('squad') },
     ],
     [availableModes]
   )
   const totalDuration = sessions.reduce((total, session) => total + session.totalDuration, 0)
+  const games = stats.matchCount
+  const wins = Math.round(stats.winRate * games)
+  const kpis: Kpi[] = [
+    { label: 'Kills', value: numberFormat.format(stats.totalKills), detail: `${games ? frDecimal(stats.totalKills / games) : '0'} par partie`, icon: Crosshair, color: 'var(--game-neg)' },
+    {
+      label: 'Dégâts',
+      value: numberFormat.format(Math.round(stats.totalDamage)),
+      detail: `${games ? numberFormat.format(Math.round(stats.totalDamage / games)) : '0'} par partie`,
+      icon: Flame,
+      color: 'var(--game-warn)',
+    },
+    { label: 'Top 1', value: numberFormat.format(wins), detail: `${frDecimal(stats.winRate * 100)} % des parties`, icon: Trophy, color: 'var(--game-gold)' },
+    { label: 'Parties', value: numberFormat.format(games), detail: 'ensemble, en escouade', icon: Swords, color: 'var(--theme-ui-accent)' },
+    { label: 'Temps de jeu', value: formatPlayTime(totalDuration), detail: gameMode ? `mode ${gameMode}` : 'toutes soirées', icon: Clock3, color: 'var(--game-sky)' },
+  ]
 
   useEffect(() => {
     if (!clanId) {
@@ -141,30 +113,24 @@ export default function ClanMatchesPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    <div className="app-main-flush game-ui flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Matchs"
           currentHref={`/clans/${clanId}/matches`}
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
-        <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
-          style={{ backgroundImage: `url('/matches.jpg')` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <Swords className="h-4 w-4 text-red-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-                {clanName || `Clan #${clanId}`} · Matchs
-              </h1>
-            </div>
-            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-              Performance collective du clan.
-            </p>
-          </div>
-        </header>
+        <MatchesBanner
+          image="/matches.jpg"
+          icon={Swords}
+          iconColor="#f87171"
+          title={clanName ? `Matchs · ${clanName}` : 'Matchs du clan'}
+          chips={[
+            { icon: CalendarDays, text: periodChipLabel(period) },
+            { icon: Gamepad2, text: `${games} partie${games > 1 ? 's' : ''} · ${sessions.length} soirée${sessions.length > 1 ? 's' : ''}` },
+            ...(wins > 0 ? [{ icon: Trophy, text: `${wins} chicken dinner${wins > 1 ? 's' : ''}`, gold: true }] : []),
+          ]}
+        />
       </div>
 
       <DockingToolbar ariaLabel="Filtres des matchs du clan">
@@ -187,48 +153,8 @@ export default function ClanMatchesPage() {
         {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
         {!error && (!showLoading || hasMatches) ? (
           <div aria-busy={showLoading} className={showLoading ? 'opacity-60' : undefined}>
-            <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <MatchStatCard
-                label="Éliminations totales"
-                value={stats.totalKills.toLocaleString('fr-FR')}
-                detail={`${stats.matchCount > 0 ? (stats.totalKills / stats.matchCount).toFixed(1) : '0.0'} par match`}
-                icon={Crosshair}
-                tone="red"
-              />
-              <MatchStatCard
-                label="Dégâts totaux"
-                value={Math.round(stats.totalDamage).toLocaleString('fr-FR')}
-                detail={`${stats.matchCount > 0 ? Math.round(stats.totalDamage / stats.matchCount).toLocaleString('fr-FR') : '0'} par match`}
-                icon={Gauge}
-                tone="amber"
-              />
-              <MatchStatCard
-                label="Taux de victoire équipe"
-                value={`${(stats.winRate * 100).toFixed(1)}%`}
-                detail={`${Math.round(stats.winRate * stats.matchCount).toLocaleString('fr-FR')} victoires`}
-                icon={ShieldCheck}
-                tone="emerald"
-              />
-              <MatchStatCard
-                label="Matchs joués ensemble"
-                value={stats.matchCount.toLocaleString('fr-FR')}
-                detail={PERIOD_LABELS[period]}
-                icon={Swords}
-                tone="blue"
-              />
-              <MatchStatCard
-                label="Temps de jeu du clan"
-                value={formatDuration(totalDuration)}
-                detail={gameMode ? `Mode ${gameMode}` : 'Tous les modes'}
-                icon={Clock3}
-                tone="cyan"
-              />
-            </section>
-
-
-            <div className="space-y-6">
-              <SessionRecap clanId={clanId} period={period} gameMode={gameMode || undefined} sessions={sessions} />
-            </div>
+            <KpiGrid items={kpis} className="mb-6 grid-cols-2 lg:grid-cols-5" />
+            <SessionLogbook clanId={clanId} period={period} gameMode={gameMode || undefined} sessions={sessions} />
           </div>
         ) : null}
       </div>

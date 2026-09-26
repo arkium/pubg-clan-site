@@ -13,7 +13,7 @@ Pages : `/clans/[clanId]/telemetry/matches/[matchId]/debrief` (vue clan) et `/to
 
 | Audit de la maquette | Réponse |
 |---|---|
-| 1 · Le thème clair ne s'appliquait pas (`bg-slate-950/900` codés en dur, textes remappés éteints) | Jetons partout : `.app-panel`, `.app-panel-muted`, classes Tailwind remappées, accent. Les couleurs sémantiques deviennent des jetons `--debrief-*` en clair et en sombre (`globals.css`, bloc « Débriefing tactique »). Seule la carte (replay, vignette de l'en-tête) reste sombre, par nature |
+| 1 · Le thème clair ne s'appliquait pas (`bg-slate-950/900` codés en dur, textes remappés éteints) | Jetons partout : `.app-panel`, `.app-panel-muted`, classes Tailwind remappées, accent. Les couleurs sémantiques deviennent des jetons `--game-*` en clair et en sombre (`globals.css`, bloc « Débriefing tactique »). Seule la carte (replay, vignette de l'en-tête) reste sombre, par nature |
 | 2 · Onglets : 4 accents, icône + emoji, pas de `tablist`, onglet perdu au rechargement | Un seul accent souligné, `role="tablist"` / `tab` / `tabpanel`, flèches ← → au clavier, onglet porté par `?tab=` (`combat` par défaut, absent de l'URL). Libellés : Chronologie, Replay, Escouade, Duels. Sur mobile, 4 cases égales avec icône |
 | 3 · Vocabulaire anglais, emojis comme données, chiffres en `font-mono` | Kills, Mises à terre, Réanimations, Rappels, Tête, Assistances, Dégâts ; aucun emoji ; chiffres en Inter `tabular-nums` |
 | 4 · Combat Log : cartes bordées à ~12 teintes, une ligne `nowrap`, marqueurs de phase collants, légende de 4 lignes | Liste continue groupée par phase, 2 lignes par événement, filet coloré pour les **seuls** kills et morts de l'escouade ; en-têtes de phase non collants (une seule couche collante) ; légende réduite à « Sources » (infobulle) ; détail dépliable : arme, distance, zone touchée, « Voir dans le replay → » |
@@ -67,7 +67,7 @@ de l'accueil), débuts de phase par `phaseStartTimes`, heure des duels = `timest
 | `src/components/telemetry/MatchReplay2D.tsx` | Rendu réorganisé (le moteur de dessin n'a pas changé) ; prop `startAt` pour « Voir dans le replay » |
 | `src/lib/pubg-telemetry/debrief-view.ts` | Logique pure : onglet, horloge, phases, filtres et regroupement, pagination, survie, précision, distances, barres de zones, lancers |
 | `src/lib/pubg-telemetry/match-teams.ts` | Équipe partie avant l'avion, `eliminatedAtEpoch` |
-| `src/app/globals.css` (fin) | Jetons `--debrief-*`, `.debrief-seg`, `.debrief-chip`, `.debrief-row`, `.debrief-switch` |
+| `src/app/globals.css` (fin) | Jetons `--game-*`, `.debrief-seg`, `.debrief-chip`, `.debrief-row`, `.debrief-switch` |
 
 ## 6. Tests et suites
 

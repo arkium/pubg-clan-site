@@ -1,5 +1,7 @@
 import type { ClanLeaderboardEntry, ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
 import type { HomeShowcasePayload } from '@/lib/home-showcase'
+import type { ClanMatchesResponse, SquadMatch } from '@/types/squad-matches'
+import { sessionDateOf } from '@/lib/match-sessions'
 import type { ClanOverview } from '@/hooks/useClanOverview'
 import type { ItemUseStats } from '@/lib/item-use-stats'
 import type { CachedClanMatchesPayload } from '@/lib/matches-cache-service'
@@ -214,8 +216,18 @@ export function clanMatchesStats(period: LeaderboardPeriod) {
     wins: 3 * factor,
   }))
   const modeBlock = {
-    synergies: { topPairs: [], topSquads: [] },
-    topPerformers: { kills: [], damage: [], survival: [], winRate: [], assists: [], revives: [] },
+    // Paires et escouade d'au moins 5 parties : duo de la période et barres de synergies.
+    synergies: {
+      topPairs: [
+        { memberIds: [1, 2], memberNames: [PLAYERS[0].displayName, PLAYERS[1].displayName], matchesPlayed: 14 * factor, totalKills: 41, totalDamage: 5200, totalDurationSeconds: 20000, winRate: 0.286 },
+        { memberIds: [1, 3], memberNames: [PLAYERS[0].displayName, PLAYERS[2].displayName], matchesPlayed: 20 * factor, totalKills: 50, totalDamage: 6100, totalDurationSeconds: 30000, winRate: 0.2 },
+        { memberIds: [2, 3], memberNames: [PLAYERS[1].displayName, PLAYERS[2].displayName], matchesPlayed: 3, totalKills: 6, totalDamage: 800, totalDurationSeconds: 4000, winRate: 0.667 },
+      ],
+      topSquads: [
+        { memberIds: [1, 2, 3, 4], memberNames: PLAYERS.slice(0, 4).map((p) => p.displayName), matchesPlayed: 8 * factor, totalKills: 60, totalDamage: 9000, totalDurationSeconds: 12000, winRate: 0.143 },
+      ],
+    },
+    topPerformers: { kills: [{ memberId: 1, displayName: PLAYERS[0].displayName, totalKills: 60, matchesPlayed: 30 }], damage: [], survival: [], winRate: [], assists: [], revives: [] },
     rosterStats: rosterStats.map((row) => ({
       ...row,
       totalRevives: 5 * factor,
@@ -466,5 +478,117 @@ export function debriefTelemetry(teamId: number | null = null) {
       weaponLabels: { WeapHK416_C: 'M416', WeapAWM_C: 'AWM' },
       memberIdentityMap: { 'account.alpha': { name: 'Joueur Alpha', clanTag: 'ALFA', clanId: CLAN_ID } },
     },
+  }
+}
+
+/**
+ * Matchs du clan (`GET /api/clans/1/matches`) : trois soirées, dont celle du 26 septembre qui passe minuit (partie de
+ * 00:40 à Paris, rangée dans la soirée du 26 par la journée de jeu). Heures en UTC, affichées à Paris.
+ */
+export function clanMatchesResponse(period: string): ClanMatchesResponse {
+  const names = ['Joueur Alpha', 'Joueur Bravo', 'Joueur Charlie', 'Joueur Delta']
+  const game = (id: string, utc: string, placement: number, players: number, map: string, status: 'success' | 'pending', teamCount: number | null): SquadMatch => {
+    const members = names.slice(0, players).map((displayName, index) => ({
+      memberId: index + 1,
+      displayName,
+      kills: Math.max(0, 5 - index - (placement > 5 ? 2 : 0)),
+      damage: 400 - index * 50,
+      assists: 1,
+      revives: index === 0 ? 1 : 0,
+      placement,
+    }))
+    return {
+      id,
+      pubgMatchId: `pubg-${id}`,
+      gameMode: players === 4 ? 'squad-fpp' : players === 3 ? 'squad-fpp' : 'duo-fpp',
+      mapName: map,
+      matchType: 'official',
+      placement,
+      createdAt: utc,
+      durationSeconds: 1500,
+      teamCount,
+      totalKills: members.reduce((sum, member) => sum + member.kills, 0),
+      totalDamage: members.reduce((sum, member) => sum + member.damage, 0),
+      totalAssists: players,
+      totalRevives: 1,
+      members,
+      isWin: placement === 1,
+      telemetry: { status, parserVersion: null, parsedAt: null, bytesDownloaded: null, summary: null, topWeapons: [], memberStats: [], errorCode: null, errorMessage: null },
+    }
+  }
+  // Du plus récent au plus ancien, comme l'API.
+  const squads = [
+    game('s26-5', '2026-09-26T22:40:00.000Z', 9, 4, 'Neon_Main', 'pending', null),
+    game('s26-4', '2026-09-26T20:30:00.000Z', 3, 4, 'DihorOtok_Main', 'success', 26),
+    game('s26-3', '2026-09-26T19:20:00.000Z', 1, 4, 'Baltic_Main', 'success', 25),
+    game('s26-2', '2026-09-26T18:15:00.000Z', 2, 3, 'Desert_Main', 'success', 26),
+    game('s26-1', '2026-09-26T17:42:00.000Z', 14, 2, 'Tiger_Main', 'success', 24),
+    game('s25-2', '2026-09-25T20:00:00.000Z', 5, 3, 'Savage_Main', 'success', 25),
+    game('s25-1', '2026-09-25T19:00:00.000Z', 11, 3, 'Baltic_Main', 'success', 25),
+    game('s21-1', '2026-09-21T19:00:00.000Z', 7, 4, 'Desert_Main', 'success', 26),
+  ]
+  const byDate = new Map<string, SquadMatch[]>()
+  for (const match of squads) byDate.set(sessionDateOf(match.createdAt), [...(byDate.get(sessionDateOf(match.createdAt)) ?? []), match])
+  const sessions = Array.from(byDate.entries()).map(([date, matches]) => ({
+    date,
+    matches,
+    totalDuration: matches.reduce((sum, match) => sum + match.durationSeconds, 0),
+    totalKills: matches.reduce((sum, match) => sum + match.totalKills, 0),
+    totalDamage: matches.reduce((sum, match) => sum + match.totalDamage, 0),
+    winRate: matches.filter((match) => match.isWin).length / matches.length,
+    members: names.slice(0, Math.max(...matches.map((match) => match.members.length))).map((displayName, index) => ({ memberId: index + 1, displayName })),
+  }))
+  const wins = squads.filter((match) => match.isWin).length
+  return {
+    clanId: CLAN_ID,
+    clanName: 'Clan Alpha',
+    period: period as ClanMatchesResponse['period'],
+    availableModes: ['duo', 'squad', 'trio'],
+    mapLabels: { Baltic_Main: 'Erangel', Desert_Main: 'Miramar', Tiger_Main: 'Taego', Savage_Main: 'Sanhok', Neon_Main: 'Rondo', DihorOtok_Main: 'Vikendi' },
+    squads,
+    stats: {
+      totalKills: squads.reduce((sum, match) => sum + match.totalKills, 0),
+      totalDamage: squads.reduce((sum, match) => sum + match.totalDamage, 0),
+      winRate: wins / squads.length,
+      matchCount: squads.length,
+    },
+    modePerformance: [],
+    sessions,
+    synergies: { topPairs: [], topSquads: [] },
+    topPerformers: { kills: [], damage: [], survival: [] },
+  }
+}
+
+/** Vitrine de la vue d'ensemble (`GET /api/clans/1/overview/showcase`). */
+export function clanShowcase() {
+  return {
+    generatedAt: FIXED_DATE,
+    level: 17,
+    pubgMemberCount: 55,
+    platform: 'steam',
+    palmares: { monthWins: 97, monthGames: 1123, league: { rank: 13, of: 29 }, trackedKills: 4560, tournament: null },
+    briefing: {
+      win: {
+        squadMatchId: 'win-1',
+        mapName: 'Baltic_Main',
+        mapLabel: 'Erangel',
+        playedAt: '2026-09-26T19:20:00.000Z',
+        kills: 14,
+        squadSize: 4,
+        mvp: { name: PLAYERS[0].displayName, kills: 6 },
+        debriefPath: `/clans/${CLAN_ID}/telemetry/matches/win-1/debrief`,
+      },
+      longestKill: {
+        killer: PLAYERS[0].displayName,
+        weapon: 'Kar98k',
+        distanceMeters: 431,
+        headshot: true,
+        victimTag: 'WOLF',
+        playedAt: '2026-09-22T20:44:00.000Z',
+        replayPath: `/clans/${CLAN_ID}/telemetry/matches/long-1/debrief?tab=replay`,
+      },
+      streak: { count: 3, atLeast: false, dates: ['2026-09-23', '2026-09-25', '2026-09-26'], weekSessions: 5, weekWins: 7 },
+    },
+    hints: { activeChallenges: 2, openTournaments: 1, weekGames: 25 },
   }
 }

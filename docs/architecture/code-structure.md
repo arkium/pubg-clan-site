@@ -172,7 +172,8 @@ app/api/
 | `ThemeInitializer.tsx` | Initialisation du thème côté client (évite le flash) |
 | `NotificationBell.tsx` | Cloche de notifications |
 | `RoleAssignment.tsx` | Assignation de rôles |
-| `SessionRecap.tsx` | Récapitulatif de session |
+| `clan-overview/` | Vue d'ensemble du clan : vitrine, briefing, modes, duo, synergies, navigation par intention ([clans.md](../features/clans.md) §6) |
+| `matches/` | Pages Matchs et Soirée : bandeau, indicateurs, carnet, plan de vol, carte de fin de partie ([matches.md](../features/matches.md)) |
 | `FirstRunSetup.tsx` | Écran de premier lancement |
 | `home/HomeShowcase.tsx` | Vitrine publique de `/`, plein écran, pour tous ([accueil.md](../features/accueil.md)) ; « Mon espace » pour un membre connecté |
 | `WeaponCategoryPeriodFilter.tsx` | Filtre période + catégorie arme |

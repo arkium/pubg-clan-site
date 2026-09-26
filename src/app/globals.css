@@ -3378,39 +3378,53 @@ html[data-app-theme='dark'] .home-showcase {
   }
 }
 
-/* ── Débriefing tactique — docs/features/debriefing.md ──────────────────────────────────────────── */
-/* Couleurs sémantiques des événements (kill, mort, mise à terre, rappel, coéquipier) et de leurs fonds,
-   en clair et en sombre. Tout le reste du débriefing passe par les jetons --theme-ui-*. */
-.debrief {
-  --debrief-pos: rgb(5 150 105);
-  --debrief-neg: rgb(225 29 72);
-  --debrief-warn: rgb(180 83 9);
-  --debrief-sky: rgb(2 132 199);
-  --debrief-mate: rgb(15 118 110);
-  --debrief-pos-row: rgb(16 185 129 / 0.06);
-  --debrief-neg-row: rgb(244 63 94 / 0.05);
-  --debrief-neg-soft: rgb(255 228 230);
-  --debrief-warn-soft: rgb(254 243 199);
-  --debrief-sky-soft: rgb(224 242 254);
-  --debrief-track: var(--theme-ui-surface-strong);
-  --debrief-track-strong: rgb(203 213 225);
-  --debrief-link: var(--theme-ui-accent-text);
+/* ── Couleurs de jeu : débriefing (docs/features/debriefing.md), matchs et soirées (docs/features/matches.md) ── */
+/* Couleurs sémantiques (kill, mort, mise à terre, rappel, coéquipier, top 1, places, modes) et leurs fonds, en clair
+   et en sombre, sous .game-ui. Tout le reste de ces pages passe par les jetons --theme-ui-*. */
+.game-ui {
+  --game-pos: rgb(5 150 105);
+  --game-neg: rgb(225 29 72);
+  --game-warn: rgb(180 83 9);
+  --game-sky: rgb(2 132 199);
+  --game-mate: rgb(15 118 110);
+  --game-pos-row: rgb(16 185 129 / 0.06);
+  --game-neg-row: rgb(244 63 94 / 0.05);
+  --game-neg-soft: rgb(255 228 230);
+  --game-warn-soft: rgb(254 243 199);
+  --game-sky-soft: rgb(224 242 254);
+  --game-track: var(--theme-ui-surface-strong);
+  --game-track-strong: rgb(203 213 225);
+  --game-link: var(--theme-ui-accent-text);
+  --game-pos-soft: rgb(209 250 229);
+  --game-pos-ring: rgb(16 185 129 / 0.55);
+  --game-sky-ring: rgb(14 165 233 / 0.5);
+  --game-violet: rgb(124 58 237);
+  --game-gold: rgb(146 64 14);
+  --game-gold-soft: rgb(254 243 199);
+  --game-gold-ring: rgb(217 119 6 / 0.55);
 }
 
-html[data-app-theme='dark'] .debrief {
-  --debrief-pos: rgb(52 211 153);
-  --debrief-neg: rgb(251 113 133);
-  --debrief-warn: rgb(251 191 36);
-  --debrief-sky: rgb(125 211 252);
-  --debrief-mate: rgb(94 234 212);
-  --debrief-pos-row: rgb(16 185 129 / 0.07);
-  --debrief-neg-row: rgb(244 63 94 / 0.07);
-  --debrief-neg-soft: rgb(244 63 94 / 0.15);
-  --debrief-warn-soft: rgb(245 158 11 / 0.15);
-  --debrief-sky-soft: rgb(14 165 233 / 0.15);
-  --debrief-track: rgb(2 6 23);
-  --debrief-track-strong: rgb(51 65 85);
-  --debrief-link: rgb(165 180 252);
+html[data-app-theme='dark'] .game-ui {
+  --game-pos: rgb(52 211 153);
+  --game-neg: rgb(251 113 133);
+  --game-warn: rgb(251 191 36);
+  --game-sky: rgb(125 211 252);
+  --game-mate: rgb(94 234 212);
+  --game-pos-row: rgb(16 185 129 / 0.07);
+  --game-neg-row: rgb(244 63 94 / 0.07);
+  --game-neg-soft: rgb(244 63 94 / 0.15);
+  --game-warn-soft: rgb(245 158 11 / 0.15);
+  --game-sky-soft: rgb(14 165 233 / 0.15);
+  --game-track: rgb(2 6 23);
+  --game-track-strong: rgb(51 65 85);
+  --game-link: rgb(165 180 252);
+  --game-pos-soft: rgb(16 185 129 / 0.16);
+  --game-pos-ring: rgb(52 211 153 / 0.5);
+  --game-sky-ring: rgb(56 189 248 / 0.5);
+  --game-violet: rgb(167 139 250);
+  --game-gold: rgb(252 211 77);
+  --game-gold-soft: rgb(251 191 36 / 0.16);
+  --game-gold-ring: rgb(251 191 36 / 0.55);
 }
 
 /* Contrôle segmenté et puces du débriefing : état actif en accent (refonte UI §6 bis). */
@@ -3419,7 +3433,7 @@ html[data-app-theme='dark'] .debrief {
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
-  background: var(--debrief-track);
+  background: var(--game-track);
   border: 1px solid var(--theme-ui-border);
 }
 
@@ -3495,13 +3509,13 @@ html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
 }
 
 .debrief-row--kill {
-  background: var(--debrief-pos-row);
-  box-shadow: inset 3px 0 0 var(--debrief-pos);
+  background: var(--game-pos-row);
+  box-shadow: inset 3px 0 0 var(--game-pos);
 }
 
 .debrief-row--death {
-  background: var(--debrief-neg-row);
-  box-shadow: inset 3px 0 0 var(--debrief-neg);
+  background: var(--game-neg-row);
+  box-shadow: inset 3px 0 0 var(--game-neg);
 }
 
 .debrief-switch {
@@ -3511,7 +3525,7 @@ html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
   flex-shrink: 0;
   padding: 2px;
   border-radius: 9999px;
-  background: var(--debrief-track-strong);
+  background: var(--game-track-strong);
 }
 
 .debrief-switch::after {
@@ -3531,4 +3545,24 @@ html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
 .debrief :focus-visible {
   outline: 2px solid var(--theme-ui-accent-ring);
   outline-offset: 2px;
+}
+
+/* Vue d'ensemble du clan : lent panoramique des images du briefing (coupé si le système demande moins de mouvement). */
+.game-pan {
+  animation: game-pan 22s ease-in-out infinite alternate;
+}
+
+@keyframes game-pan {
+  from {
+    transform: scale(1) translate(0, 0);
+  }
+  to {
+    transform: scale(1.12) translate(-3%, -2%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-pan {
+    animation: none !important;
+  }
 }

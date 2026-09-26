@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import DropZoneMapViewport, {
   type DropZoneMapViewportHandle,
 } from '@/components/drop-zones/DropZoneMapViewport'
+import ClanDropInsights from '@/components/drop-zones/ClanDropInsights'
 import DropPressureLegend from '@/components/drop-zones/DropPressureLegend'
 import DropPressureMarker from '@/components/drop-zones/DropPressureMarker'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
@@ -875,6 +876,9 @@ export default function ClanDropZonesPage() {
             <p className="text-sm text-slate-600">Aucune donnée drop zones pour cette période.</p>
           )
         ) : null}
+
+        {/* Pression au drop et villes du clan (déplacées de la vue d'ensemble, docs/features/clans.md). */}
+        {clanId && periodReady ? <ClanDropInsights clanId={clanId} period={period} /> : null}
       </div>
     </div>
   )

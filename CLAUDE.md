@@ -512,6 +512,11 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Gotcha:** `locator.click()` ramène d'abord un élément collant à sa position d'origine (le bandeau se dédocke) :
   cliquer dans un bandeau docké avec `clickInPlace` (`e2e/support/layout.ts`). Détails : `docs/ops/tests-e2e.md`.
 
+#### 12. **Soirée = journée de jeu, pas date UTC**
+- **Règle:** la date d'une soirée se calcule **uniquement** par `sessionDateOf(createdAt)` (`src/lib/match-sessions.ts`) :
+  heure de Paris, journée commençant à 06:00 (une partie de 01:30 compte dans la soirée de la veille). Ne jamais écrire
+  `createdAt.slice(0, 10)` pour une soirée : la date UTC range mal les parties de nuit (décision du 2026-09-26).
+
 ## Gotchas connus
 
 ### Node.js 22 — `Readable.toWeb()` bug

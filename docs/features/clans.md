@@ -310,27 +310,35 @@ Construit par `syncTrackedClanStats()` dans `src/lib/clan-service.ts` :
 }
 ```
 
-### Blocs affichés
+### Blocs affichés — refonte « vitrine » du 2026-09-26
 
-**Bloc 1 — Fiche PUBG officielle**
+Maquette Claude Design « Vue ensemble clan » (écrans 11a à 11f). La page passait de 8 blocs au même niveau (~3 200 px) à une
+vitrine, dans cet ordre :
 
-| Champ | Source |
+| Bloc | Contenu | Filtré par le bandeau ? |
+|---|---|---|
+| Vitrine | Fiche PUBG : tag, nom, **niveau** (`clanStats.pubg.raw.attributes.clanLevel` — la colonne `Clan.clanLevel` est vide pour tous les clans), membres PUBG (`clanStats.pubg.memberCount`) et suivis, dernière sync ; palmarès : top 1 du mois, rang en **Ligue des clans** (mois), kills depuis le début du suivi (`tracked.aggregated.totalKills`), tournoi gagné s'il y en a un, sinon parties du mois | Non |
+| Briefing de la semaine | Trois faits illustrés, chacun avec son lien : dernier top 1 de la semaine (carte, heure, kills, MVP) → débriefing ; plus long kill de la semaine (`KillEvent`, distance en cm → m, tête, clan de la victime) → replay (`?tab=replay`) ; série de soirées consécutives avec un top 1 (journée de jeu, « au moins N » si elle remonte au début des soirées lues) → soirées. Carte de repli quand un fait manque | Non (semaine ISO) |
+| Bandeau de filtres | Période, type de match, mode — inchangé ; il ne filtre que ce qui suit | — |
+| Chiffres clés | Kills, Top 1, Dégâts moyens, Parties (`KpiGrid`, même composant que Matchs et Soirée), chacun avec un lien : Top fraggers (Classement), Revoir les top 1 (Matchs), Stats armes, Soirées | Oui |
+| Performances par mode | Images duo / trio / squad, top 1 en pastille, parties, kills, win rate, lien vers les soirées | Oui |
+| Duo de la période | Paire au meilleur taux de top 1 avec **au moins 5 parties ensemble** (`pickDuo`), kills de chacun, top 1, **réanimations croisées** (`/api/clans/[clanId]/telemetry/synergies`, `reviveCount`), comparaison au taux du clan | Oui |
+| Synergies de squad | Barres par taux de top 1 (paires et escouades, ≥ 5 parties) ; « Toutes les synergies » déplie le panneau détaillé `SquadSynergies` (paires, escouades, réanimations et kills croisés) | Oui |
+| Explorer le clan | Pages du clan (registre de navigation, droits respectés) regroupées en Jouer ensemble / Progresser / Se mesurer (`groupByIntent` : une page inconnue va dans Progresser), plus Tournois, Ligue des clans et Comparateur ; indices : parties de la semaine, membres suivis, défis en cours, joueur en tête, rang en Ligue | Non |
+
+Données de la vitrine : `GET /api/clans/[clanId]/overview/showcase` (`src/lib/clan-showcase-service.ts`, logique pure dans
+`src/lib/clan-showcase.ts`), même permission que la vue d'ensemble, gardée 5 minutes en mémoire par clan (~450 ms à froid
+pour Aurore_Funeste). Le classement de la Ligue est calculé par `computeClansLeaderboard` (`src/lib/clans-leaderboard.ts`),
+partagé avec `GET /api/clans-leaderboard` ; les tournois gagnés par `listTournamentOverviews()`.
+
+**Blocs déplacés** (décision du 2026-09-26 : rien n'est supprimé du site) :
+
+| Ancien bloc | Nouvelle place |
 |---|---|
-| Nom officiel PUBG | `clanStats.pubg.name` |
-| Tag | `clanStats.pubg.tag` |
-| ID PUBG | `clanStats.pubg.clanId` |
-| Membres PUBG officiels | `clanStats.pubg.memberCount` |
-| Membres trackés sur le site | `clanStats.tracked.membersCount` |
-| Écart (badge d'alerte si > 0) | `memberCount - tracked.membersCount` |
-| Dernière sync | `clanStats.syncedAt` |
-
-**Bloc 2 — Agrégats all-time** : depuis `clanStats.tracked.aggregated` (kills, dégâts, matchs, victoires, win rate, assists, relèves).
-
-**Bloc 3 — Top performers** : depuis `clanStats.tracked.topPerformers` — Top Killer, Top Damage, Best Win Rate.
-
-**Bloc 4 — Diff PUBG vs Site** : chargé à la demande via `GET /api/clans/[clanId]/pubg-diff`. Compare les membres PUBG officiels (depuis l'endpoint `/clans/{clanId}/members` non consommé automatiquement) avec les membres trackés en base.
-
-**Bloc 5 — Roster membres actifs** : tableau de tous les `ClanMember.isActive = true` avec rôle, date d'adhésion, statut compte site, statut lien PUBG et date de dernière sync lifetime.
+| Pression au drop, Villes et zones de combat | Page Drop zones du clan (`ClanDropInsights`), tous types de partie et tous modes comme la carte |
+| Top performers (kills, dégâts, survie) | Page Awards (`ClanTopPerformers`), parties officielles, tous modes |
+| Awards du mode (6 cartes, libellés anglais) | Retirés : la page Awards couvre ces distinctions |
+| Roster des performances | Retiré : Membres (liste) et Classement (statistiques triables) |
 
 ---
 
@@ -362,6 +370,7 @@ Les routes sensibles vérifient l'appartenance au clan ET le rôle. Le SuperUser
 | `/api/clans/[clanId]/members/[memberId]/role` | `PUT` | Change le rôle d'un membre |
 | `/api/clans/[clanId]/members/[memberId]/invite` | `POST` | Envoie une invitation par email ou lien |
 | `/api/clans/[clanId]/overview` | `GET` | Données overview du clan (clanStats JSON) |
+| `/api/clans/[clanId]/overview/showcase` | `GET` | Vitrine : niveau, palmarès, briefing de la semaine, indices de navigation (cache 5 min) |
 | `/api/clans/[clanId]/pubg-diff` | `GET` | Diff membres PUBG officiels vs membres trackés |
 | `/api/clans/[clanId]/sync-matches` | `POST` | Sync les matchs PUBG pour tous les membres actifs |
 | `/api/clans/[clanId]/sync-stats` | `POST` | Recalcule les stats et met à jour `clanStats` JSON |
@@ -448,6 +457,9 @@ La page `/clans/[clanId]/settings/cron` (réservée Owner) agrège cette observa
 | `src/app/api/clans/[clanId]/members/route.ts` | Gestion des membres |
 | `src/app/api/clans/[clanId]/sync-matches/route.ts` | Déclenchement sync matchs |
 | `src/app/api/clans/[clanId]/cron-control/route.ts` | Pilotage cron |
-| `src/app/clans/[clanId]/overview/page.tsx` | Page overview clan |
+| `src/app/clans/[clanId]/overview/page.tsx` | Page overview clan (vitrine) |
+| `src/components/clan-overview/ClanOverviewSections.tsx` | Vitrine, briefing, modes, duo, synergies, « Explorer le clan » |
+| `src/lib/clan-showcase.ts`, `src/lib/clan-showcase-service.ts` | Données de la vitrine |
+| `src/lib/clans-leaderboard.ts` | Classement de la Ligue des clans (partagé) |
 | `src/app/clans/[clanId]/settings/cron/page.tsx` | Page pilotage cron (Owner) |
 | `prisma/schema.prisma` | Schéma DB |

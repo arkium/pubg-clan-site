@@ -64,6 +64,8 @@ export interface SquadMatch {
   placement: number
   createdAt: string
   durationSeconds: number
+  /** Équipes au départ de la partie (télémétrie) ; `null` si la télémétrie n'est pas analysée. */
+  teamCount?: number | null
   totalKills: number
   totalDamage: number
   totalAssists: number

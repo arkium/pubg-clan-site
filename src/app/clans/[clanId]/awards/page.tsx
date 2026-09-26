@@ -4,6 +4,7 @@ import { Trophy } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import ClanTopPerformers from '@/components/awards/ClanTopPerformers'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -344,6 +345,9 @@ export default function ClanAwardsPage() {
             })}
           </section>
         ) : null}
+
+        {/* Top performers du clan (déplacés de la vue d'ensemble, docs/features/clans.md). */}
+        {clanId && periodReady ? <ClanTopPerformers clanId={clanId} period={period} /> : null}
       </div>
     </div>
   )

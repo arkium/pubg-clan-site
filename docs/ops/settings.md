@@ -183,7 +183,7 @@ Les villes sont stockées séparément dans `AppConfig` sous la clé `pubg_map_l
 
 ### Impact sur l'app
 
-Les labels sont utilisés partout où une carte est affichée : stats par carte, heatmap, drop zones, SessionRecap, filtres. Les périmètres constituent le référentiel géographique réutilisable pour associer ensuite les positions télémétriques aux villes.
+Les labels sont utilisés partout où une carte est affichée : stats par carte, heatmap, drop zones, matchs et soirées, filtres. Les périmètres constituent le référentiel géographique réutilisable pour associer ensuite les positions télémétriques aux villes.
 
 ---
 

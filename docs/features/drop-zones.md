@@ -234,7 +234,9 @@ Vue clan — points de landing de tous les membres actifs sur la période, super
 - déplacement de la carte agrandie par glisser-déposer, sans barres de défilement visibles ;
 - heatmap carrée `40 × 40`, plages logarithmiques, seuil adaptatif et opacité de `10 %` à `60 %` ;
 - points opaques colorés par membre au-dessus des périmètres et de la densité ;
-- vue mobile en liste synthétique sans défilement horizontal de page.
+- vue mobile en liste synthétique sans défilement horizontal de page ;
+- sous la carte, depuis le 2026-09-26 : **Pression au drop** et **Villes et zones de combat** du clan (`ClanDropInsights`,
+  déplacés de la vue d'ensemble), sur la période de la page, tous types de partie et tous modes.
 
 ### `/members/[id]/drop-zones`
 

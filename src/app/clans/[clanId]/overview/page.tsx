@@ -1,41 +1,42 @@
 'use client'
 
-/* eslint-disable @next/next/no-img-element */
-
-import Image from 'next/image'
-import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, ChevronRight, UsersRound } from 'lucide-react'
-import { getNavIcon } from '@/lib/nav-icons'
-import { useSectionNavItems } from '@/hooks/useSectionNavItems'
+import { Clock3, Crosshair, Flame, Medal, Swords, Trophy } from 'lucide-react'
+
+import {
+  ClanBriefing,
+  ClanShowcaseHero,
+  DuoOfPeriod,
+  ExploreClan,
+  ModePerformanceCards,
+  SynergyBarsPanel,
+  type ExploreLink,
+} from '@/components/clan-overview/ClanOverviewSections'
+import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
+import SquadSynergies from '@/components/SquadSynergies'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import SortableTh from '@/components/ui/SortableTh'
-import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import DropPressureStatsPanel from '@/components/dashboard/DropPressureStatsPanel'
-import CityInsightsPanel from '@/components/dashboard/CityInsightsPanel'
-import TopPerformers from '@/components/TopPerformers'
-import SquadSynergies from '@/components/SquadSynergies'
-import { useClanOverview } from '@/hooks/useClanOverview'
-import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanMatchesCache } from '@/hooks/useClanMatchesCache'
-import { useTableSort } from '@/hooks/useTableSort'
-import { DockingToolbar } from '@/components/ui/DockingToolbar'
-import PeriodFilter from '@/components/ui/PeriodFilter'
+import { useClanOverview } from '@/hooks/useClanOverview'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { PERIOD_LABELS, STANDARD_PERIODS } from '@/lib/period'
-import type { ClanMatchTypeFilter, ClanTeamModeFilter, SquadPeriod } from '@/types/squad-matches'
-import type {
-  DropPressureDashboardStats,
-  DropPressureRankingEntry,
-  DropPressureTimelinePoint,
-} from '@/types/drop-pressure'
-import type { CityInsights } from '@/types/city-insights'
+import { useSectionNavItems } from '@/hooks/useSectionNavItems'
+import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { groupByIntent, pickDuo, synergyBars, type ClanShowcase, type ExploreIntent, type SynergyLike } from '@/lib/clan-showcase'
+import { frDecimal } from '@/lib/match-sessions'
+import { PERIOD_OF_LABELS, PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
+import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
 
-
+/**
+ * Vue d'ensemble d'un clan — refonte « vitrine » du 2026-09-26 (docs/features/clans.md, maquette Claude Design
+ * « Vue ensemble clan », écrans 11a à 11f). Vitrine et briefing de la semaine (non filtrés), puis bandeau de filtres
+ * qui s'applique aux chiffres clés, aux modes, au duo et aux synergies, puis navigation par intention.
+ * Déplacés le même jour : Villes et Pression au drop → Drop zones ; Top performers → Awards ; Roster → Classement.
+ */
 
 const MATCH_TYPE_OPTIONS: Array<{ value: ClanMatchTypeFilter; label: string }> = [
   { value: 'official', label: 'Officiel' },
@@ -51,415 +52,28 @@ const TEAM_MODE_OPTIONS: Array<{ value: ClanTeamModeFilter; label: string }> = [
   { value: 'squad', label: 'Squad' },
 ]
 
+
+const numberFormat = new Intl.NumberFormat('fr-FR')
+
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function getRoleBadgeClass(roleName: string) {
-  const normalizedRole = roleName.trim().toLowerCase()
-
-  if (normalizedRole === 'owner') return 'member-role-badge member-role-badge--owner'
-  if (normalizedRole === 'admin') return 'member-role-badge member-role-badge--admin'
-  if (normalizedRole === 'moderator') return 'member-role-badge member-role-badge--moderator'
-  if (normalizedRole === 'member') return 'member-role-badge member-role-badge--member'
-  return 'member-role-badge member-role-badge--default'
-}
-
-function getAvatarInitials(name: string) {
-  return name
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.charAt(0))
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || '??'
-}
-
-function MemberAvatar({
-  name,
-  avatarUrl,
-  className,
-}: {
-  name: string
-  avatarUrl: string | null
-  className: string
-}) {
-  return (
-    <div
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-blue-500/20 bg-blue-500/10 text-xs font-bold text-blue-500 ${className}`}
-    >
-      <span aria-hidden="true">{getAvatarInitials(name)}</span>
-      {avatarUrl ? (
-        <img
-          src={avatarUrl}
-          alt={`Avatar de ${name}`}
-          className="absolute inset-0 h-full w-full object-cover"
-          onError={(event) => {
-            event.currentTarget.style.display = 'none'
-          }}
-        />
-      ) : null}
-    </div>
-  )
-}
-
-function MedalCounts({ gold, silver, bronze }: { gold: number; silver: number; bronze: number }) {
-  const medals = [
-    { label: 'Or', count: gold, src: '/icons/medal-gold.svg' },
-    { label: 'Argent', count: silver, src: '/icons/medal-silver.svg' },
-    { label: 'Bronze', count: bronze, src: '/icons/medal-bronze.svg' },
-  ]
-
-  return (
-    <div className="flex items-center justify-end gap-2">
-      {medals.map((medal) => (
-        <span
-          key={medal.label}
-          className="inline-flex items-center gap-1 text-xs font-bold tabular-nums text-gray-700"
-          title={`${medal.count} médaille${medal.count > 1 ? 's' : ''} ${medal.label.toLowerCase()}`}
-        >
-          <Image src={medal.src} alt={`Médaille ${medal.label.toLowerCase()}`} width={16} height={16} />
-          {medal.count}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function fmtNum(value: number) {
-  return new Intl.NumberFormat('fr-FR').format(Math.round(value))
-}
-
-function fmtDecimal(value: number) {
-  return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
-}
-
-function fmtPct(value: number) {
-  return `${(value * 100).toFixed(1).replace('.', ',')} %`
-}
-
-function fmtRatio(value: number) {
-  return new Intl.NumberFormat('fr-FR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
-function fmtCompactK(value: number) {
-  const absValue = Math.abs(value)
-  const sign = value < 0 ? '-' : ''
-
-  // Abréviations françaises : 61,0 k · 1,2 M · 3,4 Md.
-  const oneDecimal = (n: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n)
-
-  if (absValue >= 1_000_000_000) {
-    return `${sign}${oneDecimal(absValue / 1_000_000_000)} Md`
-  }
-
-  if (absValue >= 1_000_000) {
-    return `${sign}${oneDecimal(absValue / 1_000_000)} M`
-  }
-
-  if (absValue >= 1_000) {
-    return `${sign}${oneDecimal(absValue / 1_000)} k`
-  }
-
-  return fmtNum(absValue)
-}
-
-function fmtDate(value: string | Date | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleDateString('fr-FR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
 function fmtRelative(value: string | Date | null) {
-  if (!value) return '—'
+  if (!value) return null
   const diffMs = Date.now() - new Date(value).getTime()
   const mins = Math.floor(diffMs / 60_000)
   if (mins < 2) return "à l'instant"
   if (mins < 60) return `il y a ${mins} min`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `il y a ${hours}h`
+  if (hours < 24) return `il y a ${hours} h`
   const days = Math.floor(hours / 24)
   return `il y a ${days} jour${days > 1 ? 's' : ''}`
 }
 
-function getPeriodDateRangeLabel(period: Exclude<SquadPeriod, 'all'>) {
-  const now = new Date()
-
-  if (period === 'week') {
-    const day = now.getDay()
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
-    const monday = new Date(now)
-    monday.setDate(diff)
-    monday.setHours(0, 0, 0, 0)
-
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    sunday.setHours(23, 59, 59, 999)
-
-    return `du ${fmtDate(monday)} au ${fmtDate(sunday)}`
-  }
-
-  const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
-  return `du ${fmtDate(start)} au ${fmtDate(end)}`
-}
-
-type RosterSortKey = 'matchesPlayed' | 'wins' | 'totalKills' | 'avgDamage' | 'avgKA'
-
-function getRosterSortValue(
-  stats: { matchesPlayed: number; wins: number; totalKills: number; totalDamage: number; totalAssists: number },
-  key: RosterSortKey
-) {
-  if (key === 'matchesPlayed') return stats.matchesPlayed
-  if (key === 'wins') return stats.wins
-  if (key === 'totalKills') return stats.totalKills
-  if (key === 'avgDamage') return stats.matchesPlayed > 0 ? stats.totalDamage / stats.matchesPlayed : 0
-  return stats.matchesPlayed > 0 ? (stats.totalKills + stats.totalAssists) / stats.matchesPlayed : 0
-}
-
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div>
-      <p className="mb-1 text-xs uppercase tracking-wide text-gray-500">{label}</p>
-      <p className={`text-2xl font-bold tabular-nums ${accent ? 'text-amber-500' : 'text-gray-900'}`}>
-        {value}
-      </p>
-    </div>
-  )
-}
-
-function TopPerformerCard({
-  label,
-  performer,
-  formatValue,
-  valueUnit,
-  tone,
-  icon,
-}: {
-  label: string
-  performer: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-  formatValue: (v: number) => string
-  valueUnit?: string
-  tone: 'danger' | 'warning' | 'info' | 'success' | 'primary' | 'neutral'
-  icon: 'kills' | 'damage' | 'rate' | 'assists' | 'revives' | 'survival'
-}) {
-  const toneClasses = {
-    danger: 'bg-rose-500/15 text-rose-400',
-    warning: 'bg-amber-500/15 text-amber-400',
-    info: 'bg-cyan-500/15 text-cyan-400',
-    success: 'bg-emerald-500/15 text-emerald-400',
-    primary: 'bg-blue-500/15 text-blue-400',
-    neutral: 'bg-gray-500/15 text-gray-300',
-  }
-
-  const accentClasses = {
-    danger: 'text-rose-400',
-    warning: 'text-amber-400',
-    info: 'text-cyan-400',
-    success: 'text-emerald-400',
-    primary: 'text-blue-400',
-    neutral: 'text-gray-300',
-  }
-
-  return (
-    <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
-      <div className="relative">
-        <div className={`mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
-          <TopPerformerIcon icon={icon} />
-        </div>
-        <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-      {performer ? (
-        <>
-          <p
-            className="mt-1 truncate text-sm font-semibold text-gray-900"
-            title={performer.displayName}
-          >
-            <Link
-              href={`/members/${performer.memberId}/dashboard`}
-              className="transition-colors hover:text-emerald-500"
-            >
-              {performer.displayName}
-            </Link>
-          </p>
-          <p className="mt-1 flex items-baseline gap-1 overflow-hidden tabular-nums">
-            <span className={`text-2xl font-black leading-none ${accentClasses[tone]}`}>{formatValue(performer.value)}</span>
-            {valueUnit && <span className="truncate text-xs font-medium text-gray-500">{valueUnit}</span>}
-          </p>
-          <p className="mt-2 text-[11px] text-gray-500">{performer.matchesPlayed} matchs</p>
-        </>
-      ) : (
-        <p className="mt-1 text-sm text-gray-500">—</p>
-      )}
-      </div>
-    </article>
-  )
-}
-
-function TopPerformerIcon({ icon }: { icon: 'kills' | 'damage' | 'rate' | 'assists' | 'revives' | 'survival' }) {
-  if (icon === 'kills') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M4 7l6 6" />
-        <path d="M10 7L4 13" />
-        <path d="M14 4l6 6" />
-        <path d="M20 4l-6 6" />
-      </svg>
-    )
-  }
-
-  if (icon === 'damage') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="8" />
-        <path d="M12 8v5" />
-        <path d="M12 16h.01" />
-      </svg>
-    )
-  }
-
-  if (icon === 'assists') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M8 12a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
-        <path d="M16 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-        <path d="M10.5 9.5l3 3" />
-      </svg>
-    )
-  }
-
-  if (icon === 'revives') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 5v14" />
-        <path d="M5 12h14" />
-      </svg>
-    )
-  }
-
-  if (icon === 'survival') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7z" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M5 19L19 5" />
-      <circle cx="7" cy="7" r="2" />
-      <circle cx="17" cy="17" r="2" />
-    </svg>
-  )
-}
-
-type ClanKpiTone = 'danger' | 'warning' | 'success' | 'primary' | 'info' | 'neutral'
-type ClanKpiIcon = 'kills' | 'wins' | 'damage' | 'rate' | 'average' | 'matches'
-
-function ClanKpiCard({
-  label,
-  value,
-  tone,
-  icon,
-}: {
-  label: string
-  value: string
-  tone: ClanKpiTone
-  icon: ClanKpiIcon
-}) {
-  const toneClasses: Record<ClanKpiTone, string> = {
-    danger: 'bg-rose-500/15 text-rose-400',
-    warning: 'bg-amber-500/15 text-amber-400',
-    success: 'bg-emerald-500/15 text-emerald-400',
-    primary: 'bg-blue-500/15 text-blue-400',
-    info: 'bg-cyan-500/15 text-cyan-400',
-    neutral: 'bg-gray-500/15 text-gray-300',
-  }
-
-  return (
-    <article className="app-panel-muted relative overflow-hidden rounded-2xl px-4 py-3">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent" />
-      <div className="relative">
-        <div className={`mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
-          <KpiIcon icon={icon} />
-        </div>
-        <p className="text-2xl font-black leading-none tabular-nums text-gray-900">{value}</p>
-        <p className="mt-2 text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-      </div>
-    </article>
-  )
-}
-
-function KpiIcon({ icon }: { icon: ClanKpiIcon }) {
-  if (icon === 'kills') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9 11a3 3 0 1 1 6 0v2a3 3 0 0 1-6 0z" />
-        <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
-        <path d="M8 7V6a4 4 0 1 1 8 0v1" />
-      </svg>
-    )
-  }
-
-  if (icon === 'wins') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M8 4h8v3a4 4 0 0 1-8 0z" />
-        <path d="M5 6h3a3 3 0 0 1-3 3z" />
-        <path d="M19 6h-3a3 3 0 0 0 3 3z" />
-        <path d="M12 14v4" />
-        <path d="M9 21h6" />
-      </svg>
-    )
-  }
-
-  if (icon === 'damage') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 4v16" />
-        <path d="M8 8h8" />
-        <path d="M8 16h8" />
-        <path d="M6 12h12" />
-      </svg>
-    )
-  }
-
-  if (icon === 'rate') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M5 19L19 5" />
-        <circle cx="7" cy="7" r="2" />
-        <circle cx="17" cy="17" r="2" />
-      </svg>
-    )
-  }
-
-  if (icon === 'average') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="8" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="4" y="5" width="16" height="13" rx="2" />
-      <path d="M9 18v2" />
-      <path d="M15 18v2" />
-    </svg>
-  )
-}
+type TelemetrySynergyRow = { memberAId: number; memberBId: number; reviveCount: number }
 
 export default function ClanOverviewPage() {
   const params = useParams()
@@ -469,19 +83,9 @@ export default function ClanOverviewPage() {
 
   const { data, loading, error } = useClanOverview(clanId)
   // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
-  const { period: selectedPeriod, setPeriod: setSelectedPeriod, ready: periodReady } = usePagePeriod(
-    STANDARD_PERIODS,
-    'week'
-  )
+  const { period: selectedPeriod, setPeriod: setSelectedPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [selectedMatchType, setSelectedMatchType] = useState<ClanMatchTypeFilter>('official')
   const [selectedMode, setSelectedMode] = useState<ClanTeamModeFilter>('all')
-  // Tri du roster par ses en-têtes (docs/TODO/refonte-ui.md §4.B).
-  const {
-    sortKey: rosterSortKey,
-    sortDir: rosterSortDirection,
-    onSort: changeRosterSort,
-    colTint: rosterColTint,
-  } = useTableSort<RosterSortKey>('matchesPlayed')
 
   const { data: cacheData, loading: cacheLoading, error: cacheError } = useClanMatchesCache(
     periodReady ? clanId : null,
@@ -489,17 +93,37 @@ export default function ClanOverviewPage() {
     selectedMatchType
   )
   const clanNavItems = useSectionNavItems('clan-section', clanId, null)
-    .filter(item => item.navKey !== 'clan.overview')
-  const [dropPressure, setDropPressure] = useState<DropPressureDashboardStats | null>(null)
-  const [dropPressureRanking, setDropPressureRanking] = useState<DropPressureRankingEntry[]>([])
-  const [dropPressureTimeline, setDropPressureTimeline] = useState<DropPressureTimelinePoint[]>([])
-  const [dropPressureLoading, setDropPressureLoading] = useState(false)
-  const [dropPressureError, setDropPressureError] = useState('')
-  const [cityInsights, setCityInsights] = useState<CityInsights | null>(null)
-  const [cityInsightsLoading, setCityInsightsLoading] = useState(false)
-  const [cityInsightsError, setCityInsightsError] = useState('')
 
+  // Vitrine (palmarès, briefing) : indépendante des filtres, lue une fois.
+  const [showcase, setShowcase] = useState<ClanShowcase | null>(null)
+  useEffect(() => {
+    if (!clanId) return
+    const controller = new AbortController()
+    fetch(`/api/clans/${clanId}/overview/showcase`, { cache: 'no-store', signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<ClanShowcase>) : null))
+      .then((payload) => setShowcase(payload))
+      .catch(() => {
+        if (!controller.signal.aborted) setShowcase(null)
+      })
+    return () => controller.abort()
+  }, [clanId])
 
+  // Réanimations croisées du duo : synergies de la télémétrie (même source que le panneau détaillé).
+  const [telemetrySynergies, setTelemetrySynergies] = useState<TelemetrySynergyRow[] | null>(null)
+  useEffect(() => {
+    if (!clanId || !periodReady) return
+    const controller = new AbortController()
+    fetch(`/api/clans/${clanId}/telemetry/synergies?period=${selectedPeriod}&matchType=${selectedMatchType}&mode=${selectedMode}`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? (response.json() as Promise<{ rows?: TelemetrySynergyRow[] }>) : null))
+      .then((payload) => setTelemetrySynergies(payload?.rows ?? null))
+      .catch(() => {
+        if (!controller.signal.aborted) setTelemetrySynergies(null)
+      })
+    return () => controller.abort()
+  }, [clanId, periodReady, selectedPeriod, selectedMatchType, selectedMode])
 
   useEffect(() => {
     if (!clanId) {
@@ -509,766 +133,226 @@ export default function ClanOverviewPage() {
     setClanId(clanId)
   }, [clanId, router, setClanId])
 
-
-
-
-
-  useEffect(() => {
-    if (!clanId || !periodReady) return
-    let cancelled = false
-
-    async function loadCityInsights() {
-      try {
-        setCityInsightsLoading(true)
-        setCityInsightsError('')
-        const response = await fetch(
-          `/api/clans/${clanId}/city-insights?period=${selectedPeriod}&matchType=${selectedMatchType}&mode=${selectedMode}`,
-          { cache: 'no-store' }
-        )
-        const payload = (await response.json()) as { insights?: CityInsights; error?: string }
-        if (cancelled) return
-        if (response.ok && payload.insights) {
-          setCityInsights(payload.insights)
-          return
-        }
-        setCityInsights(null)
-        setCityInsightsError(payload.error ?? 'Indicateurs de villes indisponibles.')
-      } catch {
-        if (!cancelled) {
-          setCityInsights(null)
-          setCityInsightsError('Indicateurs de villes indisponibles.')
-        }
-      } finally {
-        if (!cancelled) setCityInsightsLoading(false)
-      }
-    }
-
-    void loadCityInsights()
-
-    return () => {
-      cancelled = true
-    }
-  }, [clanId, periodReady, selectedPeriod, selectedMatchType, selectedMode])
-
-  useEffect(() => {
-    if (!clanId || !periodReady) return
-    let cancelled = false
-
-    async function loadDropPressure() {
-      try {
-        setDropPressureLoading(true)
-        setDropPressureError('')
-        const response = await fetch(
-          `/api/clans/${clanId}/drop-pressure-stats?period=${selectedPeriod}&matchType=${selectedMatchType}&mode=${selectedMode}`,
-          { cache: 'no-store' }
-        )
-        const payload = (await response.json()) as {
-          stats?: DropPressureDashboardStats
-          ranking?: DropPressureRankingEntry[]
-          timeline?: DropPressureTimelinePoint[]
-          error?: string
-        }
-        if (!response.ok || !payload.stats) {
-          throw new Error(payload.error ?? 'Impossible de charger la pression au drop')
-        }
-        if (!cancelled) {
-          setDropPressure(payload.stats)
-          setDropPressureRanking(payload.ranking ?? [])
-          setDropPressureTimeline(payload.timeline ?? [])
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setDropPressure(null)
-          setDropPressureRanking([])
-          setDropPressureTimeline([])
-          setDropPressureError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Impossible de charger la pression au drop'
-          )
-        }
-      } finally {
-        if (!cancelled) setDropPressureLoading(false)
-      }
-    }
-
-    void loadDropPressure()
-    return () => {
-      cancelled = true
-    }
-  }, [clanId, periodReady, selectedPeriod, selectedMatchType, selectedMode])
-
   if (!clanId) return null
 
   const clan = data?.clan
   const rawStats = data?.clanStats as Record<string, unknown> | null
-  const pubg = rawStats?.pubg as {
-    name: string
-    tag: string
-    clanId: string
-    memberCount: number | null
-  } | null
-  const tracked = rawStats?.tracked as {
-    membersCount: number
-    aggregated: {
-      totalKills: number
-      totalDamage: number
-      totalAssists: number
-      totalRevives: number
-      matchesPlayed: number
-      matchesWon: number
-      winRate: number
-    }
-    topPerformers: {
-      kills: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-      damage: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-      winRate: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-      assists: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-      revives: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-      survival: { memberId: number; displayName: string; value: number; matchesPlayed: number } | null
-    }
-  } | null
+  const pubg = rawStats?.pubg as { name: string; tag: string } | null
+  const tracked = rawStats?.tracked as { membersCount: number } | null
 
+  const payload = cacheData?.payload
+  const modeEntry = payload && selectedMode !== 'all' ? payload.modePerformance.find((mp) => mp.mode === selectedMode) ?? null : null
+  const stats = modeEntry
+    ? {
+        totalKills: modeEntry.kills,
+        totalDamage: modeEntry.damage,
+        wins: modeEntry.wins,
+        matchCount: modeEntry.matches,
+        winRate: modeEntry.matches > 0 ? modeEntry.wins / modeEntry.matches : 0,
+      }
+    : payload?.globalStats ?? null
 
+  const byMode = payload?.byMode[selectedMode]
+  const synergyGroups = [...((byMode?.synergies.topPairs ?? []) as SynergyLike[]), ...((byMode?.synergies.topSquads ?? []) as SynergyLike[])]
+  const duo = pickDuo((byMode?.synergies.topPairs ?? []) as SynergyLike[])
+  const duoKills = (memberId: number) =>
+    (byMode?.rosterStats ?? []).find((row) => row.memberId === memberId)?.totalKills ?? 0
+  const crossRevives =
+    duo && telemetrySynergies
+      ? telemetrySynergies
+          .filter(
+            (row) =>
+              (row.memberAId === duo.memberIds[0] && row.memberBId === duo.memberIds[1]) ||
+              (row.memberAId === duo.memberIds[1] && row.memberBId === duo.memberIds[0])
+          )
+          .reduce((sum, row) => sum + row.reviveCount, 0)
+      : null
+  const topKiller = (payload?.byMode.all.topPerformers.kills[0] as { displayName?: string } | undefined)?.displayName
 
-  const performanceRoster = useMemo(() => {
-    if (!data?.roster) return []
-    const rosterStatsForMode = cacheData?.payload.byMode[selectedMode]?.rosterStats
-    return data.roster
-      .map((member) => {
-        const stats = rosterStatsForMode?.find((s) => s.memberId === member.id)
-        return {
-          ...member,
-          stats: stats ?? {
-            matchesPlayed: 0,
-            totalKills: 0,
-            totalAssists: 0,
-            totalDamage: 0,
-            wins: 0,
-          },
-        }
-      })
-      .sort((a, b) => {
-        const aValue = getRosterSortValue(a.stats, rosterSortKey)
-        const bValue = getRosterSortValue(b.stats, rosterSortKey)
-        const primary = rosterSortDirection === 'desc' ? bValue - aValue : aValue - bValue
-        if (primary !== 0) return primary
-        return b.stats.matchesPlayed - a.stats.matchesPlayed
-      })
-  }, [data?.roster, cacheData?.payload.byMode, selectedMode, rosterSortKey, rosterSortDirection])
+  const kpis: Kpi[] = stats
+    ? [
+        {
+          label: 'Kills',
+          value: numberFormat.format(stats.totalKills),
+          detail: `${stats.matchCount ? frDecimal(stats.totalKills / stats.matchCount) : '0'} par partie`,
+          icon: Crosshair,
+          color: 'var(--game-neg)',
+          link: { href: `/clans/${clanId}/leaderboard`, label: 'Top fraggers' },
+        },
+        {
+          label: 'Top 1',
+          value: numberFormat.format(stats.wins),
+          detail: `${frDecimal(stats.winRate * 100)} % des parties`,
+          icon: Trophy,
+          color: 'var(--game-gold)',
+          link: { href: `/clans/${clanId}/matches`, label: 'Revoir les top 1' },
+        },
+        {
+          label: 'Dégâts moyens',
+          value: numberFormat.format(stats.matchCount ? Math.round(stats.totalDamage / stats.matchCount) : 0),
+          detail: 'par partie',
+          icon: Flame,
+          color: 'var(--game-warn)',
+          link: { href: `/clans/${clanId}/stats/weapons`, label: 'Stats armes' },
+        },
+        {
+          label: 'Parties',
+          value: numberFormat.format(stats.matchCount),
+          detail: `ensemble, ${PERIOD_WHEN_LABELS[selectedPeriod]}`,
+          icon: Swords,
+          color: 'var(--theme-ui-accent)',
+          link: { href: `/clans/${clanId}/matches`, label: 'Soirées' },
+        },
+      ]
+    : []
 
-  // Barres d'activité relatives au plus actif, quel que soit le tri.
-  const maxRosterMatches = performanceRoster.reduce((max, member) => Math.max(max, member.stats.matchesPlayed), 0)
+  // Navigation par intention : pages du clan autorisées (registre), plus les pages globales utiles au clan.
+  const intentGroups = groupByIntent(clanNavItems)
+  const hintFor: Record<string, string | undefined> = {
+    'clan.matches': showcase ? `${showcase.hints.weekGames} cette semaine` : undefined,
+    'clan.members': tracked ? `${tracked.membersCount} suivis` : undefined,
+    'clan.challenges': showcase?.hints.activeChallenges ? `${showcase.hints.activeChallenges} en cours` : undefined,
+    'clan.leaderboard': topKiller ? `${topKiller} en tête` : undefined,
+    'clan.awards': 'et top performers',
+    'clan.drop-zones': 'et villes',
+  }
+  const toLinks = (intent: ExploreIntent): ExploreLink[] =>
+    intentGroups[intent].map((item) => ({ key: item.navKey, navKey: item.navKey, label: item.label, href: item.href, hint: hintFor[item.navKey] }))
+  const exploreGroups: Record<ExploreIntent, ExploreLink[]> = {
+    play: [
+      ...toLinks('play'),
+      {
+        key: 'global.tournaments',
+        label: 'Tournois',
+        href: '/tournaments',
+        icon: Swords,
+        hint: showcase?.hints.openTournaments ? `${showcase.hints.openTournaments} en cours ou à venir` : undefined,
+      },
+    ],
+    improve: toLinks('improve'),
+    compete: [
+      ...toLinks('compete'),
+      {
+        key: 'global.league',
+        label: 'Ligue des clans',
+        href: '/clans-leaderboard',
+        icon: Medal,
+        hint: showcase?.palmares.league ? `#${showcase.palmares.league.rank} sur ${showcase.palmares.league.of}` : undefined,
+      },
+      { key: 'global.comparator', label: 'Comparateur de clans', href: '/clans/comparator', icon: Clock3 },
+    ],
+  }
+
+  const ready = !loading && !error && data
 
   return (
-    <>
-    <div className="app-container app-gutter pt-8">
-      <NavigationTrail
-        currentLabel="Vue d'ensemble"
-        currentHref={`/clans/${clanId}/overview`}
-        fallbackParent={{ href: '/clans', label: 'Liste des clans' }}
-      />
+    <div className="game-ui">
+      <div className="app-container app-gutter flex flex-col gap-4 pt-8">
+        <NavigationTrail currentLabel="Vue d'ensemble" currentHref={`/clans/${clanId}/overview`} fallbackParent={{ href: '/clans', label: 'Liste des clans' }} />
 
-      {loading && <CardSkeleton />}
-
-      {error && (
-        <div className="app-panel p-6 text-sm text-red-600">
-          {error === 'Unauthorized'
-            ? 'Vous n’avez pas la permission de voir cette page.'
-            : error}
-        </div>
-      )}
-
-      {!loading && !error && data && (
-        <div className="space-y-6">
-          {/* Bloc 1 — Fiche PUBG officielle */}
-          <header className="app-panel relative overflow-hidden min-h-[300px]">
-            {!pubg ? (
-              <div className="p-6">
-                <h1 className="mb-2 text-base font-semibold text-gray-900">
-                  Vue d&apos;ensemble du clan
-                </h1>
-                <p className="text-sm text-gray-500">
-                  Aucune donnée PUBG — lancez une sync stats depuis les paramètres d&apos;abord.
-                </p>
-              </div>
-            ) : (
-              <>
-                <img
-                  src={clan?.imageUrl || "/maps/pubg/Baltic_Main.webp"}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/20 to-slate-900/80" />
-
-                <div className="relative px-6 py-5">
-                  {/* Identité du clan */}
-                  <div className="mb-5">
-                    <p className="mb-2 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-                      PUBG Clan Profile
-                    </p>
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <span className="rounded bg-amber-400 px-3 py-1 font-mono text-sm font-bold tracking-widest text-black">
-                        [{pubg.tag}]
-                      </span>
-                      <span className="font-mono text-xs text-white/40">{pubg.clanId}</span>
-                    </div>
-                    <h1 className="text-4xl font-bold leading-tight text-white drop-shadow">
-                      {pubg.name}
-                    </h1>
-                  </div>
-
-                  {/* Badge sync */}
-                  <div className="mt-4">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/60 backdrop-blur-sm">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                      Sync {fmtRelative((rawStats?.syncedAt as string | undefined) ?? null)}
-                    </span>
-                  </div>
-
-                </div>
-              </>
-            )}
-          </header>
-
-          {clanNavItems.length > 0 && (
-            <section className="app-panel p-6">
-              <h2 className="mb-4 text-lg font-bold text-gray-900">Navigation du Clan</h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {clanNavItems.map((item) => {
-                  const { icon: IconComponent, colorClass } = getNavIcon(item.navKey)
-                  return (
-                    <Link
-                      key={item.navKey}
-                      href={item.href}
-                      className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
-                    >
-                      <IconComponent className={`w-6 h-6 mb-2 ${colorClass}`} />
-                      <span className="text-sm font-semibold text-gray-900 text-center">{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </section>
-          )}
-        </div>
-      )}
-    </div>
-
-    {/* Bandeau de filtres (période + type de match + mode d'équipe) — filtre toutes les stats de la
-        page. Standard des pages joueurs : docs/TODO/sticky.md §4.A. */}
-    {!loading && !error && data && (
-      <DockingToolbar ariaLabel="Filtres de la vue d'ensemble">
-        {({ isSticky, compact }) => (
-          <div className="flex w-full flex-col gap-3">
-            {!isSticky && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-                  {tracked?.membersCount ?? 0} membres suivis
-                </span>
-                {cacheData?.computedAt && (
-                  <span>Données mises à jour le {new Date(cacheData.computedAt).toLocaleString('fr-FR')}</span>
-                )}
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              <PeriodFilter periods={STANDARD_PERIODS} value={selectedPeriod} onChange={setSelectedPeriod} />
-              {!compact && (
-                <SegmentedControl
-                  options={MATCH_TYPE_OPTIONS}
-                  value={selectedMatchType}
-                  onChange={setSelectedMatchType}
-                  size="sm"
-                  className="shrink-0"
-                />
-              )}
-              {!compact && (
-                <SegmentedControl
-                  options={TEAM_MODE_OPTIONS}
-                  value={selectedMode}
-                  onChange={setSelectedMode}
-                  size="sm"
-                  className="shrink-0"
-                />
-              )}
-            </div>
+        {loading && <CardSkeleton />}
+        {error && (
+          <div className="app-panel p-6 text-sm" style={{ color: 'var(--game-neg)' }}>
+            {error === 'Unauthorized' ? 'Vous n’avez pas la permission de voir cette page.' : error}
           </div>
         )}
-      </DockingToolbar>
-    )}
 
-    <div className="app-container app-gutter pb-8">
-      {!loading && !error && data && (
-        <div className="space-y-6">
-          {/* Bloc 2 — Statistiques et Analyses */}
-          <section className="app-panel relative overflow-hidden p-6">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-cyan-500/10 blur-2xl" />
-            <div className="pointer-events-none absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-emerald-500/10 blur-2xl" />
-
-            <div className="relative mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-500">
-                  <BarChart3 className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Statistiques clan</h2>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Agrégats du clan pour la période, le type de match et le mode sélectionnés dans le bandeau ci-dessus.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {cacheError && (
-              <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {cacheError}
-              </div>
+        {ready && (
+          <>
+            <ClanShowcaseHero
+              image={clan?.imageUrl || '/clan_banner.jpg'}
+              tag={pubg?.tag ?? clan?.tag ?? null}
+              name={pubg?.name ?? clan?.name ?? `Clan #${clanId}`}
+              syncedLabel={fmtRelative((rawStats?.syncedAt as string | undefined) ?? null)}
+              trackedMembers={tracked?.membersCount ?? 0}
+              showcase={showcase}
+            />
+            {!pubg && (
+              <p className="text-sm text-gray-500">Aucune donnée PUBG pour ce clan : lancez une synchronisation depuis les paramètres.</p>
             )}
+            <ClanBriefing clanId={clanId} showcase={showcase} />
+          </>
+        )}
+      </div>
 
-            {cacheLoading && !cacheData && (
-              <div className="space-y-3">
-                <Skeleton className="h-6 w-1/3" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-5/6" />
-              </div>
-            )}
-
-            {/* Pendant un rechargement, les stats précédentes restent affichées : la page ne se replie pas. */}
-            {cacheData && (
-              <div aria-busy={cacheLoading} className={cacheLoading ? 'opacity-60' : undefined}>
-                {(() => {
-                  const modePerformanceEntry =
-                    selectedMode === 'all'
-                      ? null
-                      : cacheData.payload.modePerformance.find((mp) => mp.mode === selectedMode) ?? null
-
-                  const displayedGlobalStats = modePerformanceEntry
-                    ? {
-                        totalKills: modePerformanceEntry.kills,
-                        totalDamage: modePerformanceEntry.damage,
-                        totalAssists: modePerformanceEntry.assists,
-                        wins: modePerformanceEntry.wins,
-                        matchCount: modePerformanceEntry.matches,
-                        winRate:
-                          modePerformanceEntry.matches > 0
-                            ? modePerformanceEntry.wins / modePerformanceEntry.matches
-                            : 0,
-                      }
-                    : cacheData.payload.globalStats
-
-                  return (
-                    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-                      {[
-                        {
-                          label: 'Kills',
-                          value: fmtCompactK(displayedGlobalStats.totalKills),
-                          tone: 'danger' as const,
-                          icon: 'kills' as const,
-                        },
-                        {
-                          label: 'Victoires',
-                          value: fmtCompactK(displayedGlobalStats.wins),
-                          tone: 'warning' as const,
-                          icon: 'wins' as const,
-                        },
-                        {
-                          label: 'Dégâts',
-                          value: fmtCompactK(displayedGlobalStats.totalDamage),
-                          tone: 'success' as const,
-                          icon: 'damage' as const,
-                        },
-                        {
-                          label: 'Win rate',
-                          value: fmtPct(displayedGlobalStats.winRate),
-                          tone: 'primary' as const,
-                          icon: 'rate' as const,
-                        },
-                        {
-                          label: 'K+A moy.',
-                          value: fmtRatio(
-                            displayedGlobalStats.matchCount > 0
-                              ? (displayedGlobalStats.totalKills + displayedGlobalStats.totalAssists) /
-                                  displayedGlobalStats.matchCount
-                              : 0
-                          ),
-                          tone: 'info' as const,
-                          icon: 'average' as const,
-                        },
-                        {
-                          label: 'Matchs joués',
-                          value: fmtCompactK(displayedGlobalStats.matchCount),
-                          tone: 'neutral' as const,
-                          icon: 'matches' as const,
-                        },
-                      ].map((item) => (
-                        <ClanKpiCard
-                          key={item.label}
-                          label={item.label}
-                          value={item.value}
-                          tone={item.tone}
-                          icon={item.icon}
-                        />
-                      ))}
-                    </div>
-                  )
-                })()}
-
-                <div className="mb-8">
-                  <h3 className="text-sm font-semibold text-gray-700">Performances par mode</h3>
-                  <p className="mb-3 text-xs text-gray-500">
-                    Victoires, matchs joués et kills du clan, ventilés par taille d&apos;équipe.
-                  </p>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    {cacheData.payload.modePerformance
-                      .filter((mp) => selectedMode === 'all' || mp.mode === selectedMode)
-                      .map((mp) => (
-                      <article key={mp.mode} className="app-panel overflow-hidden">
-                        <header 
-                          className="relative border-b border-[var(--theme-ui-border)] h-28 bg-cover bg-center bg-no-repeat"
-                          style={{ backgroundImage: `url('/${mp.mode}.jpg')` }}
-                        >
-                          <div className="absolute bottom-3 left-3">
-                            <TeamModeBadge mode={mp.mode as any} size="sm" />
-                          </div>
-                        </header>
-                        <div className="flex items-center justify-between p-4">
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{fmtPct(mp.matches > 0 ? mp.wins / mp.matches : 0)} WR</p>
-                            <p className="text-xs text-gray-500">{mp.matches} matchs</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-gray-900">{fmtCompactK(mp.kills)}</p>
-                            <p className="text-xs text-gray-500">kills</p>
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mb-8">
-                  <h3 className="text-sm font-semibold text-gray-700">Awards du mode</h3>
-                  <p className="mb-3 text-xs text-gray-500">
-                    Le membre en tête sur chaque statistique clé, pour le mode d&apos;équipe sélectionné dans le bandeau.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-                    <TopPerformerCard
-                      label="Top Fragger"
-                      performer={
-                        cacheData.payload.byMode[selectedMode].topPerformers.kills[0]
-                          ? {
-                              memberId: cacheData.payload.byMode[selectedMode].topPerformers.kills[0].memberId,
-                              displayName: cacheData.payload.byMode[selectedMode].topPerformers.kills[0].displayName,
-                              value: cacheData.payload.byMode[selectedMode].topPerformers.kills[0].totalKills,
-                              matchesPlayed: cacheData.payload.byMode[selectedMode].topPerformers.kills[0].matchesPlayed,
-                            }
-                          : null
-                      }
-                      formatValue={(v) => fmtCompactK(v)}
-                      valueUnit="kills"
-                      tone="danger"
-                      icon="kills"
-                    />
-                    <TopPerformerCard
-                      label="Damage Machine"
-                      performer={
-                        cacheData.payload.byMode[selectedMode].topPerformers.damage[0]
-                          ? {
-                              memberId: cacheData.payload.byMode[selectedMode].topPerformers.damage[0].memberId,
-                              displayName: cacheData.payload.byMode[selectedMode].topPerformers.damage[0].displayName,
-                              value: cacheData.payload.byMode[selectedMode].topPerformers.damage[0].totalDamage,
-                              matchesPlayed: cacheData.payload.byMode[selectedMode].topPerformers.damage[0].matchesPlayed,
-                            }
-                          : null
-                      }
-                      formatValue={(v) => fmtCompactK(v)}
-                      valueUnit="dégâts"
-                      tone="warning"
-                      icon="damage"
-                    />
-                    <TopPerformerCard
-                      label="The Champion"
-                      performer={
-                        cacheData.payload.byMode[selectedMode].topPerformers.winRate[0]
-                          ? {
-                              memberId: cacheData.payload.byMode[selectedMode].topPerformers.winRate[0].memberId,
-                              displayName: cacheData.payload.byMode[selectedMode].topPerformers.winRate[0].displayName,
-                              value: cacheData.payload.byMode[selectedMode].topPerformers.winRate[0].winRate,
-                              matchesPlayed: cacheData.payload.byMode[selectedMode].topPerformers.winRate[0].matchesPlayed,
-                            }
-                          : null
-                      }
-                      formatValue={fmtPct}
-                      tone="info"
-                      icon="rate"
-                    />
-                    <TopPerformerCard
-                      label="Top Supporter"
-                      performer={
-                        cacheData.payload.byMode[selectedMode].topPerformers.assists[0]
-                          ? {
-                              memberId: cacheData.payload.byMode[selectedMode].topPerformers.assists[0].memberId,
-                              displayName: cacheData.payload.byMode[selectedMode].topPerformers.assists[0].displayName,
-                              value: cacheData.payload.byMode[selectedMode].topPerformers.assists[0].totalAssists,
-                              matchesPlayed: cacheData.payload.byMode[selectedMode].topPerformers.assists[0].matchesPlayed,
-                            }
-                          : null
-                      }
-                      formatValue={(v) => fmtCompactK(v)}
-                      valueUnit="assists"
-                      tone="primary"
-                      icon="assists"
-                    />
-                    <TopPerformerCard
-                      label="Top Medic"
-                      performer={
-                        cacheData.payload.byMode[selectedMode].topPerformers.revives[0]
-                          ? {
-                              memberId: cacheData.payload.byMode[selectedMode].topPerformers.revives[0].memberId,
-                              displayName: cacheData.payload.byMode[selectedMode].topPerformers.revives[0].displayName,
-                              value: cacheData.payload.byMode[selectedMode].topPerformers.revives[0].totalRevives,
-                              matchesPlayed: cacheData.payload.byMode[selectedMode].topPerformers.revives[0].matchesPlayed,
-                            }
-                          : null
-                      }
-                      formatValue={(v) => fmtCompactK(v)}
-                      valueUnit="revives"
-                      tone="success"
-                      icon="revives"
-                    />
-                    <TopPerformerCard
-                      label="Top Survivor"
-                      performer={
-                        cacheData.payload.byMode[selectedMode].topPerformers.survival[0]
-                          ? {
-                              memberId: cacheData.payload.byMode[selectedMode].topPerformers.survival[0].memberId,
-                              displayName: cacheData.payload.byMode[selectedMode].topPerformers.survival[0].displayName,
-                              value: cacheData.payload.byMode[selectedMode].topPerformers.survival[0].averagePlacement,
-                              matchesPlayed: cacheData.payload.byMode[selectedMode].topPerformers.survival[0].matchesPlayed,
-                            }
-                          : null
-                      }
-                      formatValue={(v) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v)}
-                      valueUnit="place moy."
-                      tone="neutral"
-                      icon="survival"
-                    />
-                  </div>
-                </div>
-
-                <div className="mb-8">
-                  <TopPerformers performers={cacheData.payload.byMode[selectedMode].topPerformers as any} />
-                </div>
-
-                {(selectedMode === 'all' || selectedMode === 'duo' || selectedMode === 'squad' || selectedMode === 'trio') && (
-                  <div className="mb-4">
-                    <SquadSynergies clanId={clanId} period={selectedPeriod} matchType={selectedMatchType} mode={selectedMode} synergies={cacheData.payload.byMode[selectedMode].synergies as any} />
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          <DropPressureStatsPanel
-            stats={dropPressure}
-            loading={dropPressureLoading}
-            error={dropPressureError}
-            ranking={dropPressureRanking}
-            timeline={dropPressureTimeline}
-          />
-
-          <CityInsightsPanel
-            insights={cityInsights}
-            loading={cityInsightsLoading}
-            error={cityInsightsError}
-            periodLabel={`${PERIOD_LABELS[selectedPeriod]} · ${MATCH_TYPE_OPTIONS.find((option) => option.value === selectedMatchType)?.label ?? ''}`}
-            positionsHref={`/clans/${clanId}/stats/positions`}
-          />
-
-
-
-          {/* Bloc 4 — Roster des performances */}
-          <section className="app-panel p-6">
-            <div className="mb-5 flex items-center gap-3 border-b border-gray-200 pb-5">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-500">
-                <UsersRound className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">Roster des performances</h2>
-                <p className="text-sm text-gray-600">
-                  Statistiques individuelles de chaque membre suivi, pour les filtres sélectionnés dans le bandeau. Cliquez sur une colonne pour trier.
-                </p>
-              </div>
+      {/* Bandeau de filtres : ne s'applique qu'à ce qui suit (docs/TODO/sticky.md §4.A). */}
+      {ready && (
+        <DockingToolbar ariaLabel="Filtres de la vue d'ensemble">
+          {({ compact }) => (
+            <div className="flex w-full flex-wrap items-center gap-3">
+              <PeriodFilter periods={STANDARD_PERIODS} value={selectedPeriod} onChange={setSelectedPeriod} />
+              {!compact && <SegmentedControl options={MATCH_TYPE_OPTIONS} value={selectedMatchType} onChange={setSelectedMatchType} size="sm" className="shrink-0" />}
+              {!compact && <SegmentedControl options={TEAM_MODE_OPTIONS} value={selectedMode} onChange={setSelectedMode} size="sm" className="shrink-0" />}
+              {!compact && <span className="ml-auto hidden text-xs text-gray-500 lg:inline">Filtre la suite de la page</span>}
             </div>
-
-            {/* Version Desktop / Tablette */}
-            <div className="hidden max-h-[48.65rem] overflow-auto md:block app-table-shell">
-              <table className="w-full text-sm">
-                <thead className="app-table-head sticky top-0 z-10 whitespace-nowrap">
-                  <tr>
-                    <SortableTh align="left" className="pl-3">Joueur</SortableTh>
-                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="matchesPlayed">Matchs</SortableTh>
-                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="wins" title="Victoires (top 1)">Top 1</SortableTh>
-                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="totalKills">Kills</SortableTh>
-                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="avgDamage" title="Dégâts moyens par match">Dégâts moy.</SortableTh>
-                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="avgKA" title="Kills + assistances par match">K+A moy.</SortableTh>
-                    <SortableTh>Médailles</SortableTh>
-                    <th className="w-8 pr-3">
-                      <span className="sr-only">Profil</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {performanceRoster.map((member) => (
-                    <tr key={member.id} className="app-table-row transition-colors hover:bg-gray-50">
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-3">
-                          <MemberAvatar
-                            name={member.displayName}
-                            avatarUrl={member.avatarUrl}
-                            className="h-9 w-9"
-                          />
-                          <div className="min-w-0">
-                            <Link
-                              href={`/members/${member.id}/dashboard`}
-                              className="font-semibold text-gray-900 hover:underline"
-                            >
-                              {member.displayName}
-                            </Link>
-                            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
-                              <span className={getRoleBadgeClass(member.role)}>{member.role}</span>
-                              {member.pubgPlayerName !== member.displayName && (
-                                <span className="truncate">{member.pubgPlayerName}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="min-w-28 px-[9px] py-3 text-right" style={{ backgroundColor: rosterColTint('matchesPlayed') }}>
-                        <span className="font-semibold tabular-nums text-gray-900">{member.stats.matchesPlayed}</span>
-                        <div className="mt-1.5 ml-auto h-1 w-20 overflow-hidden rounded-full bg-gray-100">
-                          <div
-                            className="h-full rounded-full bg-blue-500"
-                            style={{
-                              width: `${maxRosterMatches > 0 ? Math.max(3, (member.stats.matchesPlayed / maxRosterMatches) * 100) : 0}%`,
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-[9px] py-3 text-right tabular-nums text-gray-700" style={{ backgroundColor: rosterColTint('wins') }}>
-                        {member.stats.wins}
-                      </td>
-                      <td className="px-[9px] py-3 text-right font-bold tabular-nums text-gray-900" style={{ backgroundColor: rosterColTint('totalKills') }}>
-                        {member.stats.totalKills}
-                      </td>
-                      <td className="px-[9px] py-3 text-right tabular-nums text-gray-700" style={{ backgroundColor: rosterColTint('avgDamage') }}>
-                        {member.stats.matchesPlayed > 0
-                          ? fmtNum(member.stats.totalDamage / member.stats.matchesPlayed)
-                          : 0}
-                      </td>
-                      <td className="px-[9px] py-3 text-right tabular-nums text-gray-700" style={{ backgroundColor: rosterColTint('avgKA') }}>
-                        {fmtDecimal(member.stats.matchesPlayed > 0 ? (member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed : 0)}
-                      </td>
-                      <td className="min-w-28 px-[9px] py-3">
-                        <MedalCounts {...member.medalCounts} />
-                      </td>
-                      <td className="w-8 pr-3 text-right">
-                        <Link
-                          href={`/members/${member.id}/dashboard`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                          aria-label={`Voir le profil de ${member.displayName}`}
-                        >
-                          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Version Mobile */}
-            <div className="grid gap-3 md:hidden">
-              {performanceRoster.map((member) => (
-                <article key={member.id} className="app-panel-muted p-4">
-                  <div className="flex items-start gap-3">
-                    <MemberAvatar
-                      name={member.displayName}
-                      avatarUrl={member.avatarUrl}
-                      className="h-10 w-10"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <Link href={`/members/${member.id}/dashboard`} className="font-bold text-gray-900 hover:underline">
-                        {member.displayName}
-                      </Link>
-                      <div className="mt-1 flex min-w-0 items-center gap-1.5">
-                        <span className={getRoleBadgeClass(member.role)}>{member.role}</span>
-                        {member.pubgPlayerName !== member.displayName && (
-                          <span className="truncate text-xs text-gray-500">{member.pubgPlayerName}</span>
-                        )}
-                      </div>
-                    </div>
-                    <Link
-                      href={`/members/${member.id}/dashboard`}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                      aria-label={`Voir le profil de ${member.displayName}`}
-                    >
-                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </div>
-
-                  <div className="mt-4">
-                    <div className="mb-1.5 flex items-center justify-between text-xs">
-                      <span className="font-medium text-gray-500">Activité</span>
-                      <span className="font-bold tabular-nums text-gray-900">
-                        {member.stats.matchesPlayed} matchs
-                      </span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
-                      <div
-                        className="h-full rounded-full bg-blue-500"
-                        style={{
-                          width: `${maxRosterMatches > 0 ? Math.max(3, (member.stats.matchesPlayed / maxRosterMatches) * 100) : 0}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <dl className="mt-4 grid grid-cols-4 rounded-md border border-gray-200 bg-white py-2.5 text-center">
-                    <div>
-                      <dd className="text-sm font-bold tabular-nums text-emerald-500">{member.stats.wins}</dd>
-                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Top 1</dt>
-                    </div>
-                    <div className="border-l border-gray-200">
-                      <dd className="text-sm font-bold tabular-nums text-red-500">{member.stats.totalKills}</dd>
-                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Kills</dt>
-                    </div>
-                    <div className="border-l border-gray-200">
-                      <dd className="text-sm font-bold tabular-nums text-gray-900">
-                        {member.stats.matchesPlayed > 0
-                          ? fmtNum(member.stats.totalDamage / member.stats.matchesPlayed)
-                          : 0}
-                      </dd>
-                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Dégâts</dt>
-                    </div>
-                    <div className="border-l border-gray-200">
-                      <dd className="text-sm font-bold tabular-nums text-blue-500">
-                        {fmtDecimal(member.stats.matchesPlayed > 0 ? (member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed : 0)}
-                      </dd>
-                      <dt className="text-[9px] font-semibold uppercase text-gray-500">K+A</dt>
-                    </div>
-                  </dl>
-                  <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3">
-                    <span className="text-[10px] font-semibold uppercase text-gray-500">Médailles</span>
-                    <MedalCounts {...member.medalCounts} />
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
+          )}
+        </DockingToolbar>
       )}
+
+      <div className="app-container app-gutter pb-8">
+        {ready && (
+          <div className="flex flex-col gap-6">
+            {cacheError && <p className="app-panel p-3 text-sm" style={{ color: 'var(--game-neg)' }}>{cacheError}</p>}
+            {cacheLoading && !cacheData && (
+              <div className="flex flex-col gap-3">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            )}
+
+            {/* Pendant un rechargement, les chiffres précédents restent affichés, estompés. */}
+            {payload && stats && (
+              <div aria-busy={cacheLoading} className={`flex flex-col gap-6 ${cacheLoading ? 'opacity-60' : ''}`}>
+                <KpiGrid items={kpis} className="grid-cols-2 lg:grid-cols-4" />
+
+                <ModePerformanceCards
+                  modes={payload.modePerformance.filter((mp) => selectedMode === 'all' || mp.mode === selectedMode)}
+                  matchesHref={`/clans/${clanId}/matches`}
+                />
+
+                <section className="grid items-stretch gap-3 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,1.2fr)]" aria-label="Duo et synergies">
+                  <DuoOfPeriod
+                    periodLabel={PERIOD_OF_LABELS[selectedPeriod]}
+                    duo={
+                      duo
+                        ? {
+                            memberIds: duo.memberIds,
+                            memberNames: duo.memberNames,
+                            matchesPlayed: duo.matchesPlayed,
+                            winRate: duo.winRate,
+                            kills: [duoKills(duo.memberIds[0]), duoKills(duo.memberIds[1])],
+                          }
+                        : null
+                    }
+                    crossRevives={crossRevives}
+                    clanWinRate={stats.winRate}
+                  />
+                  <SynergyBarsPanel bars={synergyBars(synergyGroups)}>
+                    {/* Détail complet (paires, escouades, réanimations et kills croisés de la télémétrie). */}
+                    <details className="group">
+                      <summary className="cursor-pointer list-none text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
+                        <span className="group-open:hidden">Toutes les synergies →</span>
+                        <span className="hidden group-open:inline">Replier le détail</span>
+                      </summary>
+                      <div className="mt-3">
+                        <SquadSynergies
+                          clanId={clanId}
+                          period={selectedPeriod}
+                          matchType={selectedMatchType}
+                          mode={selectedMode}
+                          synergies={byMode?.synergies as never}
+                        />
+                      </div>
+                    </details>
+                  </SynergyBarsPanel>
+                </section>
+              </div>
+            )}
+
+            <ExploreClan groups={exploreGroups} />
+          </div>
+        )}
+      </div>
     </div>
-    </>
   )
 }

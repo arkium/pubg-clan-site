@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { matchDebriefPath, matchTelemetryAuditPath } from '@/lib/match-links'
 import { PERIOD_LABELS } from '@/lib/period'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
+import { sessionDateOf } from '@/lib/match-sessions'
 import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
 
 interface SquadMatchListProps {
@@ -187,7 +188,7 @@ export default function SquadMatchList({
           const telemetryDataExpired =
             telemetryStatus === 'failed' &&
             isTelemetryDataExpiredError(match.telemetry?.errorCode, match.telemetry?.errorMessage)
-          const viewContext = { period, fromDate: match.createdAt.slice(0, 10) }
+          const viewContext = { period, fromDate: sessionDateOf(match.createdAt) }
 
           return (
             <li

@@ -62,18 +62,18 @@ export interface MatchCombatTimelineProps {
 }
 
 const TYPE_META: Record<CombatEvent['type'], { label: string; icon: typeof Skull; color: string; soft: string }> = {
-  kill: { label: 'Kill', icon: Skull, color: 'var(--debrief-neg)', soft: 'var(--debrief-neg-soft)' },
-  knock: { label: 'Mise à terre', icon: ShieldAlert, color: 'var(--debrief-warn)', soft: 'var(--debrief-warn-soft)' },
-  revive: { label: 'Réanimation', icon: HeartHandshake, color: 'var(--debrief-sky)', soft: 'var(--debrief-sky-soft)' },
-  recall: { label: 'Rappel', icon: Plane, color: 'var(--debrief-sky)', soft: 'var(--debrief-sky-soft)' },
+  kill: { label: 'Kill', icon: Skull, color: 'var(--game-neg)', soft: 'var(--game-neg-soft)' },
+  knock: { label: 'Mise à terre', icon: ShieldAlert, color: 'var(--game-warn)', soft: 'var(--game-warn-soft)' },
+  revive: { label: 'Réanimation', icon: HeartHandshake, color: 'var(--game-sky)', soft: 'var(--game-sky-soft)' },
+  recall: { label: 'Rappel', icon: Plane, color: 'var(--game-sky)', soft: 'var(--game-sky-soft)' },
 }
 
 const TYPE_FILTERS: Array<{ value: TimelineType; label: string; short: string; icon: typeof Skull; color: string }> = [
   { value: 'all', label: 'Tous', short: 'Tous', icon: Layers, color: 'var(--theme-ui-text-secondary)' },
-  { value: 'kill', label: 'Kills', short: 'Kills', icon: Skull, color: 'var(--debrief-neg)' },
-  { value: 'knock', label: 'Mises à terre', short: 'À terre', icon: ShieldAlert, color: 'var(--debrief-warn)' },
-  { value: 'revive', label: 'Réanimations', short: 'Réa.', icon: HeartHandshake, color: 'var(--debrief-sky)' },
-  { value: 'recall', label: 'Rappels', short: 'Rappel', icon: Plane, color: 'var(--debrief-sky)' },
+  { value: 'kill', label: 'Kills', short: 'Kills', icon: Skull, color: 'var(--game-neg)' },
+  { value: 'knock', label: 'Mises à terre', short: 'À terre', icon: ShieldAlert, color: 'var(--game-warn)' },
+  { value: 'revive', label: 'Réanimations', short: 'Réa.', icon: HeartHandshake, color: 'var(--game-sky)' },
+  { value: 'recall', label: 'Rappels', short: 'Rappel', icon: Plane, color: 'var(--game-sky)' },
 ]
 
 const isClan = (affiliation?: CombatAffiliation, flag?: boolean) => Boolean(flag || affiliation === 'current_clan')
@@ -81,15 +81,15 @@ const isTracked = (affiliation?: CombatAffiliation, flag?: boolean) => Boolean(f
 
 /** Couleur du nom de l'auteur : membre du clan, coéquipier, autre clan suivi, adversaire. */
 function actorColor(ev: CombatEvent) {
-  if (isClan(ev.actorAffiliation, ev.isClanActor)) return 'var(--debrief-pos)'
-  if (isSquadActor(ev)) return 'var(--debrief-mate)'
+  if (isClan(ev.actorAffiliation, ev.isClanActor)) return 'var(--game-pos)'
+  if (isSquadActor(ev)) return 'var(--game-mate)'
   if (isTracked(ev.actorAffiliation, ev.isTrackedClanActor)) return 'var(--theme-ui-accent-text)'
   return 'var(--theme-ui-text)'
 }
 
 function targetColor(ev: CombatEvent) {
-  if (ev.type === 'revive') return 'var(--debrief-sky)'
-  if (isSquadTarget(ev)) return 'var(--debrief-neg)'
+  if (ev.type === 'revive') return 'var(--game-sky)'
+  if (isSquadTarget(ev)) return 'var(--game-neg)'
   if (isTracked(ev.targetAffiliation, ev.isTrackedClanTarget)) return 'var(--theme-ui-accent-text)'
   return 'var(--theme-ui-text-secondary)'
 }
@@ -98,7 +98,7 @@ function TelemetryChip() {
   return (
     <span
       className="rounded border px-1 text-[10px] font-bold"
-      style={{ borderColor: 'var(--debrief-mate)', color: 'var(--debrief-mate)' }}
+      style={{ borderColor: 'var(--game-mate)', color: 'var(--game-mate)' }}
       title="Frag retrouvé dans le kill-feed de la télémétrie : le clan du joueur n'avait pas synchronisé ce match."
     >
       télémétrie
@@ -201,17 +201,17 @@ export function MatchCombatTimeline({
       {/* Bilan de l'escouade */}
       <div className="hidden flex-wrap gap-4 text-[13px] tabular-nums sm:flex">
         <span>
-          <b style={{ color: 'var(--debrief-pos)' }}>+{totals.kills}</b> <span className="text-gray-500">kills</span>
+          <b style={{ color: 'var(--game-pos)' }}>+{totals.kills}</b> <span className="text-gray-500">kills</span>
         </span>
         <span>
-          <b style={{ color: 'var(--debrief-warn)' }}>+{totals.knocks}</b> <span className="text-gray-500">mises à terre</span>
+          <b style={{ color: 'var(--game-warn)' }}>+{totals.knocks}</b> <span className="text-gray-500">mises à terre</span>
         </span>
         <span>
-          <b style={{ color: 'var(--debrief-neg)' }}>−{totals.deaths}</b> <span className="text-gray-500">morts</span>
+          <b style={{ color: 'var(--game-neg)' }}>−{totals.deaths}</b> <span className="text-gray-500">morts</span>
         </span>
         {totals.recalls > 0 && (
           <span>
-            <b style={{ color: 'var(--debrief-sky)' }}>{totals.recalls}</b>{' '}
+            <b style={{ color: 'var(--game-sky)' }}>{totals.recalls}</b>{' '}
             <span className="text-gray-500">rappel{totals.recalls > 1 ? 's' : ''}</span>
           </span>
         )}
@@ -286,7 +286,7 @@ export function MatchCombatTimeline({
                         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
                           <span className="font-semibold text-gray-700">{detail}</span>
                           {expandable && isHeadshot(ev.damageReason) && (
-                            <span className="inline-flex items-center gap-0.5 font-bold" style={{ color: 'var(--debrief-warn)' }}>
+                            <span className="inline-flex items-center gap-0.5 font-bold" style={{ color: 'var(--game-warn)' }}>
                               <Crosshair className="h-3 w-3" aria-hidden="true" />
                               Tête
                             </span>
@@ -336,7 +336,7 @@ export function MatchCombatTimeline({
                                 type="button"
                                 onClick={() => onShowInReplay(Math.max(0, ev.timestamp - 5))}
                                 className="text-[13px] font-semibold hover:underline"
-                                style={{ color: 'var(--debrief-link)' }}
+                                style={{ color: 'var(--game-link)' }}
                               >
                                 Voir dans le replay →
                               </button>

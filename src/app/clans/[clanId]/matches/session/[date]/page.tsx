@@ -2,16 +2,30 @@
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { BarChart3, ChevronLeft, ChevronRight, Clock3, Crosshair, Flame, Gamepad2, MoonStar, Trophy } from 'lucide-react'
 
-import SquadMatchList from '@/components/SquadMatchList'
-import TeamModeBadge, { teamModeFromMemberCount, type TeamMode } from '@/components/ui/TeamModeBadge'
+import MatchResultCard from '@/components/matches/MatchResultCard'
+import { KpiGrid, MatchesBanner, SectionTitle, type Kpi } from '@/components/matches/MatchesUi'
+import SessionFlightPlan from '@/components/matches/SessionFlightPlan'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
-import { MATCH_PERIODS, PERIOD_LABELS, parsePeriod as parseMatchPeriod } from '@/lib/period'
-import type { SquadMatch, SquadPeriod } from '@/types/squad-matches'
+import {
+  chronological,
+  formatPlayTime,
+  frDecimal,
+  neighbourDates,
+  sessionBannerMap,
+  sessionDateOf,
+  sessionDateParts,
+  summarizeSession,
+} from '@/lib/match-sessions'
+import { mapAssetUrl } from '@/lib/pubg-assets'
+import { MATCH_PERIODS, parsePeriod as parseMatchPeriod } from '@/lib/period'
+import type { SquadPeriod } from '@/types/squad-matches'
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
@@ -39,90 +53,14 @@ function isValidDateSegment(value: string | string[] | undefined) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
-function formatDateLabel(value: string) {
-  const [year, month, day] = value.split('-').map(Number)
-  const date = new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1))
-  return date.toLocaleDateString('fr-FR', { dateStyle: 'full' })
-}
+const numberFormat = new Intl.NumberFormat('fr-FR')
+const timeFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
-function formatDuration(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  }
-
-  return `${minutes}m`
-}
-
-function buildSessionStats(matches: SquadMatch[]) {
-  return matches.reduce(
-    (acc, match) => {
-      acc.totalKills += match.totalKills
-      acc.totalDamage += match.totalDamage
-      acc.matchCount += 1
-      acc.wins += match.isWin ? 1 : 0
-      return acc
-    },
-    {
-      totalKills: 0,
-      totalDamage: 0,
-      matchCount: 0,
-      wins: 0,
-    }
-  )
-}
-
-function buildModePerformance(matches: SquadMatch[]) {
-  const modes = {
-    duo: {
-      key: 'duo',
-      mode: 'duo' as TeamMode,
-      label: 'Duo',
-      tone: 'border-sky-200 bg-sky-50 text-sky-800',
-      matches: 0,
-      kills: 0,
-      wins: 0,
-      damage: 0,
-      durationSeconds: 0,
-    },
-    trio: {
-      key: 'trio',
-      mode: 'trio' as TeamMode,
-      label: 'Trio',
-      tone: 'border-violet-200 bg-violet-50 text-violet-800',
-      matches: 0,
-      kills: 0,
-      wins: 0,
-      damage: 0,
-      durationSeconds: 0,
-    },
-    squad: {
-      key: 'squad',
-      mode: 'squad' as TeamMode,
-      label: 'Squad',
-      tone: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-      matches: 0,
-      kills: 0,
-      wins: 0,
-      damage: 0,
-      durationSeconds: 0,
-    },
-  }
-
-  for (const match of matches) {
-    const mode = modes[teamModeFromMemberCount(match.members.length)]
-    mode.matches += 1
-    mode.kills += match.totalKills
-    mode.damage += match.totalDamage
-    mode.durationSeconds += match.durationSeconds
-    mode.wins += match.isWin ? 1 : 0
-  }
-
-  return [modes.duo, modes.trio, modes.squad]
-}
-
+/**
+ * Soirée du clan — refonte du 2026-09-26 (docs/features/matches.md, maquette Claude Design « Matchs et soirées »,
+ * écrans 10b, 10d, 10f) : même bandeau que la liste, navigation datée entre soirées, plan de vol, cartes de fin de
+ * partie.
+ */
 export default function ClanSessionDatePage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -132,6 +70,7 @@ export default function ClanSessionDatePage() {
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const period = useMemo(() => parsePeriod(searchParams.get('period')), [searchParams])
   const gameMode = useMemo(() => parseGameMode(searchParams.get('gameMode')), [searchParams])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -147,198 +86,202 @@ export default function ClanSessionDatePage() {
 
   const { clanName, mapLabels, squads, loading, error } = useSquadMatches(clanId, period, gameMode)
 
-  const sessionMatches = useMemo(() => {
-    if (!date) {
-      return []
-    }
-
-    return squads.filter((match) => match.createdAt.slice(0, 10) === date)
-  }, [date, squads])
-
-  const sessionStats = useMemo(() => buildSessionStats(sessionMatches), [sessionMatches])
-  const modePerformance = useMemo(() => buildModePerformance(sessionMatches), [sessionMatches])
-
-  const sortedSessionDates = useMemo(
-    () => Array.from(new Set(squads.map((match) => match.createdAt.slice(0, 10)))).sort((a, b) => b.localeCompare(a)),
-    [squads]
+  const sessionMatches = useMemo(
+    () => (date ? chronological(squads.filter((match) => sessionDateOf(match.createdAt) === date)) : []),
+    [date, squads]
+  )
+  const summary = useMemo(() => summarizeSession(sessionMatches), [sessionMatches])
+  const sessionMaxKills = useMemo(
+    () => Math.max(0, ...sessionMatches.flatMap((match) => match.members.map((member) => member.kills))),
+    [sessionMatches]
   )
 
+  const sortedSessionDates = useMemo(
+    () => Array.from(new Set(squads.map((match) => sessionDateOf(match.createdAt)))).sort((a, b) => b.localeCompare(a)),
+    [squads]
+  )
   const currentDateIndex = useMemo(() => sortedSessionDates.findIndex((value) => value === date), [date, sortedSessionDates])
-
   const previousDate = currentDateIndex >= 0 ? sortedSessionDates[currentDateIndex + 1] : undefined
   const nextDate = currentDateIndex > 0 ? sortedSessionDates[currentDateIndex - 1] : undefined
+  const dayChips = useMemo(() => (date ? neighbourDates(sortedSessionDates, date, 7) : []), [date, sortedSessionDates])
 
-  const backHref = useMemo(() => {
-    if (!clanId) {
-      return '/clans'
-    }
-
-    const paramsBuilder = new URLSearchParams({ period })
-    if (gameMode) {
-      paramsBuilder.set('gameMode', gameMode)
-    }
-
-    return `/clans/${clanId}/matches?${paramsBuilder.toString()}`
-  }, [clanId, gameMode, period])
-
-  const sessionHref = useMemo(() => {
-    if (!clanId) {
-      return (_: string) => '/clans'
-    }
-
-    return (targetDate: string) => {
+  const sessionHref = useCallback(
+    (targetDate: string) => {
       const paramsBuilder = new URLSearchParams({ period })
-      if (gameMode) {
-        paramsBuilder.set('gameMode', gameMode)
-      }
-
+      if (gameMode) paramsBuilder.set('gameMode', gameMode)
       return `/clans/${clanId}/matches/session/${targetDate}?${paramsBuilder.toString()}`
-    }
-  }, [clanId, gameMode, period])
+    },
+    [clanId, gameMode, period]
+  )
+
+  const selectMatch = useCallback((matchId: string) => {
+    setSelectedId(matchId)
+    document.getElementById(`match-${matchId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [])
 
   if (!clanId || !date) {
     return null
   }
 
+  const { full } = sessionDateParts(date)
+  const bannerMap = sessionBannerMap(sessionMatches)
+  const games = summary.games
+  const kpis: Kpi[] = [
+    { label: 'Kills', value: numberFormat.format(summary.kills), detail: `${games ? frDecimal(summary.kills / games) : '0'} par partie`, icon: Crosshair, color: 'var(--game-neg)' },
+    {
+      label: 'Dégâts',
+      value: numberFormat.format(Math.round(summary.damage)),
+      detail: `${games ? numberFormat.format(Math.round(summary.damage / games)) : '0'} par partie`,
+      icon: Flame,
+      color: 'var(--game-warn)',
+    },
+    {
+      label: 'Meilleure place',
+      value: summary.best ? `#${summary.best.place}` : '—',
+      detail: summary.best
+        ? `${mapLabels[summary.best.match.mapName] ?? summary.best.match.mapName} · ${timeFormat.format(new Date(summary.best.match.createdAt))}`
+        : '',
+      icon: Trophy,
+      color: 'var(--game-gold)',
+    },
+    {
+      label: 'Place moyenne',
+      value: summary.averagePlace !== null ? `#${frDecimal(summary.averagePlace)}` : '—',
+      detail: `sur ${games} partie${games > 1 ? 's' : ''}`,
+      icon: BarChart3,
+      color: 'var(--theme-ui-accent)',
+    },
+  ]
+
+  const dayLabel = (value: string) => {
+    const parts = sessionDateParts(value)
+    return `${parts.weekday} ${parts.day}`
+  }
+
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
-      <div className="app-container app-gutter space-y-4">
+    <div className="app-main-flush game-ui flex-1">
+      <div className="app-container app-gutter">
         <NavigationTrail
-          currentLabel={`Session du ${date}`}
+          currentLabel={full}
           currentHref={`/clans/${clanId}/matches/session/${date}`}
-          fallbackParent={{ href: `/clans/${clanId}/matches`, label: 'Matchs récents', altHref: '/clans' }}
+          fallbackParent={{ href: `/clans/${clanId}/matches`, label: 'Soirées du clan', altHref: '/clans' }}
         />
-        <header className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Détail par date</p>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {clanName || `Clan #${clanId}`} | {formatDateLabel(date)}
-            </h1>
-            <p className="text-sm text-gray-600">
-              Détail complet des matchs détectés pour cette date, sur la période « {PERIOD_LABELS[period]} ».
-            </p>
-          </div>
-        </header>
+        <MatchesBanner
+          image={bannerMap ? mapAssetUrl(bannerMap) : '/matches.jpg'}
+          eyebrow={clanName ? `Soirée · ${clanName}` : 'Soirée du clan'}
+          icon={MoonStar}
+          iconColor="#fde68a"
+          title={full}
+          chips={[
+            { icon: Gamepad2, text: `${games} partie${games > 1 ? 's' : ''}` },
+            { icon: Clock3, text: `${formatPlayTime(summary.durationSeconds)} de jeu` },
+            ...(summary.wins > 0 ? [{ icon: Trophy, text: `${summary.wins} chicken dinner${summary.wins > 1 ? 's' : ''}`, gold: true }] : []),
+          ]}
+        />
       </div>
 
       {/* Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). */}
       <DockingToolbar ariaLabel="Navigation entre les soirées" dockOnMobile={false}>
-        <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-end">
-          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:grid-cols-1 md:grid-flow-col md:justify-end">
-            {previousDate ? (
-              <Link
-                href={sessionHref(previousDate)}
-                className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-              >
-                <span className="sm:hidden">← Précédente</span>
-                <span className="hidden sm:inline">← Soirée précédente</span>
-              </Link>
-            ) : (
-              <span className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-400">
-                <span className="sm:hidden">← Précédente</span>
-                <span className="hidden sm:inline">← Soirée précédente</span>
-              </span>
-            )}
-
-            {nextDate ? (
-              <Link
-                href={sessionHref(nextDate)}
-                className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-              >
-                <span className="sm:hidden">Suivante →</span>
-                <span className="hidden sm:inline">Soirée suivante →</span>
-              </Link>
-            ) : (
-              <span className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-400">
-                <span className="sm:hidden">Suivante →</span>
-                <span className="hidden sm:inline">Soirée suivante →</span>
-              </span>
-            )}
-          </div>
-        </div>
+        <nav className="flex w-full items-center gap-3" aria-label="Soirées voisines">
+          {previousDate ? (
+            <Link
+              href={sessionHref(previousDate)}
+              className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-700 hover:bg-gray-50"
+              aria-label={`Soirée précédente : ${sessionDateParts(previousDate).full}`}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              {dayLabel(previousDate)}
+            </Link>
+          ) : (
+            <span className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-500 opacity-50">
+              <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              Précédente
+            </span>
+          )}
+          <ol className="hidden min-w-0 flex-1 justify-center gap-1 overflow-hidden sm:flex">
+            {dayChips.map((value) => {
+              const parts = sessionDateParts(value)
+              const current = value === date
+              return (
+                <li key={value}>
+                  <Link
+                    href={sessionHref(value)}
+                    title={parts.full}
+                    aria-current={current ? 'page' : undefined}
+                    className="inline-flex h-[34px] min-w-10 flex-col items-center justify-center rounded-lg border px-1 text-[10px] font-semibold leading-tight"
+                    style={
+                      current
+                        ? { borderColor: 'var(--theme-ui-accent-ring)', background: 'var(--theme-ui-accent-soft)', color: 'var(--theme-ui-accent-text)' }
+                        : { borderColor: 'var(--theme-ui-border)', color: 'var(--theme-ui-text-muted)' }
+                    }
+                  >
+                    <b className="text-[13px]">{parts.day}</b>
+                    {parts.weekday}
+                  </Link>
+                </li>
+              )
+            })}
+          </ol>
+          <span className="flex-1 text-center text-xs text-gray-500 sm:hidden">
+            {currentDateIndex >= 0 ? `Soirée ${sortedSessionDates.length - currentDateIndex} / ${sortedSessionDates.length}` : ''}
+          </span>
+          {nextDate ? (
+            <Link
+              href={sessionHref(nextDate)}
+              className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-700 hover:bg-gray-50"
+              aria-label={`Soirée suivante : ${sessionDateParts(nextDate).full}`}
+            >
+              {dayLabel(nextDate)}
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          ) : (
+            <span className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-500 opacity-50">
+              Suivante
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          )}
+        </nav>
       </DockingToolbar>
 
-      <div className="app-container app-gutter space-y-4">
-        {loading ? <p className="mb-6 text-sm text-gray-600">Chargement de la soirée...</p> : null}
-        {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
+      <div className="app-container app-gutter flex flex-col gap-4">
+        {loading && sessionMatches.length === 0 ? <TableSkeleton /> : null}
+        {error ? <p className="text-sm" style={{ color: 'var(--game-neg)' }}>{error}</p> : null}
 
-        {!loading && !error && sessionMatches.length > 0 ? (
-          <>
-            <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Éliminations soirée</p>
-                <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{sessionStats.totalKills}</p>
-              </article>
-              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Dégâts soirée</p>
-                <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{Math.round(sessionStats.totalDamage)}</p>
-              </article>
-              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Taux de victoire</p>
-                <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">
-                  {sessionStats.matchCount > 0 ? `${((sessionStats.wins / sessionStats.matchCount) * 100).toFixed(1)}%` : '0.0%'}
-                </p>
-              </article>
-              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Matchs de la soirée</p>
-                <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{sessionStats.matchCount}</p>
-              </article>
-            </section>
-
-            <section className="mb-6 app-panel p-4 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-gray-900">Performances duo/trio/squad</h2>
-              <div className="grid gap-3 md:grid-cols-3">
-                {modePerformance.map((mode) => (
-                  <article key={mode.key} className={`rounded border p-3 ${mode.tone}`}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <TeamModeBadge mode={mode.mode} label={mode.label} size="sm" className="shadow-none" />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                      <p className="flex items-baseline justify-between gap-2">
-                        <span>Matchs</span>
-                        <span className="text-right font-semibold tabular-nums">{mode.matches}</span>
-                      </p>
-                      <p className="flex items-baseline justify-between gap-2">
-                        <span>Éliminations</span>
-                        <span className="text-right font-semibold tabular-nums">{mode.kills}</span>
-                      </p>
-                      <p className="flex items-baseline justify-between gap-2">
-                        <span>Victoires</span>
-                        <span className="text-right font-semibold tabular-nums">{mode.wins}</span>
-                      </p>
-                      <p className="flex items-baseline justify-between gap-2">
-                        <span>Dégâts</span>
-                        <span className="text-right font-semibold tabular-nums">{Math.round(mode.damage)}</span>
-                      </p>
-                      <p className="col-span-2 flex items-baseline justify-between gap-2">
-                        <span>Durée</span>
-                        <span className="text-right font-semibold tabular-nums">{formatDuration(mode.durationSeconds)}</span>
-                      </p>
-                    </div>
-                  </article>
+        {!error && sessionMatches.length > 0 ? (
+          <div aria-busy={loading} className={`flex flex-col gap-4 ${loading ? 'opacity-60' : ''}`}>
+            <KpiGrid items={kpis} className="grid-cols-2 lg:grid-cols-4" />
+            <SessionFlightPlan
+              matches={sessionMatches}
+              mapLabels={mapLabels}
+              selectedId={selectedId}
+              onSelect={selectMatch}
+              start={summary.start}
+              end={summary.end}
+            />
+            <section className="flex flex-col gap-2.5" aria-labelledby="session-games-title">
+              <SectionTitle>
+                <span id="session-games-title">Parties de la soirée</span>
+              </SectionTitle>
+              <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr))]">
+                {sessionMatches.map((match) => (
+                  <MatchResultCard
+                    key={match.id}
+                    clanId={clanId}
+                    period={period}
+                    match={match}
+                    mapLabel={mapLabels[match.mapName] ?? match.mapName}
+                    sessionMaxKills={sessionMaxKills}
+                    selected={match.id === selectedId}
+                  />
                 ))}
               </div>
             </section>
-
-            <SquadMatchList
-              clanId={clanId}
-              period={period}
-              matches={sessionMatches}
-              mapLabels={mapLabels}
-              title="Matchs de la soirée"
-              description={`Liste complete des ${sessionMatches.length} matchs détectés pour le ${formatDateLabel(date)}.`}
-              emptyMessage="Aucun match trouvé pour cette date."
-              limit={sessionMatches.length}
-            />
-          </>
+          </div>
         ) : null}
 
         {!loading && !error && sessionMatches.length === 0 ? (
-          <section className="app-panel p-4 shadow-sm">
-            <p className="text-sm text-gray-600">Aucun match trouvé pour cette date avec les filtres actuels.</p>
-          </section>
+          <p className="app-panel p-4 text-sm text-gray-500">Aucune partie trouvée pour cette date avec les filtres actuels.</p>
         ) : null}
       </div>
     </div>

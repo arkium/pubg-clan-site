@@ -99,6 +99,8 @@ test('escouade : cartes de joueur avec distances de l’API et lancers', async (
 
 test('le thème clair s’applique au débriefing (plus de bloc sombre)', async ({ page }) => {
   await page.evaluate(() => window.localStorage.setItem('pubg_app_theme', 'light'))
+  // WebKit signale comme erreurs les requêtes interrompues par un rechargement : on attend la fin du réseau.
+  await page.waitForLoadState('networkidle')
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'Erangel' })).toBeVisible()
   const background = await page

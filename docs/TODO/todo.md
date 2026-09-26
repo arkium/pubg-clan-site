@@ -2562,6 +2562,24 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte de la vue d'ensemble du clan (« vitrine »)~~ — ✅ Complété le 2026-09-26
+
+Maquette Claude Design « Vue ensemble clan » — [clans.md](../features/clans.md) §6 :
+- [x] Vitrine (niveau lu dans la fiche PUBG, palmarès réel), briefing de la semaine illustré, 4 chiffres clés avec liens,
+      modes, duo de la période (réanimations croisées), synergies en barres, navigation par intention.
+- [x] Déplacés : Pression au drop et Villes → Drop zones ; Top performers → Awards. Retirés : Awards du mode, Roster.
+- [x] Classement de la Ligue extrait dans `src/lib/clans-leaderboard.ts` (route inchangée).
+- [ ] `Clan.clanLevel`, `clanPoints`, `pubgMemberCount` : colonnes vides pour tous les clans alors que la fiche PUBG les
+      contient ; la vitrine les lit dans `clanStats`. À remplir à la synchronisation si d'autres pages en ont besoin.
+
+#### ~~Refonte des pages Matchs et Soirée~~ — ✅ Complété le 2026-09-26
+
+Maquette Claude Design « Matchs et soirées » — [matches.md](../features/matches.md) §4 :
+- [x] Bandeau commun, indicateurs communs, carnet des soirées, navigation datée, plan de vol, cartes de fin de partie
+      (« #3/26 », chicken dinner), couleurs `--game-*` en clair et en sombre ; `SessionRecap` supprimé.
+- [x] Soirée = journée de jeu à Paris commençant à 06:00 (`sessionDateOf`), sur toutes les pages de soirée.
+- [x] Route des matchs : colonnes compressées enfin lues (`*Gz` + `decodeTelemetryRow`), nombre d'équipes par partie.
+
 #### ~~Refonte du débriefing tactique~~ — ✅ Complété le 2026-09-26
 
 Maquette Claude Design « Débrief télémétrie » — [debriefing.md](../features/debriefing.md) :

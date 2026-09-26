@@ -1703,7 +1703,7 @@ export function MatchReplay2D({
             })}
           </div>
           {follow !== null && (
-            <button type="button" onClick={resetCamera} className="self-start text-xs font-semibold hover:underline" style={{ color: 'var(--debrief-link)' }}>
+            <button type="button" onClick={resetCamera} className="self-start text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
               Libérer la caméra
             </button>
           )}

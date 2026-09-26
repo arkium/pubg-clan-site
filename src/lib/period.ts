@@ -28,6 +28,24 @@ export const PERIOD_LABELS: Record<Period, string> = {
   'month-2': 'Il y a 2 mois',
 }
 
+/** Complément de nom : « Duo de la semaine », « Duo du mois ». */
+export const PERIOD_OF_LABELS: Record<Period, string> = {
+  week: 'de la semaine',
+  month: 'du mois',
+  all: 'de tous les temps',
+  'month-1': 'du mois dernier',
+  'month-2': 'd’il y a 2 mois',
+}
+
+/** Moment de la période : « 25 parties ensemble, cette semaine ». */
+export const PERIOD_WHEN_LABELS: Record<Period, string> = {
+  week: 'cette semaine',
+  month: 'ce mois',
+  all: 'depuis le début',
+  'month-1': 'le mois dernier',
+  'month-2': 'il y a 2 mois',
+}
+
 /** Paramètre d'URL qui porte la période d'une page (§4.E). */
 export const PERIOD_QUERY_PARAM = 'period'
 /** Mémoire de la visite (`sessionStorage`) : dernière période choisie explicitement. */

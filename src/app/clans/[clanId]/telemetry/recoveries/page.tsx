@@ -37,6 +37,7 @@ import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { resolveGameMode } from '@/lib/pubg-assets'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
+import { sessionDateOf } from '@/lib/match-sessions'
 
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 15, 25] as const
 
@@ -350,9 +351,9 @@ function applySort(
   })
 }
 
+/** Soirée d'une partie (journée de jeu à Paris), pour le lien vers la page de la soirée. */
 function extractDateSegment(value: string) {
-  const candidate = value.slice(0, 10)
-  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : null
+  return Number.isNaN(Date.parse(value)) ? null : sessionDateOf(value)
 }
 
 function StatusPill({ status, labelOverride }: { status: string; labelOverride?: string }) {

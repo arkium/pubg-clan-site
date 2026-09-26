@@ -1,3 +1,4 @@
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   buildTelemetryErrorResponse,
@@ -23,7 +24,7 @@ export async function GET(
 ) {
   try {
     const session = await getSessionFromRequest(request)
-    if (!session) {
+    if (!session && !isAuthDisabled()) {
       return Response.json(buildTelemetryErrorResponse('Authentication required', 'UNAUTHORIZED'), {
         status: 401,
       })

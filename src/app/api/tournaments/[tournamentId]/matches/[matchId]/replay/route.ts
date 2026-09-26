@@ -1,3 +1,4 @@
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { buildTelemetryErrorResponse } from '@/lib/pubg-telemetry/api-contract'
 import { REPLAY_NO_POSITIONS_MESSAGE, loadMatchReplay } from '@/lib/pubg-telemetry/match-replay-loader'
@@ -14,7 +15,7 @@ export async function GET(
 ) {
   try {
     const session = await getSessionFromRequest(request)
-    if (!session) {
+    if (!session && !isAuthDisabled()) {
       return Response.json(buildTelemetryErrorResponse('Authentication required', 'UNAUTHORIZED'), {
         status: 401,
       })

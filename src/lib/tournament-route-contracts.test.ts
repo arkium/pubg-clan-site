@@ -1,122 +1,54 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * Lecture publique des tournois : réservée aux connectés, mais ouverte à tout visiteur quand
+ * DISABLE_AUTH_PERMISSIONS=true (mode visiteur). La gestion des tournois passe par d'autres routes,
+ * réservées au owner du clan et au superuser.
+ */
 
 const mocks = vi.hoisted(() => ({
-  createTournament: vi.fn(),
-  updateTournament: vi.fn(),
-  listClanTournaments: vi.fn(),
-  requirePermission: vi.fn(),
-  requireNavPermission: vi.fn(),
-  guard: vi.fn(),
-  findUnique: vi.fn(),
-  deleteTournament: vi.fn(),
-  findClan: vi.fn(),
+  getSessionFromRequest: vi.fn(),
+  listTournamentOverviews: vi.fn(),
 }))
 
-vi.mock('@/lib/tournament-service', () => ({
-  createTournament: mocks.createTournament,
-  updateTournament: mocks.updateTournament,
-  listClanTournaments: mocks.listClanTournaments,
-  getTournamentForClan: vi.fn(),
-}))
+vi.mock('@/lib/auth-session', () => ({ getSessionFromRequest: mocks.getSessionFromRequest }))
+vi.mock('@/lib/tournament-overview', () => ({ listTournamentOverviews: mocks.listTournamentOverviews }))
 
-vi.mock('@/middleware/auth-permission', () => ({
-  requirePermission: mocks.requirePermission,
-  requireNavPermission: mocks.requireNavPermission,
-}))
+import { GET } from '../app/api/tournaments/route'
 
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
-    tournament: { findUnique: mocks.findUnique, delete: mocks.deleteTournament },
-    // La création vérifie d'abord que le clan existe.
-    clan: { findUnique: mocks.findClan },
-  },
-}))
+const request = () => new Request('http://localhost/api/tournaments')
 
-import { POST as createTournamentRoute } from '@/app/api/clans/[clanId]/tournaments/route'
-import { DELETE as deleteTournamentRoute, PATCH as updateTournamentRoute } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/route'
+describe('GET /api/tournaments', () => {
+  const previous = process.env.DISABLE_AUTH_PERMISSIONS
 
-function jsonRequest(body: unknown, method = 'POST') {
-  return new Request('http://localhost:3000/api/clans/7/tournaments', {
-    method,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-}
-
-const VALID_BODY = {
-  title: 'Coupe du dimanche',
-  startDate: '2026-09-20',
-  endDate: '2026-09-21',
-  rules: { mode: 'custom_teams', mixedSquadRule: 'prorata', killPoints: 1, winBonus: 5 },
-}
-
-describe('routes de tournoi — mode et règle d’escouade', () => {
   beforeEach(() => {
-    Object.values(mocks).forEach((mock) => mock.mockReset())
-    mocks.requirePermission.mockReturnValue(mocks.guard)
-    mocks.requireNavPermission.mockReturnValue(mocks.guard)
-    mocks.guard.mockResolvedValue(null)
-    mocks.createTournament.mockResolvedValue({ id: 't1' })
-    mocks.updateTournament.mockResolvedValue({ id: 't1' })
-    mocks.findUnique.mockResolvedValue({ id: 't1', organizerClanId: 7 })
-    mocks.deleteTournament.mockResolvedValue({ id: 't1' })
-    mocks.findClan.mockResolvedValue({ id: 7 })
+    mocks.getSessionFromRequest.mockReset().mockResolvedValue(null)
+    mocks.listTournamentOverviews.mockReset().mockResolvedValue([])
   })
 
-  it('transmet le mode choisi à la création', async () => {
-    const response = await createTournamentRoute(jsonRequest(VALID_BODY) as never, {
-      params: Promise.resolve({ clanId: '7' }),
-    })
-
-    expect(response.status).toBe(201)
-    expect(mocks.createTournament).toHaveBeenCalledWith(
-      7,
-      expect.objectContaining({
-        rules: expect.objectContaining({ mode: 'custom_teams', mixedSquadRule: 'prorata' }),
-      })
-    )
+  afterEach(() => {
+    if (previous === undefined) delete process.env.DISABLE_AUTH_PERMISSIONS
+    else process.env.DISABLE_AUTH_PERMISSIONS = previous
   })
 
-  it('transmet le mode choisi à la modification', async () => {
-    await updateTournamentRoute(jsonRequest({ rules: { mode: 'solo_ffa' } }, 'PATCH') as never, {
-      params: Promise.resolve({ clanId: '7', tournamentId: 't1' }),
-    })
-
-    expect(mocks.updateTournament).toHaveBeenCalledWith(
-      7,
-      't1',
-      expect.objectContaining({ rules: expect.objectContaining({ mode: 'solo_ffa' }) })
-    )
+  it('refuse un visiteur sans session hors mode visiteur', async () => {
+    process.env.DISABLE_AUTH_PERMISSIONS = 'false'
+    const response = await GET(request())
+    expect(response.status).toBe(401)
+    expect(mocks.listTournamentOverviews).not.toHaveBeenCalled()
   })
 
-  it('refuse un identifiant de clan invalide avant toute autorisation', async () => {
-    const response = await createTournamentRoute(jsonRequest(VALID_BODY) as never, {
-      params: Promise.resolve({ clanId: 'nope' }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(mocks.createTournament).not.toHaveBeenCalled()
-  })
-
-  it('supprime un tournoi du clan organisateur', async () => {
-    const response = await deleteTournamentRoute(
-      new Request('http://localhost:3000/api/clans/7/tournaments/t1', { method: 'DELETE' }) as never,
-      { params: Promise.resolve({ clanId: '7', tournamentId: 't1' }) }
-    )
-
+  it('ouvre la liste à un visiteur sans session en mode visiteur', async () => {
+    process.env.DISABLE_AUTH_PERMISSIONS = 'true'
+    const response = await GET(request())
     expect(response.status).toBe(200)
-    expect(mocks.deleteTournament).toHaveBeenCalledWith({ where: { id: 't1' } })
+    expect(await response.json()).toEqual({ tournaments: [] })
   })
 
-  it('refuse de supprimer le tournoi d’un autre clan', async () => {
-    mocks.findUnique.mockResolvedValue({ id: 't1', organizerClanId: 99 })
-
-    const response = await deleteTournamentRoute(
-      new Request('http://localhost:3000/api/clans/7/tournaments/t1', { method: 'DELETE' }) as never,
-      { params: Promise.resolve({ clanId: '7', tournamentId: 't1' }) }
-    )
-
-    expect(response.status).toBe(403)
-    expect(mocks.deleteTournament).not.toHaveBeenCalled()
+  it('sert un utilisateur connecté dans tous les cas', async () => {
+    process.env.DISABLE_AUTH_PERMISSIONS = 'false'
+    mocks.getSessionFromRequest.mockResolvedValue({ userId: 1 })
+    const response = await GET(request())
+    expect(response.status).toBe(200)
   })
 })

@@ -1,9 +1,11 @@
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { listTournamentOverviews } from '@/lib/tournament-overview'
 
-// Réservé aux utilisateurs connectés (2026-09-16) : le proxy ne protège que les pages, pas `/api`.
+// Lecture réservée aux utilisateurs connectés (2026-09-16), ou ouverte à tous en mode visiteur
+// (DISABLE_AUTH_PERMISSIONS) : le proxy ne protège que les pages, pas `/api`.
 export async function GET(request: Request) {
-  if (!(await getSessionFromRequest(request))) {
+  if (!(await getSessionFromRequest(request)) && !isAuthDisabled()) {
     return Response.json({ error: 'Authentication required' }, { status: 401 })
   }
 

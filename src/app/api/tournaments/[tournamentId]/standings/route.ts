@@ -1,3 +1,4 @@
+import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import {
@@ -17,12 +18,13 @@ import {
   type MemberDirectory,
 } from '@/lib/tournament-standings-view'
 
-// Réservé aux utilisateurs connectés (2026-09-16) : le proxy ne protège que les pages, pas `/api`.
+// Lecture réservée aux utilisateurs connectés (2026-09-16), ou ouverte à tous en mode visiteur
+// (DISABLE_AUTH_PERMISSIONS) : le proxy ne protège que les pages, pas `/api`.
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
-  if (!(await getSessionFromRequest(request))) {
+  if (!(await getSessionFromRequest(request)) && !isAuthDisabled()) {
     return Response.json({ error: 'Authentication required' }, { status: 401 })
   }
 

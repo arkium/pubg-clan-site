@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 
+import RankCell from '@/components/ui/RankCell'
 import { CHALLENGE_TYPES } from '@/lib/challenge-types'
 
 type Participant = {
@@ -70,7 +71,7 @@ export default function ChallengeCard({ challenge, currentMemberId, onJoin }: Pr
   const top3 = challenge.participants.slice(0, 3)
 
   return (
-    <div className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="app-panel p-4 shadow-sm">
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-xl" aria-hidden>
@@ -104,7 +105,7 @@ export default function ChallengeCard({ challenge, currentMemberId, onJoin }: Pr
             {top3.map((p, i) => (
               <li key={p.memberId} className="flex items-center justify-between text-xs">
                 <span className="flex items-center gap-1">
-                  <span>{['🥇', '🥈', '🥉'][i]}</span>
+                  <RankCell rank={i + 1} size="xs" />
                   <span className="text-gray-800">{p.displayName}</span>
                 </span>
                 <span className="font-medium text-gray-700">{p.progress}</span>

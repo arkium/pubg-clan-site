@@ -151,10 +151,29 @@ Panneau secondaire : fond légèrement teinté, utile pour les zones d'informati
 
 ---
 
+## Accent des états actifs
+
+Définis dans `:root` (clair) et `:root[data-app-theme='dark']` de `globals.css` :
+
+| Token | Clair | Sombre | Usage |
+|---|---|---|---|
+| `--theme-ui-accent` | indigo | indigo | flèche de tri, filet de la nav active, libellé du critère |
+| `--theme-ui-accent-text` | indigo-700 | indigo-100 | texte d'un segment, d'un en-tête ou d'une puce actifs |
+| `--theme-ui-accent-soft` | indigo 8 % | indigo 16 % | fond d'un lien ou d'une puce actifs |
+| `--theme-ui-accent-tint` | indigo 6 % | indigo 7 % | colonne triée d'un tableau |
+| `--theme-ui-accent-ring` | indigo 45 % | indigo 50 % | contour d'un segment ou d'une puce actifs |
+| `--theme-toggle-track` | `#f1f5f9` | `rgb(2 6 23)` | piste des segmented |
+
+Classes : `app-segmented-control__item--active`, `app-nav-link--active`, `app-anchor-link--active`,
+`sidebar-ctx-nav-item--active`, `app-sort-chip--active`.
+
+---
+
 ## Règles absolues
 
 - Ne jamais hardcoder `bg-white`, `bg-slate-800`, `border-gray-200` ou toute couleur concrète dans les composants ou les pages. Utiliser les classes Tailwind remappées ou les tokens CSS directement.
-- Ne jamais utiliser le préfixe `dark:` de Tailwind. Le remapping automatique rend ce préfixe inutile et les deux systèmes entrent en conflit.
+- Les préfixes `dark:` déjà présents sont **conservés** (décision du 2026-09-26, refonte UI) ; un nouveau composant passe par les classes remappées ou les tokens plutôt que d'en ajouter.
+- Tout état actif (segmented, en-tête trié, navigation, puces de tri) utilise les tokens d'accent ci-dessous, jamais `bg-blue-600 text-white` ni une teinte en dur.
 - Ne jamais lire ni écrire `data-app-theme` depuis une page ou un composant. Seul `ThemeInitializer` et le composant de bascule y accèdent.
 - Pour les nouvelles pages, partir systématiquement de `.app-container` + `.app-main` et des panneaux `.app-panel` / `.app-panel-muted`.
 - Vérifier le rendu en thème clair et en thème sombre avant de livrer une page.

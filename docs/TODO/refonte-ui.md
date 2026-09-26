@@ -1,6 +1,6 @@
 # Refonte UI — accent, tableaux de classement, mobile
 
-> **Spécification — proposée le 2026-09-26, corrigée et maquette validée le 2026-09-26, à implémenter (phase 0 d'abord).**
+> **Spécification — proposée le 2026-09-26, corrigée et maquette validée le 2026-09-26, phases 0 à 3 livrées le 2026-09-26 (branche `refonte-ui`).**
 > Maquette de référence : `docs/ui/refonte/maquettes/Refonte adaptée.html` (proposition 2b de `Audit design.dc.html`,
 > adaptée aux décisions du §3). Complète [sticky.md](sticky.md) sans le contredire : le bandeau, la période et la couche
 > collante unique restent tels quels. Fiches des composants : [composants-refonte.md](../ui/composants-refonte.md).
@@ -97,7 +97,12 @@ div.app-main-flush
 
 ## 5. Plan par phases
 
-### Phase 0 — Fondations (aucune page migrée)
+### Phase 0 — Fondations (aucune page migrée) — ✅ 2026-09-26
+
+> Écarts à l'implémentation : le contrôle « segmented de tri » ne vise que les fichiers qui contiennent un `<table`
+> (`ClanSelector` trie une liste de cartes, sans en-têtes) ; sous 640 px, les segments rendent la largeur ajoutée par la
+> piste (sinon le groupe de 5 modes débordait à 375 px) ; 15 des 20 captures ont changé, les 5 autres restent sous le
+> seuil de différence.
 
 1. Tokens (`composants-refonte.md`) : état actif de `.app-segmented-control__item--active`, de `SectionAnchorNav` et de
    la sidebar sur `--theme-ui-accent` ; `SegmentedControl` perd `bg-blue-600 text-white`.
@@ -113,19 +118,64 @@ div.app-main-flush
 8. Captures Playwright : l'accent change **les 20 captures** (`e2e/visual.spec.ts-snapshots/`) — les régénérer et les
    relire toutes, pas seulement `classement-*`.
 
-### Phase 1 — Page de référence
+### Phase 1 — Page de référence — ✅ 2026-09-26
+
+> Implémentation : tri côté client (`src/lib/leaderboard-sort.ts`, rang = ordre décroissant du critère, donc médailles
+> aux meilleurs même en tri croissant) ; `LeaderboardStats.tsx` supprimé (podium + distinctions) ; test
+> `e2e/leaderboard.spec.ts`. Sur ordinateur, le bandeau docké resserre ses segments (13 px) pour garder le rappel du
+> tri sur la ligne. À 768 px, le tableau (jusqu'à 14 colonnes) défile dans sa carte — point ouvert, voir phase 3.
 
 `/clans/[clanId]/leaderboard` au standard §4.A (`page.tsx`, `Leaderboard.tsx`, `LeaderboardStats.tsx`). Nouveau test
 Playwright : clic sur l'en-tête = tri et inversion ; colonnes de mode masquées hors « Tous » ; rappel du tri visible une
 fois docké sur ordinateur, absent sur mobile.
 
-### Phase 2 — Tableaux de classement
+### Phase 2 — Tableaux de classement — ✅ 2026-09-26
+
+> Implémentation :
+> - **Rangs** : plus aucun emoji ni pastille `#n` (`app-podium-badge`, désormais contrôlée par
+>   `ui-conformance.test.ts`). Tous les rangs passent par `RankCell`, qui gagne une taille `xs` (18 px). Cela couvre les
+>   composants de la vue d'ensemble (`TopPerformers`, `SquadSynergies`, `CityInsightsPanel`, `DropPressureStatsPanel`),
+>   le podium d'un tournoi, `MemberLifetimeStatsPanel`, les stats du clan, les armes d'un joueur, `map-stats` et
+>   `nemesis`. Les **compteurs** de médailles (membres, vue d'ensemble, stats d'un joueur) restent des images : ce ne
+>   sont pas des rangs.
+> - **Ligue** (`ClanLeaderboardTable`) : podium en cartes, en-têtes triables, liste mobile.
+> - **Tableaux triables** (roster de la vue d'ensemble, armes du clan et d'un joueur) : `SortableTh` + `useTableSort`,
+>   avec `firstDirection` pour les colonnes texte. Le roster calcule désormais ses barres d'activité sur le plus actif,
+>   et non sur la première ligne.
+> - **Tableaux de rang non triables** (drop zones du clan et d'un joueur, positions, fermetures de zone, défis) : style
+>   des en-têtes, `RankCell`, plus de `table-fixed`.
+> - **Formats** : nombres en français sur les pages touchées (`16,7 %`, `210,0 m`).
+> - `rankBy` (générique) extrait de `rankLeaderboard`.
+> - **Vérification visuelle** faite sur les pages qui ont des réponses d'API figées (ligue, vue d'ensemble, armes).
+>   Awards, défis, débriefing, drop zones, positions, fermetures, `map-stats`, `nemesis` et tournoi n'en ont pas : ils
+>   sont vérifiés par tsc et la relecture du code seulement.
 
 `/clans-leaderboard`, `/clans/[clanId]/overview` (tableau), `…/stats/weapons`, `…/drop-zones`, `…/stats/positions`,
 `…/stats/zone-closures`, `/members/[id]/map-stats`, `…/nemesis`, `…/drop-zones`, `/clans/[clanId]/awards`, défis
 (`ChallengeLeaderboard`, `ChallengeCard`, page d'un défi), débriefing d'un match (`MatchDebriefView`).
 
-### Phase 3 — Le reste
+### Phase 3 — Le reste — ✅ 2026-09-26
+
+> Implémentation :
+> - **Vocabulaire** :
+>   - Libellés de statistiques en français sur les pages joueurs : Dégâts, Assistances, Réanimations, Win rate, Matchs
+>     joués, K+A moy., Victoires, membres suivis. Le contrôle correspondant est dans `ui-conformance.test.ts`.
+>   - Nombres abrégés à la française (`61,0 k`).
+>   - Environ 120 accents manquants corrigés dans les textes affichés (données, période, télémétrie, Échec…), par
+>     dictionnaire de mots entiers, hors code. `'equipe'` reste sans accent : c'est une valeur de code (catégorie de
+>     `positions`).
+>   - Les noms d'awards (« Top Fragger »…) sont des titres : conservés.
+> - **Rayons** : 40 blocs `rounded border border-gray-200 bg-white` passés en `.app-panel` (20 fichiers). Un contrôle
+>   interdit leur retour sur `section` et `article`. Les menus flottants et les tuiles internes ne sont pas concernés.
+> - **Accent** : `SegmentedControl` accepte une icône par option. Les sélecteurs faits main du comparateur (vue
+>   graphique/tableau, catégories de clans) l'utilisent désormais, sans couleurs propres par catégorie.
+> - **Hors périmètre, laissés tels quels** :
+>   - Les pages d'administration (`settings/…`, `telemetry/errors`, etc., comme `OUT_OF_SCOPE`), qui gardent leurs
+>     états actifs colorés et quelques mots sans accents.
+>   - La page de débogage de la télémétrie d'un match (textes techniques).
+>   - Le replay 2D (vue tactique toujours sombre).
+> - `src/components/ProgressionChart.tsx` n'est importé nulle part (doublon de `dashboard/ProgressionChart.tsx`) :
+>   non modifié, à supprimer sur décision.
 
 Toutes les pages restantes pour le vocabulaire, les rayons et l'accent (aucune recomposition, `dark:` conservés).
 

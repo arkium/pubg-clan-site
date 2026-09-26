@@ -7,6 +7,7 @@ import { Map } from 'lucide-react'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
@@ -132,12 +133,6 @@ type MapStatsPayload = {
   error?: string
 }
 
-function podiumToneClass(rank: number) {
-  if (rank === 1) return 'app-podium-badge--gold'
-  if (rank === 2) return 'app-podium-badge--silver'
-  return 'app-podium-badge--bronze'
-}
-
 function MapCardBanner({
   mapName,
   mapLabel,
@@ -157,7 +152,7 @@ function MapCardBanner({
           <h3 className="mt-1 text-xl font-semibold text-gray-900">{mapLabel}</h3>
         </div>
         {podiumRank ? (
-          <span className={`app-podium-badge ${podiumToneClass(podiumRank)} shrink-0`}>#{podiumRank}</span>
+          <RankCell rank={podiumRank} size="md" />
         ) : null}
       </div>
     )
@@ -178,7 +173,7 @@ function MapCardBanner({
           <h3 className="text-lg font-bold leading-tight text-white drop-shadow">{mapLabel}</h3>
         </div>
         {podiumRank ? (
-          <span className={`app-podium-badge ${podiumToneClass(podiumRank)} shrink-0`}>#{podiumRank}</span>
+          <RankCell rank={podiumRank} size="md" />
         ) : null}
       </div>
     </div>
@@ -553,7 +548,7 @@ export default function MemberMapStatsPage() {
           <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
         ) : null}
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="app-panel p-4 shadow-sm">
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Performance par carte</h2>
@@ -587,8 +582,8 @@ export default function MemberMapStatsPage() {
                 type="button"
                 onClick={() => setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'))}
                 className="inline-flex h-10 items-center justify-center self-end rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                aria-label={sortDir === 'asc' ? 'Tri croissant actif' : 'Tri decroissant actif'}
-                title={sortDir === 'asc' ? 'Tri croissant' : 'Tri decroissant'}
+                aria-label={sortDir === 'asc' ? 'Tri croissant actif' : 'Tri décroissant actif'}
+                title={sortDir === 'asc' ? 'Tri croissant' : 'Tri décroissant'}
               >
                 <span className="inline-flex items-center gap-2" aria-hidden="true">
                   <span className={sortDir === 'asc' ? 'text-slate-900' : 'text-slate-400'}>↑</span>
@@ -629,9 +624,9 @@ export default function MemberMapStatsPage() {
                       <CompactStat label="KO" value={entry.totalKnockouts} tone="danger" active={sortKey === 'totalKnockouts'} />
                       <CompactStat label="Headshots" value={entry.totalHeadshots} tone="danger" active={sortKey === 'totalHeadshots'} />
 
-                      <CompactStat label="Damage" value={Math.round(entry.totalDamage)} tone="neutral" active={sortKey === 'totalDamage'} />
-                      <CompactStat label="Assists" value={entry.totalAssists} tone="info" active={sortKey === 'totalAssists'} />
-                      <CompactStat label="Revives" value={entry.totalRevives} tone="info" active={sortKey === 'totalRevives'} />
+                      <CompactStat label="Dégâts" value={Math.round(entry.totalDamage)} tone="neutral" active={sortKey === 'totalDamage'} />
+                      <CompactStat label="Assistances" value={entry.totalAssists} tone="info" active={sortKey === 'totalAssists'} />
+                      <CompactStat label="Réanimations" value={entry.totalRevives} tone="info" active={sortKey === 'totalRevives'} />
                       <CompactStat label="Duree" value={formatDuration(entry.avgDurationSeconds)} tone="neutral" active={sortKey === 'avgDurationSeconds'} />
                     </div>
                   </article>

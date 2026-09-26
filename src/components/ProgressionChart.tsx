@@ -98,7 +98,7 @@ export default function ProgressionChart({
 
   if (progression.length === 0) {
     return (
-      <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="app-panel p-4 shadow-sm">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Progression (4 semaines)</h2>
         <p className="text-sm text-gray-600">Aucune donnée de progression disponible.</p>
       </section>
@@ -120,7 +120,7 @@ export default function ProgressionChart({
   const CHART_HEIGHT = 60
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+    <section className="app-panel p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-900">Progression (4 semaines)</h2>
         <div className="flex rounded border border-gray-200 p-1">

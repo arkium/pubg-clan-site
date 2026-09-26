@@ -12,6 +12,7 @@ import {
   Activity,
   Crown,
 } from 'lucide-react'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import type { ClanComparatorEntry } from '@/hooks/useClanComparator'
 
 interface GlobalPerformancesDominanceProps {
@@ -192,32 +193,15 @@ export default function GlobalPerformancesDominance({
         </div>
 
         {/* View Switcher Toggle */}
-        <div className="flex items-center gap-1 rounded-xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] p-1 shrink-0 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setViewMode('chart')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-              viewMode === 'chart'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)]'
-            }`}
-          >
-            <Activity className="h-3.5 w-3.5" />
-            <span>Profil ADN</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('table')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-              viewMode === 'table'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)]'
-            }`}
-          >
-            <TableIcon className="h-3.5 w-3.5" />
-            <span>Tableau</span>
-          </button>
-        </div>
+        <SegmentedControl
+          options={[
+            { value: 'chart', label: 'Profil ADN', icon: <Activity className="h-3.5 w-3.5" aria-hidden="true" /> },
+            { value: 'table', label: 'Tableau', icon: <TableIcon className="h-3.5 w-3.5" aria-hidden="true" /> },
+          ]}
+          value={viewMode}
+          onChange={setViewMode}
+          className="shrink-0 self-start sm:self-auto"
+        />
       </div>
 
       {viewMode === 'chart' ? (

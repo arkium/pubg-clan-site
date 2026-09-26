@@ -66,15 +66,12 @@ function cx(...classes: Array<string | false | null | undefined>) {
 function getRoleBorderClass(role?: string, darkMode?: boolean) { return '' }
 
 function getToneClasses(tone: string, active: boolean, darkMode: boolean) {
-    if (!darkMode) {
-      if (active) {
-        return 'bg-slate-100 text-slate-900 shadow-sm font-bold';
-      }
-      return 'text-slate-600 hover:bg-slate-50 hover:text-slate-900';
-    }
-  
+    // Lien actif : accent commun à tous les états actifs (globals.css, .app-nav-link--active).
     if (active) {
-      return 'bg-slate-800 text-white shadow-sm font-bold';
+      return 'app-nav-link--active';
+    }
+    if (!darkMode) {
+      return 'text-slate-600 hover:bg-slate-50 hover:text-slate-900';
     }
     return 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200';
   }
@@ -816,7 +813,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         setCronMessage(
           payload?.error ??
             payload?.message ??
-            `${fallback}. L action a peut-etre ete lancee, verifie la page Ops Cron.`
+            `${fallback}. L action a peut-être ete lancee, verifie la page Ops Cron.`
         )
         return
       }
@@ -828,7 +825,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
       setCronMessage(parts.join(' '))
     } catch {
-      setCronMessage('Reponse non recue. L action a peut-etre ete lancee, verifie Ops Cron.')
+      setCronMessage('Reponse non recue. L action a peut-être ete lancee, verifie Ops Cron.')
     } finally {
       setCronPending(null)
     }
@@ -1072,7 +1069,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                   <button
                     onClick={toggleCollapse}
                     className={cx("p-1.5 rounded-lg transition-colors text-slate-500", appTheme === 'dark' ? 'hover:bg-slate-800 hover:text-slate-300' : 'hover:bg-slate-200 hover:text-slate-700')}
-                    title={isCollapsed ? "Agrandir" : "R\u01F8duire"}
+                    title={isCollapsed ? "Agrandir" : "Réduire"}
                   >
                     {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
                   </button>

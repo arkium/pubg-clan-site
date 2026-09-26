@@ -1,7 +1,11 @@
+import type { ReactNode } from 'react'
+
 type SegmentedOption<T extends string> = {
   value: T
   label: string
   disabled?: boolean
+  /** Icône facultative, avant le libellé (lucide, 14 px). */
+  icon?: ReactNode
 }
 
 type SegmentedControlProps<T extends string> = {
@@ -31,7 +35,8 @@ export default function SegmentedControl<T extends string>({
   return (
     <div
       className={[
-        'app-segmented-control inline-flex rounded border border-gray-200 p-0.5',
+        // Piste, rayons et état actif : globals.css (.app-segmented-control), sur l'accent du thème.
+        'app-segmented-control inline-flex border border-gray-200',
         wrapClass,
         widthClass,
         nowrapClass,
@@ -55,12 +60,17 @@ export default function SegmentedControl<T extends string>({
             'app-segmented-control__item font-medium transition-colors',
             sizeClass,
             option.disabled ? 'cursor-not-allowed opacity-45 text-gray-400 hover:bg-transparent' : '',
-            option.value === value
-              ? 'app-segmented-control__item--active bg-blue-600 text-white'
-              : 'text-gray-700 hover:bg-gray-100',
+            option.value === value ? 'app-segmented-control__item--active' : '',
           ].join(' ')}
         >
-          {option.label}
+          {option.icon ? (
+            <span className="inline-flex items-center gap-1.5">
+              {option.icon}
+              {option.label}
+            </span>
+          ) : (
+            option.label
+          )}
         </button>
       ))}
     </div>

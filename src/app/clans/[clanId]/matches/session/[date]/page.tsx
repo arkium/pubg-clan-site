@@ -266,27 +266,27 @@ export default function ClanSessionDatePage() {
         {!loading && !error && sessionMatches.length > 0 ? (
           <>
             <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Éliminations soirée</p>
                 <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{sessionStats.totalKills}</p>
               </article>
-              <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Dégâts soirée</p>
                 <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{Math.round(sessionStats.totalDamage)}</p>
               </article>
-              <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Taux de victoire</p>
                 <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">
                   {sessionStats.matchCount > 0 ? `${((sessionStats.wins / sessionStats.matchCount) * 100).toFixed(1)}%` : '0.0%'}
                 </p>
               </article>
-              <article className="flex min-h-28 flex-col rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="flex min-h-28 flex-col app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Matchs de la soirée</p>
                 <p className="mt-auto self-end text-right text-2xl font-bold text-gray-900 tabular-nums">{sessionStats.matchCount}</p>
               </article>
             </section>
 
-            <section className="mb-6 rounded border border-gray-200 bg-white p-4 shadow-sm">
+            <section className="mb-6 app-panel p-4 shadow-sm">
               <h2 className="mb-4 text-lg font-semibold text-gray-900">Performances duo/trio/squad</h2>
               <div className="grid gap-3 md:grid-cols-3">
                 {modePerformance.map((mode) => (
@@ -336,7 +336,7 @@ export default function ClanSessionDatePage() {
         ) : null}
 
         {!loading && !error && sessionMatches.length === 0 ? (
-          <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+          <section className="app-panel p-4 shadow-sm">
             <p className="text-sm text-gray-600">Aucun match trouvé pour cette date avec les filtres actuels.</p>
           </section>
         ) : null}

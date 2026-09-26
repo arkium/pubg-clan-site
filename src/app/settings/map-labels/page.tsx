@@ -154,13 +154,13 @@ export default function MapLabelsSettingsPage() {
         | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Echec de la sauvegarde')
+        throw new Error(payload?.error ?? 'Échec de la sauvegarde')
       }
 
       setLabels(payload?.labels ?? labels)
       setSuccess('Alias de cartes enregistres.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Echec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
     } finally {
       setSaving(false)
     }
@@ -184,13 +184,13 @@ export default function MapLabelsSettingsPage() {
         | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Echec de la sauvegarde')
+        throw new Error(payload?.error ?? 'Échec de la sauvegarde')
       }
 
       setLocations(payload?.locations ?? locations)
       setSuccess('Villes et zones enregistrees.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Echec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
     } finally {
       setSaving(false)
     }
@@ -249,7 +249,7 @@ export default function MapLabelsSettingsPage() {
     setSuccess(
       additions.length > 0
         ? `${additions.length} villes ajoutees pour ${labels[selectedMap] ?? selectedMap}.`
-        : `Toutes les villes par defaut de ${labels[selectedMap] ?? selectedMap} sont deja presentes.`
+        : `Toutes les villes par defaut de ${labels[selectedMap] ?? selectedMap} sont déjà presentes.`
     )
     setError('')
   }
@@ -270,7 +270,7 @@ export default function MapLabelsSettingsPage() {
     setSuccess(
       addedCount > 0
         ? `${addedCount} villes ajoutees sur les cartes disponibles.`
-        : 'Toutes les villes par defaut sont deja presentes.'
+        : 'Toutes les villes par defaut sont déjà presentes.'
     )
     setError('')
   }
@@ -546,7 +546,7 @@ export default function MapLabelsSettingsPage() {
                       label:
                         selectedMapLocations.length === 0
                           ? 'Aucune ville configuree'
-                          : 'Selectionner une ville',
+                          : 'Sélectionner une ville',
                     },
                     ...selectedMapLocations.map((location) => ({
                       value: location.id,

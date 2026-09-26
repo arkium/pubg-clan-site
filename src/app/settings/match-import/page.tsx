@@ -255,7 +255,7 @@ export default function MatchImportSettingsPage() {
         await importMatch(matchId)
       }
     } catch {
-      // importMatch remonte deja le message d'erreur utile
+      // importMatch remonte déjà le message d'erreur utile
     } finally {
       setImportingAll(false)
     }
@@ -269,7 +269,7 @@ export default function MatchImportSettingsPage() {
         const payload = (await response.json()) as { labels?: Record<string, string> }
         setMapLabels(payload.labels ?? {})
       } catch {
-        // Les libelles de carte ne sont pas critiques, on garde les noms bruts en cas d'echec
+        // Les libellés de carte ne sont pas critiques, on garde les noms bruts en cas d'échec
       }
     }
 
@@ -333,7 +333,7 @@ export default function MatchImportSettingsPage() {
             }}
             className="mt-1 w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm"
           >
-            <option value="">Selectionner un membre...</option>
+            <option value="">Sélectionner un membre...</option>
             {members.map((member) => (
               <option key={member.id} value={member.id}>
                 {member.displayName} {member.clan ? `[${member.clan.tag}]` : '(sans clan)'}
@@ -394,7 +394,7 @@ export default function MatchImportSettingsPage() {
             </div>
 
             {apiMatches.length === 0 && !loadingApiMatches ? (
-              <p className="text-sm text-gray-500">Tous les derniers matchs sont deja importes.</p>
+              <p className="text-sm text-gray-500">Tous les derniers matchs sont déjà importes.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse border border-gray-200 text-sm">

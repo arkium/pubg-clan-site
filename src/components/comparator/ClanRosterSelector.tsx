@@ -19,6 +19,8 @@ import {
   Swords,
 } from 'lucide-react'
 
+import SegmentedControl from '@/components/ui/SegmentedControl'
+
 export type ClanSummary = {
   id: number
   name: string
@@ -390,60 +392,19 @@ export default function ClanRosterSelector({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               {/* Category Filter Chips */}
               <div className="flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar">
-                <div className="inline-flex items-center gap-1 rounded-xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] p-1">
-                  <button
-                    type="button"
-                    onClick={() => setActiveCategory('all')}
-                    className={`rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium transition whitespace-nowrap ${
-                      activeCategory === 'all'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)]'
-                    }`}
-                  >
-                    Tous ({statsCounts.all})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveCategory('recent')}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium transition whitespace-nowrap ${
-                      activeCategory === 'recent'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)]'
-                    }`}
-                  >
-                    <Flame className="h-3.5 w-3.5" />
-                    <span>Actifs récents ({statsCounts.recent})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveCategory('large')}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium transition whitespace-nowrap ${
-                      activeCategory === 'large'
-                        ? 'bg-purple-600 text-white shadow-sm'
-                        : 'text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)]'
-                    }`}
-                  >
-                    <Users className="h-3.5 w-3.5" />
-                    <span>Effectifs 10+ ({statsCounts.large})</span>
-                  </button>
-
-                  {selectedClanIds.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveCategory('selected')}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium transition whitespace-nowrap ${
-                        activeCategory === 'selected'
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)]'
-                      }`}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                      <span>Sélectionnés ({selectedClanIds.length})</span>
-                    </button>
-                  )}
-                </div>
+                <SegmentedControl<FilterCategory>
+                  options={[
+                    { value: 'all', label: `Tous (${statsCounts.all})` },
+                    { value: 'recent', label: `Actifs récents (${statsCounts.recent})`, icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
+                    { value: 'large', label: `Effectifs 10+ (${statsCounts.large})`, icon: <Users className="h-3.5 w-3.5" aria-hidden="true" /> },
+                    ...(selectedClanIds.length > 0
+                      ? [{ value: 'selected' as const, label: `Sélectionnés (${selectedClanIds.length})`, icon: <Check className="h-3.5 w-3.5" aria-hidden="true" /> }]
+                      : []),
+                  ]}
+                  value={activeCategory}
+                  onChange={setActiveCategory}
+                  className="shrink-0"
+                />
               </div>
 
               {/* Right Tools: Loupe Search Button + Sort Dropdown */}

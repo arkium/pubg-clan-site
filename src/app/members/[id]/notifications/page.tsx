@@ -241,7 +241,7 @@ export default function NotificationsPage() {
           currentHref={`/members/${memberId}/notifications`}
           fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
         />
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="app-panel p-4 shadow-sm">
           <MemberPageHeader
             title="Notifications"
             subtitle={`${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
@@ -317,7 +317,7 @@ export default function NotificationsPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         {!loading && notifications.length === 0 ? (
-          <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          <p className="app-panel p-4 text-sm text-gray-600">
             Aucune notification pour ce filtre.
           </p>
         ) : null}
@@ -368,7 +368,7 @@ export default function NotificationsPage() {
             disabled={offset === 0}
             className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
           >
-            Aller a la page precedente
+            Aller à la page précédente
           </button>
           <button
             type="button"
@@ -376,7 +376,7 @@ export default function NotificationsPage() {
             disabled={notifications.length < limit}
             className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
           >
-            Aller a la page suivante
+            Aller à la page suivante
           </button>
         </div>
       </div>

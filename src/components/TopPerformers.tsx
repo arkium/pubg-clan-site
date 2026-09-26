@@ -1,4 +1,4 @@
-import Image from 'next/image'
+import RankCell from '@/components/ui/RankCell'
 import Link from 'next/link'
 import { useState } from 'react'
 import { Target, Flame, HeartPulse } from 'lucide-react'
@@ -10,14 +10,6 @@ import type { ReactNode } from 'react'
 
 interface TopPerformersProps {
   performers: TopPerformersData
-}
-
-const MEDAL_ICONS = ['/icons/medal-gold.svg', '/icons/medal-silver.svg', '/icons/medal-bronze.svg']
-
-function medalAlt(index: number) {
-  if (index === 0) return 'Medaille or'
-  if (index === 1) return 'Medaille argent'
-  return 'Medaille bronze'
 }
 
 function PerformerList({
@@ -55,11 +47,7 @@ function PerformerList({
               <li key={entry.memberId} className="flex min-h-6 items-center justify-between gap-2">
                 <span className="flex items-center gap-2 font-semibold text-gray-900">
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-                    {index < MEDAL_ICONS.length ? (
-                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={16} height={16} className="drop-shadow-sm" />
-                    ) : (
-                      <span className="text-xs font-bold text-gray-500">{index + 1}</span>
-                    )}
+                    <RankCell rank={index + 1} size="xs" />
                   </span>
                   <Link href={`/members/${entry.memberId}/dashboard`} className="hover:text-emerald-500 transition-colors">
                     {entry.displayName}

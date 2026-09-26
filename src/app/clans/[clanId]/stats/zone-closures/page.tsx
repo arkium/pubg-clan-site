@@ -11,6 +11,8 @@ import DropZoneMapViewport, {
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
+import SortableTh from '@/components/ui/SortableTh'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { STANDARD_PERIODS } from '@/lib/period'
@@ -301,15 +303,15 @@ export default function ZoneClosuresPage() {
                   encore en vie y figurent, c’est le biais de survie.
                 </p>
                 <div className="app-table-shell mt-3 overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="w-full table-auto text-[13px]">
                     <thead className="app-table-head">
                       <tr>
-                        <th className="px-3 py-2 text-left">Phase</th>
-                        <th className="px-3 py-2 text-right">Observations</th>
-                        <th className="px-3 py-2 text-right">Centre</th>
-                        <th className="px-3 py-2 text-right">Bord</th>
-                        <th className="px-3 py-2 text-right">Hors zone</th>
-                        <th className="px-3 py-2 text-right">Ratio moyen</th>
+                        <SortableTh align="left" className="pl-3">Phase</SortableTh>
+                        <SortableTh>Observations</SortableTh>
+                        <SortableTh>Centre</SortableTh>
+                        <SortableTh>Bord</SortableTh>
+                        <SortableTh>Hors zone</SortableTh>
+                        <SortableTh className="pr-3">Ratio moyen</SortableTh>
                       </tr>
                     </thead>
                     <tbody>
@@ -347,19 +349,21 @@ export default function ZoneClosuresPage() {
                 </p>
                 {payload.topCities.length > 0 ? (
                   <div className="app-table-shell mt-3 overflow-x-auto">
-                    <table className="min-w-full text-sm">
+                    <table className="w-full table-auto text-[13px]">
                       <thead className="app-table-head">
                         <tr>
-                          <th className="w-12 px-3 py-2 text-center">Rang</th>
-                          <th className="px-3 py-2 text-left">Secteur</th>
-                          <th className="px-3 py-2 text-right">Arrivées</th>
-                          <th className="px-3 py-2 text-right">Part</th>
+                          <SortableTh align="left" className="w-12 pl-3">#</SortableTh>
+                          <SortableTh align="left">Secteur</SortableTh>
+                          <SortableTh>Arrivées</SortableTh>
+                          <SortableTh className="pr-3">Part</SortableTh>
                         </tr>
                       </thead>
                       <tbody>
                         {payload.topCities.map((city, index) => (
                           <tr key={city.locationId} className={`app-table-row ${index < 3 ? `app-table-row--top${index + 1}` : ''}`}>
-                            <td className="px-3 py-2 text-center font-semibold">{index + 1}</td>
+                            <td className="py-2 pl-3 pr-[9px]">
+                              <RankCell rank={index + 1} />
+                            </td>
                             <td className="px-3 py-2 font-medium text-gray-900">{city.name}</td>
                             <td className="px-3 py-2 text-right tabular-nums">{numberFormat.format(city.positions)}</td>
                             <td className="px-3 py-2 text-right tabular-nums">

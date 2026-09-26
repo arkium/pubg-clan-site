@@ -147,7 +147,7 @@ export default function ClansPage() {
         isSuperUser={isSuperUser}
       />
 
-      {/* Chantier 1 : les mouvements automatiques ne doivent jamais etre silencieux. */}
+      {/* Chantier 1 : les mouvements automatiques ne doivent jamais être silencieux. */}
       <div className="app-container app-gutter mt-8 flex justify-center">
         <Link
           href="/clans/mutations"

@@ -23,7 +23,7 @@ for (const theme of THEMES) {
     test('classement du clan — repos et docké', async ({ api, page }) => {
       mockClanLeaderboard(api)
       await page.goto(`/clans/${CLAN_ID}/leaderboard`)
-      await expect(page.getByText('Joueur Alpha').first()).toBeVisible()
+      await expect(page.getByText('Joueur Alpha').filter({ visible: true }).first()).toBeVisible()
       await page.waitForLoadState('networkidle')
 
       await expect(page).toHaveScreenshot(`classement-repos-${theme}.png`)

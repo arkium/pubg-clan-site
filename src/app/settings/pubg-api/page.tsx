@@ -277,7 +277,7 @@ export default function PubgApiSettingsPage() {
       }
 
       setRpmInput(String(body?.rpm ?? rpm))
-      setSaveMessage('Limite RPM mise a jour.')
+      setSaveMessage('Limite RPM mise à jour.')
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Impossible de mettre a jour le RPM')
     } finally {
@@ -558,7 +558,7 @@ export default function PubgApiSettingsPage() {
         <div className="app-panel-muted mt-8 p-5">
           <h2 className="text-sm font-bold text-slate-900">Tendance 14 jours</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Volume d&apos;appels par jour, hauteur proportionnelle au maximum de la periode.
+            Volume d&apos;appels par jour, hauteur proportionnelle au maximum de la période.
           </p>
           <div className="mt-4 flex items-end gap-1" style={{ height: 96 }}>
             {(payload?.dailySeries ?? []).map((point) => {
@@ -599,7 +599,7 @@ export default function PubgApiSettingsPage() {
                 <p className="app-panel-muted p-3 text-xs text-slate-600">Aucun appel aujourd&apos;hui.</p>
               ) : (
                 (payload?.byCategory ?? []).map((entry) => {
-                  // `errors` (success === false) inclut deja les 429 : on isole les erreurs
+                  // `errors` (success === false) inclut déjà les 429 : on isole les erreurs
                   // non-429 pour que les trois segments totalisent bien 100 %.
                   const otherErrors = Math.max(0, entry.errors - entry.rateLimited)
                   const successPct = entry.count > 0 ? (entry.success / entry.count) * 100 : 0
@@ -924,7 +924,7 @@ export default function PubgApiSettingsPage() {
             Astuce: survole ACTEUR pour voir l endpoint et survole STATUT pour le detail erreur.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-            <LegendPill label="2xx: succes" className="border-emerald-200 bg-emerald-100" />
+            <LegendPill label="2xx: succès" className="border-emerald-200 bg-emerald-100" />
             <LegendPill label="429: limite de debit atteinte" className="border-amber-200 bg-amber-100" />
             <LegendPill label="4xx/5xx/n-a: erreur" className="border-rose-200 bg-rose-100" />
           </div>

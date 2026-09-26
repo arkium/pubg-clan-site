@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import RankCell from '@/components/ui/RankCell'
 import Link from 'next/link'
 import { ArrowDown, ArrowUp, ArrowUpDown, Flame, MapPin, Target, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -35,12 +35,6 @@ type TimelineMetric =
   | 'averageNearbyPlayers250m'
   | 'hotDropShare'
   | 'dropCount'
-
-const MEDAL_BY_RANK = {
-  1: { iconPath: '/icons/medal-gold.svg', alt: 'Médaille or, rang 1' },
-  2: { iconPath: '/icons/medal-silver.svg', alt: 'Médaille argent, rang 2' },
-  3: { iconPath: '/icons/medal-bronze.svg', alt: 'Médaille bronze, rang 3' },
-} as const
 
 const TIMELINE_METRICS: Array<{ value: TimelineMetric; label: string }> = [
   { value: 'averageNearbyOpponents250m', label: 'Adversaires' },
@@ -189,7 +183,6 @@ export default function DropPressureStatsPanel({
 
   function renderRankingRow(entry: DropPressureRankingEntry, rank: number, pinned = false) {
     const isCurrentMember = entry.memberId === currentMemberId
-    const medal = rank <= 3 ? MEDAL_BY_RANK[rank as 1 | 2 | 3] : null
     const rankClassName =
       rank === 1
         ? 'app-table-row--top1'
@@ -203,16 +196,8 @@ export default function DropPressureStatsPanel({
         key={`${pinned ? 'pinned-' : ''}${entry.memberId}`}
         className={`app-table-row ${rankClassName} ${isCurrentMember ? 'bg-orange-500/10' : ''}`}
       >
-        <td className="px-3 py-3 text-center font-semibold text-gray-700">
-          {medal ? (
-            <Image
-              src={medal.iconPath}
-              alt={medal.alt}
-              width={24}
-              height={24}
-              className="mx-auto h-6 w-6"
-            />
-          ) : rank}
+        <td className="py-3 pl-3 pr-[9px]">
+          <RankCell rank={rank} />
         </td>
         <td className="px-3 py-3 font-medium text-gray-900">
           <div className="flex items-center gap-2">
@@ -377,15 +362,7 @@ export default function DropPressureStatsPanel({
                     <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3">
                       <div className="flex items-center gap-3">
                         <span className="flex h-8 w-8 items-center justify-center text-sm font-bold text-gray-700">
-                          {rank <= 3 ? (
-                            <Image
-                              src={MEDAL_BY_RANK[rank as 1 | 2 | 3].iconPath}
-                              alt={MEDAL_BY_RANK[rank as 1 | 2 | 3].alt}
-                              width={24}
-                              height={24}
-                              className="h-7 w-7"
-                            />
-                          ) : <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100">{rank}</span>}
+                          <RankCell rank={rank} />
                         </span>
                         <span className="font-bold text-gray-900">
                           {entry.displayName}

@@ -87,11 +87,11 @@ export default function PhaseLabelSettingsPage() {
       })
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; labels?: PhaseLabels } | null
-      if (!response.ok) throw new Error(payload?.error ?? 'Echec de la sauvegarde')
+      if (!response.ok) throw new Error(payload?.error ?? 'Échec de la sauvegarde')
       setLabels(payload?.labels ?? labels)
       setSuccess('Alias de phases enregistrés.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Echec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
     } finally {
       setSaving(false)
     }

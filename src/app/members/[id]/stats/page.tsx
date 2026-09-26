@@ -90,9 +90,9 @@ type MemberSeasonStatsResponse = {
 }
 
 const MEDAL_META: Record<1 | 2 | 3, { label: string; iconPath: string; alt: string }> = {
-  1: { label: 'Or', iconPath: '/icons/medal-gold.svg', alt: 'Medaille or' },
-  2: { label: 'Argent', iconPath: '/icons/medal-silver.svg', alt: 'Medaille argent' },
-  3: { label: 'Bronze', iconPath: '/icons/medal-bronze.svg', alt: 'Medaille bronze' },
+  1: { label: 'Or', iconPath: '/icons/medal-gold.svg', alt: 'Médaille or' },
+  2: { label: 'Argent', iconPath: '/icons/medal-silver.svg', alt: 'Médaille argent' },
+  3: { label: 'Bronze', iconPath: '/icons/medal-bronze.svg', alt: 'Médaille bronze' },
 }
 
 const MEDAL_CARD_META: Record<
@@ -142,7 +142,7 @@ const METRIC_LABELS: Record<string, string> = {
   'movement.walkedDistance': 'Distance a pied',
   'movement.swamDistance': 'Distance nage',
   'other.weaponsPicked': 'Armes ramassees',
-  'other.damageGiven': 'Degats infliges',
+  'other.damageGiven': 'Dégâts infligés',
 }
 
 function formatCompactNumber(value: number) {
@@ -434,7 +434,7 @@ export default function MemberStatsPage() {
         </div>
       ) : null}
 
-      <section className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <section className="mb-4 app-panel p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Saison & Ranked</h2>
@@ -524,10 +524,10 @@ export default function MemberStatsPage() {
                     <div className="px-4 pb-4 divide-y divide-gray-100">
                       <StatRow label="Points" value={Math.round(season.rankedPoints).toLocaleString('fr-FR')} />
                       <StatRow label="K/D/A" value={toKda(season.rankedKills, season.rankedAssists, season.rankedMatches, season.rankedWins)} />
-                      <StatRow label="Win Rate" value={toPercent(season.rankedWins, season.rankedMatches)} />
+                      <StatRow label="Win rate" value={toPercent(season.rankedWins, season.rankedMatches)} />
                       <StatRow label="Matchs" value={season.rankedMatches.toLocaleString('fr-FR')} />
                       <StatRow label="Kills" value={season.rankedKills.toLocaleString('fr-FR')} />
-                      <StatRow label="Avg Dmg" value={avgDmg.toLocaleString('fr-FR')} />
+                      <StatRow label="Dégâts moy." value={avgDmg.toLocaleString('fr-FR')} />
                     </div>
 
                     <div className="px-4 pb-3 border-t border-gray-100">
@@ -562,9 +562,9 @@ export default function MemberStatsPage() {
                     <StatRow label="Matchs" value={season.normalMatches.toLocaleString('fr-FR')} />
                     <StatRow label="Kills" value={season.normalKills.toLocaleString('fr-FR')} />
                     <StatRow label="K/D" value={toKd(season.normalKills, season.normalMatches, season.normalWins)} />
-                    <StatRow label="Win Rate" value={toPercent(season.normalWins, season.normalMatches)} />
-                    <StatRow label="Avg Dmg" value={avgDmg.toLocaleString('fr-FR')} />
-                    <StatRow label="Assists" value={season.normalAssists.toLocaleString('fr-FR')} />
+                    <StatRow label="Win rate" value={toPercent(season.normalWins, season.normalMatches)} />
+                    <StatRow label="Dégâts moy." value={avgDmg.toLocaleString('fr-FR')} />
+                    <StatRow label="Assistances" value={season.normalAssists.toLocaleString('fr-FR')} />
                   </div>
 
                   <div className="px-4 pb-3 border-t border-gray-100">
@@ -619,7 +619,7 @@ export default function MemberStatsPage() {
                     <p className="mt-1 text-sm font-medium text-gray-700">{labels.length > 1 ? 'médailles' : 'médaille'}</p>
                   </div>
                   <p className="max-w-[11rem] text-right text-xs leading-5 text-gray-600">
-                    {labels.length > 0 ? topLabels.join(' · ') : 'Aucune metrique medalisee'}
+                    {labels.length > 0 ? topLabels.join(' · ') : 'Aucune métrique médaillée'}
                   </p>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -670,7 +670,7 @@ export default function MemberStatsPage() {
               <article className="member-kpi-card member-kpi-card--emerald">
                 <div className="member-kpi-card__head">
                   <span className="member-kpi-card__dot" />
-                  <p>Eliminations</p>
+                  <p>Éliminations</p>
                 </div>
                 <p className="member-kpi-card__value">{lifetimeStats.combat.kills.toLocaleString()}</p>
                 <p className="member-kpi-card__hint">Volume d'éliminations sur la période.</p>

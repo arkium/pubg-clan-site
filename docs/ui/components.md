@@ -18,7 +18,7 @@ Rôle : groupe de boutons segmentés pour les filtres de période, les onglets e
 
 ```typescript
 type SegmentedControlProps<T extends string> = {
-  options: { value: T; label: string; disabled?: boolean }[]
+  options: { value: T; label: string; disabled?: boolean; icon?: ReactNode }[]  // icône lucide 14 px avant le libellé
   value: T
   onChange: (value: T) => void
   size?: 'xs' | 'sm'           // défaut: 'xs'
@@ -46,7 +46,9 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
 />
 ```
 
-Chaque bouton porte `aria-pressed`. Pour la **période**, ne pas l'utiliser directement : `PeriodFilter` (ci-dessous).
+Chaque bouton porte `aria-pressed`. Piste teintée (`--theme-toggle-track`), segment actif en accent
+(`--theme-ui-accent-*`, voir `themes.md`) — jamais `bg-blue-600 text-white`. **Pas de segmented de tri au-dessus d'un
+tableau** : le tableau se trie par ses en-têtes (`SortableTh`). Pour la **période**, ne pas l'utiliser directement : `PeriodFilter` (ci-dessous).
 L'option « sans filtre » s'écrit « Tous », ou « Toutes » pour un filtre féminin (carte, catégorie, ville, arme).
 
 ---
@@ -73,6 +75,8 @@ le header sur toute la largeur de la colonne. Règles complètes : `docs/ui/inde
 
 - À placer hors de tout conteneur de largeur : page en `div.app-main-flush`, blocs internes en `app-container app-gutter`.
 - `variant="card"` réservé à l'administration existante (`settings/members`).
+- `dockedAside` : rappel rendu à droite du bandeau **docké sur ordinateur** (`isSticky && !compact`), typiquement
+  `<SortReminder label="Kills" sortDir={sortDir} />` quand l'en-tête trié est hors de vue. Jamais un contrôle.
 - Attributs de test : `data-docking-toolbar`, `data-docked`, `data-compact`, sentinelle `data-docking-sentinel`.
 
 ---
@@ -104,6 +108,91 @@ Fichier : `src/components/ui/SectionAnchorNav.tsx`
 
 Rôle : liens d'ancre d'une page, rendus comme seconde ligne du `DockingToolbar` (jamais un second élément collant).
 Une ligne qui défile horizontalement ; le lien actif suit la lecture et reste visible. Remplace `StickySectionNav`.
+Lien actif : `app-anchor-link--active` (accent).
+
+---
+
+### `RankCell`
+
+Fichier : `src/components/ui/RankCell.tsx`
+
+Rôle : **tout** rang affiché. Médailles SVG `/icons/medal-{gold,silver,bronze}.svg` pour 1 à 3, numéro atténué ensuite.
+Aucun emoji de médaille, pas de pastille « #1 » pour un rang (contrôlé par `src/lib/ui-conformance.test.ts`).
+
+```tsx
+<RankCell rank={index + 1} />            // 24 px, cellule de tableau ou ligne mobile
+<RankCell rank={1} size="md" />          // 30 px, carte de podium
+<RankCell rank={2} size="xs" />          // 18 px, liste compacte, à côté d'un nom ou d'une valeur
+```
+
+À ne pas confondre avec `PlacementBadge`, qui affiche le **placement d'un match** (#1, #5…).
+
+---
+
+### `SortableTh`, `SortReminder` et `useTableSort`
+
+Fichiers : `src/components/ui/SortableTh.tsx`, `src/hooks/useTableSort.ts`
+
+Rôle : le tri d'un tableau par ses en-têtes. Un clic trie la colonne en décroissant, un second clic inverse. L'en-tête
+trié porte l'accent et la flèche ↓/↑, la colonne est teintée par `colTint`, `aria-sort` est posé sur le `<th>`.
+
+```tsx
+const { sortKey, sortDir, onSort, colTint } = useTableSort<SortKey>('kills')
+// Colonne de texte : premier clic en croissant (A → Z)
+useTableSort<SortKey>('kills', 'desc', (key) => (key === 'weapon' ? 'asc' : 'desc'))
+// Rang d'une ligne = position dans l'ordre décroissant du critère (médailles aux meilleurs, même en croissant)
+const rows = rankBy(entries, (entry) => entry[sortKey], sortDir)   // src/lib/leaderboard-sort.ts
+
+<SortableTh column="kills" sortKey={sortKey} sortDir={sortDir} onSort={onSort}>Kills</SortableTh>
+<SortableTh align="left">Joueur</SortableTh>          {/* sans `column` : en-tête non triable */}
+<td style={{ backgroundColor: colTint('kills') }}>…</td>
+
+<DockingToolbar dockedAside={<SortReminder label="Kills" sortDir={sortDir} />}>…</DockingToolbar>
+```
+
+Sur mobile, le tri passe par les puces « Trier par » de `MobileRankList`.
+
+---
+
+### `PodiumCards`
+
+Fichier : `src/components/ui/PodiumCards.tsx`
+
+Rôle : top 3 du critère trié, au-dessus d'un classement (masqué sous `md`). Chaque carte : `RankCell` 30 px, icônes de
+distinctions 20 px, avatar, nom, sous-ligne (« 30 matchs · 2,00 K/M »), valeur et libellé du critère en accent.
+
+```tsx
+<PodiumCards metricLabel="Kills" entries={[{ key, name, href, avatarUrl, subline, value, distinctions }]} />
+```
+
+---
+
+### `DistinctionStrip`
+
+Fichier : `src/components/ui/DistinctionStrip.tsx`
+
+Rôle : bande « Distinctions » d'un classement — pastilles sur ordinateur, cartes de 132 px en défilement horizontal sur
+mobile. Les entrées viennent de `computeDistinctions` (`src/lib/distinctions.ts`), les libellés de `shortLabel`.
+
+```tsx
+<DistinctionStrip items={distinctions.map((d) => ({ key: d.key, memberName: d.entry.displayName, value: d.value }))} />
+```
+
+---
+
+### `MobileRankList`
+
+Fichier : `src/components/ui/MobileRankList.tsx`
+
+Rôle : classement sous `md`. Puces « Trier par » (`app-sort-chip`, active en accent), lignes compactes (rang, nom et
+icônes, sous-ligne, valeur du critère), dépliage au toucher en grille de 3 colonnes, 8 lignes puis
+« Afficher les N autres » (`ShowMoreToggle`). La première ligne est dépliée à l'ouverture.
+
+```tsx
+<MobileRankList rows={rows} sortOptions={SORT_OPTIONS} sortKey={sortKey} sortDir={sortDir}
+  onSortChange={(key) => onSort(key)} metricLabel="Kills" />
+// linkLabel : texte du lien de la ligne dépliée (« Voir le joueur » par défaut, « Voir le clan » pour la ligue)
+```
 
 ---
 
@@ -502,8 +591,7 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 | Composant | Fichier | Rôle |
 |---|---|---|
 | `TopPerformers` | `src/components/TopPerformers.tsx` | Cartes des meilleurs joueurs de la période |
-| `Leaderboard` | `src/components/Leaderboard.tsx` | Tableau classement clan avec tri et badges distinctions |
-| `LeaderboardStats` | `src/components/LeaderboardStats.tsx` | Résumé stats du classement |
+| `Leaderboard` | `src/components/Leaderboard.tsx` | Classement du clan : `SortableTh`, `RankCell`, colonnes de mode en « Tous », total, `MobileRankList` |
 | `SquadSynergies` | `src/components/SquadSynergies.tsx` | Fréquence des équipes jouant ensemble |
 | `SquadMatchList` | `src/components/SquadMatchList.tsx` | Liste des matchs d'une squad |
 | `SessionRecap` | `src/components/SessionRecap.tsx` | Récapitulatif d'une soirée de jeu |
@@ -519,13 +607,18 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 
 Fichier : `src/lib/distinction-badges.ts`
 
-Centralise les clés, labels et chemins d'icônes SVG des distinctions joueur.
+Centralise les clés, labels, libellés courts en français (`shortLabel` : Top killer, Dégâts, Win rate, MVP, K/M) et
+chemins d'icônes SVG des distinctions joueur.
 
 Clés définies : `top_killer`, `top_damage`, `best_wr`, `mvp`, `best_kpm`.
 
+**Calcul** : uniquement par `computeDistinctions` (`src/lib/distinctions.ts`) — mêmes règles que `assignBadges`
+(`stats-calculator.ts`), appliquées aux lignes affichées, donc aux filtres de la page ; un joueur peut en cumuler
+plusieurs. `distinctionsByMember` donne les icônes à côté de chaque nom.
+
 Assets : `public/icons/distinctions/*.svg`.
 
-Utilisé par `Leaderboard`, `LeaderboardStats`, `PlayerStats`.
+Utilisé par `Leaderboard`, `PodiumCards`, `DistinctionStrip`, `MobileRankList`, `PlayerStats`.
 
 ---
 

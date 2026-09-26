@@ -10,6 +10,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
 import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
 type AwardPeriod = StandardPeriod
@@ -43,7 +44,6 @@ const SCOPE_OPTIONS: Array<{ value: AwardScope; label: string }> = [
   { value: 'all', label: 'Tous' },
 ]
 
-const MEDAL_BY_RANK = ['🥇', '🥈', '🥉'] as const
 
 const AWARD_EMOJI_BY_KEY: Record<string, string> = {
   top_killer: '💀',
@@ -326,7 +326,7 @@ export default function ClanAwardsPage() {
                     <ol className="mt-4 overflow-hidden rounded-lg app-panel-muted">
                       {award.top3.map((entry, index) => (
                         <li key={entry.memberId} className="flex items-center gap-3 px-3 py-2.5">
-                          <span className="text-xl" aria-hidden="true">{MEDAL_BY_RANK[index]}</span>
+                          <RankCell rank={index + 1} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-gray-900 dark:text-slate-100">{entry.memberName}</p>
                             <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{formatAwardValue(award, entry.value)}</p>
@@ -336,7 +336,7 @@ export default function ClanAwardsPage() {
                     </ol>
                   ) : (
                     <div className="app-panel-muted mt-4 p-3 text-sm text-gray-600 dark:text-slate-400">
-                      Pas de donnees sur cette periode.
+                      Pas de données sur cette période.
                     </div>
                   )}
                 </article>

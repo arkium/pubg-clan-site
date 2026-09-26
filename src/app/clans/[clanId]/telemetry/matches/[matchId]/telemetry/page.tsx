@@ -615,14 +615,14 @@ function telemetryTone(status: TelemetryStatus) {
 
 function telemetryLabel(status: TelemetryStatus) {
   if (status === 'success') {
-    return 'Telemetrie OK'
+    return 'Télémétrie OK'
   }
 
   if (status === 'failed') {
-    return 'Telemetrie KO'
+    return 'Télémétrie KO'
   }
 
-  return 'Telemetrie en attente'
+  return 'Télémétrie en attente'
 }
 
 function toTelemetrySummary(value: unknown): TelemetrySummary | null {
@@ -791,7 +791,7 @@ export default function TelemetryMatchDetailPage() {
         const data = (await response.json().catch(() => null)) as MatchTelemetryResponse | null
 
         if (!response.ok || !data?.ok || !data.data?.match || !data.data?.telemetry) {
-          throw new Error(data?.error?.message ?? 'Impossible de charger la telemetrie du match')
+          throw new Error(data?.error?.message ?? 'Impossible de charger la télémétrie du match')
         }
 
         if (!cancelled) {
@@ -800,7 +800,7 @@ export default function TelemetryMatchDetailPage() {
       } catch (loadError) {
         if (!cancelled) {
           setPayload(null)
-          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger la telemetrie du match')
+          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger la télémétrie du match')
         }
       } finally {
         if (!cancelled) {
@@ -845,16 +845,16 @@ export default function TelemetryMatchDetailPage() {
         | null
 
       if (!response.ok || !data?.ok) {
-        setResyncMessage(data?.error ?? 'Echec resync telemetry.')
+        setResyncMessage(data?.error ?? 'Échec resync telemetry.')
         return
       }
 
       setResyncMessage(
-        `Resync termine: ${data.successCount ?? 0} succes, ${data.failedCount ?? 0} echec.`
+        `Resync terminé : ${data.successCount ?? 0} succès, ${data.failedCount ?? 0} échec.`
       )
       setReloadNonce((current) => current + 1)
     } catch {
-      setResyncMessage('Echec resync telemetry.')
+      setResyncMessage('Échec resync telemetry.')
     } finally {
       setResyncLoading(false)
     }
@@ -889,7 +889,7 @@ export default function TelemetryMatchDetailPage() {
         | null
 
       if (!response.ok || !data?.ok) {
-        setFileImportMessage(data?.error ?? 'Echec import fichier telemetry.')
+        setFileImportMessage(data?.error ?? 'Échec import fichier telemetry.')
         return
       }
 
@@ -898,7 +898,7 @@ export default function TelemetryMatchDetailPage() {
       )
       setReloadNonce((current) => current + 1)
     } catch {
-      setFileImportMessage('Echec import fichier telemetry.')
+      setFileImportMessage('Échec import fichier telemetry.')
     } finally {
       setFileImportLoading(false)
       if (fileInputRef.current) {
@@ -1148,10 +1148,10 @@ export default function TelemetryMatchDetailPage() {
             <p className="text-xs uppercase tracking-wide text-slate-500">Telemetry match detail</p>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
               <Radar className="h-6 w-6 text-slate-500" aria-hidden />
-              Detail telemetrie du match
+              Detail télémétrie du match
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Donnees lues depuis SquadMatchTelemetry pour audit parser/aggregats.
+              Données lues depuis SquadMatchTelemetry pour audit parser/aggregats.
             </p>
           </div>
           <Link href={backHref} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
@@ -1254,7 +1254,7 @@ export default function TelemetryMatchDetailPage() {
 
             {hasMissingPersistedJson ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Snapshot telemetry marque en succes mais JSON detail absent en base.
+                Snapshot telemetry marque en succès mais JSON detail absent en base.
                 Utilise "Resync ce match" pour reparser et repersister les champs summary/weaponStats/memberStats.
               </div>
             ) : null}
@@ -1303,9 +1303,9 @@ export default function TelemetryMatchDetailPage() {
                   <tr>
                     <th className="px-2 py-2">Joueur</th>
                     <th className="px-2 py-2 text-right">Kills</th>
-                    <th className="px-2 py-2 text-right">Damage</th>
-                    <th className="px-2 py-2 text-right">Assists</th>
-                    <th className="px-2 py-2 text-right">Revives</th>
+                    <th className="px-2 py-2 text-right">Dégâts</th>
+                    <th className="px-2 py-2 text-right">Assistances</th>
+                    <th className="px-2 py-2 text-right">Réanimations</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1477,8 +1477,8 @@ export default function TelemetryMatchDetailPage() {
                         type="button"
                         disabled={weaponStatsPageClamped <= 1}
                         onClick={() => setWeaponStatsPage(Math.max(1, weaponStatsPageClamped - 1))}
-                        aria-label="Page precedente"
-                        title="Page precedente"
+                        aria-label="Page précédente"
+                        title="Page précédente"
                         className="app-pagination-button"
                       >
                         ←
@@ -1948,7 +1948,7 @@ export default function TelemetryMatchDetailPage() {
               Payload JSON brut (DB)
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Affichage integral des colonnes JSON pour debug et verification des donnees persistees.
+              Affichage integral des colonnes JSON pour debug et vérification des données persistées.
             </p>
 
             <div className="mt-3 grid gap-3 lg:grid-cols-3">

@@ -464,10 +464,10 @@ export default function ClanMembersSettingsPage() {
       })
       const data = (await res.json().catch(() => null)) as { error?: string } | null
       if (!res.ok) {
-        throw new Error(data?.error || 'Echec de la bascule vers le clan technique')
+        throw new Error(data?.error || 'Échec de la bascule vers le clan technique')
       }
       showCopyToast(
-        `${memberToDemote.name} a ete bascule vers [${systemClan.tag}] ${systemClan.name}. Son suivi PUBG continue.`,
+        `${memberToDemote.name} a été bascule vers [${systemClan.tag}] ${systemClan.name}. Son suivi PUBG continue.`,
         'success'
       )
       setMemberToDemote(null)
@@ -672,7 +672,7 @@ export default function ClanMembersSettingsPage() {
       }, 1800)
     } catch {
       showCopyToast('Impossible de copier le message Discord automatiquement.', 'error')
-      showMemberInlineToast(member.id, 'Echec de copie du message Discord.', 'error')
+      showMemberInlineToast(member.id, 'Échec de copie du message Discord.', 'error')
     }
   }
 
@@ -721,7 +721,7 @@ export default function ClanMembersSettingsPage() {
           : 'Impossible de reinitialiser l invitation',
         'error'
       )
-      showMemberInlineToast(member.id, 'Echec de reinitialisation.', 'error')
+      showMemberInlineToast(member.id, 'Échec de reinitialisation.', 'error')
     } finally {
       setMemberActionLoading((current) => (current?.memberId === member.id ? null : current))
     }
@@ -752,7 +752,7 @@ export default function ClanMembersSettingsPage() {
   ) {
     const isMemberBusy = memberActionLoading?.memberId === member.id
     // Clan technique du shard de ce membre — absent tant qu'aucun joueur sans clan
-    // n'a ete parque, auquel cas le bouton de sortie ne s'affiche pas.
+    // n'a été parque, auquel cas le bouton de sortie ne s'affiche pas.
     const systemClanForMember = availableClans.find(
       (c) => c.isSystem && (!member.platformShard || c.platformShard === member.platformShard)
     )
@@ -1202,7 +1202,7 @@ export default function ClanMembersSettingsPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {!loading && emailStatusLoaded && !isEmailDeliveryReady ? (
           <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Invitations email desactivees. Effectuez d&apos;abord un test reussi dans{' '}
+            Invitations email desactivees. Effectuez d&apos;abord un test réussi dans{' '}
             <Link href="/settings/email-delivery" className="font-semibold underline">
               Configuration email
             </Link>

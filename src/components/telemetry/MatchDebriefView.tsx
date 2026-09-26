@@ -35,6 +35,7 @@ import { DamageBodySvg, BodyZoneKey } from '@/components/telemetry/DamageBodySvg
 import { WeaponAccuracyBadge } from '@/components/telemetry/WeaponAccuracyBadge'
 import { MatchCombatTimeline, CombatEvent } from '@/components/telemetry/MatchCombatTimeline'
 import { MatchReplay2D, type MatchReplayData } from '@/components/telemetry/MatchReplay2D'
+import RankCell from '@/components/ui/RankCell'
 import {
   summarizeBodyZones as summarizeBodyZoneTotals,
   type BodyZone,
@@ -306,8 +307,6 @@ export type MatchDebriefContext =
   | { kind: 'clan'; clanId: string }
   | { kind: 'tournament'; tournamentId: string }
 
-const PODIUM_MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' }
-
 function teamLabel(team: MatchTeamApi) {
   if (team.tag) return team.clanName ? `[${team.tag}] ${team.clanName}` : `[${team.tag}]`
   return team.players.slice(0, 2).join(', ') || `Équipe ${team.teamId}`
@@ -342,7 +341,7 @@ function SquadFocusStrip({
       <div className="flex gap-2 overflow-x-auto pb-1" role="listbox" aria-label="Escouades de la partie">
         {teams.map((team) => {
           const selected = team.teamId === focusTeamId
-          const medal = team.placement !== null && !team.placementEstimated ? PODIUM_MEDALS[team.placement] : undefined
+          const medal = team.placement !== null && !team.placementEstimated && team.placement <= 3
           return (
             <button
               key={team.teamId}
@@ -360,8 +359,8 @@ function SquadFocusStrip({
                   : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
               }`}
             >
+              {medal ? <RankCell rank={team.placement!} size="xs" /> : null}
               <span className="font-mono">
-                {medal ? `${medal} ` : ''}
                 {team.placement !== null ? `${team.placementEstimated ? '~' : ''}#${team.placement}` : '#?'}
               </span>
               <span className="max-w-[14rem] truncate">{displayLabel(team)}</span>
@@ -417,8 +416,13 @@ function TournamentRoundBanner({
               {tournament.scores.map((score, index) => (
                 <tr key={score.clanId} className={score.clanId === focusClanId ? 'bg-amber-500/10' : undefined}>
                   <td className="px-2 py-1.5 font-semibold text-slate-100">
-                    {PODIUM_MEDALS[index + 1] ?? `#${index + 1}`} {score.tag ? `[${score.tag}] ` : ''}
-                    {score.name ?? `Clan #${score.clanId}`}
+                    <span className="flex items-center gap-1.5">
+                      <RankCell rank={index + 1} size="xs" />
+                      <span>
+                        {score.tag ? `[${score.tag}] ` : ''}
+                        {score.name ?? `Clan #${score.clanId}`}
+                      </span>
+                    </span>
                   </td>
                   <td className="px-2 py-1.5 text-center font-mono text-slate-300">#{score.bestPlacement}</td>
                   <td className="px-2 py-1.5 text-center font-mono text-slate-300">{score.totalKills}</td>

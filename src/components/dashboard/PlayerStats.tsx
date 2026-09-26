@@ -47,7 +47,7 @@ export default function PlayerStats({
 }: PlayerStatsProps) {
   if (!stats) {
     return (
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="app-panel p-6 shadow-sm">
         <div className="mb-3">
           <h2 className="text-lg font-semibold text-gray-900">Stats principales</h2>
         </div>
@@ -73,7 +73,7 @@ export default function PlayerStats({
     : null
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="app-panel p-6 shadow-sm">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-900">Stats principales</h2>
@@ -102,7 +102,7 @@ export default function PlayerStats({
           highlight={vsKills !== null && vsKills > 5}
         />
         <StatCard
-          label="Damage"
+          label="Dégâts"
           value={Math.round(stats.totalDamage).toLocaleString()}
           sub={
             vsDamage !== null
@@ -115,7 +115,7 @@ export default function PlayerStats({
           highlight={vsDamage !== null && vsDamage > 5}
         />
         <StatCard
-          label="Win Rate"
+          label="Win rate"
           value={`${(stats.winRate * 100).toFixed(1)}%`}
           sub={`${stats.matchesWon} victoires`}
         />

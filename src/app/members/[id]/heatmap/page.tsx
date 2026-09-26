@@ -420,7 +420,7 @@ export default function MemberHeatmapPage() {
           <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
         ) : null}
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <section className="app-panel p-4 shadow-sm">
           {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
           {loading && !payload ? (
             <p className="text-sm text-gray-500">Chargement de la heatmap...</p>

@@ -229,3 +229,74 @@ describe('ui-conformance — 6. une période par page, obtenue par usePagePeriod
     ).toEqual([])
   })
 })
+
+/**
+ * Refonte UI — docs/TODO/refonte-ui.md §7. Chaque liste nomme les fichiers pas encore migrés ; elle se vide
+ * phase après phase (colonne « Vides après » de docs/ui/refonte/ui-conformance.additions.md). Les `dark:` sont
+ * conservés : aucun contrôle ne les vise.
+ */
+const REFONTE_EXCEPTIONS = {
+  /** Rangs en emoji → médailles SVG par `RankCell` (vidée en phase 2, le 2026-09-26). */
+  medalEmoji: [] as string[],
+  /** Tri par segmented au-dessus du tableau → en-têtes `SortableTh` (phase 1). */
+  sortSegmented: [] as string[],
+  /** Anglicismes des en-têtes (vidée en phase 3, le 2026-09-26). */
+  englishHeaders: [] as string[],
+}
+
+const UI_SOURCES = ALL_SOURCES.filter((file) => file.startsWith('src/app/') || file.startsWith('src/components/'))
+
+function offenders(pattern: RegExp, allowed: readonly string[], files = UI_SOURCES) {
+  return files.filter((file) => !allowed.includes(file) && pattern.test(read(file)))
+}
+
+describe('ui-conformance — refonte UI (docs/TODO/refonte-ui.md §7)', () => {
+  it('les listes d’exceptions ne citent que des fichiers existants', () => {
+    const declared = Object.values(REFONTE_EXCEPTIONS).flat()
+    expect(declared.filter((file) => !existsSync(path.join(ROOT, file)))).toEqual([])
+  })
+
+  it('aucun emoji de médaille pour un rang (RankCell)', () => {
+    expect(offenders(/🥇|🥈|🥉/u, REFONTE_EXCEPTIONS.medalEmoji)).toEqual([])
+  })
+
+  it('pas de pastille « #1 » pour un rang : RankCell (médailles SVG)', () => {
+    expect(offenders(/app-podium-badge/, [])).toEqual([])
+  })
+
+  it('pas de segmented de tri au-dessus d’un tableau (SortableTh)', () => {
+    // Un tableau se trie par ses en-têtes ; une liste de cartes sans en-têtes (ClanSelector) garde son segmented.
+    const withTable = UI_SOURCES.filter((file) => read(file).includes('<table'))
+    expect(
+      offenders(/<SegmentedControl[\s\S]{0,80}?options=\{SORT_OPTIONS/, REFONTE_EXCEPTIONS.sortSegmented, withTable)
+    ).toEqual([])
+  })
+
+  it('distinctions calculées uniquement par src/lib/distinctions.ts', () => {
+    expect(offenders(/topKiller\s*=\s*\w+\.reduce/, [])).toEqual([])
+  })
+
+  it('aucun état actif codé en dur dans src/components/ui (jetons d’accent)', () => {
+    const uiFiles = UI_SOURCES.filter((file) => file.startsWith('src/components/ui/'))
+    expect(offenders(/bg-(blue|indigo|slate)-\d{3} text-white/, [], uiFiles)).toEqual([])
+  })
+
+  it('libellés de colonnes en français', () => {
+    expect(
+      offenders(/>\s*(Damage|Winner|Top performers|TOP Kills\/Matchs)\s*</, REFONTE_EXCEPTIONS.englishHeaders)
+    ).toEqual([])
+  })
+
+  it('libellés de statistiques en français (Dégâts, Assistances, Réanimations, Win rate)', () => {
+    expect(offenders(/label(?:=|: )["'](?:Damages?|Assists|Revives|Win Rate|Total (?:kills|wins|damage)|Matches played)["']/, [])).toEqual([])
+  })
+
+  it('bloc de page bordé = .app-panel, jamais rounded + border + bg-white à la main', () => {
+    expect(offenders(/<(?:section|article)\b[^>]*className="[^"]*\brounded(?:-lg|-xl)? border border-gray-200 bg-white/, [])).toEqual([])
+  })
+
+  it('aucune coquille « Ǹ » (« RǸduire »)', () => {
+    // Le caractère lui-même, ou son échappement écrit dans la source (`"R\u01F8duire"`).
+    expect(offenders(/\u01F8|\\u01F8/, [])).toEqual([])
+  })
+})

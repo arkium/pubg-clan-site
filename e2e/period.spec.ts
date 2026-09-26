@@ -32,7 +32,7 @@ test('changer de période met ?period= dans l’URL, sans remonter la page, et r
 }) => {
   mockClanLeaderboard(api)
   await page.goto(`/clans/${CLAN_ID}/leaderboard`)
-  await expect(page.getByText('Joueur Alpha').first()).toBeVisible()
+  await expect(page.getByText('Joueur Alpha').filter({ visible: true }).first()).toBeVisible()
   await expect(selected(page)).toHaveText('Semaine')
 
   await dock(page)
@@ -52,7 +52,7 @@ test('une page ouverte sans paramètre reprend la période choisie pendant la vi
   mockClanLeaderboard(api)
   mockClanItems(api)
   await page.goto(`/clans/${CLAN_ID}/leaderboard`)
-  await expect(page.getByText('Joueur Alpha').first()).toBeVisible()
+  await expect(page.getByText('Joueur Alpha').filter({ visible: true }).first()).toBeVisible()
   await periodFilter(page).getByRole('button', { name: 'Mois' }).click()
   await expect(page).toHaveURL(/[?&]period=month\b/)
 

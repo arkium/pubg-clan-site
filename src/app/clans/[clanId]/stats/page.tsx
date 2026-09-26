@@ -1,7 +1,7 @@
 'use client'
 
-import Image from 'next/image'
 import Link from 'next/link'
+import RankCell from '@/components/ui/RankCell'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Bot, CalendarRange, ChartNoAxesColumnIncreasing, RefreshCw } from 'lucide-react'
@@ -137,12 +137,6 @@ type MetricComputed = {
   topThree: MetricTopEntry[]
 }
 
-const MEDALS = [
-  { iconPath: '/icons/medal-gold.svg', alt: 'Medaille or' },
-  { iconPath: '/icons/medal-silver.svg', alt: 'Medaille argent' },
-  { iconPath: '/icons/medal-bronze.svg', alt: 'Medaille bronze' },
-]
-
 const METRIC_GROUPS: Array<{ title: string; metrics: MetricDefinition[] }> = [
   {
     title: 'Engagement',
@@ -158,7 +152,7 @@ const METRIC_GROUPS: Array<{ title: string; metrics: MetricDefinition[] }> = [
       { key: 'combat.deaths', label: 'Morts', aggregate: 'sum', rankOrder: 'asc', getValue: (m) => m.stats.combat.deaths, format: formatInteger },
       { key: 'combat.kdRatio', label: 'Ratio K/D', aggregate: 'avg', getValue: (m) => m.stats.combat.kdRatio, format: formatRatio },
       { key: 'combat.headshots', label: 'Headshots', aggregate: 'sum', getValue: (m) => m.stats.combat.headshots, format: formatInteger },
-      { key: 'combat.assists', label: 'Assists', aggregate: 'sum', getValue: (m) => m.stats.combat.assists, format: formatInteger },
+      { key: 'combat.assists', label: 'Assistances', aggregate: 'sum', getValue: (m) => m.stats.combat.assists, format: formatInteger },
       { key: 'combat.knockouts', label: 'KO', aggregate: 'sum', getValue: (m) => m.stats.combat.knockouts, format: formatInteger },
       { key: 'combat.highestKillstreak', label: 'Serie max', aggregate: 'max', getValue: (m) => m.stats.combat.highestKillstreak, format: formatInteger },
       { key: 'combat.longestKill', label: 'Distance max', aggregate: 'max', getValue: (m) => m.stats.combat.longestKill, format: formatMeters },
@@ -202,7 +196,7 @@ const METRIC_GROUPS: Array<{ title: string; metrics: MetricDefinition[] }> = [
     title: 'Autres',
     metrics: [
       { key: 'other.weaponsPicked', label: 'Armes ramassees', aggregate: 'sum', getValue: (m) => m.stats.other.weaponsPicked, format: formatInteger },
-      { key: 'other.damageGiven', label: 'Degats infliges', aggregate: 'sum', getValue: (m) => m.stats.other.damageGiven, format: formatFloat },
+      { key: 'other.damageGiven', label: 'Dégâts infligés', aggregate: 'sum', getValue: (m) => m.stats.other.damageGiven, format: formatFloat },
     ],
   },
 ]
@@ -555,7 +549,7 @@ function TopThreeList({ metric, topThree }: { metric: MetricDefinition; topThree
       {topThree.map((entry, index) => (
         <li key={`${metric.key}:${entry.memberId}`} className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-1 font-medium text-gray-900">
-            <Image src={MEDALS[index].iconPath} alt={MEDALS[index].alt} width={14} height={14} />
+            <RankCell rank={index + 1} size="xs" />
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700">
               #{index + 1}
             </span>
@@ -661,7 +655,7 @@ export default function ClanStatsPage() {
 
         if (!response.ok) {
           throw new Error(
-            getTelemetryErrorMessage(payload, 'Impossible de charger la telemetrie playstyle du clan')
+            getTelemetryErrorMessage(payload, 'Impossible de charger la télémétrie playstyle du clan')
           )
         }
 
@@ -674,7 +668,7 @@ export default function ClanStatsPage() {
           setPlaystyleError(
             loadError instanceof Error
               ? loadError.message
-              : 'Impossible de charger la telemetrie playstyle du clan'
+              : 'Impossible de charger la télémétrie playstyle du clan'
           )
         }
       } finally {
@@ -799,7 +793,7 @@ export default function ClanStatsPage() {
           data && hasStats ? (
             // Pendant un rechargement, les statistiques précédentes restent affichées : la page ne se replie pas.
             <div aria-busy={loading} className={loading ? 'space-y-6 opacity-60' : 'space-y-6'}>
-              <section id="sec-playstyle" className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <section id="sec-playstyle" className="app-panel p-4 shadow-sm">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
@@ -810,7 +804,7 @@ export default function ClanStatsPage() {
                   </div>
                 </div>
 
-                {loadingPlaystyle ? <p className="text-sm text-gray-600">Chargement de la telemetrie playstyle...</p> : null}
+                {loadingPlaystyle ? <p className="text-sm text-gray-600">Chargement de la télémétrie playstyle...</p> : null}
                 {playstyleError ? <p className="text-sm text-amber-700">{playstyleError}</p> : null}
 
                 {!loadingPlaystyle && !playstyleError ? (
@@ -1146,7 +1140,7 @@ export default function ClanStatsPage() {
                       })()}
                     </>
                   ) : (
-                    <p className="text-sm text-gray-600">Aucune donnee telemetry playstyle pour cette periode.</p>
+                    <p className="text-sm text-gray-600">Aucune donnée telemetry playstyle pour cette période.</p>
                   )
                 ) : null}
               </section>
@@ -1187,7 +1181,7 @@ export default function ClanStatsPage() {
                 <section
                   key={group.title}
                   id={`sec-metric-${index + 1}`}
-                  className="rounded border border-gray-200 bg-white p-4 shadow-sm"
+                  className="app-panel p-4 shadow-sm"
                 >
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">

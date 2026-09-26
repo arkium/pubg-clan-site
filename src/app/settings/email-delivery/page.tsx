@@ -214,7 +214,7 @@ export default function EmailDeliverySettingsPage() {
         | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Echec du test email')
+        throw new Error(payload?.error ?? 'Échec du test email')
       }
 
       setStatus({
@@ -225,9 +225,9 @@ export default function EmailDeliverySettingsPage() {
         env: payload?.env ?? INITIAL_STATUS.env,
       })
       setLastDelivery(payload?.delivery ?? null)
-      setSuccess(payload?.message ?? 'Email de test envoye avec succes.')
+      setSuccess(payload?.message ?? 'Email de test envoye avec succès.')
     } catch (testError) {
-      setError(testError instanceof Error ? testError.message : 'Echec du test email')
+      setError(testError instanceof Error ? testError.message : 'Échec du test email')
       setStatus((current) => ({
         ...current,
         ready: false,
@@ -252,7 +252,7 @@ export default function EmailDeliverySettingsPage() {
         | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Echec de la revocation')
+        throw new Error(payload?.error ?? 'Échec de la révocation')
       }
 
       setStatus({
@@ -264,7 +264,7 @@ export default function EmailDeliverySettingsPage() {
       })
       setSuccess(payload?.message ?? 'Validation email revoquee.')
     } catch (revokeError) {
-      setError(revokeError instanceof Error ? revokeError.message : 'Echec de la revocation')
+      setError(revokeError instanceof Error ? revokeError.message : 'Échec de la révocation')
     } finally {
       setRevoking(false)
     }

@@ -1091,7 +1091,7 @@ function MutationsTab({
   return (
     <div>
       {/* Les deux actions se ressemblent mais n'ont rien a voir : l'une modifie les
-          donnees, l'autre pas. La confusion a ete constatee a l'usage. */}
+          données, l'autre pas. La confusion a été constatee a l'usage. */}
       <div className="app-panel-muted mb-4 rounded-xl p-3 text-xs text-slate-600 dark:text-slate-300">
         <p className="mb-1.5 font-bold text-slate-900 dark:text-white">Les deux actions</p>
         <ul className="space-y-1">

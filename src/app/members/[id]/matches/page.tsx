@@ -138,7 +138,7 @@ export default function MatchesPage() {
         />
         <MemberPageHeader
           title="Matchs"
-          subtitle="Historique des matchs, avec tri et filtres par periode."
+          subtitle="Historique des matchs, avec tri et filtres par période."
           showBackButton={false}
           backgroundImage="/matchesplayer.jpg"
           icon={<History className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}

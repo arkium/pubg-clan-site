@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import RankCell from '@/components/ui/RankCell'
 import { CHALLENGE_TYPES } from '@/lib/challenge-types'
 import { type ChallengeDuration, type ChallengeRewards } from '@/lib/challenge-service'
 
@@ -154,13 +155,16 @@ export default function ChallengeCreator({ onSubmit, loading }: Props) {
         <div className="mt-2 grid grid-cols-3 gap-3">
           {(
             [
-              { label: '🥇 1er', value: reward1st, set: setReward1st },
-              { label: '🥈 2e', value: reward2nd, set: setReward2nd },
-              { label: '🥉 3e', value: reward3rd, set: setReward3rd },
+              { rank: 1, label: '1er', value: reward1st, set: setReward1st },
+              { rank: 2, label: '2e', value: reward2nd, set: setReward2nd },
+              { rank: 3, label: '3e', value: reward3rd, set: setReward3rd },
             ] as const
-          ).map(({ label, value, set }) => (
+          ).map(({ rank, label, value, set }) => (
             <div key={label}>
-              <label className="block text-xs text-gray-600">{label}</label>
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                <RankCell rank={rank} size="xs" />
+                {label}
+              </label>
               <input
                 type="number"
                 value={value}

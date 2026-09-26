@@ -25,6 +25,8 @@ import {
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
+import SortableTh from '@/components/ui/SortableTh'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
 type DropZonesViewMode = 'mix' | 'heatmap' | 'points'
@@ -471,7 +473,7 @@ export default function ClanDropZonesPage() {
                     id="drop-zones-view-filter"
                     variant="compact"
                     label="Affichage"
-                    currentLabel={VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Selectionner'}
+                    currentLabel={VIEW_MODE_OPTIONS.find((option) => option.value === viewMode)?.label ?? 'Sélectionner'}
                     items={VIEW_MODE_OPTIONS.map((option) => ({
                       key: `view-${option.value}`,
                       label: option.label,
@@ -488,7 +490,7 @@ export default function ClanDropZonesPage() {
                     id="drop-zones-map-filter"
                     variant="compact"
                     label="Carte"
-                    currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Selectionner'}
+                    currentLabel={activeMap ? mapDisplayName(activeMap, {}) : 'Sélectionner'}
                     items={maps.map((mapName) => ({
                       key: `map-${mapName}`,
                       label: mapDisplayName(mapName, {}),
@@ -619,25 +621,16 @@ export default function ClanDropZonesPage() {
                 {topCityStats.length > 0 ? (
                   <>
                     <div className="app-table-shell hidden overflow-hidden md:block">
-                      <table className="w-full table-fixed text-sm">
-                        <colgroup>
-                          <col style={{ width: '8%' }} />
-                          <col style={{ width: '25%' }} />
-                          <col style={{ width: '13%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '10%' }} />
-                          <col style={{ width: '24%' }} />
-                        </colgroup>
-                        <thead className="app-table-head text-xs uppercase tracking-wide">
+                      <table className="w-full table-auto text-[13px]">
+                        <thead className="app-table-head">
                           <tr>
-                            <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
-                            <th className="px-4 py-3 text-left whitespace-nowrap">Dropzone</th>
-                            <th className="px-4 py-3 text-right whitespace-nowrap">Atterrissages</th>
-                            <th className="px-4 py-3 text-right whitespace-nowrap">Part</th>
-                            <th className="px-4 py-3 text-right whitespace-nowrap">Matchs</th>
-                            <th className="px-4 py-3 text-right whitespace-nowrap">Membres</th>
-                            <th className="px-4 py-3 text-left whitespace-nowrap">Membre principal</th>
+                            <SortableTh align="left" className="pl-3">#</SortableTh>
+                            <SortableTh align="left">Zone</SortableTh>
+                            <SortableTh>Atterrissages</SortableTh>
+                            <SortableTh>Part</SortableTh>
+                            <SortableTh>Matchs</SortableTh>
+                            <SortableTh>Membres</SortableTh>
+                            <SortableTh align="left" className="pr-3">Membre principal</SortableTh>
                           </tr>
                         </thead>
                         <tbody>
@@ -656,22 +649,10 @@ export default function ClanDropZonesPage() {
                                 key={stat.location.id}
                                 className={`${rowClassName}${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
                               >
-                                <td className="px-4 py-3 text-center">
-                                  {rank <= 3 ? (
-                                    <span className={`app-podium-badge ${
-                                      rank === 1
-                                        ? 'app-podium-badge--gold'
-                                        : rank === 2
-                                          ? 'app-podium-badge--silver'
-                                          : 'app-podium-badge--bronze'
-                                    }`}>
-                                      #{rank}
-                                    </span>
-                                  ) : (
-                                    <span className="font-semibold text-gray-500">#{rank}</span>
-                                  )}
+                                <td className="py-2.5 pl-3 pr-[9px]">
+                                  <RankCell rank={rank} />
                                 </td>
-                                <td className="px-4 py-3 font-medium text-gray-900">
+                                <td className="px-[9px] py-2.5 font-medium text-gray-900">
                                   <button
                                     type="button"
                                     onClick={() => selectLocation(stat.location)}
@@ -683,11 +664,11 @@ export default function ClanDropZonesPage() {
                                     Pression {stat.pressure.average.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} · {stat.pressure.hotDropShare.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} % hot
                                   </p>
                                 </td>
-                                <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
-                                <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
-                                <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
-                                <td className="px-4 py-3 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
-                                <td className="px-4 py-3 font-medium text-gray-700">
+                                <td className="px-[9px] py-2.5 text-right font-semibold text-gray-900 tabular-nums">{formatNumber(stat.count)}</td>
+                                <td className="px-[9px] py-2.5 text-right text-gray-700 tabular-nums">{stat.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %</td>
+                                <td className="px-[9px] py-2.5 text-right text-gray-700 tabular-nums">{formatNumber(stat.matches)}</td>
+                                <td className="px-[9px] py-2.5 text-right text-gray-700 tabular-nums">{formatNumber(stat.members)}</td>
+                                <td className="py-2.5 pl-[9px] pr-3 font-medium text-gray-700">
                                   {stat.topMember ? (
                                     <span className="flex min-w-0 items-center gap-2">
                                       <span className="app-avatar flex h-7 w-7 shrink-0 items-center justify-center text-xs font-semibold text-gray-700">
@@ -725,17 +706,7 @@ export default function ClanDropZonesPage() {
                               className={`${rowClassName} p-3${selectedLocation?.id === stat.location.id ? ' ring-2 ring-inset ring-cyan-500' : ''}`}
                             >
                               <div className="flex items-start gap-3">
-                                <span className={`app-podium-badge mt-0.5 ${
-                                  rank === 1
-                                    ? 'app-podium-badge--gold'
-                                    : rank === 2
-                                      ? 'app-podium-badge--silver'
-                                      : rank === 3
-                                        ? 'app-podium-badge--bronze'
-                                        : 'border-gray-200 bg-gray-100 text-gray-700'
-                                }`}>
-                                  #{rank}
-                                </span>
+                                <RankCell rank={rank} className="mt-0.5" />
                                 <div className="min-w-0 flex-1">
                                   <button
                                     type="button"
@@ -901,7 +872,7 @@ export default function ClanDropZonesPage() {
               ) : null}
             </section>
           ) : (
-            <p className="text-sm text-slate-600">Aucune donnee drop zones pour cette periode.</p>
+            <p className="text-sm text-slate-600">Aucune donnée drop zones pour cette période.</p>
           )
         ) : null}
       </div>

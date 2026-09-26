@@ -165,7 +165,7 @@ export default function SectionAnchorNav({ items, ariaLabel, className }: Sectio
             onClick={() => setActiveSectionId(item.id)}
             aria-current={active ? 'location' : undefined}
             className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-              active ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+              active ? 'app-anchor-link--active' : 'text-gray-700 hover:bg-gray-100'
             }`}
           >
             {item.icon ? (

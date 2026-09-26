@@ -14,6 +14,9 @@ import VehicleIcon from '@/components/ui/VehicleIcon'
 import { weaponIconUrl, vehicleIconUrl } from '@/lib/pubg-assets'
 import { isVehicleKey } from '@/lib/pubg-assets/vehicle-detection'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
+import SortableTh from '@/components/ui/SortableTh'
+import { useTableSort } from '@/hooks/useTableSort'
 
 type TelemetryPeriod = StandardPeriod
 
@@ -49,13 +52,12 @@ type ClanWeaponsResponse = {
 }
 
 type SortKey = 'player' | 'weapon' | 'kills' | 'headshotRate' | 'shotsFired' | 'hitsLanded' | 'accuracy' | 'avgDistance' | 'maxDistance' | 'totalDamage' | 'matchCount'
-type SortDirection = 'asc' | 'desc'
 
 const PAGE_SIZE = 10
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: 'kills', label: 'Kills' },
-  { value: 'totalDamage', label: 'Damages' },
+  { value: 'totalDamage', label: 'Dégâts' },
   { value: 'headshotRate', label: 'HS%' },
   { value: 'accuracy', label: 'Précision' },
   { value: 'avgDistance', label: 'Dist. moy.' },
@@ -77,12 +79,14 @@ function formatNumber(value: number) {
   return value.toLocaleString('fr-FR')
 }
 
+const oneDecimal = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
 function formatPercent(value: number) {
-  return `${value.toFixed(1)}%`
+  return `${oneDecimal.format(value)} %`
 }
 
 function formatMeters(value: number) {
-  return `${value.toFixed(1)} m`
+  return `${oneDecimal.format(value)} m`
 }
 
 function compareText(left: string, right: string) {
@@ -120,8 +124,14 @@ export default function ClanTelemetryWeaponsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<ClanWeaponsResponse | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('kills')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  // Tri par les en-têtes (docs/TODO/refonte-ui.md §4.B) ; joueur et arme commencent de A à Z.
+  const {
+    sortKey,
+    sortDir: sortDirection,
+    onSort: handleSortClick,
+    colTint,
+    setSort,
+  } = useTableSort<SortKey>('kills', 'desc', (key) => (key === 'player' || key === 'weapon' ? 'asc' : 'desc'))
   const [activeCategory, setActiveCategory] = useState<string>('Toutes')
   const [activePlayer, setActivePlayer] = useState<string>('Tous')
   const [currentPage, setCurrentPage] = useState(1)
@@ -304,58 +314,32 @@ export default function ClanTelemetryWeaponsPage() {
     return { start, end }
   }, [currentPage, filteredRows.length])
 
-  function handleSortClick(nextKey: SortKey) {
-    if (sortKey === nextKey) {
-      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
-      return
-    }
-
-    setSortKey(nextKey)
-    setSortDirection(nextKey === 'player' || nextKey === 'weapon' ? 'asc' : 'desc')
-  }
-
   function selectSortDescending(key: SortKey) {
-    setSortKey(key)
-    setSortDirection('desc')
+    setSort({ key, direction: 'desc' })
   }
 
-  function sortLabel(key: SortKey) {
-    if (sortKey !== key) {
-      return ''
-    }
-
-    return sortDirection === 'asc' ? ' ▲' : ' ▼'
-  }
-
-  function headerButtonClass(key: SortKey) {
-    return sortKey === key ? 'font-bold text-[rgb(217,119,6)]' : 'font-semibold'
-  }
+  const sortHeader = { sortKey, sortDir: sortDirection, onSort: handleSortClick }
 
   function sortedCellClass(key: SortKey) {
-    return sortKey === key
-      ? 'px-3 py-2 text-right font-black tabular-nums text-[rgb(217,119,6)] bg-[rgba(217,119,6,0.08)]'
-      : 'px-3 py-2 text-right tabular-nums'
+    return `px-[9px] py-2 text-right tabular-nums ${sortKey === key ? 'font-bold text-gray-900' : 'text-gray-700'}`
   }
 
-  function sortedCellClassLeft(key: SortKey) {
-    return sortKey === key ? 'px-3 py-2 bg-[rgba(217,119,6,0.08)]' : 'px-3 py-2'
-  }
-
+  // Carte mobile : la tuile du critère trié prend l'accent, comme la colonne triée du tableau.
   function statTileClass(key: SortKey) {
     return sortKey === key
-      ? 'rounded border border-[rgba(217,119,6,0.35)] bg-[rgba(217,119,6,0.12)] px-1.5 py-1 text-center'
+      ? 'rounded border border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] px-1.5 py-1 text-center'
       : 'rounded bg-gray-50 px-2 py-1.5 text-center'
   }
 
   function statLabelClass(key: SortKey) {
     return sortKey === key
-      ? 'text-[9px] font-bold uppercase tracking-wide text-[rgb(217,119,6)] whitespace-nowrap'
+      ? 'text-[9px] font-bold uppercase tracking-wide text-[var(--theme-ui-accent-text)] whitespace-nowrap'
       : 'text-[10px] font-medium uppercase tracking-wide text-gray-500'
   }
 
   function statValueClass(key: SortKey) {
     return sortKey === key
-      ? 'text-xs font-extrabold tabular-nums text-[rgb(217,119,6)] whitespace-nowrap'
+      ? 'text-xs font-extrabold tabular-nums text-[var(--theme-ui-accent-text)] whitespace-nowrap'
       : 'text-sm font-semibold tabular-nums text-gray-900'
   }
 
@@ -540,17 +524,11 @@ export default function ClanTelemetryWeaponsPage() {
                 {paginatedRows.map((row) => {
                   const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                   const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
-                  const podiumTone =
-                    podiumRank === 1
-                      ? 'app-podium-badge--gold'
-                      : podiumRank === 2
-                        ? 'app-podium-badge--silver'
-                        : 'app-podium-badge--bronze'
 
                   return (
                     <div
                       key={`${row.memberId}:${row.weaponName}`}
-                      className="relative overflow-hidden rounded-lg border border-gray-200 bg-white p-3"
+                      className="relative overflow-hidden app-panel p-3"
                     >
                       <WeaponWatermark weaponName={row.weaponName} />
                       <div className="relative">
@@ -558,9 +536,7 @@ export default function ClanTelemetryWeaponsPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               <p className="truncate text-base font-semibold text-gray-900">{row.weaponLabel ?? row.weaponName}</p>
-                              {podiumRank ? (
-                                <span className={`app-podium-badge ${podiumTone} shrink-0`}>#{podiumRank}</span>
-                              ) : null}
+                              {podiumRank ? <RankCell rank={podiumRank} size="xs" /> : null}
                             </div>
                             <p className="mt-0.5 truncate text-sm text-gray-600">{row.displayName}</p>
                           </div>
@@ -571,7 +547,7 @@ export default function ClanTelemetryWeaponsPage() {
                             <p className={statValueClass('kills')}>{formatNumber(row.kills)}</p>
                           </div>
                           <div className={statTileClass('totalDamage')}>
-                            <p className={statLabelClass('totalDamage')}>Damages</p>
+                            <p className={statLabelClass('totalDamage')}>Dégâts</p>
                             <p className={statValueClass('totalDamage')}>
                               {typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}
                             </p>
@@ -610,82 +586,32 @@ export default function ClanTelemetryWeaponsPage() {
               {/* Desktop : tableau complet (md+) */}
               <div className="app-table-shell hidden overflow-x-auto md:block">
                 <table className="min-w-full text-sm">
-                  <thead className="app-table-head text-left text-xs uppercase tracking-wide">
+                  <thead className="app-table-head">
                     <tr>
-                      <th className="px-3 py-2">
-                        <button type="button" className={headerButtonClass('player')} onClick={() => handleSortClick('player')}>
-                          Joueur{sortLabel('player')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2">
-                        <button type="button" className={headerButtonClass('weapon')} onClick={() => handleSortClick('weapon')}>
-                          Arme{sortLabel('weapon')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('kills')} onClick={() => handleSortClick('kills')}>
-                          Kills{sortLabel('kills')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('headshotRate')} onClick={() => handleSortClick('headshotRate')}>
-                          Headshots %{sortLabel('headshotRate')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('shotsFired')} onClick={() => handleSortClick('shotsFired')}>
-                          Tirs{sortLabel('shotsFired')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('hitsLanded')} onClick={() => handleSortClick('hitsLanded')}>
-                          Touches{sortLabel('hitsLanded')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('accuracy')} onClick={() => handleSortClick('accuracy')}>
-                          Precision{sortLabel('accuracy')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('avgDistance')} onClick={() => handleSortClick('avgDistance')}>
-                          Distance moyenne{sortLabel('avgDistance')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('totalDamage')} onClick={() => handleSortClick('totalDamage')}>
-                          Damages{sortLabel('totalDamage')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('maxDistance')} onClick={() => handleSortClick('maxDistance')}>
-                          Distance max{sortLabel('maxDistance')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className={headerButtonClass('matchCount')} onClick={() => handleSortClick('matchCount')}>
-                          Matchs{sortLabel('matchCount')}
-                        </button>
-                      </th>
+                      <SortableTh {...sortHeader} column="player" align="left" className="pl-3">Joueur</SortableTh>
+                      <SortableTh {...sortHeader} column="weapon" align="left">Arme</SortableTh>
+                      <SortableTh {...sortHeader} column="kills">Kills</SortableTh>
+                      <SortableTh {...sortHeader} column="headshotRate" title="Part des kills en headshot">Headshots</SortableTh>
+                      <SortableTh {...sortHeader} column="shotsFired">Tirs</SortableTh>
+                      <SortableTh {...sortHeader} column="hitsLanded">Touches</SortableTh>
+                      <SortableTh {...sortHeader} column="accuracy">Précision</SortableTh>
+                      <SortableTh {...sortHeader} column="avgDistance" title="Distance moyenne des kills">Dist. moy.</SortableTh>
+                      <SortableTh {...sortHeader} column="totalDamage">Dégâts</SortableTh>
+                      <SortableTh {...sortHeader} column="maxDistance" title="Kill le plus lointain">Dist. max</SortableTh>
+                      <SortableTh {...sortHeader} column="matchCount" className="pr-3">Matchs</SortableTh>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedRows.map((row) => {
                       const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                       const podiumRank = podiumByRowKey.get(`${row.memberId}:${row.weaponName}`)
-                      const podiumTone =
-                        podiumRank === 1
-                          ? 'app-podium-badge--gold'
-                          : podiumRank === 2
-                            ? 'app-podium-badge--silver'
-                            : 'app-podium-badge--bronze'
 
                       return (
                         <tr key={`${row.memberId}:${row.weaponName}`} className="app-table-row">
-                          <td className={sortedCellClassLeft('player')}>
+                          <td className="py-2 pl-3 pr-[9px]" style={{ backgroundColor: colTint('player') }}>
                             <div className="font-medium text-gray-900">{row.displayName}</div>
                           </td>
-                          <td className={`${sortedCellClassLeft('weapon')} text-gray-900`}>
+                          <td className="px-[9px] py-2 text-gray-900" style={{ backgroundColor: colTint('weapon') }}>
                             <div className="flex items-center gap-3">
                               {isVehicleKey(row.weaponName) ? (
                                 <VehicleIcon id={row.weaponName} size="3xl" />
@@ -693,20 +619,18 @@ export default function ClanTelemetryWeaponsPage() {
                                 <WeaponIcon id={row.weaponName} size="2xl" />
                               )}
                               <span>{row.weaponLabel ?? row.weaponName}</span>
-                              {podiumRank ? (
-                                <span className={`app-podium-badge ${podiumTone}`}>#{podiumRank}</span>
-                              ) : null}
+                              {podiumRank ? <RankCell rank={podiumRank} size="xs" /> : null}
                             </div>
                           </td>
-                          <td className={sortedCellClass('kills')}>{formatNumber(row.kills)}</td>
-                          <td className={sortedCellClass('headshotRate')}>{formatPercent(headshotRate)}</td>
-                          <td className={sortedCellClass('shotsFired')}>{formatNumber(row.shotsFired)}</td>
-                          <td className={sortedCellClass('hitsLanded')}>{formatNumber(row.hitsLanded)}</td>
-                          <td className={sortedCellClass('accuracy')}>{formatPercent(row.accuracy)}</td>
-                          <td className={sortedCellClass('avgDistance')}>{formatMeters(row.avgDistance)}</td>
-                          <td className={sortedCellClass('totalDamage')}>{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
-                          <td className={sortedCellClass('maxDistance')}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
-                          <td className={sortedCellClass('matchCount')}>{formatNumber(row.matchCount)}</td>
+                          <td className={sortedCellClass('kills')} style={{ backgroundColor: colTint('kills') }}>{formatNumber(row.kills)}</td>
+                          <td className={sortedCellClass('headshotRate')} style={{ backgroundColor: colTint('headshotRate') }}>{formatPercent(headshotRate)}</td>
+                          <td className={sortedCellClass('shotsFired')} style={{ backgroundColor: colTint('shotsFired') }}>{formatNumber(row.shotsFired)}</td>
+                          <td className={sortedCellClass('hitsLanded')} style={{ backgroundColor: colTint('hitsLanded') }}>{formatNumber(row.hitsLanded)}</td>
+                          <td className={sortedCellClass('accuracy')} style={{ backgroundColor: colTint('accuracy') }}>{formatPercent(row.accuracy)}</td>
+                          <td className={sortedCellClass('avgDistance')} style={{ backgroundColor: colTint('avgDistance') }}>{formatMeters(row.avgDistance)}</td>
+                          <td className={sortedCellClass('totalDamage')} style={{ backgroundColor: colTint('totalDamage') }}>{typeof row.totalDamage === 'number' ? formatNumber(Math.round(row.totalDamage)) : '-'}</td>
+                          <td className={sortedCellClass('maxDistance')} style={{ backgroundColor: colTint('maxDistance') }}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
+                          <td className={`${sortedCellClass('matchCount')} pr-3`} style={{ backgroundColor: colTint('matchCount') }}>{formatNumber(row.matchCount)}</td>
                         </tr>
                       )
                     })}
@@ -725,8 +649,8 @@ export default function ClanTelemetryWeaponsPage() {
                       className="app-pagination-button"
                       onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                       disabled={currentPage === 1}
-                      aria-label="Page precedente"
-                      title="Page precedente"
+                      aria-label="Page précédente"
+                      title="Page précédente"
                     >
                       ←
                     </button>
@@ -748,7 +672,7 @@ export default function ClanTelemetryWeaponsPage() {
               ) : null}
             </section>
           ) : (
-            <p className="text-sm text-gray-600">Aucune donnee armes pour cette periode.</p>
+            <p className="text-sm text-gray-600">Aucune donnée d’arme pour cette période.</p>
           )
         ) : null}
       </div>

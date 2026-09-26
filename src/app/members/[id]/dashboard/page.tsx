@@ -283,7 +283,7 @@ export default function DashboardPage() {
 
         if (!response.ok) {
           throw new Error(
-            getTelemetryErrorMessage(payload, 'Impossible de charger la telemetrie playstyle du joueur')
+            getTelemetryErrorMessage(payload, 'Impossible de charger la télémétrie playstyle du joueur')
           )
         }
 
@@ -296,7 +296,7 @@ export default function DashboardPage() {
           setTelemetryError(
             loadError instanceof Error
               ? loadError.message
-              : 'Impossible de charger la telemetrie playstyle du joueur'
+              : 'Impossible de charger la télémétrie playstyle du joueur'
           )
         }
       } finally {
@@ -340,7 +340,7 @@ export default function DashboardPage() {
               throw new Error(
                 getTelemetryErrorMessage(
                   payload,
-                  `Impossible de charger la telemetrie playstyle (${TELEMETRY_COMPARISON_PERIOD_LABELS[comparisonPeriod]})`
+                  `Impossible de charger la télémétrie playstyle (${TELEMETRY_COMPARISON_PERIOD_LABELS[comparisonPeriod]})`
                 )
               )
             }
@@ -379,7 +379,7 @@ export default function DashboardPage() {
         setTelemetryComparison(nextComparison)
 
         if (errors.length > 0 && errors.length < TELEMETRY_COMPARISON_PERIODS.length) {
-          setTelemetryComparisonError('Certaines periodes de comparaison n\'ont pas pu etre chargees.')
+          setTelemetryComparisonError('Certaines périodes de comparaison n\'ont pas pu être chargées.')
         } else if (errors.length === TELEMETRY_COMPARISON_PERIODS.length) {
           setTelemetryComparisonError('Impossible de charger la comparaison telemetry.')
         }
@@ -561,7 +561,7 @@ export default function DashboardPage() {
           scope="member"
         />
 
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section className="overflow-hidden app-panel">
           {/* Header sombre PUBG-style */}
           <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-5 py-4">
             <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full border border-white/5" />
@@ -795,7 +795,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section className="overflow-hidden app-panel">
           {/* Header sombre */}
           <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-5 py-4">
             <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full border border-white/5" />
@@ -1182,7 +1182,7 @@ export default function DashboardPage() {
           <SquadFrequency squads={squads} />
 
           {/* Top performances */}
-          <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <section className="app-panel">
             <div className="border-b border-gray-200 px-4 py-3">
               <h2 className="text-lg font-semibold text-gray-900">Meilleures performances</h2>
               <p className="text-xs text-gray-500">Top 5 par kills</p>

@@ -182,8 +182,33 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Bandeau de filtres d'une page (collant sous le header) | `DockingToolbar` | `src/components/ui/DockingToolbar.tsx` — règles dans `docs/ui/index.html#sticky-toolbar` |
 | Filtre de période (Semaine / Mois / Tous…) | `PeriodFilter` + `usePagePeriod` | `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts` |
 | Ancres de section (seconde ligne du bandeau) | `SectionAnchorNav` | `src/components/ui/SectionAnchorNav.tsx` |
+| Rang dans un classement (médailles SVG 1 à 3) | `RankCell` | `src/components/ui/RankCell.tsx` |
+| Tri d'un tableau par ses en-têtes (+ rappel docké) | `SortableTh`, `SortReminder` + `useTableSort` | `src/components/ui/SortableTh.tsx`, `src/hooks/useTableSort.ts` |
+| Top 3 d'un classement | `PodiumCards` | `src/components/ui/PodiumCards.tsx` |
+| Bande « Distinctions » | `DistinctionStrip` + `computeDistinctions` | `src/components/ui/DistinctionStrip.tsx`, `src/lib/distinctions.ts` |
+| Classement sur mobile (puces « Trier par ») | `MobileRankList` | `src/components/ui/MobileRankList.tsx` |
 
 **Règle :** Ne jamais réécrire ces composants inline dans une page. Ne pas écrire les classes `app-placement-badge*` directement.
+
+### 6 bis. Refonte UI — règles (`docs/TODO/refonte-ui.md`)
+
+Maquette validée : `docs/ui/refonte/maquettes/Refonte adaptée.html` (dossier ignoré par git). Fiches :
+`docs/ui/composants-refonte.md`. Contrôles : `src/lib/ui-conformance.test.ts` (listes d'exceptions à vider phase après phase).
+
+- **Accent** : tout état actif (segmented, en-tête trié, nav active, puces de tri) utilise `--theme-ui-accent` et ses
+  dérivés (`-text`, `-soft`, `-tint`, `-ring`). Jamais `bg-blue-600 text-white` ni une teinte en dur.
+- **Rangs** : `RankCell` — médailles SVG pour 1 à 3, numéro ensuite. Aucun emoji de médaille, pas de pastille « #1 ».
+- **Tri de tableau** : `SortableTh` + `useTableSort`. Pas de segmented de tri au-dessus d'un tableau ; rappel du tri
+  dans le bandeau docké par `dockedAside`, jamais un contrôle.
+- **Distinctions** : calculées uniquement par `src/lib/distinctions.ts`.
+- **Tendances** : ne rien afficher quand la progression est absente (pas de « • »).
+- **Colonnes conditionnelles** : une colonne nulle par construction pour le filtre actif n'est pas rendue (Duo/Trio/Squad
+  hors mode « Tous »).
+- **Tableaux** : `app-table-shell`, `table-layout: auto`, padding horizontal 9 px sur les cellules numériques.
+- **Rayons** : bloc bordé = `.app-panel` / `.app-panel-muted` / `.app-table-shell`, jamais `rounded` + `border` à la main.
+- **Vocabulaire** : Dégâts, Victoires / Top 1, Win rate, K/M, Temps, Jours actifs, Distinctions.
+- **Thème** : les `dark:` existants sont **conservés** ; un nouveau composant passe par les tokens plutôt que d'en ajouter.
+- **Hauteurs** : ne jamais modifier la hauteur du bandeau d'image d'une page ni celle du header.
 
 ### 7. Thème actif
 
@@ -200,6 +225,7 @@ Ne jamais lire/écrire le thème directement depuis une page — passer par les 
 - [ ] Navigation de section incluse (`ClanSectionNav` ou équivalent)
 - [ ] Panneaux avec `.app-panel` / `.app-panel-muted` (pas de couleurs hardcodées)
 - [ ] Couleurs de texte/fond via classes Tailwind remappées ou tokens CSS
+- [ ] Rangs par `RankCell`, tri de tableau par `SortableTh`, états actifs en accent (§6 bis)
 - [ ] Rendu vérifié en thème clair ET sombre
 - [ ] Contenu centré et borné à 1024px sur desktop
 - [ ] Mobile testé (espacement, overflow, navigation)

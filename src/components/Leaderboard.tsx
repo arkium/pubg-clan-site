@@ -1,550 +1,293 @@
-/* eslint-disable @next/next/no-img-element */
+'use client'
 
+/* eslint-disable @next/next/no-img-element -- avatars externes (Steam, Discord) */
+
+import Image from 'next/image'
 import Link from 'next/link'
+import { useState } from 'react'
 
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import MobileRankList, { type MobileRankRow } from '@/components/ui/MobileRankList'
+import RankCell from '@/components/ui/RankCell'
+import ShowMoreToggle from '@/components/ui/ShowMoreToggle'
+import SortableTh from '@/components/ui/SortableTh'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
-import type {
-  LeaderboardKillsView,
-  LeaderboardSortBy,
-  LeaderboardTeamMode,
-  PlayerStatsEntry,
-  WeeklyProgression,
-} from '@/types/leaderboard'
+import { DISTINCTION_BADGE_META, type DistinctionBadgeKey } from '@/lib/distinction-badges'
+import {
+  formatInteger,
+  formatKpm,
+  formatPlayTime,
+  formatWinRate,
+  LEADERBOARD_SORT_COLUMNS,
+  type LeaderboardSortDirection,
+  type LeaderboardSortKey,
+  type RankedEntry,
+} from '@/lib/leaderboard-sort'
+import type { LeaderboardTeamMode, PlayerStatsEntry, WeeklyProgression } from '@/types/leaderboard'
 
-const RANK_MEDALS: Record<number, string> = {
-  1: '🥇',
-  2: '🥈',
-  3: '🥉',
+/** Lignes affichées avant « Afficher les N autres joueurs » (maquette validée, écran 1). */
+const DESKTOP_VISIBLE_ROWS = 10
+
+const MOBILE_SORT_OPTIONS = (Object.keys(LEADERBOARD_SORT_COLUMNS) as LeaderboardSortKey[]).map((value) => ({
+  value,
+  label: LEADERBOARD_SORT_COLUMNS[value].label,
+}))
+
+const GROUPED_MODES = ['duo', 'trio', 'squad'] as const
+const MODE_KILLS: Record<(typeof GROUPED_MODES)[number], (entry: PlayerStatsEntry) => number> = {
+  duo: (entry) => entry.duoClanKills,
+  trio: (entry) => entry.trioClanKills,
+  squad: (entry) => entry.squadClanKills,
 }
+const MODE_LABELS = { duo: 'Duo', trio: 'Trio', squad: 'Squad' } as const
 
-const SORT_OPTIONS: Array<{ value: LeaderboardSortBy; label: string }> = [
-  { value: 'kills', label: 'Kills' },
-  { value: 'kpm', label: 'K/M' },
-  { value: 'damage', label: 'Damage' },
-  { value: 'winRate', label: 'Win Rate' },
-  { value: 'matches', label: 'Matchs' },
-  { value: 'timePlayed', label: 'Temps de jeu' },
-  { value: 'activeDays', label: 'Jours Actifs' },
-]
+const TD = 'px-[9px] py-2.5 text-right tabular-nums text-gray-700 whitespace-nowrap'
 
 interface LeaderboardProps {
-  entries: PlayerStatsEntry[]
+  /** Lignes dans l'ordre d'affichage, avec leur rang (`rankLeaderboard`). */
+  rows: RankedEntry[]
+  sortKey: LeaderboardSortKey
+  sortDir: LeaderboardSortDirection
+  onSort: (key: LeaderboardSortKey) => void
+  colTint: (key: LeaderboardSortKey) => string
+  teamMode: LeaderboardTeamMode
+  distinctions: Map<number, DistinctionBadgeKey[]>
   progression?: WeeklyProgression[]
-  sortBy: LeaderboardSortBy
-  teamMode?: LeaderboardTeamMode
-  killsView?: LeaderboardKillsView
-  onSortChange: (sortBy: LeaderboardSortBy) => void
   showPerformanceDelta?: boolean
 }
 
+function Avatar({ entry }: { entry: PlayerStatsEntry }) {
+  return (
+    <span className="app-avatar flex h-7 w-7 shrink-0 text-[11px] font-bold">
+      {entry.avatarUrl ? (
+        <img
+          src={entry.avatarUrl}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none'
+          }}
+        />
+      ) : (
+        entry.displayName.charAt(0).toUpperCase()
+      )}
+    </span>
+  )
+}
+
+function DistinctionIcons({ keys, size }: { keys: DistinctionBadgeKey[] | undefined; size: number }) {
+  return (keys ?? []).map((key) => (
+    <Image
+      key={key}
+      src={DISTINCTION_BADGE_META[key].iconPath}
+      alt={DISTINCTION_BADGE_META[key].shortLabel}
+      title={DISTINCTION_BADGE_META[key].shortLabel}
+      width={size}
+      height={size}
+      className="shrink-0"
+    />
+  ))
+}
+
 export default function Leaderboard({
-  entries,
+  rows,
+  sortKey,
+  sortDir,
+  onSort,
+  colTint,
+  teamMode,
+  distinctions,
   progression = [],
-  sortBy,
-  teamMode = 'all',
-  killsView,
-  onSortChange,
   showPerformanceDelta = true,
 }: LeaderboardProps) {
-  const progressionByMember = new Map<number, WeeklyProgression['weeklyStats']>(
-    progression.map((item) => [item.memberId, item.weeklyStats])
+  const [showAll, setShowAll] = useState(false)
+  // « Tous » regroupe Duo, Trio et Squad : les colonnes de mode n'ont de sens que là (un seul mode = une colonne égale
+  // aux kills ; le Solo est exclu de « Tous », donc toujours nul).
+  const showModes = teamMode === 'all'
+
+  const killsDelta = new Map<number, number>()
+  if (showPerformanceDelta) {
+    for (const item of progression) {
+      const weeks = item.weeklyStats
+      if (weeks.length >= 2) {
+        killsDelta.set(item.memberId, weeks[weeks.length - 1].totalKills - weeks[weeks.length - 2].totalKills)
+      }
+    }
+  }
+
+  const entries = rows.map(({ entry }) => entry)
+  const totals = entries.reduce(
+    (acc, entry) => ({
+      kills: acc.kills + entry.totalKills,
+      matches: acc.matches + entry.matchesPlayed,
+      damage: acc.damage + entry.totalDamage,
+      wins: acc.wins + entry.matchesWon,
+      duo: acc.duo + entry.duoClanKills,
+      trio: acc.trio + entry.trioClanKills,
+      squad: acc.squad + entry.squadClanKills,
+      time: acc.time + entry.timePlayedSeconds,
+    }),
+    { kills: 0, matches: 0, damage: 0, wins: 0, duo: 0, trio: 0, squad: 0, time: 0 }
   )
 
-  function getProgressionDelta(memberId: number) {
-    const weeklyStats = progressionByMember.get(memberId)
-    if (!weeklyStats || weeklyStats.length < 2) {
-      return null
-    }
-
-    const current = weeklyStats[weeklyStats.length - 1]
-    const previous = weeklyStats[weeklyStats.length - 2]
-
-    return {
-      kills: current.totalKills - previous.totalKills,
-      winner: current.matchesWon - previous.matchesWon,
-      winRate: (current.winRate - previous.winRate) * 100,
-      matches: current.matchesPlayed - previous.matchesPlayed,
-      damage: Math.round(current.totalDamage - previous.totalDamage),
-    }
-  }
-
-  function getTrend(delta: number | null) {
-    if (delta === null) {
-      return { symbol: '•', tone: 'text-gray-400' }
-    }
-
-    if (delta > 0) {
-      return { symbol: '↑', tone: 'text-emerald-600' }
-    }
-
-    if (delta < 0) {
-      return { symbol: '↓', tone: 'text-rose-600' }
-    }
-
-    return { symbol: '→', tone: 'text-gray-500' }
-  }
-
-  function formatDeltaMagnitude(delta: number | null, decimals = 0) {
-    if (delta === null) {
-      return ''
-    }
-
-    const magnitude = Math.abs(delta)
-    if (decimals > 0) {
-      return magnitude.toFixed(decimals)
-    }
-
-    return String(Math.round(magnitude))
-  }
-
-  function renderValueWithTrend(value: string, delta: number | null, decimals = 0) {
-    if (!showPerformanceDelta) {
-      return <span className="block w-full text-right font-semibold text-gray-900 tabular-nums">{value}</span>
-    }
-
-    const trend = getTrend(delta)
-
+  if (rows.length === 0) {
     return (
-      <span className="inline-flex max-w-full flex-col items-end text-right leading-tight tabular-nums">
-        <span className="block w-full text-right font-semibold text-gray-900">{value}</span>
-        <span className={`mt-0.5 block w-full text-right text-xs font-semibold ${trend.tone}`}>
-          {delta === null ? '•' : `${trend.symbol}${formatDeltaMagnitude(delta, decimals)}`}
-        </span>
-      </span>
+      <section className="app-panel p-6 text-center">
+        <p className="text-sm text-gray-500">
+          Aucune donnée pour cette période. Le classement est recalculé à partir des matchs importés.
+        </p>
+      </section>
     )
   }
 
-  function getDisplayedSoloClanKills(entry: PlayerStatsEntry) {
-    return entry.soloKills
-  }
+  const visibleRows = showAll ? rows : rows.slice(0, DESKTOP_VISIBLE_ROWS)
+  const hiddenCount = rows.length - DESKTOP_VISIBLE_ROWS
+  const th = { sortKey, sortDir, onSort }
+  const tint = (key: LeaderboardSortKey) => ({ backgroundColor: colTint(key) })
 
-  function formatKillsPerMatch(entry: PlayerStatsEntry) {
-    return entry.avgKillsPerGame.toLocaleString('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-  }
-
-  const totals = entries.reduce(
-    (acc, entry) => {
-      acc.kills += entry.totalKills
-      acc.matches += entry.matchesPlayed
-      acc.damage += Math.round(entry.totalDamage)
-      acc.winner += entry.matchesWon
-      acc.solo += entry.soloKills
-      acc.duo += entry.duoClanKills
-      acc.trio += entry.trioClanKills
-      acc.squad += entry.squadClanKills
-      acc.timePlayed += entry.timePlayedSeconds
-      return acc
-    },
-    {
-      kills: 0,
-      matches: 0,
-      damage: 0,
-      winner: 0,
-      solo: 0,
-      duo: 0,
-      trio: 0,
-      squad: 0,
-      timePlayed: 0,
-    }
-  )
-
-  const totalKpm = totals.matches > 0 ? totals.kills / totals.matches : 0
-  const totalWinRate = totals.matches > 0 ? (totals.winner / totals.matches) * 100 : 0
+  const mobileRows: MobileRankRow[] = rows.map(({ entry, rank }) => ({
+    key: entry.id,
+    rank,
+    name: entry.displayName,
+    href: `/members/${entry.memberId}/dashboard`,
+    distinctions: distinctions.get(entry.memberId),
+    subline: `${formatInteger(entry.matchesPlayed)} matchs · ${formatKpm(entry.avgKillsPerGame)} K/M · ${formatWinRate(entry.winRate)}`,
+    value: LEADERBOARD_SORT_COLUMNS[sortKey].format(entry),
+    details: [
+      { label: 'Dégâts', value: formatInteger(entry.totalDamage) },
+      { label: 'Top 1', value: formatInteger(entry.matchesWon) },
+      { label: 'Temps', value: formatPlayTime(entry.timePlayedSeconds) },
+      ...(showModes
+        ? GROUPED_MODES.map((mode) => ({ label: MODE_LABELS[mode], value: formatInteger(MODE_KILLS[mode](entry)) }))
+        : [{ label: 'Jours actifs', value: formatInteger(entry.activeDays) }]),
+    ],
+  }))
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-900">Classement</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            options={SORT_OPTIONS}
-            value={sortBy}
-            onChange={onSortChange}
-            size="sm"
-            fullWidthOnMobile
-            className="w-full sm:w-auto"
-          />
+    <>
+      <section className="app-table-shell hidden overflow-hidden md:block" aria-label="Classement">
+        <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
+          <h2 className="text-base font-bold text-gray-900">Classement</h2>
+          <span className="text-xs text-gray-500">Cliquez sur un en-tête pour trier</span>
         </div>
-      </div>
-
-      <p className="mb-3 text-xs text-gray-500">
-        Ce tableau est recalculé selon la période sélectionnée, triable via le toggle, avec le détail des éliminations par mode (Solo, Duo, Trio, Squad).
-      </p>
-
-      {entries.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-white p-6 text-center">
-          <p className="text-sm text-gray-600">
-            Aucune donnée disponible pour cette période. Le leaderboard est recalculé à la volée à partir des matchs importés.
-          </p>
-        </div>
-      ) : (
-        <div>
-          <div className="space-y-3 md:hidden">
-            {entries.map((entry, index) => {
-              const rank = index + 1
-              const medal = RANK_MEDALS[rank]
-              const delta = getProgressionDelta(entry.memberId)
-
-              return (
-                <article
-                  key={entry.id}
-                  className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm ${
-                    rank <= 3 ? 'ring-1 ring-yellow-200' : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-700">{medal ?? `#${rank}`}</span>
-                      <span className="app-avatar flex h-8 w-8 shrink-0">
-                        {entry.avatarUrl ? (
-                          <img
-                            src={entry.avatarUrl}
-                            alt={entry.displayName + ' avatar'}
-                            className="h-full w-full object-cover"
-                            onError={(event) => {
-                              event.currentTarget.style.display = 'none'
-                            }}
-                          />
-                        ) : (
-                          <span className="text-xs font-semibold text-gray-700">
-                            {entry.displayName.charAt(0).toUpperCase()}
-                          </span>
-                        )}
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto text-[13px]">
+            <thead className="app-table-head">
+              <tr>
+                <SortableTh align="left" className="pl-3">#</SortableTh>
+                <SortableTh align="left">Joueur</SortableTh>
+                <SortableTh {...th} column="kills">Kills</SortableTh>
+                <SortableTh {...th} column="matches">Matchs</SortableTh>
+                <SortableTh {...th} column="kpm">K/M</SortableTh>
+                <SortableTh {...th} column="damage">Dégâts</SortableTh>
+                <SortableTh {...th} column="wins" title="Victoires (top 1)">Top 1</SortableTh>
+                <SortableTh {...th} column="winRate">Win rate</SortableTh>
+                {showModes
+                  ? GROUPED_MODES.map((mode) => (
+                      <SortableTh key={mode} title={`Kills en ${MODE_LABELS[mode]}`}>
+                        <span className="flex justify-end">
+                          <TeamModeBadge mode={mode} label={MODE_LABELS[mode]} size="xxs" className="shadow-none app-team-mode-badge--table-head" />
+                        </span>
+                      </SortableTh>
+                    ))
+                  : null}
+                <SortableTh {...th} column="timePlayed">Temps</SortableTh>
+                {/* Seul en-tête autorisé à passer sur deux lignes : le tableau tient dans la carte sans défilement. */}
+                <SortableTh {...th} column="activeDays" className="whitespace-normal! pr-3 leading-tight">
+                  Jours actifs
+                </SortableTh>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map(({ entry, rank }) => {
+                const delta = killsDelta.get(entry.memberId)
+                return (
+                  <tr key={entry.id} className={rank <= 3 ? `app-table-row app-table-row--top${rank}` : 'app-table-row'}>
+                    <td className="py-2 pl-3 pr-[9px]">
+                      <RankCell rank={rank} />
+                    </td>
+                    <td className="px-[9px] py-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <Avatar entry={entry} />
+                        <Link
+                          href={`/members/${entry.memberId}/dashboard`}
+                          className="truncate font-semibold text-gray-900 hover:underline"
+                        >
+                          {entry.displayName}
+                        </Link>
+                        <DistinctionIcons keys={distinctions.get(entry.memberId)} size={16} />
                       </span>
-                      <Link href={`/members/${entry.memberId}/dashboard`} className="truncate font-semibold text-gray-900 hover:text-emerald-500 transition-colors">
-                        {entry.displayName}
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">KILLS</p>
-                      <div className="mt-auto flex justify-end text-sm text-gray-900">
-                        {renderValueWithTrend(String(entry.totalKills), delta?.kills ?? null)}
-                      </div>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">MATCHS</p>
-                      <div className="mt-auto flex justify-end text-sm text-gray-900">
-                        {renderValueWithTrend(String(entry.matchesPlayed), delta?.matches ?? null)}
-                      </div>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">DAMAGE</p>
-                      <div className="mt-auto flex justify-end text-sm text-gray-900">
-                        {renderValueWithTrend(String(Math.round(entry.totalDamage)), delta?.damage ?? null)}
-                      </div>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">K/M</p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">
-                        {formatKillsPerMatch(entry)}
-                      </p>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">WINNER</p>
-                      <div className="mt-auto flex justify-end text-sm text-gray-900">
-                        {renderValueWithTrend(String(entry.matchesWon), delta?.winner ?? null)}
-                      </div>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">WIN RATE</p>
-                      <div className="mt-auto flex justify-end text-sm text-gray-900">
-                        {renderValueWithTrend(`${(entry.winRate * 100).toFixed(1)}%`, delta?.winRate ?? null, 1)}
-                      </div>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">
-                        <TeamModeBadge mode="solo" label="Solo" size="xs" className="shadow-none" />
-                      </p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{getDisplayedSoloClanKills(entry)}</p>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">
-                        <TeamModeBadge mode="duo" label="Duo" size="xs" className="shadow-none" />
-                      </p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.duoClanKills}</p>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">
-                        <TeamModeBadge mode="trio" label="Trio" size="xs" className="shadow-none" />
-                      </p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.trioClanKills}</p>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">
-                        <TeamModeBadge mode="squad" label="Squad" size="xs" className="shadow-none" />
-                      </p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.squadClanKills}</p>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">TEMPS JEU</p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{Math.floor(entry.timePlayedSeconds / 3600)}h{Math.floor((entry.timePlayedSeconds % 3600) / 60).toString().padStart(2, '0')}</p>
-                    </div>
-                    <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                      <p className="text-gray-500">JOURS ACTIFS</p>
-                      <p className="mt-auto text-right text-sm font-semibold text-gray-900">{entry.activeDays}</p>
-                    </div>
-                  </div>
-                </article>
-              )
-            })}
-
-            <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-700">-</span>
-                  <span className="font-semibold text-gray-900">Total</span>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">KILLS</p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.kills}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">MATCHS</p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.matches}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">DAMAGE</p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.damage}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">K/M</p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">
-                    {totalKpm.toLocaleString('fr-FR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">WINNER</p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totals.winner}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">WIN RATE</p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900 tabular-nums">{totalWinRate.toFixed(1)}%</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">
-                    <TeamModeBadge mode="solo" label="Solo" size="xs" className="shadow-none" />
-                  </p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.solo}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">
-                    <TeamModeBadge mode="duo" label="Duo" size="xs" className="shadow-none" />
-                  </p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.duo}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">
-                    <TeamModeBadge mode="trio" label="Trio" size="xs" className="shadow-none" />
-                  </p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.trio}</p>
-                </div>
-                <div className="flex min-h-20 flex-col rounded border border-gray-200 bg-gray-50 p-2">
-                  <p className="text-gray-500">
-                    <TeamModeBadge mode="squad" label="Squad" size="xs" className="shadow-none" />
-                  </p>
-                  <p className="mt-auto text-right text-sm font-semibold text-gray-900">{totals.squad}</p>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div className="app-table-shell hidden overflow-x-auto md:block">
-            <table className="w-full table-fixed text-sm">
-              <colgroup>
-                <col style={{ width: '4%' }} />
-                <col style={{ width: '18%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
-              </colgroup>
-              <thead className="app-table-head text-xs uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3 text-center whitespace-nowrap">Rang</th>
-                  <th className="px-4 py-3 text-left whitespace-nowrap">Joueur</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Kills</div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Matchs</div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Damage</div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">K/M</div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Winner</div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Win Rate</div>
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    <div className="flex w-full justify-end">
-                      <TeamModeBadge mode="solo" label="Solo" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    <div className="flex w-full justify-end">
-                      <TeamModeBadge mode="duo" label="Duo" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    <div className="flex w-full justify-end">
-                      <TeamModeBadge mode="trio" label="Trio" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-right">
-                    <div className="flex w-full justify-end">
-                      <TeamModeBadge mode="squad" label="Squad" size="xxs" className="shadow-none app-team-mode-badge--table-head" />
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Temps</div>
-                  </th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">
-                    <div className="flex w-full justify-end">Actifs</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry, index) => {
-                  const rank = index + 1
-                  const medal = RANK_MEDALS[rank]
-                  const delta = getProgressionDelta(entry.memberId)
-                  const rowClassName =
-                    rank === 1
-                      ? 'app-table-row app-table-row--top1'
-                      : rank === 2
-                        ? 'app-table-row app-table-row--top2'
-                        : rank === 3
-                          ? 'app-table-row app-table-row--top3'
-                          : 'app-table-row'
-
-                  return (
-                    <tr
-                      key={entry.id}
-                      className={rowClassName}
-                    >
-                      <td className="px-4 py-3 text-center font-semibold text-gray-700">
-                        {medal ?? rank}
+                    </td>
+                    <td className={`${TD} font-bold text-gray-900`} style={tint('kills')}>
+                      {formatInteger(entry.totalKills)}
+                      {delta ? (
+                        <span
+                          className={`ml-1 text-[11px] ${delta > 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                          title={`${delta > 0 ? '+' : ''}${delta} kills par rapport à la semaine précédente`}
+                        >
+                          {delta > 0 ? '▲' : '▼'}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className={TD} style={tint('matches')}>{formatInteger(entry.matchesPlayed)}</td>
+                    <td className={TD} style={tint('kpm')}>{formatKpm(entry.avgKillsPerGame)}</td>
+                    <td className={TD} style={tint('damage')}>{formatInteger(entry.totalDamage)}</td>
+                    <td className={TD} style={tint('wins')}>{formatInteger(entry.matchesWon)}</td>
+                    <td className={TD} style={tint('winRate')}>{formatWinRate(entry.winRate)}</td>
+                    {showModes
+                      ? GROUPED_MODES.map((mode) => (
+                          <td key={mode} className={TD}>
+                            {formatInteger(MODE_KILLS[mode](entry))}
+                          </td>
+                        ))
+                      : null}
+                    <td className={`${TD} text-gray-500`} style={tint('timePlayed')}>{formatPlayTime(entry.timePlayedSeconds)}</td>
+                    <td className={`${TD} pr-3 text-gray-500`} style={tint('activeDays')}>{formatInteger(entry.activeDays)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot className="app-table-head font-bold text-gray-900">
+              <tr>
+                <td className="py-2.5 pl-3" />
+                <td className="px-[9px] py-2.5 text-left">Total clan</td>
+                <td className={`${TD} text-gray-900`}>{formatInteger(totals.kills)}</td>
+                <td className={`${TD} text-gray-900`}>{formatInteger(totals.matches)}</td>
+                <td className={`${TD} text-gray-900`}>{formatKpm(totals.matches > 0 ? totals.kills / totals.matches : 0)}</td>
+                <td className={`${TD} text-gray-900`}>{formatInteger(totals.damage)}</td>
+                <td className={`${TD} text-gray-900`}>{formatInteger(totals.wins)}</td>
+                <td className={`${TD} text-gray-900`}>{formatWinRate(totals.matches > 0 ? totals.wins / totals.matches : 0)}</td>
+                {showModes
+                  ? GROUPED_MODES.map((mode) => (
+                      <td key={mode} className={`${TD} text-gray-900`}>
+                        {formatInteger(totals[mode])}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <span className="app-avatar flex h-8 w-8 shrink-0">
-                            {entry.avatarUrl ? (
-                              <img
-                                src={entry.avatarUrl}
-                                alt={entry.displayName + ' avatar'}
-                                className="h-full w-full object-cover"
-                                onError={(event) => {
-                                  event.currentTarget.style.display = 'none'
-                                }}
-                              />
-                            ) : (
-                              <span className="text-xs font-semibold text-gray-700">
-                                {entry.displayName.charAt(0).toUpperCase()}
-                              </span>
-                            )}
-                          </span>
-                          <Link href={`/members/${entry.memberId}/dashboard`} className="truncate font-semibold text-gray-900 hover:text-emerald-500 transition-colors">
-                            {entry.displayName}
-                          </Link>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">
-                        <div className="flex w-full justify-end">
-                          {renderValueWithTrend(String(entry.totalKills), delta?.kills ?? null)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">
-                        <div className="flex w-full justify-end">
-                          {renderValueWithTrend(String(entry.matchesPlayed), delta?.matches ?? null)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">
-                        <div className="flex w-full justify-end">
-                          {renderValueWithTrend(String(Math.round(entry.totalDamage)), delta?.damage ?? null)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700 font-semibold tabular-nums">
-                        {formatKillsPerMatch(entry)}
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">
-                        <div className="flex w-full justify-end">
-                          {renderValueWithTrend(String(entry.matchesWon), delta?.winner ?? null)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">
-                        <div className="flex w-full justify-end">
-                          {renderValueWithTrend(`${(entry.winRate * 100).toFixed(1)}%`, delta?.winRate ?? null, 1)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">{getDisplayedSoloClanKills(entry)}</td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">{entry.duoClanKills}</td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">{entry.trioClanKills}</td>
-                      <td className="px-4 py-3 align-top text-right text-gray-700">{entry.squadClanKills}</td>
-                      <td className="px-4 py-3 align-top text-right text-gray-500 whitespace-nowrap">
-                        {Math.floor(entry.timePlayedSeconds / 3600)}h{Math.floor((entry.timePlayedSeconds % 3600) / 60).toString().padStart(2, '0')}
-                      </td>
-                      <td className="px-4 py-3 align-top text-right text-gray-500">
-                        {entry.activeDays}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="app-table-head">
-                  <td className="px-4 py-3 text-center font-semibold text-gray-700">-</td>
-                  <td className="px-4 py-3 font-semibold text-gray-900">Total</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.kills}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.matches}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.damage}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">
-                    {totalKpm.toLocaleString('fr-FR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.winner}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totalWinRate.toFixed(1)}%</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.solo}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.duo}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.trio}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{totals.squad}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-500 tabular-nums whitespace-nowrap">
-                    {Math.floor(totals.timePlayed / 3600)}h{Math.floor((totals.timePlayed % 3600) / 60).toString().padStart(2, '0')}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-500 tabular-nums">-</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+                    ))
+                  : null}
+                <td className={`${TD} text-gray-900`}>{formatPlayTime(totals.time)}</td>
+                <td className={`${TD} pr-3 text-gray-500`}>—</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-      )}
-    </section>
+        {hiddenCount > 0 ? (
+          <ShowMoreToggle
+            expanded={showAll}
+            onToggle={() => setShowAll((current) => !current)}
+            moreLabel={`Afficher les ${hiddenCount} autres joueurs`}
+            lessLabel="Afficher moins"
+            className="mt-0! rounded-none"
+          />
+        ) : null}
+      </section>
+
+      <MobileRankList
+        rows={mobileRows}
+        sortOptions={MOBILE_SORT_OPTIONS}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSortChange={onSort}
+        metricLabel={LEADERBOARD_SORT_COLUMNS[sortKey].label}
+      />
+    </>
   )
 }

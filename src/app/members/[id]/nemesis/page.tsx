@@ -10,6 +10,7 @@ import WeaponIcon from '@/components/ui/WeaponIcon'
 import WeaponSelect from '@/components/ui/WeaponSelect'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
 import { resolveWeaponName } from '@/lib/pubg-assets'
 
 type OpponentRow = {
@@ -72,12 +73,6 @@ function formatRatio(kills: number, deaths: number) {
   return (kills / deaths).toFixed(2)
 }
 
-function podiumTone(rank: number) {
-  if (rank === 1) return 'app-podium-badge--gold'
-  if (rank === 2) return 'app-podium-badge--silver'
-  return 'app-podium-badge--bronze'
-}
-
 function countBadgeClass(tone: 'danger' | 'success', rank: number) {
   const intense = rank === 1
   if (tone === 'danger') {
@@ -132,7 +127,7 @@ function OpponentList({
             <div className="min-w-0 flex-1 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  {isPodium ? <span className={`app-podium-badge ${podiumTone(rank)}`}>#{rank}</span> : null}
+                  {isPodium ? <RankCell rank={rank} size="xs" /> : null}
                   {row.resolved ? (
                     <PlayerNameBadge name={row.name} className="min-w-0 truncate font-semibold text-slate-900" />
                   ) : (
@@ -281,15 +276,15 @@ export default function MemberNemesisPage() {
           <div aria-busy={loading} className={loading ? 'space-y-4 opacity-60' : 'space-y-4'}>
             <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
               <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Morts trackées</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Morts suivies</p>
                 <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalDeathsTracked}</p>
               </article>
               <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Kills trackés</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Kills suivis</p>
                 <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalKillsTracked}</p>
               </article>
               <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Ratio K/D tracké</p>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Ratio K/D suivi</p>
                 <p className="mt-2 text-2xl font-bold text-sky-700">
                   {formatRatio(payload.totalKillsTracked, payload.totalDeathsTracked)}
                 </p>

@@ -24,7 +24,7 @@ test.describe('Classement du clan (page de référence)', () => {
   test.beforeEach(async ({ api, page }) => {
     mockClanLeaderboard(api)
     await page.goto(`/clans/${CLAN_ID}/leaderboard`)
-    await expect(page.getByText('Joueur Alpha').first()).toBeVisible()
+    await expect(page.getByText('Joueur Alpha').filter({ visible: true }).first()).toBeVisible()
     await expect(toolbar(page)).toBeVisible()
   })
 

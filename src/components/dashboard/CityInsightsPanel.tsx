@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import RankCell from '@/components/ui/RankCell'
 import Link from 'next/link'
 import { MapPin, Swords } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -32,12 +32,6 @@ const METRIC_META: Record<CityMetricKey, { color: string; unit: string; position
   kill: { color: '#ef4444', unit: 'éliminations', positionsView: 'kill' },
   damage: { color: '#f97316', unit: 'dégâts', positionsView: 'damage' },
   revive: { color: '#22c55e', unit: 'réanimations', positionsView: 'revive' },
-}
-
-const MEDALS: Record<number, { iconPath: string; alt: string }> = {
-  1: { iconPath: '/icons/medal-gold.svg', alt: 'Médaille or, rang 1' },
-  2: { iconPath: '/icons/medal-silver.svg', alt: 'Médaille argent, rang 2' },
-  3: { iconPath: '/icons/medal-bronze.svg', alt: 'Médaille bronze, rang 3' },
 }
 
 const numberFormat = new Intl.NumberFormat('fr-FR')
@@ -196,18 +190,13 @@ export default function CityInsightsPanel({
               <tbody>
                 {cities.map((city, index) => {
                   const rank = index + 1
-                  const medal = MEDALS[rank]
                   return (
                     <tr
                       key={`${city.mapName}-${city.locationId}`}
                       className={`app-table-row ${rank <= 3 ? `app-table-row--top${rank}` : ''}`}
                     >
-                      <td className="px-3 py-3 text-center font-semibold">
-                        {medal ? (
-                          <Image src={medal.iconPath} alt={medal.alt} width={24} height={24} className="mx-auto h-6 w-6" />
-                        ) : (
-                          rank
-                        )}
+                      <td className="py-3 pl-3 pr-[9px]">
+                        <RankCell rank={rank} />
                       </td>
                       <td className="px-3 py-3">
                         <span className="font-medium text-gray-900">{city.name}</span>

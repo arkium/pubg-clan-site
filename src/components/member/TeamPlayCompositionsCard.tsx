@@ -100,7 +100,7 @@ export default function TeamPlayCompositionsCard({ memberId, period = 'all' }: T
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <section className="app-panel p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-gray-900">Team Play Duo/Trio/Squad</h2>
       <p className="mb-3 text-sm text-gray-500">
         Repere en un coup d&apos;oeil les coequipiers avec qui ton impact est le plus fort.

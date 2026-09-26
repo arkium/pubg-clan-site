@@ -50,7 +50,7 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
 
   if (squads.length === 0) {
     return (
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="app-panel p-6 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold text-gray-900">Squads préférés</h2>
         <p className="text-sm text-gray-500">
           Aucune donnée de squad disponible. Jouez des parties en équipe pour voir vos partenaires
@@ -61,7 +61,7 @@ export default function SquadFrequency({ squads }: SquadFrequencyProps) {
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+    <section className="app-panel">
       <div className="border-b border-gray-200 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>

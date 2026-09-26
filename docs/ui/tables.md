@@ -71,10 +71,10 @@ Les filtres de période et les sélecteurs de métrique au-dessus des tableaux u
 
 Points de contrôle visuel :
 
-- Le conteneur externe épouse le rayon du panneau parent sans second arrondi visible.
-- Les boutons centraux restent plats (sans rayon).
-- Les boutons d'extrémité (premier et dernier) reprennent le rayon du cadre.
+- Piste teintée (`--theme-toggle-track`, rayon 10 px, padding 3 px) ; chaque segment a son propre rayon (7 px).
+- Segment actif : surface, texte et contour en accent (`--theme-ui-accent-*`), sans aplat bleu plein.
 - En thème sombre : fond, bordures et état actif restent lisibles sans halo clair.
+- Un segmented ne trie **jamais** un tableau : le tri passe par les en-têtes (ci-dessous).
 - En mobile : le groupe reste compact et ne casse pas la hauteur des cartes voisines.
 
 ---
@@ -118,6 +118,19 @@ Clés de tri supportées par l'API :
 | `kills` | Kills |
 | `damageDealt` | Dégâts |
 | `placement` | Placement |
+
+---
+
+## Standard de tri — `SortableTh` (refonte UI)
+
+Tout tableau triable se trie par ses en-têtes : `SortableTh` + `useTableSort` (`docs/ui/components.md`). Un clic trie en
+décroissant, un second inverse ; l'en-tête actif porte l'accent et ↓/↑, la colonne triée est teintée
+(`--theme-ui-accent-tint`), `aria-sort` est posé. Quand l'en-tête sort de la vue, le bandeau docké rappelle le tri
+(`dockedAside` + `SortReminder`). Sur mobile, puces « Trier par » de `MobileRankList`.
+
+Rangs : `RankCell` (médailles SVG 1 à 3). Cellules numériques : padding horizontal 9 px, `tabular-nums`,
+`table-layout: auto`, aucune largeur fixe dont la somme dépasserait la carte. Une colonne nulle par construction pour le
+filtre actif n'est pas rendue (Duo/Trio/Squad hors mode « Tous »).
 
 ---
 

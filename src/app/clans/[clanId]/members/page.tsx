@@ -269,15 +269,15 @@ export default function ClanMembersPage() {
 
                   <div className="members-medals mt-auto flex items-center justify-center gap-6 border-t border-gray-200 pt-3 text-xs text-gray-600">
                     <span className="members-medal inline-flex items-center gap-1.5">
-                      <img src="/icons/medal-gold.svg" alt="Medaille or" className="h-5 w-5" />
+                      <img src="/icons/medal-gold.svg" alt="Médaille or" className="h-5 w-5" />
                       <strong className="text-base text-gray-900">{member.medalCounts?.gold ?? 0}</strong>
                     </span>
                     <span className="members-medal inline-flex items-center gap-1.5">
-                      <img src="/icons/medal-silver.svg" alt="Medaille argent" className="h-5 w-5" />
+                      <img src="/icons/medal-silver.svg" alt="Médaille argent" className="h-5 w-5" />
                       <strong className="text-base text-gray-900">{member.medalCounts?.silver ?? 0}</strong>
                     </span>
                     <span className="members-medal inline-flex items-center gap-1.5">
-                      <img src="/icons/medal-bronze.svg" alt="Medaille bronze" className="h-5 w-5" />
+                      <img src="/icons/medal-bronze.svg" alt="Médaille bronze" className="h-5 w-5" />
                       <strong className="text-base text-gray-900">{member.medalCounts?.bronze ?? 0}</strong>
                     </span>
                   </div>

@@ -41,7 +41,7 @@ Un match PUBG `squad` peut être `solo clan` si un seul membre du clan y partici
 | Paramètre | Valeurs | Défaut | Description |
 |---|---|---|---|
 | `period` | `week`, `month`, `all` | `week` | Période temporelle |
-| `sortBy` | `kills`, `damage`, `winRate`, `matches`, `kpm` | `kills` | Critère de tri |
+| `sortBy` | `kills`, `damage`, `winRate`, `matches`, `kpm` | `kills` | Critère de tri de la réponse. La page envoie toujours `kills` et trie côté client (`src/lib/leaderboard-sort.ts`) : cliquer un en-tête ne recharge rien |
 | `killsView` | `clan`, `withSolo` | `clan` | Inclure ou non les matchs solo clan |
 
 ### 2.3 Calcul des périodes
@@ -216,8 +216,10 @@ Les chiffres du tableau leaderboard sont calculés **live** depuis `Match` + `Sq
 | Fichier | Rôle |
 |---|---|
 | `src/app/api/clans/[clanId]/leaderboard/route.ts` | Calcul live du leaderboard |
-| `src/components/Leaderboard.tsx` | Tableau principal |
-| `src/components/LeaderboardStats.tsx` | Cartes Top performers |
+| `src/app/clans/[clanId]/leaderboard/page.tsx` | Page : bandeau, filtres, podium, distinctions (refonte UI, 2026-09-26) |
+| `src/components/Leaderboard.tsx` | Tableau trié par ses en-têtes (ordinateur) et liste `MobileRankList` (mobile) |
+| `src/lib/leaderboard-sort.ts` | Tri côté client et rang (ordre décroissant du critère), formats français |
+| `src/lib/distinctions.ts` | Distinctions calculées sur les lignes affichées (remplace `LeaderboardStats.tsx`, supprimé) |
 | `src/hooks/useLeaderboard.ts` | Chargement client de l'API |
 | `src/lib/stats-calculator.ts` | Recalcul cron de `PlayerStats` |
 | `src/types/leaderboard.ts` | Types du leaderboard interne |

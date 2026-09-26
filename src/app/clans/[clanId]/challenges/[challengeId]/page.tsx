@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ChallengeLeaderboard from '@/components/ChallengeLeaderboard'
 import { CHALLENGE_TYPES } from '@/lib/challenge-types'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
 
 type LeaderboardEntry = {
   rank: number
@@ -197,7 +198,7 @@ export default function ChallengePage() {
       </Link>
 
       {/* Header */}
-      <div className="mb-6 rounded border border-gray-200 bg-white p-6">
+      <div className="mb-6 app-panel p-6">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
             <span className="text-3xl" aria-hidden>
@@ -227,7 +228,7 @@ export default function ChallengePage() {
       </div>
 
       {/* Rewards */}
-      <div className="mb-6 rounded border border-gray-200 bg-white p-4">
+      <div className="mb-6 app-panel p-4">
         <h2 className="mb-3 text-sm font-semibold text-gray-700">Récompenses</h2>
         <div className="flex flex-wrap gap-4">
           {(['1st', '2nd', '3rd'] as const).map((pos, i) => {
@@ -235,7 +236,7 @@ export default function ChallengePage() {
             if (!pts) return null
             return (
               <div key={pos} className="text-center">
-                <p className="text-xl">{['🥇', '🥈', '🥉'][i]}</p>
+                <RankCell rank={i + 1} size="md" className="mx-auto" />
                 <p className="text-sm font-medium text-yellow-600">+{pts} pts</p>
               </div>
             )

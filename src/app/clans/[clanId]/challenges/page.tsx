@@ -177,7 +177,7 @@ export default function ChallengesPage() {
 
       <div className="app-container app-gutter">
         {tab === 'create' ? (
-          <div className="rounded border border-gray-200 bg-white p-6">
+          <div className="app-panel p-6">
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Créer un challenge</h2>
             <ChallengeCreator onSubmit={handleCreate} loading={creating} />
           </div>
@@ -188,7 +188,7 @@ export default function ChallengesPage() {
             {loading ? <p className="text-sm text-gray-500">Chargement...</p> : null}
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
             {!loading && !error && challenges.length === 0 ? (
-              <p className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-500">
+              <p className="app-panel p-4 text-sm text-gray-500">
                 Aucun challenge{' '}
                 {tab === 'active' ? 'actif' : tab === 'ended' ? 'terminé' : 'à venir'}.
               </p>

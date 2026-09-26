@@ -19,28 +19,28 @@ function buildAxes(stats: DashboardStats, clan: ClanAverage): Axis[] {
     },
     {
       key: 'damage',
-      label: 'Damage',
+      label: 'Dégâts',
       playerValue: stats.totalDamage,
       clanValue: clan.avgDamage,
       max: Math.max(stats.totalDamage, clan.avgDamage, 1),
     },
     {
       key: 'winRate',
-      label: 'Win Rate',
+      label: 'Win rate',
       playerValue: stats.winRate * 100,
       clanValue: clan.avgWinRate * 100,
       max: 100,
     },
     {
       key: 'assists',
-      label: 'Assists',
+      label: 'Assistances',
       playerValue: stats.totalAssists,
       clanValue: clan.avgAssists,
       max: Math.max(stats.totalAssists, clan.avgAssists, 1),
     },
     {
       key: 'revives',
-      label: 'Revives',
+      label: 'Réanimations',
       playerValue: stats.totalRevives,
       clanValue: clan.avgRevives,
       max: Math.max(stats.totalRevives, clan.avgRevives, 1),
@@ -79,7 +79,7 @@ interface ComparisonRadarProps {
 export default function ComparisonRadar({ stats, clanAverage }: ComparisonRadarProps) {
   if (!stats || !clanAverage) {
     return (
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <section className="app-panel p-6 shadow-sm">
         <h2 className="mb-2 text-lg font-semibold text-gray-900">Comparaison vs Clan</h2>
         <p className="text-sm text-gray-500">
           Données insuffisantes pour la comparaison. Les stats de clan seront disponibles une fois
@@ -99,7 +99,7 @@ export default function ComparisonRadar({ stats, clanAverage }: ComparisonRadarP
   const gridLevels = [0.25, 0.5, 0.75, 1]
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+    <section className="app-panel p-4 shadow-sm sm:p-6">
       <h2 className="mb-4 text-lg font-semibold text-gray-900">Comparaison vs Clan</h2>
 
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start">

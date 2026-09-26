@@ -1,252 +1,154 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Crown, Swords, Target, Activity, UserMinus } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
+
+import MobileRankList from '@/components/ui/MobileRankList'
+import PodiumCards from '@/components/ui/PodiumCards'
+import RankCell from '@/components/ui/RankCell'
+import SortableTh from '@/components/ui/SortableTh'
+import { useTableSort } from '@/hooks/useTableSort'
+import { formatInteger, formatWinRate, rankBy } from '@/lib/leaderboard-sort'
 
 import type { ClanLeaderboardEntry } from '@/app/api/clans-leaderboard/route'
 
 export type SortBy = 'powerScore' | 'activeMembers' | 'winRate' | 'avgDamage' | 'avgKills' | 'avgKnocks'
 
-const MEDAL_BY_RANK = {
-  1: { iconPath: '/icons/medal-gold.svg', alt: 'Médaille or, rang 1' },
-  2: { iconPath: '/icons/medal-silver.svg', alt: 'Médaille argent, rang 2' },
-  3: { iconPath: '/icons/medal-bronze.svg', alt: 'Médaille bronze, rang 3' },
-} as const
+const oneDecimal = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-const COLUMNS: { key: SortBy; label: string; align: 'center' | 'right' }[] = [
-  { key: 'activeMembers', label: 'Effectif Actif', align: 'center' },
-  { key: 'powerScore', label: 'Power Score', align: 'right' },
-  { key: 'winRate', label: 'Win Rate', align: 'right' },
-  { key: 'avgDamage', label: 'Dégâts moy.', align: 'right' },
-  { key: 'avgKills', label: 'Kills moy.', align: 'right' },
-  { key: 'avgKnocks', label: 'Knocks moy.', align: 'right' },
+/** Colonnes triables, dans l'ordre du tableau ; la valeur formatée sert aussi au podium et à la liste mobile. */
+const COLUMNS: Array<{ key: SortBy; label: string; title?: string; format: (entry: ClanLeaderboardEntry) => string }> = [
+  { key: 'powerScore', label: 'Power score', format: (e) => formatInteger(e.powerScore) },
+  { key: 'activeMembers', label: 'Actifs', title: 'Membres actifs sur la période', format: (e) => formatInteger(e.activeMembers) },
+  { key: 'winRate', label: 'Win rate', format: (e) => formatWinRate(e.winRate) },
+  { key: 'avgDamage', label: 'Dégâts moy.', title: 'Dégâts moyens par match', format: (e) => formatInteger(e.avgDamage) },
+  { key: 'avgKills', label: 'Kills moy.', title: 'Kills moyens par match', format: (e) => oneDecimal.format(e.avgKills) },
+  { key: 'avgKnocks', label: 'Knocks moy.', title: 'Knocks moyens par match', format: (e) => oneDecimal.format(e.avgKnocks) },
 ]
+const COLUMN_BY_KEY = Object.fromEntries(COLUMNS.map((column) => [column.key, column])) as Record<SortBy, (typeof COLUMNS)[number]>
 
-function PodiumPosition({ 
-  entry, 
-  position,
-  sortBy
-}: { 
-  entry: ClanLeaderboardEntry
-  position: 1 | 2 | 3 
-  sortBy: SortBy
-}) {
-  const heightClass = position === 1 ? 'h-40' : position === 2 ? 'h-32' : 'h-24'
-  const colorClass = position === 1
-    ? 'from-amber-500/80 to-amber-900/40 border-amber-400/80 text-amber-400'
-    : position === 2
-    ? 'from-slate-300/80 to-slate-700/40 border-slate-300/80 text-slate-300'
-    : 'from-amber-700/80 to-amber-950/40 border-amber-600/80 text-amber-600' // bronze
-  const metricTextClass = position === 1 ? 'text-amber-400' : position === 2 ? 'text-slate-300' : 'text-amber-600'
+const TD = 'px-[9px] py-2.5 text-right tabular-nums text-gray-700 whitespace-nowrap'
 
-  const delayClass = position === 1 ? 'delay-100' : position === 2 ? 'delay-200' : 'delay-300'
-
-  let metricLabel = ''
-  if (sortBy === 'powerScore') metricLabel = `${Math.round(entry.powerScore)} pts`
-  else if (sortBy === 'activeMembers') metricLabel = `${entry.activeMembers} actifs`
-  else if (sortBy === 'winRate') metricLabel = `${(entry.winRate * 100).toFixed(1)}% WR`
-  else if (sortBy === 'avgDamage') metricLabel = `${Math.round(entry.avgDamage)} dégâts`
-  else if (sortBy === 'avgKills') metricLabel = `${entry.avgKills.toFixed(1)} kills`
-  else if (sortBy === 'avgKnocks') metricLabel = `${entry.avgKnocks.toFixed(1)} knocks`
-
-  return (
-    <div className={`flex flex-col items-center justify-end flex-1 max-w-36 animate-in fade-in slide-in-from-bottom-8 duration-700 ${delayClass}`}>
-      <div className="mb-4 text-center z-10">
-        <Link
-          href={`/clans/${entry.clanId}/stats`}
-          className="text-lg font-bold leading-tight hover:underline"
-        >
-          {entry.name}
-        </Link>
-        <div className="text-sm opacity-80 font-mono">[{entry.tag}]</div>
-        <div className={`text-base font-black mt-1.5 bg-black/40 px-2.5 py-1 rounded-full inline-block backdrop-blur-sm whitespace-nowrap ${metricTextClass}`}>
-          {metricLabel}
-        </div>
-      </div>
-      <div className={`w-full ${heightClass} rounded-xl bg-gradient-to-t ${colorClass} border relative shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col items-center justify-end pb-4`}>
-        {position === 1 && (
-          <Crown className="absolute top-3 w-8 h-8 text-amber-200 drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
-        )}
-        <span className="text-4xl font-black opacity-40 select-none">
-          {position}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function ClanPodium({ topClans, sortBy }: { topClans: ClanLeaderboardEntry[], sortBy: SortBy }) {
-  if (topClans.length < 3) return null
-
-  // Reorder for podium: 2, 1, 3
-  const [first, second, third] = topClans
-  
-  return (
-    <div className="flex justify-center items-end gap-2 md:gap-6">
-      <PodiumPosition entry={second} position={2} sortBy={sortBy} />
-      <PodiumPosition entry={first} position={1} sortBy={sortBy} />
-      <PodiumPosition entry={third} position={3} sortBy={sortBy} />
-    </div>
-  )
-}
-
-/** La période se choisit dans le bandeau de la page (docs/TODO/sticky.md §4). */
+/** Ligue inter-clans. La période se choisit dans le bandeau de la page (docs/TODO/sticky.md §4). */
 export function ClanLeaderboardTable({ entries }: { entries: ClanLeaderboardEntry[] }) {
-  const [sortBy, setSortBy] = useState<SortBy>('powerScore')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const { sortKey, sortDir, onSort, colTint } = useTableSort<SortBy>('powerScore')
 
   if (!entries || entries.length === 0) {
-    return <div className="text-center py-12 text-gray-500">Aucun clan trouvé.</div>
+    return <div className="py-12 text-center text-gray-500">Aucun clan trouvé.</div>
   }
 
-  const directionSign = sortDirection === 'desc' ? -1 : 1
-  const sortedEntries = [...entries].sort((a, b) => (a[sortBy] - b[sortBy]) * directionSign)
-    .map((entry, index) => ({
-      ...entry,
-      displayRank: index + 1,
-    }))
-
-  const top3 = sortedEntries.slice(0, 3)
-
-  function changeSort(nextSortBy: SortBy) {
-    if (sortBy === nextSortBy) {
-      setSortDirection((current) => (current === 'desc' ? 'asc' : 'desc'))
-      return
-    }
-    setSortBy(nextSortBy)
-    setSortDirection('desc')
-  }
-
-  function SortIcon({ column }: { column: SortBy }) {
-    if (sortBy !== column) return <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-    return sortDirection === 'desc'
-      ? <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-      : <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-  }
+  const column = COLUMN_BY_KEY[sortKey]
+  const value = (entry: ClanLeaderboardEntry) => entry[sortKey]
+  const rows = rankBy(entries, value, sortDir)
+  const th = { sortKey, sortDir, onSort }
+  // Courte : elle tient sous le nom dans une carte du podium.
+  const subline = (entry: ClanLeaderboardEntry) => `[${entry.tag}] · ${formatInteger(entry.activeMembers)} actifs`
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      <section className="app-panel p-4 sm:p-6">
-        <ClanPodium topClans={top3} sortBy={sortBy} />
-      </section>
+    <div className="flex w-full flex-col gap-4">
+      <PodiumCards
+        metricLabel={column.label}
+        entries={rankBy(entries, value, 'desc')
+          .slice(0, 3)
+          .map(({ entry }) => ({
+            key: entry.clanId,
+            name: entry.name,
+            href: `/clans/${entry.clanId}/overview`,
+            subline: subline(entry),
+            value: column.format(entry),
+          }))}
+      />
 
-      <section className="app-panel overflow-hidden">
-        <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--theme-ui-text)]">Classement détaillé</h2>
-            <p className="text-xs text-gray-500">Cliquez sur une colonne pour modifier le classement.</p>
-          </div>
+      <section className="app-table-shell hidden overflow-hidden md:block" aria-label="Classement détaillé">
+        <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
+          <h2 className="text-base font-bold text-gray-900">Classement détaillé</h2>
+          <span className="text-xs text-gray-500">Cliquez sur un en-tête pour trier</span>
         </div>
-        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-        <div className="app-table-shell overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="app-table-head text-xs uppercase tracking-wide">
+        <div className="overflow-x-auto">
+          <table className="w-full table-auto text-[13px]">
+            <thead className="app-table-head">
               <tr>
-                <th className="px-3 py-3 text-center">Rang</th>
-                <th className="px-3 py-3 text-left">Clan</th>
-                {COLUMNS.map((col) => (
-                  <th key={col.key} className={`px-3 py-3 ${col.align === 'center' ? 'text-center' : 'text-right'}`}>
-                    <button
-                      type="button"
-                      onClick={() => changeSort(col.key)}
-                      className={`inline-flex items-center gap-1 whitespace-nowrap font-semibold ${col.align === 'center' ? 'mx-auto' : 'ml-auto'}`}
-                    >
-                      {col.label}
-                      <SortIcon column={col.key} />
-                    </button>
-                  </th>
+                <SortableTh align="left" className="pl-3">#</SortableTh>
+                <SortableTh align="left">Clan</SortableTh>
+                {COLUMNS.map((col, index) => (
+                  <SortableTh
+                    key={col.key}
+                    {...th}
+                    column={col.key}
+                    title={col.title}
+                    className={index === COLUMNS.length - 1 ? 'pr-3' : ''}
+                  >
+                    {col.label}
+                  </SortableTh>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {sortedEntries.map((entry) => {
-                const rank = entry.displayRank
-                const medal = rank <= 3 ? MEDAL_BY_RANK[rank as 1 | 2 | 3] : null
-                const rankClassName =
-                  rank === 1 ? 'app-table-row--top1' : rank === 2 ? 'app-table-row--top2' : rank === 3 ? 'app-table-row--top3' : ''
-
-                return (
-                  <tr key={entry.clanId} className={`app-table-row ${rankClassName}`}>
-                    <td className="px-3 py-3 text-center font-semibold text-gray-700">
-                      {medal ? (
-                        <Image src={medal.iconPath} alt={medal.alt} width={24} height={24} className="mx-auto h-6 w-6" />
-                      ) : rank}
+              {rows.map(({ entry, rank }) => (
+                <tr key={entry.clanId} className={rank <= 3 ? `app-table-row app-table-row--top${rank}` : 'app-table-row'}>
+                  <td className="py-2 pl-3 pr-[9px]">
+                    <RankCell rank={rank} />
+                  </td>
+                  <td className="px-[9px] py-2">
+                    <Link href={`/clans/${entry.clanId}/overview`} className="font-semibold text-gray-900 hover:underline">
+                      {entry.name}
+                    </Link>
+                    <span className="ml-1.5 font-mono text-xs text-gray-500">[{entry.tag}]</span>
+                  </td>
+                  {COLUMNS.map((col, index) => (
+                    <td
+                      key={col.key}
+                      className={`${TD} ${col.key === sortKey ? 'font-bold text-gray-900' : ''} ${index === COLUMNS.length - 1 ? 'pr-3' : ''}`}
+                      style={{ backgroundColor: colTint(col.key) }}
+                    >
+                      {col.format(entry)}
                     </td>
-                    <td className="px-3 py-3">
-                      <Link
-                        href={`/clans/${entry.clanId}/overview`}
-                        className="font-bold text-gray-900 hover:text-emerald-500 transition-colors flex flex-col"
-                      >
-                        <span>{entry.name}</span>
-                        <span className="text-xs font-mono text-gray-500">[{entry.tag}]</span>
-                      </Link>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <div className="inline-flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-md">
-                        <Activity className="w-3.5 h-3.5 text-blue-500" />
-                        <span className={sortBy === 'activeMembers' ? 'text-gray-900 font-bold' : 'text-gray-700'}>{entry.activeMembers}</span>
-                      </div>
-                    </td>
-                    <td className={`px-3 py-3 text-right font-black ${sortBy === 'powerScore' ? 'text-amber-500' : 'text-gray-700'}`}>
-                      {Math.round(entry.powerScore)}
-                    </td>
-                    <td className={`px-3 py-3 text-right text-gray-700 ${sortBy === 'winRate' ? 'text-gray-900 font-bold' : ''}`}>
-                      {(entry.winRate * 100).toFixed(1)}%
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      <div className={`flex items-center justify-end gap-1.5 ${sortBy === 'avgDamage' ? 'text-gray-900 font-bold' : 'text-gray-700'}`}>
-                        <Target className="w-3.5 h-3.5 text-rose-500" />
-                        {Math.round(entry.avgDamage)}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      <div className={`flex items-center justify-end gap-1.5 ${sortBy === 'avgKills' ? 'text-gray-900 font-bold' : 'text-gray-700'}`}>
-                        <Swords className="w-3.5 h-3.5 text-gray-500" />
-                        {entry.avgKills.toFixed(1)}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      <div className={`flex items-center justify-end gap-1.5 ${sortBy === 'avgKnocks' ? 'text-gray-900 font-bold' : 'text-gray-700'}`}>
-                        <UserMinus className="w-3.5 h-3.5 text-orange-500" />
-                        {entry.avgKnocks.toFixed(1)}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-        </div>
       </section>
 
+      <MobileRankList
+        rows={rows.map(({ entry, rank }) => ({
+          key: entry.clanId,
+          rank,
+          name: entry.name,
+          href: `/clans/${entry.clanId}/overview`,
+          subline: subline(entry),
+          value: column.format(entry),
+          details: COLUMNS.filter((col) => col.key !== sortKey).map((col) => ({ label: col.label, value: col.format(entry) })),
+        }))}
+        sortOptions={COLUMNS.map((col) => ({ value: col.key, label: col.label }))}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSortChange={onSort}
+        metricLabel={column.label}
+        linkLabel="Voir le clan"
+      />
+
       <section className="app-panel-muted p-4 sm:p-6">
-        <h3 className="text-sm font-semibold text-[var(--theme-ui-text)]">Comment le Power Score est calculé</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Comment le Power score est calculé</h3>
         <p className="mt-1 text-xs text-gray-500">
           Un score composite qui combine quatre indicateurs de performance sur la période sélectionnée :
         </p>
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs">
-            <span className="font-bold text-gray-900">Win Rate × 100</span>
-            <p className="mt-0.5 text-gray-500">Taux de victoire du clan</p>
-          </div>
-          <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs">
-            <span className="font-bold text-gray-900">+ Dégâts moy.</span>
-            <p className="mt-0.5 text-gray-500">Dégâts infligés par match</p>
-          </div>
-          <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs">
-            <span className="font-bold text-gray-900">+ Kills moy. × 10</span>
-            <p className="mt-0.5 text-gray-500">Kills par match</p>
-          </div>
-          <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs">
-            <span className="font-bold text-gray-900">+ Knocks moy. × 5</span>
-            <p className="mt-0.5 text-gray-500">Knocks par match</p>
-          </div>
+          {[
+            ['Win rate × 100', 'Taux de victoire du clan'],
+            ['+ Dégâts moy.', 'Dégâts infligés par match'],
+            ['+ Kills moy. × 10', 'Kills par match'],
+            ['+ Knocks moy. × 5', 'Knocks par match'],
+          ].map(([formula, detail]) => (
+            <div key={formula} className="app-panel px-3 py-2 text-xs">
+              <span className="font-bold text-gray-900">{formula}</span>
+              <p className="mt-0.5 text-gray-500">{detail}</p>
+            </div>
+          ))}
         </div>
         <p className="mt-3 text-xs text-gray-500">
-          Plus un clan gagne, inflige de dégâts, et met des adversaires au sol ou les élimine en moyenne, plus son Power Score est élevé.
+          Plus un clan gagne, inflige de dégâts, et met des adversaires au sol ou les élimine en moyenne, plus son Power score
+          est élevé.
         </p>
       </section>
     </div>

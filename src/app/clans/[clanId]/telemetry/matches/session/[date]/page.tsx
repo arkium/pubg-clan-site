@@ -600,7 +600,7 @@ export default function TelemetrySessionDatePage() {
       } | null
 
       if (!response.ok || !payload?.ok) {
-        setTelemetrySyncMessage(payload?.error ?? 'Echec de la mise en file télémétrie.')
+        setTelemetrySyncMessage(payload?.error ?? 'Échec de la mise en file télémétrie.')
         return
       }
 
@@ -615,7 +615,7 @@ export default function TelemetrySessionDatePage() {
       setTelemetryClearMessage(null)
       refresh()
     } catch (err) {
-      setTelemetrySyncMessage(buildNetworkAwareErrorMessage('Echec de la mise en file télémétrie.', err))
+      setTelemetrySyncMessage(buildNetworkAwareErrorMessage('Échec de la mise en file télémétrie.', err))
     } finally {
       setTelemetrySyncLoading(false)
     }
@@ -644,7 +644,7 @@ export default function TelemetrySessionDatePage() {
       } | null
 
       if (!response.ok || !payload?.ok) {
-        setTelemetryClearMessage(payload?.error ?? 'Echec de la suppression télémétrie OK.')
+        setTelemetryClearMessage(payload?.error ?? 'Échec de la suppression télémétrie OK.')
         return
       }
 
@@ -657,7 +657,7 @@ export default function TelemetrySessionDatePage() {
       setTelemetrySyncCaptureNotes([])
       refresh()
     } catch (err) {
-      setTelemetryClearMessage(buildNetworkAwareErrorMessage('Echec de la suppression télémétrie OK.', err))
+      setTelemetryClearMessage(buildNetworkAwareErrorMessage('Échec de la suppression télémétrie OK.', err))
     } finally {
       setTelemetryClearLoading(false)
     }
@@ -705,7 +705,7 @@ export default function TelemetrySessionDatePage() {
       const preflightPayload = (await preflightResponse.json().catch(() => null)) as FileResyncResponse | null
 
       if (!preflightResponse.ok || !preflightPayload?.ok) {
-        setTelemetryFileSyncMessage(preflightPayload?.error ?? 'Echec de la prevalidation des fichiers telemetry.')
+        setTelemetryFileSyncMessage(preflightPayload?.error ?? 'Échec de la prévalidation des fichiers telemetry.')
         setTelemetryFileSyncTone('error')
         return
       }
@@ -843,7 +843,7 @@ export default function TelemetrySessionDatePage() {
       setTelemetryFileSyncProgress((current) => current ? { ...current, currentMatchId: null } : current)
       if (!interruptedReason) refresh()
     } catch (err) {
-      setTelemetryFileSyncMessage(buildNetworkAwareErrorMessage('Echec du resync fichiers telemetry.', err))
+      setTelemetryFileSyncMessage(buildNetworkAwareErrorMessage('Échec du resync fichiers telemetry.', err))
       setTelemetryFileSyncTone('error')
     } finally {
       setTelemetryFileSyncProgress((current) => current ? { ...current, currentMatchId: null } : current)
@@ -881,7 +881,7 @@ export default function TelemetrySessionDatePage() {
       const preflightPayload = (await preflightResponse.json().catch(() => null)) as FileResyncResponse | null
 
       if (!preflightResponse.ok || !preflightPayload?.ok) {
-        setTelemetryFileQueueMessage(preflightPayload?.error ?? 'Echec de la prevalidation avant mise en file worker.')
+        setTelemetryFileQueueMessage(preflightPayload?.error ?? 'Échec de la prévalidation avant mise en file worker.')
         return
       }
 
@@ -906,7 +906,7 @@ export default function TelemetrySessionDatePage() {
       const queuePayload = (await queueResponse.json().catch(() => null)) as FileResyncQueueResponse | null
 
       if (!queueResponse.ok || !queuePayload?.ok) {
-        setTelemetryFileQueueMessage(queuePayload?.error ?? 'Echec de la mise en file worker.')
+        setTelemetryFileQueueMessage(queuePayload?.error ?? 'Échec de la mise en file worker.')
         return
       }
 
@@ -924,7 +924,7 @@ export default function TelemetrySessionDatePage() {
       )
       setTelemetryFileSyncMessage(null)
     } catch (err) {
-      setTelemetryFileQueueMessage(buildNetworkAwareErrorMessage('Echec de la mise en file worker.', err))
+      setTelemetryFileQueueMessage(buildNetworkAwareErrorMessage('Échec de la mise en file worker.', err))
     } finally {
       setTelemetryFileQueueLoading(false)
     }
@@ -950,7 +950,7 @@ export default function TelemetrySessionDatePage() {
       } | null
 
       if (!response.ok || !payload?.ok) {
-        setQueueCleanupMessage(payload?.error ?? 'Echec du nettoyage de la file.')
+        setQueueCleanupMessage(payload?.error ?? 'Échec du nettoyage de la file.')
         return
       }
 
@@ -960,7 +960,7 @@ export default function TelemetrySessionDatePage() {
           : `${payload.cancelled} job(s) en cours annulé(s) et marqué(s) en échec.`
       )
     } catch (err) {
-      setQueueCleanupMessage(buildNetworkAwareErrorMessage('Echec du nettoyage de la file.', err))
+      setQueueCleanupMessage(buildNetworkAwareErrorMessage('Échec du nettoyage de la file.', err))
     } finally {
       setQueueCleanupLoading(false)
     }
@@ -987,7 +987,7 @@ export default function TelemetrySessionDatePage() {
       const payload = (await response.json().catch(() => null)) as FileImportResponse | null
 
       if (!response.ok || !payload?.ok) {
-        setTelemetryFetchFilesMessage(payload?.error ?? 'Echec du téléchargement des fichiers telemetry depuis PUBG.')
+        setTelemetryFetchFilesMessage(payload?.error ?? 'Échec du téléchargement des fichiers telemetry depuis PUBG.')
         return
       }
 
@@ -999,7 +999,7 @@ export default function TelemetrySessionDatePage() {
       setTelemetryFileSyncMessage(null)
       refresh()
     } catch (err) {
-      setTelemetryFetchFilesMessage(buildNetworkAwareErrorMessage('Echec du téléchargement des fichiers telemetry depuis PUBG.', err))
+      setTelemetryFetchFilesMessage(buildNetworkAwareErrorMessage('Échec du téléchargement des fichiers telemetry depuis PUBG.', err))
     } finally {
       setTelemetryFetchFilesLoading(false)
     }
@@ -1214,7 +1214,7 @@ export default function TelemetrySessionDatePage() {
                         <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-rose-900">Echecs: <strong>{directQueueLiveStatus.failed}</strong></div>
                         <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-900">Total: <strong>{directQueueLiveStatus.total}</strong></div>
                       </div>
-                      <p className="mt-2 text-[11px] text-green-700">Derniere mise a jour: {new Date(directQueueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
+                      <p className="mt-2 text-[11px] text-green-700">Derniere mise à jour: {new Date(directQueueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
                       {directQueueLiveStatus.recentJobs.length > 0 ? (
                         <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-green-800">
                           {directQueueLiveStatus.recentJobs.map((job) => (
@@ -1306,7 +1306,7 @@ export default function TelemetrySessionDatePage() {
                         <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-rose-900">Echecs: <strong>{queueLiveStatus.failed}</strong></div>
                         <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-900">Total: <strong>{queueLiveStatus.total}</strong></div>
                       </div>
-                      <p className="mt-2 text-[11px] text-purple-700">Derniere mise a jour: {new Date(queueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
+                      <p className="mt-2 text-[11px] text-purple-700">Derniere mise à jour: {new Date(queueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
                       {queueLiveStatus.recentJobs.length > 0 ? (
                         <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-purple-800">
                           {queueLiveStatus.recentJobs.map((job) => (

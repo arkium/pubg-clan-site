@@ -157,6 +157,13 @@
       --theme-toggle-item-active-bg: rgb(30 64 175 / 1);
       --theme-toggle-item-active-text: rgb(255 255 255 / 1);
       --theme-toggle-item-active-ring: rgb(30 64 175 / 0.3);
+      /* Refonte UI : accent des états actifs (copie de src/app/globals.css) */
+      --theme-ui-accent: rgb(99 102 241 / 1);
+      --theme-ui-accent-text: rgb(67 56 202 / 1);
+      --theme-ui-accent-soft: rgb(99 102 241 / 0.08);
+      --theme-ui-accent-tint: rgb(99 102 241 / 0.06);
+      --theme-ui-accent-ring: rgb(99 102 241 / 0.45);
+      --theme-toggle-track: rgb(241 245 249 / 1);
 
       --theme-ui-surface: rgb(255 255 255 / 1);
       --theme-ui-surface-soft: rgb(248 250 252 / 1);
@@ -232,6 +239,12 @@
       --theme-toggle-item-active-bg: rgb(30 41 59 / 1);
       --theme-toggle-item-active-text: rgb(248 250 252 / 1);
       --theme-toggle-item-active-ring: rgb(71 85 105 / 1);
+      --theme-ui-accent: rgb(129 140 248 / 1);
+      --theme-ui-accent-text: rgb(224 231 255 / 1);
+      --theme-ui-accent-soft: rgb(129 140 248 / 0.16);
+      --theme-ui-accent-tint: rgb(129 140 248 / 0.07);
+      --theme-ui-accent-ring: rgb(129 140 248 / 0.5);
+      --theme-toggle-track: rgb(2 6 23 / 1);
 
       --theme-ui-surface: rgb(15 23 42 / 1);
       --theme-ui-surface-soft: rgb(17 24 39 / 1);
@@ -308,25 +321,25 @@
 
     /* Segmented Control */
     .app-segmented-control {
-      display: inline-flex;
+      display: inline-flex; gap: 2px; padding: 3px;
       border: 1px solid var(--theme-toggle-border);
-      background-color: var(--theme-toggle-bg);
-      border-radius: var(--app-panel-radius);
-      overflow: hidden;
+      background-color: var(--theme-toggle-track);
+      border-radius: 10px;
     }
     .app-segmented-control__item {
       display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 600; color: var(--theme-toggle-item-text);
-      border-radius: 0; cursor: pointer;
+      font-weight: 500; color: var(--theme-toggle-item-text);
+      border-radius: 7px; cursor: pointer;
       transition: background-color 120ms, color 120ms;
       border: none; background: none;
     }
     .app-segmented-control__item--xs { padding: 0.25rem 0.75rem; font-size: 0.75rem; line-height: 1rem; }
     .app-segmented-control__item--sm { padding: 0.375rem 1rem; font-size: 0.875rem; line-height: 1.25rem; }
-    .app-segmented-control > .app-segmented-control__item:first-child { border-top-left-radius: calc(var(--app-panel-radius) - 0.125rem); border-bottom-left-radius: calc(var(--app-panel-radius) - 0.125rem); }
-    .app-segmented-control > .app-segmented-control__item:last-child { border-top-right-radius: calc(var(--app-panel-radius) - 0.125rem); border-bottom-right-radius: calc(var(--app-panel-radius) - 0.125rem); }
-    .app-segmented-control__item:hover { background-color: var(--theme-toggle-item-hover-bg); color: var(--theme-toggle-item-hover-text); }
-    .app-segmented-control__item--active { background-color: var(--theme-toggle-item-active-bg); color: var(--theme-toggle-item-active-text); box-shadow: inset 0 0 0 1px var(--theme-toggle-item-active-ring); }
+    .app-segmented-control__item:not(.app-segmented-control__item--active):hover { background-color: var(--theme-toggle-item-hover-bg); color: var(--theme-toggle-item-hover-text); }
+    .app-segmented-control__item--active { background-color: var(--app-surface); color: var(--theme-ui-accent-text); font-weight: 600; box-shadow: 0 1px 2px rgb(15 23 42 / 0.08), inset 0 0 0 1px var(--theme-ui-accent-ring); }
+    html[data-app-theme='dark'] .app-segmented-control__item--active { background-color: var(--theme-ui-accent-soft); }
+    .app-sort-chip { flex-shrink: 0; height: 2rem; padding: 0 0.75rem; border: 1px solid var(--theme-ui-border); border-radius: 9999px; background: var(--app-surface); color: var(--theme-ui-text-secondary); font-size: 0.75rem; font-weight: 500; }
+    .app-sort-chip--active { border-color: var(--theme-ui-accent-ring); background: var(--theme-ui-accent-soft); color: var(--theme-ui-accent-text); font-weight: 600; }
 
     /* Table */
     .app-table-shell { border: 1px solid var(--app-border); border-radius: var(--app-panel-radius); background-color: var(--app-surface); box-shadow: var(--app-panel-shadow); overflow: hidden; }
@@ -4695,6 +4708,45 @@ border-gray-200  ← hardcodé</code>
             </div>
           </div>
           <div class="docs-label">Idéal pour les pages de tournoi, comparaisons d'escouades, classements de saison ou récapitulatifs de fin de match.</div>
+        </div>
+
+        <div class="docs-subsection" id="classement-joueurs">
+          <div class="docs-subsection-title">Classement de joueurs — standard de la refonte UI</div>
+          <div style="font-size:0.8125rem;color:var(--theme-ui-text-secondary);margin-bottom:1rem;line-height:1.6;">
+            Référence : <code class="docs-code">/clans/[clanId]/leaderboard</code>. Podium (<code class="docs-code">PodiumCards</code>), bande
+            « Distinctions » (<code class="docs-code">DistinctionStrip</code>), tableau trié par ses en-têtes
+            (<code class="docs-code">SortableTh</code> + <code class="docs-code">useTableSort</code>), rangs par
+            <code class="docs-code">RankCell</code> — médailles SVG, jamais d'emoji ni de pastille « #1 ». Sous <code class="docs-code">md</code> :
+            <code class="docs-code">MobileRankList</code> et ses puces « Trier par ». Fiches : <code class="docs-code">docs/ui/composants-refonte.md</code>.
+          </div>
+          <div class="app-panel" style="padding:0;overflow:hidden;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--app-border);color:var(--theme-ui-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.04em;">
+                  <th style="padding:8px 9px;text-align:left;">#</th>
+                  <th style="padding:8px 9px;text-align:left;">Joueur</th>
+                  <th style="padding:8px 9px;text-align:right;color:var(--theme-ui-accent-text);background:var(--theme-ui-accent-tint);" aria-sort="descending">Kills ↓</th>
+                  <th style="padding:8px 9px;text-align:right;">Matchs</th>
+                  <th style="padding:8px 9px;text-align:right;">K/M</th>
+                  <th style="padding:8px 9px;text-align:right;">Dégâts</th>
+                </tr>
+              </thead>
+              <tbody style="font-variant-numeric:tabular-nums;color:var(--theme-ui-text);">
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:8px 9px;"><img src="../../public/icons/medal-gold.svg" width="24" height="24" alt="Rang 1"></td><td style="padding:8px 9px;font-weight:600;">Joueur A</td><td style="padding:8px 9px;text-align:right;font-weight:700;background:var(--theme-ui-accent-tint);">60</td><td style="padding:8px 9px;text-align:right;">30</td><td style="padding:8px 9px;text-align:right;">2,00</td><td style="padding:8px 9px;text-align:right;">7 200</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:8px 9px;"><img src="../../public/icons/medal-silver.svg" width="24" height="24" alt="Rang 2"></td><td style="padding:8px 9px;font-weight:600;">Joueur B</td><td style="padding:8px 9px;text-align:right;font-weight:700;background:var(--theme-ui-accent-tint);">40</td><td style="padding:8px 9px;text-align:right;">20</td><td style="padding:8px 9px;text-align:right;">2,00</td><td style="padding:8px 9px;text-align:right;">8 000</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:8px 9px;"><img src="../../public/icons/medal-bronze.svg" width="24" height="24" alt="Rang 3"></td><td style="padding:8px 9px;font-weight:600;">Joueur C</td><td style="padding:8px 9px;text-align:right;font-weight:700;background:var(--theme-ui-accent-tint);">30</td><td style="padding:8px 9px;text-align:right;">10</td><td style="padding:8px 9px;text-align:right;">3,00</td><td style="padding:8px 9px;text-align:right;">3 000</td></tr>
+                <tr><td style="padding:8px 9px 8px 15px;color:var(--theme-ui-text-muted);font-weight:600;">4</td><td style="padding:8px 9px;font-weight:600;">Joueur D</td><td style="padding:8px 9px;text-align:right;font-weight:700;background:var(--theme-ui-accent-tint);">22</td><td style="padding:8px 9px;text-align:right;">14</td><td style="padding:8px 9px;text-align:right;">1,57</td><td style="padding:8px 9px;text-align:right;">2 950</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:0.75rem;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--theme-ui-text-muted);">Trier par</span>
+            <button type="button" class="app-sort-chip app-sort-chip--active">Kills ↓</button>
+            <button type="button" class="app-sort-chip">K/M</button>
+            <button type="button" class="app-sort-chip">Dégâts</button>
+            <button type="button" class="app-sort-chip">Win rate</button>
+          </div>
+          <div class="docs-label">Un clic sur un en-tête trie en décroissant, un second inverse. Le bandeau docké rappelle le tri (« Tri : Kills ↓ », <code class="docs-code">dockedAside</code>) ; jamais de segmented de tri au-dessus du tableau.</div>
         </div>
       </section>
 

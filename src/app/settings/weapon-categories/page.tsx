@@ -94,13 +94,13 @@ export default function WeaponCategoriesSettingsPage() {
         categoryLabels?: CategoryLabels
       } | null
 
-      if (!response.ok) throw new Error(payload?.error ?? 'Echec de la sauvegarde')
+      if (!response.ok) throw new Error(payload?.error ?? 'Échec de la sauvegarde')
 
       setWeaponCategories(payload?.weaponCategories ?? weaponCategories)
       setCategoryLabels(payload?.categoryLabels ?? categoryLabels)
       setSuccess('Catégories enregistrées.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Echec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
     } finally {
       setSaving(false)
     }

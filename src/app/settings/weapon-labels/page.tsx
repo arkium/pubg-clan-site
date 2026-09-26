@@ -159,13 +159,13 @@ export default function WeaponLabelsSettingsPage() {
         | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Echec de la sauvegarde')
+        throw new Error(payload?.error ?? 'Échec de la sauvegarde')
       }
 
       setLabels(payload?.labels ?? labels)
       setSuccess('Alias d\'armes enregistres.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Echec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
     } finally {
       setSaving(false)
     }

@@ -143,7 +143,7 @@ export default function NotificationPreferencesPage() {
       {success ? <p className="mb-4 text-sm text-green-600">{success}</p> : null}
 
       {preferences ? (
-        <div className="space-y-4 rounded border border-gray-200 bg-white p-4">
+        <div className="space-y-4 app-panel p-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
             Types de notifications
           </h2>

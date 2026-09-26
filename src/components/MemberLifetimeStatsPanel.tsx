@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import RankCell from '@/components/ui/RankCell'
 import { useState } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -60,12 +61,6 @@ type MemberLifetimeStatsPanelProps = {
   loadingStats: boolean
   statsError: string
   lastRefreshedAt: string | null
-}
-
-const MEDAL_BY_RANK: Record<1 | 2 | 3, { iconPath: string; alt: string }> = {
-  1: { iconPath: '/icons/medal-gold.svg', alt: 'Medaille or' },
-  2: { iconPath: '/icons/medal-silver.svg', alt: 'Medaille argent' },
-  3: { iconPath: '/icons/medal-bronze.svg', alt: 'Medaille bronze' },
 }
 
 const SECTION_ICON_BY_KEY: Record<
@@ -174,13 +169,12 @@ function StatRow({
   clanRanks: Record<string, 1 | 2 | 3 | null>
 }) {
   const rank = metricKey ? clanRanks[metricKey] : null
-  const medal = rank ? MEDAL_BY_RANK[rank] : null
 
   return (
     <div className="member-lifetime-stat-row member-lifetime-stat-tile">
       <dt className="member-lifetime-stat-label">{label}</dt>
       <dd className="member-lifetime-stat-value flex items-center gap-1 text-lg font-semibold text-gray-900 tabular-nums sm:text-xl">
-        {medal ? <Image src={medal.iconPath} alt={medal.alt} width={16} height={16} /> : null}
+        {rank ? <RankCell rank={rank} size="xs" /> : null}
         <span>{value}</span>
       </dd>
     </div>
@@ -219,7 +213,7 @@ export default function MemberLifetimeStatsPanel({
           </p>
           {lastRefreshedAt ? (
             <p className="mt-1 text-xs text-gray-400">
-              Derniere mise a jour : {new Date(lastRefreshedAt).toLocaleString('fr-FR')}
+              Dernière mise à jour : {new Date(lastRefreshedAt).toLocaleString('fr-FR')}
             </p>
           ) : null}
         </div>
@@ -249,7 +243,7 @@ export default function MemberLifetimeStatsPanel({
               <StatRow label="Morts" value={formatNumber(displayedStats.combat.deaths)} metricKey={mode === 'all' ? 'combat.deaths' : undefined} clanRanks={clanRanks} />
               <StatRow label="Ratio K/D" value={formatRatio(displayedStats.combat.kdRatio)} metricKey={mode === 'all' ? 'combat.kdRatio' : undefined} clanRanks={clanRanks} />
               <StatRow label="Headshots" value={formatNumber(displayedStats.combat.headshots)} metricKey={mode === 'all' ? 'combat.headshots' : undefined} clanRanks={clanRanks} />
-              <StatRow label="Assists" value={formatNumber(displayedStats.combat.assists)} metricKey={mode === 'all' ? 'combat.assists' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Assistances" value={formatNumber(displayedStats.combat.assists)} metricKey={mode === 'all' ? 'combat.assists' : undefined} clanRanks={clanRanks} />
               <StatRow label="KO" value={formatNumber(displayedStats.combat.knockouts)} metricKey={mode === 'all' ? 'combat.knockouts' : undefined} clanRanks={clanRanks} />
               <StatRow label="Serie max" value={formatNumber(displayedStats.combat.highestKillstreak)} metricKey={mode === 'all' ? 'combat.highestKillstreak' : undefined} clanRanks={clanRanks} />
               <StatRow label="Distance max" value={`${displayedStats.combat.longestKill.toFixed(2)} m`} metricKey={mode === 'all' ? 'combat.longestKill' : undefined} clanRanks={clanRanks} />
@@ -298,7 +292,7 @@ export default function MemberLifetimeStatsPanel({
             <SectionTitle section="other" title="Autres" statCount={2} />
             <dl className="member-lifetime-card-stats grid grid-cols-2 gap-2 text-sm">
               <StatRow label="Armes ramassees" value={formatNumber(displayedStats.other.weaponsPicked)} metricKey={mode === 'all' ? 'other.weaponsPicked' : undefined} clanRanks={clanRanks} />
-              <StatRow label="Degats infliges" value={formatNumber(displayedStats.other.damageGiven)} metricKey={mode === 'all' ? 'other.damageGiven' : undefined} clanRanks={clanRanks} />
+              <StatRow label="Dégâts infligés" value={formatNumber(displayedStats.other.damageGiven)} metricKey={mode === 'all' ? 'other.damageGiven' : undefined} clanRanks={clanRanks} />
             </dl>
           </article>
         </div>

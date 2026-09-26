@@ -28,6 +28,11 @@ export interface DockingToolbarProps {
    * en mode `compact`, seule la période reste.
    */
   children: React.ReactNode | ((state: DockingToolbarState) => React.ReactNode)
+  /**
+   * Rappel rendu à droite du bandeau docké, sur ordinateur seulement (`isSticky && !compact`) — par
+   * exemple « Tri : Kills ↓ » (`SortReminder`) quand l'en-tête du tableau est hors de vue.
+   */
+  dockedAside?: React.ReactNode
   /** `panel` (défaut, pages joueurs) ; `card` réservé à l'administration existante. */
   variant?: 'panel' | 'card'
   /** Une page sans période ne docke rien sur mobile (docs/TODO/sticky.md §2). */
@@ -62,6 +67,7 @@ const DOCKED_OUTER: Record<NonNullable<DockingToolbarProps['variant']>, string> 
  */
 export function DockingToolbar({
   children,
+  dockedAside,
   variant = 'panel',
   dockOnMobile = true,
   ariaLabel = 'Filtres de la page',
@@ -158,6 +164,7 @@ export function DockingToolbar({
           }
         >
           {content}
+          {isSticky && !compact && dockedAside ? <div className="hidden shrink-0 sm:ml-auto sm:block">{dockedAside}</div> : null}
         </div>
       </div>
 

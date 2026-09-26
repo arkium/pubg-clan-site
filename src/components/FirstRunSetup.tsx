@@ -74,7 +74,7 @@ export default function FirstRunSetup() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-gray-900">Initialisation du clan</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Premiere configuration detectee: recherchez votre joueur PUBG pour creer le clan et
+            Première configuration détectée : recherchez votre joueur PUBG pour créer le clan et
             initialiser le compte Owner.
           </p>
         </div>

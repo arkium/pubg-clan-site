@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import RankCell from '@/components/ui/RankCell'
 import { ChevronDown, Crown, Info, Megaphone, RefreshCw, Settings, Swords, Trophy } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -60,10 +61,11 @@ const MODE_LABELS: Record<TournamentMode, string> = {
   intra_clan: 'Tournoi interne',
 }
 
-const MEDALS: Record<number, { icon: string; alt: string; ring: string }> = {
-  1: { icon: '/icons/medal-gold.svg', alt: 'Médaille or', ring: 'border-amber-400/60 bg-amber-500/10' },
-  2: { icon: '/icons/medal-silver.svg', alt: 'Médaille argent', ring: 'border-slate-300/60 bg-slate-400/10' },
-  3: { icon: '/icons/medal-bronze.svg', alt: 'Médaille bronze', ring: 'border-orange-400/60 bg-orange-500/10' },
+/** Liseré des cartes du podium ; les médailles viennent de `RankCell`. */
+const MEDALS: Record<number, { ring: string }> = {
+  1: { ring: 'border-amber-400/60 bg-amber-500/10' },
+  2: { ring: 'border-slate-300/60 bg-slate-400/10' },
+  3: { ring: 'border-orange-400/60 bg-orange-500/10' },
 }
 
 const numberFormat = new Intl.NumberFormat('fr-FR')
@@ -332,8 +334,7 @@ export default function TournamentDetailPage() {
                   <article key={standing.key} className={`app-panel border ${medal?.ring ?? ''} p-4`}>
                     <div className="flex items-center gap-2">
                       {medal ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={medal.icon} alt={medal.alt} width={28} height={28} className="h-7 w-7" />
+                        <RankCell rank={standing.rank} size="md" />
                       ) : (
                         <Crown className="h-6 w-6 text-amber-500" aria-hidden />
                       )}

@@ -18,6 +18,8 @@ import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 import { mapDisplayName } from '@/lib/map-label-service'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
+import SortableTh from '@/components/ui/SortableTh'
 import {
   TACTICAL_PHASE_OPTIONS,
   tacticalPhaseLabel,
@@ -856,27 +858,24 @@ function ClanPositionsHeatmapContent() {
               </div>
               {topZones.length > 0 ? (
                 <div className="app-table-shell overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="w-full table-auto text-[13px]">
                     <thead className="app-table-head">
                       <tr>
-                        <th className="w-16 px-3 py-2 text-center">Rang</th>
-                        <th className="px-3 py-2 text-left">Ville</th>
-                        <th className="px-3 py-2 text-right">Événements</th>
-                        <th className="px-3 py-2 text-right">Part visible</th>
+                        <SortableTh align="left" className="w-12 pl-3">#</SortableTh>
+                        <SortableTh align="left">Ville</SortableTh>
+                        <SortableTh>Événements</SortableTh>
+                        <SortableTh className="pr-3">Part visible</SortableTh>
                       </tr>
                     </thead>
                     <tbody>
                       {topZones.map((zone, index) => {
                         const rank = index + 1
-                        const medal = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : null
                         return (
                           <tr key={zone.location.id} className={`app-table-row ${rank <= 3 ? `app-table-row--top${rank}` : ''}`}>
-                            <td className="px-3 py-3 text-center font-semibold">
-                              {medal ? (
-                                <Image src={`/icons/medal-${medal}.svg`} alt={`Médaille, rang ${rank}`} width={24} height={24} className="mx-auto h-6 w-6" />
-                              ) : rank}
+                            <td className="py-2.5 pl-3 pr-[9px]">
+                              <RankCell rank={rank} />
                             </td>
-                            <td className="px-3 py-3 font-medium text-gray-900">
+                            <td className="px-[9px] py-2.5 font-medium text-gray-900">
                               <button
                                 type="button"
                                 className="hover:text-cyan-600 hover:underline"
@@ -888,8 +887,8 @@ function ClanPositionsHeatmapContent() {
                                 {zone.location.name}
                               </button>
                             </td>
-                            <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-900">{formatNumber(zone.count)}</td>
-                            <td className="px-3 py-3 text-right tabular-nums text-gray-600">
+                            <td className="px-[9px] py-2.5 text-right font-semibold tabular-nums text-gray-900">{formatNumber(zone.count)}</td>
+                            <td className="py-2.5 pl-[9px] pr-3 text-right tabular-nums text-gray-700">
                               {totalCellCount > 0 ? `${((zone.count / totalCellCount) * 100).toFixed(1).replace('.', ',')} %` : '0 %'}
                             </td>
                           </tr>

@@ -2,21 +2,32 @@
 
 import { Crown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import Leaderboard from '@/components/Leaderboard'
-import LeaderboardStats from '@/components/LeaderboardStats'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import DistinctionStrip from '@/components/ui/DistinctionStrip'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
+import PodiumCards from '@/components/ui/PodiumCards'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import { SortReminder } from '@/components/ui/SortableTh'
+import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { STANDARD_PERIODS } from '@/lib/period'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { useTableSort } from '@/hooks/useTableSort'
+import { computeDistinctions, distinctionsByMember } from '@/lib/distinctions'
+import {
+  formatInteger,
+  formatKpm,
+  LEADERBOARD_SORT_COLUMNS,
+  rankLeaderboard,
+  type LeaderboardSortKey,
+} from '@/lib/leaderboard-sort'
+import { STANDARD_PERIODS } from '@/lib/period'
+import type { LeaderboardTeamMode } from '@/types/leaderboard'
 import type { ClanMatchTypeFilter } from '@/types/squad-matches'
-import type { LeaderboardSortBy, LeaderboardTeamMode } from '@/types/leaderboard'
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -39,17 +50,37 @@ const TEAM_MODE_OPTIONS: Array<{ value: LeaderboardTeamMode; label: string }> = 
   { value: 'squad', label: 'Squad' },
 ]
 
-function formatLastUpdated(value: string | null) {
-  if (!value) {
-    return 'Classement calculé en direct'
-  }
+const TEAM_MODE_HINT = '« Tous » regroupe Duo, Trio et Squad, sans le Solo'
 
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return 'Classement calculé en direct'
-  }
+function formatSyncDate(value: string | null) {
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return 'Classement calculé en direct'
+  const day = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  return `Synchronisé le ${day} à ${time}`
+}
 
-  return `Derniers matchs récupérés le ${date.toLocaleString('fr-FR')}`
+/** Groupe de contrôles du bandeau : intitulé au repos seulement (docké, les contrôles restent seuls). */
+function ToolbarGroup({ label, hint, showLabel, children }: { label: string; hint?: string; showLabel: boolean; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      {showLabel ? (
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">
+          {label}
+          {hint ? (
+            <span
+              title={hint}
+              className="inline-grid h-3.5 w-3.5 place-items-center rounded-full border border-current text-[9px] normal-case"
+            >
+              <span aria-hidden="true">i</span>
+              <span className="sr-only">{hint}</span>
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+      {children}
+    </div>
+  )
 }
 
 export default function LeaderboardPage() {
@@ -62,14 +93,36 @@ export default function LeaderboardPage() {
   const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [matchType, setMatchType] = useState<ClanMatchTypeFilter>('official')
   const [teamMode, setTeamMode] = useState<LeaderboardTeamMode>('all')
-  const [sortBy, setSortBy] = useState<LeaderboardSortBy>('kills')
+  // Tri par les en-têtes, côté client : l'API renvoie toutes les lignes, trier ne recharge rien.
+  const { sortKey, sortDir, onSort, colTint } = useTableSort<LeaderboardSortKey>('kills')
 
   const { leaderboard, progression, lastUpdatedAt, loading, error } = useLeaderboard(
     periodReady ? clanId : null,
     period,
-    sortBy,
+    'kills',
     matchType,
     teamMode
+  )
+
+  const rows = useMemo(() => rankLeaderboard(leaderboard, sortKey, sortDir), [leaderboard, sortKey, sortDir])
+  const distinctions = useMemo(() => computeDistinctions(leaderboard), [leaderboard])
+  const distinctionMap = useMemo(() => distinctionsByMember(distinctions), [distinctions])
+  const sortColumn = LEADERBOARD_SORT_COLUMNS[sortKey]
+
+  const podium = useMemo(
+    () =>
+      rankLeaderboard(leaderboard, sortKey, 'desc')
+        .slice(0, 3)
+        .map(({ entry }) => ({
+          key: entry.id,
+          name: entry.displayName,
+          href: `/members/${entry.memberId}/dashboard`,
+          avatarUrl: entry.avatarUrl,
+          subline: `${formatInteger(entry.matchesPlayed)} matchs · ${formatKpm(entry.avgKillsPerGame)} K/M`,
+          value: LEADERBOARD_SORT_COLUMNS[sortKey].format(entry),
+          distinctions: distinctionMap.get(entry.memberId),
+        })),
+    [leaderboard, sortKey, distinctionMap]
   )
 
   useEffect(() => {
@@ -85,13 +138,13 @@ export default function LeaderboardPage() {
   return (
     // Le shell fournit déjà <main> : une page à bandeau n'en ouvre pas un second.
     <div className="flex-1">
-      {/* Top container: Breadcrumb & Hero Header */}
       <div className="app-container app-gutter pt-8">
         <NavigationTrail
           currentLabel="Classement"
           currentHref={`/clans/${clanId}/leaderboard`}
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
+        {/* Hauteur du bandeau inchangée (décision du 2026-09-26) : seul son contenu suit la maquette. */}
         <header
           className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/leaderboard.jpg')`, backgroundPosition: 'center top' }}
@@ -104,57 +157,42 @@ export default function LeaderboardPage() {
                 Classement du clan
               </h1>
             </div>
-            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-              Performances individuelles par période, type de match et mode d'escouade.
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-200 drop-shadow-md sm:mt-2 sm:gap-2.5 sm:text-[13px]">
+              <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 font-semibold text-white">
+                {leaderboard.length} membres
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+              <span>{formatSyncDate(lastUpdatedAt)}</span>
             </p>
           </div>
         </header>
       </div>
 
-      {/* Bandeau de filtres — standard des pages joueurs (docs/TODO/sticky.md §4.A). Compteurs et
-          note ne restent qu'au repos : docké, le bandeau ne garde que les contrôles. */}
-      <DockingToolbar ariaLabel="Filtres du classement">
+      {/* Bandeau de filtres — standard des pages joueurs (docs/TODO/sticky.md §4.A, refonte-ui.md §4.A). Intitulés
+          au repos ; docké sur ordinateur, les contrôles seuls et le rappel du tri. */}
+      <DockingToolbar
+        ariaLabel="Filtres du classement"
+        dockedAside={<SortReminder label={sortColumn.label} sortDir={sortDir} />}
+      >
         {({ isSticky, compact }) => (
-          <div className="flex w-full flex-col gap-3">
-            {!isSticky && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-                  {leaderboard.length} membres
-                </span>
-                <span>{formatLastUpdated(lastUpdatedAt)}</span>
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <ToolbarGroup label="Période" showLabel={!isSticky}>
               <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
-              {!compact && (
-                <SegmentedControl
-                  options={MATCH_TYPE_OPTIONS}
-                  value={matchType}
-                  onChange={setMatchType}
-                  size="sm"
-                  className="shrink-0"
-                />
-              )}
-              {!compact && (
-                <SegmentedControl
-                  options={TEAM_MODE_OPTIONS}
-                  value={teamMode}
-                  onChange={setTeamMode}
-                  size="sm"
-                  className="shrink-0"
-                />
-              )}
-            </div>
-            {!isSticky && (
-              <p className="text-[11px] leading-relaxed text-gray-500">
-                <span className="font-semibold text-gray-700">Note :</span> Le mode <span className="font-semibold text-gray-800">« Tous »</span> regroupe l'ensemble des matchs d'escouade du clan (Duo, Trio, Squad), sans les parties en Solo. Les statistiques individuelles en solo sont accessibles via le filtre <span className="font-semibold text-gray-800">« Solo »</span>.
-              </p>
+            </ToolbarGroup>
+            {!compact && (
+              <ToolbarGroup label="Type de match" showLabel={!isSticky}>
+                <SegmentedControl options={MATCH_TYPE_OPTIONS} value={matchType} onChange={setMatchType} size="sm" className="shrink-0" />
+              </ToolbarGroup>
+            )}
+            {!compact && (
+              <ToolbarGroup label="Mode d'escouade" hint={TEAM_MODE_HINT} showLabel={!isSticky}>
+                <SegmentedControl options={TEAM_MODE_OPTIONS} value={teamMode} onChange={setTeamMode} size="sm" className="shrink-0" />
+              </ToolbarGroup>
             )}
           </div>
         )}
       </DockingToolbar>
 
-      {/* Main Content Area */}
       <div className="app-container app-gutter pb-8">
         {loading && leaderboard.length === 0 ? <TableSkeleton className="mb-6" /> : null}
         {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
@@ -162,15 +200,24 @@ export default function LeaderboardPage() {
         {/* Pendant un rechargement, le classement précédent reste affiché : la page ne se replie pas
             sous le bandeau et ne remonte pas quand on change de période. */}
         {!error && (!loading || leaderboard.length > 0) ? (
-          <div aria-busy={loading} className={loading ? 'space-y-6 opacity-60' : 'space-y-6'}>
-            <LeaderboardStats entries={leaderboard} />
-
+          <div aria-busy={loading} className={`flex flex-col gap-4 ${loading ? 'opacity-60' : ''}`}>
+            <PodiumCards entries={podium} metricLabel={sortColumn.label} />
+            <DistinctionStrip
+              items={distinctions.map((distinction) => ({
+                key: distinction.key,
+                memberName: distinction.entry.displayName,
+                value: distinction.value,
+              }))}
+            />
             <Leaderboard
-              entries={leaderboard}
-              progression={progression}
-              sortBy={sortBy}
+              rows={rows}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={onSort}
+              colTint={colTint}
               teamMode={teamMode}
-              onSortChange={setSortBy}
+              distinctions={distinctionMap}
+              progression={progression}
               showPerformanceDelta={period !== 'all'}
             />
           </div>
@@ -179,4 +226,3 @@ export default function LeaderboardPage() {
     </div>
   )
 }
-

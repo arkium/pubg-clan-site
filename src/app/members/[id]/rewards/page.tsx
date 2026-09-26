@@ -90,14 +90,14 @@ export default function MemberRewardsPage() {
 
       {!loading && !error && rewards ? (
         <div className="space-y-6">
-          <div className="rounded border border-gray-200 bg-white p-6 text-center">
+          <div className="app-panel p-6 text-center">
             <p className="text-4xl font-bold text-yellow-600">
               {rewards.totalPoints.toLocaleString()}
             </p>
             <p className="mt-1 text-sm text-gray-500">points totaux</p>
           </div>
 
-          <div className="rounded border border-gray-200 bg-white p-4">
+          <div className="app-panel p-4">
             <h2 className="mb-3 text-sm font-semibold text-gray-700">Badges</h2>
             {rewards.badges.length === 0 ? (
               <p className="text-sm text-gray-500">Aucun badge pour l&apos;instant.</p>
@@ -118,7 +118,7 @@ export default function MemberRewardsPage() {
       ) : null}
 
       {!loading && !error && !rewards ? (
-        <div className="rounded border border-gray-200 bg-white p-6 text-center">
+        <div className="app-panel p-6 text-center">
           <p className="text-sm text-gray-500">Aucune récompense pour ce joueur.</p>
           <p className="mt-2 text-4xl">🏆</p>
           <p className="mt-2 text-sm text-gray-400">Participez aux challenges pour gagner des points !</p>

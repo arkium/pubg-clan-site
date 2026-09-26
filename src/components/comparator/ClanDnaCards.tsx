@@ -118,7 +118,7 @@ export default function ClanDnaCards({ clans, selectedClanIds }: ClanDnaCardsPro
           options={[
             { value: 'hotDrop', label: 'Hot drop' },
             { value: 'survival', label: 'Survie' },
-            { value: 'teamplay', label: 'Revives' },
+            { value: 'teamplay', label: 'Réanimations' },
           ]}
           value={sortBy}
           onChange={(value) => setSortBy(value as DnaSortType)}

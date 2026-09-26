@@ -8,6 +8,9 @@ import { Crosshair } from 'lucide-react'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import RankCell from '@/components/ui/RankCell'
+import SortableTh from '@/components/ui/SortableTh'
+import { useTableSort } from '@/hooks/useTableSort'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
@@ -46,7 +49,6 @@ type MemberWeaponsResponse = {
 }
 
 type SortKey = 'weapon' | 'kills' | 'headshotRate' | 'shotsFired' | 'hitsLanded' | 'accuracy' | 'avgDistance' | 'maxDistance' | 'matchCount'
-type SortDirection = 'asc' | 'desc'
 
 type MemberWeaponsContractResponse = {
   ok: boolean
@@ -163,12 +165,14 @@ function formatNumber(value: number) {
   return value.toLocaleString('fr-FR')
 }
 
+const oneDecimal = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
 function formatPercent(value: number) {
-  return `${value.toFixed(1)}%`
+  return `${oneDecimal.format(value)} %`
 }
 
 function formatMeters(value: number) {
-  return `${value.toFixed(1)} m`
+  return `${oneDecimal.format(value)} m`
 }
 
 function formatDateTime(value: string) {
@@ -248,16 +252,20 @@ export default function MemberWeaponsPage() {
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MemberWeaponsResponse | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
-  const [sortKey, setSortKey] = useState<SortKey>('kills')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  // Tris par les en-têtes (docs/TODO/refonte-ui.md §4.B) ; l'arme commence de A à Z.
+  const { sortKey, sortDir: sortDirection, onSort: handleSortClick, colTint } = useTableSort<SortKey>('kills', 'desc', (key) => (key === 'weapon' ? 'asc' : 'desc'))
   const [selectedCategory, setSelectedCategory] = useState<WeaponCategoryFilter>('ALL')
   const [currentPage, setCurrentPage] = useState(1)
   const [masteryRows, setMasteryRows] = useState<WeaponMasteryEntry[]>([])
   const [masteryLoading, setMasteryLoading] = useState(true)
   const [masteryRefreshing, setMasteryRefreshing] = useState(false)
   const [masteryError, setMasteryError] = useState('')
-  const [masterySortKey, setMasterySortKey] = useState<MasterySortKey>('kills')
-  const [masterySortDirection, setMasterySortDirection] = useState<SortDirection>('desc')
+  const {
+    sortKey: masterySortKey,
+    sortDir: masterySortDirection,
+    onSort: handleMasterySortClick,
+    colTint: masteryColTint,
+  } = useTableSort<MasterySortKey>('kills', 'desc', (key) => (key === 'weapon' ? 'asc' : 'desc'))
   const [masteryCurrentPage, setMasteryCurrentPage] = useState(1)
   const [throwableItems, setThrowableItems] = useState<Array<{ itemId: string; count: number }>>([])
   const [throwableTotal, setThrowableTotal] = useState(0)
@@ -446,23 +454,8 @@ export default function MemberWeaponsPage() {
     return { start, end }
   }, [currentPage, sortedRows.length])
 
-  function handleSortClick(nextKey: SortKey) {
-    if (sortKey === nextKey) {
-      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
-      return
-    }
-
-    setSortKey(nextKey)
-    setSortDirection(nextKey === 'weapon' ? 'asc' : 'desc')
-  }
-
-  function sortLabel(key: SortKey) {
-    if (sortKey !== key) {
-      return ''
-    }
-
-    return sortDirection === 'asc' ? ' ▲' : ' ▼'
-  }
+  const sortHeader = { sortKey, sortDir: sortDirection, onSort: handleSortClick }
+  const masterySortHeader = { sortKey: masterySortKey, sortDir: masterySortDirection, onSort: handleMasterySortClick }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -553,24 +546,6 @@ export default function MemberWeaponsPage() {
     return { start, end }
   }, [masteryCurrentPage, sortedMasteryRows.length])
 
-  function handleMasterySortClick(nextKey: MasterySortKey) {
-    if (masterySortKey === nextKey) {
-      setMasterySortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
-      return
-    }
-
-    setMasterySortKey(nextKey)
-    setMasterySortDirection(nextKey === 'weapon' ? 'asc' : 'desc')
-  }
-
-  function masterySortLabel(key: MasterySortKey) {
-    if (masterySortKey !== key) {
-      return ''
-    }
-
-    return masterySortDirection === 'asc' ? ' ▲' : ' ▼'
-  }
-
   useEffect(() => {
     setMasteryCurrentPage(1)
   }, [masterySortKey, masterySortDirection, selectedCategory])
@@ -603,7 +578,7 @@ export default function MemberWeaponsPage() {
           throw new Error(
             'error' in payload && typeof payload.error === 'string'
               ? payload.error
-              : 'Impossible de charger la maitrise armes'
+              : 'Impossible de charger la maîtrise armes'
           )
         }
 
@@ -614,7 +589,7 @@ export default function MemberWeaponsPage() {
         if (!cancelled) {
           setMasteryRows([])
           setMasteryError(
-            error instanceof Error ? error.message : 'Impossible de charger la maitrise armes'
+            error instanceof Error ? error.message : 'Impossible de charger la maîtrise armes'
           )
         }
       } finally {
@@ -812,7 +787,7 @@ export default function MemberWeaponsPage() {
           ) : null}
 
           {masteryLoading ? (
-            <p className="text-sm text-gray-600">Chargement de la maitrise armes...</p>
+            <p className="text-sm text-gray-600">Chargement de la maîtrise armes...</p>
           ) : null}
 
           {!masteryLoading && masteryRows.length === 0 ? (
@@ -823,66 +798,33 @@ export default function MemberWeaponsPage() {
             <>
               <div className="app-table-shell overflow-x-auto">
                 <table className="min-w-full text-sm">
-                <thead className="app-table-head text-left text-xs uppercase tracking-wide">
+                <thead className="app-table-head">
                   <tr>
-                    <th className="px-3 py-2">
-                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('weapon')}>
-                        Arme{masterySortLabel('weapon')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('kills')}>
-                        Kills{masterySortLabel('kills')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('knockouts')}>
-                        Neutralisations{masterySortLabel('knockouts')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('damage')}>
-                        Dégâts{masterySortLabel('damage')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        className="font-semibold"
-                        title="Coups en tête portés avec cette arme (donnée API PUBG), pas des kills en headshot"
-                        onClick={() => handleMasterySortClick('headshots')}
-                      >
-                        Headshots{masterySortLabel('headshots')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('longestKillDistance')}>
-                        Distance{masterySortLabel('longestKillDistance')}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" className="font-semibold" onClick={() => handleMasterySortClick('level')}>
-                        Niveau{masterySortLabel('level')}
-                      </button>
-                    </th>
+                    <SortableTh {...masterySortHeader} column="weapon" align="left" className="pl-3">Arme</SortableTh>
+                    <SortableTh {...masterySortHeader} column="kills">Kills</SortableTh>
+                    <SortableTh {...masterySortHeader} column="knockouts">Neutralisations</SortableTh>
+                    <SortableTh {...masterySortHeader} column="damage">Dégâts</SortableTh>
+                    <SortableTh {...masterySortHeader} column="headshots" title="Coups en tête portés avec cette arme (donnée API PUBG), pas des kills en headshot">Headshots</SortableTh>
+                    <SortableTh {...masterySortHeader} column="longestKillDistance">Distance</SortableTh>
+                    <SortableTh {...masterySortHeader} column="level">Niveau</SortableTh>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedMasteryRows.map((row) => {
                     return (
                       <tr key={row.weaponId} className="app-table-row">
-                        <td className="px-3 py-2 text-gray-900">
+                        <td className="px-[9px] py-2 text-gray-900" style={{ backgroundColor: masteryColTint('weapon') }}>
                           <div className="flex items-center gap-2">
                             <WeaponIcon id={row.weaponId} label={row.weaponName} size="sm" />
                             <span>{row.weaponName}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.knockouts)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(Math.round(row.damage))}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.headshots)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.longestKillDistance)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.level)}</td>
+                        <td className="px-[9px] py-2 text-right font-semibold tabular-nums" style={{ backgroundColor: masteryColTint('kills') }}>{formatNumber(row.kills)}</td>
+                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('knockouts') }}>{formatNumber(row.knockouts)}</td>
+                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('damage') }}>{formatNumber(Math.round(row.damage))}</td>
+                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('headshots') }}>{formatNumber(row.headshots)}</td>
+                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('longestKillDistance') }}>{formatMeters(row.longestKillDistance)}</td>
+                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('level') }}>{formatNumber(row.level)}</td>
                       </tr>
                     )
                   })}
@@ -902,7 +844,7 @@ export default function MemberWeaponsPage() {
                       onClick={() => setMasteryCurrentPage(1)}
                       disabled={masteryCurrentPage === 1}
                     >
-                      Premiere
+                      Première
                     </button>
                     <button
                       type="button"
@@ -929,7 +871,7 @@ export default function MemberWeaponsPage() {
                       onClick={() => setMasteryCurrentPage(totalMasteryPages)}
                       disabled={masteryCurrentPage === totalMasteryPages}
                     >
-                      Derniere
+                      Dernière
                     </button>
                   </div>
                 </div>
@@ -947,7 +889,7 @@ export default function MemberWeaponsPage() {
               onClick={() => setReloadNonce((current) => current + 1)}
               className="app-btn app-btn--sm app-btn--secondary mt-3"
             >
-              Reessayer
+              Réessayer
             </button>
           </section>
         ) : null}
@@ -973,87 +915,40 @@ export default function MemberWeaponsPage() {
               </div>
               <div className="app-table-shell overflow-x-auto">
                 <table className="min-w-full text-sm">
-                  <thead className="app-table-head text-left text-xs uppercase tracking-wide">
+                  <thead className="app-table-head">
                     <tr>
-                      <th className="px-3 py-2">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('weapon')}>
-                          Arme{sortLabel('weapon')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('kills')}>
-                          Kills{sortLabel('kills')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('headshotRate')}>
-                          Headshots %{sortLabel('headshotRate')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('shotsFired')}>
-                          Tirs{sortLabel('shotsFired')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('hitsLanded')}>
-                          Touches{sortLabel('hitsLanded')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('accuracy')}>
-                          Précision{sortLabel('accuracy')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('avgDistance')}>
-                          Distance moyenne{sortLabel('avgDistance')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('maxDistance')}>
-                          Distance max{sortLabel('maxDistance')}
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-right">
-                        <button type="button" className="font-semibold" onClick={() => handleSortClick('matchCount')}>
-                          Matchs{sortLabel('matchCount')}
-                        </button>
-                      </th>
+                      <SortableTh {...sortHeader} column="weapon" align="left" className="pl-3">Arme</SortableTh>
+                      <SortableTh {...sortHeader} column="kills">Kills</SortableTh>
+                      <SortableTh {...sortHeader} column="headshotRate">Headshots</SortableTh>
+                      <SortableTh {...sortHeader} column="shotsFired">Tirs</SortableTh>
+                      <SortableTh {...sortHeader} column="hitsLanded">Touches</SortableTh>
+                      <SortableTh {...sortHeader} column="accuracy">Précision</SortableTh>
+                      <SortableTh {...sortHeader} column="avgDistance">Dist. moy.</SortableTh>
+                      <SortableTh {...sortHeader} column="maxDistance">Dist. max</SortableTh>
+                      <SortableTh {...sortHeader} column="matchCount">Matchs</SortableTh>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedRows.map((row) => {
                       const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
                       const podiumRank = podiumByWeapon.get(row.weaponName)
-                      const podiumTone =
-                        podiumRank === 1
-                          ? 'app-podium-badge--gold'
-                          : podiumRank === 2
-                            ? 'app-podium-badge--silver'
-                            : 'app-podium-badge--bronze'
-
                       return (
                         <tr key={row.weaponName} className="app-table-row">
-                          <td className="px-3 py-2 text-gray-900">
+                          <td className="px-[9px] py-2 text-gray-900" style={{ backgroundColor: colTint('weapon') }}>
                             <div className="flex items-center gap-2">
                               <WeaponIcon id={row.weaponName} size="sm" />
                               <span>{row.weaponLabel ?? row.weaponName}</span>
-                              {podiumRank ? (
-                                <span className={`app-podium-badge ${podiumTone}`}>
-                                  #{podiumRank}
-                                </span>
-                              ) : null}
+                              {podiumRank ? <RankCell rank={podiumRank} size="xs" /> : null}
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatNumber(row.kills)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatPercent(headshotRate)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.shotsFired)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.hitsLanded)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatPercent(row.accuracy)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatMeters(row.avgDistance)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatNumber(row.matchCount)}</td>
+                          <td className="px-[9px] py-2 text-right font-semibold tabular-nums" style={{ backgroundColor: colTint('kills') }}>{formatNumber(row.kills)}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('headshotRate') }}>{formatPercent(headshotRate)}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('shotsFired') }}>{formatNumber(row.shotsFired)}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('hitsLanded') }}>{formatNumber(row.hitsLanded)}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('accuracy') }}>{formatPercent(row.accuracy)}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('avgDistance') }}>{formatMeters(row.avgDistance)}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('maxDistance') }}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
+                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('matchCount') }}>{formatNumber(row.matchCount)}</td>
                         </tr>
                       )
                     })}
@@ -1073,7 +968,7 @@ export default function MemberWeaponsPage() {
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
                     >
-                      Premiere
+                      Première
                     </button>
                     <button
                       type="button"
@@ -1100,7 +995,7 @@ export default function MemberWeaponsPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
                     >
-                      Derniere
+                      Dernière
                     </button>
                   </div>
                 </div>

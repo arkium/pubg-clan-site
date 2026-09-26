@@ -329,7 +329,7 @@ function OpponentsExplorer() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ isFavorite: nextValue }),
       })
-      if (!response.ok) throw new Error('Echec de la mise a jour')
+      if (!response.ok) throw new Error('Échec de la mise à jour')
     } catch {
       setPayload((current: any) =>
         current

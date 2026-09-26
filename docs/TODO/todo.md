@@ -825,11 +825,11 @@ Spec : [refonte-ui.md](refonte-ui.md), fiches : [composants-refonte.md](../ui/co
 actif, rangs en **médailles SVG** (plus d'emoji), `dark:` **conservés**, hauteurs du bandeau d'image et du header
 **inchangées**.
 
-- [ ] Phase 0 — fondations : tokens, composants (`RankCell`, `SortableTh`, `PodiumCards`, `DistinctionStrip`,
+- [x] Phase 0 — fondations (2026-09-26) : tokens, composants (`RankCell`, `SortableTh`, `PodiumCards`, `DistinctionStrip`,
   `MobileRankList`), `distinctions.ts`, `dockedAside`, contrôles de conformité, docs, captures
-- [ ] Phase 1 — page de référence `/clans/[clanId]/leaderboard`
-- [ ] Phase 2 — tableaux de classement (ligue, vue d'ensemble, armes, drop zones, awards, défis, débriefing…)
-- [ ] Phase 3 — balayage (vocabulaire, rayons, accent)
+- [x] Phase 1 — page de référence `/clans/[clanId]/leaderboard` (2026-09-26)
+- [x] Phase 2 — tableaux de classement (ligue, vue d'ensemble, armes, drop zones, awards, défis, débriefing…)
+- [x] Phase 3 — balayage (vocabulaire, rayons, accent) — 2026-09-26
 
 #### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 

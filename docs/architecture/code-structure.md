@@ -164,8 +164,7 @@ app/api/
 | `MemberSectionNav.tsx` | Navigation de section pour les pages membre |
 | `SettingsSectionNav.tsx` | Navigation de section pour les pages settings |
 | `ClanSelector.tsx` | Sélecteur de clan actif |
-| `Leaderboard.tsx` | Tableau de classement |
-| `LeaderboardStats.tsx` | Stats résumées du classement |
+| `Leaderboard.tsx` | Tableau de classement (en-têtes triables, liste mobile) |
 | `SquadMatchList.tsx` | Liste des matchs squad |
 | `SquadSynergies.tsx` | Visualisation des synergies |
 | `TopPerformers.tsx` | Bloc top performeurs |

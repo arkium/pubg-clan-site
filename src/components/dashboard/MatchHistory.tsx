@@ -101,7 +101,7 @@ interface SortKey {
 const SORT_KEYS: SortKey[] = [
   { key: 'pubgCreatedAt', label: 'Date' },
   { key: 'kills', label: 'Kills' },
-  { key: 'damageDealt', label: 'Damage' },
+  { key: 'damageDealt', label: 'Dégâts' },
   { key: 'placement', label: 'Place' },
 ]
 
@@ -324,8 +324,8 @@ export default function MatchHistory({
                   type="button"
                   disabled={currentPage <= 1}
                   onClick={() => onOffsetChange(Math.max(0, offset - limit))}
-                  aria-label="Aller a la page precedente"
-                  title="Page precedente"
+                  aria-label="Aller à la page précédente"
+                  title="Page précédente"
                   className="app-pagination-button"
                 >
                   ←
@@ -337,7 +337,7 @@ export default function MatchHistory({
                   type="button"
                   disabled={currentPage >= pages}
                   onClick={() => onOffsetChange(offset + limit)}
-                  aria-label="Aller a la page suivante"
+                  aria-label="Aller à la page suivante"
                   title="Page suivante"
                   className="app-pagination-button"
                 >

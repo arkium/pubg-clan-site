@@ -6,10 +6,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, BarChart3, ChevronRight, UsersRound } from 'lucide-react'
+import { BarChart3, ChevronRight, UsersRound } from 'lucide-react'
 import { getNavIcon } from '@/lib/nav-icons'
 import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import SortableTh from '@/components/ui/SortableTh'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -21,6 +22,7 @@ import SquadSynergies from '@/components/SquadSynergies'
 import { useClanOverview } from '@/hooks/useClanOverview'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanMatchesCache } from '@/hooks/useClanMatchesCache'
+import { useTableSort } from '@/hooks/useTableSort'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
@@ -130,6 +132,10 @@ function fmtNum(value: number) {
   return new Intl.NumberFormat('fr-FR').format(Math.round(value))
 }
 
+function fmtDecimal(value: number) {
+  return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)
+}
+
 function fmtPct(value: number) {
   return `${(value * 100).toFixed(1).replace('.', ',')} %`
 }
@@ -145,16 +151,19 @@ function fmtCompactK(value: number) {
   const absValue = Math.abs(value)
   const sign = value < 0 ? '-' : ''
 
+  // Abréviations françaises : 61,0 k · 1,2 M · 3,4 Md.
+  const oneDecimal = (n: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n)
+
   if (absValue >= 1_000_000_000) {
-    return `${sign}${(absValue / 1_000_000_000).toFixed(1)}B`
+    return `${sign}${oneDecimal(absValue / 1_000_000_000)} Md`
   }
 
   if (absValue >= 1_000_000) {
-    return `${sign}${(absValue / 1_000_000).toFixed(1)}M`
+    return `${sign}${oneDecimal(absValue / 1_000_000)} M`
   }
 
   if (absValue >= 1_000) {
-    return `${sign}${(absValue / 1_000).toFixed(1)}K`
+    return `${sign}${oneDecimal(absValue / 1_000)} k`
   }
 
   return fmtNum(absValue)
@@ -466,8 +475,13 @@ export default function ClanOverviewPage() {
   )
   const [selectedMatchType, setSelectedMatchType] = useState<ClanMatchTypeFilter>('official')
   const [selectedMode, setSelectedMode] = useState<ClanTeamModeFilter>('all')
-  const [rosterSortKey, setRosterSortKey] = useState<RosterSortKey>('matchesPlayed')
-  const [rosterSortDirection, setRosterSortDirection] = useState<'asc' | 'desc'>('desc')
+  // Tri du roster par ses en-têtes (docs/TODO/refonte-ui.md §4.B).
+  const {
+    sortKey: rosterSortKey,
+    sortDir: rosterSortDirection,
+    onSort: changeRosterSort,
+    colTint: rosterColTint,
+  } = useTableSort<RosterSortKey>('matchesPlayed')
 
   const { data: cacheData, loading: cacheLoading, error: cacheError } = useClanMatchesCache(
     periodReady ? clanId : null,
@@ -643,25 +657,8 @@ export default function ClanOverviewPage() {
       })
   }, [data?.roster, cacheData?.payload.byMode, selectedMode, rosterSortKey, rosterSortDirection])
 
-  const maxRosterMatches = performanceRoster[0]?.stats.matchesPlayed ?? 0
-
-  function changeRosterSort(nextSortKey: RosterSortKey) {
-    if (rosterSortKey === nextSortKey) {
-      setRosterSortDirection((current) => (current === 'desc' ? 'asc' : 'desc'))
-      return
-    }
-    setRosterSortKey(nextSortKey)
-    setRosterSortDirection('desc')
-  }
-
-  function RosterSortIcon({ column }: { column: RosterSortKey }) {
-    if (rosterSortKey !== column) return <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-    return rosterSortDirection === 'desc' ? (
-      <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
-    ) : (
-      <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
-    )
-  }
+  // Barres d'activité relatives au plus actif, quel que soit le tri.
+  const maxRosterMatches = performanceRoster.reduce((max, member) => Math.max(max, member.stats.matchesPlayed), 0)
 
   return (
     <>
@@ -767,7 +764,7 @@ export default function ClanOverviewPage() {
             {!isSticky && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-                  {tracked?.membersCount ?? 0} membres trackés
+                  {tracked?.membersCount ?? 0} membres suivis
                 </span>
                 {cacheData?.computedAt && (
                   <span>Données mises à jour le {new Date(cacheData.computedAt).toLocaleString('fr-FR')}</span>
@@ -863,19 +860,19 @@ export default function ClanOverviewPage() {
                     <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
                       {[
                         {
-                          label: 'Total kills',
+                          label: 'Kills',
                           value: fmtCompactK(displayedGlobalStats.totalKills),
                           tone: 'danger' as const,
                           icon: 'kills' as const,
                         },
                         {
-                          label: 'Total wins',
+                          label: 'Victoires',
                           value: fmtCompactK(displayedGlobalStats.wins),
                           tone: 'warning' as const,
                           icon: 'wins' as const,
                         },
                         {
-                          label: 'Total damage',
+                          label: 'Dégâts',
                           value: fmtCompactK(displayedGlobalStats.totalDamage),
                           tone: 'success' as const,
                           icon: 'damage' as const,
@@ -887,7 +884,7 @@ export default function ClanOverviewPage() {
                           icon: 'rate' as const,
                         },
                         {
-                          label: 'Moy. K+A',
+                          label: 'K+A moy.',
                           value: fmtRatio(
                             displayedGlobalStats.matchCount > 0
                               ? (displayedGlobalStats.totalKills + displayedGlobalStats.totalAssists) /
@@ -898,7 +895,7 @@ export default function ClanOverviewPage() {
                           icon: 'average' as const,
                         },
                         {
-                          label: 'Matches played',
+                          label: 'Matchs joués',
                           value: fmtCompactK(displayedGlobalStats.matchCount),
                           tone: 'neutral' as const,
                           icon: 'matches' as const,
@@ -1109,62 +1106,13 @@ export default function ClanOverviewPage() {
               <table className="w-full text-sm">
                 <thead className="app-table-head sticky top-0 z-10 whitespace-nowrap">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Joueur
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      <button
-                        type="button"
-                        onClick={() => changeRosterSort('matchesPlayed')}
-                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
-                      >
-                        Matchs
-                        <RosterSortIcon column="matchesPlayed" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      <button
-                        type="button"
-                        onClick={() => changeRosterSort('wins')}
-                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
-                      >
-                        Victoires
-                        <RosterSortIcon column="wins" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      <button
-                        type="button"
-                        onClick={() => changeRosterSort('totalKills')}
-                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
-                      >
-                        Kills
-                        <RosterSortIcon column="totalKills" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      <button
-                        type="button"
-                        onClick={() => changeRosterSort('avgDamage')}
-                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
-                      >
-                        Dégâts (Moy)
-                        <RosterSortIcon column="avgDamage" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      <button
-                        type="button"
-                        onClick={() => changeRosterSort('avgKA')}
-                        className="ml-auto inline-flex items-center gap-1 whitespace-nowrap font-semibold"
-                      >
-                        K+A Moy.
-                        <RosterSortIcon column="avgKA" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Médailles
-                    </th>
+                    <SortableTh align="left" className="pl-3">Joueur</SortableTh>
+                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="matchesPlayed">Matchs</SortableTh>
+                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="wins" title="Victoires (top 1)">Top 1</SortableTh>
+                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="totalKills">Kills</SortableTh>
+                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="avgDamage" title="Dégâts moyens par match">Dégâts moy.</SortableTh>
+                    <SortableTh {...{ sortKey: rosterSortKey, sortDir: rosterSortDirection, onSort: changeRosterSort }} column="avgKA" title="Kills + assistances par match">K+A moy.</SortableTh>
+                    <SortableTh>Médailles</SortableTh>
                     <th className="w-8 pr-3">
                       <span className="sr-only">Profil</span>
                     </th>
@@ -1196,7 +1144,7 @@ export default function ClanOverviewPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="min-w-28 px-3 py-3 text-right">
+                      <td className="min-w-28 px-[9px] py-3 text-right" style={{ backgroundColor: rosterColTint('matchesPlayed') }}>
                         <span className="font-semibold tabular-nums text-gray-900">{member.stats.matchesPlayed}</span>
                         <div className="mt-1.5 ml-auto h-1 w-20 overflow-hidden rounded-full bg-gray-100">
                           <div
@@ -1207,25 +1155,21 @@ export default function ClanOverviewPage() {
                           />
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-right">
-                        <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-500">
-                          {member.stats.wins}
-                        </span>
+                      <td className="px-[9px] py-3 text-right tabular-nums text-gray-700" style={{ backgroundColor: rosterColTint('wins') }}>
+                        {member.stats.wins}
                       </td>
-                      <td className="px-3 py-3 text-right font-bold text-red-500">
+                      <td className="px-[9px] py-3 text-right font-bold tabular-nums text-gray-900" style={{ backgroundColor: rosterColTint('totalKills') }}>
                         {member.stats.totalKills}
                       </td>
-                      <td className="px-3 py-3 text-right font-medium text-gray-700">
+                      <td className="px-[9px] py-3 text-right tabular-nums text-gray-700" style={{ backgroundColor: rosterColTint('avgDamage') }}>
                         {member.stats.matchesPlayed > 0
-                          ? Math.round(member.stats.totalDamage / member.stats.matchesPlayed)
+                          ? fmtNum(member.stats.totalDamage / member.stats.matchesPlayed)
                           : 0}
                       </td>
-                      <td className="px-3 py-3 text-right font-bold text-blue-500">
-                        {member.stats.matchesPlayed > 0
-                          ? ((member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed).toFixed(1)
-                          : '0.0'}
+                      <td className="px-[9px] py-3 text-right tabular-nums text-gray-700" style={{ backgroundColor: rosterColTint('avgKA') }}>
+                        {fmtDecimal(member.stats.matchesPlayed > 0 ? (member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed : 0)}
                       </td>
-                      <td className="min-w-28 px-3 py-3">
+                      <td className="min-w-28 px-[9px] py-3">
                         <MedalCounts {...member.medalCounts} />
                       </td>
                       <td className="w-8 pr-3 text-right">
@@ -1246,7 +1190,7 @@ export default function ClanOverviewPage() {
             {/* Version Mobile */}
             <div className="grid gap-3 md:hidden">
               {performanceRoster.map((member) => (
-                <article key={member.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <article key={member.id} className="app-panel-muted p-4">
                   <div className="flex items-start gap-3">
                     <MemberAvatar
                       name={member.displayName}
@@ -1293,7 +1237,7 @@ export default function ClanOverviewPage() {
                   <dl className="mt-4 grid grid-cols-4 rounded-md border border-gray-200 bg-white py-2.5 text-center">
                     <div>
                       <dd className="text-sm font-bold tabular-nums text-emerald-500">{member.stats.wins}</dd>
-                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Victoires</dt>
+                      <dt className="text-[9px] font-semibold uppercase text-gray-500">Top 1</dt>
                     </div>
                     <div className="border-l border-gray-200">
                       <dd className="text-sm font-bold tabular-nums text-red-500">{member.stats.totalKills}</dd>
@@ -1302,16 +1246,14 @@ export default function ClanOverviewPage() {
                     <div className="border-l border-gray-200">
                       <dd className="text-sm font-bold tabular-nums text-gray-900">
                         {member.stats.matchesPlayed > 0
-                          ? Math.round(member.stats.totalDamage / member.stats.matchesPlayed)
+                          ? fmtNum(member.stats.totalDamage / member.stats.matchesPlayed)
                           : 0}
                       </dd>
                       <dt className="text-[9px] font-semibold uppercase text-gray-500">Dégâts</dt>
                     </div>
                     <div className="border-l border-gray-200">
                       <dd className="text-sm font-bold tabular-nums text-blue-500">
-                        {member.stats.matchesPlayed > 0
-                          ? ((member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed).toFixed(1)
-                          : '0.0'}
+                        {fmtDecimal(member.stats.matchesPlayed > 0 ? (member.stats.totalKills + member.stats.totalAssists) / member.stats.matchesPlayed : 0)}
                       </dd>
                       <dt className="text-[9px] font-semibold uppercase text-gray-500">K+A</dt>
                     </div>

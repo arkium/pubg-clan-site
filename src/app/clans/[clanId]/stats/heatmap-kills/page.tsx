@@ -227,15 +227,15 @@ export default function ClanTelemetryHeatmapKillsPage() {
         {!error && payload ? (
           <div aria-busy={loading} className={loading ? 'opacity-60' : undefined}>
             <section className="mb-6 grid gap-3 sm:grid-cols-3">
-              <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Matchs</p>
                 <p className="mt-1 text-2xl font-semibold text-gray-900">{formatNumber(payload.totalMatches)}</p>
               </article>
-              <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Kill events</p>
                 <p className="mt-1 text-2xl font-semibold text-gray-900">{formatNumber(totalKillEvents)}</p>
               </article>
-              <article className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+              <article className="app-panel p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Position events</p>
                 <p className="mt-1 text-2xl font-semibold text-gray-900">{formatNumber(totalPositionEvents)}</p>
               </article>
@@ -306,7 +306,7 @@ export default function ClanTelemetryHeatmapKillsPage() {
             </section>
 
             {payload.maps.length > 0 ? (
-              <section className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
+              <section className="overflow-hidden app-panel">
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -337,7 +337,7 @@ export default function ClanTelemetryHeatmapKillsPage() {
                 </div>
               </section>
             ) : (
-              <p className="text-sm text-gray-600">Aucune donnee heatmap pour cette periode.</p>
+              <p className="text-sm text-gray-600">Aucune donnée heatmap pour cette période.</p>
             )}
           </div>
         ) : null}

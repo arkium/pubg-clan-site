@@ -66,6 +66,12 @@
   --theme-ui-text-muted: rgb(100 116 139 / 1);
   --theme-ui-hover: rgb(241 245 249 / 1);
   --theme-ui-accent: rgb(99 102 241 / 1);
+  /* Refonte UI (docs/TODO/refonte-ui.md §3) : dérivés de l'accent, pour tout état actif. */
+  --theme-ui-accent-text: rgb(67 56 202 / 1);
+  --theme-ui-accent-soft: rgb(99 102 241 / 0.08);
+  --theme-ui-accent-tint: rgb(99 102 241 / 0.06);
+  --theme-ui-accent-ring: rgb(99 102 241 / 0.45);
+  --theme-toggle-track: rgb(241 245 249 / 1);
   --theme-avatar-border: rgb(226 232 240 / 1);
   --theme-avatar-bg: rgb(255 255 255 / 1);
   --theme-avatar-ring: rgb(226 232 240 / 0.8);
@@ -158,6 +164,11 @@
   --theme-ui-text-muted: rgb(148 163 184 / 1);
   --theme-ui-hover: rgb(30 41 59 / 1);
   --theme-ui-accent: rgb(129 140 248 / 1);
+  --theme-ui-accent-text: rgb(224 231 255 / 1);
+  --theme-ui-accent-soft: rgb(129 140 248 / 0.16);
+  --theme-ui-accent-tint: rgb(129 140 248 / 0.07);
+  --theme-ui-accent-ring: rgb(129 140 248 / 0.5);
+  --theme-toggle-track: rgb(2 6 23 / 1);
   --theme-avatar-border: rgb(148 163 184 / 0.42);
   --theme-avatar-bg: rgb(15 23 42 / 0.9);
   --theme-avatar-ring: rgb(255 255 255 / 0.12);
@@ -1723,14 +1734,10 @@ html[data-app-theme='dark'] .app-team-mode-badge--squad {
 }
 
 .sidebar-ctx-nav-item--active {
-  background-color: rgb(30 64 175 / 0.08);
-  color: rgb(30 64 175);
+  background-color: var(--theme-ui-accent-soft);
+  box-shadow: inset 2px 0 0 var(--theme-ui-accent);
+  color: var(--theme-ui-accent-text);
   font-weight: 600;
-}
-
-html[data-app-theme='dark'] .sidebar-ctx-nav-item--active {
-  background-color: rgb(96 165 250 / 0.12);
-  color: rgb(147 197 253);
 }
 
 .sidebar-ctx-nav-item--owner {
@@ -2674,18 +2681,21 @@ html[data-app-theme='dark'] .member-lifetime-stats--v2 .member-lifetime-stat-row
   background: rgb(71 85 105 / 0.92);
 }
 
+/* Segmented (docs/TODO/refonte-ui.md §3) : piste teintée, boutons arrondis séparés, état actif en accent. */
 .app-segmented-control,
 .dashboard-period-toggle {
   border-color: var(--theme-toggle-border);
-  background-color: var(--theme-toggle-bg);
-  border-radius: var(--app-panel-radius);
+  background-color: var(--theme-toggle-track);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
   overflow: hidden;
 }
 
 .app-segmented-control__item,
 .dashboard-period-toggle-item {
   color: var(--theme-toggle-item-text);
-  border-radius: 0;
+  border-radius: 7px;
 }
 
 .app-segmented-control__item--xs {
@@ -2700,29 +2710,79 @@ html[data-app-theme='dark'] .member-lifetime-stats--v2 .member-lifetime-stat-row
   line-height: 1.25rem;
 }
 
-.app-segmented-control > .app-segmented-control__item:first-child,
-.dashboard-period-toggle > .dashboard-period-toggle-item:first-child {
-  border-top-left-radius: calc(var(--app-panel-radius) - 0.125rem);
-  border-bottom-left-radius: calc(var(--app-panel-radius) - 0.125rem);
+/* Mobile : la piste (padding 3 px + écarts de 2 px) élargit le groupe d'environ 14 px ; les segments rendent cette
+   largeur pour qu'un groupe de 5 options tienne toujours à 375 px, comme avant la refonte. */
+@media (max-width: 639px) {
+  .app-segmented-control__item--xs {
+    padding-inline: 0.625rem;
+  }
+
+  .app-segmented-control__item--sm {
+    padding-inline: 0.8125rem;
+  }
 }
 
-.app-segmented-control > .app-segmented-control__item:last-child,
-.dashboard-period-toggle > .dashboard-period-toggle-item:last-child {
-  border-top-right-radius: calc(var(--app-panel-radius) - 0.125rem);
-  border-bottom-right-radius: calc(var(--app-panel-radius) - 0.125rem);
+/* Bandeau docké : même densité, pour qu'un rappel à droite (`dockedAside`) tienne sur la ligne des contrôles. */
+[data-docking-toolbar][data-docked='true'] .app-segmented-control__item--sm {
+  padding-inline: 0.8125rem;
 }
 
-.app-segmented-control__item:hover,
-.dashboard-period-toggle-item:hover {
-  background-color: var(--theme-toggle-item-hover-bg) !important;
-  color: var(--theme-toggle-item-hover-text) !important;
+.app-segmented-control__item:not(.app-segmented-control__item--active):not(:disabled):hover,
+.dashboard-period-toggle-item:not(.dashboard-period-toggle-item-active):hover {
+  background-color: var(--theme-toggle-item-hover-bg);
+  color: var(--theme-toggle-item-hover-text);
 }
 
 .app-segmented-control__item--active,
 .dashboard-period-toggle-item-active {
-  background-color: var(--theme-toggle-item-active-bg);
-  color: var(--theme-toggle-item-active-text);
-  box-shadow: inset 0 0 0 1px var(--theme-toggle-item-active-ring);
+  background-color: var(--app-surface);
+  color: var(--theme-ui-accent-text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08), inset 0 0 0 1px var(--theme-ui-accent-ring);
+}
+
+html[data-app-theme='dark'] .app-segmented-control__item--active,
+html[data-app-theme='dark'] .dashboard-period-toggle-item-active {
+  background-color: var(--theme-ui-accent-soft);
+}
+
+/* Lien actif d'une navigation (barre latérale, ancres de section) : même accent que les segmented. */
+.app-nav-link--active {
+  background-color: var(--theme-ui-accent-soft);
+  box-shadow: inset 2px 0 0 var(--theme-ui-accent);
+  color: var(--theme-ui-text);
+  font-weight: 700;
+}
+
+.app-nav-link--active svg {
+  color: var(--theme-ui-accent);
+}
+
+.app-anchor-link--active {
+  background-color: var(--theme-ui-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring);
+  color: var(--theme-ui-accent-text);
+}
+
+/* Puces « Trier par » des classements sur mobile (MobileRankList) : même accent que les segmented. */
+.app-sort-chip {
+  flex-shrink: 0;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--theme-ui-border);
+  border-radius: 9999px;
+  background-color: var(--app-surface);
+  color: var(--theme-ui-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.app-sort-chip--active {
+  border-color: var(--theme-ui-accent-ring);
+  background-color: var(--theme-ui-accent-soft);
+  color: var(--theme-ui-accent-text);
+  font-weight: 600;
 }
 
 .app-table-shell {

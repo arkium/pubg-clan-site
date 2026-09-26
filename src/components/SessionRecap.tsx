@@ -125,7 +125,7 @@ function getModeRecap(matches: SessionRecapItem['matches']) {
 
 export default function SessionRecap({ clanId, period, gameMode, sessions }: SessionRecapProps) {
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
+    <section className="app-panel p-4 shadow-sm">
       <h2 className="mb-4 text-lg font-semibold text-gray-900">Récap par soirée</h2>
       {sessions.length === 0 ? (
         <p className="text-sm text-gray-600">Aucune session sur la période sélectionnée.</p>

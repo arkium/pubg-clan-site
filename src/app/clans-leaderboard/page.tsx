@@ -96,7 +96,7 @@ export default function ClansLeaderboardPage() {
               <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Ligue Inter-Clans</h1>
             </div>
             <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-              Classement global basé sur le Power Score composite (Win Rate, Dégâts, Kills).
+              Classement global basé sur le Power score composite (win rate, dégâts, kills, knocks).
             </p>
           </div>
         </header>

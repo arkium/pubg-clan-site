@@ -1,4 +1,4 @@
-import Image from 'next/image'
+import RankCell from '@/components/ui/RankCell'
 import { useEffect, useMemo, useState } from 'react'
 import { Users, Zap, HeartPulse, Target, Flame, RefreshCcw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -16,18 +16,6 @@ interface SquadSynergiesProps {
   matchType: ClanMatchTypeFilter
   mode: ClanTeamModeFilter
   synergies: SquadSynergiesData
-}
-
-const MEDAL_ICONS = [
-  '/icons/medal-gold.svg',
-  '/icons/medal-silver.svg',
-  '/icons/medal-bronze.svg',
-]
-
-function medalAlt(index: number) {
-  if (index === 0) return 'Or'
-  if (index === 1) return 'Argent'
-  return 'Bronze'
 }
 
 type TelemetrySynergyRow = {
@@ -90,11 +78,7 @@ function SynergyList({
               >
                 <div className="flex items-center gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                    {index < MEDAL_ICONS.length ? (
-                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                    ) : (
-                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                    )}
+                    <RankCell rank={index + 1} size="xs" />
                   </div>
                   
                   <div className="flex flex-col items-start gap-1">
@@ -371,11 +355,7 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                               <li key={`revive:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
                                 <div className="flex items-center gap-3">
                                   <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                                    {index < MEDAL_ICONS.length ? (
-                                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                                    ) : (
-                                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                                    )}
+                                    <RankCell rank={index + 1} size="xs" />
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1">
                                     <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
@@ -416,11 +396,7 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                               <li key={`cokill:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
                                 <div className="flex items-center gap-3">
                                   <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                                    {index < MEDAL_ICONS.length ? (
-                                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                                    ) : (
-                                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                                    )}
+                                    <RankCell rank={index + 1} size="xs" />
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1">
                                     <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
@@ -461,11 +437,7 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                               <li key={`recall:${row.memberAId}:${row.memberBId}`} className="flex items-center justify-between gap-2 border-b border-[var(--theme-ui-border)] py-3 last:border-0">
                                 <div className="flex items-center gap-3">
                                   <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                                    {index < MEDAL_ICONS.length ? (
-                                      <Image src={MEDAL_ICONS[index]} alt={medalAlt(index)} width={20} height={20} className="drop-shadow-sm" />
-                                    ) : (
-                                      <span className="text-sm font-bold text-gray-500">{index + 1}</span>
-                                    )}
+                                    <RankCell rank={index + 1} size="xs" />
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1">
                                     <PlayerNameBadge name={row.memberAName} memberId={row.memberAId} />
@@ -497,7 +469,7 @@ export default function SquadSynergies({ clanId, period, matchType, mode, synerg
                 </div>
               </>
             ) : (
-              <p className="text-sm italic text-gray-500">Aucune donnee telemetry de synergie pour cette periode.</p>
+              <p className="text-sm italic text-gray-500">Aucune donnée telemetry de synergie pour cette période.</p>
             )
           ) : null}
         </div>

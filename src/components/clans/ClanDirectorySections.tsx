@@ -28,6 +28,37 @@ export type DirectoryClan = {
 
 const numberFormat = new Intl.NumberFormat('fr-FR')
 
+/** Titre d'une carte qu'on ne peut pas ouvrir (membre sans droit de changer de clan, hors mode visiteur). */
+const NOT_OPENABLE = 'Consultable par les membres de ce clan'
+
+/** Carte cliquable (`button`) ou simple bloc quand on ne peut pas ouvrir le clan. */
+function CardShell({
+  onOpen,
+  className,
+  style,
+  label,
+  children,
+}: {
+  onOpen?: () => void
+  className: string
+  style?: React.CSSProperties
+  label?: string
+  children: React.ReactNode
+}) {
+  if (onOpen) {
+    return (
+      <button type="button" onClick={onOpen} aria-label={label} className={className} style={style}>
+        {children}
+      </button>
+    )
+  }
+  return (
+    <div className={className} style={style} aria-label={label} title={NOT_OPENABLE}>
+      {children}
+    </div>
+  )
+}
+
 function Pill({ children, gold }: { children: React.ReactNode; gold?: boolean }) {
   return (
     <span
@@ -63,13 +94,12 @@ function Palmares({ clan }: { clan: DirectoryClan }) {
 }
 
 /** Clan épinglé (« Mon clan » pour un connecté, « Dernier clan consulté » pour un visiteur). */
-export function PinnedClanCard({ clan, label, onOpen }: { clan: DirectoryClan; label: string; onOpen: () => void }) {
+export function PinnedClanCard({ clan, label, onOpen }: { clan: DirectoryClan; label: string; onOpen?: () => void }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">{label}</span>
-      <button
-        type="button"
-        onClick={onOpen}
+      <CardShell
+        onOpen={onOpen}
         className="relative flex min-h-[200px] flex-col justify-end overflow-hidden rounded-2xl border bg-cover bg-center text-left text-white"
         style={{
           backgroundColor: '#0b1120',
@@ -110,27 +140,28 @@ export function PinnedClanCard({ clan, label, onOpen }: { clan: DirectoryClan; l
               {clan.games7} partie{clan.games7 > 1 ? 's' : ''} ensemble en 7 jours
             </span>
           </span>
-          <span className="inline-flex h-8 items-center self-start rounded-[9px] px-3.5 text-[13px] font-bold" style={{ background: 'var(--theme-ui-accent)' }}>
-            Ouvrir {label === 'Mon clan' ? 'mon clan' : 'le clan'} →
-          </span>
+          {onOpen && (
+            <span className="inline-flex h-8 items-center self-start rounded-[9px] px-3.5 text-[13px] font-bold" style={{ background: 'var(--theme-ui-accent)' }}>
+              Ouvrir {label === 'Mon clan' ? 'mon clan' : 'le clan'} →
+            </span>
+          )}
         </span>
-      </button>
+      </CardShell>
     </div>
   )
 }
 
 /** Clan du moment : le plus en forme sur 7 jours. */
-export function ClanOfMomentCard({ clan, leagueSize, onOpen }: { clan: DirectoryClan; leagueSize: number; onOpen: () => void }) {
+export function ClanOfMomentCard({ clan, leagueSize, onOpen }: { clan: DirectoryClan; leagueSize: number; onOpen?: () => void }) {
   const winRate = clan.games7 > 0 ? clan.wins7 / clan.games7 : 0
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--game-gold)' }}>
         Clan du moment
       </span>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`Clan du moment : ${clan.name}`}
+      <CardShell
+        onOpen={onOpen}
+        label={`Clan du moment : ${clan.name}`}
         className="relative flex min-h-[200px] flex-col justify-end overflow-hidden rounded-2xl border bg-cover bg-center text-left text-white"
         style={{ backgroundColor: '#0b1120', backgroundImage: `url('${clan.imageUrl ?? DEFAULT_CLAN_IMAGE}')`, borderColor: 'var(--game-gold-ring)' }}
       >
@@ -158,19 +189,17 @@ export function ClanOfMomentCard({ clan, leagueSize, onOpen }: { clan: Directory
             ))}
           </dl>
         </span>
-      </button>
+      </CardShell>
     </div>
   )
 }
 
 /** Carte compacte d'un clan actif. */
-export function ActiveClanCard({ clan, active, onOpen }: { clan: DirectoryClan; active: boolean; onOpen: () => void }) {
+export function ActiveClanCard({ clan, active, onOpen }: { clan: DirectoryClan; active: boolean; onOpen?: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-current={active ? 'true' : undefined}
-      className="app-panel flex w-full items-center gap-3 p-2.5 text-left transition-colors hover:bg-gray-50"
+    <CardShell
+      onOpen={onOpen}
+      className={`app-panel flex w-full items-center gap-3 p-2.5 text-left transition-colors ${onOpen ? 'hover:bg-gray-50' : ''}`}
       style={active ? { borderColor: 'var(--theme-ui-accent-ring)' } : undefined}
     >
       <span
@@ -200,13 +229,21 @@ export function ActiveClanCard({ clan, active, onOpen }: { clan: DirectoryClan; 
         </span>
         <Palmares clan={clan} />
       </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
-    </button>
+      {onOpen && <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />}
+    </CardShell>
   )
 }
 
 /** Clans en sommeil (pas de partie depuis 14 jours) : liste repliée, grisée. */
-export function SleepingClans({ clans, onOpen }: { clans: DirectoryClan[]; onOpen: (clanId: number) => void }) {
+export function SleepingClans({
+  clans,
+  onOpen,
+  canOpen = () => true,
+}: {
+  clans: DirectoryClan[]
+  onOpen: (clanId: number) => void
+  canOpen?: (clanId: number) => boolean
+}) {
   const [open, setOpen] = useState(false)
   if (clans.length === 0) return null
   return (
@@ -225,7 +262,10 @@ export function SleepingClans({ clans, onOpen }: { clans: DirectoryClan[]; onOpe
         <ul className="app-panel overflow-hidden p-0">
           {clans.map((clan) => (
             <li key={clan.id} className="border-b border-gray-200 last:border-b-0">
-              <button type="button" onClick={() => onOpen(clan.id)} className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left opacity-80 hover:bg-gray-50 hover:opacity-100">
+              <CardShell
+                onOpen={canOpen(clan.id) ? () => onOpen(clan.id) : undefined}
+                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left opacity-80 hover:bg-gray-50 hover:opacity-100"
+              >
                 <span
                   className="h-8 w-8 shrink-0 rounded-lg bg-cover bg-center grayscale-[0.6]"
                   style={{ backgroundColor: '#0b1120', backgroundImage: `url('${clan.imageUrl ?? DEFAULT_CLAN_IMAGE}')` }}
@@ -234,7 +274,7 @@ export function SleepingClans({ clans, onOpen }: { clans: DirectoryClan[]; onOpe
                 <b className="text-[13px]">{clan.name}</b>
                 <span className="text-[11px] font-bold text-gray-500">[{clan.tag}]</span>
                 <span className="ml-auto text-xs text-gray-500">dernière partie {relativeLastGame(clan.lastMatchAt)}</span>
-              </button>
+              </CardShell>
             </li>
           ))}
         </ul>

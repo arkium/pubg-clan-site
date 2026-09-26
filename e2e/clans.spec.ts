@@ -55,3 +55,37 @@ test('ouvrir le clan épinglé mène à sa vue d’ensemble', async ({ api, page
   await page.getByRole('region', { name: 'À la une' }).getByRole('button', { name: /Clan Démo/ }).click()
   await expect(page).toHaveURL(new RegExp(`/clans/${CLAN_ID}/overview`))
 })
+
+test.describe('membre connecté, sans mode visiteur', () => {
+  test.beforeEach(async ({ api }) => {
+    // Membre du clan 1, sans droit de SuperUser : la page est visible, seul son clan s'ouvre.
+    api
+      .on('GET', '/api/auth/mode', { body: { authDisabled: false } })
+      // Avatar du joueur connecté, chargé par le header.
+      .on('GET', '/api/members/1', { body: { avatarUrl: null } })
+      .on('GET', '/api/auth/session', {
+        body: {
+          authenticated: true,
+          user: { email: 'membre@example.com', isSuperUser: false },
+          activeMemberId: 1,
+          permissions: [],
+          members: [{ memberId: 1, displayName: 'Joueur Alpha', clanId: CLAN_ID, clan: { id: CLAN_ID, name: 'Clan Démo', tag: 'DEMO' } }],
+          isSuperUser: false,
+        },
+      })
+  })
+
+  test('voit l’annuaire, son clan épinglé, et n’ouvre que son clan', async ({ page }) => {
+    await page.goto('/clans')
+    await expect(page.getByRole('heading', { level: 1, name: 'Les clans' })).toBeVisible()
+    await expect(page).toHaveURL(/\/clans$/)
+    const featured = page.getByRole('region', { name: 'À la une' })
+    await expect(featured.getByText('Mon clan', { exact: true })).toBeVisible()
+    await expect(featured.getByRole('button', { name: /Clan Démo/ })).toBeVisible()
+    // Clan du moment et autres clans : consultables, sans lien.
+    await expect(featured.getByRole('button', { name: /Clan du moment/ })).toHaveCount(0)
+    const list = page.getByRole('region', { name: 'Clans actifs' })
+    await expect(list.getByRole('button')).toHaveCount(1)
+    await expect(list.getByText('Clan Témoin')).toBeVisible()
+  })
+})

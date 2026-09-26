@@ -22,7 +22,9 @@ import { isSleeping, matchesQuery, sortDirectory, type ClanDirectoryPayload, typ
 /**
  * Les clans — refonte du 2026-09-26 (docs/features/clans.md §Annuaire, maquette Claude Design « Clans », écrans 12a
  * à 12e) : bandeau commun, totaux sur une ligne, clan épinglé et clan du moment, clans actifs triés par activité,
- * clans en sommeil repliés. Ouverte aux SuperUsers et aux visiteurs ; un membre est renvoyé vers ses pages.
+ * clans en sommeil repliés. Ouverte à tous (membres connectés compris, décision du 2026-09-26). Ouvrir un autre clan
+ * que le sien suit la lecture des données : SuperUser, ou mode visiteur (lecture ouverte à tous) ; sinon, seul son clan
+ * s'ouvre et les autres sont affichés sans lien.
  */
 
 type ClanListItem = {
@@ -59,22 +61,22 @@ export default function ClansPage() {
   const [sort, setSort] = useState<DirectorySortKey>('activity')
 
   const isVisitor = !authenticated && authDisabled
-  const canSwitchClan = isSuperUser || isVisitor
+  const canView = authenticated || isVisitor
+  // Changer de clan : SuperUser, ou mode visiteur (les données de tous les clans sont alors lisibles par tous).
+  const canSwitchClan = isSuperUser || authDisabled
 
   useEffect(() => {
     if (authLoading) return
-    if (!authenticated && !authDisabled) {
+    if (!canView) {
       router.replace('/login')
       return
     }
-    // Keep the persisted switch flag in sync with the live session, since the
-    // one written at login time can go stale (e.g. SuperUser status granted since).
-    if (authenticated) syncCanSwitchClan(isSuperUser)
-    if (!canSwitchClan) router.replace('/members')
-  }, [authDisabled, authLoading, authenticated, canSwitchClan, isSuperUser, router, syncCanSwitchClan])
+    // Garde le drapeau de changement de clan aligné sur la session en cours (celui écrit à la connexion peut dater).
+    if (authenticated) syncCanSwitchClan(canSwitchClan)
+  }, [authLoading, authenticated, canSwitchClan, canView, router, syncCanSwitchClan])
 
   useEffect(() => {
-    if (authLoading || (!authenticated && !isVisitor) || !canSwitchClan) return
+    if (authLoading || !canView) return
     const controller = new AbortController()
 
     Promise.all([
@@ -101,7 +103,7 @@ export default function ClansPage() {
       })
 
     return () => controller.abort()
-  }, [authLoading, authenticated, canSwitchClan, isVisitor, retryToken])
+  }, [authLoading, canView, retryToken])
 
   const entries = useMemo<DirectoryClan[]>(() => {
     const activity = new Map((directory?.activity ?? []).map((row) => [row.clanId, row]))
@@ -124,14 +126,14 @@ export default function ClansPage() {
   }, [clans, directory])
 
   function openClan(clanId: number) {
-    if (!setClanId(clanId)) {
+    if (!setClanId(clanId, { force: canOpen(clanId) })) {
       setError('Seul le Owner peut changer de clan.')
       return
     }
     router.push(`/clans/${clanId}/overview`)
   }
 
-  if (authLoading || (!authenticated && !isVisitor) || !canSwitchClan) {
+  if (authLoading || !canView) {
     return (
       <div className="app-container app-main">
         <p className="text-sm text-gray-500">{authLoading ? 'Vérification de la session…' : 'Redirection…'}</p>
@@ -142,6 +144,10 @@ export default function ClansPage() {
   // Clan épinglé : le sien pour un connecté, le dernier consulté pour un visiteur (décision du 2026-09-26).
   const ownClanId = authenticated ? members.find((member) => member.memberId === activeMemberId)?.clanId ?? null : null
   const pinnedId = ownClanId ?? activeClanId ?? null
+  // Un membre sans droit de changement n'ouvre que son propre clan ; les autres restent consultables dans l'annuaire.
+  function canOpen(clanId: number) {
+    return canSwitchClan || clanId === ownClanId
+  }
   const pinned = entries.find((entry) => entry.id === pinnedId) ?? null
   const moment = entries.find((entry) => entry.id === directory?.clanOfMomentId) ?? null
   const now = new Date()
@@ -247,8 +253,20 @@ export default function ClansPage() {
           <>
             {(pinned || moment) && !query && (
               <section className={`grid gap-3 ${pinned && moment ? 'lg:[grid-template-columns:minmax(0,1.1fr)_minmax(0,1fr)]' : ''}`} aria-label="À la une">
-                {pinned && <PinnedClanCard clan={pinned} label={ownClanId ? 'Mon clan' : 'Dernier clan consulté'} onOpen={() => openClan(pinned.id)} />}
-                {moment && <ClanOfMomentCard clan={moment} leagueSize={directory?.leagueSize ?? 0} onOpen={() => openClan(moment.id)} />}
+                {pinned && (
+                  <PinnedClanCard
+                    clan={pinned}
+                    label={ownClanId ? 'Mon clan' : 'Dernier clan consulté'}
+                    onOpen={canOpen(pinned.id) ? () => openClan(pinned.id) : undefined}
+                  />
+                )}
+                {moment && (
+                  <ClanOfMomentCard
+                    clan={moment}
+                    leagueSize={directory?.leagueSize ?? 0}
+                    onOpen={canOpen(moment.id) ? () => openClan(moment.id) : undefined}
+                  />
+                )}
               </section>
             )}
 
@@ -266,14 +284,18 @@ export default function ClansPage() {
                 <ul className="grid gap-2.5 md:grid-cols-2">
                   {active.map((clan) => (
                     <li key={clan.id}>
-                      <ActiveClanCard clan={clan} active={clan.id === activeClanId} onOpen={() => openClan(clan.id)} />
+                      <ActiveClanCard
+                        clan={clan}
+                        active={clan.id === activeClanId}
+                        onOpen={canOpen(clan.id) ? () => openClan(clan.id) : undefined}
+                      />
                     </li>
                   ))}
                 </ul>
               )}
             </section>
 
-            <SleepingClans clans={sleeping} onOpen={openClan} />
+            <SleepingClans clans={sleeping} onOpen={openClan} canOpen={canOpen} />
           </>
         )}
 

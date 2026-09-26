@@ -182,9 +182,11 @@ La session est invalidée :
 
 La page applique deux gardes :
 1. **Authentification** : redirection vers `/login` si pas de session.
-2. **Permission switch clan** : `canSwitchClan` est `true` pour un SuperUser, ou pour un visiteur en mode visiteur. Sinon, redirection vers `/members`.
+2. **Changement de clan** : `canSwitchClan` vaut `true` pour un SuperUser, ou en mode visiteur (tout utilisateur). Il ne
+   décide plus de l'accès à la page (2026-09-26), seulement de l'ouverture d'un autre clan : sans lui, un membre n'ouvre que
+   son propre clan.
 
-La page est donc réservée aux SuperUsers et aux visiteurs.
+La page est ouverte à tous les utilisateurs connectés et, en mode visiteur, aux visiteurs.
 
 ### Chargement des clans
 

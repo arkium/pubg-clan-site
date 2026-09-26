@@ -344,8 +344,11 @@ partagé avec `GET /api/clans-leaderboard` ; les tournois gagnés par `listTourn
 
 ## 6 bis. Annuaire des clans (`/clans`) — refonte du 2026-09-26
 
-Maquette Claude Design « Clans » (écrans 12a à 12e). Page réservée aux SuperUsers et aux visiteurs (mode visiteur) ; un
-membre est renvoyé vers ses pages (contrôle inchangé, voir [auth.md](auth.md) §7).
+Maquette Claude Design « Clans » (écrans 12a à 12e). Page ouverte à **tous** : membres connectés, SuperUsers et visiteurs
+(décision du 2026-09-26 ; les membres étaient auparavant renvoyés vers `/members`). **Ouvrir** un autre clan que le sien
+suit la lecture des données : SuperUser, ou mode visiteur (`DISABLE_AUTH_PERMISSIONS`, lecture ouverte à tous — le cas en
+production). Hors de ces cas, un membre n'ouvre que son clan ; les autres cartes s'affichent sans lien (« Consultable
+par les membres de ce clan »). Voir [auth.md](auth.md) §7.
 
 | Bloc | Contenu |
 |---|---|

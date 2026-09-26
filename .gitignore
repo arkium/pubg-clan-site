@@ -56,3 +56,5 @@ server.txt
 /test-results/
 /playwright-report/
 /blob-report/
+
+/docs/ui/refonte/

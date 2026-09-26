@@ -108,6 +108,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Bandeaux collants et période](TODO/sticky.md) | Spec de cohérence des pages joueurs : bandeau `DockingToolbar` unique, contrôle de période partagé (« Tous », calendaire), inventaire et phases, tests et documentation — **implémentée le 2026-09-26** |
 | [Sous-domaine par clan](TODO/chickendinnerfr.md) | Spec : `<clan>.chickendinner.fr` redirige vers la vue d'ensemble du clan ; champ `Clan.subdomain` unique, certificat wildcard, redirection dans le proxy sans Prisma |
 | [Liens courts](TODO/url-masking.md) | Spec : `/m/<match>`, `/t/<tournoi>` et `/j/<joueur>` redirigent vers les adresses canoniques (cuid tel quel, sans migration) ; clan d'un match partagé ; liens des embeds Discord fabriqués par le cron |
+| [Refonte UI](TODO/refonte-ui.md) | Spec : look cohérent des pages joueurs — accent unique pour les états actifs, rangs en médailles SVG, tri au clic sur l'en-tête, podium et distinctions, liste mobile ; `dark:` et hauteurs conservés. Fiches : [composants-refonte.md](ui/composants-refonte.md) |
 
 ---
 

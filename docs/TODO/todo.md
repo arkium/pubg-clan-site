@@ -818,6 +818,19 @@ migration). 16 % des matchs réunissent plusieurs clans : clan porté par le sou
   (`auth-service.ts`, `discord-service.ts`) ; base vide → embed sans lien, sans avertissement
 - [ ] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron
 
+#### Lot 8 — Refonte UI (look cohérent des pages joueurs) — 📐 Maquette validée le 2026-09-26, à implémenter
+
+Spec : [refonte-ui.md](refonte-ui.md), fiches : [composants-refonte.md](../ui/composants-refonte.md), maquette :
+`docs/ui/refonte/maquettes/Refonte adaptée.html` (non versionnée). Décisions : accent `--theme-ui-accent` pour tout état
+actif, rangs en **médailles SVG** (plus d'emoji), `dark:` **conservés**, hauteurs du bandeau d'image et du header
+**inchangées**.
+
+- [ ] Phase 0 — fondations : tokens, composants (`RankCell`, `SortableTh`, `PodiumCards`, `DistinctionStrip`,
+  `MobileRankList`), `distinctions.ts`, `dockedAside`, contrôles de conformité, docs, captures
+- [ ] Phase 1 — page de référence `/clans/[clanId]/leaderboard`
+- [ ] Phase 2 — tableaux de classement (ligue, vue d'ensemble, armes, drop zones, awards, défis, débriefing…)
+- [ ] Phase 3 — balayage (vocabulaire, rayons, accent)
+
 #### 1. Cycle de vie du clan d'un joueur — protection d'`Ungrouped`, détection, promotion et rétrogradation — 📐 Plan v2 du 2026-09-20, à valider avant implémentation
 
 > **Regroupement du 2026-09-20 :** cette section remplace et absorbe le plan « Détection et signalement des

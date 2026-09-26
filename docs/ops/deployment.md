@@ -300,7 +300,7 @@ L'application web écoute par défaut sur `127.0.0.1:3000`. En amont, Nginx gèr
 ### Sous-domaines de clan (`<clan>.chickendinner.fr`)
 
 Spec : [docs/TODO/chickendinnerfr.md](../TODO/chickendinnerfr.md). Chaque clan actif a un sous-domaine
-(`Clan.subdomain`) qui **redirige** (307) vers sa vue d'ensemble ; un sous-domaine inconnu redirige vers `/clans`.
+(`Clan.subdomain`) qui **redirige** (307) vers sa vue d'ensemble ; un sous-domaine inconnu redirige vers la vitrine `/`.
 Le DNS wildcard `*.chickendinner.fr` est déjà en place. Dans l'ordre :
 
 1. **Certificat wildcard** — Let's Encrypt ne le délivre que par validation DNS-01, avec le plugin `certbot` du

@@ -461,6 +461,6 @@ sous-domaine unique (`Clan.subdomain`) — `smk.chickendinner.fr` redirige vers 
 - **Règle** : le tag en minuscules s'il est valide, non réservé, libre et porté par ce seul clan actif ; sinon le
   nom normalisé ; sinon un suffixe `-2`, `-3`… Deux clans actifs au même tag n'ont ni l'un ni l'autre le tag seul.
 - **Stabilité** : un changement de tag ou de nom ne modifie pas le sous-domaine. Un clan archivé garde le sien (il
-  redirige vers `/clans` tant que le clan n'est pas réactivé).
+  redirige vers la vitrine `/` tant que le clan n'est pas réactivé).
 - **Modification** : réservée au SuperUser, dans les paramètres du clan (« Adresse du clan »). L'ancien
   sous-domaine est libéré immédiatement.

@@ -315,6 +315,10 @@ Session is **cookie-based** with server-side validation:
 - `POST /api/auth/logout` → clears cookie
 - `POST /api/auth/activate` → sets up SuperUser (first run only)
 
+**Accueil `/`:** vitrine publique plein écran, sans shell, pour tous (un connecté y trouve « Mon espace » ; entrée
+« Accueil » du menu latéral), alimentée par la route publique `GET /api/home/showcase` (cache mémoire 5 min). Elle ne doit jamais exposer le
+pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/features/accueil.md).
+
 **Guard Routes:**
 - `src/proxy.ts` (edge middleware) redirects based on `setupState`:
   - `first_run` → `/setup`

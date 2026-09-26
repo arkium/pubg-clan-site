@@ -41,9 +41,9 @@ describe('subdomainRedirectLocation', () => {
   })
 
   it('mène un sous-domaine inconnu, réservé ou à plusieurs niveaux vers la liste des clans', () => {
-    expect(location('bidon')).toBe('https://chickendinner.fr/clans')
-    expect(location('api')).toBe('https://chickendinner.fr/clans')
-    expect(location('a.smk')).toBe('https://chickendinner.fr/clans')
+    expect(location('bidon')).toBe('https://chickendinner.fr/')
+    expect(location('api')).toBe('https://chickendinner.fr/')
+    expect(location('a.smk')).toBe('https://chickendinner.fr/')
   })
 
   it('relaie un lien court de match au domaine racine avec le clan', () => {
@@ -121,7 +121,7 @@ describe('proxy — sous-domaines de clan', () => {
     const { proxy } = await import('../proxy')
     await proxy(request('https://smk.chickendinner.fr/', 'smk.chickendinner.fr'))
     const second = await proxy(request('https://bidon.chickendinner.fr/', 'bidon.chickendinner.fr'))
-    expect(second.headers.get('location')).toBe('https://chickendinner.fr/clans')
+    expect(second.headers.get('location')).toBe('https://chickendinner.fr/')
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/clan-subdomains'))).toHaveLength(1)
   })
 

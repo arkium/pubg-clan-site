@@ -39,6 +39,14 @@ export const NAV_ROLE_LABELS: Record<NavRole, string> = {
 export const NAV_REGISTRY: NavItemDef[] = [
   // --- Navigation principale (sidebar) ---
   {
+    navKey: 'primary.home',
+    section: 'nav-primary',
+    label: 'Accueil',
+    hrefTemplate: '/',
+    defaultRole: 'none',
+    description: 'Vitrine publique du site : compteurs, kill feed et derniers Top 1 (plein écran, hors shell).',
+  },
+  {
     navKey: 'primary.dashboard',
     section: 'nav-primary',
     label: 'Dashboard',

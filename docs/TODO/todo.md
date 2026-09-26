@@ -2562,6 +2562,20 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Vitrine publique de l'accueil (`/`)~~ — ✅ Complété le 2026-09-26
+
+Maquette Claude Design « Accueil chickendinner » adaptée au site multi-clans — [accueil.md](../features/accueil.md) :
+- [x] `/` affiche la vitrine à tous, en plein écran ; un membre connecté y trouve « Mon espace » (plus de redirection
+      vers `/clans`) ; `/` ajouté aux chemins publics du proxy et aux pages sans shell ; `HomeRedirect` supprimé.
+- [x] Entrée « Accueil » (`primary.home`) en tête du menu latéral.
+- [x] Ligne `NavItem` écrite en production le 2026-09-26 (`npx tsx scripts/seed-home-nav.ts --apply`, id 64), pour pouvoir
+      masquer ou renommer l'entrée depuis `/settings/nav-permissions`.
+- [x] Route publique `GET /api/home/showcase`, cache mémoire de 5 min : compteurs de la semaine, 3 derniers Top 1,
+      kill feed des 8 dernières victoires (victimes réduites au tag de leur clan).
+- [x] Tests : `home-showcase.test.ts`, `home-showcase-route-contracts.test.ts`, `e2e/home.spec.ts`.
+- [x] Sous-domaine inconnu → vitrine `/` ; métadonnées (titre, description, Open Graph) ; « #1 / N équipes » lu dans la
+      télémétrie existante (aucune migration) ; logo retiré du héros.
+
 #### ~~Gestion compacte des membres (`/clans/[clanId]/settings/members`) — Chevron de déploiement, badges abrégés et légende~~ — ✅ Complété le 2026-09-06
 
 Optimisation de l'affichage sur la page de gestion des membres du clan pour économiser de la place à l'écran :

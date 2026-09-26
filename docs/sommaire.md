@@ -24,6 +24,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
+| [Accueil](features/accueil.md) | Vitrine publique de `/` (visiteurs sans session) : compteurs, kill feed, 3 derniers Top 1, appel à rejoindre ; route publique `GET /api/home/showcase` et son cache |
 | [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre, SuperUser, flux /join |
 | [Clans](features/clans.md) | Structure clan, hiérarchie rôles + matrice permissions, flux /join et membres pending, sync PUBG, overview, crons |
 | [Cycle de vie du clan d'un joueur](features/cycle-de-vie-clan.md) | Détection quotidienne des changements d'appartenance, clan technique `Ungrouped`, promotion et rétrogradation, archivage, journal des mutations, garde-fous d'exécution, propagation vers le miroir adversaire (§11) |

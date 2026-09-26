@@ -11,6 +11,7 @@ import {
   memberDashboard,
   memberWeaponMastery,
   memberWeapons,
+  homeShowcase,
 } from './data'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
@@ -63,4 +64,9 @@ export function mockClanWeapons(api: ApiMock) {
 
 export function mockClansLeaderboard(api: ApiMock) {
   api.on('GET', '/api/clans-leaderboard', (url) => ({ body: clansLeaderboardResponse(periodOf(url)) }))
+}
+
+/** Vitrine publique de l'accueil : une seule API, publique. */
+export function mockHomeShowcase(api: ApiMock) {
+  api.on('GET', '/api/home/showcase', { body: homeShowcase() })
 }

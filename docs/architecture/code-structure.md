@@ -174,7 +174,7 @@ app/api/
 | `RoleAssignment.tsx` | Assignation de rôles |
 | `SessionRecap.tsx` | Récapitulatif de session |
 | `FirstRunSetup.tsx` | Écran de premier lancement |
-| `HomeRedirect.tsx` | Redirection intelligente depuis `/` |
+| `home/HomeShowcase.tsx` | Vitrine publique de `/`, plein écran, pour tous ([accueil.md](../features/accueil.md)) ; « Mon espace » pour un membre connecté |
 | `WeaponCategoryPeriodFilter.tsx` | Filtre période + catégorie arme |
 | `ChallengeCard.tsx`, `ChallengeCreator.tsx`, `ChallengeLeaderboard.tsx` | Gestion des défis |
 | `MemberLifetimeStatsPanel.tsx` | Panel stats lifetime |

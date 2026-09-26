@@ -3166,3 +3166,214 @@ body[data-app-theme='dark'] .app-modal-select,
 }
 
 
+
+/* ── Vitrine publique de l'accueil (`/`) — docs/features/accueil.md ─────────────────────────────── */
+/* La vitrine porte son propre pied de page : celui du layout est masqué sur cette seule page. */
+body:has(.home-showcase) .app-footer {
+  display: none;
+}
+
+.home-showcase {
+  --home-gold: rgb(180 83 9 / 1);
+  --home-link: var(--theme-ui-accent-text);
+  min-height: 100vh;
+  background: var(--page-surface);
+  color: var(--theme-ui-text);
+}
+
+html[data-app-theme='dark'] .home-showcase {
+  --home-gold: rgb(251 191 36 / 1);
+  --home-link: rgb(165 180 252 / 1);
+}
+
+.home-display {
+  font-family: var(--font-teko), 'Teko', ui-sans-serif, sans-serif;
+}
+
+.home-gold {
+  color: var(--home-gold);
+}
+
+.home-link {
+  color: var(--home-link);
+}
+
+.home-link:hover {
+  text-decoration: underline;
+}
+
+/* Héros : toujours sombre (photo), quel que soit le thème. */
+.home-hero {
+  height: clamp(600px, 56vw, 780px);
+  background: #1c1308;
+}
+
+.home-hero-bg {
+  inset: -2%;
+  background-position: 78% center;
+  animation: home-kenburns 26s ease-in-out infinite alternate;
+}
+
+@media (min-width: 1024px) {
+  .home-hero-bg {
+    background-position: center 40%;
+  }
+}
+
+.home-hero-shade {
+  background: linear-gradient(
+    180deg,
+    rgb(2 6 23 / 0.75) 0%,
+    rgb(2 6 23 / 0.1) 22%,
+    rgb(2 6 23 / 0) 45%,
+    rgb(2 6 23 / 0.55) 72%,
+    rgb(2 6 23 / 0.95) 100%
+  );
+}
+
+.home-glass {
+  border: 1px solid rgb(255 255 255 / 0.28);
+  background: rgb(2 6 23 / 0.38);
+  backdrop-filter: blur(6px);
+}
+
+.home-glass:hover,
+.home-hero-link:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.home-hero-link {
+  color: rgb(255 255 255 / 0.85);
+}
+
+.home-compass {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+  text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
+}
+
+.home-compass-strip {
+  animation: home-compass 40s linear infinite alternate;
+}
+
+.home-feed-kill {
+  background: rgb(2 6 23 / 0.62);
+  color: #fff;
+}
+
+.home-feed-win {
+  background: rgb(251 191 36 / 0.92);
+  color: rgb(28 16 3 / 1);
+}
+
+.home-feed-weapon {
+  border: 1px solid rgb(255 255 255 / 0.25);
+  color: rgb(255 255 255 / 0.65);
+}
+
+.home-feed-enter {
+  animation: home-feed-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.home-feed-card {
+  background: #0b1120;
+  border: 1px solid #1e293b;
+}
+
+.home-cta-glow {
+  box-shadow: 0 0 0 0 rgb(251 191 36 / 0.6);
+  animation: home-glow 2.2s ease-out infinite;
+}
+
+.home-carousel-btn {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--theme-ui-border);
+  background: var(--theme-ui-surface);
+  color: var(--theme-ui-text);
+}
+
+.home-carousel-btn:hover {
+  background: var(--theme-ui-hover);
+}
+
+.home-carousel-btn:focus-visible {
+  outline: 2px solid var(--theme-ui-accent-ring);
+  outline-offset: 2px;
+}
+
+.home-squad-row {
+  border-bottom: 1px solid var(--theme-ui-border);
+}
+
+.home-join {
+  background: #140d05;
+}
+
+.home-join-bg {
+  background-position: 85% 70%;
+  opacity: 0.55;
+}
+
+.home-join-shade {
+  background: linear-gradient(90deg, rgb(20 13 5 / 0.97) 0%, rgb(20 13 5 / 0.88) 45%, rgb(20 13 5 / 0.2) 100%);
+}
+
+.home-footer {
+  border-top: 1px solid var(--theme-ui-border);
+}
+
+.home-footer-brand {
+  color: var(--theme-ui-text);
+}
+
+@keyframes home-kenburns {
+  from {
+    transform: scale(1) translate(0, 0);
+  }
+  to {
+    transform: scale(1.08) translate(-1.5%, -1%);
+  }
+}
+
+@keyframes home-compass {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes home-feed-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes home-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgb(251 191 36 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgb(251 191 36 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-bg,
+  .home-compass-strip,
+  .home-feed-enter,
+  .home-cta-glow {
+    animation: none !important;
+  }
+}

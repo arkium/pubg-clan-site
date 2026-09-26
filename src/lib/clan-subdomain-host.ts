@@ -35,7 +35,7 @@ const SHORT_MATCH_PATH = /^\/m\/([A-Za-z0-9]+)\/?$/
  * Adresse de redirection (307) pour une requête reçue sur un sous-domaine de clan.
  * - `/m/<match>` : lien court de débriefing, relayé au domaine racine avec le clan (url-masking.md §4.C) ;
  * - sous-domaine attribué à un clan actif : vue d'ensemble du clan (le chemin est ignoré) ;
- * - sous-domaine inconnu, réservé ou invalide : liste des clans.
+ * - sous-domaine inconnu, réservé, invalide ou d'un clan inactif : vitrine de l'accueil (docs/features/accueil.md).
  */
 export function subdomainRedirectLocation(input: {
   label: string
@@ -53,7 +53,7 @@ export function subdomainRedirectLocation(input: {
   }
 
   const clanId = valid ? input.targets[input.label] : undefined
-  return clanId ? `${base}/clans/${clanId}/overview` : `${base}/clans`
+  return clanId ? `${base}/clans/${clanId}/overview` : `${base}/`
 }
 
 /** Cache mémoire de la table, rechargée au plus toutes les `ttlMs` ; en cas d'échec, l'ancienne table sert. */

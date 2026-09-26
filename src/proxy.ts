@@ -10,7 +10,8 @@ import {
 
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
 const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join'])
-const PUBLIC_PATHS = new Set(['/login', '/activate', '/reset-password', '/join'])
+// '/' : vitrine publique de l'accueil (docs/features/accueil.md), visible sans session même hors mode visiteur.
+const PUBLIC_PATHS = new Set(['/', '/login', '/activate', '/reset-password', '/join'])
 const SESSION_COOKIE_NAME = 'pubg_clan_session'
 const AUTH_DISABLED = process.env.DISABLE_AUTH_PERMISSIONS === 'true'
 

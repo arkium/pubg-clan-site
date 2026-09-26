@@ -27,6 +27,7 @@ action manuelle sur le DNS, le certificat ou Nginx.
 | Clé de correspondance | **Champ dédié `Clan.subdomain`, unique**, et non le tag PUBG : le tag n'est pas unique et peut changer ou être repris (§3.B) | 2026-09-26 |
 | Tags en double | Aucun des deux clans ne reçoit le tag seul : chacun reçoit un sous-domaine tiré de son **nom** (§4.B) | 2026-09-26 |
 | Sous-domaine inconnu ou réservé | Redirection **temporaire** vers `https://chickendinner.fr/clans` (jamais 301 : le navigateur la mémoriserait) | 2026-09-26 |
+| Sous-domaine inconnu, réservé ou de clan inactif (révision) | Redirection temporaire vers la **vitrine** `https://chickendinner.fr/` ([accueil.md](../features/accueil.md)) au lieu de `/clans` | 2026-09-26 |
 
 ---
 
@@ -100,7 +101,7 @@ la correspondance doit être mise en cache.
 - **Nouveau clan** : attribution automatique quand le clan devient actif (validation dans le cycle de vie, ajout
   depuis l'Observatoire). Un changement de tag ultérieur **ne modifie pas** le sous-domaine : l'adresse reste stable.
 - **Modification** : réservée au SuperUser (réglages du clan) ; l'ancien sous-domaine est libéré immédiatement.
-- **Clan archivé ou désactivé** : son sous-domaine redirige vers `/clans` (sous-domaine conservé, pour une
+- **Clan archivé ou désactivé** : son sous-domaine redirige vers la vitrine `/` (`/clans` avant la révision du 2026-09-26) (sous-domaine conservé, pour une
   réactivation).
 
 ### C. Redirection (`src/proxy.ts`)
@@ -108,7 +109,8 @@ la correspondance doit être mise en cache.
 - Hôte `<x>.chickendinner.fr` (domaine racine lu depuis une variable d'environnement, par exemple
   `CLAN_SUBDOMAIN_ROOT=chickendinner.fr` ; absente → fonctionnalité désactivée, donc sans effet en local) :
   - `<x>` attribué à un clan actif → **307** vers `https://chickendinner.fr/clans/<id>/overview` ;
-  - `<x>` inconnu, réservé, ou clan inactif → **307** vers `https://chickendinner.fr/clans`.
+  - `<x>` inconnu, réservé, ou clan inactif → **307** vers la vitrine `https://chickendinner.fr/` (révision du
+    2026-09-26 ; `/clans` auparavant).
 - Le chemin du sous-domaine est ignoré (`smk.chickendinner.fr/stats` → vue d'ensemble) : pas de second schéma d'URL.
   Seule exception : `/m/<match>` → `https://chickendinner.fr/m/<match>?c=<sous-domaine>` (lien court de
   débriefing, [url-masking.md](url-masking.md) §4.C).
@@ -147,7 +149,7 @@ la correspondance doit être mise en cache.
 | Fichier | Contenu |
 |---|---|
 | `src/lib/clan-subdomain.test.ts` | Normalisation (casse, accents, caractères interdits, tirets), validation (longueur, mots réservés), attribution : tag libre, tag pris → nom, nom pris → suffixe ; les quatre attributions du §4.B |
-| `src/lib/clan-subdomain-proxy.test.ts` | Extraction de l'hôte : racine, `www`, `localhost`, IP, sous-domaine ; 307 vers la vue d'ensemble, 307 vers `/clans` si inconnu ou réservé ; fonctionnalité inactive sans `CLAN_SUBDOMAIN_ROOT` ; cache (un seul appel à la route interne par période) |
+| `src/lib/clan-subdomain-proxy.test.ts` | Extraction de l'hôte : racine, `www`, `localhost`, IP, sous-domaine ; 307 vers la vue d'ensemble, 307 vers la vitrine `/` si inconnu ou réservé ; fonctionnalité inactive sans `CLAN_SUBDOMAIN_ROOT` ; cache (un seul appel à la route interne par période) |
 | Contrat de la route interne | Ne renvoie que les clans actifs non système ; ne renvoie ni nom ni donnée autre que `sous-domaine → id` |
 
 Recette manuelle en production : `smk.chickendinner.fr`, `kilslms.chickendinner.fr`, un sous-domaine inventé,

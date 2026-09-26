@@ -401,6 +401,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const dashboardHref = memberIdForCtx ? `/members/${memberIdForCtx}/dashboard` : '/members'
 
   const primaryLinks: NavItem[] = ([
+      // Vitrine du site (docs/features/accueil.md) : plein écran, elle quitte le shell.
+      { navKey: 'primary.home', label: 'Accueil', href: '/', tone: 'neutral' },
       { navKey: 'primary.dashboard', label: 'Les clans', href: '/clans', tone: 'blue' },
       { navKey: 'primary.ligue', label: 'Ligue', href: '/clans-leaderboard', tone: 'brand' },
       { navKey: 'primary.comparator', label: 'Comparateur', href: '/clans/comparator', tone: 'emerald' },
@@ -1044,7 +1046,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return <div className="flex min-h-full flex-col w-full">{children}</div>
   }
 
+  // Pages plein écran, sans le shell : authentification, et la vitrine publique de l'accueil.
   if (
+    pathname === '/' ||
     pathname.startsWith('/activate') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/reset-password') ||

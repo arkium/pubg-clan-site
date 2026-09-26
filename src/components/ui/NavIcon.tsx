@@ -28,6 +28,7 @@ import {
   Database,
   Key,
   LogIn,
+  Home,
 } from 'lucide-react'
 
 type Props = {
@@ -39,6 +40,7 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
   const getIcon = () => {
     switch (label) {
       // ── Navigation principale ──────────────────────────────────────────────
+      case 'Accueil': return <Home className={className} />
       case 'Dashboard': return <LayoutDashboard className={className} />
       case 'Les clans':
       case 'Mon clan': return <Users className={className} />

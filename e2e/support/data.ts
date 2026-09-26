@@ -1,4 +1,5 @@
 import type { ClanLeaderboardEntry, ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
+import type { HomeShowcasePayload } from '@/lib/home-showcase'
 import type { ClanOverview } from '@/hooks/useClanOverview'
 import type { ItemUseStats } from '@/lib/item-use-stats'
 import type { CachedClanMatchesPayload } from '@/lib/matches-cache-service'
@@ -317,5 +318,57 @@ export function memberWeaponMastery() {
       tier: 3,
       lastRefreshedAt: FIXED_DATE,
     })),
+  }
+}
+
+/** Vitrine de l'accueil (`GET /api/home/showcase`) : trois Top 1 fictifs, un kill feed de sept lignes. */
+export function homeShowcase(): HomeShowcasePayload {
+  const squad = (names: string[]) =>
+    names.map((name, index) => ({
+      memberId: index + 1,
+      name: `Joueur ${name}`,
+      kills: 6 - index * 2,
+      damage: 800 - index * 200,
+      revives: index,
+      weapons: index < 3 ? ['Kar98k', 'Beryl M762'].slice(0, 2 - (index % 2)) : [],
+      mvp: index === 0,
+    }))
+  const dinner = (id: string, mapName: string, mapLabel: string, clanTag: string, names: string[]) => ({
+    squadMatchId: id,
+    clanId: CLAN_ID,
+    clanName: `Clan ${clanTag}`,
+    clanTag,
+    mapName,
+    mapLabel,
+    mapImage: `/maps/pubg/${mapName}.webp`,
+    playedAt: FIXED_DATE,
+    durationSeconds: 1902,
+    // Troisième partie sans télémétrie : « #1 » seul.
+    teamCount: id === 'match-3' ? null : 26,
+    teamMode: 'squad' as const,
+    matchType: 'official',
+    kills: 14,
+    damage: 2087,
+    longestKillMeters: 312,
+    debriefPath: `/clans/${CLAN_ID}/telemetry/matches/${id}/debrief`,
+    squad: squad(names),
+  })
+  return {
+    generatedAt: FIXED_DATE,
+    stats: { clans: 29, players: 399, weekKills: 7957, weekWins: 198, isoWeek: 39 },
+    dinners: [
+      dinner('match-1', 'Desert_Main', 'Miramar', 'ALFA', ['Alpha', 'Bravo', 'Charlie', 'Delta']),
+      dinner('match-2', 'Baltic_Main', 'Erangel', 'ECHO', ['Echo', 'Foxtrot', 'Golf']),
+      dinner('match-3', 'Tiger_Main', 'Taego', 'HOTL', ['Hotel', 'India']),
+    ],
+    killFeed: [
+      { id: 'k1', kind: 'kill', killer: 'Joueur Alpha', killerClanTag: 'ALFA', weapon: 'Kar98k', headshot: true, distanceMeters: 312, victimClanTag: 'ABC' },
+      { id: 'k2', kind: 'kill', killer: 'Joueur Bravo', killerClanTag: 'ALFA', weapon: 'M416', headshot: false, distanceMeters: 48, victimClanTag: null },
+      { id: 'k3', kind: 'kill', killer: 'Joueur Echo', killerClanTag: 'ECHO', weapon: 'Poêle', headshot: false, distanceMeters: 2, victimClanTag: null },
+      { id: 'k4', kind: 'kill', killer: 'Joueur Hotel', killerClanTag: 'HOTL', weapon: 'AWM', headshot: true, distanceMeters: 427, victimClanTag: 'XYZ' },
+      { id: 'win-match-1', kind: 'win', clanTag: 'ALFA', mapLabel: 'Miramar' },
+      { id: 'k5', kind: 'kill', killer: 'Joueur Golf', killerClanTag: 'ECHO', weapon: 'Mini 14', headshot: false, distanceMeters: 186, victimClanTag: null },
+      { id: 'k6', kind: 'kill', killer: 'Joueur India', killerClanTag: 'HOTL', weapon: 'UMP45', headshot: false, distanceMeters: 14, victimClanTag: null },
+    ],
   }
 }

@@ -1,362 +1,105 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { Skull } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
 
-import MemberPageHeader from '@/components/member/MemberPageHeader'
-import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
-import WeaponIcon from '@/components/ui/WeaponIcon'
-import WeaponSelect from '@/components/ui/WeaponSelect'
+import { DeathCam, FaceOff, HuntersAndPrey, Tally, WeaponMenu, weaponLabelOf, type NemesisPayload } from '@/components/nemesis/NemesisSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import RankCell from '@/components/ui/RankCell'
-import { resolveWeaponName } from '@/lib/pubg-assets'
+import PeriodFilter from '@/components/ui/PeriodFilter'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { usePageData } from '@/hooks/usePageData'
+import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { STANDARD_PERIODS } from '@/lib/period'
 
-type OpponentRow = {
-  key: string
-  name: string
-  clanTag: string | null
-  isBot: boolean
-  resolved: boolean
-  count: number
-  lastAt: string
-  topWeapon: string | null
-}
-
-type WeaponCount = {
-  weaponName: string
-  count: number
-}
-
-type NemesisPayload = {
-  totalDeathsTracked: number
-  totalKillsTracked: number
-  botKillCount: number
-  botDeathCount: number
-  environmentalDeathCount: number
-  availableWeapons: string[]
-  selectedWeapon: string | null
-  topDeathWeapons: WeaponCount[]
-  topKillers: OpponentRow[]
-  topVictims: OpponentRow[]
-}
-
-type NemesisResponse = {
-  data?: NemesisPayload
-  error?: string
-}
+const pickNemesis = (payload: unknown) => (payload as { data?: NemesisPayload } | null)?.data ?? null
+const pickName = (payload: unknown) => (payload as { displayName?: string } | null)?.displayName ?? null
 
 function parseMemberId(value: string | string[] | undefined) {
-  if (!value || Array.isArray(value)) {
-    return null
-  }
-
+  if (!value || Array.isArray(value)) return null
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function formatDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return '-'
-  }
-
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function formatRatio(kills: number, deaths: number) {
-  if (deaths === 0) {
-    return kills > 0 ? kills.toFixed(2) : '-'
-  }
-
-  return (kills / deaths).toFixed(2)
-}
-
-function countBadgeClass(tone: 'danger' | 'success', rank: number) {
-  const intense = rank === 1
-  if (tone === 'danger') {
-    return intense
-      ? 'border-rose-300 bg-rose-100 text-rose-800'
-      : 'border-rose-200 bg-rose-50 text-rose-700'
-  }
-
-  return intense
-    ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
-    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-}
-
-function OpponentList({
-  rows,
-  tone,
-  emptyLabel,
-}: {
-  rows: OpponentRow[]
-  tone: 'danger' | 'success'
-  emptyLabel: string
-}) {
-  if (rows.length === 0) {
-    return (
-      <p className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
-        {emptyLabel}
-      </p>
-    )
-  }
-
-  return (
-    <div className="mt-3 space-y-2">
-      {rows.map((row, index) => {
-        const rank = index + 1
-        const isPodium = rank <= 3
-
-        return (
-          <article
-            key={row.key}
-            className="flex items-stretch overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
-          >
-            <div className="flex w-16 shrink-0 items-center justify-center border-r border-slate-200 bg-white">
-              {row.topWeapon ? (
-                <WeaponIcon id={row.topWeapon} size="xl" />
-              ) : (
-                <span className="text-2xl" title="Environnement" aria-label="Environnement">
-                  🌀
-                </span>
-              )}
-            </div>
-
-            <div className="min-w-0 flex-1 px-3 py-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  {isPodium ? <RankCell rank={rank} size="xs" /> : null}
-                  {row.resolved ? (
-                    <PlayerNameBadge name={row.name} className="min-w-0 truncate font-semibold text-slate-900" />
-                  ) : (
-                    <span className="min-w-0">
-                      <span className="italic text-slate-500">Joueur inconnu</span>
-                      <span className="block max-w-[12rem] truncate text-[10px] text-slate-400" title={row.key}>
-                        {row.key}
-                      </span>
-                    </span>
-                  )}
-                  {row.clanTag ? (
-                    <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                      [{row.clanTag}]
-                    </span>
-                  ) : null}
-                </div>
-
-                <span
-                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums ${countBadgeClass(tone, rank)}`}
-                >
-                  ×{row.count}
-                </span>
-              </div>
-
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
-                <span>{row.topWeapon ? resolveWeaponName(row.topWeapon) : 'Environnement'}</span>
-                <span className="text-slate-300">·</span>
-                <span>Dernière fois : {formatDate(row.lastAt)}</span>
-              </div>
-            </div>
-          </article>
-        )
-      })}
-    </div>
-  )
-}
-
+/**
+ * Némésis d'un joueur — des comptes à régler (maquette « Némésis », 2026-09-27 ; docs/features/nemesis.md). Face-à-face
+ * némésis / proie favorite et revanche, bilan sur une ligne, chasseurs et proies paginés (onglets sur mobile), death
+ * cam. Période et arme dans le bandeau, qui colle aussi sur mobile.
+ */
 export default function MemberNemesisPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
+  // Période : URL, puis mémoire de la visite, puis « Tous » (les duels sont rares sur une semaine).
+  const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'all')
+  const [weapon, setWeapon] = useState<string | null>(null)
+  const [now] = useState(() => new Date())
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [payload, setPayload] = useState<NemesisPayload | null>(null)
-  const [weaponFilter, setWeaponFilter] = useState('all')
-
-  useEffect(() => {
-    if (!memberId) {
-      setLoading(false)
-      setError('Identifiant de membre invalide')
-      return
-    }
-
-    let cancelled = false
-
-    async function load() {
-      try {
-        setLoading(true)
-        const query = weaponFilter !== 'all' ? `?weapon=${encodeURIComponent(weaponFilter)}` : ''
-        const response = await fetch(`/api/members/${memberId}/nemesis${query}`, { cache: 'no-store' })
-        const data = (await response.json().catch(() => null)) as NemesisResponse | null
-
-        if (!response.ok || !data?.data) {
-          if (!cancelled) {
-            setPayload(null)
-            setError(data?.error ?? 'Chargement du némésis impossible')
-          }
-          return
-        }
-
-        if (!cancelled) {
-          setPayload(data.data)
-          setError(null)
-        }
-      } catch {
-        if (!cancelled) {
-          setPayload(null)
-          setError('Chargement du némésis impossible')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    void load()
-
-    return () => {
-      cancelled = true
-    }
-  }, [memberId, weaponFilter])
+  const query = new URLSearchParams({ period })
+  if (weapon) query.set('weapon', weapon)
+  const { data, loading, error } = usePageData(memberId && ready ? `/api/members/${memberId}/nemesis?${query.toString()}` : null, pickNemesis)
+  const name = usePageData(memberId ? `/api/members/${memberId}` : null, pickName).data
 
   if (!memberId) {
     return (
-      <div className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Némésis"
-          currentHref={`/members`}
-          fallbackParent={{ href: `/members`, label: 'Membres' }}
-        />
-        <p className="text-sm text-rose-700">Identifiant joueur invalide.</p>
+      <div className="app-container app-main flex-1">
+        <p className="text-sm text-red-600">Identifiant de joueur invalide.</p>
       </div>
     )
   }
+
+  const weaponLabel = weapon ? weaponLabelOf(data?.weaponLabels, weapon) : null
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
     <div className="app-main-flush flex-1">
-      <div className="app-container app-gutter space-y-4">
+      <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Némésis"
           currentHref={`/members/${memberId}/nemesis`}
-          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: name ?? 'Tableau de bord', altHref: '/members' }}
         />
-        <MemberPageHeader
-          title="Némésis"
-          subtitle="Qui vous a le plus tué, et qui vous avez le plus tué."
-          showBackButton={false}
-          backgroundImage="/nemesis.jpg"
-          icon={<Skull className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
-        />
+        <header
+          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-[#0b1120] bg-cover bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/nemesis.jpg')`, backgroundPosition: 'center 40%' }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3.5 py-3 sm:px-6 sm:py-5">
+            <div className="flex items-center gap-2">
+              <Skull className="h-5 w-5 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="text-xl font-extrabold tracking-tight text-white drop-shadow-md sm:text-[26px]">{name ? `Némésis de ${name}` : 'Némésis'}</h1>
+            </div>
+            <p className="text-[13px] text-white/80 drop-shadow-md">Qui te chasse, qui tu chasses, et les comptes à régler.</p>
+          </div>
+        </header>
       </div>
 
-      {payload ? (
-        // Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2).
-        <DockingToolbar ariaLabel="Filtre des némésis" dockOnMobile={false}>
-          <WeaponSelect
-            label="Filtrer par arme"
-            value={weaponFilter}
-            weapons={payload.availableWeapons}
-            onChange={setWeaponFilter}
-            className="w-full max-w-xs"
-          />
-        </DockingToolbar>
-      ) : null}
+      {/*
+        Exception à sticky.md §2 (décision du 2026-09-27, maquette « Némésis ») : docké sur mobile, le bandeau garde la
+        période et la pastille d'arme, sur une ligne.
+      */}
+      <DockingToolbar ariaLabel="Filtres du némésis">
+        <div className="flex w-full flex-nowrap items-center gap-2">
+          <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+          <WeaponMenu weapons={data?.availableWeapons ?? []} value={weapon} onChange={setWeapon} labels={data?.weaponLabels} />
+        </div>
+      </DockingToolbar>
 
-      <div className="app-container app-gutter space-y-4">
-        {loading && !payload ? <p className="text-sm text-slate-600">Chargement...</p> : null}
-        {!loading && error ? (
-          <section className="app-panel p-4 text-sm text-rose-800">{error}</section>
-        ) : null}
-
-        {payload ? (
-          // Pendant un rechargement, les résultats précédents restent affichés : la page ne se replie pas.
-          <div aria-busy={loading} className={loading ? 'space-y-4 opacity-60' : 'space-y-4'}>
-            <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
-              <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Morts suivies</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalDeathsTracked}</p>
-              </article>
-              <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Kills suivis</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">{payload.totalKillsTracked}</p>
-              </article>
-              <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Ratio K/D suivi</p>
-                <p className="mt-2 text-2xl font-bold text-sky-700">
-                  {formatRatio(payload.totalKillsTracked, payload.totalDeathsTracked)}
-                </p>
-              </article>
-              <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Bots neutralisés</p>
-                <p className="mt-2 text-2xl font-bold text-emerald-700">{payload.botKillCount}</p>
-              </article>
-              <article className="app-panel p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Tué par un bot</p>
-                <p className="mt-2 text-2xl font-bold text-slate-500">{payload.botDeathCount}</p>
-              </article>
-            </section>
-
-            {payload.topDeathWeapons.length > 0 ? (
-              <section className="app-panel p-4">
-                <h2 className="text-lg font-semibold text-slate-900">Armes qui vous tuent le plus</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Toutes armes confondues, tous adversaires confondus — reste global même si un filtre est actif ci-dessus.
-                </p>
-                <div className="mt-3 space-y-1.5">
-                  {payload.topDeathWeapons.map((entry) => {
-                    const max = payload.topDeathWeapons[0]?.count || 1
-                    const widthPercent = Math.max(8, Math.round((entry.count / max) * 100))
-
-                    return (
-                      <div key={entry.weaponName} className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-white">
-                          <WeaponIcon id={entry.weaponName} size="sm" />
-                        </span>
-                        <span className="w-32 shrink-0 truncate text-sm text-slate-700">
-                          {resolveWeaponName(entry.weaponName)}
-                        </span>
-                        <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                          <span
-                            className="block h-full rounded-full bg-rose-400"
-                            style={{ width: `${widthPercent}%` }}
-                          />
-                        </span>
-                        <span className="w-8 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
-                          {entry.count}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            <section className="grid gap-4 lg:grid-cols-2">
-              <div className="app-panel p-4">
-                <h2 className="text-lg font-semibold text-slate-900">Qui vous a le plus tué</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Bots exclus (voir &laquo; Tué par un bot &raquo;) — {payload.environmentalDeathCount} mort(s) par la zone/l&apos;environnement également exclue(s), sans tueur réel.
-                </p>
-                <OpponentList
-                  rows={payload.topKillers}
-                  tone="danger"
-                  emptyLabel="Aucune donnée pour l'instant."
-                />
-              </div>
-
-              <div className="app-panel p-4">
-                <h2 className="text-lg font-semibold text-slate-900">Qui vous avez le plus tué</h2>
-                <p className="mt-1 text-xs text-slate-500">Les bots sont exclus de ce classement — voir &laquo; Bots neutralisés &raquo; ci-dessus.</p>
-                <OpponentList
-                  rows={payload.topVictims}
-                  tone="success"
-                  emptyLabel="Aucune donnée pour l'instant."
-                />
-              </div>
-            </section>
+      <div className="app-container app-gutter flex flex-col gap-4 pb-8 sm:gap-[18px]">
+        {error ? <p className="app-panel p-4 text-sm text-red-600">{error}</p> : null}
+        {!data && loading ? <CardSkeleton /> : null}
+        {data ? (
+          <div className={`flex flex-col gap-4 transition-opacity sm:gap-[18px] ${loading ? 'opacity-60' : ''}`} aria-busy={loading}>
+            <FaceOff payload={data} now={now} weaponLabel={weaponLabel} />
+            <Tally payload={data} />
+            <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_300px]">
+              <HuntersAndPrey payload={data} now={now} weaponLabel={weaponLabel} />
+              <DeathCam weapons={data.topDeathWeapons} labels={data.weaponLabels} />
+            </div>
+            <p className="text-xs text-gray-500">
+              Bots et morts sans tueur (zone, chute, noyade) exclus des classements, comptés à part dans le bilan. Un joueur jamais
+              relevé dans un lobby apparaît comme « Joueur inconnu ».
+            </p>
           </div>
         ) : null}
       </div>

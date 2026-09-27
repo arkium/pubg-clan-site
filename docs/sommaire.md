@@ -41,6 +41,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Awards](features/awards.md) | 11 awards fun, logique de calcul top 3, contrat API complet, formatage des valeurs |
 | [Armes](features/weapons.md) | Stats armes télémétrie (MemberWeaponStats) + Weapon Mastery carrière (MemberWeaponMastery) |
 | [Season stats](features/season-stats.md) | Stats ranked/normal par saison, tier, cron daily, contrats GET/POST |
+| [Némésis](features/nemesis.md) | `/members/[id]/nemesis` : face-à-face et revanche, bilan, chasseurs et proies paginés, death cam ; tous les duels lus (plus de plafond à 500), duel inverse par adversaire, libellés d'armes côté serveur |
 | [Ligue Inter-Clans](features/ligue-clans.md) | `/clans-leaderboard` : podium en marches, fil de la ligue, titres, classement par cercle, « Mon clan » ; classements recalculés à la volée depuis les parties officielles (période précédente, soirée par soirée) |
 | [Cartographie tactique](features/positions.md) | `/clans/[clanId]/stats/positions` « choisis un événement, lis la carte » : sept événements, un rendu, phase du cercle, zone chaude, rapport de force, qui … où ; `memberBreakdown` de la route |
 | [Zones de drop](features/drop-zones.md) | LogParachuteLanding, normalisation xPct/yPct, contrat API ; pages clan et joueur « une question à la fois » (carte à deux lectures, épingles, spot favori, profil de saut, qui saute où) |

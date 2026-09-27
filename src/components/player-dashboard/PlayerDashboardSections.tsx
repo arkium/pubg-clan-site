@@ -480,11 +480,13 @@ export function MatesCard({ mates }: { mates: PlayerDashboardResponse['mates'] }
 
 export type NemesisSummary = {
   botKillCount: number
-  topKillers: Array<{ name: string; clanTag: string | null; count: number }>
-  topVictims: Array<{ name: string; clanTag: string | null; count: number }>
+  topKillers: Array<{ name: string; clanTag: string | null; resolved?: boolean; count: number }>
+  topVictims: Array<{ name: string; clanTag: string | null; resolved?: boolean; count: number }>
 }
 
-const opponentName = (entry: { name: string; clanTag: string | null }) => (entry.clanTag ? `${entry.name} [${entry.clanTag}]` : entry.name)
+// Un adversaire jamais relevé dans un lobby n'a que son identifiant de compte : « Joueur inconnu », comme sur la page Némésis.
+const opponentName = (entry: { name: string; clanTag: string | null; resolved?: boolean }) =>
+  entry.resolved === false ? 'Joueur inconnu' : entry.clanTag ? `${entry.name} [${entry.clanTag}]` : entry.name
 
 export function NemesisCard({ nemesis, memberId }: { nemesis: NemesisSummary | null; memberId: number }) {
   const killer = nemesis?.topKillers[0] ?? null

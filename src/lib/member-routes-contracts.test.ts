@@ -248,4 +248,29 @@ describe('GET /api/members/[id]/nemesis', () => {
     expect(where.matchDate.gte).toBeInstanceOf(Date)
     expect(mocks.killEventFindMany.mock.calls[1][0].where.killerMemberId).toBe(7)
   })
+
+  it('lit tous les duels (plus de plafond), résout les noms et renvoie duel inverse et libellés d’armes', async () => {
+    const event = (killer: string, victim: string, weaponName: string) => ({
+      killerAccountId: killer,
+      killerRawKey: null,
+      victimAccountId: victim,
+      victimRawKey: null,
+      weaponName,
+      matchDate: new Date('2026-09-20T20:00:00Z'),
+    })
+    const beryl = 'Item_Weapon_BerylM762_C'
+    mocks.killEventFindMany
+      .mockResolvedValueOnce([event('acc.rival', 'acc.me', beryl), event('acc.rival', 'acc.me', beryl), event('acc.ghost', 'acc.me', 'WeapRPD_C')])
+      .mockResolvedValueOnce([event('acc.me', 'acc.rival', beryl), event('acc.me', 'ai.12', beryl)])
+    mocks.encounteredFindMany.mockResolvedValue([{ pubgAccountId: 'acc.rival', pubgPlayerName: 'Rival', pubgClanTag: 'RVL' }])
+
+    const response = await getNemesis(new Request('http://localhost/api/members/7/nemesis'), memberParams())
+    expect(mocks.killEventFindMany.mock.calls[0][0].take).toBeUndefined()
+    const { data } = await response.json()
+    expect(data.period).toBe('all')
+    expect(data.topKillers[0]).toMatchObject({ name: 'Rival', clanTag: 'RVL', count: 2, reverseCount: 1, resolved: true })
+    expect(data.topKillers[1]).toMatchObject({ key: 'acc.ghost', resolved: false })
+    expect(data).toMatchObject({ playerKills: 1, playerDeaths: 3, botKillCount: 1 })
+    expect(data.weaponLabels).toMatchObject({ [beryl]: 'Beryl M762', WeapRPD_C: 'WeapRPD_C' })
+  })
 })

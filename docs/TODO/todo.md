@@ -82,7 +82,7 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
 **⏸ Pause décidée le 2026-08-04.** Items 1 à 4 déployés, backfill partiel fait, filtrage par période et classement d'armes ajoutés. Les 3 idées restantes ci-dessous sont notées mais volontairement non développées pour l'instant — à reprendre plus tard si besoin, aucune n'a de dépendance bloquante ni de contrainte d'urgence (les données nécessaires, `KillEvent` et `PositionMetricCell`, sont déjà en base).
 
 - [ ] **Clans rivaux récurrents** — une fois `pubgClanTag` résolu sur les adversaires, agréger par clan adverse : nombre de croisements, qui finit devant (recoupe l'item "Détection de rivalité" de la section comparaison inter-clans ci-dessus, mais sans exiger que l'autre clan soit lui-même suivi sur le site) — le compteur de croisements par clan existe déjà (bloc "Clans adverses les plus croisés"), reste le "qui finit devant"
-- [x] **Arme qui nous tue le plus** — **fait le 2026-08-04** : section "Armes qui vous tuent le plus" sur `/members/[id]/nemesis`, classement global (toutes armes, tous adversaires confondus, indépendant du filtre par arme) avec mini barres de comparaison, `aggregateWeapons()` dans [route.ts](../../src/app/api/members/[id]/nemesis/route.ts) — s'ajoute au filtre par arme déjà en place (qui lui recalcule les classements par adversaire) et au dropdown [`WeaponSelect`](../../src/components/ui/WeaponSelect.tsx) avec icônes, nouveau composant réutilisable créé faute d'équivalent existant (le `<select>` HTML natif ne peut pas afficher d'images dans ses options)
+- [x] **Arme qui nous tue le plus** — **fait le 2026-08-04** : section "Armes qui vous tuent le plus" sur `/members/[id]/nemesis`, classement global (toutes armes, tous adversaires confondus, indépendant du filtre par arme) avec mini barres de comparaison, `aggregateWeapons()` dans [route.ts](../../src/app/api/members/[id]/nemesis/route.ts) — s'ajoute au filtre par arme déjà en place (qui lui recalcule les classements par adversaire) et au dropdown `WeaponSelect` avec icônes, nouveau composant réutilisable créé faute d'équivalent existant (le `<select>` HTML natif ne peut pas afficher d'images dans ses options) — **remplacé le 2026-09-27** par la death cam et le `WeaponMenu` de la refonte ([nemesis.md](../features/nemesis.md)), `WeaponSelect` archivé
 - [ ] **Zone de mort récurrente face à un adversaire donné** — croiser les positions de mort (déjà couvertes par `PositionMetricCell`, métrique `death`) avec `killerAccountId` une fois disponible
 - [ ] **Revanche** — détecter si on retue plus tard dans la saison un joueur qui nous avait tués auparavant (nécessite l'historique `KillEvent` de l'item 3)
 
@@ -2561,6 +2561,14 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 
 ### ✅ Terminé / Livré
+
+#### ~~Refonte de la page Némésis : « des comptes à régler »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Némésis » — [nemesis.md](../features/nemesis.md) :
+- [x] Route : tous les duels lus (le plafond de 500 tronquait les totaux des gros joueurs), duel inverse sur chaque
+      ligne, bilan joueurs / bots / zone, libellés d'armes côté serveur, adversaire jamais nommé signalé.
+- [x] Face-à-face et revanche, bilan sur une ligne, chasseurs et proies paginés (onglets sur mobile), death cam.
+- [x] Bandeau période + arme sur une ligne, docké aussi sur mobile (exception nommée) ; `WeaponSelect` archivé.
 
 #### ~~Refonte de la Ligue Inter-Clans : « un classement qui se joue comme une partie »~~ — ✅ Complété le 2026-09-27
 

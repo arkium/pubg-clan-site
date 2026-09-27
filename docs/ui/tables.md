@@ -19,7 +19,6 @@ Les tableaux les plus interactifs sont le classement clan, l'historique des matc
 | Page matchs membre — imports récents | `/members/[id]/matches` | Tableau inline | Non | Non | Non |
 | Récap soirée | `/clans/[clanId]/matches` | `SessionRecap` | Non | Non | Non |
 | Rapport détaillé | `/clans/[clanId]/reports/[reportId]` | `ReportStats` | Non | Oui (local) | Non |
-| Radar comparatif | `/members/[id]/dashboard` | `ComparisonRadar` | Non | Non | Non |
 | Monitoring PUBG API | `/settings/pubg-api` | Tableau inline | Oui | Non | Oui — erreurs uniquement + taille de page |
 | Checks cron | `/clans/[clanId]/settings/cron` | Tableau checks | Non | Non | Non |
 | Historique cron | `/clans/[clanId]/settings/cron` | Tableau historique | Non | Non | Non |

@@ -64,8 +64,8 @@ La colonne **Position** est un simple numéro d'ordre séquentiel (1, 2, 3…) d
 | 1 | `/`                                            | Accueil / redirection | Tous |
 | 2 | `/clans`                                       | Liste des clans | Tous |
 | 3 | `/clans/[clanId]/overview`                     | ▸ Vue d'ensemble | Tous |
-| 4 | `/clans/[clanId]/members`                      | ▸▸ Membres | Tous |
-| 5 | `/members/[id]/dashboard`                      | ▸▸▸ Tableau de bord d'un membre | Tous |
+| 4 | `/clans/[clanId]/members`                      | ▸▸ Membres (fiches, réserve — 2026-09-27) | Tous |
+| 5 | `/members/[id]/dashboard`                      | ▸▸▸ Tableau de bord d'un membre (carte joueur, puces vers ses pages — 2026-09-27) | Tous |
 | 6 | `/members/[id]/stats`                          | ▸▸▸▸ Stats globales | Tous |
 | 7 | `/members/[id]/weapons`                        | ▸▸▸▸ Armes | Tous |
 | 8 | `/members/[id]/matches`                        | ▸▸▸▸ Matchs | Tous |

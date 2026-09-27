@@ -8,7 +8,7 @@ Positions et sans relire les gros JSON de télémétrie.
 | Page | Panneau | Portée |
 |---|---|---|
 | `/clans/[clanId]/overview` | `CityInsightsPanel` (scope `clan`) | Tout le clan, avec les filtres période / type de match / mode déjà présents sur la page |
-| `/members/[id]/dashboard` | `CityInsightsPanel` (scope `member`) | Le membre, avec une colonne de comparaison au clan |
+| `/members/[id]/drop-zones` | `CityInsightsPanel` (scope `member`, dans `MemberDropInsights`) | Le membre, avec une colonne de comparaison au clan — déplacé du tableau de bord le 2026-09-27 ([membres.md](membres.md) §4) |
 
 Chaque panneau propose quatre familles d'événements : **Présence**, **Kills**, **Dégâts**, **Réanimations**.
 

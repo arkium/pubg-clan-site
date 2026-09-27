@@ -2562,6 +2562,21 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte « Membres et joueur » : annuaire des membres et tableau de bord d'un joueur~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Membres et joueur » — [membres.md](../features/membres.md) :
+- [x] `/clans/[clanId]/members` : fiche soldat par joueur (rôle dominant, K/M, win rate, parties sur 30 jours, arme
+      fétiche, médailles), filtre par rôle, recherche, tri, joueurs « en réserve » repliés ; route
+      `GET /api/clans/[clanId]/members/cards`.
+- [x] « A joué ce soir » (soirée en cours) à la place du « en jeu » de la maquette : l'import est horaire.
+- [x] `/members/[id]/dashboard` : carte joueur, puces vers ses pages (chevrons sur mobile), **une seule période**,
+      4 chiffres clés à mini-barres par soirée, meilleure partie, profil de jeu (moyenne du clan, tendance), arsenal,
+      frères d'armes, némésis (période ajoutée à la route), drop, 5 dernières parties. Route du tableau de bord réécrite.
+- [x] Pression au drop et villes → page Zones de drop du joueur ; compositions d'équipe → Stats par carte. Anciens
+      composants et hooks archivés.
+- [ ] Puces du bandeau : « Préférences notifs » et « Notifications » sont des réglages personnels ; les retirer des
+      puces si elles gênent (registre de navigation `member-section`).
+
 #### ~~Refonte des statistiques : « Style de jeu du clan » et « Carrière PUBG du clan »~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Statistiques » — [statistiques.md](../features/statistiques.md) :

@@ -137,6 +137,7 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
 | GET | `/api/clans/[clanId]/members` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Roster complet avec rôles/invitations/permissions — voir [Clans](../features/clans.md) |
+| GET | `/api/clans/[clanId]/members/cards` | `requireNavPermission('clan.members')` | ✅ Pertinent | Fiches de l'annuaire : rôle, activité, 30 jours officiels, arme fétiche, médailles ; demandes en attente pour `manage_members` — voir [Membres](../features/membres.md) §2 |
 | POST | `/api/clans/[clanId]/members/[memberId]/approve` | `requireRole(['Owner','Admin'])` | ⚠️ Admin web uniquement | Approuve un membre en attente — voir [Clans](../features/clans.md) |
 | POST | `/api/clans/[clanId]/members/[memberId]/invite` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Crée une invitation d'activation — voir [Clans](../features/clans.md) |
 | DELETE | `/api/clans/[clanId]/members/[memberId]/invite` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Révoque l'invitation active du membre |
@@ -144,10 +145,12 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 | PATCH | `/api/clans/[clanId]/members/[memberId]/role` | `requirePermission('assign_roles')` (+ SuperUser si rôle Owner impliqué) | ⚠️ Admin web uniquement | Change le rôle d'un membre — voir [Clans](../features/clans.md) |
 | GET | `/api/members` | Session (cookie) | ✅ Pertinent | Liste tous les membres (filtre `?clanId=`) + médailles (top 3 par métrique lifetime) — détail ci-dessous |
 | POST | `/api/members` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Ajoute un membre (recherche PUBG + détection clan) — détail ci-dessous |
-| GET | `/api/members/[id]` | `requireSameClanAsMember` | ✅ Pertinent | Profil minimal d'un membre (displayName, avatar, pubgPlayerName) — détail ci-dessous |
+| GET | `/api/members/[id]` | `requireSameClanAsMember` | ✅ Pertinent | Profil minimal d'un membre (displayName, avatar, pubgPlayerName, clanId) — détail ci-dessous |
 | DELETE | `/api/members/[id]` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Désactive (soft) ou supprime (`?hard=true`) un membre — détail ci-dessous |
 | PATCH | `/api/members/[id]` | `requireSuperUser` | ⚠️ Admin web uniquement | Déplace un membre vers un autre clan — détail ci-dessous |
-| GET | `/api/members/[id]/dashboard` | `requireSameClanAsMember` | ✅ Pertinent | Stats période + progression + squads fréquents — voir [Dashboard membre](../features/member-dashboard.md) |
+| GET | `/api/members/[id]/dashboard` | `requireSameClanAsMember` | ✅ Pertinent | Tableau de bord d'une période : chiffres, écart au clan, barres par soirée, meilleure partie, profil de jeu, frères d'armes — voir [Membres](../features/membres.md) §3 |
+| GET | `/api/members/[id]/drop-pressure` | `requireSameClanAsMember` | ✅ Pertinent | Pression au drop d'un joueur (période, classement du clan, 8 semaines) — voir [Membres](../features/membres.md) §4 |
+| GET | `/api/members/[id]/nemesis` | `requireSameClanAsMember` | ✅ Pertinent | Bourreaux, victimes, bots ; `?period=week\|month` facultatif (sans : tout l'historique suivi) — voir [Membres](../features/membres.md) §3 |
 | GET | `/api/members/[id]/stats` | `requireSameClanAsMember` | ✅ Pertinent | Stats lifetime + rangs clan — voir [Dashboard membre](../features/member-dashboard.md) |
 | POST | `/api/members/[id]/stats` | `requireSameClanAsMember` | ✅ Pertinent | Refresh forcé des stats lifetime depuis l'API PUBG — voir [Dashboard membre](../features/member-dashboard.md) |
 | GET | `/api/members/[id]/season-stats` | `requireSameClanAsMember` | ✅ Pertinent | Stats ranked/normal en cache (3 dernières saisons) — voir [Season stats](../features/season-stats.md) |

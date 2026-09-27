@@ -13,7 +13,7 @@ import { PlayerSwitchModal } from '@/components/clan/PlayerSwitchModal'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useHeaderHeightPublisher } from '@/hooks/useStickyToolbar'
-import { usePlayerStats } from '@/hooks/usePlayerStats'
+import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 
@@ -134,6 +134,10 @@ type CtxItem = {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+
+const pickViewedMember = (payload: unknown) =>
+  (payload as { id: number; displayName: string; clanId: number | null } | null) ?? null
 
 export default function ClanNavigation({ children }: ClanNavigationProps) {
   const pathname = usePathname()
@@ -353,7 +357,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   // (persisted across navigation, e.g. clicking into "Mon clan" and back)
   // instead of always snapping back to self.
   const memberIdForCtx = viewedMemberId ? viewedMemberId : activeMemberId
-  const { member: viewedMemberData } = usePlayerStats(viewedMemberId ?? null, "week")
+  // Profil minimal du joueur consulté (nom, clan) : pas le tableau de bord entier (2026-09-27).
+  const { data: viewedMemberData } = usePageData(viewedMemberId ? `/api/members/${viewedMemberId}` : null, pickViewedMember)
 
   useEffect(() => {
     if (urlMemberId === null || urlMemberId === viewedMemberId) {

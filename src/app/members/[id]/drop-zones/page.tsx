@@ -11,6 +11,7 @@ import DropZoneMapViewport, {
 import DropPressureLegend from '@/components/drop-zones/DropPressureLegend'
 import DropPressureMarker from '@/components/drop-zones/DropPressureMarker'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import MemberDropInsights from '@/components/drop-zones/MemberDropInsights'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -963,6 +964,13 @@ export default function MemberDropZonesPage() {
           ) : (
             <p className="text-sm text-slate-600">Aucune donnée drop zones pour cette période.</p>
           )
+        ) : null}
+
+        {/* Pression au drop et villes du joueur, venues du tableau de bord (2026-09-27, docs/features/membres.md). */}
+        {periodReady ? (
+          <section id="drop-insights" aria-label="Pression au drop et villes" className="pt-2">
+            <MemberDropInsights memberId={memberId} clanId={payload?.data.member.clanId ?? null} period={period} />
+          </section>
         ) : null}
       </div>
     </div>

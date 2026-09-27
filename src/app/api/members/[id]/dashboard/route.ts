@@ -1,97 +1,64 @@
-import { prisma } from '@/lib/prisma'
 import { getMapLabels } from '@/lib/map-label-service'
-import { getLastWeekKeys } from '@/lib/dashboard-progression'
-
-import type { DashboardPeriod } from '@/types/dashboard'
+import { matchDebriefPath } from '@/lib/match-links'
+import { dominantRole } from '@/lib/member-roster'
+import { activityBuckets, statsPeriodKeys } from '@/lib/player-dashboard'
+import { prisma } from '@/lib/prisma'
+import { getPeriodStart, type StandardPeriod } from '@/lib/period'
+import type { PlayerDashboardResponse, PlayerPlaystyle } from '@/types/dashboard'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
-import {
-  getDropPressureDashboardStats,
-  getDropPressureMemberRanking,
-  getDropPressureTimeline,
-} from '@/lib/drop-pressure-stats'
 
-type ClanMode = 'solo' | 'duo' | 'trio' | 'squad'
+/**
+ * Tableau de bord d'un joueur (`/members/[id]/dashboard`, docs/features/membres.md) — refonte du 2026-09-27 : tout ce
+ * que la page affiche sur **une seule période**, en une requête. Chiffres clés et écart au clan (`PlayerStats`), barres
+ * d'activité par soirée, meilleure partie, profil de jeu avec la période précédente et la moyenne du clan
+ * (`MemberTelemetryStats`), frères d'armes. Pression au drop et villes ont rejoint la page « Zones de drop »
+ * (`/api/members/[id]/drop-pressure`, `/api/members/[id]/city-insights`).
+ */
 
 function parseMemberId(id: string) {
   const memberId = Number(id)
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null
 }
 
-function parsePeriod(value: string | null): DashboardPeriod {
-  if (value === 'month' || value === 'all') return value
-  return 'week'
+function parsePeriod(value: string | null): StandardPeriod {
+  return value === 'month' || value === 'all' ? value : 'week'
 }
 
-function clanModeFromClanMemberCount(memberCount: number | null | undefined): ClanMode {
-  if (!memberCount || memberCount <= 1) {
-    return 'solo'
-  }
-
-  if (memberCount <= 2) {
-    return 'duo'
-  }
-
-  if (memberCount === 3) {
-    return 'trio'
-  }
-
-  return 'squad'
+/** Parties lues pour les barres : la période, ou les 8 dernières semaines pour « Tous ». */
+function barsStart(period: StandardPeriod, now: Date) {
+  return getPeriodStart(period, now) ?? new Date(getPeriodStart('week', now)!.getTime() - 7 * 7 * 86_400_000)
 }
 
-function getPeriodKey(period: DashboardPeriod): string {
-  const now = new Date()
-  if (period === 'all') return 'all-time'
-  if (period === 'month') {
-    const month = now.getMonth() + 1
-    return `month-${now.getFullYear()}-${String(month).padStart(2, '0')}`
-  }
-  // week: ISO week number
-  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
-  return `week-${d.getUTCFullYear()}-${String(weekNo).padStart(2, '0')}`
+const TELEMETRY_SELECT = {
+  memberId: true,
+  period: true,
+  aggressionScore: true,
+  supportScore: true,
+  zoneDisciplineScore: true,
+  avgSafeZonePresencePercent: true,
+  avgHealAmount: true,
+  avgDamageTaken: true,
+  avgFirstContactPhase: true,
+  matchesPlayed: true,
+} as const
+
+type TelemetryRow = {
+  aggressionScore: number
+  supportScore: number
+  zoneDisciplineScore: number
+  avgSafeZonePresencePercent: number
+  avgHealAmount: number
+  avgDamageTaken: number
+  avgFirstContactPhase: number
+  matchesPlayed: number
 }
 
-function getDateRangeForDashboardPeriod(period: DashboardPeriod): {
-  startDate: Date
-  endDate: Date
-} | null {
-  if (period === 'all') {
-    return null
-  }
+const scoresOf = (row: TelemetryRow) => ({ aggression: row.aggressionScore, support: row.supportScore, zoneDiscipline: row.zoneDisciplineScore })
 
-  const now = new Date()
-
-  if (period === 'month') {
-    return {
-      startDate: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
-      endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
-    }
-  }
-
-  const currentDay = now.getDay()
-  const distanceFromMonday = currentDay === 0 ? 6 : currentDay - 1
-  const startDate = new Date(now)
-  startDate.setDate(now.getDate() - distanceFromMonday)
-  startDate.setHours(0, 0, 0, 0)
-
-  const endDate = new Date(startDate)
-  endDate.setDate(startDate.getDate() + 6)
-  endDate.setHours(23, 59, 59, 999)
-
-  return { startDate, endDate }
-}
-
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const memberId = parseMemberId(id)
-
     if (!memberId) {
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
@@ -99,282 +66,190 @@ export async function GET(
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
     if (authError) return authError
 
-    const { searchParams } = new URL(request.url)
-    const period = parsePeriod(searchParams.get('period'))
-    const periodKey = getPeriodKey(period)
-    const dateRange = getDateRangeForDashboardPeriod(period)
-    // 1. Fetch member
+    const now = new Date()
+    const period = parsePeriod(new URL(request.url).searchParams.get('period'))
+    const keys = statsPeriodKeys(period, now)
+    // « Tous » : cumuls depuis toujours, mais seules les 8 dernières semaines servent aux barres.
+    const rangeStart = barsStart(period, now)
+    const matchWindow = period === 'all' ? {} : { pubgCreatedAt: { gte: rangeStart } }
+
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
       select: {
         id: true,
         displayName: true,
         pubgPlayerName: true,
-        platformShard: true,
         createdAt: true,
+        lastMatchAt: true,
         clanId: true,
-        identities: {
-          select: {
-            user: {
-              select: {
-                avatarUrl: true,
-              },
-            },
-          },
-          take: 1,
-        },
+        clan: { select: { id: true, name: true, tag: true } },
+        identities: { select: { user: { select: { avatarUrl: true } } }, take: 1 },
       },
     })
-
     if (!member) {
       return Response.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    const [dropPressure, dropPressureRanking, dropPressureTimeline] = await Promise.all([
-      getDropPressureDashboardStats({ memberId, period }),
+    const [playerStat, clanStats, activityMatches, bestCandidate, telemetryRows, clanTelemetry, squadRows, mapLabels] = await Promise.all([
+      prisma.playerStats.findUnique({ where: { memberId_period: { memberId, period: keys.current } } }),
       member.clanId
-        ? getDropPressureMemberRanking({ clanId: member.clanId, period })
+        ? prisma.playerStats.findMany({
+            where: { member: { clanId: member.clanId, isActive: true }, period: keys.current },
+            select: { totalKills: true, totalDamage: true, winRate: true, matchesPlayed: true, totalAssists: true, totalRevives: true },
+          })
         : Promise.resolve([]),
-      getDropPressureTimeline({ memberId }),
+      prisma.match.findMany({
+        where: { memberId, matchType: 'official', pubgCreatedAt: { gte: rangeStart } },
+        select: { pubgCreatedAt: true, kills: true, damageDealt: true, placement: true },
+      }),
+      prisma.match.findFirst({
+        where: { memberId, matchType: 'official', ...matchWindow },
+        orderBy: [{ kills: 'desc' }, { damageDealt: 'desc' }, { placement: 'asc' }],
+        select: { pubgMatchId: true, mapName: true, gameMode: true, kills: true, damageDealt: true, placement: true, pubgCreatedAt: true },
+      }),
+      prisma.memberTelemetryStats.findMany({
+        where: { memberId, period: { in: [keys.current, ...(keys.previous ? [keys.previous] : [])] } },
+        select: TELEMETRY_SELECT,
+      }),
+      member.clanId
+        ? prisma.memberTelemetryStats.findMany({
+            where: { period: keys.current, member: { clanId: member.clanId, isActive: true } },
+            select: { memberId: true, aggressionScore: true, supportScore: true, zoneDisciplineScore: true },
+          })
+        : Promise.resolve([]),
+      prisma.squadMember.findMany({
+        where: { memberId, ...(period === 'all' ? {} : { squadMatch: { createdAt: { gte: rangeStart } } }) },
+        select: { squadMatchId: true, timeSurvived: true },
+      }),
+      getMapLabels(),
     ])
 
-    // 2. Fetch player stats for the period
-    const playerStat = await prisma.playerStats.findUnique({
-      where: { memberId_period: { memberId, period: periodKey } },
-    })
+    const count = clanStats.length
+    const clanAverage = count
+      ? {
+          avgKills: clanStats.reduce((sum, row) => sum + row.totalKills, 0) / count,
+          avgDamage: clanStats.reduce((sum, row) => sum + row.totalDamage, 0) / count,
+          avgWinRate: clanStats.reduce((sum, row) => sum + row.winRate, 0) / count,
+          avgMatches: clanStats.reduce((sum, row) => sum + row.matchesPlayed, 0) / count,
+          avgAssists: clanStats.reduce((sum, row) => sum + row.totalAssists, 0) / count,
+          avgRevives: clanStats.reduce((sum, row) => sum + row.totalRevives, 0) / count,
+        }
+      : null
 
-    // 3. Fetch clan average
-    let clanAverage = null
-    if (member.clanId) {
-      const clanStats = await prisma.playerStats.findMany({
-        where: {
-          member: { clanId: member.clanId, isActive: true },
-          period: periodKey,
+    // ── Profil de jeu ──
+    const currentRow = telemetryRows.find((row) => row.period === keys.current) ?? null
+    const previousRow = keys.previous ? telemetryRows.find((row) => row.period === keys.previous) ?? null : null
+    const measuredClan = clanTelemetry.filter((row) => row.aggressionScore > 0 || row.supportScore > 0 || row.zoneDisciplineScore > 0)
+    const clanScores = measuredClan.length
+      ? {
+          aggression: measuredClan.reduce((sum, row) => sum + row.aggressionScore, 0) / measuredClan.length,
+          support: measuredClan.reduce((sum, row) => sum + row.supportScore, 0) / measuredClan.length,
+          zoneDiscipline: measuredClan.reduce((sum, row) => sum + row.zoneDisciplineScore, 0) / measuredClan.length,
+        }
+      : null
+    const playstyle: PlayerPlaystyle = {
+      current: currentRow && currentRow.matchesPlayed > 0
+        ? {
+            ...scoresOf(currentRow),
+            safeZonePercent: Math.min(100, currentRow.avgSafeZonePresencePercent),
+            healCoveragePercent: currentRow.avgDamageTaken > 0 ? Math.min(100, (currentRow.avgHealAmount / currentRow.avgDamageTaken) * 100) : null,
+            firstContactPhase: currentRow.avgFirstContactPhase > 0 ? currentRow.avgFirstContactPhase : null,
+            matchesPlayed: currentRow.matchesPlayed,
+          }
+        : null,
+      previous: previousRow && previousRow.matchesPlayed > 0 ? scoresOf(previousRow) : null,
+      clan: clanScores,
+    }
+
+    // ── Meilleure partie : kills, puis dégâts ──
+    let bestMatch: PlayerDashboardResponse['bestMatch'] = null
+    if (bestCandidate) {
+      const squadEntry = await prisma.squadMember.findFirst({
+        where: { memberId, squadMatch: { pubgMatchId: bestCandidate.pubgMatchId } },
+        select: {
+          timeSurvived: true,
+          squadMatch: {
+            select: {
+              id: true,
+              telemetry: { select: { id: true } },
+              members: { where: { memberId: { not: memberId } }, select: { member: { select: { displayName: true } } } },
+            },
+          },
         },
       })
-
-      if (clanStats.length > 0) {
-        const count = clanStats.length
-        clanAverage = {
-          avgKills: clanStats.reduce((s, r) => s + r.totalKills, 0) / count,
-          avgDamage: clanStats.reduce((s, r) => s + r.totalDamage, 0) / count,
-          avgWinRate: clanStats.reduce((s, r) => s + r.winRate, 0) / count,
-          avgMatches: clanStats.reduce((s, r) => s + r.matchesPlayed, 0) / count,
-          avgAssists: clanStats.reduce((s, r) => s + r.totalAssists, 0) / count,
-          avgRevives: clanStats.reduce((s, r) => s + r.totalRevives, 0) / count,
-        }
+      bestMatch = {
+        mapName: bestCandidate.mapName,
+        mapLabel: mapLabels[bestCandidate.mapName] ?? bestCandidate.mapName,
+        gameMode: bestCandidate.gameMode,
+        kills: bestCandidate.kills,
+        damage: bestCandidate.damageDealt,
+        placement: bestCandidate.placement,
+        createdAt: bestCandidate.pubgCreatedAt.toISOString(),
+        timeSurvived: squadEntry && squadEntry.timeSurvived > 0 ? squadEntry.timeSurvived : null,
+        teammates: squadEntry?.squadMatch.members.map((entry) => entry.member.displayName) ?? [],
+        debriefHref:
+          member.clanId && squadEntry?.squadMatch.telemetry ? matchDebriefPath(member.clanId, squadEntry.squadMatch.id, { period }) : null,
       }
     }
 
-    // 4. Progression: last 8 weeks
-    const weekKeys = getLastWeekKeys()
-    const progressionStats = await prisma.playerStats.findMany({
-      where: { memberId, period: { in: weekKeys } },
-    })
-
-    const progressionMap = new Map(progressionStats.map((s) => [s.period, s]))
-    const progression = weekKeys.map((key) => {
-      const parts = key.split('-')
-      const year = Number(parts[1])
-      const week = Number(parts[2])
-      const s = progressionMap.get(key)
-      return {
-        period: key,
-        week,
-        year,
-        totalKills: s?.totalKills ?? 0,
-        totalDamage: s?.totalDamage ?? 0,
-        winRate: s?.winRate ?? 0,
-        matchesPlayed: s?.matchesPlayed ?? 0,
-      }
-    })
-
-    // 5. Top performances (sans solo clan)
-    const topPerformanceCandidates = await prisma.match.findMany({
-      where: {
-        memberId,
-        matchType: 'official',
-        ...(dateRange
-          ? {
-              pubgCreatedAt: {
-                gte: dateRange.startDate,
-                lte: dateRange.endDate,
-              },
-            }
-          : {}),
-      },
-      orderBy: [{ kills: 'desc' }, { damageDealt: 'desc' }],
-      take: 50,
-      select: {
-        id: true,
-        pubgMatchId: true,
-        mapName: true,
-        gameMode: true,
-        kills: true,
-        damageDealt: true,
-        placement: true,
-        pubgCreatedAt: true,
-      },
-    })
-
-    const candidateMatchIds = topPerformanceCandidates.map((match) => match.pubgMatchId)
-    const squadMembersForCandidates = candidateMatchIds.length
+    // ── Frères d'armes : les partenaires de clan les plus fréquents ──
+    const playTimeByMatch = new Map(squadRows.map((row) => [row.squadMatchId, row.timeSurvived]))
+    const coPlayers = squadRows.length
       ? await prisma.squadMember.findMany({
-          where: {
-            memberId,
-            squadMatch: {
-              pubgMatchId: { in: candidateMatchIds },
-            },
-          },
+          where: { squadMatchId: { in: squadRows.map((row) => row.squadMatchId) }, memberId: { not: memberId } },
           select: {
-            squadMatch: {
-              select: {
-                pubgMatchId: true,
-                _count: {
-                  select: {
-                    members: true,
-                  },
-                },
-              },
-            },
+            memberId: true,
+            squadMatchId: true,
+            timeSurvived: true,
+            squadMatch: { select: { placement: true } },
+            member: { select: { displayName: true, identities: { select: { user: { select: { avatarUrl: true } } }, take: 1 } } },
           },
         })
       : []
-
-    const clanMemberCountByMatchId = new Map<string, number>()
-    for (const squadMember of squadMembersForCandidates) {
-      clanMemberCountByMatchId.set(
-        squadMember.squadMatch.pubgMatchId,
-        squadMember.squadMatch._count.members
-      )
+    const mateMap = new Map<number, { displayName: string; avatarUrl: string | null; matchCount: number; wins: number; sharedPlayTimeSeconds: number }>()
+    for (const row of coPlayers) {
+      const entry = mateMap.get(row.memberId) ?? {
+        displayName: row.member.displayName,
+        avatarUrl: row.member.identities[0]?.user.avatarUrl ?? null,
+        matchCount: 0,
+        wins: 0,
+        sharedPlayTimeSeconds: 0,
+      }
+      entry.matchCount += 1
+      if (row.squadMatch.placement === 1) entry.wins += 1
+      entry.sharedPlayTimeSeconds += Math.min(playTimeByMatch.get(row.squadMatchId) ?? 0, row.timeSurvived)
+      mateMap.set(row.memberId, entry)
     }
-
-    const topPerformances = topPerformanceCandidates
-      .filter(
-        (match) =>
-          clanModeFromClanMemberCount(clanMemberCountByMatchId.get(match.pubgMatchId)) !== 'solo'
-      )
-      .slice(0, 5)
-
-    // 6. Squad frequency: find clan-mates who played most matches with this member
-    const memberSquadMatches = await prisma.squadMember.findMany({
-      where: {
-        memberId,
-        ...(dateRange
-          ? {
-              squadMatch: {
-                createdAt: {
-                  gte: dateRange.startDate,
-                  lte: dateRange.endDate,
-                },
-              },
-            }
-          : {}),
-      },
-      select: { squadMatchId: true, kills: true, timeSurvived: true },
-    })
-
-    const squadMatchIds = memberSquadMatches.map((s) => s.squadMatchId)
-    const memberKillsBySquadMatchId = new Map(
-      memberSquadMatches.map((entry) => [entry.squadMatchId, entry.kills])
-    )
-    const memberPlayTimeBySquadMatchId = new Map(
-      memberSquadMatches.map((entry) => [entry.squadMatchId, entry.timeSurvived])
-    )
-
-    let squads: Array<{
-      memberId: number
-      displayName: string
-      avatarUrl: string | null
-      matchCount: number
-      totalKills: number
-      totalDamage: number
-      winRate: number
-      sharedPlayTimeSeconds: number
-    }> = []
-
-    if (squadMatchIds.length > 0) {
-      const coPlayers = await prisma.squadMember.findMany({
-        where: {
-          squadMatchId: { in: squadMatchIds },
-          memberId: { not: memberId },
-        },
-        include: {
-          member: {
-            select: {
-              id: true,
-              displayName: true,
-              identities: {
-                select: {
-                  user: {
-                    select: {
-                      avatarUrl: true,
-                    },
-                  },
-                },
-                take: 1,
-              },
-            },
-          },
-          squadMatch: { select: { placement: true } },
-        },
+    const clanTelemetryByMember = new Map(clanTelemetry.map((row) => [row.memberId, row]))
+    const mates = Array.from(mateMap.entries())
+      .sort((a, b) => b[1].matchCount - a[1].matchCount || a[1].displayName.localeCompare(b[1].displayName, 'fr'))
+      .slice(0, 3)
+      .map(([mateId, entry]) => {
+        const scores = clanTelemetryByMember.get(mateId)
+        return {
+          memberId: mateId,
+          displayName: entry.displayName,
+          avatarUrl: entry.avatarUrl,
+          matchCount: entry.matchCount,
+          winRate: entry.matchCount > 0 ? entry.wins / entry.matchCount : 0,
+          sharedPlayTimeSeconds: entry.sharedPlayTimeSeconds,
+          role:
+            (scores
+              ? dominantRole({ aggression: scores.aggressionScore, support: scores.supportScore, zoneDiscipline: scores.zoneDisciplineScore })?.id
+              : null) ?? null,
+        }
       })
 
-      const playerMap = new Map<
-        number,
-        {
-          displayName: string
-          avatarUrl: string | null
-          matchCount: number
-          kills: number
-          damage: number
-          wins: number
-          sharedPlayTimeSeconds: number
-        }
-      >()
-
-      for (const cp of coPlayers) {
-        const existing = playerMap.get(cp.memberId) ?? {
-          displayName: cp.member.displayName,
-          avatarUrl: cp.member.identities[0]?.user.avatarUrl ?? null,
-          matchCount: 0,
-          kills: 0,
-          damage: 0,
-          wins: 0,
-          sharedPlayTimeSeconds: 0,
-        }
-        existing.matchCount += 1
-        existing.kills += cp.kills + (memberKillsBySquadMatchId.get(cp.squadMatchId) ?? 0)
-        existing.damage += cp.damage
-        const memberPlayTime = memberPlayTimeBySquadMatchId.get(cp.squadMatchId) ?? 0
-        existing.sharedPlayTimeSeconds += Math.min(memberPlayTime, cp.timeSurvived)
-        if (cp.squadMatch.placement === 1) existing.wins += 1
-        playerMap.set(cp.memberId, existing)
-      }
-
-      squads = Array.from(playerMap.entries())
-        .map(([pid, data]) => ({
-          memberId: pid,
-          displayName: data.displayName,
-          avatarUrl: data.avatarUrl,
-          matchCount: data.matchCount,
-          totalKills: data.kills,
-          totalDamage: data.damage,
-          winRate: data.matchCount > 0 ? data.wins / data.matchCount : 0,
-          sharedPlayTimeSeconds: data.sharedPlayTimeSeconds,
-        }))
-        .sort((a, b) => b.matchCount - a.matchCount)
-    }
-
-    return Response.json({
+    const response: PlayerDashboardResponse = {
+      period,
       member: {
         id: member.id,
         displayName: member.displayName,
-        avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
         pubgPlayerName: member.pubgPlayerName,
-        platformShard: member.platformShard,
+        avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
         createdAt: member.createdAt.toISOString(),
-        clanId: member.clanId,
+        lastMatchAt: member.lastMatchAt?.toISOString() ?? null,
+        clan: member.clan,
       },
       stats: playerStat
         ? {
@@ -385,24 +260,24 @@ export async function GET(
             matchesPlayed: playerStat.matchesPlayed,
             matchesWon: playerStat.matchesWon,
             winRate: playerStat.winRate,
-            avgKillsPerGame: playerStat.avgKillsPerGame,
-            avgDamagePerGame: playerStat.avgDamagePerGame,
-            badgeType: playerStat.badgeType,
           }
         : null,
       clanAverage,
-      progression,
-      topPerformances: topPerformances.map((m) => ({
-        ...m,
-        pubgCreatedAt: m.pubgCreatedAt.toISOString(),
-      })),
-      squads,
-      dropPressure,
-      dropPressureRanking,
-      dropPressureTimeline,
-      mapLabels: await getMapLabels(),
-      period,
-    })
+      activity: activityBuckets(
+        activityMatches.map((match) => ({
+          createdAt: match.pubgCreatedAt.toISOString(),
+          kills: match.kills,
+          damage: match.damageDealt,
+          placement: match.placement,
+        })),
+        period,
+        now
+      ),
+      bestMatch,
+      playstyle,
+      mates,
+    }
+    return Response.json(response)
   } catch (error) {
     console.error('Error fetching dashboard:', error)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

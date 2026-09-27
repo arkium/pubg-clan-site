@@ -5,7 +5,6 @@ import { sessionDateOf } from '@/lib/match-sessions'
 import type { ClanOverview } from '@/hooks/useClanOverview'
 import type { ItemUseStats } from '@/lib/item-use-stats'
 import type { CachedClanMatchesPayload } from '@/lib/matches-cache-service'
-import type { DashboardResponse } from '@/types/dashboard'
 import type { LeaderboardPeriod, LeaderboardResponse, PlayerStatsEntry } from '@/types/leaderboard'
 
 /**
@@ -126,38 +125,6 @@ export function itemUseStats(period: LeaderboardPeriod, withMembers: boolean): I
         }))
       : [],
     dataStart: '2026-09-17T00:00:00.000Z',
-  }
-}
-
-export function memberDashboard(): DashboardResponse {
-  return {
-    member: {
-      id: MEMBER_ID,
-      displayName: PLAYERS[0].displayName,
-      pubgPlayerName: PLAYERS[0].displayName,
-      platformShard: 'steam',
-      createdAt: FIXED_DATE,
-      clanId: CLAN_ID,
-    },
-    stats: null,
-    clanAverage: null,
-    progression: [],
-    topPerformances: [],
-    squads: [],
-    dropPressure: {
-      dropCount: 0,
-      matchCount: 0,
-      averageNearbyPlayers250m: 0,
-      averageNearbyOpponents250m: null,
-      maximumNearbyPlayers250m: 0,
-      hotDropCount: 0,
-      hotDropShare: 0,
-      levelCounts: { calm: 0, contested: 0, hot: 0, veryHot: 0 },
-    },
-    dropPressureRanking: [],
-    dropPressureTimeline: [],
-    mapLabels: {},
-    period: 'week',
   }
 }
 
@@ -304,6 +271,7 @@ export function memberWeapons(period: LeaderboardPeriod) {
       avgDistance: 40,
       maxDistance: 180,
       matchCount: 12,
+      weaponLabel: weaponName.replace('Weap', '').replace('_C', ''),
     })
   )
   return {

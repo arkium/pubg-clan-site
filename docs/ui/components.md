@@ -597,7 +597,10 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 | `Pagination` | `src/components/ui/Pagination.tsx` | Pagination numérotée partagée (`paginationItems`, `paginate` de `src/lib/pagination.ts`) : « Lignes 1–8 sur 24 », rien sous deux pages. **À utiliser au lieu d'un défilement horizontal** |
 | `SquadMatchList` | `src/components/SquadMatchList.tsx` | Liste des matchs d'une squad |
 | `SessionLogbook` | `src/components/matches/SessionLogbook.tsx` | Carnet des soirées (page Matchs) |
-| `ProgressionChart` | `src/components/dashboard/ProgressionChart.tsx` | Graphe d'évolution d'une métrique |
+| `MemberCard` | `src/components/members/MemberCard.tsx` | Fiche soldat de l'annuaire des membres : rôle, « a joué ce soir », K/M, win rate, parties sur 30 jours, arme fétiche, médailles. Voir [Membres](../features/membres.md) |
+| `PlayerDashboardSections` | `src/components/player-dashboard/PlayerDashboardSections.tsx` | Blocs du tableau de bord d'un joueur : carte joueur, chiffres clés à mini-barres, meilleure partie, profil de jeu, arsenal, frères d'armes, némésis, drop, dernières parties |
+| `ChevronPager` | `src/components/ui/ChevronPager.tsx` | Rangée paginée par chevrons ‹ › sur mobile (tout affiché à partir de `sm`). **Au lieu d'un défilement horizontal** de puces ou de cartes |
+| `MemberDropInsights` | `src/components/drop-zones/MemberDropInsights.tsx` | Pression au drop et villes d'un joueur, sur sa page Zones de drop |
 | `WeaponCategoryPeriodFilter` | `src/components/WeaponCategoryPeriodFilter.tsx` | Filtre période pour les stats armes par catégorie |
 | `MemberLifetimeStatsPanel` | `src/components/MemberLifetimeStatsPanel.tsx` | Panneau stats lifetime d'un membre |
 | `ItemUsePanel` | `src/components/telemetry/ItemUsePanel.tsx` | Objets consommés : indicateurs, répartition par famille, top objets (cartes mobile + tableau desktop, `ItemIcon`), classement des membres en portée clan. Prop `scope` = `clan` ou `member`. Voir [Objets consommés](../features/objets-consommes.md) |
@@ -620,7 +623,7 @@ plusieurs. `distinctionsByMember` donne les icônes à côté de chaque nom.
 
 Assets : `public/icons/distinctions/*.svg`.
 
-Utilisé par `Leaderboard`, `PodiumCards`, `DistinctionStrip`, `MobileRankList`, `PlayerStats`.
+Utilisé par `Leaderboard`, `PodiumCards`, `DistinctionStrip`, `MobileRankList`.
 
 ---
 

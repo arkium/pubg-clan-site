@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Radar } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import {
   CooperationSection,
@@ -19,6 +19,7 @@ import PeriodFilter from '@/components/ui/PeriodFilter'
 import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useClanMatchesCache } from '@/hooks/useClanMatchesCache'
+import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { playstyleContext, type ClanPlaystyleRow, type CooperationPair } from '@/lib/clan-playstyle'
@@ -46,33 +47,6 @@ function parseClanId(value: string | string[] | undefined) {
 }
 
 /** Charge une API de la page ; pendant un rechargement, la réponse précédente reste affichée. */
-function usePageData<T>(url: string | null, pick: (payload: unknown) => T | null) {
-  // L'adresse de la dernière réponse reçue : « en chargement » tant qu'elle diffère de l'adresse demandée.
-  const [state, setState] = useState<{ url: string | null; data: T | null; error: string }>({ url: null, data: null, error: '' })
-
-  useEffect(() => {
-    if (!url) return
-    let cancelled = false
-    fetch(url, { cache: 'no-store' })
-      .then(async (response) => {
-        const payload: unknown = await response.json().catch(() => null)
-        if (!response.ok) throw new Error('Chargement impossible.')
-        if (!cancelled) setState({ url, data: pick(payload), error: '' })
-      })
-      .catch((caught: unknown) => {
-        if (!cancelled) setState({ url, data: null, error: caught instanceof Error ? caught.message : 'Chargement impossible.' })
-      })
-    return () => {
-      cancelled = true
-    }
-    // `pick` est une fonction pure déclarée au niveau du module : seule l'adresse compte.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url])
-
-  const loading = url === null || state.url !== url
-  return { data: state.data, loading, error: loading ? '' : state.error }
-}
-
 const pickPlaystyle = (payload: unknown) => ((payload as { rows?: ClanPlaystyleRow[] } | null)?.rows ?? [])
 const pickBots = (payload: unknown) => (payload as { data?: { avgBotsPerMatch: number | null } } | null)?.data?.avgBotsPerMatch ?? null
 const pickItems = (payload: unknown) => (payload as { data?: ItemUseStats } | null)?.data ?? null

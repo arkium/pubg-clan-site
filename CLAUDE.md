@@ -187,6 +187,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Tri d'un tableau par ses en-têtes (+ rappel docké) | `SortableTh`, `SortReminder` + `useTableSort` | `src/components/ui/SortableTh.tsx`, `src/hooks/useTableSort.ts` |
 | Top 3 d'un classement | `PodiumCards` | `src/components/ui/PodiumCards.tsx` |
 | Pagination numérotée (au lieu d'un défilement horizontal) | `Pagination` + `@/lib/pagination` | `src/components/ui/Pagination.tsx` |
+| Rangée de puces / cartes paginée par chevrons sur mobile (au lieu d'un défilement horizontal) | `ChevronPager` | `src/components/ui/ChevronPager.tsx` |
 | Bande « Distinctions » | `DistinctionStrip` + `computeDistinctions` | `src/components/ui/DistinctionStrip.tsx`, `src/lib/distinctions.ts` |
 | Classement sur mobile (puces « Trier par ») | `MobileRankList` | `src/components/ui/MobileRankList.tsx` |
 | Mode d'un tournoi (couleur, icône, libellé) | `TournamentModeBadge`, `tournamentModeClass` + `@/lib/tournament-mode-display` | `src/components/tournaments/TournamentModeBadge.tsx` — docs/features/tournois.md |
@@ -261,7 +262,8 @@ export default function LeaderboardPage() {
 **Key hooks** (see `src/hooks/`):
 - `useSelectedClan()` — Current clan context (localStorage + change events)
 - `useAuthSession()` — Session state + logout on 401
-- `useLeaderboard()`, `useMatchHistory()`, `usePlayerStats()` — Data fetching with cancellation
+- `useLeaderboard()`, `useClanOverview()` — Data fetching with cancellation
+- `usePageData(url, pick)` — generic read that keeps the previous response while reloading (filter pages fade it)
 
 **Pattern:**
 1. Hook calls `fetch('/api/...', { cache: 'no-store' })`

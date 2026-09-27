@@ -1,3 +1,4 @@
+import { getPeriodStart } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 import { resolveWeaponName } from '@/lib/pubg-assets'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
@@ -120,6 +121,10 @@ export async function GET(
     const url = new URL(request.url)
     const weaponFilterParam = url.searchParams.get('weapon')
     const weaponFilter = weaponFilterParam && weaponFilterParam !== 'all' ? weaponFilterParam : null
+    // Période facultative (carte Némésis du tableau de bord, 2026-09-27) ; sans elle, tout l'historique suivi.
+    const periodParam = url.searchParams.get('period')
+    const since = periodParam === 'week' || periodParam === 'month' ? getPeriodStart(periodParam, new Date()) : null
+    const dateFilter = since ? { matchDate: { gte: since } } : {}
 
     const member = await prisma.clanMember.findUnique({
       where: { id: memberId },
@@ -132,7 +137,7 @@ export async function GET(
 
     const [deaths, kills, encountered] = await Promise.all([
       prisma.killEvent.findMany({
-        where: { victimMemberId: memberId },
+        where: { victimMemberId: memberId, ...dateFilter },
         orderBy: { matchDate: 'desc' },
         take: 500,
         select: {
@@ -145,7 +150,7 @@ export async function GET(
         },
       }),
       prisma.killEvent.findMany({
-        where: { killerMemberId: memberId },
+        where: { killerMemberId: memberId, ...dateFilter },
         orderBy: { matchDate: 'desc' },
         take: 500,
         select: {

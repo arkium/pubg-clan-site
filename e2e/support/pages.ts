@@ -9,7 +9,6 @@ import {
   clansLeaderboardResponse,
   itemUseStats,
   leaderboardResponse,
-  memberDashboard,
   memberWeaponMastery,
   memberWeapons,
   homeShowcase,
@@ -17,6 +16,7 @@ import {
   clanMatchesResponse,
   DEBRIEF_MATCH_ID,
 } from './data'
+import { mockMemberProfile } from './members'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
 /** Réponses figées de chaque page testée (API du navigateur, paramètres lus depuis l'URL). */
@@ -43,9 +43,9 @@ export function mockClanOverview(api: ApiMock) {
     })
 }
 
-/** Le shell charge la fiche du joueur consulté (nom dans le header) sur toutes les pages joueur. */
+/** Le shell charge le profil du joueur consulté (nom dans le header) sur toutes les pages joueur. */
 function mockMemberShell(api: ApiMock) {
-  api.on('GET', `/api/members/${MEMBER_ID}/dashboard`, { body: memberDashboard() })
+  mockMemberProfile(api)
 }
 
 export function mockMemberItems(api: ApiMock) {

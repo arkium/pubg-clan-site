@@ -31,7 +31,8 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Débriefing tactique](features/debriefing.md) | Page d'un match (vue clan et tournoi) : en-tête, bande des équipes, onglets Chronologie / Replay / Escouade / Duels portés par `?tab=`, jetons de thème, données ajoutées au payload |
 | [Leaderboard](features/leaderboard.md) | Calcul classement interne, périodes, periodKey, progression, badges Top performers |
 | [Matchs](features/matches.md) | Modèles Match/SquadMatch/SquadMember, détection squad, sessions, stats des 13 champs API, synergies |
-| [Dashboard membre](features/member-dashboard.md) | Sections dashboard, PlayerStats vs MemberLifetimeStats, progression, squads fréquents, heatmap |
+| [Membres et tableau de bord](features/membres.md) | Annuaire des membres (fiches, rôle, « a joué ce soir », réserve) et tableau de bord d'un joueur (une période, carte joueur, profil de jeu, cartes vers ses pages) ; décisions de cohérence, blocs déplacés |
+| [Dashboard membre](features/member-dashboard.md) | PlayerStats vs MemberLifetimeStats, carrière d'un joueur, heatmap |
 
 ### Stats avancées et télémétrie
 

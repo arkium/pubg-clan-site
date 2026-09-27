@@ -2,35 +2,6 @@ export type DashboardPeriod = 'week' | 'month' | 'all'
 export type DashboardMatchSortKey = 'pubgCreatedAt' | 'kills' | 'damageDealt' | 'placement'
 export type DashboardMatchSortDirection = 'asc' | 'desc'
 
-import type {
-  DropPressureDashboardStats,
-  DropPressureRankingEntry,
-  DropPressureTimelinePoint,
-} from '@/types/drop-pressure'
-
-export interface DashboardMember {
-  id: number
-  displayName: string
-  avatarUrl?: string | null
-  pubgPlayerName: string
-  platformShard: string
-  createdAt: string
-  clanId?: number | null
-}
-
-export interface DashboardStats {
-  totalKills: number
-  totalDamage: number
-  totalAssists: number
-  totalRevives: number
-  matchesPlayed: number
-  matchesWon: number
-  winRate: number
-  avgKillsPerGame: number
-  avgDamagePerGame: number
-  badgeType: string | null
-}
-
 export interface ClanAverage {
   avgKills: number
   avgDamage: number
@@ -38,52 +9,6 @@ export interface ClanAverage {
   avgMatches: number
   avgAssists: number
   avgRevives: number
-}
-
-export interface DashboardProgression {
-  period: string
-  week: number
-  year: number
-  totalKills: number
-  totalDamage: number
-  winRate: number
-  matchesPlayed: number
-}
-
-export interface TopPerformance {
-  id: string
-  pubgMatchId: string
-  mapName: string
-  gameMode: string
-  kills: number
-  damageDealt: number
-  placement: number
-  pubgCreatedAt: string
-}
-
-export interface SquadFrequencyEntry {
-  memberId: number
-  displayName: string
-  avatarUrl?: string | null
-  matchCount: number
-  totalKills: number
-  totalDamage: number
-  winRate: number
-  sharedPlayTimeSeconds: number
-}
-
-export interface DashboardResponse {
-  member: DashboardMember
-  stats: DashboardStats | null
-  clanAverage: ClanAverage | null
-  progression: DashboardProgression[]
-  topPerformances: TopPerformance[]
-  squads: SquadFrequencyEntry[]
-  dropPressure: DropPressureDashboardStats
-  dropPressureRanking: DropPressureRankingEntry[]
-  dropPressureTimeline: DropPressureTimelinePoint[]
-  mapLabels: Record<string, string>
-  period: DashboardPeriod
 }
 
 export interface DashboardMatch {
@@ -110,4 +35,77 @@ export interface MatchesResponse {
   matches: DashboardMatch[]
   totalCount: number
   mapLabels: Record<string, string>
+}
+
+// ── Tableau de bord joueur, refonte du 2026-09-27 (docs/features/membres.md) ──────────────────────────
+
+export type PlayerPlaystyleScores = { aggression: number; support: number; zoneDiscipline: number }
+
+export interface PlayerPlaystyle {
+  /** `null` : aucune partie mesurée par la télémétrie sur la période. */
+  current:
+    | (PlayerPlaystyleScores & {
+        safeZonePercent: number
+        /** Part des dégâts reçus compensée par les soins ; `null` sans dégâts reçus mesurés. */
+        healCoveragePercent: number | null
+        firstContactPhase: number | null
+        matchesPlayed: number
+      })
+    | null
+  /** Période précédente (tendance) ; `null` pour « Tous » ou sans mesure. */
+  previous: PlayerPlaystyleScores | null
+  /** Moyenne des membres actifs mesurés du clan. */
+  clan: PlayerPlaystyleScores | null
+}
+
+export interface PlayerDashboardResponse {
+  period: DashboardPeriod
+  member: {
+    id: number
+    displayName: string
+    pubgPlayerName: string
+    avatarUrl: string | null
+    /** Ajout du joueur au site (« suivi depuis »), pas son entrée dans le clan PUBG. */
+    createdAt: string
+    lastMatchAt: string | null
+    clan: { id: number; name: string; tag: string } | null
+  }
+  stats: {
+    totalKills: number
+    totalDamage: number
+    totalAssists: number
+    totalRevives: number
+    matchesPlayed: number
+    matchesWon: number
+    /** Fraction (0–1). */
+    winRate: number
+  } | null
+  clanAverage: ClanAverage | null
+  activity: {
+    unit: 'day' | 'week'
+    buckets: Array<{ key: string; label: string; kills: number; damage: number; matches: number; wins: number }>
+  }
+  bestMatch: {
+    mapName: string
+    mapLabel: string
+    gameMode: string
+    kills: number
+    damage: number
+    placement: number
+    createdAt: string
+    timeSurvived: number | null
+    teammates: string[]
+    debriefHref: string | null
+  } | null
+  playstyle: PlayerPlaystyle
+  mates: Array<{
+    memberId: number
+    displayName: string
+    avatarUrl: string | null
+    matchCount: number
+    /** Fraction (0–1). */
+    winRate: number
+    sharedPlayTimeSeconds: number
+    role: 'fragger' | 'medic' | 'ghost' | null
+  }>
 }

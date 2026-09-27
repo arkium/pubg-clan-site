@@ -165,6 +165,8 @@ app/api/
 | `clans/` | Annuaire des clans (`/clans`) : clan épinglé, clan du moment, clans actifs, en sommeil ([clans.md](../features/clans.md) §6 bis) |
 | `Leaderboard.tsx` | Tableau de classement (en-têtes triables, liste mobile) |
 | `SquadMatchList.tsx` | Liste des matchs squad |
+| `members/` | Fiche d'un membre de l'annuaire (`MemberCard`, [membres.md](../features/membres.md)) |
+| `player-dashboard/` | Blocs du tableau de bord d'un joueur ([membres.md](../features/membres.md)) |
 | `clan-stats/` | Sections de « Style de jeu du clan » et cartes de « Carrière PUBG » ([statistiques.md](../features/statistiques.md)) |
 | `TopPerformers.tsx` | Bloc top performeurs |
 | `ProgressionChart.tsx` | Graphique de progression |
@@ -223,10 +225,8 @@ Tous marqués `'use client'`. Gèrent le fetching via les routes API, avec cache
 | `useAuthSession` | `/api/auth/session` | Session utilisateur courante |
 | `useClanOverview` | `/api/clans/[clanId]/overview` | Vue d'ensemble du clan |
 | `useLeaderboard` | `/api/clans/[clanId]/leaderboard` | Voir ci-dessus |
-| `useMatchHistory` | `/api/members/[id]/matches` | Matchs d'un membre |
 | `useNavPermissions` | `/api/auth/session` ou config | Permissions de navigation |
-| `usePlayerDashboard` | `/api/members/[id]/dashboard` | Dashboard d'un membre |
-| `usePlayerStats` | `/api/members/[id]/stats` | Stats d'un membre par période |
+| `usePageData` | toute route | Lecture d'une route qui garde la réponse précédente pendant le rechargement (pages à filtres) |
 | `useReportDetail` | `/api/clans/[clanId]/reports/[id]` | Détail d'un rapport |
 | `useReports` | `/api/clans/[clanId]/reports` | Liste des rapports du clan |
 

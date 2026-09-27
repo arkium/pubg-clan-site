@@ -44,6 +44,7 @@ export async function GET(
         pubgPlayerName: true,
         platformShard: true,
         isActive: true,
+        clanId: true,
         identities: {
           select: {
             user: {
@@ -67,6 +68,7 @@ export async function GET(
       avatarUrl: member.identities[0]?.user.avatarUrl ?? null,
       pubgPlayerName: member.pubgPlayerName,
       platformShard: member.platformShard,
+      clanId: member.clanId,
     })
   } catch (error) {
     console.error('Error fetching member:', error)

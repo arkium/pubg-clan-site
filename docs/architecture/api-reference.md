@@ -163,7 +163,8 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 | POST | `/api/members/[id]/stats` | `requireSameClanAsMember` | ✅ Pertinent | Refresh forcé des stats lifetime depuis l'API PUBG — voir [Dashboard membre](../features/member-dashboard.md) |
 | GET | `/api/members/[id]/season-stats` | `requireSameClanAsMember` | ✅ Pertinent | Stats ranked/normal en cache (3 dernières saisons) — voir [Season stats](../features/season-stats.md) |
 | POST | `/api/members/[id]/season-stats` | `requireSameClanAsMember` | ✅ Pertinent | Refresh forcé depuis l'API PUBG — voir [Season stats](../features/season-stats.md) |
-| GET | `/api/members/[id]/weapon-mastery` | `requireSameClanAsMember` | ✅ Pertinent | Maîtrise armes carrière (cache DB) — voir [Armes](../features/weapons.md) |
+| GET | `/api/members/[id]/weapon-mastery` | `requireSameClanAsMember` | ✅ Pertinent | Maîtrise armes carrière (cache DB), `weaponLabel` du site par ligne — voir [Armes](../features/weapons.md) et [Armes d'un joueur](../features/armes-joueur.md) |
+| GET | `/api/members/[id]/throwables` | `requireSameClanAsMember` | ✅ Pertinent | Lancers par objet ; `?period=week\|month` facultatif (sans : tout) — voir [Armes d'un joueur](../features/armes-joueur.md) |
 | POST | `/api/members/[id]/weapon-mastery` | `requireSameClanAsMember` | ✅ Pertinent | Refresh depuis l'API PUBG — voir [Armes](../features/weapons.md) |
 | GET | `/api/members/[id]/rewards` | `requireSameClanAsMember` | ✅ Pertinent | Points et badges de récompense du membre — détail ci-dessous |
 | GET | `/api/members/[id]/map-stats` | `requireSameClanAsMember` | ✅ Pertinent | Stats par carte (soi/membre/clan/meilleure comp) — détail ci-dessous |

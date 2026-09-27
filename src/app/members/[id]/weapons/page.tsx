@@ -1,1030 +1,242 @@
 'use client'
 
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { Crosshair } from 'lucide-react'
+import { Crosshair, Gamepad2, Radar } from 'lucide-react'
+import { useParams, useSearchParams } from 'next/navigation'
+import { useMemo, useState } from 'react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import {
+  CareerPanel,
+  CategoryMenu,
+  FavouriteCard,
+  LoadoutPanel,
+  MasteryHero,
+  MasteryList,
+  RecordsStrip,
+  SiteWeaponList,
+  SyncStatus,
+  useIsSmall,
+} from '@/components/member-weapons/MemberWeaponsSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import RankCell from '@/components/ui/RankCell'
-import SortableTh from '@/components/ui/SortableTh'
-import { useTableSort } from '@/hooks/useTableSort'
-import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
-import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
-import WeaponIcon from '@/components/ui/WeaponIcon'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { useAuthSession } from '@/hooks/useAuthSession'
+import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { PERIOD_LABELS, STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
-import { getWeaponCategory, type WeaponCategory } from '@/lib/weapons/weapon-categories'
+import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
+import { parseArmoryCategory } from '@/lib/weapons/armory'
+import {
+  aggregateMemberWeapons,
+  categoryCounts,
+  favouriteWeapon,
+  lastMasteryRefresh,
+  loadoutThrows,
+  masteryWeapons,
+  memberLoadout,
+  memberRecords,
+  mostMasteredWeapon,
+  parseArsenalSource,
+  type ArsenalSource,
+  type MasteryEntry,
+  type MemberWeaponRow,
+  type PubgSortKey,
+  type SiteSortKey,
+} from '@/lib/weapons/member-arsenal'
+import type { WeaponCategory } from '@/lib/weapons/weapon-categories'
 
-type TelemetryPeriod = StandardPeriod
+type ThrowItem = { itemId: string; count: number }
 
-type MemberWeaponRow = {
-  weaponName: string
-  weaponLabel?: string
-  kills: number
-  headshots: number
-  shotsFired: number
-  hitsLanded: number
-  accuracy: number
-  avgDistance: number
-  maxDistance?: number | null
-  matchCount: number
+const pickRows = (payload: unknown) => {
+  const body = payload as { data?: { rows?: MemberWeaponRow[] }; rows?: MemberWeaponRow[] } | null
+  return body?.data?.rows ?? body?.rows ?? null
 }
+const pickThrows = (payload: unknown) => (payload as { data?: { items?: ThrowItem[] } } | null)?.data?.items ?? null
+const pickMastery = (payload: unknown) => (payload as { weapons?: MasteryEntry[] } | null)?.weapons ?? null
+const pickProfile = (payload: unknown) => (payload as { displayName?: string; clanId?: number | null } | null) ?? null
 
-type MemberWeaponsResponse = {
-  ok: boolean
-  member: {
-    id: number
-    displayName: string
-    clanId: number | null
-  }
-  period: TelemetryPeriod
-  periodKey: string
-  count: number
-  rows: MemberWeaponRow[]
-  note: string | null
+/** Onglet (`?source=pubg`) et catégorie (`?cat=AR`) dans l'URL, comme la période : sans entrée d'historique. */
+function writeQuery(key: string, value: string | null) {
+  const query = new URLSearchParams(window.location.search)
+  if (value) query.set(key, value)
+  else query.delete(key)
+  const search = query.toString()
+  window.history.replaceState(window.history.state, '', `${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`)
 }
-
-type SortKey = 'weapon' | 'kills' | 'headshotRate' | 'shotsFired' | 'hitsLanded' | 'accuracy' | 'avgDistance' | 'maxDistance' | 'matchCount'
-
-type MemberWeaponsContractResponse = {
-  ok: boolean
-  meta?: {
-    period?: TelemetryPeriod
-    periodKey?: string
-    count?: number
-  }
-  data?: {
-    member?: {
-      id: number
-      displayName: string
-      clanId: number | null
-    }
-    rows?: MemberWeaponRow[]
-    note?: string | null
-  }
-  member?: {
-    id: number
-    displayName: string
-    clanId: number | null
-  }
-  period?: TelemetryPeriod
-  periodKey?: string
-  count?: number
-  rows?: MemberWeaponRow[]
-  note?: string | null
-}
-
-type WeaponMasteryEntry = {
-  id: number
-  memberId: number
-  weaponId: string
-  weaponName: string
-  kills: number
-  headshots: number
-  knockouts: number
-  shots: number
-  hits: number
-  damage: number
-  longestKillDistance: number
-  level: number
-  xpTotal: number
-  tier: number
-  lastRefreshedAt: string
-}
-
-type WeaponMasteryResponse = {
-  memberId: number
-  weapons: WeaponMasteryEntry[]
-}
-
-type MasterySortKey = 'weapon' | 'kills' | 'knockouts' | 'damage' | 'headshots' | 'longestKillDistance' | 'level'
-type WeaponCategoryFilter = 'ALL' | WeaponCategory
-
-const PAGE_SIZE = 10
-
-const WEAPON_CATEGORY_OPTIONS: Array<{ value: WeaponCategoryFilter; label: string }> = [
-  { value: 'ALL', label: 'Toutes catégories' },
-  { value: 'AR', label: 'AR - Fusils d\'assaut' },
-  { value: 'DMR', label: 'DMR - Fusils de précision' },
-  { value: 'SR', label: 'SR - Snipers' },
-  { value: 'SMG', label: 'SMG - Pistolets-mitrailleurs' },
-  { value: 'LMG', label: 'LMG - Mitrailleuses' },
-  { value: 'SG', label: 'SG - Fusils à pompe' },
-  { value: 'PISTOL', label: 'PISTOL - Pistolets' },
-  { value: 'MELEE', label: 'MELEE - Mêlée' },
-  { value: 'THROWABLE', label: 'THROWABLE - Explosifs' },
-  { value: 'SPECIAL', label: 'SPECIAL - Spécial' },
-  { value: 'OTHER', label: 'OTHER - Autre' },
-]
-
-// resolveWeaponName() ne couvre pas ces IDs — damageCauserName.json les indexe
-// sous un autre nom (ex. "ProjGrenade_C", l'ID du projectile en vol, distinct
-// de "Item_Weapon_Grenade_C", l'ID de l'objet lancé côté LogPlayerUseThrowable).
-const THROWABLE_LABELS: Record<string, string> = {
-  Item_Weapon_Grenade_C: 'Grenade',
-  Item_Weapon_Molotov_C: 'Molotov',
-  Item_Weapon_SmokeBomb_C: 'Fumigène',
-  Item_Weapon_FlashBang_C: 'Flashbang',
-  Item_Weapon_BluezoneGrenade_C: 'Grenade de zone',
-  Item_Weapon_M79_C: 'Lance-grenades M79',
-  Item_Weapon_CoverStructDropHandFlare_C: 'Fusée de détresse (couverture)',
-  Item_Weapon_PackageFlare_nonDest_C: 'Fusée de détresse (caisse)',
-  Item_Weapon_Snowball_C: 'Boule de neige',
-}
-
-function resolveThrowableLabel(itemId: string) {
-  if (THROWABLE_LABELS[itemId]) {
-    return THROWABLE_LABELS[itemId]
-  }
-
-  return itemId
-    .replace(/^Item_Weapon_/, '')
-    .replace(/_C$/, '')
-    .replace(/_/g, ' ')
-}
-
-const MEMBER_WEAPONS_SECTION_LINKS: SectionAnchorNavItem[] = [
-  { id: 'sec-member-weapons-mastery', label: 'Maîtrise armes', icon: 'combat' },
-  { id: 'sec-member-weapons-telemetry', label: 'Stats télémétrie', icon: 'other' },
-]
 
 function parseMemberId(value: string | string[] | undefined) {
-  if (!value || Array.isArray(value)) {
-    return null
-  }
-
+  if (!value || Array.isArray(value)) return null
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function formatNumber(value: number) {
-  return value.toLocaleString('fr-FR')
-}
-
-const oneDecimal = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-
-function formatPercent(value: number) {
-  return `${oneDecimal.format(value)} %`
-}
-
-function formatMeters(value: number) {
-  return `${oneDecimal.format(value)} m`
-}
-
-function formatDateTime(value: string) {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toLocaleString('fr-FR')
-}
-
-function compareText(left: string, right: string) {
-  return left.localeCompare(right, 'fr-FR', { sensitivity: 'base' })
-}
-
-function compareNumber(left: number, right: number) {
-  return left - right
-}
-
-function extractErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== 'object') {
-    return fallback
-  }
-
-  if ('error' in payload) {
-    const errorValue = (payload as { error?: unknown }).error
-    if (typeof errorValue === 'string' && errorValue.trim()) {
-      return errorValue
-    }
-
-    if (
-      errorValue &&
-      typeof errorValue === 'object' &&
-      'message' in errorValue &&
-      typeof (errorValue as { message?: unknown }).message === 'string'
-    ) {
-      return (errorValue as { message: string }).message
-    }
-  }
-
-  return fallback
-}
-
-function normalizeWeaponsPayload(
-  payload: MemberWeaponsContractResponse,
-  fallbackPeriod: TelemetryPeriod
-): MemberWeaponsResponse | null {
-  const period = payload.meta?.period ?? payload.period ?? fallbackPeriod
-  const periodKey = payload.meta?.periodKey ?? payload.periodKey
-  const count = payload.meta?.count ?? payload.count
-  const member = payload.data?.member ?? payload.member
-  const rows = payload.data?.rows ?? payload.rows
-  const note = payload.data?.note ?? payload.note ?? null
-
-  if (!member || !periodKey || typeof count !== 'number' || !Array.isArray(rows)) {
-    return null
-  }
-
-  return {
-    ok: true,
-    member,
-    period,
-    periodKey,
-    count,
-    rows,
-    note,
-  }
-}
-
+/**
+ * Les armes d'un joueur — deux sources, deux onglets (maquette « Armes joueur », 2026-09-27 ; docs/features/armes-joueur.md).
+ * « Suivi par le site » : télémétrie de la période (arme de prédilection, loadout, records, râtelier). « Carrière PUBG » :
+ * maîtrise d'arme officielle, sans période. Bandeau sur une ligne, qui colle aussi sur mobile.
+ */
 export default function MemberWeaponsPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
-
-  // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
-  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'week')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [payload, setPayload] = useState<MemberWeaponsResponse | null>(null)
-  const [reloadNonce, setReloadNonce] = useState(0)
-  // Tris par les en-têtes (docs/TODO/refonte-ui.md §4.B) ; l'arme commence de A à Z.
-  const { sortKey, sortDir: sortDirection, onSort: handleSortClick, colTint } = useTableSort<SortKey>('kills', 'desc', (key) => (key === 'weapon' ? 'asc' : 'desc'))
-  const [selectedCategory, setSelectedCategory] = useState<WeaponCategoryFilter>('ALL')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [masteryRows, setMasteryRows] = useState<WeaponMasteryEntry[]>([])
-  const [masteryLoading, setMasteryLoading] = useState(true)
-  const [masteryRefreshing, setMasteryRefreshing] = useState(false)
-  const [masteryError, setMasteryError] = useState('')
-  const {
-    sortKey: masterySortKey,
-    sortDir: masterySortDirection,
-    onSort: handleMasterySortClick,
-    colTint: masteryColTint,
-  } = useTableSort<MasterySortKey>('kills', 'desc', (key) => (key === 'weapon' ? 'asc' : 'desc'))
-  const [masteryCurrentPage, setMasteryCurrentPage] = useState(1)
-  const [throwableItems, setThrowableItems] = useState<Array<{ itemId: string; count: number }>>([])
-  const [throwableTotal, setThrowableTotal] = useState(0)
-  const [throwablesLoaded, setThrowablesLoaded] = useState(false)
-
-  useEffect(() => {
-    if (!memberId) {
-      return
-    }
-
-    let cancelled = false
-
-    async function loadThrowables() {
-      try {
-        const response = await fetch(`/api/members/${memberId}/throwables`, { cache: 'no-store' })
-        const data = (await response.json().catch(() => null)) as
-          | { data?: { totalThrows: number; items: Array<{ itemId: string; count: number }> } }
-          | null
-
-        if (response.ok && data?.data && !cancelled) {
-          setThrowableItems(data.data.items)
-          setThrowableTotal(data.data.totalThrows)
-        }
-      } catch {
-        // Section secondaire, non bloquante.
-      } finally {
-        if (!cancelled) {
-          setThrowablesLoaded(true)
-        }
-      }
-    }
-
-    void loadThrowables()
-
-    return () => {
-      cancelled = true
-    }
-  }, [memberId])
-
-  const periodLabel = PERIOD_LABELS[period]
-
-  const latestMasteryRefreshAt = useMemo(() => {
-    if (masteryRows.length === 0) {
-      return null
-    }
-
-    let latest: string | null = null
-    let latestTime = -Infinity
-
-    for (const row of masteryRows) {
-      const timestamp = new Date(row.lastRefreshedAt).getTime()
-      if (!Number.isNaN(timestamp) && timestamp > latestTime) {
-        latestTime = timestamp
-        latest = row.lastRefreshedAt
-      }
-    }
-
-    return latest
-  }, [masteryRows])
-
-  const podiumByWeapon = useMemo(() => {
-    const rows = payload?.rows ?? []
-    const filteredRows =
-      selectedCategory === 'ALL'
-        ? rows
-        : rows.filter((row) => getWeaponCategory(row.weaponName, row.weaponLabel) === selectedCategory)
-    const topByKills = [...filteredRows]
-      .sort((left, right) => {
-        if (right.kills !== left.kills) {
-          return right.kills - left.kills
-        }
-
-        return (left.weaponLabel ?? left.weaponName).localeCompare(
-          right.weaponLabel ?? right.weaponName,
-          'fr-FR',
-          { sensitivity: 'base' }
-        )
-      })
-      .slice(0, 3)
-
-    return new Map(topByKills.map((row, index) => [row.weaponName, index + 1]))
-  }, [payload?.rows, selectedCategory])
-
-  const filteredRows = useMemo(() => {
-    const rows = payload?.rows ?? []
-    if (selectedCategory === 'ALL') {
-      return rows
-    }
-
-    return rows.filter((row) => getWeaponCategory(row.weaponName, row.weaponLabel) === selectedCategory)
-  }, [payload?.rows, selectedCategory])
-
-  const sortedRows = useMemo(() => {
-    const rows = filteredRows
-    const factor = sortDirection === 'asc' ? 1 : -1
-
-    return [...rows].sort((left, right) => {
-      if (sortKey === 'weapon') {
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName) * factor
-      }
-
-      if (sortKey === 'kills') {
-        const compare = compareNumber(left.kills, right.kills)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      if (sortKey === 'headshotRate') {
-        const leftRate = left.kills > 0 ? (left.headshots / left.kills) * 100 : 0
-        const rightRate = right.kills > 0 ? (right.headshots / right.kills) * 100 : 0
-        const compare = compareNumber(leftRate, rightRate)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      if (sortKey === 'shotsFired') {
-        const compare = compareNumber(left.shotsFired, right.shotsFired)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      if (sortKey === 'hitsLanded') {
-        const compare = compareNumber(left.hitsLanded, right.hitsLanded)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      if (sortKey === 'accuracy') {
-        const compare = compareNumber(left.accuracy, right.accuracy)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      if (sortKey === 'avgDistance') {
-        const compare = compareNumber(left.avgDistance, right.avgDistance)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      if (sortKey === 'maxDistance') {
-        const leftValue = typeof left.maxDistance === 'number' ? left.maxDistance : -1
-        const rightValue = typeof right.maxDistance === 'number' ? right.maxDistance : -1
-        const compare = compareNumber(leftValue, rightValue)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-      }
-
-      const compare = compareNumber(left.matchCount, right.matchCount)
-      if (compare !== 0) {
-        return compare * factor
-      }
-      return compareText(left.weaponLabel ?? left.weaponName, right.weaponLabel ?? right.weaponName)
-    })
-  }, [filteredRows, sortDirection, sortKey])
-
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE))
-  }, [sortedRows.length])
-
-  const paginatedRows = useMemo(() => {
-    const startIndex = (currentPage - 1) * PAGE_SIZE
-    return sortedRows.slice(startIndex, startIndex + PAGE_SIZE)
-  }, [sortedRows, currentPage])
-
-  const paginationRange = useMemo(() => {
-    if (sortedRows.length === 0) {
-      return { start: 0, end: 0 }
-    }
-
-    const start = (currentPage - 1) * PAGE_SIZE + 1
-    const end = Math.min(currentPage * PAGE_SIZE, sortedRows.length)
-    return { start, end }
-  }, [currentPage, sortedRows.length])
-
-  const sortHeader = { sortKey, sortDir: sortDirection, onSort: handleSortClick }
-  const masterySortHeader = { sortKey: masterySortKey, sortDir: masterySortDirection, onSort: handleMasterySortClick }
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [period, selectedCategory])
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [currentPage, totalPages])
-
-  const sortedMasteryRows = useMemo(() => {
-    const rows =
-      selectedCategory === 'ALL'
-        ? masteryRows
-        : masteryRows.filter((row) => getWeaponCategory(row.weaponName) === selectedCategory)
-    const factor = masterySortDirection === 'asc' ? 1 : -1
-
-    return [...rows].sort((left, right) => {
-      if (masterySortKey === 'weapon') {
-        return compareText(left.weaponName, right.weaponName) * factor
-      }
-
-      if (masterySortKey === 'kills') {
-        const compare = compareNumber(left.kills, right.kills)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponName, right.weaponName)
-      }
-
-      if (masterySortKey === 'headshots') {
-        const compare = compareNumber(left.headshots, right.headshots)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponName, right.weaponName)
-      }
-
-      if (masterySortKey === 'knockouts') {
-        const compare = compareNumber(left.knockouts, right.knockouts)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponName, right.weaponName)
-      }
-
-      if (masterySortKey === 'damage') {
-        const compare = compareNumber(left.damage, right.damage)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponName, right.weaponName)
-      }
-
-      if (masterySortKey === 'longestKillDistance') {
-        const compare = compareNumber(left.longestKillDistance, right.longestKillDistance)
-        if (compare !== 0) {
-          return compare * factor
-        }
-        return compareText(left.weaponName, right.weaponName)
-      }
-
-      const compare = compareNumber(left.level, right.level)
-      if (compare !== 0) {
-        return compare * factor
-      }
-      return compareText(left.weaponName, right.weaponName)
-    })
-  }, [masteryRows, masterySortDirection, masterySortKey, selectedCategory])
-
-  const totalMasteryPages = useMemo(() => {
-    return Math.max(1, Math.ceil(sortedMasteryRows.length / PAGE_SIZE))
-  }, [sortedMasteryRows.length])
-
-  const paginatedMasteryRows = useMemo(() => {
-    const startIndex = (masteryCurrentPage - 1) * PAGE_SIZE
-    return sortedMasteryRows.slice(startIndex, startIndex + PAGE_SIZE)
-  }, [masteryCurrentPage, sortedMasteryRows])
-
-  const masteryPaginationRange = useMemo(() => {
-    if (sortedMasteryRows.length === 0) {
-      return { start: 0, end: 0 }
-    }
-
-    const start = (masteryCurrentPage - 1) * PAGE_SIZE + 1
-    const end = Math.min(masteryCurrentPage * PAGE_SIZE, sortedMasteryRows.length)
-    return { start, end }
-  }, [masteryCurrentPage, sortedMasteryRows.length])
-
-  useEffect(() => {
-    setMasteryCurrentPage(1)
-  }, [masterySortKey, masterySortDirection, selectedCategory])
-
-  useEffect(() => {
-    if (masteryCurrentPage > totalMasteryPages) {
-      setMasteryCurrentPage(totalMasteryPages)
-    }
-  }, [masteryCurrentPage, totalMasteryPages])
-
-  useEffect(() => {
-    if (!memberId) {
-      return
-    }
-
-    let cancelled = false
-
-    async function loadWeaponMastery() {
-      try {
-        setMasteryLoading(true)
-        setMasteryError('')
-
-        const response = await fetch(`/api/members/${memberId}/weapon-mastery`, {
-          cache: 'no-store',
-        })
-
-        const payload = (await response.json()) as WeaponMasteryResponse | { error?: string }
-
-        if (!response.ok || !('weapons' in payload) || !Array.isArray(payload.weapons)) {
-          throw new Error(
-            'error' in payload && typeof payload.error === 'string'
-              ? payload.error
-              : 'Impossible de charger la maîtrise armes'
-          )
-        }
-
-        if (!cancelled) {
-          setMasteryRows(payload.weapons)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setMasteryRows([])
-          setMasteryError(
-            error instanceof Error ? error.message : 'Impossible de charger la maîtrise armes'
-          )
-        }
-      } finally {
-        if (!cancelled) {
-          setMasteryLoading(false)
-        }
-      }
-    }
-
-    void loadWeaponMastery()
-
-    return () => {
-      cancelled = true
-    }
-  }, [memberId, reloadNonce])
-
-  async function refreshWeaponMastery() {
-    if (!memberId) {
-      return
-    }
-
-    try {
-      setMasteryRefreshing(true)
-      setMasteryError('')
-
-      const response = await fetch(`/api/members/${memberId}/weapon-mastery`, {
-        method: 'POST',
-      })
-      const payload = (await response.json()) as { error?: string }
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'Rafraîchissement de la maîtrise impossible')
-      }
-
-      setReloadNonce((current) => current + 1)
-    } catch (error) {
-      setMasteryError(
-        error instanceof Error ? error.message : 'Rafraîchissement de la maîtrise impossible'
-      )
-    } finally {
-      setMasteryRefreshing(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!memberId || !periodReady) {
-      return
-    }
-
-    let cancelled = false
-
-    async function loadWeapons() {
-      try {
-        setLoading(true)
-        setError('')
-
-        const response = await fetch(`/api/members/${memberId}/telemetry/weapons?period=${period}`, {
-          cache: 'no-store',
-        })
-
-        const data = (await response.json()) as MemberWeaponsContractResponse
-
-        if (!response.ok) {
-          throw new Error(extractErrorMessage(data, 'Impossible de charger les stats armes du membre'))
-        }
-
-        const normalized = normalizeWeaponsPayload(data, period)
-
-        if (!normalized) {
-          throw new Error('Format de reponse telemetry invalide')
-        }
-
-        if (!cancelled) {
-          setPayload(normalized)
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setPayload(null)
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Impossible de charger les stats armes du membre'
-          )
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    void loadWeapons()
-
-    return () => {
-      cancelled = true
-    }
-  }, [memberId, period, periodReady, reloadNonce])
+  // Période : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E). Onglet Site seulement.
+  const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'week')
+  const [source, setSourceState] = useState<ArsenalSource>(() => parseArsenalSource(searchParams.get('source')))
+  const [category, setCategoryState] = useState<WeaponCategory | null>(() => parseArmoryCategory(searchParams.get('cat')))
+  const [siteSort, setSiteSort] = useState<SiteSortKey>('kills')
+  const [pubgSort, setPubgSort] = useState<PubgSortKey>('level')
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState('')
+  const [now] = useState(() => new Date())
+
+  const base = memberId ? `/api/members/${memberId}` : null
+  const rows = usePageData(base && ready ? `${base}/telemetry/weapons?period=${period}` : null, pickRows)
+  const throws = usePageData(base && ready ? `${base}/throwables?period=${period}` : null, pickThrows)
+  const mastery = usePageData(base ? `${base}/weapon-mastery${refreshNonce ? `?v=${refreshNonce}` : ''}` : null, pickMastery)
+  const profile = usePageData(base, pickProfile).data
+  const session = useAuthSession()
+  const small = useIsSmall()
+
+  const siteWeapons = useMemo(() => aggregateMemberWeapons(rows.data ?? []), [rows.data])
+  const pubgWeapons = useMemo(() => masteryWeapons(mastery.data ?? []), [mastery.data])
 
   if (!memberId) {
     return (
-      <div className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Maîtrise armes"
-          currentHref={`/members`}
-          fallbackParent={{ href: `/members`, label: 'Membres' }}
-        />
-        <p className="text-sm text-red-600">ID joueur invalide.</p>
+      <div className="app-container app-main flex-1">
+        <p className="text-sm text-red-600">Identifiant de joueur invalide.</p>
       </div>
     )
   }
+
+  const isSite = source === 'site'
+  const listed = isSite ? siteWeapons : pubgWeapons
+  const counts = categoryCounts(listed)
+  const filteredSite = category ? siteWeapons.filter((weapon) => weapon.category === category) : siteWeapons
+  const filteredPubg = category ? pubgWeapons.filter((weapon) => weapon.category === category) : pubgWeapons
+  const name = profile?.displayName ?? null
+  const when = PERIOD_WHEN_LABELS[period]
+  // Rafraîchir la maîtrise : la route exige une session du clan du joueur (ou un SuperUser) ; un visiteur ne voit que la date.
+  const activeClanId = session.members.find((member) => member.memberId === session.activeMemberId)?.clanId ?? null
+  const canRefresh = session.authenticated && (session.isSuperUser || (activeClanId !== null && activeClanId === profile?.clanId))
+
+  function setSource(next: ArsenalSource) {
+    setSourceState(next)
+    writeQuery('source', next === 'pubg' ? 'pubg' : null)
+  }
+
+  function setCategory(next: WeaponCategory | null) {
+    setCategoryState(next)
+    writeQuery('cat', next)
+  }
+
+  async function refreshMastery() {
+    setRefreshing(true)
+    setRefreshError('')
+    try {
+      const response = await fetch(`/api/members/${memberId}/weapon-mastery`, { method: 'POST' })
+      if (!response.ok) throw new Error()
+      setRefreshNonce((current) => current + 1)
+    } catch {
+      setRefreshError('Rafraîchissement de la maîtrise impossible pour le moment.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const siteLoading = rows.loading || throws.loading
+  const current = isSite ? rows : mastery
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
     <div className="app-main-flush flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
-          currentLabel="Armes favorites"
+          currentLabel="Armes"
           currentHref={`/members/${memberId}/weapons`}
-          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: name ?? 'Tableau de bord', altHref: '/members' }}
         />
         <section>
           <MemberPageHeader
-            title="Vos armes"
-            subtitle="Top armes, headshots et distance moyenne."
+            title={name ? `L'arsenal de ${name}` : "L'arsenal"}
+            subtitle={isSite ? 'Tes armes dans les parties suivies par le site.' : 'Maîtrise d’arme officielle PUBG, toute ta carrière.'}
             showBackButton={false}
             backgroundImage="/weaponsplayer2.jpg"
             icon={<Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
           />
         </section>
-
       </div>
 
+      {/*
+        Exception à sticky.md §2 (décision du 2026-09-27, maquette « Armes joueur ») : docké sur mobile, le bandeau garde
+        l'onglet, la commande de l'onglet (période ou synchro) et la catégorie, sur une ligne.
+      */}
       <DockingToolbar ariaLabel="Filtres des armes du joueur">
-        {({ compact }) => (
-          <div className="flex w-full flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
-              {!compact ? (
-                <div className="min-w-0 flex-1 sm:max-w-xs">
-                  <MobileDropdownNav
-                    id="member-weapons-category-filter"
-                    label="Catégorie"
-                    variant="compact"
-                    currentLabel={WEAPON_CATEGORY_OPTIONS.find((option) => option.value === selectedCategory)?.label ?? 'Sélectionner'}
-                    items={WEAPON_CATEGORY_OPTIONS.map((option) => ({
-                      key: `category-${option.value}`,
-                      label: option.label,
-                      active: selectedCategory === option.value,
-                      onSelect: () => setSelectedCategory(option.value),
-                    }))}
-                    visibilityClass=""
-                    className="w-full"
-                  />
-                </div>
-              ) : null}
-            </div>
-            {/* Ancres : seconde ligne du bandeau, jamais un second élément collant (sticky.md §4.B). */}
-            {!compact ? (
-              <SectionAnchorNav ariaLabel="Navigation des sections armes" items={MEMBER_WEAPONS_SECTION_LINKS} />
-            ) : null}
-          </div>
-        )}
+        <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
+          <SegmentedControl
+            options={[
+              { value: 'site', label: small ? 'Site' : 'Suivi par le site', icon: small ? undefined : <Radar className="h-3.5 w-3.5" aria-hidden="true" /> },
+              { value: 'pubg', label: small ? 'PUBG' : 'Carrière PUBG', icon: small ? undefined : <Gamepad2 className="h-3.5 w-3.5" aria-hidden="true" /> },
+            ]}
+            value={source}
+            onChange={setSource}
+            size="xs"
+            className="shrink-0"
+          />
+          {isSite ? (
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+          ) : (
+            <SyncStatus
+              lastRefresh={lastMasteryRefresh(mastery.data ?? [])}
+              now={now}
+              canRefresh={canRefresh}
+              refreshing={refreshing}
+              onRefresh={() => void refreshMastery()}
+            />
+          )}
+          <CategoryMenu counts={counts} value={category} onChange={setCategory} />
+        </div>
       </DockingToolbar>
 
-      <div className="app-container app-gutter space-y-4">
-        <section id="sec-member-weapons-mastery" className="mb-6 app-panel p-4">
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Maîtrise armes (carrière)</h2>
-              <p className="text-sm text-gray-600">
-                Source PUBG weapon mastery : kills, neutralisations, dégâts, headshots, distance et niveau global par arme.
-              </p>
-              {latestMasteryRefreshAt ? (
-                <p className="mt-1 text-xs text-gray-500">
-                  Dernière synchro : {formatDateTime(latestMasteryRefreshAt)}
-                </p>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className="app-btn app-btn--sm app-btn--secondary"
-              disabled={masteryLoading || masteryRefreshing}
-              onClick={() => {
-                void refreshWeaponMastery()
-              }}
-            >
-              {masteryRefreshing ? 'Rafraîchissement...' : 'Rafraîchir'}
-            </button>
-          </div>
+      <div className="app-container app-gutter flex flex-col gap-3.5 pb-8 sm:gap-[18px]">
+        {current.error ? <p className="app-panel p-4 text-sm text-red-600">{current.error}</p> : null}
+        {refreshError ? <p className="app-panel p-3 text-sm text-red-600">{refreshError}</p> : null}
+        {!current.data && current.loading ? <CardSkeleton /> : null}
 
-          {masteryError ? (
-            <p className="mb-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {masteryError}
+        {isSite && rows.data ? (
+          <div className={`flex flex-col gap-3.5 transition-opacity sm:gap-[18px] ${siteLoading ? 'opacity-60' : ''}`} aria-busy={siteLoading}>
+            <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+              <FavouriteCard weapon={favouriteWeapon(siteWeapons)} when={when} />
+              <LoadoutPanel slots={memberLoadout(siteWeapons)} throws={loadoutThrows(throws.data ?? [])} />
+            </div>
+            <RecordsStrip records={memberRecords(siteWeapons)} />
+            <SiteWeaponList
+              weapons={filteredSite}
+              subtitle={`${filteredSite.length} arme${filteredSite.length > 1 ? 's' : ''} · ${when}`}
+              sort={siteSort}
+              onSort={setSiteSort}
+              resetKey={`${category ?? 'all'}-${period}`}
+            />
+            <p className="text-xs text-gray-500">
+              Calculé sur les parties que le site a analysées : les parties hors suivi ne comptent pas. Précision = touches ÷ tirs ;
+              headshots = kills en headshot. Véhicules, poings et zone ne figurent pas au râtelier.
             </p>
-          ) : null}
-
-          {masteryLoading ? (
-            <p className="text-sm text-gray-600">Chargement de la maîtrise armes...</p>
-          ) : null}
-
-          {!masteryLoading && masteryRows.length === 0 ? (
-            <p className="text-sm text-gray-600">Aucune donnée de maîtrise disponible.</p>
-          ) : null}
-
-          {!masteryLoading && masteryRows.length > 0 ? (
-            <>
-              <div className="app-table-shell overflow-x-auto">
-                <table className="min-w-full text-sm">
-                <thead className="app-table-head">
-                  <tr>
-                    <SortableTh {...masterySortHeader} column="weapon" align="left" className="pl-3">Arme</SortableTh>
-                    <SortableTh {...masterySortHeader} column="kills">Kills</SortableTh>
-                    <SortableTh {...masterySortHeader} column="knockouts">Neutralisations</SortableTh>
-                    <SortableTh {...masterySortHeader} column="damage">Dégâts</SortableTh>
-                    <SortableTh {...masterySortHeader} column="headshots" title="Coups en tête portés avec cette arme (donnée API PUBG), pas des kills en headshot">Headshots</SortableTh>
-                    <SortableTh {...masterySortHeader} column="longestKillDistance">Distance</SortableTh>
-                    <SortableTh {...masterySortHeader} column="level">Niveau</SortableTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedMasteryRows.map((row) => {
-                    return (
-                      <tr key={row.weaponId} className="app-table-row">
-                        <td className="px-[9px] py-2 text-gray-900" style={{ backgroundColor: masteryColTint('weapon') }}>
-                          <div className="flex items-center gap-2">
-                            <WeaponIcon id={row.weaponId} label={row.weaponName} size="sm" />
-                            <span>{row.weaponName}</span>
-                          </div>
-                        </td>
-                        <td className="px-[9px] py-2 text-right font-semibold tabular-nums" style={{ backgroundColor: masteryColTint('kills') }}>{formatNumber(row.kills)}</td>
-                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('knockouts') }}>{formatNumber(row.knockouts)}</td>
-                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('damage') }}>{formatNumber(Math.round(row.damage))}</td>
-                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('headshots') }}>{formatNumber(row.headshots)}</td>
-                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('longestKillDistance') }}>{formatMeters(row.longestKillDistance)}</td>
-                        <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: masteryColTint('level') }}>{formatNumber(row.level)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                </table>
-              </div>
-
-              {sortedMasteryRows.length > PAGE_SIZE ? (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
-                  <p>
-                    Lignes {masteryPaginationRange.start}-{masteryPaginationRange.end} sur {sortedMasteryRows.length}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setMasteryCurrentPage(1)}
-                      disabled={masteryCurrentPage === 1}
-                    >
-                      Première
-                    </button>
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setMasteryCurrentPage((page) => Math.max(1, page - 1))}
-                      disabled={masteryCurrentPage === 1}
-                    >
-                      Precedent
-                    </button>
-                    <span className="tabular-nums text-xs font-semibold text-gray-500">
-                      Page {masteryCurrentPage} / {totalMasteryPages}
-                    </span>
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setMasteryCurrentPage((page) => Math.min(totalMasteryPages, page + 1))}
-                      disabled={masteryCurrentPage === totalMasteryPages}
-                    >
-                      Suivant
-                    </button>
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setMasteryCurrentPage(totalMasteryPages)}
-                      disabled={masteryCurrentPage === totalMasteryPages}
-                    >
-                      Dernière
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </section>
-
-        {loading && !payload ? <p className="mb-4 text-sm text-gray-600">Chargement des stats armes...</p> : null}
-        {error ? (
-          <section className="mb-4 rounded border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
-            <p>{error}</p>
-            <button
-              type="button"
-              onClick={() => setReloadNonce((current) => current + 1)}
-              className="app-btn app-btn--sm app-btn--secondary mt-3"
-            >
-              Réessayer
-            </button>
-          </section>
-        ) : null}
-        {!error && payload?.note ? (
-          <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {payload.note}
-          </p>
+          </div>
         ) : null}
 
-        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
-        {!error && (!loading || payload) ? (
-          payload && payload.rows.length > 0 ? (
-            <section
-              id="sec-member-weapons-telemetry"
-              aria-busy={loading}
-              className={`app-panel p-4${loading ? ' opacity-60' : ''}`}
-            >
-              <div className="mb-3">
-                <h2 className="text-lg font-semibold text-gray-900">Stats armes (télémétrie)</h2>
-                <p className="text-sm text-gray-600">
-                  Période active : {periodLabel}. Performance détaillée par arme sur la catégorie sélectionnée.
-                </p>
-              </div>
-              <div className="app-table-shell overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="app-table-head">
-                    <tr>
-                      <SortableTh {...sortHeader} column="weapon" align="left" className="pl-3">Arme</SortableTh>
-                      <SortableTh {...sortHeader} column="kills">Kills</SortableTh>
-                      <SortableTh {...sortHeader} column="headshotRate">Headshots</SortableTh>
-                      <SortableTh {...sortHeader} column="shotsFired">Tirs</SortableTh>
-                      <SortableTh {...sortHeader} column="hitsLanded">Touches</SortableTh>
-                      <SortableTh {...sortHeader} column="accuracy">Précision</SortableTh>
-                      <SortableTh {...sortHeader} column="avgDistance">Dist. moy.</SortableTh>
-                      <SortableTh {...sortHeader} column="maxDistance">Dist. max</SortableTh>
-                      <SortableTh {...sortHeader} column="matchCount">Matchs</SortableTh>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedRows.map((row) => {
-                      const headshotRate = row.kills > 0 ? (row.headshots / row.kills) * 100 : 0
-                      const podiumRank = podiumByWeapon.get(row.weaponName)
-                      return (
-                        <tr key={row.weaponName} className="app-table-row">
-                          <td className="px-[9px] py-2 text-gray-900" style={{ backgroundColor: colTint('weapon') }}>
-                            <div className="flex items-center gap-2">
-                              <WeaponIcon id={row.weaponName} size="sm" />
-                              <span>{row.weaponLabel ?? row.weaponName}</span>
-                              {podiumRank ? <RankCell rank={podiumRank} size="xs" /> : null}
-                            </div>
-                          </td>
-                          <td className="px-[9px] py-2 text-right font-semibold tabular-nums" style={{ backgroundColor: colTint('kills') }}>{formatNumber(row.kills)}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('headshotRate') }}>{formatPercent(headshotRate)}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('shotsFired') }}>{formatNumber(row.shotsFired)}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('hitsLanded') }}>{formatNumber(row.hitsLanded)}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('accuracy') }}>{formatPercent(row.accuracy)}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('avgDistance') }}>{formatMeters(row.avgDistance)}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('maxDistance') }}>{typeof row.maxDistance === 'number' ? formatMeters(row.maxDistance) : '-'}</td>
-                          <td className="px-[9px] py-2 text-right tabular-nums" style={{ backgroundColor: colTint('matchCount') }}>{formatNumber(row.matchCount)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {sortedRows.length > PAGE_SIZE ? (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 text-sm text-gray-600">
-                  <p>
-                    Lignes {paginationRange.start}-{paginationRange.end} sur {sortedRows.length}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                    >
-                      Première
-                    </button>
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Precedent
-                    </button>
-                    <span className="tabular-nums text-xs font-semibold text-gray-500">
-                      Page {currentPage} / {totalPages}
-                    </span>
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Suivant
-                    </button>
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--secondary"
-                      onClick={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                    >
-                      Dernière
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-          ) : null
-        ) : null}
-
-        {throwablesLoaded && throwableItems.length > 0 ? (
-          <section id="sec-member-throwables" className="mb-6 app-panel p-4">
-            <div className="mb-3">
-              <h2 className="text-lg font-semibold text-gray-900">Lancers</h2>
-              <p className="text-sm text-gray-600">
-                Grenades, fumigènes, flashbangs... {throwableTotal} lancer{throwableTotal > 1 ? 's' : ''} au total.
-              </p>
+        {!isSite && mastery.data ? (
+          <div className={`flex flex-col gap-3.5 transition-opacity sm:gap-[18px] ${mastery.loading ? 'opacity-60' : ''}`} aria-busy={mastery.loading}>
+            <div className="grid gap-3.5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+              <MasteryHero weapon={mostMasteredWeapon(pubgWeapons)} />
+              <CareerPanel weapons={pubgWeapons} />
             </div>
-            <div className="flex flex-wrap gap-2">
-              {throwableItems.map((item) => (
-                <span
-                  key={item.itemId}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
-                >
-                  <WeaponIcon id={item.itemId} size="sm" />
-                  <span className="font-medium text-gray-800">{resolveThrowableLabel(item.itemId)}</span>
-                  <span className="font-bold text-gray-900">×{item.count}</span>
-                </span>
-              ))}
-            </div>
-          </section>
+            <MasteryList weapons={filteredPubg} sort={pubgSort} onSort={setPubgSort} resetKey={category ?? 'all'} />
+            <p className="text-xs text-gray-500">
+              Données officielles de la maîtrise d’arme PUBG, sans période, synchronisées chaque nuit. Headshots = coups à la tête,
+              pas kills en headshot. Niveau d’expert : +1 chaque fois que l’arme repasse le niveau 100.
+            </p>
+          </div>
         ) : null}
       </div>
     </div>

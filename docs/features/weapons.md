@@ -1,6 +1,7 @@
 # Stats armes
 
-La section armes expose deux sources de données distinctes que la page `/members/[id]/weapons` présente côte à côte :
+La section armes expose deux sources de données distinctes que la page `/members/[id]/weapons` présente en deux onglets
+([Armes d'un joueur](armes-joueur.md)) :
 
 | Source | Table DB | Scope temporel | Déclencheur |
 |---|---|---|---|
@@ -67,9 +68,9 @@ API PUBG `GET /shards/{shard}/players/{playerId}/weapon_mastery` — données de
 | `shots` | number | Toujours `0` — voir note ci-dessous | Aucun champ équivalent dans le schéma officiel |
 | `hits` | number | Toujours `0` — même limitation que `shots` | Aucun champ équivalent dans le schéma officiel |
 | `damage` | number | Dégâts **totaux** infligés sur la carrière (pas une moyenne) | `DamagePlayer` — *"The total damage that the player has done in their career"* |
-| `level` | number | Niveau de maîtrise PUBG (1 à 10+) | `LevelCurrent` |
+| `level` | number | Niveau de maîtrise PUBG, **1 à 99** relevés en base (2026-09-27) | `LevelCurrent` |
 | `xpTotal` | number | XP total accumulé | `XPTotal` |
-| `tier` | number | Tier de médaille | `TierCurrent` |
+| `tier` | number | **Niveau d'expert** : +1 chaque fois que l'arme passe le niveau 100 et repart de zéro ([pubg.com/fr/news/2847](https://pubg.com/fr/news/2847)). 0 à 6 en base, lié aux kills, pas au niveau | `TierCurrent` |
 | `lastRefreshedAt` | string | ISO 8601 — date du dernier refresh depuis l'API PUBG | — |
 
 **Champ API disponible mais non capturé** : `LongestKill` (*"The longest distance that the player got a kill for"*, présent dans `OfficialStatsTotal`/`CompetitiveStatsTotal` mais absent de `StatsTotal`) — match exact vérifié contre l'écran "Maîtrise des armes" du client PUBG (M24 : `LongestKill=458` = "Élim. la plus lointaine (m)" affiché en jeu).
@@ -207,26 +208,8 @@ redirige vers `/settings/weapon-labels`. `ui-conformance.test.ts` empêche leur 
 
 ## 6. Page `/members/[id]/weapons`
 
-Client Component. Deux sections indépendantes sur la même page :
-
-### Section "Maîtrise armes (carrière)"
-
-- Chargement automatique au montage depuis `GET /api/members/[id]/weapon-mastery`
-- Bouton "Rafraichir" → POST puis rechargement
-- Date du dernier refresh affiché (`lastRefreshedAt` le plus récent)
-- Tableau triable par colonnes : Arme, Kills, Headshots, Headshot %, Précision %, Dégâts, Niveau
-- Tri par défaut : kills desc
-- `WeaponIcon` affiché dans la colonne Arme
-
-### Section "Stats télémétrie" (tableau du bas)
-
-- `SegmentedControl` Semaine / Mois / Tous
-- Rechargement à chaque changement de période via `GET /api/members/[id]/telemetry/weapons?period=`
-- Tableau triable par colonnes : Arme, Kills, Headshots %, Tirs, Touches, Précision, Distance moyenne, Distance max, Matchs
-- Tri par défaut : kills desc
-- Les 3 meilleures armes par kills reçoivent un badge podium (`app-podium-badge--gold/silver/bronze`)
-- `WeaponIcon` affiché dans la colonne Arme
-- Si aucune donnée : message vide avec liens vers la page Cron et Recoveries télémétrie
+Refonte du 2026-09-27 : deux onglets, « Suivi par le site » (télémétrie de la période et lancers) et « Carrière PUBG »
+(maîtrise), cartes paginées au lieu des deux tableaux. Tout est décrit dans [Armes d'un joueur](armes-joueur.md).
 
 ---
 

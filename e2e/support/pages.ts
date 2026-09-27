@@ -9,8 +9,6 @@ import {
   clansLeaderboardResponse,
   itemUseStats,
   leaderboardResponse,
-  memberWeaponMastery,
-  memberWeapons,
   homeShowcase,
   debriefTelemetry,
   clanMatchesResponse,
@@ -51,14 +49,6 @@ function mockMemberShell(api: ApiMock) {
 export function mockMemberItems(api: ApiMock) {
   mockMemberShell(api)
   api.on('GET', `/api/members/${MEMBER_ID}/item-use`, (url) => ({ body: { data: itemUseStats(periodOf(url), false) } }))
-}
-
-export function mockMemberWeapons(api: ApiMock) {
-  mockMemberShell(api)
-  api
-    .on('GET', `/api/members/${MEMBER_ID}/telemetry/weapons`, (url) => ({ body: memberWeapons(periodOf(url)) }))
-    .on('GET', `/api/members/${MEMBER_ID}/weapon-mastery`, { body: memberWeaponMastery() })
-    .on('GET', `/api/members/${MEMBER_ID}/throwables`, { body: { data: { totalThrows: 0, items: [] } } })
 }
 
 export function mockClanWeapons(api: ApiMock) {

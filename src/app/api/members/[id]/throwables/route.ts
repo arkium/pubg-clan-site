@@ -1,3 +1,4 @@
+import { getPeriodRange } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
@@ -21,9 +22,13 @@ export async function GET(
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
     if (authError) return authError
 
+    // `?period=week|month` facultatif (semaine et mois calendaires, comme la télémétrie des armes) ; sans : tout.
+    const periodParam = new URL(request.url).searchParams.get('period')
+    const range = periodParam === 'week' || periodParam === 'month' ? getPeriodRange(periodParam) : null
+
     const rows = await prisma.memberThrowableStat.groupBy({
       by: ['itemId'],
-      where: { memberId },
+      where: { memberId, ...(range ? { matchDate: { gte: range.start, lt: range.end } } : {}) },
       _sum: { count: true },
     })
 
@@ -33,6 +38,7 @@ export async function GET(
 
     return Response.json({
       data: {
+        period: range ? periodParam : 'all',
         totalThrows: items.reduce((sum, item) => sum + item.count, 0),
         items,
       },

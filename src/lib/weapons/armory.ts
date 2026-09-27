@@ -149,7 +149,10 @@ export function aggregateWeapons(rows: readonly ArmoryRow[], labelOf: (telemetry
   })
 }
 
-const byKillsThenName = (a: ArmoryWeapon, b: ArmoryWeapon) => b.kills - a.kills || a.name.localeCompare(b.name, 'fr')
+/** Ce que le loadout et les classements lisent d'une arme : l'armurerie du clan et la page d'un joueur le partagent. */
+export type LoadoutWeapon = Pick<ArmoryWeapon, 'name' | 'category' | 'kills'>
+
+const byKillsThenName = (a: LoadoutWeapon, b: LoadoutWeapon) => b.kills - a.kills || a.name.localeCompare(b.name, 'fr')
 
 /** L'arme qui a fait le plus de kills, toutes catégories. */
 export function signatureWeapon(weapons: readonly ArmoryWeapon[]): ArmoryWeapon | null {
@@ -161,7 +164,7 @@ export function weaponRack(weapons: readonly ArmoryWeapon[], category: WeaponCat
   return weapons.filter((weapon) => weapon.category === category).sort(byKillsThenName)
 }
 
-export type LoadoutSlot = { slot: 1 | 2 | 3 | 4 | 5; label: string; weapon: ArmoryWeapon | null }
+export type LoadoutSlot<T extends LoadoutWeapon = ArmoryWeapon> = { slot: 1 | 2 | 3 | 4 | 5; label: string; weapon: T | null }
 
 const LONG_GUNS: readonly WeaponCategory[] = ['AR', 'DMR', 'SR', 'SMG', 'LMG', 'SG']
 
@@ -169,7 +172,7 @@ const LONG_GUNS: readonly WeaponCategory[] = ['AR', 'DMR', 'SR', 'SMG', 'LMG', '
  * Le sac du clan, comme en jeu (touches 1 à 5) : l'arme la plus meurtrière de chaque emplacement. L'arme secondaire
  * est prise dans une autre famille que la principale (pas deux fusils d'assaut).
  */
-export function buildLoadout(weapons: readonly ArmoryWeapon[]): LoadoutSlot[] {
+export function buildLoadout<T extends LoadoutWeapon>(weapons: readonly T[]): LoadoutSlot<T>[] {
   const best = (categories: readonly WeaponCategory[], excluded?: WeaponCategory) =>
     [...weapons]
       .filter((weapon) => weapon.kills > 0 && categories.includes(weapon.category) && weapon.category !== excluded)

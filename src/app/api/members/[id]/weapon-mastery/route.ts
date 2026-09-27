@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { fetchWeaponMastery, searchPlayerByName } from '@/lib/pubg'
-import { NextRequest } from 'next/server'
+import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
+import { masteryTelemetryId } from '@/lib/weapons/member-arsenal'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 function parseMemberId(id: string) {
@@ -48,10 +49,12 @@ export async function GET(
     const authError = await requireSameClanAsMember(memberId, request, { readOnly: true })
     if (authError) return authError
 
-    const weapons = await prisma.memberWeaponMastery.findMany({
-      where: { memberId },
-      orderBy: { kills: 'desc' },
-    })
+    const [rows, labels] = await Promise.all([
+      prisma.memberWeaponMastery.findMany({ where: { memberId }, orderBy: { kills: 'desc' } }),
+      getWeaponLabels(),
+    ])
+    // Libellé du site (`/settings/weapon-labels`) par l'identifiant télémétrie : « HK416 » devient « M416 ».
+    const weapons = rows.map((row) => ({ ...row, weaponLabel: weaponDisplayName(masteryTelemetryId(row.weaponId), labels) }))
 
     return Response.json({ memberId, weapons })
   } catch (error) {

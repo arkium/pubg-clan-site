@@ -317,30 +317,6 @@ export function memberWeapons(period: LeaderboardPeriod) {
   }
 }
 
-export function memberWeaponMastery() {
-  const weapons = ['WeapHK416_C', 'WeapBerylM762_C', 'WeapMini14_C', 'WeapKar98k_C', 'WeapUMP_C', 'WeapAKM_C', 'WeapSCAR-L_C', 'WeapM16A4_C', 'WeapSKS_C', 'WeapAWM_C', 'WeapVector_C', 'WeapUZI_C']
-  return {
-    memberId: MEMBER_ID,
-    weapons: weapons.map((weaponId, index) => ({
-      id: index + 1,
-      memberId: MEMBER_ID,
-      weaponId,
-      weaponName: weaponId,
-      kills: 400 - index * 20,
-      headshots: 80,
-      knockouts: 300,
-      shots: 20000,
-      hits: 6000,
-      damage: 50000,
-      longestKillDistance: 350,
-      level: 40 - index,
-      xpTotal: 100000,
-      tier: 3,
-      lastRefreshedAt: FIXED_DATE,
-    })),
-  }
-}
-
 /** Vitrine de l'accueil (`GET /api/home/showcase`) : trois Top 1 fictifs, un kill feed de sept lignes. */
 export function homeShowcase(): HomeShowcasePayload {
   const squad = (names: string[]) =>

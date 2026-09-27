@@ -1,7 +1,7 @@
 import type { TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
-import { CLAN_ID, MEMBER_ID } from './support/data'
+import { CLAN_ID } from './support/data'
 import {
   appHeader,
   clickInPlace,
@@ -14,7 +14,8 @@ import {
   settle,
   toolbar,
 } from './support/layout'
-import { mockClanLeaderboard, mockClanOverview, mockClanWeapons, mockMemberWeapons } from './support/pages'
+import { mockClanLeaderboard, mockClanOverview, mockClanWeapons } from './support/pages'
+import { mockClanPlaystyle } from './support/stats'
 
 /** Bandeau collant — géométrie et comportement (docs/TODO/sticky.md §4 et §7.C). */
 
@@ -144,19 +145,20 @@ test.describe('Menus déroulants du bandeau', () => {
 test.describe('Ancres dans le bandeau', () => {
   test("une ancre amène le titre de sa section sous le bandeau, pas dessous", async ({ api, page }, testInfo) => {
     test.skip(isMobile(testInfo), 'sur mobile, les ancres ne restent pas dans le bandeau docké')
-    mockMemberWeapons(api)
-    await page.goto(`/members/${MEMBER_ID}/weapons`)
-    const anchor = toolbar(page).getByRole('link', { name: 'Stats télémétrie' })
+    // Page de référence depuis la refonte des armes du joueur (2026-09-27), qui n'a plus d'ancres : le style de jeu.
+    mockClanPlaystyle(api)
+    await page.goto(`/clans/${CLAN_ID}/stats`)
+    const anchor = toolbar(page).getByRole('link', { name: 'Synergies' })
     await expect(anchor).toBeVisible()
-    await expect(page.locator('#sec-member-weapons-telemetry')).toBeVisible()
+    await expect(page.locator('#sec-synergies')).toBeVisible()
 
     await anchor.click()
-    await expect(page).toHaveURL(/#sec-member-weapons-telemetry$/)
+    await expect(page).toHaveURL(/#sec-synergies$/)
     await settle(page)
     await settle(page)
 
     const bar = await toolbar(page).boundingBox()
-    const section = await page.locator('#sec-member-weapons-telemetry').boundingBox()
+    const section = await page.locator('#sec-synergies').boundingBox()
     expect(section!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height - 1)
   })
 })

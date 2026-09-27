@@ -2562,6 +2562,15 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte des armes d'un joueur : « deux sources, deux onglets »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Armes joueur » — [armes-joueur.md](../features/armes-joueur.md) :
+- [x] Onglets « Suivi par le site » / « Carrière PUBG », cartes paginées au lieu de deux tableaux en défilement horizontal.
+- [x] Niveau d'expert PUBG (`tier`) affiché « Expert N », sans noms de paliers inventés ; « kill max » PUBG retiré (0,4 % renseigné).
+- [x] Catégorie et libellé de la maîtrise par l'identifiant télémétrie ; lancers sur la période (route) ; lancers
+      d'événement écartés du loadout ; variantes d'armes fusionnées, lignes hors arme écartées.
+- [x] Bandeau sur une ligne docké aussi sur mobile (exception nommée) ; rafraîchissement réservé à qui y a droit.
+
 #### ~~Refonte de la page Némésis : « des comptes à régler »~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Némésis » — [nemesis.md](../features/nemesis.md) :

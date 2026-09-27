@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest'
-
 import {
   EMPTY_TOURNAMENT_FILTERS,
+  countTournamentsByMode,
+  countTournamentsByPhase,
+  filterBySearchAndStatus,
   filterTournaments,
   hasActiveTournamentFilters,
-  sortTournaments,
   splitTournamentsByPhase,
 } from './tournament-list-filters'
 import { resolveTournamentPhase } from './tournament-overview'
@@ -17,6 +17,7 @@ function tournament(overrides: Partial<TournamentOverview>): TournamentOverview 
     description: 'Tournoi inter-clans du dimanche',
     status: 'finished',
     phase: 'finished',
+    mode: 'inter_clan',
     startDate: '2026-09-01T18:00:00.000Z',
     endDate: '2026-09-01T22:00:00.000Z',
     gameMode: 'squad-fpp',
@@ -25,6 +26,10 @@ function tournament(overrides: Partial<TournamentOverview>): TournamentOverview 
     organizerClan: { id: 1, name: 'D32', tag: 'SMK' },
     roundCount: 3,
     participantCount: 4,
+    clanCount: 4,
+    lastRoundAt: null,
+    leaders: [],
+    standings: [],
     winner: null,
     ...overrides,
   }
@@ -55,50 +60,74 @@ describe('resolveTournamentPhase', () => {
 describe('filterTournaments', () => {
   const list = [
     tournament({ id: 'live', phase: 'live', title: 'Nuit des Ratz', organizerClan: { id: 6, name: 'Les-Ratz', tag: 'RATZ' } }),
-    tournament({ id: 'solo', phase: 'upcoming', title: 'Solo Cup', gameMode: 'solo', mapName: 'Desert_Main', mapLabel: 'Miramar' }),
-    tournament({ id: 'old' }),
+    tournament({ id: 'solo', phase: 'upcoming', mode: 'solo_ffa', title: 'Solo Cup' }),
+    tournament({ id: 'draft', phase: 'draft', mode: 'intra_clan', title: 'Scrims' }),
+    tournament({
+      id: 'old',
+      winner: {
+        key: 'clan:9',
+        participant: { kind: 'clan', clanId: 9 },
+        label: '[LMT] La Meute',
+        clanTags: ['LMT'],
+        memberLabels: [],
+        clanIds: [9],
+        totalPoints: 42,
+        totalKills: 12,
+        wins: 2,
+      },
+    }),
   ]
 
-  it('filtre sur le statut, le format et la carte', () => {
+  it('filtre sur le statut, un brouillon comptant parmi les tournois à venir', () => {
     expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, status: 'live' }).map((t) => t.id)).toEqual(['live'])
-    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, gameMode: 'solo' }).map((t) => t.id)).toEqual(['solo'])
-    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, mapName: 'Baltic_Main' }).map((t) => t.id)).toEqual(['live', 'old'])
+    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, status: 'upcoming' }).map((t) => t.id)).toEqual(['solo', 'draft'])
   })
 
-  it('cherche dans le titre, la description et le clan organisateur', () => {
+  it('filtre sur le mode du tournoi', () => {
+    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, mode: 'solo_ffa' }).map((t) => t.id)).toEqual(['solo'])
+    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, mode: 'inter_clan' }).map((t) => t.id)).toEqual(['live', 'old'])
+  })
+
+  it('cherche dans le titre, la description, l’organisateur et le vainqueur', () => {
     expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, search: 'ratz' }).map((t) => t.id)).toEqual(['live'])
-    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, search: 'SMK' }).map((t) => t.id)).toEqual(['solo', 'old'])
-    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, search: 'dimanche' })).toHaveLength(3)
+    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, search: 'SMK' }).map((t) => t.id)).toEqual(['solo', 'draft', 'old'])
+    expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, search: 'meute' }).map((t) => t.id)).toEqual(['old'])
     expect(filterTournaments(list, { ...EMPTY_TOURNAMENT_FILTERS, search: 'introuvable' })).toEqual([])
+  })
+
+  it('compte les modes sur la recherche et le statut, pas sur le mode choisi', () => {
+    const filters = { ...EMPTY_TOURNAMENT_FILTERS, status: 'upcoming' as const, mode: 'solo_ffa' as const }
+    expect(countTournamentsByMode(filterBySearchAndStatus(list, filters))).toEqual({
+      inter_clan: 0,
+      custom_teams: 0,
+      solo_ffa: 1,
+      intra_clan: 1,
+    })
   })
 
   it('sait dire si un filtre est actif', () => {
     expect(hasActiveTournamentFilters(EMPTY_TOURNAMENT_FILTERS)).toBe(false)
     expect(hasActiveTournamentFilters({ ...EMPTY_TOURNAMENT_FILTERS, search: '  ' })).toBe(false)
     expect(hasActiveTournamentFilters({ ...EMPTY_TOURNAMENT_FILTERS, status: 'finished' })).toBe(true)
+    expect(hasActiveTournamentFilters({ ...EMPTY_TOURNAMENT_FILTERS, mode: 'intra_clan' })).toBe(true)
   })
 })
 
-describe('tri et répartition', () => {
+describe('répartition en trois temps', () => {
   const list = [
-    tournament({ id: 'b', title: 'Beta', startDate: '2026-08-01T18:00:00.000Z' }),
-    tournament({ id: 'a', title: 'Alpha', startDate: '2026-09-10T18:00:00.000Z', organizerClan: { id: 2, name: 'Aurore', tag: 'AF' } }),
+    tournament({ id: 'old', phase: 'finished', startDate: '2026-08-01T18:00:00.000Z' }),
+    tournament({ id: 'recent', phase: 'finished', startDate: '2026-09-10T18:00:00.000Z' }),
+    tournament({ id: 'soon', phase: 'upcoming', startDate: '2026-10-01T18:00:00.000Z' }),
+    tournament({ id: 'next', phase: 'upcoming', startDate: '2026-09-29T18:00:00.000Z' }),
+    tournament({ id: 'draft', phase: 'draft', startDate: '2026-11-01T18:00:00.000Z' }),
+    tournament({ id: 'live', phase: 'live', startDate: '2026-09-22T18:00:00.000Z' }),
   ]
 
-  it('trie par date puis par nom et par organisateur', () => {
-    expect(sortTournaments(list, 'recent').map((t) => t.id)).toEqual(['a', 'b'])
-    expect(sortTournaments(list, 'oldest').map((t) => t.id)).toEqual(['b', 'a'])
-    expect(sortTournaments(list, 'title').map((t) => t.id)).toEqual(['a', 'b'])
-    expect(sortTournaments(list, 'organizer').map((t) => t.id)).toEqual(['a', 'b'])
-  })
-
-  it('range les brouillons avec le direct, jamais dans les archives', () => {
-    const split = splitTournamentsByPhase([
-      tournament({ id: 'draft', phase: 'draft' }),
-      tournament({ id: 'live', phase: 'live' }),
-      tournament({ id: 'done', phase: 'finished' }),
-    ])
-    expect(split.current.map((t) => t.id)).toEqual(['draft', 'live'])
-    expect(split.archived.map((t) => t.id)).toEqual(['done'])
+  it('direct, à venir du plus proche au plus lointain (brouillons compris), palmarès du plus récent', () => {
+    const split = splitTournamentsByPhase(list)
+    expect(split.live.map((t) => t.id)).toEqual(['live'])
+    expect(split.upcoming.map((t) => t.id)).toEqual(['next', 'soon', 'draft'])
+    expect(split.finished.map((t) => t.id)).toEqual(['recent', 'old'])
+    expect(countTournamentsByPhase(list)).toEqual({ live: 1, upcoming: 3, finished: 2 })
   })
 })

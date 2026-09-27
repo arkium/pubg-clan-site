@@ -211,29 +211,13 @@ Les labels sont utilisés dans les stats armes, la télémétrie armes, les filt
 
 ---
 
-## `/settings/weapon-categories` — Catégories d'armes
+## ~~`/settings/weapon-categories`~~ — supprimée le 2026-09-27
 
-Accès : Admin (`admin.weapon-categories`).
-
-### Données configurées
-
-Deux niveaux de configuration :
-
-**1. Catégorie de chaque arme** : assigne chaque arme à une catégorie (ex : `assault_rifle`, `sniper`, `smg`, `shotgun`, `dmr`, `lmg`, `pistol`, `other`). Catégories disponibles définies dans `CATEGORY_CODES` de `src/lib/weapon-category-service.ts`.
-
-**2. Labels des catégories** : nom affiché pour chaque catégorie (ex : `assault_rifle` → `Fusils d'assaut`). Valeurs par défaut dans `DEFAULT_CATEGORY_LABELS`.
-
-La page inclut une barre de recherche pour filtrer les armes par nom.
-
-Stocké dans `AppConfig` : deux clés distinctes pour les assignations d'armes et les labels de catégories.
-
-### Route API
-
-`GET/PUT /api/settings/weapon-categories`.
-
-### Impact sur l'app
-
-Les catégories sont utilisées par la page `/clans/[clanId]/stats/weapons/categories` (télémétrie armes par catégorie) et les filtres associés (`WeaponCategoryPeriodFilter`).
+L'écran « Alias catégories armes » et sa route `GET/PUT /api/settings/weapon-categories` ont été supprimés avec
+`weapon-category-service.ts` : l'armurerie du clan et la page armes d'un joueur classent par la liste unique
+`src/lib/weapons/weapon-categories.ts` ([weapons.md §5](../features/weapons.md)). Aucune surcharge n'était stockée en base.
+L'ancienne adresse redirige vers `/settings/weapon-labels` (`next.config.ts`). Pour classer une nouvelle arme : ajouter
+son identifiant télémétrie dans `weapon-categories.ts` (déploiement de code).
 
 ---
 

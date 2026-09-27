@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     rules: { "react-hooks/rules-of-hooks": "off" },
   },
   globalIgnores(["playwright-report/**", "test-results/**"]),
+  // Pages remplacées, gardées hors git pour mémoire (archive/README.md).
+  globalIgnores(["archive/**"]),
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

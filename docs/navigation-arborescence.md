@@ -78,8 +78,8 @@ La colonne **Position** est un simple numéro d'ordre séquentiel (1, 2, 3…) d
 | 15 | `/clans/[clanId]/matches/[matchId]/telemetry` | ▸▸▸ Détail télémétrie d'un match | Tous |
 | 16 | `/clans/[clanId]/matches/session/[date]`      | ▸▸▸ Session de matchs (par date) | Tous |
 | 17 | `/clans/[clanId]/stats`                       | ▸▸ Stats agrégées | Tous |
-| 18 | `/clans/[clanId]/stats/weapons`               | ▸▸ Stats armes | Owner (état actuel) / Tous (cible) |
-| 19 | `/clans/[clanId]/stats/weapons/categories`    | ▸▸▸ Catégories d'armes | Owner (état actuel) / Tous (cible) |
+| 18 | `/clans/[clanId]/stats/weapons`               | ▸▸ L'armurerie du clan | Owner (état actuel) / Tous (cible) |
+| 19 | `/clans/[clanId]/stats/weapons/categories`    | ▸▸▸ Catégories d'armes | **Redirection** vers `…/stats/weapons?cat=AR` depuis le 2026-09-27 (armurerie du clan) |
 | 20 | `/clans/[clanId]/stats/heatmap-kills`         | ▸▸ Heatmap des kills | Owner (état actuel) / Tous (cible) |
 | 21 | `/clans/[clanId]/stats/positions`             | ▸▸ Cartographie tactique | Owner (état actuel) / Tous (cible) |
 | 21b | `/clans/[clanId]/stats/zone-closures`        | ▸▸ Fin de zone (2026-09-17) | Tous |
@@ -163,7 +163,7 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 | Demandes en attente | `/clans/[clanId]/members/pending` | 8.2 #7 |
 | Alias cartes PUBG | `/settings/map-labels` | ⚠️ absent du §8 |
 | Alias armes PUBG | `/settings/weapon-labels` | ⚠️ absent du §8 |
-| Alias catégories armes | `/settings/weapon-categories` | ⚠️ absent du §8 |
+| ~~Alias catégories armes~~ | `/settings/weapon-categories` | Supprimée le 2026-09-27 — redirige vers `/settings/weapon-labels` |
 | Alias phases PUBG | `/settings/phase-labels` | ⚠️ absent du §8 |
 
 ### 9.3 Sous-menu Owner (fixe)
@@ -264,6 +264,9 @@ Objectif : dérouler la refonte sans divergence entre doc, runtime et pages rée
 | `/members/[id]/rewards` | `/members/[id]/dashboard` |  |
 | `/clans/[clanId]/matches/[matchId]/telemetry` | — | Redirection vers le débriefing clan depuis le 2026-09-16 |
 | `/tournaments/[tournamentId]/matches/[matchId]/telemetry` | — | Redirection vers le débriefing de manche depuis le 2026-09-16 (`?clanId=` ignoré) |
+| `/clans/[clanId]/tournaments` | — | Redirection HTTP 307 vers `/tournaments` depuis le 2026-09-27 (`next.config.ts`) |
+| `/clans/[clanId]/tournaments/[tournamentId]` | — | Redirection HTTP 307 vers `/tournaments/[tournamentId]` depuis le 2026-09-27 |
+| `/tournaments/[tournamentId]` | `/tournaments` | Page d'un tournoi : bandeau collant avec ancres, y compris sur mobile (exception à sticky.md §2) |
 | `/clans/[clanId]/telemetry/matches/[matchId]/debrief` | `/clans/[clanId]/matches` | Vue de lecture pour tous les membres du clan (listes, tableau de bord, comparateur, Discord Top 1) |
 | `/tournaments/[tournamentId]/matches/[matchId]` | `/tournaments/[tournamentId]` | Débriefing de manche, ouvert à tout utilisateur connecté (page du tournoi, Discord tournoi) |
 | `/clans/[clanId]/matches/session/[date]` | `/clans/[clanId]/matches` |  |
@@ -302,7 +305,7 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/stats/weapons/categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/weapons/categories` | redirection 307 vers l'armurerie (`next.config.ts`) — page supprimée le 2026-09-27 | | | | | | |
 | `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/zone-closures` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
@@ -341,7 +344,7 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/join` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/map-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/weapon-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/settings/weapon-categories` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/weapon-categories` | supprimée le 2026-09-27 (redirection) | | | | | | |
 | `/settings/phase-labels` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/email-delivery` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/pubg-api` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |

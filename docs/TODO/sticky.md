@@ -27,6 +27,7 @@ même façon** : même bandeau, même place, même contrôle de période, mêmes
 | Libellé de l'option « sans limite » de la période | **« Tous »** — jamais « Tout », « All Time » ni « Tous les temps » | 2026-09-25 |
 | Sens de « Semaine » et « Mois » | **Calendaire partout** : semaine ISO du lundi 00:00 au dimanche 23:59, mois civil. « Mois dernier » / « Il y a 2 mois » = mois civils précédents. Le calendrier d'activité du joueur s'aligne aussi | 2026-09-25 |
 | Contenu du bandeau docké **sur mobile** (< 640 px) | **La période seule.** Une page sans période ne docke rien sur mobile | 2026-09-25 |
+| Exception : **tournois** (`/tournaments`, `/tournaments/[id]`) | Le bandeau docke **aussi sur mobile**, sans période : recherche et statut sur la liste ; ancres Classement / Manches / Barème et place du lecteur sur un tournoi (maquette « Tournois »). Exceptions nommées dans `ui-conformance.test.ts` (`MOBILE_DOCKING_WITHOUT_PERIOD`) | 2026-09-27 |
 | Contenu du bandeau docké sur ordinateur | Les contrôles seulement ; compteurs, dates de mise à jour et notes restent au repos | proposé par cette revue |
 | Héro de `/clans` | **N'est plus collant** : la page rejoint le standard (bandeau recherche + tri, rien de docké sur mobile). Conséquence acceptée : l'image du clan survolé n'est plus visible une fois la page défilée | 2026-09-25 |
 | Libellés des mois précédents | **« Mois dernier »** et **« Il y a 2 mois »** (valeurs inchangées : `month-1`, `month-2`) | 2026-09-25 |

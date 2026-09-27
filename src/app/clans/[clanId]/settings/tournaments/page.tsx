@@ -464,7 +464,7 @@ export default function ClanTournamentSettingsPage() {
 
   function renderTournamentCard(tournament: Tournament) {
     const rules = getRulesForm(tournament.rules)
-    const modeLabel = MODE_OPTIONS.find((option) => option.value === rules.mode)?.label ?? 'Inter-Clans'
+    const modeLabel = MODE_OPTIONS.find((option) => option.value === rules.mode)?.label ?? 'Inter-clans'
     return (
       <article key={tournament.id} className="app-panel space-y-3 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">

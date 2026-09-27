@@ -66,6 +66,7 @@ export function resolveItemName(id: string): string {
 
 export {
   weaponIconUrl,
+  weaponWhiteIconUrl,
   vehicleIconUrl,
   itemIconUrl,
   mapImageUrl,

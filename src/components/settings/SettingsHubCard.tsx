@@ -6,7 +6,6 @@ import {
   Monitor,
   Map,
   Swords,
-  ListPlus,
   Activity,
   UserPlus,
   Trophy,
@@ -46,9 +45,6 @@ function getCardVisual(navKey: string): {
       return { Icon: Map, color: 'text-amber-500' }
     case 'admin.weapon-labels':
       return { Icon: Swords, color: 'text-red-500' }
-    case 'admin.weapon-categories':
-    case 'clan.stats-weapons-categories':
-      return { Icon: ListPlus, color: 'text-purple-500' }
     case 'admin.phase-labels':
       return { Icon: Activity, color: 'text-sky-500' }
     case 'admin.add-player':

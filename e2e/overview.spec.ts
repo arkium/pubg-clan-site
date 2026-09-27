@@ -52,7 +52,7 @@ test('briefing : trois faits illustrés, chacun avec son lien', async ({ page })
 
 test('chiffres clés avec « aller plus loin », duo et synergies', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Top fraggers →' })).toHaveAttribute('href', `/clans/${CLAN_ID}/leaderboard`)
-  await expect(page.getByRole('link', { name: 'Stats armes →' })).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/weapons`)
+  await expect(page.getByRole('link', { name: "L'armurerie du clan →" })).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/weapons`)
 
   const duoAndSynergies = page.getByRole('region', { name: 'Duo et synergies' })
   // Paire au meilleur taux de top 1 avec au moins 5 parties ; la paire à 66,7 % sur 3 parties est écartée.

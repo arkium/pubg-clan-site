@@ -41,7 +41,9 @@ Retourne les stats armes du membre pour la période.
 
 **`GET /api/clans/[clanId]/telemetry/weapons?period=week|month|all`**
 
-Vue agrégée des stats armes de tous les membres actifs du clan.
+Vue agrégée des stats armes de tous les membres actifs du clan (une ligne par joueur et par arme). Chaque ligne porte
+`weaponLabel`, `weaponKey` (clé du catalogue, `null` hors catalogue) et `weaponCategoryCode` / `weaponCategoryLabel`
+tirés de `weapon-categories.ts` (§5) ; `matchCount` = matchs pris en compte. Garde : `clan.stats-weapons`.
 
 ---
 
@@ -164,21 +166,42 @@ Usage dans la page weapons :
 
 Permet de personnaliser le nom affiché d'une arme (ex. remplacer `WeapAK47_C` par `AK-47 Custom`). Les labels sont stockés en base dans un `ClubSetting` avec la clé `pubg_weapon_labels`. Les labels par défaut proviennent de `src/lib/pubg-assets/dictionaries/damageCauserName.json`.
 
-### `weapon-category-service.ts`
+### Catégories d'armes — une seule liste : `src/lib/weapons/weapon-categories.ts`
 
-Classe les armes en catégories :
+Module pur (importable côté client), source unique du classement depuis le 2026-09-27 : l'armurerie du clan (§7), sa
+route `GET /api/clans/[clanId]/telemetry/weapons` et la page armes d'un joueur (§6) classent toutes par lui.
 
-| Code | Catégorie |
-|---|---|
-| `AR` | Assault Rifle |
-| `DMR` | Designated Marksman Rifle |
-| `SR` | Sniper Rifle |
-| `SMG` | Submachine Gun |
-| `LMG` | Light Machine Gun |
-| `SG` | Shotgun |
-| `Autre` | Autres armes |
+| Code | Libellé (`WEAPON_CATEGORY_LABELS`) | Code | Libellé |
+|---|---|---|---|
+| `AR` | Fusils d'assaut | `PISTOL` | Pistolets |
+| `DMR` | Fusils de précision | `MELEE` | Mêlée |
+| `SR` | Snipers | `THROWABLE` | Explosifs |
+| `SMG` | Pistolets-mitrailleurs | `SPECIAL` | Spécial |
+| `LMG` | Mitrailleuses | `OTHER` | Autre (véhicules, poings, feu d'un jerrican, zone…) |
+| `SG` | Fusils à pompe | | |
 
-Les catégories par défaut sont définies dans `DEFAULT_WEAPON_CATEGORIES` (dictionnaire clé `weaponId` → code). Elles sont personnalisables et stockées en base via la clé `pubg_weapon_categories`.
+Chaque arme du catalogue porte sa `key` (`'beryl m762'`), ses `aliases` et ses **`telemetryIds`** : identifiants de
+damage-causer relevés en base le 2026-09-27, le premier servant d'icône et de nom. Ils couvrent les variantes réelles —
+skins (`WeapJuliesKar98k_C`), noms alternatifs (`WeapMosin_C`, `WeapWin1894_C`, `WeapFamasG2_C`), projectile d'une arme
+de mêlée (`WeapPanProjectile_C`), feu au sol du Molotov (`BP_MolotovFireDebuff_C`, 321 kills contre 8 pour le
+projectile). `label` complète le dictionnaire PUBG quand il n'a pas de nom (`WeapRPD_C`, 4 912 kills en production).
+
+- `findWeaponEntry(id, label?)` : identifiant télémétrie d'abord (un libellé renommé par l'administration ne change pas
+  la catégorie), puis clé ou alias, puis le libellé.
+- `getWeaponCategory(id, label?)` : la catégorie, `OTHER` si rien ne correspond.
+- Une arme nouvelle (identifiant inconnu) retombe sur son libellé (« M416 ») ; sinon elle apparaît dans « Autre » :
+  **ajouter son identifiant dans `telemetryIds`**. Tests : `src/lib/weapons/weapon-categories.test.ts`.
+
+Textes des catégories (accroche, description, conseil pro) : `src/lib/weapons/weapon-category-info.ts`, un par
+catégorie, « Autre » compris (contrôlé par `weapon-categories.test.ts`).
+
+### Ancienne liste — supprimée le 2026-09-27
+
+`weapon-category-service.ts` (7 codes `AR`…`SG`, `Autre`) et son écran `/settings/weapon-categories` (« Alias
+catégories armes ») rangeaient le P18C dans « Autre » quand la page Catégories le mettait dans « Pistolets ». Plus lus
+par aucune page après la bascule, ils ont été supprimés (fichiers dans `archive/refonte-ui/armes/`) ; aucune surcharge
+n'était stockée en base (`pubg_weapon_categories`, `pubg_category_labels` : vérifié le 2026-09-27). L'ancienne adresse
+redirige vers `/settings/weapon-labels`. `ui-conformance.test.ts` empêche leur retour.
 
 ---
 
@@ -207,12 +230,39 @@ Client Component. Deux sections indépendantes sur la même page :
 
 ---
 
-## 7. Pages clan
+## 7. L'armurerie du clan — `/clans/[clanId]/stats/weapons`
 
-### `/clans/[clanId]/stats/weapons`
+Une seule page pour les armes du clan (refonte du 2026-09-27, maquette `Armes.dc.html`). Elle remplace « Les armes du
+clan » et « Catégories armes », qui parlaient des mêmes armes avec deux listes de catégories et deux sources de données
+(anciens fichiers dans `archive/refonte-ui/armes/`, ignoré par git).
 
-Vue comparative du clan — stats armes agrégées par membre, filtrées par catégorie via onglets.
+| Élément | Comportement |
+|---|---|
+| URL | `?cat=SR` : catégorie affichée (absente = « Tout l'arsenal »), écrite par `replaceState` comme `?period=` ; un code en minuscules est réécrit en majuscules, un code inconnu retiré |
+| Ancienne URL | `/clans/[clanId]/stats/weapons/categories` → **redirection HTTP 307** (`next.config.ts`) vers `…/stats/weapons?cat=AR`, ou avec le `cat` et la `period` reçus |
+| Bandeau d'image | « L'armurerie du clan », kills de la période, arme signature (la plus meurtrière) |
+| Bandeau de filtres (`DockingToolbar`) | Période (`PeriodFilter`), joueur (`#weapon-player-dropdown`), matchs pris en compte ; docké : catégorie + rappel du tri |
+| Sélecteur de catégorie | Chevrons ‹ ›, compteur « 3 / 11 », barre de progression cliquable, puces avec les kills par catégorie (ordinateur). « Autre » n'apparaît que si elle a des lignes |
+| « Tout l'arsenal » | **Loadout du clan** : 5 emplacements du sac (principale, secondaire d'une autre famille, pistolet, mêlée, lancer), l'arme la plus meurtrière de chacun ; un clic ouvre sa catégorie |
+| Une catégorie | Accroche, description, conseil pro, part des kills du clan ; **râtelier** : toutes les armes du catalogue, médailles aux 3 premières, maître de l'arme, chargeur de 10 balles pour la précision, armes sans kill en gris |
+| Hauts faits | Tir le plus lointain, roi du headshot (≥ 5 kills), chirurgien (≥ 100 tirs), gâchette facile — recalculés sur la sélection |
+| Classement | 10 colonnes (`SortableTh`), tirs et touches dans l'infobulle de Précision, rang = ordre décroissant du critère **sur la sélection** (l'ancien podium ignorait le filtre), pagination numérotée de 8 lignes ; `MobileRankList` sous 768 px |
 
-### `/clans/[clanId]/stats/weapons/categories`
+**Icônes** (`ArmoryWeaponImage`) : silhouette blanche `Item_Weapon_<Nom>_C_w.png` (`weaponWhiteIconUrl`), noire en
+thème clair hors vitrines. Ces fichiers font 100 px de haut et la largeur de l'arme : affichés à **hauteur fixe**
+(20 px dans le tableau, 52 à 60 px dans le loadout, 30 % de la carte au râtelier), un pistolet reste plus court qu'un
+fusil. 52 armes en ont une ; mêlée, explosifs, armes spéciales, JS9, RPD et véhicules retombent sur l'icône carrée
+(240 × 240, arme en diagonale), puis sur rien si elle manque.
 
-Ventilation par catégorie d'arme pour le clan — détail des performances par type d'arme.
+Calculs : `src/lib/weapons/armory.ts` (pur, testé par `armory.test.ts`). Composants : `src/components/weapons/`.
+Route : chaque ligne porte `weaponKey` et `weaponCategoryCode` de `weapon-categories.ts` (contrat testé par
+`src/lib/weapons/armory-route-contracts.test.ts`). Rendu : `e2e/armory.spec.ts`.
+
+**Écarts assumés avec la maquette** (règles de la refonte, `CLAUDE.md` §6 bis) : états actifs (puces, barre, tri,
+pagination) en accent et non en or ; rangs par `RankCell` (médailles SVG) au lieu des pastilles « #1 » ; classement mobile
+par `MobileRankList` (puces « Trier par ») au lieu d'un menu ; filtre joueur par `MobileDropdownNav` ; hauteur du bandeau
+d'image inchangée. L'or de la maquette vient des jetons `.game-ui` (`--game-gold*`).
+
+**Navigation** : une seule entrée, `clan.stats-weapons`, libellée « L'armurerie du clan » (registre et surcharge en
+base). L'entrée `clan.stats-weapons-categories` a été retirée du registre et de la table `NavItem` le 2026-09-27. Le menu
+choisit son icône d'après le libellé (`NavIcon`) : un nouveau libellé doit y être ajouté, sinon l'icône disparaît.

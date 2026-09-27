@@ -3566,3 +3566,191 @@ html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
     animation: none !important;
   }
 }
+
+/* ── Armurerie du clan (docs/features/weapons.md §7) ── */
+/* Vitrines d'armes (loadout, râtelier) : ardoise sombre dans les deux thèmes, parce que les icônes PUBG sont blanches.
+   L'or de la maquette vient de .game-ui (--game-gold*) ; les états actifs restent en accent (refonte UI §6 bis). */
+.armory-showcase {
+  background: radial-gradient(120% 90% at 50% 40%, rgb(51 65 85) 0%, rgb(15 23 42) 70%);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  color: #fff;
+}
+
+.armory-showcase--interactive {
+  cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+
+.armory-showcase--interactive:hover,
+.armory-showcase--interactive:focus-visible {
+  border-color: rgb(251 191 36 / 0.6);
+}
+
+.armory-slot-key {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.12);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.armory-rack-card {
+  background: linear-gradient(180deg, rgb(51 65 85), rgb(15 23 42));
+  border: 1px solid rgb(255 255 255 / 0.06);
+  color: #fff;
+}
+
+.armory-rack-card--unused {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+/* Chargeur de 10 balles : la précision de l'arme, une balle pleine par tranche de 10 %. */
+.armory-ammo {
+  width: 4px;
+  height: 9px;
+  border-radius: 1px 1px 0 0;
+  background: rgb(255 255 255 / 0.18);
+}
+
+.armory-ammo--filled {
+  background: rgb(251 191 36);
+}
+
+.armory-share-bar {
+  background: linear-gradient(90deg, rgb(245 158 11), rgb(251 191 36));
+}
+
+/* Étiquette de catégorie (« SR ») : le jaune du jeu, dans les deux thèmes. */
+.armory-code-tag {
+  display: inline-block;
+  padding: 5px 11px;
+  border-radius: 8px;
+  background: rgb(251 191 36);
+  color: rgb(28 16 3);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  transform: skewX(-8deg);
+}
+
+.armory-pager-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--theme-ui-border);
+  border-radius: 12px;
+  background-color: var(--theme-ui-surface-soft);
+  color: var(--theme-ui-text);
+  transition: border-color 120ms ease-out, color 120ms ease-out;
+}
+
+.armory-pager-button:hover {
+  border-color: var(--theme-ui-accent-ring);
+  color: var(--theme-ui-accent-text);
+}
+
+.armory-progress-step {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background-color: var(--theme-ui-surface-strong);
+  cursor: pointer;
+}
+
+.armory-progress-step--active {
+  background-color: var(--theme-ui-accent);
+}
+
+/* Bouton de pagination numérotée ou de puce de choix (pages du classement de l'armurerie, manches d'un tournoi). */
+.app-pager-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--theme-ui-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-pager-button:hover:not(:disabled) {
+  background-color: var(--theme-ui-hover);
+}
+
+.app-pager-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-pager-button--active {
+  border-color: var(--theme-ui-accent-ring);
+  background-color: var(--theme-ui-accent-soft);
+  color: var(--theme-ui-accent-text);
+}
+
+/* ── Tournois : identité des modes (docs/features/tournois.md, « Pages joueurs ») ── */
+/* Chaque mode a sa couleur, son icône et ce qu'il classe : Inter-clans (ambre), Équipes libres (violet), Solo (rouge),
+   Intra-clan (cyan). --tmode colore icônes, liserés et barres ; --tmode-text reste lisible sur fond clair. Les états
+   actifs de la page (segmented, ancres) restent en accent (refonte UI §6 bis). */
+.tournament-mode {
+  --tmode-soft: color-mix(in oklch, var(--tmode) 16%, transparent);
+  --tmode-ring: color-mix(in oklch, var(--tmode) 60%, transparent);
+}
+
+.tournament-mode--inter_clan { --tmode: rgb(245 158 11); --tmode-text: rgb(180 83 9); }
+.tournament-mode--custom_teams { --tmode: rgb(167 139 250); --tmode-text: rgb(109 40 217); }
+.tournament-mode--solo_ffa { --tmode: rgb(248 113 113); --tmode-text: rgb(220 38 38); }
+.tournament-mode--intra_clan { --tmode: rgb(34 211 238); --tmode-text: rgb(14 116 144); }
+
+html[data-app-theme='dark'] .tournament-mode--inter_clan { --tmode-text: rgb(252 211 77); }
+html[data-app-theme='dark'] .tournament-mode--custom_teams { --tmode-text: rgb(196 181 253); }
+html[data-app-theme='dark'] .tournament-mode--solo_ffa { --tmode-text: rgb(252 165 165); }
+html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103 232 249); }
+
+/* Sur une image sombre (bandeau, carte « en direct », manche), la couleur claire du mode, quel que soit le thème. */
+.tournament-mode--on-image { --tmode-text: color-mix(in oklch, var(--tmode) 45%, white); }
+
+/* Place à une manche (« forme ») : Top 1 en or, Top 10 en accent, au-delà en retrait. */
+.tournament-place {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  background-color: var(--theme-ui-surface-strong);
+  color: var(--theme-ui-text-muted);
+}
+
+.tournament-place--top10 {
+  background-color: var(--theme-ui-accent-soft);
+  color: var(--theme-ui-accent-text);
+}
+
+.tournament-place--win {
+  background-color: rgb(251 191 36);
+  color: rgb(28 16 3);
+}
+
+.tournament-place--absent {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--theme-ui-border);
+}
+
+/* Ligne du lecteur : « Ton clan », « Toi »… */
+.tournament-row--viewer {
+  background-color: var(--theme-ui-accent-soft);
+  box-shadow: inset 3px 0 0 var(--theme-ui-accent);
+}

@@ -248,27 +248,32 @@ export function clanMatchesStats(period: LeaderboardPeriod) {
 }
 
 export function clanWeapons(period: LeaderboardPeriod) {
+  // Codes et clés de src/lib/weapons/weapon-categories.ts, comme la route (docs/features/weapons.md §7).
   const weapons = [
-    ['WeapHK416_C', 'M416', 'AR', "Fusils d'assaut"],
-    ['WeapBerylM762_C', 'Beryl M762', 'AR', "Fusils d'assaut"],
-    ['WeapMini14_C', 'Mini 14', 'DMR', 'Fusils de précision'],
-    ['WeapKar98k_C', 'Kar98k', 'SR', 'Snipers'],
-    ['WeapUMP_C', 'UMP45', 'SMG', 'Pistolets-mitrailleurs'],
+    ['WeapHK416_C', 'M416', 'm416', 'AR', "Fusils d'assaut"],
+    ['WeapBerylM762_C', 'Beryl M762', 'beryl m762', 'AR', "Fusils d'assaut"],
+    ['WeapMini14_C', 'Mini 14', 'mini14', 'DMR', 'Fusils de précision'],
+    ['WeapKar98k_C', 'Kar98k', 'kar98k', 'SR', 'Snipers'],
+    ['WeapUMP_C', 'UMP45', 'ump9', 'SMG', 'Pistolets-mitrailleurs'],
+    ['WeapG18_C', 'P18C', 'p18c', 'PISTOL', 'Pistolets'],
+    ['ProjGrenade_C', 'Grenade', 'frag grenade', 'THROWABLE', 'Explosifs'],
   ] as const
   const rows = PLAYERS.flatMap((player, index) =>
-    weapons.map(([weaponName, weaponLabel, code, label], weaponIndex) => ({
+    weapons.map(([weaponName, weaponLabel, weaponKey, code, label], weaponIndex) => ({
       memberId: player.memberId,
       displayName: player.displayName,
       pubgPlayerName: player.displayName,
       weaponName,
       weaponLabel,
+      weaponKey,
       weaponCategoryCode: code,
       weaponCategoryLabel: label,
       kills: (20 - weaponIndex * 3 + (index % 5)) * PERIOD_FACTOR[period],
       headshots: 4,
-      shotsFired: 400,
-      hitsLanded: 120,
-      accuracy: 30,
+      // Une grenade ne compte pas de tirs : précision absente (« – »).
+      shotsFired: code === 'THROWABLE' ? 0 : 400,
+      hitsLanded: code === 'THROWABLE' ? 0 : 120,
+      accuracy: code === 'THROWABLE' ? 0 : 30,
       avgDistance: 45.5,
       maxDistance: 210,
       totalDamage: 2400,
@@ -282,7 +287,6 @@ export function clanWeapons(period: LeaderboardPeriod) {
     periodKey: period === 'all' ? 'all-time' : `${period}-2026-39`,
     count: rows.length,
     matchCount: 40,
-    categoryLabels: {},
     rows,
     note: null,
   }

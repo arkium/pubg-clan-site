@@ -4,6 +4,7 @@ import {
   MIXED_SQUAD_RULE_DESCRIPTIONS,
   TOURNAMENT_GUIDE_CARDS,
   TOURNAMENT_MODE_DESCRIPTIONS,
+  TOURNAMENT_QUICK_GUIDE,
 } from './tournament-guide'
 import { TOURNAMENT_MODES, normalizeTournamentRules } from './tournament-service'
 
@@ -62,5 +63,27 @@ describe('fiches du guide', () => {
     const scoring = TOURNAMENT_GUIDE_CARDS.find((card) => card.id === 'scoring')
     expect(scoring?.bullets?.some((bullet) => bullet.includes('filtre'))).toBe(true)
     expect(scoring?.bullets?.some((bullet) => bullet.includes('décimaux'))).toBe(true)
+  })
+})
+
+describe('pages joueurs', () => {
+  it('donne à chaque mode un libellé court et ce qu’il classe', () => {
+    for (const mode of TOURNAMENT_MODE_DESCRIPTIONS) {
+      expect(mode.shortLabel.trim().length).toBeGreaterThan(0)
+      expect(mode.ranks).toMatch(/^classe les /)
+    }
+  })
+
+  it('résume le guide en quatre lignes, d’accord avec les fiches complètes', () => {
+    expect(TOURNAMENT_QUICK_GUIDE).toHaveLength(4)
+    const text = TOURNAMENT_QUICK_GUIDE.join(' ').toLowerCase()
+    // Les quatre règles des fiches : parties personnalisées, clan organisateur, barème, mode.
+    for (const concept of ['parties personnalisées', 'clan organisateur', 'placement', 'kill', 'bonus de victoire', 'mode']) {
+      expect(text).toContain(concept)
+    }
+    // Chaque ligne équilibre son gras (`**…**`) : sinon le rendu mettrait tout le reste en gras.
+    for (const line of TOURNAMENT_QUICK_GUIDE) {
+      expect(line.split('**').length % 2).toBe(1)
+    }
   })
 })

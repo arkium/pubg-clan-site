@@ -162,7 +162,6 @@ const INTENT_BY_NAV_KEY: Record<string, ExploreIntent> = {
   'clan.tournaments': 'play',
   'clan.stats': 'improve',
   'clan.stats-weapons': 'improve',
-  'clan.stats-weapons-categories': 'improve',
   'clan.drop-zones': 'improve',
   'clan.positions': 'improve',
   'clan.items': 'improve',

@@ -55,7 +55,8 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
 
       // ── Clan section ─────────────────────────────────────────────────────────
       case "Vue d'ensemble": return <LayoutDashboard className={className} />
-      case 'Stats armes': return <Crosshair className={className} />
+      case 'Stats armes':
+      case "L'armurerie du clan": return <Crosshair className={className} />
       case 'Heatmap kills': return <Map className={className} />
       case 'Cartographie tactique': return <Map className={className} />
       case 'Drop zones': return <CircleDot className={className} />

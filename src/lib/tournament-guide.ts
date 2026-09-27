@@ -1,8 +1,8 @@
 /**
  * Contenu du guide « Comment fonctionne un tournoi ? ».
  *
- * Source unique : la même donnée alimente l'onglet Guide de l'administration et la section publique de
- * `/tournaments`. Les descriptions de modes servent aussi de libellés au formulaire de création, pour qu'une règle
+ * Source unique : la même donnée alimente l'onglet Guide de l'administration, le résumé de `/tournaments` et
+ * l'en-tête d'un tournoi. Les descriptions de modes servent aussi de libellés au formulaire de création, pour qu'une règle
  * expliquée au joueur soit exactement celle proposée à l'organisateur.
  *
  * Les tests vérifient que les quatre modes du moteur y sont tous décrits : ajouter un mode sans l'expliquer casse
@@ -12,32 +12,57 @@ import type { MixedSquadRule, TournamentMode } from '@/lib/tournament-service'
 
 export type TournamentModeDescription = {
   value: TournamentMode
+  /** Libellé du formulaire de création. */
   label: string
-  /** Une phrase, telle qu'affichée sous le choix dans le formulaire. */
+  /** Libellé court des pages joueurs : badges, cartes de mode, en-tête d'un tournoi. */
+  shortLabel: string
+  /** Ce que le mode classe, en quelques mots (« classe les clans »). */
+  ranks: string
+  /** Une ou deux phrases, affichées sous le choix du formulaire et dans l'en-tête d'un tournoi. */
   help: string
 }
 
 export const TOURNAMENT_MODE_DESCRIPTIONS: TournamentModeDescription[] = [
   {
     value: 'inter_clan',
-    label: 'Inter-Clans',
-    help: 'Une ligne de classement par clan. C’est le mode historique : chaque clan présent dans une manche marque selon le placement de son escouade.',
+    label: 'Inter-clans',
+    shortLabel: 'Inter-clans',
+    ranks: 'classe les clans',
+    help: 'Une ligne par clan. Chaque clan présent dans une manche marque selon le placement de son escouade.',
   },
   {
     value: 'custom_teams',
     label: 'Équipes libres',
+    shortLabel: 'Équipes libres',
+    ranks: 'classe les équipes',
     help: 'Une ligne par équipe fixe, même si ses joueurs viennent de clans différents. L’équipe est identifiée par sa composition.',
   },
   {
     value: 'solo_ffa',
     label: 'Solo (chacun pour soi)',
-    help: 'Classement individuel : chaque joueur marque selon son propre placement et ses propres kills.',
+    shortLabel: 'Solo',
+    ranks: 'classe les joueurs',
+    help: 'Chacun pour soi : chaque joueur marque selon son propre placement et ses propres kills.',
   },
   {
     value: 'intra_clan',
     label: 'Intra-clan',
+    shortLabel: 'Intra-clan',
+    ranks: 'classe les escouades du clan',
     help: 'Scrims internes : seuls les membres du clan organisateur concourent, escouade contre escouade.',
   },
+]
+
+/**
+ * « Comment ça marche ? » de la liste publique `/tournaments`, en quatre lignes (maquette « Tournois », 2026-09-27).
+ * Le guide complet (`TOURNAMENT_GUIDE_CARDS`) reste celui de l'administration ; ces lignes en sont le résumé et
+ * doivent rester d'accord avec lui (`tournament-guide.test.ts`).
+ */
+export const TOURNAMENT_QUICK_GUIDE: string[] = [
+  'Seules les **parties personnalisées** jouées pendant les dates du tournoi comptent.',
+  'Un membre du **clan organisateur** doit être dans la partie.',
+  'Chaque manche rapporte des points de **placement** (Top 1 à Top 10), des points par **kill** et un **bonus de victoire**.',
+  'Le **mode** décide de ce qui est classé : un clan, une équipe, un joueur ou une escouade du clan.',
 ]
 
 export type MixedSquadRuleDescription = {

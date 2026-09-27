@@ -2562,6 +2562,38 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte des tournois : le mode d'abord (`/tournaments`, `/tournaments/[id]`)~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Tournois » — [tournois.md](../features/tournois.md), « Pages joueurs » :
+- [x] Liste : cartes de mode (légende + filtre), direct en grand avec le classement en cours et la place de ton clan,
+      à venir avec compte à rebours, palmarès dont le vainqueur suit le mode, « Comment ça marche ? » en 4 lignes.
+- [x] `listTournamentOverviews` classe par `computeTournamentModeStandings` : fini le clan « vainqueur » d'un tournoi
+      solo et les « N clans engagés » en solo ou en intra-clan. Vitrine du clan alignée (`winner.clanIds`).
+- [x] Tournoi : en-tête sur la carte avec le mode en clair, bandeau collant (ancres + place du lecteur), podium et MVP
+      dans tous les modes, forme par manche, manches une par une, barème en barres ; « détail par escouade » gardé.
+- [x] Bandeau collant aussi sur mobile pour ces deux pages (exception à sticky.md §2, contrôlée par un test).
+- [x] Anciennes pages `/clans/[clanId]/tournaments…` : redirections HTTP (`next.config.ts`), archivées.
+- [ ] Trancher le docking mobile de `/clans` (écart relevé par le nouveau contrôle `ui-conformance`).
+- [ ] Route `GET /api/clans/[clanId]/tournaments/[tournamentId]/standings` sans appelant : à supprimer sur décision.
+
+#### ~~Refonte des armes du clan : « L'armurerie du clan » (`/clans/[clanId]/stats/weapons`)~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Armes » — [weapons.md](../features/weapons.md) §5 et §7 :
+- [x] Une seule page : « Les armes du clan » et « Catégories armes » fusionnées ; catégorie dans l'URL (`?cat=SR`) ;
+      `…/stats/weapons/categories` → redirection HTTP 307 (`next.config.ts`). Anciens fichiers dans `archive/` (ignoré).
+- [x] Une seule liste de catégories (`src/lib/weapons/weapon-categories.ts`, avec les identifiants télémétrie relevés en
+      base) pour l'armurerie, sa route et la page armes d'un joueur ; le P18C n'est plus dans « Autre ».
+- [x] Sélecteur à chevrons, loadout du clan, fiche + râtelier par catégorie, hauts faits, classement 10 colonnes avec
+      podium recalculé sur le filtre, pagination numérotée, `MobileRankList` sur mobile.
+- [x] `usePagePeriod` repart de l'URL réelle : un paramètre écrit par la page (`?cat=`) survit au changement de période.
+- [x] Ligne `NavItem` « Catégories armes » supprimée en base ; entrée renommée « L'armurerie du clan » (registre, base,
+      lien de la vue d'ensemble, icône de `NavIcon`).
+- [x] `/settings/weapon-categories` et `weapon-category-service.ts` supprimés (archivés), redirection vers
+      `/settings/weapon-labels`.
+- [x] Accroche, description et conseil pro pour Mêlée, Explosifs, Spécial et Autre.
+- [ ] Supprimer la ligne `NavItem` `admin.weapon-categories` (« Alias catégories armes ») depuis `/settings/nav-permissions`
+      (elle redirige vers les labels des armes en attendant).
+
 #### ~~Refonte de l'annuaire des clans (`/clans`)~~ — ✅ Complété le 2026-09-26
 
 Maquette Claude Design « Clans » — [clans.md](../features/clans.md) §6 bis :

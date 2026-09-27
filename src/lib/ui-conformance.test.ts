@@ -59,7 +59,6 @@ const TOOLBAR_PAGES = [
   'src/app/clans/[clanId]/matches/session/[date]/page.tsx',
   'src/app/clans/[clanId]/stats/page.tsx',
   'src/app/clans/[clanId]/stats/weapons/page.tsx',
-  'src/app/clans/[clanId]/stats/weapons/categories/page.tsx',
   'src/app/clans/[clanId]/stats/items/page.tsx',
   'src/app/clans/[clanId]/stats/positions/page.tsx',
   'src/app/clans/[clanId]/stats/zone-closures/page.tsx',
@@ -85,12 +84,11 @@ const TOOLBAR_PAGES = [
   'src/app/clans/comparator/page.tsx',
   'src/app/clans-leaderboard/page.tsx',
   'src/app/tournaments/page.tsx',
+  'src/app/tournaments/[tournamentId]/page.tsx',
 ]
 
 /** Composants partagés qui rendent le bandeau pour la page qui les importe. */
-const TOOLBAR_COMPONENTS: Record<string, string> = {
-  '@/components/WeaponCategoryToolbar': 'src/components/WeaponCategoryToolbar.tsx',
-}
+const TOOLBAR_COMPONENTS: Record<string, string> = {}
 
 /**
  * Pages dont les seuls contrôles appartiennent à une section (saison / ranked, filtre de phase d'un
@@ -99,8 +97,20 @@ const TOOLBAR_COMPONENTS: Record<string, string> = {
 const SECTION_LOCAL_CONTROL_PAGES = [
   'src/app/members/[id]/stats/page.tsx',
   'src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx',
-  'src/app/tournaments/[tournamentId]/page.tsx',
 ]
+
+/**
+ * Pages sans période dont le bandeau docke aussi sur mobile — exception à sticky.md §2 (« une page sans période ne
+ * docke rien sous 640 px »), décidée le 2026-09-27 pour les tournois : recherche et statut, ancres et place du lecteur
+ * restent à portée pendant la lecture.
+ */
+const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
+  'src/app/tournaments/page.tsx': 'recherche et statut de la liste',
+  'src/app/tournaments/[tournamentId]/page.tsx': 'ancres Classement / Manches / Barème et place du lecteur',
+  // Écart constaté le 2026-09-27 par ce contrôle, pas une décision : sticky.md §2 dit « rien de docké sur mobile »
+  // pour /clans, la refonte de l'annuaire (2026-09-26) docke recherche et tri. À trancher, puis retirer d'ici.
+  'src/app/clans/page.tsx': 'écart à trancher (recherche et tri de l’annuaire)',
+}
 
 /** Composants autorisés à écouter le défilement de la fenêtre — jamais pour se docker. */
 const ALLOWED_SCROLL_LISTENERS: Record<string, string> = {
@@ -127,6 +137,7 @@ describe('ui-conformance — listes déclarées', () => {
       ...SECTION_LOCAL_CONTROL_PAGES,
       ...Object.keys(ALLOWED_SCROLL_LISTENERS),
       ...Object.keys(ALLOWED_LOCAL_PERIOD_STATE),
+      ...Object.keys(MOBILE_DOCKING_WITHOUT_PERIOD),
     ]
     expect(declared.filter((file) => !existsSync(path.join(ROOT, file)))).toEqual([])
   })
@@ -140,6 +151,15 @@ describe('ui-conformance — 1. un bandeau par page à filtres', () => {
   it("une page à bandeau n'ouvre pas de second <main> (le shell le fournit)", () => {
     // Balise JSX en début de ligne : un commentaire qui cite <main> ne compte pas.
     expect(TOOLBAR_PAGES.filter((file) => /^\s*<main[\s>]/m.test(read(file)))).toEqual([])
+  })
+
+  it('une page sans période ne docke pas sur mobile, sauf exception nommée (sticky.md §2)', () => {
+    const offenders = TOOLBAR_PAGES.filter((file) => {
+      const source = read(file)
+      if (!source.includes('<DockingToolbar') || source.includes('<PeriodFilter')) return false
+      return !/dockOnMobile=\{false\}/.test(source) && !(file in MOBILE_DOCKING_WITHOUT_PERIOD)
+    })
+    expect(offenders).toEqual([])
   })
 
   it("les pages à contrôles de section n'ont pas de bandeau", () => {
@@ -292,6 +312,13 @@ describe('ui-conformance — refonte UI (docs/TODO/refonte-ui.md §7)', () => {
 
   it('bloc de page bordé = .app-panel, jamais rounded + border + bg-white à la main', () => {
     expect(offenders(/<(?:section|article)\b[^>]*className="[^"]*\brounded(?:-lg|-xl)? border border-gray-200 bg-white/, [])).toEqual([])
+  })
+
+  it('une seule liste de catégories d’armes : src/lib/weapons/weapon-categories.ts', () => {
+    // L'ancien service à 7 codes (« Autre » pour un P18C) et son écran d'administration ont été supprimés le
+    // 2026-09-27 (docs/features/weapons.md §5) : aucune source ne doit les faire revenir.
+    expect(existsSync(path.join(ROOT, 'src/lib/weapon-category-service.ts'))).toBe(false)
+    expect(offenders(/weapon-category-service|pubg_weapon_categories/, [], ALL_SOURCES)).toEqual([])
   })
 
   it('aucune coquille « Ǹ » (« RǸduire »)', () => {

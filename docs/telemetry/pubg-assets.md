@@ -10,10 +10,10 @@ Repo source des assets et dictionnaires : `https://github.com/pubg/api-assets`.
 
 | | Icône | Nom affiché | Catégorie (armes uniquement) |
 |---|---|---|---|
-| **Fonction** | `weaponIconUrl()` / `vehicleIconUrl()` / `itemIconUrl()` | `resolveWeaponName()` / `resolveVehicleName()` / `resolveItemName()` | `weaponCategoryCode()` |
-| **Fichier** | `src/lib/pubg-assets/asset-url.ts` | `src/lib/pubg-assets/index.ts` | `src/lib/weapon-category-service.ts` |
-| **Source** | Convention de nommage (regex) + fichiers PNG dans `public/icons/pubg/` | Dictionnaires JSON copiés depuis `pubg-assets` | Liste codée en dur (`DEFAULT_WEAPON_CATEGORIES`), surchargeable en DB |
-| **Automatique pour une nouvelle arme ?** | Oui, si le PNG existe côté repo officiel et a été synchronisé | Oui, si le dictionnaire est à jour | **Non** — nécessite un ajout manuel (code ou `/settings/weapon-categories`) |
+| **Fonction** | `weaponIconUrl()` / `vehicleIconUrl()` / `itemIconUrl()` | `resolveWeaponName()` / `resolveVehicleName()` / `resolveItemName()` | `getWeaponCategory()` / `findWeaponEntry()` |
+| **Fichier** | `src/lib/pubg-assets/asset-url.ts` | `src/lib/pubg-assets/index.ts` | `src/lib/weapons/weapon-categories.ts` |
+| **Source** | Convention de nommage (regex) + fichiers PNG dans `public/icons/pubg/` | Dictionnaires JSON copiés depuis `pubg-assets` | Catalogue codé en dur (`telemetryIds` de chaque arme), sans surcharge en base |
+| **Automatique pour une nouvelle arme ?** | Oui, si le PNG existe côté repo officiel et a été synchronisé | Oui, si le dictionnaire est à jour | **Non** — ajouter l'identifiant dans `weapon-categories.ts` (sinon rattrapage par le libellé) |
 | **Si absent** | `<img onError>` masque le composant (`return null`) | Fallback : l'ID brut est affiché tel quel | Fallback : `'Autre'` |
 
 Aucun de ces trois mécanismes ne fait planter la page si une donnée manque — c'est un dégradé gracieux partout, pas une erreur bloquante.
@@ -37,6 +37,8 @@ Deux préfixes télémétrie possibles pour le même dossier d'assets :
 
 Le support du préfixe `Proj` a été ajouté le 2026-08-16 — avant ça, les jetables (`ProjGrenade_C`, `ProjMolotov_C`...) n'affichaient jamais d'icône sur `/clans/[clanId]/stats/weapons`, silencieusement (dégradé gracieux = bug invisible pendant longtemps).
 
+**Silhouettes blanches (`_w.png`, depuis le 2026-09-27)** — les dossiers `Weapon/Main` et `Weapon/Handgun` du repo officiel livrent aussi `Item_Weapon_<Nom>_C_w.png` (et `_h.png`), synchronisés avec le reste. Format différent des icônes carrées : 100 px de haut, largeur = longueur de l'arme, d'où un affichage à hauteur fixe (l'armurerie du clan, `weaponWhiteIconUrl()`). 52 armes en ont une (fusils et pistolets) ; mêlée, jetables, armes spéciales, JS9 et RPD n'en ont pas. **Casse** : `FNFAL` et `GROZA` en majuscules côté blanc, contre `FNFal` et `Groza` pour l'icône carrée (`WHITE_WEAPON_ASSET_NAME_OVERRIDES`). Sous Windows la différence ne se voit pas, sous Linux (production) c'est un 404 — même piège corrigé pour `WeapFamasG2_C` (fichier `FAMASG2`) et `WeapPickAxe_C` (fichier `Pickaxe`). Tests : `src/lib/pubg-assets/asset-url.test.ts`.
+
 **Exceptions ponctuelles (`WEAPON_ASSET_NAME_OVERRIDES`)** — certains IDs ne suivent ni la règle `Weap*`/`Proj*`, ni un simple renommage cohérent côté asset repo, trouvés en creusant pourquoi `/clans/[clanId]/stats/weapons/categories` affichait des cercles vides sur Mosin Nagant, Win94, Mortar et Bluezone Grenade :
 
 | Telemetry ID | Fichier asset réel | Pourquoi le préfixe seul ne suffit pas |
@@ -48,7 +50,7 @@ Le support du préfixe `Proj` a été ajouté le 2026-08-16 — avant ça, les j
 
 Ces quatre cas sont traités par une table d'alias `WEAPON_ASSET_NAME_OVERRIDES` dans `asset-url.ts` (même pattern que `ITEM_ASSET_NAME_OVERRIDES` pour les items, voir plus bas), consultée avant d'appliquer la regex `Weap|Proj`.
 
-**Piège séparé : `/clans/[clanId]/stats/weapons/categories` a sa propre map locale.** Cette page ne dérive pas ses icônes des lignes de kills télémétrie (comme `/clans/[clanId]/stats/weapons`) mais d'un catalogue statique complet de toutes les armes/catégories (`weapon-categories.ts`), via une map dédiée `KEY_TO_TELEMETRY_ID` dans la page elle-même. Cette map peut être incomplète indépendamment de `weaponTelemetryToAssetName()` — c'est ce qui causait l'absence d'icône pour FAMAS G2 (clé simplement absente de la map) et pour les 5 explosifs + Mortar + Bluezone Grenade (absents aussi). Deux causes distinctes à vérifier si un cercle vide apparaît sur cette page précise :
+**Historique (résolu le 2026-09-27) — `/clans/[clanId]/stats/weapons/categories` avait sa propre map locale.** La page a été fondue dans l'armurerie du clan et sa map `KEY_TO_TELEMETRY_ID` est devenue le champ `telemetryIds` de `src/lib/weapons/weapon-categories.ts`, complété des identifiants réellement présents en base. Récit d'origine : Cette page ne dérive pas ses icônes des lignes de kills télémétrie (comme `/clans/[clanId]/stats/weapons`) mais d'un catalogue statique complet de toutes les armes/catégories (`weapon-categories.ts`), via une map dédiée `KEY_TO_TELEMETRY_ID` dans la page elle-même. Cette map peut être incomplète indépendamment de `weaponTelemetryToAssetName()` — c'est ce qui causait l'absence d'icône pour FAMAS G2 (clé simplement absente de la map) et pour les 5 explosifs + Mortar + Bluezone Grenade (absents aussi). Deux causes distinctes à vérifier si un cercle vide apparaît sur cette page précise :
 1. La clé existe-t-elle dans `KEY_TO_TELEMETRY_ID` (`categories/page.tsx`) ?
 2. Si oui, l'ID qu'elle contient résout-il vers un fichier existant (voir tableau ci-dessus) ?
 
@@ -79,7 +81,7 @@ Le dossier sert aussi à **remplacer** une icône GitHub existante par la versio
 
 **Pickaxe — ID télémétrie non confirmé.** Contrairement aux autres entrées de cette liste, aucune trace de la pioche n'existe dans `damageCauserName.json` ni `itemId.json` — elle n'a jamais été vue comme causer de kill ou d'item utilisé dans les données capturées. L'ID `WeapPickAxe_C` utilisé dans `weapon-categories.ts`/`categories/page.tsx` suit la convention de nommage habituelle mais **n'est pas vérifié** contre une vraie ligne de télémétrie. À corriger si un jour un kill réel à la pioche apparaît avec un ID différent.
 
-**Dragunov reclassé DMR (était SR).** Le site officiel PUBG (`pubg.com/fr/game-info/weapons/dmr`) le classe DMR aux côtés de Mini14/SLR/SKS/Mk12/VSS/QBU88/Mk14 — la classification a été alignée en conséquence dans `weapon-category-service.ts` et `weapon-categories.ts`.
+**Dragunov reclassé DMR (était SR).** Le site officiel PUBG (`pubg.com/fr/game-info/weapons/dmr`) le classe DMR aux côtés de Mini14/SLR/SKS/Mk12/VSS/QBU88/Mk14 — la classification a été alignée en conséquence dans `weapon-categories.ts` (liste unique depuis le 2026-09-27).
 
 **Sources GitHub synchronisées** (`scripts/sync-pubg-assets.ts`) :
 
@@ -150,17 +152,9 @@ Ces dictionnaires sont des copies statiques versionnées dans `src/lib/pubg-asse
 
 ## 3. Catégories d'armes — liste manuelle, PAS liée à `pubg-assets`
 
-`weapon-category-service.ts` classe chaque arme (`WeapXXX_C`) dans une catégorie de filtre UI (`AR`, `DMR`, `SR`, `SMG`, `LMG`, `SG`, `Autre`) via `DEFAULT_WEAPON_CATEGORIES`, une map codée en dur **entretenue à la main**, sans lien avec les dictionnaires/enums `pubg-assets`.
+**Liste unique depuis le 2026-09-27 : `src/lib/weapons/weapon-categories.ts`** (catalogue `key` / `aliases` / `telemetryIds`, 10 catégories + `OTHER`, voir [weapons.md §5](../features/weapons.md)). Une arme dont l'identifiant n'y figure pas retombe sur son libellé, puis sur « Autre ». L'ancien `weapon-category-service.ts` (7 codes, surchargeable par `/settings/weapon-categories`) a été supprimé le même jour.
 
-```typescript
-export function weaponCategoryCode(weaponName: string, categories: Record<string, CategoryCode>): CategoryCode {
-  return categories[weaponName] ?? 'Autre'
-}
-```
-
-Une arme absente de la liste retombe sur `'Autre'` — pas de crash, juste mal classée dans les filtres. Surchargeable sans déploiement de code via l'admin `/settings/weapon-categories` (persisté en DB, `getWeaponCategories()` fusionne DB + défauts codés en dur).
-
-**Les objets lancés (`Proj*`) et les items Use (`Item_Heal_*`, `Item_Boost_*`...) ne sont pas couverts par ce mécanisme** — ils n'apparaissent dans aucun filtre de catégorie d'armes, seulement dans leurs propres listes (grenades sur la page armes, items Use pas encore affichés — voir `docs/TODO/todo.md`, section "Événements télémétrie non parsés").
+**Les objets lancés (`Proj*`) sont couverts** (catégorie `THROWABLE`, feu du Molotov compris) ; **les items Use (`Item_Heal_*`, `Item_Boost_*`...) ne le sont pas** — ils n'apparaissent dans aucune catégorie d'armes (voir `docs/TODO/todo.md`, section "Événements télémétrie non parsés").
 
 ---
 
@@ -171,7 +165,7 @@ Quand PUBG sort une nouvelle arme ou un nouvel objet en saison :
 1. **Icône** — vérifier si `pubg/api-assets` a déjà ajouté le PNG (généralement avec un peu de retard sur la sortie officielle). Si oui : `npm run sync:pubg-assets` suffit, aucun code à toucher tant que la convention de nommage est respectée (`Item_Weapon_<Nom>_C.png`, `Item_<Nom>_C.png`...).
 2. **Si la convention de nommage est différente** (comme découvert pour `Proj*`, la casse de `Mountainbike`, ou les renommages Mosin/Win94/Mortar/Bluezone) : étendre `weaponTelemetryToAssetName()` (regex) ou ajouter une entrée à `WEAPON_ASSET_NAME_OVERRIDES`/`ITEM_ASSET_NAME_OVERRIDES` (`asset-url.ts`) — préférer un alias ponctuel à une règle générale tant qu'un seul cas est connu.
 3. **Nom affiché** — vérifier que l'ID apparaît dans `damageCauserName.json` ou `itemId.json` ; sinon retélécharger la version à jour du dictionnaire officiel correspondant.
-4. **Catégorie** (armes à feu uniquement) — ajouter l'entrée dans `DEFAULT_WEAPON_CATEGORIES` (`weapon-category-service.ts`) ou via `/settings/weapon-categories`, sinon l'arme tombe dans "Autre".
+4. **Catégorie** — ajouter l'identifiant télémétrie dans `telemetryIds` de l'arme (ou une nouvelle entrée) dans `src/lib/weapons/weapon-categories.ts`, sinon l'arme tombe dans « Autre » dans l'armurerie du clan (il n'y a plus d'écran d'administration des catégories).
 5. **Si l'asset n'existe pas encore côté `pubg/api-assets`** — rien à faire côté projet : le dégradé gracieux (`onError` → `null`) couvre le trou jusqu'à ce que le repo officiel le comble. Ne pas héberger de PNG en dehors du sync (le dossier est volontairement non versionné).
 
 ---

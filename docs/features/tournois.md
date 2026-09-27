@@ -40,8 +40,9 @@ Dans les deux cas, **les kills ne sont jamais partagés** : ils appartiennent au
 - `computeTournamentModeStandings` — vue générique : une ligne par participant (`clan`, `team` ou `player`) selon le
   mode. Le moteur ne manipule que des identifiants ; les noms sont résolus à la lecture.
 
-> **État au 2026-09-18** : le moteur gère les quatre modes, et la page de détail les affiche (VOLET 3).
-> `computeTournamentStandings` reste exposée pour les écrans clan qui n'ont pas besoin du détail par participant.
+> **État au 2026-09-27** : le moteur gère les quatre modes ; la liste publique et la page de détail classent toutes
+> deux par `computeTournamentModeStandings`. `computeTournamentStandings` reste exposée pour les écrans clan qui n'ont
+> pas besoin du détail par participant.
 
 ## Filtres de format et de carte — piège corrigé
 
@@ -75,15 +76,55 @@ manche, sans aucun message.**
 dit explicitement ce qui est conservé : **les matchs PUBG, la télémétrie et les statistiques restent en base**, seule
 la configuration du tournoi disparaît.
 
-## Page publique
+## Pages joueurs (refonte du 2026-09-27, maquette « Tournois »)
 
-`/tournaments` (refondue le 2026-09-17) : hero, recherche, filtres, tournois en direct en cartes et archives en
-tableau triable avec vainqueur. Voir `src/lib/tournament-overview.ts`.
+Le **mode** d'abord : chaque mode a son identité — couleur, icône, ce qu'il classe — reprise partout (liste, badges,
+en-tête d'un tournoi, barres de points). Couleurs : jetons `.tournament-mode--<mode>` (`--tmode`, `--tmode-text`,
+`--tmode-soft`, `--tmode-ring`) dans `globals.css` ; icônes : `TOURNAMENT_MODE_ICONS`
+(`src/components/tournaments/TournamentModeBadge.tsx`). Les états actifs (segmented, ancres, puces de manche) restent en
+accent (refonte UI §6 bis).
 
-## Page de détail d'un tournoi
+| Mode | Couleur | Icône | Classe | Le lecteur |
+|---|---|---|---|---|
+| `inter_clan` | ambre | épées | les clans | « Ton clan » |
+| `custom_teams` | violet | groupe | les équipes | « Ton équipe » |
+| `solo_ffa` | rouge | viseur | les joueurs | « Toi » |
+| `intra_clan` | cyan | maison | les escouades du clan | « Ton escouade » |
 
-`/tournaments/[tournamentId]` (refondue le 2026-09-18). `GET /api/tournaments/[tournamentId]/standings` renvoie tout
-ce que la page affiche, noms déjà résolus (`src/lib/tournament-standings-view.ts`) :
+Libellés et textes des modes : **une seule source**, `TOURNAMENT_MODE_DESCRIPTIONS` (`src/lib/tournament-guide.ts` :
+`label` du formulaire, `shortLabel` des pages joueurs, `ranks`, `help`). Unités, colonne et lecteur :
+`src/lib/tournament-mode-display.ts` (pur, testé).
+
+### Liste `/tournaments`
+
+- **Bandeau d'image** : « Tournois », compteurs en direct / à venir / terminés ; « Gérer les tournois de mon clan »
+  seulement pour qui a `manage_settings` (ou SuperUser).
+- **Bandeau collant** : recherche (« Tournoi ou clan » : titre, description, organisateur, vainqueur) et statut
+  (Tous / En direct / À venir / Terminés, sans émoji). Il docke **aussi sur mobile** : exception à sticky.md §2.
+- **Cartes de mode** : légende et filtre à la fois, avec le nombre de tournois (compté sur la recherche et le statut) ;
+  un second clic retire le filtre. Les anciens filtres Format, Carte et le tri ont disparu (décision du 2026-09-27).
+- **En direct**, en grand sur la carte jouée : mode, format, organisateur, fin, manches, participants **selon le mode**,
+  dernière manche (« il y a 22 min »), top 3 en cours et, connecté, « Ton clan est 2e, à 6 pts de [LMT] La Meute ».
+- **À venir** : image de la carte jouée, compte à rebours ; un brouillon y figure avec l'étiquette « Brouillon ».
+- **Palmarès** : le vainqueur **suit le mode** — clan, équipe (composition), joueur ou escouade — avec une sous-ligne
+  adaptée (« 7 clans en lice », « équipe mixte de 3 clans », « 30 kills », « escouade de Clan Démo »).
+- **« Comment ça marche ? »** : quatre lignes repliées, `TOURNAMENT_QUICK_GUIDE`. Le guide complet (7 fiches) ne vit
+  plus que dans l'onglet Guide de l'administration (décision du 2026-09-27).
+
+`GET /api/tournaments` (`src/lib/tournament-overview.ts`) classe par `computeTournamentModeStandings`, comme la page de
+détail ; l'ancienne version classait **toujours par clan**, d'où un clan « vainqueur » d'un tournoi solo. Chaque résumé
+porte : `mode`, `participantCount` (selon le mode), `clanCount`, `lastRoundAt`, `leaders` (3 premiers), `standings`
+(complet, **seulement en direct**, pour situer le lecteur) et `winner` (nom résolu, `clanIds` représentés). Les noms
+sont résolus en deux requêtes pour toute la liste (`src/lib/tournament-directories.ts`).
+
+La vitrine d'un clan (« tournoi gagné ») lit `winner.clanIds` : un clan gagne un tournoi inter-clans, un tournoi solo
+remporté par un de ses joueurs ou un tournoi en équipes libres dont il fait partie de l'équipe gagnante ; des scrims
+internes ne comptent pas.
+
+### Page d'un tournoi `/tournaments/[tournamentId]`
+
+`GET /api/tournaments/[tournamentId]/standings` renvoie tout ce que la page affiche, noms déjà résolus
+(`src/lib/tournament-standings-view.ts`) :
 
 | Champ | Contenu |
 |---|---|
@@ -95,9 +136,31 @@ ce que la page affiche, noms déjà résolus (`src/lib/tournament-standings-view
 | `mvp` | Meilleur joueur du tournoi : le plus de kills, départagé par les dégâts |
 | `standings` | Vue historique par clan, conservée pour les écrans clan |
 
-La page montre : hero avec badge d'état pulsant, badges (mode, format, carte, clans détectés, manches), barème
-rétractable, podium des trois premiers, classement adapté au mode, puis les manches avec un lien direct vers le
-débriefing 2D.
+La page montre :
+
+1. **En-tête sur la carte** (celle du tournoi, sinon celle de la dernière manche) : état, mode, format, organisateur,
+   dates, fin ou début, et **le mode en clair** (« Inter-clans : une ligne par clan… ») ; manches, participants, heure de
+   la dernière manche. Actions d'organisateur (synchroniser, diffuser, paramètres) pour qui peut les exécuter.
+2. **Bandeau collant** : ancres Classement / Manches / Barème (`SectionAnchorNav`) et, connecté, la place du lecteur
+   (« Ton clan : 2e · à 6 pts du 1er »). Docke aussi sur mobile (exception à sticky.md §2). Sans manche, l'ancre
+   « Manches » disparaît avec sa section.
+3. **Podium** (`PodiumCards`, ordinateur) et **MVP dans tous les modes** (il n'apparaissait qu'en solo).
+4. **Classement** : ta ligne surlignée et marquée, barre de points à la couleur du mode, kills, Top 1 et **forme** (place
+   à chaque manche, #1 en or, « – » absent). Composition en pastilles pour les équipes libres. En inter-clans,
+   « Cumul par clan / Détail par escouade » reste proposé (décision du 2026-09-27).
+5. **Trophée des clans** en solo.
+6. **Manches une par une** : puces M1…Mn et chevrons, la dernière d'abord ; carte, chicken dinner, MVP, lien vers le
+   débrief 2D, scores (ta ligne surlignée).
+7. **Barème** en barres Top 1 → Top 10, puis par kill, bonus Top 1, manches retenues et, en inter-clans, la règle
+   d'escouade mixte (`placementScale`, `tournamentRuleLines`).
+
+Sans manche comptabilisée, le message du joueur ne parle pas de synchronisation : seul l'organisateur reçoit
+« Lancez une synchronisation PUBG… ».
+
+**Écarts assumés avec la maquette** (règles de la refonte) : podium par `PodiumCards` (cartes alignées, pas l'ordre
+2-1-3) et MVP sur sa propre ligne ; rangs par `RankCell` ; puces de manche et ancres en accent, pas en or ; hauteur du
+bandeau d'image de la liste inchangée ; « Tous formats » (et non « Tous les modes ») quand le format est libre, le mot
+« mode » désignant ici le mode du tournoi.
 
 ### Arbitrages à connaître
 
@@ -107,12 +170,23 @@ débriefing 2D.
   elle qui l'identifie d'une manche à l'autre.
 - **Points décimaux** : le partage au prorata produit des totaux comme `18,5 pts`. La colonne affiche la décimale
   seulement quand elle existe, et une infobulle rappelle la règle.
+- **Le lecteur** vient de la session (`useAuthSession().members`) : son clan en inter-clans, lui-même en solo, une
+  équipe ou escouade qui le compte sinon. En visiteur, rien n'est surligné.
 - **Les actions d'organisateur** (synchroniser, diffuser, paramètres) n'apparaissent que pour un SuperUser, ou pour
   un membre ayant `manage_settings` sur le clan organisateur **et** l'ayant pour clan sélectionné.
-- **Pas d'avatars** dans le podium ni dans le classement solo : l'avatar vit sur `UserAccount` via `MemberIdentity`,
-  hors du périmètre du classement. Médailles et pastilles de clan en tiennent lieu.
+- **Pas d'avatars** : l'avatar vit sur `UserAccount` via `MemberIdentity`, hors du périmètre du classement.
+  `PodiumCards` affiche l'initiale du nom, tag de clan ignoré.
 - **Le mode intra-clan exige le clan organisateur** : sans lui, le moteur ne renvoie aucune entrée plutôt qu'un
   classement faux. La route le fournit toujours.
+- **`resolveTournamentPhase`** vit dans le module pur `tournament-mode-display.ts` (la page de détail, côté navigateur,
+  en avait une copie) ; `tournament-overview.ts` le réexporte.
+
+### Anciennes adresses
+
+`/clans/[clanId]/tournaments` et `/clans/[clanId]/tournaments/[tournamentId]` affichaient un écran, chargeaient les
+données puis redirigeaient côté navigateur. Supprimées le 2026-09-27 : **redirection HTTP 307** vers `/tournaments` et
+`/tournaments/[tournamentId]` (`next.config.ts`). La route `GET /api/clans/[clanId]/tournaments/[tournamentId]/standings`
+n'a plus d'appelant (conservée). Anciennes pages : `archive/refonte-ui/tournois/` (ignoré par git).
 
 ## Diffusion Discord
 
@@ -145,9 +219,10 @@ Sept fiches, définies une seule fois dans `src/lib/tournament-guide.ts` et rend
 6. le calcul des scores, avec les deux pièges qui font croire à un bug (filtre trop strict, points décimaux) ;
 7. la diffusion Discord.
 
-Le même composant sert à l'onglet Guide de l'administration et à la section repliable de `/tournaments` : une règle
-expliquée au joueur ne peut pas diverger de celle montrée à l'organisateur. Les descriptions de modes servent aussi
-de libellés au formulaire de création, et un test échoue si un mode du moteur n'y est pas décrit.
+Il sert à l'onglet Guide de l'administration. La liste `/tournaments` en montre le résumé en quatre lignes
+(`TOURNAMENT_QUICK_GUIDE`, même fichier) ; un test vérifie que ce résumé reprend les règles des fiches. Les descriptions
+de modes servent aussi de libellés au formulaire de création et aux pages joueurs, et un test échoue si un mode du
+moteur n'y est pas décrit.
 
 ## Tests
 
@@ -157,11 +232,15 @@ de libellés au formulaire de création, et un test échoue si un mode du moteur
 | `tournament-modes.test.ts` | Normalisation du mode, partage intégral vs prorata, découpe par mode, classements |
 | `tournament-filters.test.ts` | Traduction des cartes et modes hérités, listes proposées |
 | `tournament-route-contracts.test.ts` | Passage du mode à la création et à la modification, suppression et son refus hors clan |
-| `tournament-list-filters.test.ts` | Recherche, filtres et tri de la page publique |
+| `tournament-list-filters.test.ts` | Recherche (vainqueur compris), statut (brouillons avec « à venir »), filtre de mode, compteurs, répartition direct / à venir / palmarès |
+| `tournament-overview.test.ts` | Liste publique : vainqueur et participants selon le mode (joueur en solo, escouade en intra-clan), dernière manche, classement détaillé seulement en direct, noms en deux requêtes |
+| `tournament-mode-display.test.ts` | Unités par mode, repérage du lecteur (clan, joueur, équipe), phrase « Ton clan est 2e… », forme par manche, comptes à rebours, barème et règles |
+| `next-redirects.test.ts` | Chaque redirection de `next.config.ts` mène à une page existante et ne masque aucune page ; anciennes adresses de tournoi par clan |
+| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections |
 | `tournament-standings-view.test.ts` | Libellés des participants, rangs, MVP, manches numérotées, trophée des clans, détail par escouade |
 | `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord |
 | `discord/discord-tournament-service.test.ts` | Diffusion dans les 4 modes, MVP restreint en scrims internes, webhooks, journalisation |
-| `tournament-guide.test.ts` | Couverture des modes par le guide, cohérence avec le moteur, fiches non vides, pièges rappelés |
+| `tournament-guide.test.ts` | Couverture des modes par le guide, cohérence avec le moteur, fiches non vides, pièges rappelés, résumé en quatre lignes |
 
 ## Contrôle sur données réelles
 
@@ -170,6 +249,13 @@ npx tsx scripts/inspect-tournament-standings.ts <tournamentId> [inter_clan|custo
 ```
 
 Rejoue le même tournoi dans le mode demandé, sans rien écrire : classement, MVP, trophée des clans et manches.
+
+```bash
+npx tsx scripts/inspect-tournament-overviews.ts
+```
+
+Ce que `GET /api/tournaments` renverra, en lecture seule : état, mode, manches, participants et vainqueur selon le mode,
+temps de calcul.
 
 ## Voir aussi
 

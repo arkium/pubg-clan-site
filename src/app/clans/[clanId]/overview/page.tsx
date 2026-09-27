@@ -195,7 +195,7 @@ export default function ClanOverviewPage() {
           detail: 'par partie',
           icon: Flame,
           color: 'var(--game-warn)',
-          link: { href: `/clans/${clanId}/stats/weapons`, label: 'Stats armes' },
+          link: { href: `/clans/${clanId}/stats/weapons`, label: "L'armurerie du clan" },
         },
         {
           label: 'Parties',

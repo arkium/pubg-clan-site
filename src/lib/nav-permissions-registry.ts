@@ -113,14 +113,6 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Défis et challenges du clan.',
   },
   {
-    navKey: 'clan.stats-weapons-categories',
-    section: 'clan-section',
-    label: 'Catégories armes',
-    hrefTemplate: '/clans/:clanId/stats/weapons/categories',
-    defaultRole: 'none',
-    description: 'Stats télémétrie par catégorie d\'arme.',
-  },
-  {
     navKey: 'clan.overview',
     section: 'clan-section',
     label: "Vue d'ensemble",
@@ -163,10 +155,11 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'clan.stats-weapons',
     section: 'clan-section',
-    label: 'Stats armes',
+    label: "L'armurerie du clan",
     hrefTemplate: '/clans/:clanId/stats/weapons',
     defaultRole: 'none',
-    description: 'Télémétrie armes — API /telemetry/weapons (Owner uniquement).',
+    // Catégories comprises (`?cat=`) : l'ancienne entrée « Catégories armes » redirige ici.
+    description: "L'armurerie du clan : loadout, catégories, hauts faits et classement — API /telemetry/weapons.",
   },
   {
     navKey: 'clan.heatmap-kills',
@@ -355,14 +348,6 @@ export const NAV_REGISTRY: NavItemDef[] = [
     hrefTemplate: '/settings/weapon-labels',
     defaultRole: 'admin',
     description: 'Alias des noms des armes.',
-  },
-  {
-    navKey: 'admin.weapon-categories',
-    section: 'admin-menu',
-    label: 'Alias catégories armes',
-    hrefTemplate: '/settings/weapon-categories',
-    defaultRole: 'admin',
-    description: 'Alias des catégories armes.',
   },
   {
     navKey: 'admin.phase-labels',

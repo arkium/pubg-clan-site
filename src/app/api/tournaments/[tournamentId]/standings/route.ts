@@ -14,9 +14,8 @@ import {
   buildSquadBreakdown,
   buildStandingViews,
   pickMvp,
-  type ClanDirectory,
-  type MemberDirectory,
 } from '@/lib/tournament-standings-view'
+import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
 
 // Lecture réservée aux utilisateurs connectés (2026-09-16), ou ouverte à tous en mode visiteur
 // (DISABLE_AUTH_PERMISSIONS) : le proxy ne protège que les pages, pas `/api`.
@@ -44,25 +43,9 @@ export async function GET(
     const participantClanIds = getTrackedTournamentClanIds(matches)
 
     // Annuaires de noms : le moteur ne manipule que des identifiants.
-    const memberIds = [...new Set(matches.flatMap((match) => match.members.map((row) => row.memberId)))]
-    const [clanRows, memberRows] = await Promise.all([
-      prisma.clan.findMany({
-        where: { id: { in: [...new Set([...participantClanIds, tournament.organizerClanId])] } },
-        select: { id: true, name: true, tag: true },
-      }),
-      memberIds.length > 0
-        ? prisma.clanMember.findMany({
-            where: { id: { in: memberIds } },
-            select: { id: true, displayName: true, clanId: true },
-          })
-        : Promise.resolve([]),
-    ])
-
-    const clans: ClanDirectory = Object.fromEntries(
-      clanRows.map((clan) => [clan.id, { name: clan.name, tag: clan.tag }])
-    )
-    const members: MemberDirectory = Object.fromEntries(
-      memberRows.map((member) => [member.id, { displayName: member.displayName, clanId: member.clanId }])
+    const { clans, members } = await loadTournamentDirectories(
+      [...participantClanIds, tournament.organizerClanId],
+      collectTournamentMemberIds(matches)
     )
 
     const modeStandings = buildStandingViews(

@@ -34,6 +34,9 @@ const WEAPON_ASSET_NAME_OVERRIDES: Record<string, string> = {
   ProjMolotov_DamageField_Direct_C: 'Item_Weapon_Molotov_C',
   // Distinct telemetry ID from WeapPanzerFaust100M1_C for the actual projectile-in-flight.
   PanzerFaust100M_Projectile_C: 'Item_Weapon_PanzerFaust100M_C',
+  // Case differs from the asset file: invisible on Windows, a 404 on the Linux production server.
+  WeapFamasG2_C: 'Item_Weapon_FAMASG2_C',
+  WeapPickAxe_C: 'Item_Weapon_Pickaxe_C',
 }
 
 /**
@@ -71,6 +74,22 @@ export function vehicleTelemetryToAssetName(telemetryId: string): string {
 
 export function weaponIconUrl(telemetryId: string): string {
   return `/icons/pubg/weapons/${weaponTelemetryToAssetName(telemetryId)}.png`
+}
+
+/**
+ * White silhouettes (`Item_Weapon_<Name>_C_w.png`), synced from the same official folders as the regular icons: long
+ * guns and handguns only — melee, throwables and vehicles have none, callers fall back to `weaponIconUrl`. Unlike the
+ * 240×240 regular icons (weapon drawn diagonally), they are 100 px tall and as wide as the weapon is long: rendered at a
+ * fixed height, a pistol stays shorter than a rifle. Two files use a different case than their regular icon.
+ */
+const WHITE_WEAPON_ASSET_NAME_OVERRIDES: Record<string, string> = {
+  Item_Weapon_FNFal_C: 'Item_Weapon_FNFAL_C',
+  Item_Weapon_Groza_C: 'Item_Weapon_GROZA_C',
+}
+
+export function weaponWhiteIconUrl(telemetryId: string): string {
+  const assetName = weaponTelemetryToAssetName(telemetryId)
+  return `/icons/pubg/weapons/${WHITE_WEAPON_ASSET_NAME_OVERRIDES[assetName] ?? assetName}_w.png`
 }
 
 export function vehicleIconUrl(telemetryId: string): string {

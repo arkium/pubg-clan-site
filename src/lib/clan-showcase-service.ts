@@ -143,7 +143,14 @@ async function loadClanShowcase(clanId: number, now: Date): Promise<ClanShowcase
   const facts = pubgClanFacts(clan.clanStats)
   const tracked = (clan.clanStats as { tracked?: { aggregated?: { totalKills?: number } } } | null)?.tracked
   const leagueEntry = league.find((entry) => entry.clanId === clanId)
-  const wonTournament = tournaments.find((tournament) => tournament.phase === 'finished' && tournament.winner?.clanId === clanId)
+  // Le vainqueur suit le mode : le clan, son joueur (solo) ou une équipe qui le compte. Des scrims internes ne sont
+  // pas un titre du clan face aux autres.
+  const wonTournament = tournaments.find(
+    (tournament) =>
+      tournament.phase === 'finished' &&
+      tournament.mode !== 'intra_clan' &&
+      Boolean(tournament.winner?.clanIds.includes(clanId))
+  )
 
   return {
     generatedAt: now.toISOString(),

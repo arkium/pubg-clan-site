@@ -310,8 +310,6 @@ Toutes ces routes pilotent des pages `/settings/*` réservées Owner/Admin/Super
 | DELETE | `/api/settings/pubg-api-calls` | Permission `*` | ✅ Pertinent | Purge l'historique des appels API PUBG loggés — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/pubg-api-rate-limit` | Permission `*` | ⚠️ Admin web uniquement | Lit le RPM configuré + bornes — non documenté ailleurs, détail ci-dessous |
 | POST | `/api/settings/pubg-api-rate-limit` | Permission `*` | ⚠️ Admin web uniquement | Modifie le RPM (override DB) — détail ci-dessous |
-| GET | `/api/settings/weapon-categories` | `manage_settings` ou `*` | ✅ Pertinent | Catégories d'armes + labels — voir [Paramètres admin](../ops/settings.md) |
-| PUT | `/api/settings/weapon-categories` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour catégories/labels d'armes — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/weapon-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels lisibles des armes — voir [Paramètres admin](../ops/settings.md) |
 | PUT | `/api/settings/weapon-labels` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les labels d'armes — voir [Paramètres admin](../ops/settings.md) |
 

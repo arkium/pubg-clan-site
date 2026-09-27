@@ -80,7 +80,9 @@ export function usePagePeriod<P extends Period>(
   // Pas de useCallback : le compilateur React mémoïse déjà (react-hooks/preserve-manual-memoization).
   function setPeriod(next: P) {
     setPending({ value: next, fromUrl: urlValue })
-    const params = new URLSearchParams(searchParams.toString())
+    // L'URL réelle, pas l'instantané de useSearchParams : un paramètre que la page a réécrit elle-même
+    // (`?cat=` de l'armurerie) doit survivre au changement de période.
+    const params = new URLSearchParams(window.location.search)
     params.set(PERIOD_QUERY_PARAM, next)
     const url = `${pathname}?${params.toString()}${window.location.hash}`
     if (options.serverRendered) {

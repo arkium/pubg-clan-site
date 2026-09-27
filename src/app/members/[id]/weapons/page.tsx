@@ -331,7 +331,7 @@ export default function MemberWeaponsPage() {
     const filteredRows =
       selectedCategory === 'ALL'
         ? rows
-        : rows.filter((row) => getWeaponCategory(row.weaponLabel ?? row.weaponName) === selectedCategory)
+        : rows.filter((row) => getWeaponCategory(row.weaponName, row.weaponLabel) === selectedCategory)
     const topByKills = [...filteredRows]
       .sort((left, right) => {
         if (right.kills !== left.kills) {
@@ -355,7 +355,7 @@ export default function MemberWeaponsPage() {
       return rows
     }
 
-    return rows.filter((row) => getWeaponCategory(row.weaponLabel ?? row.weaponName) === selectedCategory)
+    return rows.filter((row) => getWeaponCategory(row.weaponName, row.weaponLabel) === selectedCategory)
   }, [payload?.rows, selectedCategory])
 
   const sortedRows = useMemo(() => {

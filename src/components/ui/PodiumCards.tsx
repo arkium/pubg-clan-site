@@ -16,8 +16,9 @@ export type PodiumEntry = {
   distinctions?: DistinctionBadgeKey[]
 }
 
+/** Initiale du nom, sans le tag de clan (« [LMT] La Meute » → « L »). */
 function initials(name: string) {
-  return name.trim().charAt(0).toUpperCase() || '?'
+  return name.replace(/^\s*\[[^\]]*\]\s*/, '').trim().charAt(0).toUpperCase() || '?'
 }
 
 /**

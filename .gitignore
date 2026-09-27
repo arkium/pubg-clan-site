@@ -48,6 +48,10 @@ next-env.d.ts
 /src/lib/pubg-telemetry/__fixtures__/captured/
 /.telemetry-captured/
 
+# fichiers téléversés (images de clan) : données de production, jamais versionnées.
+# Ignorés, ils survivent à un `git clean -fd` ou à un `git stash -u` (docs/ops/deployment.md §Fichiers téléversés).
+/public/uploads/
+
 # pubg assets visuels (générés par npm run sync:pubg-assets)
 /public/icons/pubg/
 server.txt
@@ -58,3 +62,5 @@ server.txt
 /blob-report/
 
 /docs/ui/refonte/
+# pages remplacées par la refonte UI, gardées pour mémoire (archive/README.md) : jamais compilées ni versionnées
+/archive/

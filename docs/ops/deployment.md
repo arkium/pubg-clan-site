@@ -106,6 +106,21 @@ Le postbuild (`scripts/copy-standalone-assets.mjs`) copie automatiquement les as
 
 Résultat : `.next/standalone/` contient tout le nécessaire pour démarrer l'application sans `node_modules`.
 
+### Fichiers téléversés
+
+Les images de clan téléversées (« Accueil login ») sont écrites dans `public/uploads/clans/` à la racine du projet
+(dossier persistant), puis recopiées dans `.next/standalone/public/uploads/` ; la route `/uploads/clans/[fileName]`
+les sert depuis l'un ou l'autre. Ce sont des **données de production** : la base garde leur lien, pas leur contenu.
+
+- Le dossier est ignoré par git (`.gitignore`) : `git pull`, `git checkout`, `git clean -fd` et `git stash -u` n'y
+  touchent pas. **`git clean -fdx` le supprime** (le `-x` efface aussi les fichiers ignorés) : ne jamais l'utiliser
+  sur le serveur, ou sauvegarder `public/uploads/` avant.
+- Le sauvegarder avec la base : sans lui, les liens restent en base mais répondent 404.
+- Une image perdue ne laisse pas de cadre vide : le site affiche une image par défaut (voir
+  [clans.md](../features/clans.md) §6, « Image d'un clan introuvable ») ; l'admin du clan la téléverse à nouveau.
+  Incident du 2026-09-27 : l'image de FR-Alliance-BE (`clan-7-….jpg`) avait disparu, le dossier n'étant alors pas
+  ignoré par git.
+
 ---
 
 ## Démarrage des processus

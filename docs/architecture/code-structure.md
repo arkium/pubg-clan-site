@@ -93,7 +93,6 @@ app/settings/
   nav-permissions/                # Permissions de navigation
   phase-labels/                   # Labels de phases de jeu
   pubg-api/                       # Configuration API PUBG
-  weapon-categories/              # Catégories d'armes
   weapon-labels/                  # Labels d'armes
 ```
 
@@ -322,7 +321,6 @@ export function useMyHook(param: number | null) {
 | `phase-label-service.ts` | Labels des phases de jeu |
 | `vehicle-label-service.ts` | Labels des véhicules |
 | `weapon-label-service.ts` | Labels des armes |
-| `weapon-category-service.ts` | Catégories d'armes |
 
 ### `lib/pubg-assets/`
 
@@ -334,7 +332,10 @@ Abstraction domaine PUBG : client domaine, types métier PUBG.
 
 ### `lib/weapons/`
 
-Définitions des catégories d'armes pour le filtrage et l'affichage.
+- `weapon-categories.ts` — **liste unique** des catégories d'armes (catalogue avec identifiants télémétrie).
+- `weapon-category-info.ts` — accroche, description et conseil pro par catégorie.
+- `armory.ts` — calculs de l'armurerie du clan (loadout, râtelier, hauts faits, classement) ; composants dans
+  `src/components/weapons/`. Voir [weapons.md §5 et §7](../features/weapons.md).
 
 ### `lib/pubg-telemetry/`
 

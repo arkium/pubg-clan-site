@@ -55,6 +55,7 @@ scripts/                      # Tous les scripts Node / TypeScript (worker tél�
                               # DOIVENT obligatoirement être créés et stockés dans ce dossier `scripts/` (jamais à la racine du projet).
 prisma/                       # Schéma et migrations
 docs/                         # Documentation technique (sommaire.md → index)
+archive/                      # Pages remplacées par la refonte, gardées pour mémoire — ignoré par git, exclu de tsc et ESLint
 ```
 
 ## Patterns de pages
@@ -187,6 +188,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Top 3 d'un classement | `PodiumCards` | `src/components/ui/PodiumCards.tsx` |
 | Bande « Distinctions » | `DistinctionStrip` + `computeDistinctions` | `src/components/ui/DistinctionStrip.tsx`, `src/lib/distinctions.ts` |
 | Classement sur mobile (puces « Trier par ») | `MobileRankList` | `src/components/ui/MobileRankList.tsx` |
+| Mode d'un tournoi (couleur, icône, libellé) | `TournamentModeBadge`, `tournamentModeClass` + `@/lib/tournament-mode-display` | `src/components/tournaments/TournamentModeBadge.tsx` — docs/features/tournois.md |
 
 **Règle :** Ne jamais réécrire ces composants inline dans une page. Ne pas écrire les classes `app-placement-badge*` directement.
 
@@ -201,6 +203,8 @@ Maquette validée : `docs/ui/refonte/maquettes/Refonte adaptée.html` (dossier i
 - **Tri de tableau** : `SortableTh` + `useTableSort`. Pas de segmented de tri au-dessus d'un tableau ; rappel du tri
   dans le bandeau docké par `dockedAside`, jamais un contrôle.
 - **Distinctions** : calculées uniquement par `src/lib/distinctions.ts`.
+- **Catégories d'armes** : une seule liste, `src/lib/weapons/weapon-categories.ts` (identifiants télémétrie compris).
+  L'ancien `weapon-category-service.ts` et `/settings/weapon-categories` sont supprimés (contrôle dans `ui-conformance.test.ts`).
 - **Tendances** : ne rien afficher quand la progression est absente (pas de « • »).
 - **Colonnes conditionnelles** : une colonne nulle par construction pour le filtre actif n'est pas rendue (Duo/Trio/Squad
   hors mode « Tous »).

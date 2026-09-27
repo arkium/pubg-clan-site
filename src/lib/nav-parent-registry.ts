@@ -87,7 +87,8 @@ const FALLBACK_MATRIX: Record<string, FallbackDef> = {
     labelFallback: 'Challenges',
   },
   'clan.tournament-detail': {
-    hrefTemplate: '/clans/:clanId/tournaments',
+    // La liste des tournois est globale : `/clans/:clanId/tournaments` n'est plus qu'une redirection (next.config.ts).
+    hrefTemplate: '/tournaments',
     labelKey: 'clan.tournaments',
     labelFallback: 'Tournois',
   },

@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
@@ -8,12 +7,7 @@ import {
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
 import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
-import {
-  getCategoryLabels,
-  getWeaponCategories,
-  weaponCategoryCode,
-  weaponCategoryLabel,
-} from '@/lib/weapon-category-service'
+import { WEAPON_CATEGORY_LABELS, findWeaponEntry } from '@/lib/weapons/weapon-categories'
 import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 
 type TelemetryPeriod = 'week' | 'month' | 'all'
@@ -334,11 +328,7 @@ export async function GET(
       }
     }
 
-    const [weaponLabels, weaponCategories, categoryLabels] = await Promise.all([
-      getWeaponLabels(),
-      getWeaponCategories(),
-      getCategoryLabels(),
-    ])
+    const weaponLabels = await getWeaponLabels()
     const rows = rowsRaw.map((row) => {
       const avgDistanceMeters = centimetersToMeters(row.avgDistance)
       const storedMaxDistanceMeters = centimetersToMeters(row.maxDistance)
@@ -352,7 +342,10 @@ export async function GET(
       const resolvedMaxDistanceMeters =
         storedMaxDistanceMeters > 0 ? storedMaxDistanceMeters : inferredMaxDistanceMeters
 
-      const catCode = weaponCategoryCode(row.weaponName, weaponCategories)
+      // Liste unique des catégories (docs/features/weapons.md §5) : identifiant télémétrie d'abord, libellé ensuite.
+      const weaponLabel = weaponDisplayName(row.weaponName, weaponLabels)
+      const entry = findWeaponEntry(row.weaponName, weaponLabel)
+      const category = entry?.category ?? 'OTHER'
       return {
         ...row,
         avgDistance: avgDistanceMeters,
@@ -363,9 +356,10 @@ export async function GET(
         shotsFired,
         hitsLanded,
         accuracy: shotsFired > 0 ? (hitsLanded / shotsFired) * 100 : 0,
-        weaponLabel: weaponDisplayName(row.weaponName, weaponLabels),
-        weaponCategoryCode: catCode,
-        weaponCategoryLabel: weaponCategoryLabel(catCode, categoryLabels),
+        weaponLabel,
+        weaponKey: entry?.key ?? null,
+        weaponCategoryCode: category,
+        weaponCategoryLabel: WEAPON_CATEGORY_LABELS[category],
       }
     })
 
@@ -383,7 +377,7 @@ export async function GET(
           weaponLabels,
           note:
             rows.length === 0
-              ? 'Aucune ligne disponible actuellement pour cette periode.'
+              ? 'Aucune ligne disponible actuellement pour cette période.'
               : null,
         },
         {
@@ -392,12 +386,12 @@ export async function GET(
           periodKey,
           count: rows.length,
           matchCount: snapshots.length,
-          categoryLabels,
+          categoryLabels: WEAPON_CATEGORY_LABELS,
           rows,
           weaponLabels,
           note:
             rows.length === 0
-              ? 'Aucune ligne disponible actuellement pour cette periode.'
+              ? 'Aucune ligne disponible actuellement pour cette période.'
               : null,
         }
       )

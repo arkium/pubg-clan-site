@@ -2562,6 +2562,18 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte de la Carrière PUBG d'un joueur : « des états de service »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Stats joueur » — [carriere-joueur.md](../features/carriere-joueur.md) :
+- [x] Synchro : records d'une partie au maximum entre modes (ils s'additionnaient : 3 029 m, 196 min « tous modes ») ;
+      saison normale squad TPP + FPP.
+- [x] Médailles du clan : stats où « plus = mieux » seulement, ex æquo partagés.
+- [x] Plaque et états de service par mode, saisons (Cristal, palier suivant), vitrine, hauts faits, fiches ; bandeau
+      mode + synchro docké aussi sur mobile (exception nommée).
+- [x] Tableau de bord : calendrier des 5 semaines (`/api/members/[id]/calendar`) et carte Carrière PUBG.
+- [ ] Libellé du menu `member.stats` : « Stats globales » en base (`NavItem`) → « Carrière PUBG » par
+      `/settings/nav-permissions` (à faire par un administrateur).
+
 #### ~~Refonte des armes d'un joueur : « deux sources, deux onglets »~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Armes joueur » — [armes-joueur.md](../features/armes-joueur.md) :

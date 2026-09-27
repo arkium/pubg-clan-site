@@ -97,19 +97,11 @@ Champ supplémentaire : `lastRefreshedAt` — date de la dernière sync depuis l
 
 ---
 
-## 4. Page `/members/[id]/stats`
+## 4. Page `/members/[id]/stats` — Carrière PUBG
 
-**Route API :** `GET /api/members/[id]/stats` (lecture) / `POST /api/members/[id]/stats` (refresh forcé)
-
-La page affiche les stats lifetime complètes du membre et sa position dans le clan pour chaque métrique.
-
-### Sections
-
-- **Résumé médailles** : comptage Or/Argent/Bronze + 4 KPI (wins, K/D, kills, dégâts).
-- **Saison & ranked** : 3 dernières saisons (ranked + normal squad), bouton refresh.
-- **Stats lifetime complètes** (`MemberLifetimeStatsPanel`) : les 6 groupes de métriques avec, pour chacune, la médaille clan si le joueur est #1/#2/#3 parmi les membres actifs.
-
-**Rangs clan :** l'API `/api/members/[id]/stats` calcule la position du joueur pour chaque métrique lifetime en comparant avec tous les membres actifs du clan (`clanRanks`).
+Refonte du 2026-09-27 : plaque et états de service par mode, saisons, vitrine des médailles du clan, hauts faits,
+quatre fiches ; médailles recalculées (stats où « plus = mieux », ex æquo partagés). Tout est décrit dans
+[Carrière PUBG d'un joueur](carriere-joueur.md), qui décrit aussi le calendrier et la carte Carrière du tableau de bord.
 
 ---
 

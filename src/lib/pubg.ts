@@ -832,13 +832,19 @@ export function daysPlayedFloor(modes: PubgGameModeStats[]) {
   return modes.reduce((max, mode) => Math.max(max, toNumber(mode.days)), 0)
 }
 
-/** Somme les modes, sauf les jours : leur plancher (`daysPlayedFloor`). */
-function mergeGameModes(modes: PubgGameModeStats[]): PubgGameModeStats {
+/**
+ * Records d'une seule partie : leur maximum entre modes, jamais leur somme. Jusqu'au 2026-09-27 ils s'additionnaient —
+ * un joueur affichait un kill à 3 029 m et 196 min de survie « tous modes » (docs/features/carriere-joueur.md).
+ */
+const PER_MATCH_RECORD_KEYS: ReadonlySet<string> = new Set(['longestKill', 'maxKillStreaks', 'mostSurvivalTime', 'roundMostKills', 'longestTimeSurvived'])
+
+/** Somme les modes, sauf les records d'une partie (leur maximum) et les jours (leur plancher, `daysPlayedFloor`). */
+export function mergeGameModes(modes: PubgGameModeStats[]): PubgGameModeStats {
   const merged = modes.reduce<PubgGameModeStats>((acc, modeStats) => {
     Object.entries(modeStats).forEach(([key, value]) => {
       if (typeof value !== 'number') return
       const statKey = key as keyof PubgGameModeStats
-      acc[statKey] = (acc[statKey] ?? 0) + value
+      acc[statKey] = PER_MATCH_RECORD_KEYS.has(key) ? Math.max(acc[statKey] ?? 0, value) : (acc[statKey] ?? 0) + value
     })
     return acc
   }, {})
@@ -1112,9 +1118,12 @@ export async function fetchPlayerSeasonStats(
     context
   )
 
-  const gameModeStats = response.data.data?.attributes?.gameModeStats ?? {}
+  const gameModeStats = (response.data.data?.attributes?.gameModeStats ?? {}) as Record<string, PubgGameModeStats>
+  // Squad TPP + FPP (décision du 2026-09-27) : avant, `squad` seul — un joueur FPP affichait 0 partie. Sans aucun
+  // squad, tous les modes, comme avant.
+  const squadModes = (['squad', 'squad-fpp'] as const).filter((key) => key in gameModeStats).map((key) => gameModeStats[key])
   const sourceStats =
-    gameModeStats.squad ?? gameModeStats['squad-fpp'] ?? (Object.keys(gameModeStats).length > 0 ? aggregateGameModeStats(gameModeStats as Record<string, PubgGameModeStats>) : {})
+    squadModes.length > 0 ? mergeGameModes(squadModes) : Object.keys(gameModeStats).length > 0 ? aggregateGameModeStats(gameModeStats) : {}
 
   return {
     kills: toNumber((sourceStats as PubgGameModeStats).kills),

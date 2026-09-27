@@ -179,7 +179,7 @@ app/api/
 | `home/HomeShowcase.tsx` | Vitrine publique de `/`, plein écran, pour tous ([accueil.md](../features/accueil.md)) ; « Mon espace » pour un membre connecté |
 | `WeaponCategoryPeriodFilter.tsx` | Filtre période + catégorie arme |
 | `ChallengeCard.tsx`, `ChallengeCreator.tsx`, `ChallengeLeaderboard.tsx` | Gestion des défis |
-| `MemberLifetimeStatsPanel.tsx` | Panel stats lifetime |
+| `player-career/CareerSections.tsx` | Carrière PUBG d'un joueur et cartes du tableau de bord (remplace `MemberLifetimeStatsPanel`, archivé) |
 | `PendingActivation.tsx` | Écran en attente d'activation |
 
 ### `components/ui/` — Composants UI réutilisables

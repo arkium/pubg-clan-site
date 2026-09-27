@@ -1,13 +1,12 @@
 'use client'
 
-import { Backpack, ChevronDown, ChevronLeft, ChevronRight, Crosshair, ListFilter, Medal, RefreshCw, Ruler, Skull } from 'lucide-react'
+import { Backpack, ChevronDown, ChevronLeft, ChevronRight, Crosshair, ListFilter, Medal, Ruler, Skull } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 
 import RankCell from '@/components/ui/RankCell'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import ArmoryWeaponImage from '@/components/weapons/ArmoryWeaponImage'
 import { paginate } from '@/lib/pagination'
-import { elapsedLabel } from '@/lib/relative-time'
 import { formatCount } from '@/lib/weapons/armory'
 import {
   PUBG_SORTS,
@@ -141,50 +140,6 @@ export function CategoryMenu({
         </div>
       ) : null}
     </div>
-  )
-}
-
-/** « Synchro il y a 2 h » ; bouton de rafraîchissement pour qui a le droit (membre du clan, SuperUser). */
-export function SyncStatus({
-  lastRefresh,
-  now,
-  canRefresh,
-  refreshing,
-  onRefresh,
-}: {
-  lastRefresh: string | null
-  now: Date
-  canRefresh: boolean
-  refreshing: boolean
-  onRefresh: () => void
-}) {
-  const elapsed = lastRefresh ? elapsedLabel(lastRefresh, now) : null
-  const label = (
-    <>
-      <span className="sm:hidden">{elapsed ? elapsed.replace(/^il y a /, '') : 'jamais'}</span>
-      <span className="hidden sm:inline">{elapsed ? `Synchro ${elapsed}` : 'Jamais synchronisé'}</span>
-    </>
-  )
-  const className = 'inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-gray-200 bg-white px-2.5 text-[13px] font-semibold text-gray-700'
-  if (!canRefresh) {
-    return (
-      <span className={className} title="Maîtrise synchronisée chaque nuit" data-testid="mastery-sync">
-        {label}
-      </span>
-    )
-  }
-  return (
-    <button
-      type="button"
-      onClick={onRefresh}
-      disabled={refreshing}
-      className={`${className} hover:bg-gray-50 disabled:opacity-60`}
-      aria-label={`Rafraîchir la maîtrise PUBG${elapsed ? ` (synchro ${elapsed})` : ''}`}
-      data-testid="mastery-sync"
-    >
-      <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-      {label}
-    </button>
   )
 }
 

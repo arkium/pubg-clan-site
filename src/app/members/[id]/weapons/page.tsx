@@ -14,15 +14,15 @@ import {
   MasteryList,
   RecordsStrip,
   SiteWeaponList,
-  SyncStatus,
   useIsSmall,
 } from '@/components/member-weapons/MemberWeaponsSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import SyncStatus from '@/components/ui/SyncStatus'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
-import { useAuthSession } from '@/hooks/useAuthSession'
+import { useCanRefreshMember } from '@/hooks/useCanRefreshMember'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
@@ -96,7 +96,8 @@ export default function MemberWeaponsPage() {
   const throws = usePageData(base && ready ? `${base}/throwables?period=${period}` : null, pickThrows)
   const mastery = usePageData(base ? `${base}/weapon-mastery${refreshNonce ? `?v=${refreshNonce}` : ''}` : null, pickMastery)
   const profile = usePageData(base, pickProfile).data
-  const session = useAuthSession()
+  // Rafraîchir la maîtrise : la route exige une session du clan du joueur (ou un SuperUser) ; un visiteur ne voit que la date.
+  const canRefresh = useCanRefreshMember(profile?.clanId)
   const small = useIsSmall()
 
   const siteWeapons = useMemo(() => aggregateMemberWeapons(rows.data ?? []), [rows.data])
@@ -117,9 +118,6 @@ export default function MemberWeaponsPage() {
   const filteredPubg = category ? pubgWeapons.filter((weapon) => weapon.category === category) : pubgWeapons
   const name = profile?.displayName ?? null
   const when = PERIOD_WHEN_LABELS[period]
-  // Rafraîchir la maîtrise : la route exige une session du clan du joueur (ou un SuperUser) ; un visiteur ne voit que la date.
-  const activeClanId = session.members.find((member) => member.memberId === session.activeMemberId)?.clanId ?? null
-  const canRefresh = session.authenticated && (session.isSuperUser || (activeClanId !== null && activeClanId === profile?.clanId))
 
   function setSource(next: ArsenalSource) {
     setSourceState(next)
@@ -193,6 +191,8 @@ export default function MemberWeaponsPage() {
               canRefresh={canRefresh}
               refreshing={refreshing}
               onRefresh={() => void refreshMastery()}
+              subject="la maîtrise PUBG"
+              testId="mastery-sync"
             />
           )}
           <CategoryMenu counts={counts} value={category} onChange={setCategory} />

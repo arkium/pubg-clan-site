@@ -307,7 +307,7 @@ sont tous corrigés en phase 0, indépendamment du docking. « Docké mobile » 
 | `map-stats` | Portée, période, joueur | ❌ | — | Période | 2 |
 | `heatmap` | Portée, période, carte (menus déroulants) | ❌ | « 7 jours / 30 jours / Tout » + sens glissant + menu déroulant | Période | 2 |
 | `drop-zones` | Portée, période, carte, joueur, affichage | ❌ | — | Période | 2 |
-| `stats` | Saison / Ranked, rafraîchir | ❌ | — | rien | 3 |
+| `stats` | Mode, synchro (sans période) | ✅ `DockingToolbar` (2026-09-27, [carriere-joueur.md](../features/carriere-joueur.md)) | — | Mode + synchro (exception, page sans période) | 3 |
 | `nemesis` | Période, arme | ✅ `DockingToolbar` (2026-09-27, [nemesis.md](../features/nemesis.md)) | — | Période + arme (exception) | 3 |
 | `dashboard` | Période de comparaison ; bloc matchs | ❌ | bloc matchs en sens glissant | Période | 3 |
 | `notifications` | 5 contrôles de filtre | ❌ | — | rien | 3 |
@@ -482,7 +482,7 @@ d'exceptions : toutes les pages déclarées sont conformes.
 | Racine d'une page à bandeau (§4.A) | `main.app-main` pleine largeur | `div.app-main-flush` ; blocs internes `app-container app-gutter` | Le shell fournit déjà `<main>` : un second serait invalide. `app-main` ajoutait un padding horizontal qui empêchait le bandeau docké de couvrir la colonne |
 | Masquage sur mobile docké (§4.A) | Une classe dédiée du composant | Drapeau `compact` de la fonction de rendu | Une seule mécanique, lisible dans la page |
 | Changement de période (§4.E) | `router.replace(…, { scroll: false })` | `window.history.replaceState` (API documentée de Next 16, `useSearchParams` suit) ; `router.replace` gardé pour la seule page rendue côté serveur (catégories d'armes) | Pas de rendu serveur inutile pour des pages qui chargent leurs données elles-mêmes |
-| Pages à contrôles de section | `members/[id]/stats`, page télémétrie d'un match, `/tournaments/[tournamentId]` au standard du bandeau | Contrôles laissés dans leur section, sans bandeau | Saison / ranked, filtre de phase d'un tableau et granularité d'un classement ne filtrent pas la page |
+| Pages à contrôles de section | Page télémétrie d'un match, `/tournaments/[tournamentId]` au standard du bandeau (`members/[id]/stats` a son bandeau depuis le 2026-09-27) | Contrôles laissés dans leur section, sans bandeau | Saison / ranked, filtre de phase d'un tableau et granularité d'un classement ne filtrent pas la page |
 | Bloc matchs du tableau de bord | Sa propre période | Suit la période du bandeau | Une seule période par page ; la comparaison de tendances garde son sélecteur, propre à sa section |
 | Espacement au repos | Marges `my-4 sm:my-6` | Paddings `py-4 sm:py-6` | Les marges fusionnaient à travers la sentinelle avec celle du bloc précédent : l'espaceur comptait 24 px de trop (saut mesuré par Playwright) |
 | Anti-saut | Espaceur | Espaceur **et** ancrage de défilement suspendu pendant la bascule | Sur mobile, l'ancrage du navigateur ramenait la page en haut au moment du docking (mesuré par Playwright) |

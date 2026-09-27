@@ -73,6 +73,8 @@ quand le lecteur n'a pas `manage_members`. Chaque membre : `memberId`, `displayN
   bots neutralisés → Némésis), **Au drop** (ville favorite, drops analysés, drops chauds, adversaires à 250 m → Zones
   de drop).
 - **5 dernières parties** (débriefing quand il existe), puis « Tout l'historique → » (`/members/[id]/matches`).
+- Dernière ligne en deux (2026-09-27) : parties et **carte Carrière PUBG** à gauche, **calendrier** des 5 dernières
+  semaines à droite, sans période — voir [Carrière PUBG d'un joueur](carriere-joueur.md) §4.
 
 Logique pure : `src/lib/player-dashboard.ts` (clés de période, barres d'activité, écart au clan, profil et tendance).
 
@@ -112,7 +114,7 @@ classement du clan (`/api/clans/[clanId]/leaderboard`, parties officielles) pour
 | `src/lib/member-roster.test.ts` | Rôle dominant et égalités, « ce soir » en journée de Paris, libellés, réserve, K/M et win rate, tris, filtres sans accents, initiales |
 | `src/lib/player-dashboard.test.ts` | Clés de période (janvier → décembre), barres par soirée (partie de nuit la veille), semaines du mois, 8 semaines, écart au clan, profil et tendance |
 | `src/lib/member-routes-contracts.test.ts` | Contrats (Prisma simulé) : fiches (rôle, 30 jours officiels, arme fétiche, demandes réservées), tableau de bord (forme, meilleure partie, frères d'armes, profil), pression au drop, période de la Némésis |
-| `e2e/members.spec.ts` | Les deux pages : « ce soir » sans « en jeu », fiches et lien, réserve, filtres et tri, demandes en attente, docking (pas sur mobile / oui sur le tableau de bord), période unique, chiffres clés, meilleure partie, profil, cartes et liens, dernières parties, chevrons sur mobile, aucun défilement horizontal. Données : `e2e/support/members.ts` |
+| `e2e/members.spec.ts` | Les deux pages : « ce soir » sans « en jeu », fiches et lien, réserve, filtres et tri, demandes en attente, docking (pas sur mobile / oui sur le tableau de bord), période unique, chiffres clés, meilleure partie, profil, cartes et liens, dernières parties, calendrier et carte Carrière, chevrons sur mobile, aucun défilement horizontal. Données : `e2e/support/members.ts` |
 
 ## Voir aussi
 

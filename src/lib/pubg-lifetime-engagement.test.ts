@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * Engagement de carrière lu dans `/seasons/lifetime` (2026-09-27) : temps de survie, parties jouées et jours de jeu,
  * que la synchro recevait déjà mais jetait. Les jours ne s'additionnent pas entre modes (un même jour compte dans
- * chaque mode joué ce jour-là) : on garde leur plancher. Aucun appel réel à l'API.
+ * chaque mode joué ce jour-là) : on garde leur plancher ; les records d'une partie non plus : on garde leur maximum.
+ * Saison normale : squad TPP + FPP. Aucun appel réel à l'API.
  */
 
 process.env.PUBG_API_KEY = 'test-key'
@@ -50,6 +51,49 @@ describe('fetchLifetimeStats — engagement de carrière', () => {
     expect(stats.byMode.squad?.other).toMatchObject({ timeSurvived: 396_000, roundsPlayed: 110, daysPlayed: 120 })
     expect(stats.byMode.duo?.other.daysPlayed).toBe(40)
     expect(stats.byMode.solo).toBeNull()
+  })
+
+  it('records d’une partie : le maximum entre modes, jamais la somme', async () => {
+    const { fetchLifetimeStats } = await import('@/lib/pubg')
+    mockedEnqueue.mockResolvedValueOnce({
+      data: {
+        data: {
+          attributes: {
+            gameModeStats: {
+              squad: { kills: 10, longestKill: 612.5, maxKillStreaks: 9, mostSurvivalTime: 1864 },
+              'squad-fpp': { kills: 5, longestKill: 488, maxKillStreaks: 7, mostSurvivalTime: 1702 },
+              solo: { kills: 2, longestKill: 341, maxKillStreaks: 5, mostSurvivalTime: 1488 },
+            },
+          },
+        },
+      },
+    })
+
+    const stats = await fetchLifetimeStats('account.xyz')
+    // 612,5 + 488 + 341 = 1 441,5 m : un kill impossible, affiché jusqu'au 2026-09-27.
+    expect(stats.combat).toMatchObject({ kills: 17, longestKill: 612.5, highestKillstreak: 9 })
+    expect(stats.victory.longestTimeAlive).toBe(1864)
+    expect(stats.byMode.squad?.combat).toMatchObject({ kills: 15, longestKill: 612.5, highestKillstreak: 9 })
+  })
+
+  it('saison normale : squad TPP + FPP additionnés', async () => {
+    const { fetchPlayerSeasonStats } = await import('@/lib/pubg')
+    mockedEnqueue.mockResolvedValueOnce({
+      data: {
+        data: {
+          attributes: {
+            gameModeStats: {
+              squad: { kills: 10, wins: 2, losses: 8, damageDealt: 1000 },
+              'squad-fpp': { kills: 40, wins: 5, losses: 30, damageDealt: 5000 },
+              duo: { kills: 99, wins: 9, losses: 9 },
+            },
+          },
+        },
+      },
+    })
+
+    const season = await fetchPlayerSeasonStats('account.xyz', 'steam', 'division.bro.official.pc-2018-43')
+    expect(season).toMatchObject({ kills: 50, wins: 7, losses: 38, damageDealt: 6000, roundsPlayed: 45 })
   })
 
   it('un champ absent de la réponse vaut 0, sans casser la synchro', async () => {

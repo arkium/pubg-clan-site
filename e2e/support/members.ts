@@ -1,4 +1,5 @@
 import type { ApiMock } from './api'
+import { mockCareerApis, mockMemberCalendar } from './career'
 import { CLAN_ID, MEMBER_ID, PLAYERS, leaderboardResponse, memberWeapons } from './data'
 
 import type { RosterMember } from '@/lib/member-roster'
@@ -177,4 +178,7 @@ export function mockPlayerDashboard(api: ApiMock) {
     })
     .on('GET', `/api/members/${MEMBER_ID}/matches`, { body: recentMatches() })
     .on('GET', `/api/clans/${CLAN_ID}/leaderboard`, (url) => ({ body: leaderboardResponse(periodOf(url)) }))
+  // Sans période : carte Carrière PUBG et calendrier des 5 dernières semaines (e2e/support/career.ts).
+  mockCareerApis(api)
+  mockMemberCalendar(api)
 }

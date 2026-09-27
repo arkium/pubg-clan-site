@@ -47,6 +47,10 @@ français des objets, groupes de synergies, coopération).
 
 ## 3. « Carrière PUBG du clan » (`/clans/[clanId]/stats/career`)
 
+> Records (kill le plus long, série max, survie max) : jusqu'au 2026-09-27 la synchro additionnait les records de chaque
+> mode ; ils prennent désormais le maximum ([carriere-joueur.md](carriere-joueur.md) §1). Les valeurs stockées se
+> corrigent à la prochaine synchro.
+
 Bandeau **sans période** (`dockOnMobile={false}`, comme toute page sans période) : au repos « Mis à jour il y a … ·
 une fois par jour », « Source : API PUBG » et le lien « Style de jeu du clan → » ; ancres `career-<groupe>` une fois
 docké sur ordinateur.

@@ -35,7 +35,7 @@ La saison courante est déterminée via `GET /shards/{shard}/seasons` — la pre
 | `rankedAssists` | `assists` | Assists en ranked |
 | `rankedRevives` | `revives` | Relèves en ranked |
 
-### Champs normaux (squad uniquement)
+### Champs normaux (squad uniquement, TPP + FPP additionnés depuis le 2026-09-27 — avant : `squad` seul, un joueur FPP affichait 0 partie)
 
 | Champ DB | Source API | Description |
 |---|---|---|

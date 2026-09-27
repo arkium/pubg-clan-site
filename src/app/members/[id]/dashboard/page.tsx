@@ -17,6 +17,7 @@ import {
   type HeroNavItem,
   type NemesisSummary,
 } from '@/components/player-dashboard/PlayerDashboardSections'
+import { CalendarCard, CareerSummaryCard } from '@/components/player-career/CareerSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -27,6 +28,7 @@ import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { computeDistinctions, distinctionsByMember } from '@/lib/distinctions'
 import { STANDARD_PERIODS } from '@/lib/period'
+import { buildCalendar, medalCounts, type CalendarDay, type LifetimeStats, type MedalRanks, type SeasonRow } from '@/lib/player-career'
 import { profileRole } from '@/lib/player-dashboard'
 import type { CityInsights } from '@/types/city-insights'
 import type { MatchesResponse, PlayerDashboardResponse } from '@/types/dashboard'
@@ -41,6 +43,15 @@ const pickCity = (payload: unknown) => (payload as { insights?: CityInsights } |
 const pickDrop = (payload: unknown) => (payload as { stats?: DropPressureDashboardStats } | null)?.stats ?? null
 const pickMatches = (payload: unknown) => (payload as MatchesResponse | null) ?? null
 const pickLeaderboard = (payload: unknown) => (payload as LeaderboardResponse | null)?.leaderboard ?? []
+const pickCareer = (payload: unknown) => {
+  const body = payload as { stats?: LifetimeStats; clanRanks?: MedalRanks } | null
+  return body?.stats ? { stats: body.stats, clanRanks: body.clanRanks ?? {} } : null
+}
+const pickSeason = (payload: unknown) => (payload as { seasons?: SeasonRow[] } | null)?.seasons?.[0] ?? null
+const pickCalendar = (payload: unknown) => {
+  const body = payload as { today?: string; days?: CalendarDay[]; hours?: number[] } | null
+  return body?.today ? { today: body.today, days: body.days ?? [], hours: body.hours ?? [] } : null
+}
 
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -51,7 +62,8 @@ function parseMemberId(value: string | string[] | undefined) {
 /**
  * Tableau de bord d'un joueur — le joueur d'abord (maquette « Membres et joueur », 17a–17c ; docs/features/membres.md).
  * Carte joueur et puces vers ses pages, puis une seule période pour tout : chiffres clés, meilleure partie, profil de
- * jeu, arsenal, frères d'armes, némésis, drop, dernières parties. Chaque carte ouvre sa page.
+ * jeu, arsenal, frères d'armes, némésis, drop, dernières parties. Chaque carte ouvre sa page. En bas, sans période :
+ * carrière PUBG et calendrier des 5 dernières semaines (maquette « Stats joueur », docs/features/carriere-joueur.md).
  */
 export default function DashboardPage() {
   const params = useParams()
@@ -78,6 +90,13 @@ export default function DashboardPage() {
     dashboard.data?.member.clan ? `/api/clans/${dashboard.data.member.clan.id}/leaderboard?period=${period}&sortBy=kills&matchType=official&mode=all` : null,
     pickLeaderboard
   )
+
+  // Sans période : carrière PUBG et calendrier des 5 dernières semaines (maquette « Stats joueur », 25f).
+  const memberBase = memberId ? `/api/members/${memberId}` : null
+  const career = usePageData(memberBase && `${memberBase}/stats`, pickCareer)
+  const season = usePageData(memberBase && `${memberBase}/season-stats`, pickSeason)
+  const calendarData = usePageData(memberBase && `${memberBase}/calendar`, pickCalendar)
+  const calendar = useMemo(() => (calendarData.data ? buildCalendar({ ...calendarData.data, period }) : null), [calendarData.data, period])
 
   const distinction = useMemo(() => {
     if (!memberId || !ranking.data) return null
@@ -158,7 +177,19 @@ export default function DashboardPage() {
             <DropCard city={city.data} drop={drop.data} memberId={memberId} />
           </div>
 
-          <RecentMatches matches={matches.data?.matches ?? []} mapLabels={matches.data?.mapLabels ?? {}} memberId={memberId} period={period} />
+          {/* Dernière ligne en deux : les parties et la carrière à gauche, le calendrier à droite (maquette 25f). */}
+          <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col gap-3">
+              <RecentMatches matches={matches.data?.matches ?? []} mapLabels={matches.data?.mapLabels ?? {}} memberId={memberId} period={period} />
+              <CareerSummaryCard
+                memberId={memberId}
+                stats={career.data?.stats ?? null}
+                currentSeason={season.data}
+                goldMedals={career.data ? medalCounts(career.data.clanRanks)[1] : 0}
+              />
+            </div>
+            <CalendarCard calendar={calendar} />
+          </div>
         </div>
       ) : null}
     </div>

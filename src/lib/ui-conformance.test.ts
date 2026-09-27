@@ -71,6 +71,7 @@ const TOOLBAR_PAGES = [
   'src/app/clans/[clanId]/challenges/page.tsx',
   // Joueur
   'src/app/members/[id]/dashboard/page.tsx',
+  'src/app/members/[id]/stats/page.tsx',
   'src/app/members/[id]/matches/page.tsx',
   'src/app/members/[id]/weapons/page.tsx',
   'src/app/members/[id]/items/page.tsx',
@@ -95,7 +96,6 @@ const TOOLBAR_COMPONENTS: Record<string, string> = {}
  * tableau, granularité d'un classement) : ils restent dans leur section, la page n'a pas de bandeau.
  */
 const SECTION_LOCAL_CONTROL_PAGES = [
-  'src/app/members/[id]/stats/page.tsx',
   'src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx',
 ]
 
@@ -107,6 +107,7 @@ const SECTION_LOCAL_CONTROL_PAGES = [
 const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
   'src/app/tournaments/page.tsx': 'recherche et statut de la liste',
   'src/app/tournaments/[tournamentId]/page.tsx': 'ancres Classement / Manches / Barème et place du lecteur',
+  'src/app/members/[id]/stats/page.tsx': 'carrière PUBG sans période : mode (Tous / Squad / Duo / Solo) et synchro, sur une ligne',
   // Écart constaté le 2026-09-27 par ce contrôle, pas une décision : sticky.md §2 dit « rien de docké sur mobile »
   // pour /clans, la refonte de l'annuaire (2026-09-26) docke recherche et tri. À trancher, puis retirer d'ici.
   'src/app/clans/page.tsx': 'écart à trancher (recherche et tri de l’annuaire)',

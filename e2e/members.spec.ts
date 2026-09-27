@@ -161,6 +161,22 @@ test.describe('Tableau de bord d’un joueur', () => {
     await expect(recent.getByRole('link', { name: 'Tout l’historique →' })).toHaveAttribute('href', `/members/${MEMBER_ID}/matches?period=week`)
   })
 
+  test('dernière ligne : calendrier des 5 semaines (sans lien) et carte Carrière PUBG', async ({ page }) => {
+    const calendar = page.getByRole('region', { name: 'Calendrier' })
+    const days = calendar.getByRole('list', { name: 'Parties par jour' }).getByRole('listitem')
+    await expect(days).toHaveCount(35)
+    await expect(calendar.locator('[data-games="2"]')).toHaveAttribute('aria-label', /2 parties · 1 top 1/)
+    await expect(calendar.getByTestId('calendar-win')).toHaveCount(2)
+    await expect(calendar).toContainText('3 jours')
+    await expect(calendar).toContainText('21 h – 23 h')
+    await expect(calendar.getByRole('link')).toHaveCount(0)
+    const career = page.getByTestId('career-card')
+    await expect(career).toHaveAttribute('href', `/members/${MEMBER_ID}/stats`)
+    await expect(career).toContainText('×42')
+    await expect(career).toContainText('Or 2')
+    await expect(career).toContainText('1 médaille d’or dans le clan')
+  })
+
   test('pages du joueur : puces dans le bandeau, chevrons sur mobile au lieu d’un défilement', async ({ page }, testInfo) => {
     const nav = page.getByRole('navigation', { name: 'Pages du joueur' })
     await expect(nav.getByRole('link', { name: /Tableau de bord/ })).toHaveCount(0)

@@ -1,81 +1,15 @@
 import { Prisma } from '@prisma/client'
 
+import { clanMedalRanks, type LifetimeStats, type MedalRanks } from '@/lib/player-career'
 import { prisma } from '@/lib/prisma'
 import { fetchLifetimeStats, searchPlayerByName } from '@/lib/pubg'
-import { NextRequest } from 'next/server'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
-type LifetimeStats = {
-  combat: {
-    kills: number
-    deaths: number
-    kdRatio: number
-    headshots: number
-    assists: number
-    knockouts: number
-    highestKillstreak: number
-    longestKill: number
-    teamkills: number
-    suicides: number
-  }
-  victory: {
-    wins: number
-    losses: number
-    winLossRatio: number
-    longestTimeAlive: number
-  }
-  support: {
-    teammatesRevived: number
-    boostsUsed: number
-    healed: number
-  }
-  vehicle: {
-    vehiclesDestroyed: number
-    roadkills: number
-  }
-  movement: {
-    drivenDistance: number
-    walkedDistance: number
-    swamDistance: number
-  }
-  other: {
-    weaponsPicked: number
-    damageGiven: number
-  }
-}
-
-type ClanMetricRanks = Record<string, 1 | 2 | 3 | null>
-
-const RANKED_METRICS: Array<{
-  key: string
-  order: 'asc' | 'desc'
-  getValue: (stats: LifetimeStats) => number
-}> = [
-  { key: 'combat.kills', order: 'desc', getValue: (stats) => stats.combat.kills },
-  { key: 'combat.deaths', order: 'asc', getValue: (stats) => stats.combat.deaths },
-  { key: 'combat.kdRatio', order: 'desc', getValue: (stats) => stats.combat.kdRatio },
-  { key: 'combat.headshots', order: 'desc', getValue: (stats) => stats.combat.headshots },
-  { key: 'combat.assists', order: 'desc', getValue: (stats) => stats.combat.assists },
-  { key: 'combat.knockouts', order: 'desc', getValue: (stats) => stats.combat.knockouts },
-  { key: 'combat.highestKillstreak', order: 'desc', getValue: (stats) => stats.combat.highestKillstreak },
-  { key: 'combat.longestKill', order: 'desc', getValue: (stats) => stats.combat.longestKill },
-  { key: 'combat.teamkills', order: 'desc', getValue: (stats) => stats.combat.teamkills },
-  { key: 'combat.suicides', order: 'asc', getValue: (stats) => stats.combat.suicides },
-  { key: 'victory.wins', order: 'desc', getValue: (stats) => stats.victory.wins },
-  { key: 'victory.losses', order: 'asc', getValue: (stats) => stats.victory.losses },
-  { key: 'victory.winLossRatio', order: 'desc', getValue: (stats) => stats.victory.winLossRatio },
-  { key: 'victory.longestTimeAlive', order: 'desc', getValue: (stats) => stats.victory.longestTimeAlive },
-  { key: 'support.teammatesRevived', order: 'desc', getValue: (stats) => stats.support.teammatesRevived },
-  { key: 'support.boostsUsed', order: 'desc', getValue: (stats) => stats.support.boostsUsed },
-  { key: 'support.healed', order: 'desc', getValue: (stats) => stats.support.healed },
-  { key: 'vehicle.vehiclesDestroyed', order: 'desc', getValue: (stats) => stats.vehicle.vehiclesDestroyed },
-  { key: 'vehicle.roadkills', order: 'desc', getValue: (stats) => stats.vehicle.roadkills },
-  { key: 'movement.drivenDistance', order: 'desc', getValue: (stats) => stats.movement.drivenDistance },
-  { key: 'movement.walkedDistance', order: 'desc', getValue: (stats) => stats.movement.walkedDistance },
-  { key: 'movement.swamDistance', order: 'desc', getValue: (stats) => stats.movement.swamDistance },
-  { key: 'other.weaponsPicked', order: 'desc', getValue: (stats) => stats.other.weaponsPicked },
-  { key: 'other.damageGiven', order: 'desc', getValue: (stats) => stats.other.damageGiven },
-]
+/**
+ * Carrière PUBG d'un joueur (docs/features/carriere-joueur.md) : stats de carrière tous modes et par mode, médailles du
+ * clan (`clanMedalRanks`, stats où « plus = mieux », ex æquo partagés) et, pour la plaque, le nom et le clan du joueur.
+ * GET lit le cache (`MemberLifetimeStats`) ; sans cache, il interroge l'API PUBG une fois. POST rafraîchit.
+ */
 
 function parseMemberId(id: string) {
   const memberId = Number(id)
@@ -161,58 +95,26 @@ function toLifetimeStats(record: {
   }
 }
 
-async function buildClanMetricRanks(memberId: number): Promise<ClanMetricRanks> {
-  const emptyRanks = Object.fromEntries(RANKED_METRICS.map((metric) => [metric.key, null])) as ClanMetricRanks
+async function buildClanMetricRanks(memberId: number, clanId: number | null): Promise<MedalRanks> {
+  if (!clanId) return clanMedalRanks([], memberId)
+  const statsRows = await prisma.memberLifetimeStats.findMany({
+    where: { member: { clanId, isActive: true } },
+    select: { memberId: true, combat: true, victory: true, support: true, vehicle: true, movement: true, other: true },
+  })
+  return clanMedalRanks(
+    statsRows.map((row) => ({ memberId: row.memberId, stats: toLifetimeStats(row) })),
+    memberId
+  )
+}
 
+async function loadMember(memberId: number) {
   const member = await prisma.clanMember.findUnique({
     where: { id: memberId },
-    select: { clanId: true },
+    select: { displayName: true, pubgPlayerName: true, clanId: true, clan: { select: { name: true, tag: true } } },
   })
-
-  if (!member?.clanId) {
-    return emptyRanks
-  }
-
-  const statsRows = await prisma.memberLifetimeStats.findMany({
-    where: {
-      member: {
-        clanId: member.clanId,
-        isActive: true,
-      },
-    },
-    select: {
-      memberId: true,
-      combat: true,
-      victory: true,
-      support: true,
-      vehicle: true,
-      movement: true,
-      other: true,
-    },
-  })
-
-  if (statsRows.length === 0) {
-    return emptyRanks
-  }
-
-  const entries = statsRows.map((row) => ({
-    memberId: row.memberId,
-    stats: toLifetimeStats(row),
-  }))
-
-  const ranks: ClanMetricRanks = { ...emptyRanks }
-
-  for (const metric of RANKED_METRICS) {
-    const sorted = [...entries].sort((left, right) => {
-      const leftValue = metric.getValue(left.stats)
-      const rightValue = metric.getValue(right.stats)
-      return metric.order === 'asc' ? leftValue - rightValue : rightValue - leftValue
-    })
-    const rank = sorted.findIndex((entry) => entry.memberId === memberId) + 1
-    ranks[metric.key] = rank >= 1 && rank <= 3 ? (rank as 1 | 2 | 3) : null
-  }
-
-  return ranks
+  return member
+    ? { displayName: member.displayName, pubgPlayerName: member.pubgPlayerName, clanId: member.clanId, clan: member.clan }
+    : null
 }
 
 export async function GET(
@@ -235,10 +137,12 @@ export async function GET(
     })
 
     if (cached) {
-      const clanRanks = await buildClanMetricRanks(memberId)
+      const member = await loadMember(memberId)
+      const clanRanks = await buildClanMetricRanks(memberId, member?.clanId ?? null)
 
       return Response.json({
         memberId,
+        member,
         stats: toLifetimeStats(cached),
         statsByMode: {
           squad: cached.statsSquad as LifetimeStats | null,
@@ -264,10 +168,12 @@ export async function GET(
     const now = new Date()
 
     await upsertStats(memberId, stats, now)
-    const clanRanks = await buildClanMetricRanks(memberId)
+    const member = await loadMember(memberId)
+    const clanRanks = await buildClanMetricRanks(memberId, member?.clanId ?? null)
 
     return Response.json({
       memberId,
+      member,
       playerId,
       shard,
       stats,
@@ -317,10 +223,12 @@ export async function POST(
     const now = new Date()
 
     await upsertStats(memberId, stats, now)
-    const clanRanks = await buildClanMetricRanks(memberId)
+    const member = await loadMember(memberId)
+    const clanRanks = await buildClanMetricRanks(memberId, member?.clanId ?? null)
 
     return Response.json({
       memberId,
+      member,
       playerId,
       shard,
       stats,

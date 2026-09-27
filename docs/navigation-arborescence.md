@@ -92,7 +92,7 @@ La colonne **Position** est un simple numéro d'ordre séquentiel (1, 2, 3…) d
 | 26 | `/clans/[clanId]/reports`                     | ▸▸ Rapports (hebdo/mensuel) 🗑️ | Admin |
 | 27 | `/clans/[clanId]/reports/[reportId]`          | ▸▸▸ Détail d'un rapport 🗑️ | Admin |
 | 28 | `/clans/[clanId]/drop-zones`                  | ▸▸ Drop zones | Owner (état actuel) / Tous (cible) |
-| 29 | `/clans-leaderboard`                          | Ligue — classement public de tous les clans | Tous |
+| 29 | `/clans-leaderboard`                          | Ligue Inter-Clans — podium, fil, classement par cercle (refonte du 2026-09-27) | Tous |
 | 30 | `/clans/[clanId]/overview`                    | ▸ Clan cliqué depuis le classement → même sous-arbre qu'en #3 | Tous |
 | 31 | `/clans/comparator`                           | Comparateur de clans | Tous |
 | 32 | `/clans/[clanId]/overview`                    | ▸ Clan sélectionné dans le comparateur → même sous-arbre qu'en #3 | Tous |

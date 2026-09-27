@@ -1,24 +1,23 @@
-import { NextRequest } from 'next/server'
-
-import { computeClansLeaderboard, type ClanLeaderboardEntry, type ClansLeaderboardPeriod } from '@/lib/clans-leaderboard'
+import { getClanLeague, type ClanLeaguePayload } from '@/lib/clan-league-service'
+import type { StandardPeriod } from '@/lib/period'
 
 export type { ClanLeaderboardEntry } from '@/lib/clans-leaderboard'
 
-export interface ClansLeaderboardResponse {
-  period: ClansLeaderboardPeriod
-  leaderboard: ClanLeaderboardEntry[]
+/**
+ * Ligue Inter-Clans (`/clans-leaderboard`, docs/features/ligue-clans.md) : classement de la période au Power score,
+ * rang sur la période précédente, clans sans partie, fil de la ligue et titres — calculés à la volée depuis les parties
+ * officielles, 5 minutes en mémoire. Route publique, comme la page (vitrine de l'accueil).
+ */
+export type ClansLeaderboardResponse = ClanLeaguePayload
+
+function parsePeriod(value: string | null): StandardPeriod {
+  return value === 'month' || value === 'all' ? value : 'week'
 }
 
-function parsePeriod(value: string | null): ClansLeaderboardPeriod {
-  if (value === 'week') return 'week'
-  if (value === 'month') return 'month'
-  return 'all'
-}
-
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const period = parsePeriod(request.nextUrl.searchParams.get('period'))
-    return Response.json({ period, leaderboard: await computeClansLeaderboard(period) })
+    const period = parsePeriod(new URL(request.url).searchParams.get('period'))
+    return Response.json(await getClanLeague(period))
   } catch (error) {
     console.error('Error fetching clans leaderboard:', error)
     return Response.json({ error: 'Failed to fetch clans leaderboard' }, { status: 500 })

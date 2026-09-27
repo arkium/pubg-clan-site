@@ -132,6 +132,14 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 
 ---
 
+## Ligue Inter-Clans — `/api/clans-leaderboard`
+
+| Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
+|---|---|---|---|---|
+| GET | `/api/clans-leaderboard?period=week\|month\|all` | Publique | ✅ Pertinent | Classement au Power score, rang de la période précédente, clans sans partie, fil de la ligue, titres ; calculé à la volée, 5 min en mémoire — voir [Ligue Inter-Clans](../features/ligue-clans.md) |
+
+---
+
 ## Membres — `/api/clans/[clanId]/members*`, `/api/members*`
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |

@@ -2562,6 +2562,16 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte de la Ligue Inter-Clans : « un classement qui se joue comme une partie »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Ligue clans » — [ligue-clans.md](../features/ligue-clans.md) :
+- [x] Classements recalculés à la volée depuis les parties officielles (période précédente, soirée par soirée), sans
+      table ni migration ; `computeClansLeaderboard` (vitrine, annuaire) sur la même source.
+- [x] Podium en marches, fil de la ligue, titres, classement par cercle (zone, blue zone repliée, sans partie),
+      flèches par rapport à la période précédente, pastille « Mon clan » et sa cible.
+- [x] Bandeau sur une ligne docké aussi sur mobile (exception nommée) ; liens de clan selon la règle de l'annuaire.
+- [ ] Sparklines de tendance sur 4 semaines (ancien point ouvert) : possibles avec le même calcul, non demandées ici.
+
 #### ~~Refonte de la Cartographie tactique : « choisis un événement, lis la carte »~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Positions » — [positions.md](../features/positions.md) :

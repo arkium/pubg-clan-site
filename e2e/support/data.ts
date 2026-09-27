@@ -1,4 +1,4 @@
-import type { ClanLeaderboardEntry, ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
+import type { ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
 import type { HomeShowcasePayload } from '@/lib/home-showcase'
 import type { ClanMatchesResponse, SquadMatch } from '@/types/squad-matches'
 import { sessionDateOf } from '@/lib/match-sessions'
@@ -80,22 +80,58 @@ export function leaderboardResponse(period: LeaderboardPeriod): LeaderboardRespo
   }
 }
 
+/**
+ * Ligue Inter-Clans (e2e/clans-league.spec.ts) : 16 clans classés, 2 sans partie. « Clan Démo » (CLAN_ID, le clan
+ * du membre connecté des tests) est 10e, en blue zone ; rang précédent fixé pour les flèches.
+ */
 export function clansLeaderboardResponse(period: LeaderboardPeriod): ClansLeaderboardResponse {
   const factor = PERIOD_FACTOR[period]
-  const leaderboard: ClanLeaderboardEntry[] = CALLSIGNS.slice(0, 16).map((callsign, index) => ({
-    clanId: index + 1,
-    name: `Clan ${callsign}`,
-    tag: callsign.slice(0, 4).toUpperCase(),
-    activeMembers: 20 - index,
-    matches: (40 - index) * factor,
-    winRate: 0.2 - index * 0.01,
-    avgDamage: 400 - index * 10,
-    avgKills: 3 - index * 0.1,
-    avgKnocks: 3.5 - index * 0.1,
-    powerScore: 1000 - index * 40,
-    rank: index + 1,
-  }))
-  return { period, leaderboard }
+  const previous = [2, 1, 5, 3, 4, 9, 6, 8, 7, 12, 10, 11, 14, 13, null, 15]
+  const standings = CALLSIGNS.slice(0, 16).map((callsign, index) => {
+    const mine = index === 9
+    const winRate = 0.26 - index * 0.015
+    const avgDamage = 420 - index * 12
+    const avgKills = 3 - index * 0.1
+    const avgKnocks = index === 4 ? 5.2 : 3.4 - index * 0.1
+    return {
+      clanId: mine ? CLAN_ID : index + 2,
+      name: mine ? 'Clan Démo' : `Clan ${callsign}`,
+      tag: mine ? 'DEMO' : callsign.slice(0, 4).toUpperCase(),
+      imageUrl: null,
+      matches: (40 - index) * factor,
+      wins: Math.round((40 - index) * factor * winRate),
+      winRate,
+      avgDamage,
+      avgKills,
+      avgKnocks,
+      powerScore: winRate * 10000 + avgDamage + avgKills * 10 + avgKnocks * 5,
+      rank: index + 1,
+      previousRank: period === 'all' ? null : previous[index],
+      activeMembers: 20 - index,
+    }
+  })
+  return {
+    period,
+    generatedAt: FIXED_DATE,
+    lastMatchAt: FIXED_DATE,
+    standings,
+    withoutMatch: [
+      { clanId: 40, name: 'Clan Endormi', tag: 'ZZZ', imageUrl: null },
+      { clanId: 41, name: 'Clan Fantôme', tag: 'GHO', imageUrl: null },
+    ],
+    feed: [
+      { date: '2026-09-21', kind: 'first', clan: 'Clan Alpha', text: 'a sorti Clan Bravo de la 1re place', weight: 100 },
+      { date: '2026-09-21', kind: 'zone-in', clan: 'Clan Foxtrot', text: 'entre dans la zone (6e)', weight: 63 },
+      { date: '2026-09-20', kind: 'climb', clan: 'Clan Charlie', text: 'remonte de 2 places (3e)', weight: 42 },
+      { date: '2026-09-19', kind: 'zone-out', clan: 'Clan India', text: 'tombe en blue zone', weight: 55 },
+      { date: '2026-09-18', kind: 'overtake', clan: 'Clan Delta', text: 'passe devant Clan Echo', weight: 26 },
+    ],
+    titles: {
+      damage: { clanId: 2, name: 'Clan Alpha', value: 420 },
+      knocks: { clanId: 6, name: 'Clan Echo', value: 5.2 },
+      climb: period === 'all' ? null : { clanId: 7, name: 'Clan Foxtrot', places: 3 },
+    },
+  }
 }
 
 export function itemUseStats(period: LeaderboardPeriod, withMembers: boolean): ItemUseStats {

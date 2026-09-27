@@ -328,8 +328,8 @@ vitrine, dans cet ordre :
 
 Données de la vitrine : `GET /api/clans/[clanId]/overview/showcase` (`src/lib/clan-showcase-service.ts`, logique pure dans
 `src/lib/clan-showcase.ts`), même permission que la vue d'ensemble, gardée 5 minutes en mémoire par clan (~450 ms à froid
-pour Aurore_Funeste). Le classement de la Ligue est calculé par `computeClansLeaderboard` (`src/lib/clans-leaderboard.ts`),
-partagé avec `GET /api/clans-leaderboard` ; les tournois gagnés par `listTournamentOverviews()`.
+pour Aurore_Funeste). Le classement de la Ligue est calculé par `computeClansLeaderboard` (`src/lib/clans-leaderboard.ts`), qui s'appuie
+depuis le 2026-09-27 sur le calcul à la volée de la Ligue ([ligue-clans.md](ligue-clans.md) §3, clans sans partie non classés) ; les tournois gagnés par `listTournamentOverviews()`.
 
 **Image d'un clan introuvable** (2026-09-27) : une image téléversée vit dans `public/uploads/clans/`, hors git ; le
 lien reste en base même si le fichier disparaît du serveur (cas de FR-Alliance-BE, `/uploads/clans/clan-7-….jpg` en 404).
@@ -508,6 +508,6 @@ La page `/clans/[clanId]/settings/cron` (réservée Owner) agrège cette observa
 | `src/app/clans/[clanId]/overview/page.tsx` | Page overview clan (vitrine) |
 | `src/components/clan-overview/ClanOverviewSections.tsx` | Vitrine, briefing, modes, duo, synergies, « Explorer le clan » |
 | `src/lib/clan-showcase.ts`, `src/lib/clan-showcase-service.ts` | Données de la vitrine |
-| `src/lib/clans-leaderboard.ts` | Classement de la Ligue des clans (partagé) |
+| `src/lib/clans-leaderboard.ts` | Rang en Ligue des clans (partagé), via `clan-league-service.ts` — voir [ligue-clans.md](ligue-clans.md) |
 | `src/app/clans/[clanId]/settings/cron/page.tsx` | Page pilotage cron (Owner) |
 | `prisma/schema.prisma` | Schéma DB |

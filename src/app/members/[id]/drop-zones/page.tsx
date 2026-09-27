@@ -7,15 +7,12 @@ import { useMemo, useState } from 'react'
 import {
   DropZonesMap,
   FavoriteSpotCard,
-  mapLabel,
   JumpProfileCard,
-  MapPager,
-  PickerChip,
   TopSpotsList,
   useDropZonesExplorer,
   WhoJumpsWhere,
-  type PickerItem,
 } from '@/components/drop-zones/DropZonesExplorer'
+import { MapPager, mapLabel, PickerChip, type PickerItem } from '@/components/maps/MapToolbarControls'
 import MemberDropInsights from '@/components/drop-zones/MemberDropInsights'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -168,8 +165,8 @@ export default function MemberDropZonesPage() {
       {/* Même exception à sticky.md §2 que la page du clan : carte, période et périmètre sur une ligne, aussi sur mobile. */}
       <DockingToolbar ariaLabel="Filtres des zones de drop du joueur">
         <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
-          <MapPager explorer={explorer} />
-          <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" />
+          <MapPager maps={explorer.maps} activeMap={explorer.activeMap} onStep={explorer.stepMap} onSelect={explorer.selectMap} />
+          <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
           <PickerChip ariaLabel="Périmètre" label={scopeLabel} color={scopeColor} items={items} />
           <span className="ml-auto hidden whitespace-nowrap text-[13px] tabular-nums text-gray-500 lg:inline" data-testid="drop-summary">{summary}</span>
         </div>

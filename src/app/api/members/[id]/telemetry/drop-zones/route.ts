@@ -35,13 +35,6 @@ type LandingPoint = {
   pressureLevel: DropPressureLevel
 }
 
-type HeatmapCell = {
-  mapName: string
-  xIndex: number
-  yIndex: number
-  count: number
-}
-
 type LandingSampleRow = {
   memberKey?: unknown
   teamId?: unknown
@@ -56,7 +49,6 @@ type RawRow = {
   landingSamplesGz: unknown
 }
 
-const GRID_SIZE = 40
 
 function parseMemberId(value: string) {
   const parsed = Number(value)
@@ -406,7 +398,6 @@ export async function GET(
     }
 
     const landingPoints: LandingPoint[] = []
-    const heatmapMap = new Map<string, number>()
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
@@ -446,23 +437,9 @@ export async function GET(
             pressureLevel: dropPressureLevel(dropPressureCount(pressure)),
           })
         }
-
-        const xIndex = Math.min(Math.floor((xPct / 100) * GRID_SIZE), GRID_SIZE - 1)
-        const yIndex = Math.min(Math.floor((yPct / 100) * GRID_SIZE), GRID_SIZE - 1)
-        const cellKey = `${mapName}:${xIndex}:${yIndex}`
-        heatmapMap.set(cellKey, (heatmapMap.get(cellKey) ?? 0) + 1)
       }
     }
 
-    const heatmapCells: HeatmapCell[] = Array.from(heatmapMap.entries()).map(([key, count]) => {
-      const parts = key.split(':')
-      return {
-        mapName: parts[0],
-        xIndex: Number(parts[1]),
-        yIndex: Number(parts[2]),
-        count,
-      }
-    })
     const configuredLocations = await getMapLocations()
     const activeLocations = Object.fromEntries(
       Object.entries(configuredLocations).map(([mapName, locations]) => [
@@ -498,9 +475,8 @@ export async function GET(
             bestMode,
             period,
           },
-          gridSize: GRID_SIZE,
+          // La densité de tout le lobby (`heatmap`) a été retirée le 2026-09-27 : plus aucune page ne l'affichait.
           points: landingPoints,
-          heatmap: heatmapCells,
         },
         {
           scope: effectiveScope,

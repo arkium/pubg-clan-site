@@ -77,7 +77,7 @@ function dropZonesBody(points: LandingPoint[], extra: Record<string, unknown> = 
   return {
     ok: true,
     meta: { period: 'week', periodKey: 'week-2026-39', count: points.length },
-    data: { gridSize: 40, points, heatmap: [], options: { mapLocations: DROP_LOCATIONS }, ...extra },
+    data: { points, options: { mapLocations: DROP_LOCATIONS }, ...extra },
   }
 }
 

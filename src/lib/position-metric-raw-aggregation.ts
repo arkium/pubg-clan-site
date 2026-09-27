@@ -32,6 +32,9 @@ export type PositionMetricCellCount = {
   count: number
 }
 
+/** Cellule d'un membre (clé canonique) : répartition « Qui … où » de la Cartographie tactique. */
+export type PositionMetricMemberCellCount = PositionMetricCellCount & { memberKey: string }
+
 type SampleRow = Record<string, unknown>
 
 function asRows(value: unknown): SampleRow[] {
@@ -57,18 +60,31 @@ export function aggregateRawPositionRows(input: {
   /** Membre demandé (clé canonique), `null` pour tout le clan. */
   requestedMemberKey: string | null
   phaseFilter: TacticalPhase
-}): { cells: PositionMetricCellCount[]; memberPoints: Map<string, number>; phases: Set<number> } {
+}): {
+  cells: PositionMetricCellCount[]
+  /** Cellules par membre, filtre de phase appliqué mais **sans** filtre de membre (tout le clan). */
+  memberCells: PositionMetricMemberCellCount[]
+  memberPoints: Map<string, number>
+  phases: Set<number>
+} {
   const cells = new Map<string, PositionMetricCellCount>()
+  const memberCells = new Map<string, PositionMetricMemberCellCount>()
   const memberPoints = new Map<string, number>()
   const phases = new Set<number>()
 
-  function add(metric: PositionMetric, sample: SampleRow, weight = 1) {
+  function add(metric: PositionMetric, sample: SampleRow, member: string, weight = 1) {
     const x = toNumber(sample.x)
     const y = toNumber(sample.y)
     if (x === null || y === null) return
+    if (!isInTacticalPhase(toNumber(sample.phase), input.phaseFilter)) return
     const percent = toMapPercent(input.mapName, x, y)
     const xIndex = Math.min(POSITION_METRIC_GRID_SIZE - 1, Math.floor((percent.x / 100) * POSITION_METRIC_GRID_SIZE))
     const yIndex = Math.min(POSITION_METRIC_GRID_SIZE - 1, Math.floor((percent.y / 100) * POSITION_METRIC_GRID_SIZE))
+    const memberKey = `${member}|${metric}:${xIndex}:${yIndex}`
+    const memberCell = memberCells.get(memberKey)
+    if (memberCell) memberCell.count += weight
+    else memberCells.set(memberKey, { memberKey: member, metric, xIndex, yIndex, count: weight })
+    if (input.requestedMemberKey && member !== input.requestedMemberKey) return
     const key = `${metric}:${xIndex}:${yIndex}`
     const existing = cells.get(key)
     if (existing) existing.count += weight
@@ -84,11 +100,6 @@ export function aggregateRawPositionRows(input: {
     return input.canonicalKeyByLowerKey.get(rawKey) ?? null
   }
 
-  function passesFilters(canonicalKey: string, sample: SampleRow) {
-    if (input.requestedMemberKey && canonicalKey !== input.requestedMemberKey) return false
-    return isInTacticalPhase(toNumber(sample.phase), input.phaseFilter)
-  }
-
   for (const row of input.rows) {
     squadMemberKeys = row.squadMemberKeys
     // Positions et morts alimentent aussi la liste des membres et des phases, avant tout filtre.
@@ -102,43 +113,43 @@ export function aggregateRawPositionRows(input: {
         memberPoints.set(member, (memberPoints.get(member) ?? 0) + 1)
         const phase = toNumber(sample.phase)
         if (phase !== null && phase > 0) phases.add(phase)
-        if (passesFilters(member, sample)) add(metric, sample)
+        add(metric, sample, member)
       }
     }
 
     for (const sample of asRows(row.killSamples)) {
       const member = memberOf(sample)
-      if (member && passesFilters(member, sample)) add('kill', sample)
+      if (member) add('kill', sample, member)
     }
     for (const sample of asRows(row.shotSamples)) {
       const member = memberOf(sample)
-      if (member && passesFilters(member, sample)) add('shot', sample, toNumber(sample.count) ?? 1)
+      if (member) add('shot', sample, member, toNumber(sample.count) ?? 1)
     }
     for (const sample of asRows(row.damageSamples)) {
       const member = memberOf(sample)
-      if (!member || !passesFilters(member, sample)) continue
-      if (sample.role === 'attacker') add('damage_dealt', sample, toNumber(sample.count) ?? 1)
-      else if (sample.role === 'victim') add('damage_taken', sample, toNumber(sample.count) ?? 1)
+      if (!member) continue
+      if (sample.role === 'attacker') add('damage_dealt', sample, member, toNumber(sample.count) ?? 1)
+      else if (sample.role === 'victim') add('damage_taken', sample, member, toNumber(sample.count) ?? 1)
     }
     for (const sample of asRows(row.knockoutSamples)) {
       const member = memberOf(sample)
-      if (!member || !passesFilters(member, sample)) continue
-      if (sample.role === 'knocker') add('knockout_dealt', sample)
-      else if (sample.role === 'victim') add('knockout_taken', sample)
+      if (!member) continue
+      if (sample.role === 'knocker') add('knockout_dealt', sample, member)
+      else if (sample.role === 'victim') add('knockout_taken', sample, member)
     }
     for (const sample of asRows(row.reviveSamples)) {
       const member = memberOf(sample)
-      if (!member || !passesFilters(member, sample)) continue
-      if (sample.role === 'reviver') add('revive_given', sample)
-      else if (sample.role === 'revived') add('revive_received', sample)
+      if (!member) continue
+      if (sample.role === 'reviver') add('revive_given', sample, member)
+      else if (sample.role === 'revived') add('revive_received', sample, member)
     }
     for (const sample of asRows(row.vehicleSamples)) {
       const member = memberOf(sample)
-      if (member && passesFilters(member, sample)) add('vehicle', sample)
+      if (member) add('vehicle', sample, member)
     }
   }
 
-  return { cells: Array.from(cells.values()), memberPoints, phases }
+  return { cells: Array.from(cells.values()), memberCells: Array.from(memberCells.values()), memberPoints, phases }
 }
 
 export type PositionMapSummary = {

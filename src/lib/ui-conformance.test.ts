@@ -120,6 +120,7 @@ const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
 const MOBILE_DOCKED_EXTRA_CONTROLS: Record<string, string> = {
   'src/app/clans/[clanId]/drop-zones/page.tsx': 'carte ‹ › et joueur, sur une ligne',
   'src/app/members/[id]/drop-zones/page.tsx': 'carte ‹ › et périmètre, sur une ligne',
+  'src/app/clans/[clanId]/stats/positions/page.tsx': 'carte ‹ › et joueur, sur une ligne (même bandeau que les zones de drop)',
 }
 
 /** Composants autorisés à écouter le défilement de la fenêtre — jamais pour se docker. */

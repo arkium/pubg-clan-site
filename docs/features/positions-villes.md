@@ -72,6 +72,8 @@ Mesure du 2026-09-17 sur le clan 1 : 303 matchs en septembre, Pochinki en tête 
 
 ## Voir aussi
 
+- [Cartographie tactique](positions.md) — la page vers laquelle pointe le lien préfiltré (`?map=&view=`)
+
 - [Zones de drop](drop-zones.md) — pression au drop, dont le panneau réutilise les conventions visuelles
 - [Télémétrie — API](../telemetry/api.md) — route `positions` et heatmaps
 - `docs/TODO/todo.md`, section « Dashboards clan et membre »

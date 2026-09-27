@@ -4,6 +4,7 @@ import { requireNavPermission } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { getMapLocations, type MapLocations } from '@/lib/map-location-service'
+import { buildMemberBreakdown, type MemberBreakdown, type MemberMetricCell } from '@/lib/positions-view'
 import { getPhaseLabels } from '@/lib/phase-label-service'
 import {
   parseTacticalPhase,
@@ -11,7 +12,7 @@ import {
   type TacticalPhase,
 } from '@/lib/tactical-phase'
 import {
-  loadAggregatedPositionMetricCells,
+  loadMemberPositionMetricCells,
   loadPositionMetricMapSummary,
   loadPositionMetricMemberPhaseBreakdown,
   loadRawPositionTelemetryRows,
@@ -75,6 +76,8 @@ type SelectedHeatmapData = {
   revivesTaken: HeatmapCell[]
   vehicles: HeatmapCell[]
   safeZoneOverlay: SafeZoneOverlay | null
+  /** « Qui … où » (2026-09-27) : totaux et villes de chaque membre, tout le clan, même carte, période et phase. */
+  memberBreakdown: MemberBreakdown[]
   note: string
   mapLabels: Record<string, string>
   phaseLabels: Record<string, string>
@@ -321,11 +324,11 @@ export async function GET(
     const [persistedCatalog, persistedCells, rawRows, safeZoneTotals] = selectedMap
       ? await Promise.all([
           loadPositionMetricMemberPhaseBreakdown({ clanId: parsedClanId, bounds, selectedMap }),
-          loadAggregatedPositionMetricCells({
+          // Une seule lecture ventilée par membre : la carte (membre filtré ou clan) et « Qui … où » en découlent.
+          loadMemberPositionMetricCells({
             clanId: parsedClanId,
             mapName: selectedMap,
             bounds,
-            memberId: memberKey ? requestedMember?.id ?? -1 : undefined,
             phases: tacticalPhaseNumbers(phaseFilter),
           }),
           selectedMapHasRawMatches
@@ -378,9 +381,24 @@ export async function GET(
       revive_received: new Map<string, HeatmapCell>(),
       vehicle: new Map<string, HeatmapCell>(),
     }
-    for (const cell of [...persistedCells, ...(rawAggregation?.cells ?? [])]) {
+    const requestedMemberId = memberKey ? requestedMember?.id ?? -1 : null
+    const persistedForMap = requestedMemberId === null
+      ? persistedCells
+      : persistedCells.filter((cell) => cell.memberId === requestedMemberId)
+    for (const cell of [...persistedForMap, ...(rawAggregation?.cells ?? [])]) {
       incrementCellWeighted(metricMaps[cell.metric], cell.xIndex, cell.yIndex, cell.count)
     }
+
+    const breakdownCells: MemberMetricCell[] = [
+      ...persistedCells.flatMap((cell) => {
+        const member = clanMemberById.get(cell.memberId)
+        return member ? [{ memberKey: canonicalMemberKey(member), metric: cell.metric, xIndex: cell.xIndex, yIndex: cell.yIndex, count: cell.count }] : []
+      }),
+      ...(rawAggregation?.memberCells ?? []),
+    ]
+    const memberBreakdown = selectedMap
+      ? buildMemberBreakdown(breakdownCells, activeLocations[selectedMap] ?? [], GRID_SIZE, (key) => labelByKey.get(key) ?? key)
+      : []
 
     const members = new Map<string, number>()
     const phases = new Set<number>()
@@ -445,6 +463,7 @@ export async function GET(
       revivesTaken: sortCells(metricMaps.revive_received),
       vehicles: sortCells(metricMaps.vehicle),
       safeZoneOverlay,
+      memberBreakdown,
       note,
       mapLabels,
       phaseLabels,

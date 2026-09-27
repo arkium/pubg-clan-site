@@ -33,14 +33,6 @@ type LandingPoint = {
   pressureLevel: DropPressureLevel
 }
 
-type HeatmapCell = {
-  mapName: string
-  xIndex: number
-  yIndex: number
-  count: number
-}
-
-const GRID_SIZE = 40
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -170,9 +162,6 @@ export async function GET(
     `)
 
     const landingPoints: LandingPoint[] = []
-    const heatmapMap = new Map<string, number>()
-    // Heatmap must process each match only once — SQL returns one row per (member × match)
-    const processedHeatmapMatchIds = new Set<string>()
 
     for (const row of rows) {
       const mapName = typeof row.mapName === 'string' ? row.mapName : 'Baltic_Main'
@@ -189,7 +178,6 @@ export async function GET(
       })
       const accountId = row.pubgAccountId?.toLowerCase()
       const playerName = row.pubgPlayerName?.toLowerCase()
-      const matchAlreadyProcessed = processedHeatmapMatchIds.has(row.squadMatchId)
 
       for (const sample of pressureSamples) {
         const { memberKey, x, y } = sample
@@ -219,28 +207,9 @@ export async function GET(
             pressureLevel: dropPressureLevel(dropPressureCount(pressure)),
           })
         }
-
-        // Heatmap: all players including opponents, but each match processed only once
-        if (!matchAlreadyProcessed) {
-          const xIndex = Math.min(Math.floor((xPct / 100) * GRID_SIZE), GRID_SIZE - 1)
-          const yIndex = Math.min(Math.floor((yPct / 100) * GRID_SIZE), GRID_SIZE - 1)
-          const cellKey = `${mapName}:${xIndex}:${yIndex}`
-          heatmapMap.set(cellKey, (heatmapMap.get(cellKey) ?? 0) + 1)
-        }
       }
-
-      processedHeatmapMatchIds.add(row.squadMatchId)
     }
 
-    const heatmapCells: HeatmapCell[] = Array.from(heatmapMap.entries()).map(([key, count]) => {
-      const parts = key.split(':')
-      return {
-        mapName: parts[0],
-        xIndex: Number(parts[1]),
-        yIndex: Number(parts[2]),
-        count,
-      }
-    })
     const configuredLocations = await getMapLocations()
     const activeLocations = Object.fromEntries(
       Object.entries(configuredLocations).map(([mapName, locations]) => [
@@ -259,9 +228,8 @@ export async function GET(
           count: landingPoints.length,
         },
         {
-          gridSize: GRID_SIZE,
+          // La densité de tout le lobby (`heatmap`) a été retirée le 2026-09-27 : plus aucune page ne l'affichait.
           points: landingPoints,
-          heatmap: heatmapCells,
           options: {
             mapLocations: activeLocations,
           },

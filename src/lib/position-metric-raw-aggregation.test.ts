@@ -82,6 +82,25 @@ describe('aggregateRawPositionRows', () => {
   })
 })
 
+describe('aggregateRawPositionRows — cellules par membre', () => {
+  it('ventile par membre sans le filtre de membre, avec la plage tactique', () => {
+    const { cells, memberCells } = aggregateRawPositionRows({
+      rows: [row],
+      mapName: MAP,
+      canonicalKeyByLowerKey: members,
+      requestedMemberKey: 'account.b',
+      phaseFilter: 'early',
+    })
+    // La carte ne garde que le membre demandé (aucun événement de B en début de partie)…
+    expect(cells).toEqual([])
+    // … mais la répartition couvre tout le clan, phases 1–2 seulement.
+    const ofA = memberCells.filter((cell) => cell.memberKey === 'account.a')
+    expect(ofA.find((cell) => cell.metric === 'shot')?.count).toBe(7)
+    expect(ofA.find((cell) => cell.metric === 'damage_taken')?.count).toBe(2)
+    expect(memberCells.some((cell) => cell.memberKey === 'account.b')).toBe(false)
+  })
+})
+
 describe('mergeMapSummaries', () => {
   it('additionne matchs couverts et matchs relus, puis trie par nombre de matchs', () => {
     const merged = mergeMapSummaries(

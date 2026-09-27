@@ -134,6 +134,39 @@ export async function loadAggregatedPositionMetricCells(input: {
   }))
 }
 /**
+ * Mêmes cellules, ventilées par membre (Cartographie tactique, 2026-09-27) : la route en tire la carte (membre
+ * filtré ou tout le clan) et la répartition « Qui … où », en une seule lecture. Mesuré le 2026-09-27 sur le
+ * plus gros clan (Erangel, tout l'historique) : 54 000 lignes en 3,4 s, contre 9 000 en 2,0 s sans le membre.
+ */
+export async function loadMemberPositionMetricCells(input: {
+  clanId: number
+  mapName: string
+  bounds: PositionMetricPeriodBounds
+  phases?: number[]
+  client?: PrismaClient
+}) {
+  const client = input.client ?? prisma
+  const rows = await client.positionMetricCell.groupBy({
+    by: ['memberId', 'metric', 'xIndex', 'yIndex'],
+    where: {
+      clanId: input.clanId,
+      mapName: input.mapName,
+      phase: input.phases?.length ? { in: input.phases } : undefined,
+      ...periodWhere(input.bounds),
+    },
+    _sum: { eventCount: true },
+  })
+
+  return rows.map((row) => ({
+    memberId: row.memberId,
+    metric: row.metric as PositionMetric,
+    xIndex: row.xIndex,
+    yIndex: row.yIndex,
+    count: row._sum.eventCount ?? 0,
+  }))
+}
+
+/**
  * Télémétrie brute d'une carte sur la période, avec les membres du clan de chaque escouade. `without_cells` : ce
  * que la route Positions doit relire (matchs sans `PositionMetricCell`) ; `with_cells` : pour comparer les deux
  * sources sur les mêmes matchs (`scripts/compare-position-metrics.ts`).

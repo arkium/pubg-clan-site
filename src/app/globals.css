@@ -3775,3 +3775,11 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
   .dz-slide-from-right,
   .dz-slide-from-left { animation: none; }
 }
+
+/* Bandeau des pages à carte (zones de drop, cartographie tactique) : carte ‹ ›, période et joueur sur une seule ligne
+   à 375 px — la période se resserre pour laisser le nom de la carte lisible (docs/features/drop-zones.md). */
+@media (max-width: 639px) {
+  .map-toolbar-period .app-segmented-control__item--xs {
+    padding-inline: 0.4rem;
+  }
+}

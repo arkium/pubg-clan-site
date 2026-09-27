@@ -7,14 +7,12 @@ import { useMemo, useState } from 'react'
 import {
   DropZonesMap,
   FavoriteSpotCard,
-  mapLabel,
   JumpProfileCard,
-  MapPager,
-  PickerChip,
   TopSpotsList,
   useDropZonesExplorer,
   WhoJumpsWhere,
 } from '@/components/drop-zones/DropZonesExplorer'
+import { MapPager, mapLabel, PickerChip } from '@/components/maps/MapToolbarControls'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -119,8 +117,8 @@ export default function ClanDropZonesPage() {
       */}
       <DockingToolbar ariaLabel="Filtres des zones de drop">
         <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
-          <MapPager explorer={explorer} />
-          <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" />
+          <MapPager maps={explorer.maps} activeMap={explorer.activeMap} onStep={explorer.stepMap} onSelect={explorer.selectMap} />
+          <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
           <PickerChip
             ariaLabel="Joueur"
             label={memberName ?? 'Tout le clan'}

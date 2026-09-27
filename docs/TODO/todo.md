@@ -2562,6 +2562,15 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte de la Cartographie tactique : « choisis un événement, lis la carte »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Positions » — [positions.md](../features/positions.md) :
+- [x] Bandeau des zones de drop (carte ‹ ›, période, joueur) sur une ligne, docké aussi sur mobile (exception nommée).
+- [x] Sept tuiles d'événement au lieu de « Catégorie » + « Vue » ; un seul rendu à la fois ; sens sur la carte.
+- [x] Phase du cercle sous la carte, zone moyenne affichée ; zone chaude, rapport de force, top 5, « Qui … où » paginé.
+- [x] Route : `memberBreakdown` (une lecture groupée par membre remplace la lecture agrégée, 3,4 s au pire mesuré).
+- [x] Lien préfiltré du panneau « Villes » (`?map=&view=`) repris.
+
 #### ~~Refonte des zones de drop : « une question à la fois » (clan et joueur)~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Zones de drop » — [drop-zones.md](../features/drop-zones.md) :
@@ -2572,7 +2581,7 @@ Maquette Claude Design « Zones de drop » — [drop-zones.md](../features/drop-
       « Qui saute où » paginé par chevrons.
 - [x] Même refonte sur la page d'un joueur (périmètres : joueur, meilleur duo / trio / squad, clan, autre joueur).
 - [x] Pression au drop et villes : retirées de la page du clan (maquette), gardées sur celle du joueur. Aucun changement d'API.
-- [ ] La heatmap du lobby (`data.heatmap`) n'est plus affichée : la retirer de la route si personne n'en a l'usage.
+- [x] La heatmap du lobby (`data.heatmap`) : retirée des routes clan et joueur le 2026-09-27 (aucun autre lecteur).
 - [ ] `GET /api/clans/[clanId]/drop-pressure-stats` et `GET /api/clans/[clanId]/city-insights` n'ont plus d'appelant :
       à supprimer sur décision (l'app mobile prévue pourrait s'en servir).
 

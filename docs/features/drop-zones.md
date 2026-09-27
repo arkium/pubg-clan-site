@@ -1,6 +1,6 @@
 # Drop Zones
 
-Les zones de drop visualisent les points d'atterrissage en parachute des membres du clan, sous forme de points individuels et de heatmap agrégée sur une carte PUBG.
+Les zones de drop visualisent les points d'atterrissage en parachute des membres du clan, un point par saut, coloré par la pression au drop, ou en halos de densité calculés côté page depuis ces mêmes points.
 
 ---
 
@@ -29,16 +29,6 @@ Les matchs parsés **avant** l'application de cette migration ne contiennent pas
 | `xPct` | number | Position normalisée en % [0..100] sur l'axe horizontal de l'image de carte |
 | `yPct` | number | Position normalisée en % [0..100] sur l'axe vertical de l'image de carte |
 
-### `HeatmapCell` — agrégat de la grille 40x40
-
-| Champ | Type | Description |
-|---|---|---|
-| `xIndex` | number | Colonne dans la grille, [0..39] |
-| `yIndex` | number | Ligne dans la grille, [0..39] |
-| `count` | number | Nombre de landings dans cette cellule |
-
-Seules les cellules avec `count > 0` figurent dans le tableau `heatmap`. La grille 40x40 correspond à des cellules d'environ 2 % de la carte.
-
 ### Statistiques par ville
 
 La page membre associe chaque `LandingPoint` aux villes actives configurées dans `pubg_map_locations`. Un point appartient à une ville lorsque la distance entre ses coordonnées `xPct/yPct` et le centre de la ville est inférieure ou égale à son `radiusPct`.
@@ -56,7 +46,7 @@ Le Top 5 affiché au-dessus de la carte est recalculé selon la portée, la pér
 
 En cas d'égalité entre membres dans une ville, le nom affiché est le premier par ordre alphabétique.
 
-Le filtre par ville limite les points affichés et reconstruit la heatmap à partir de ces seuls points. Les périmètres circulaires blancs sont visibles par défaut ; leur bouton superposé permet de masquer cette couche, placée au-dessus de la heatmap et sous les points individuels.
+Depuis le 2026-09-27, les épingles du top 5 remplacent le filtre par ville et les périmètres de toutes les villes (§ Pages UI).
 
 ### Pression au drop
 
@@ -163,16 +153,9 @@ type LandingPoint = {
   yPct: number
 }
 
-type HeatmapCell = {
-  xIndex: number  // [0..39]
-  yIndex: number  // [0..39]
-  count: number
-}
-
 type DropZonesData = {
-  gridSize: 40
   points: LandingPoint[]
-  heatmap: HeatmapCell[]  // uniquement les cellules count > 0
+  // `gridSize` et `heatmap` (densité de tout le lobby) retirés le 2026-09-27 : plus aucune page ne les lisait.
   options: {
     mapLocations: Record<string, MapLocation[]> // villes actives uniquement
   }
@@ -192,7 +175,6 @@ type DropZonesData = {
     "count": 87
   },
   "data": {
-    "gridSize": 40,
     "points": [
       {
         "memberId": 42,
@@ -204,10 +186,6 @@ type DropZonesData = {
         "xPct": 43.21,
         "yPct": 21.85
       }
-    ],
-    "heatmap": [
-      { "xIndex": 17, "yIndex": 8, "count": 5 },
-      { "xIndex": 18, "yIndex": 8, "count": 3 }
     ]
   },
   "legacy": {
@@ -233,7 +211,7 @@ pages et marqueurs (`DropPressureMarker`, `DropPressureLegend`) archivés dans `
 | Constat (page d'avant) | Décision |
 |---|---|
 | Trois couches superposées (heatmap carrée, périmètres de toutes les villes, marqueurs dont le fond code la pression et le contour le joueur), deux légendes | **Deux lectures au choix** : « Nos sauts » (un point par saut, couleur = pression) ou « Densité » (halos). Plus de contour par joueur : on **filtre** le joueur. Une seule légende, sous la carte |
-| « Densité » : la heatmap comptait **tout le lobby**, adversaires compris | Densité **de nos sauts**, même filtre que les points (décision du 2026-09-27). La heatmap du lobby reste renvoyée par l'API, plus affichée |
+| « Densité » : la heatmap comptait **tout le lobby**, adversaires compris | Densité **de nos sauts**, même filtre que les points (décision du 2026-09-27). La heatmap du lobby (`data.heatmap`, `gridSize`) a été **retirée des deux routes** le même jour : aucune autre page ne la lisait (la Cartographie tactique a sa propre route) |
 | Sept compteurs en ligne sans hiérarchie (dont « Cellules visibles ») | **Profil de saut** : barre en 4 niveaux et 3 chiffres (moyenne, pire drop, part de hot drops) |
 | Carte choisie dans une liste ; glisser au doigt existant mais invisible | Bandeau ‹ ERANGEL › avec points de pagination ; sur la carte, étiquettes ‹ carte voisine › et rappel « Glisse la carte pour changer de map » ; la carte suivante arrive du côté du geste |
 | Bandeau : période + 3 listes + texte d'aide, très haut sur mobile | **Une ligne** : carte ‹ ›, période, pastille joueur (menu) ; « N sauts · N matchs » à droite sur ordinateur |

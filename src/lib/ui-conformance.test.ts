@@ -125,6 +125,7 @@ const MOBILE_DOCKED_EXTRA_CONTROLS: Record<string, string> = {
   'src/app/clans-leaderboard/page.tsx': 'critère (un bouton qui passe au suivant) et pastille « Mon clan », sur une ligne',
   'src/app/members/[id]/nemesis/page.tsx': 'pastille d’arme, sur une ligne avec la période',
   'src/app/members/[id]/weapons/page.tsx': 'onglet Site / PUBG et pastille de catégorie, sur une ligne avec la période (ou la synchro)',
+  'src/app/members/[id]/matches/page.tsx': 'pastille de mode, sur une ligne avec la période',
 }
 
 /** Composants autorisés à écouter le défilement de la fenêtre — jamais pour se docker. */

@@ -41,6 +41,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Awards](features/awards.md) | 11 awards fun, logique de calcul top 3, contrat API complet, formatage des valeurs |
 | [Armes](features/weapons.md) | Stats armes télémétrie (MemberWeaponStats) + Weapon Mastery carrière (MemberWeaponMastery) |
 | [Season stats](features/season-stats.md) | Stats ranked/normal par saison, tier, cron daily, contrats GET/POST |
+| [Matchs d'un joueur](features/matchs-joueur.md) | `/members/[id]/matches` : carnet de vol — chiffres clés, chronologie paginée, barre des modes, soirées et cartes de fin de partie (débriefing, équipes, coéquipiers) ; `limit=all` |
 | [Carrière PUBG d'un joueur](features/carriere-joueur.md) | `/members/[id]/stats` : plaque, états de service par mode, saisons (Cristal, palier suivant), vitrine des médailles du clan, hauts faits, fiches ; calendrier et carte Carrière du tableau de bord ; records d'une partie au maximum entre modes |
 | [Armes d'un joueur](features/armes-joueur.md) | `/members/[id]/weapons` : onglets « Suivi par le site » (arme de prédilection, loadout, records, râtelier) et « Carrière PUBG » (maîtrise, niveaux d'expert) ; lancers sur la période |
 | [Némésis](features/nemesis.md) | `/members/[id]/nemesis` : face-à-face et revanche, bilan, chasseurs et proies paginés, death cam ; tous les duels lus (plus de plafond à 500), duel inverse par adversaire, libellés d'armes côté serveur |

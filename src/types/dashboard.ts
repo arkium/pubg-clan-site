@@ -25,10 +25,15 @@ export interface DashboardMatch {
   assists: number
   revives: number
   pubgCreatedAt: string
+  /** Coéquipiers du clan dans la partie (sans le joueur). */
   squad: string[]
   clanId?: number | null
   squadMatchId?: string | null
   telemetryAvailable?: boolean
+  /** Équipes au départ, lu dans la télémétrie ; `null` sans télémétrie analysée. */
+  teamCount?: number | null
+  /** `null` : aucune partie de clan enregistrée (joué sans coéquipier du clan). */
+  telemetryStatus?: 'success' | 'pending' | 'failed' | 'expired' | null
 }
 
 export interface MatchesResponse {

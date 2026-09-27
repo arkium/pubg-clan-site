@@ -148,7 +148,7 @@ calendaires (heure locale du serveur).
 | `src/app/api/members/[id]/activity-heatmap/route.ts` | Endpoint heatmap |
 | `src/components/player-dashboard/PlayerDashboardSections.tsx` | Blocs du tableau de bord ([membres.md](membres.md)) |
 | `src/lib/player-dashboard.ts` | Clés de période, barres d'activité, écart au clan, profil de jeu |
-| `src/components/dashboard/MatchHistory.tsx` | Historique des matchs (page Matchs du joueur) |
+| `src/components/player-matches/PlayerMatchesSections.tsx` | Carnet de vol (page Matchs du joueur ; remplace `MatchHistory`, archivé) — [matchs-joueur.md](matchs-joueur.md) |
 | `src/lib/stats-calculator.ts` | `recalculateStatsForClan()`, calcul `PlayerStats` |
 | `src/lib/pubg.ts` | `fetchLifetimeStats()` |
 | `src/types/dashboard.ts` | Types du dashboard et des matchs |

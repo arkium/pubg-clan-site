@@ -1,8 +1,10 @@
-import { prisma } from '@/lib/prisma'
-import { STANDARD_PERIODS, getPeriodStart, parsePeriod } from '@/lib/period'
+import { teamCountFromPhaseSnapshots } from '@/lib/home-showcase'
 import { getMapLabels } from '@/lib/map-label-service'
+import { STANDARD_PERIODS, getPeriodStart, parsePeriod } from '@/lib/period'
+import { prisma } from '@/lib/prisma'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
-import { NextRequest } from 'next/server'
+import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
+import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
 const MATCH_SORT_KEYS = ['pubgCreatedAt', 'kills', 'damageDealt', 'placement'] as const
@@ -85,10 +87,13 @@ export async function GET(
     const exactDateRange = getExactDateRange(searchParams.get('date'))
 
     // Dashboard mode: when period, limit or offset params are provided,
-    // return stored matches in a simplified format
+    // return stored matches in a simplified format. `limit=all` : toute la période, sans pagination (page Matchs d'un
+    // joueur, qui regroupe par soirée côté page — docs/features/matchs-joueur.md ; 371 parties « Tous » pour le plus
+    // gros joueur le 2026-09-27).
     if (period !== null || limitParam !== null || offsetParam !== null) {
-      const limit = limitParam ? Math.min(Math.max(Number(limitParam) || 10, 1), 100) : 10
-      const offset = offsetParam ? Math.max(Number(offsetParam) || 0, 0) : 0
+      const all = limitParam === 'all'
+      const limit = limitParam && !all ? Math.min(Math.max(Number(limitParam) || 10, 1), 100) : 10
+      const offset = offsetParam && !all ? Math.max(Number(offsetParam) || 0, 0) : 0
       const since = getPeriodDateFilter(period)
 
       const where = {
@@ -109,8 +114,7 @@ export async function GET(
         prisma.match.findMany({
           where,
           orderBy,
-          take: limit,
-          skip: offset,
+          ...(all ? {} : { take: limit, skip: offset }),
         }),
         prisma.match.count({ where }),
       ])
@@ -139,8 +143,10 @@ export async function GET(
                       members: true,
                     },
                   },
+                  // Coéquipiers du clan (carte de fin de partie).
+                  members: { select: { memberId: true, member: { select: { displayName: true } } } },
                   telemetry: {
-                    select: { status: true },
+                    select: { status: true, errorCode: true, errorMessage: true, phaseSnapshots: true, phaseSnapshotsGz: true },
                   },
                 },
               },
@@ -151,7 +157,28 @@ export async function GET(
       const clanMemberCountByMatchId = new Map<string, number>()
       const squadMatchIdByPubgMatchId = new Map<string, string>()
       const telemetryAvailableByPubgMatchId = new Map<string, boolean>()
+      const telemetryStatusByPubgMatchId = new Map<string, 'success' | 'pending' | 'failed' | 'expired'>()
+      const teamCountByPubgMatchId = new Map<string, number | null>()
+      const matesByPubgMatchId = new Map<string, string[]>()
       for (const squadMember of squadMembers) {
+        const { pubgMatchId, telemetry, members } = squadMember.squadMatch
+        const status = telemetry?.status
+        telemetryStatusByPubgMatchId.set(
+          pubgMatchId,
+          status === 'success'
+            ? 'success'
+            : status === 'failed'
+              ? isTelemetryDataExpiredError(telemetry?.errorCode, telemetry?.errorMessage)
+                ? 'expired'
+                : 'failed'
+              : 'pending'
+        )
+        // Équipes au départ (télémétrie compressée, ≈ 160 ms pour 307 parties mesurées le 2026-09-27).
+        teamCountByPubgMatchId.set(pubgMatchId, telemetry ? teamCountFromPhaseSnapshots(decodeTelemetryRow(telemetry).phaseSnapshots) : null)
+        matesByPubgMatchId.set(
+          pubgMatchId,
+          members.filter((entry) => entry.memberId !== memberId).map((entry) => entry.member.displayName)
+        )
         clanMemberCountByMatchId.set(
           squadMember.squadMatch.pubgMatchId,
           squadMember.squadMatch._count.members
@@ -180,7 +207,9 @@ export async function GET(
           assists: m.assists,
           revives: m.revives,
           pubgCreatedAt: m.pubgCreatedAt.toISOString(),
-          squad: [],
+          squad: matesByPubgMatchId.get(m.pubgMatchId) ?? [],
+          teamCount: teamCountByPubgMatchId.get(m.pubgMatchId) ?? null,
+          telemetryStatus: telemetryStatusByPubgMatchId.get(m.pubgMatchId) ?? null,
           clanId: memberForClan?.clanId ?? null,
           squadMatchId: squadMatchIdByPubgMatchId.get(m.pubgMatchId) ?? null,
           telemetryAvailable: telemetryAvailableByPubgMatchId.get(m.pubgMatchId) ?? false,

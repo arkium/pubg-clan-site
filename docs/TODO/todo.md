@@ -2562,6 +2562,15 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte des Matchs d'un joueur : « un carnet de vol »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Matchs joueur » — [matchs-joueur.md](../features/matchs-joueur.md) :
+- [x] Route : `limit=all`, coéquipiers du clan, nombre d'équipes (télémétrie), état de la télémétrie (expirée comprise).
+- [x] Chiffres clés, chronologie paginée (10 / 5) au lieu d'un défilement, barre des modes, soirées paginées par 4 et
+      cartes de fin de partie (Débriefing / État) ; mode = membres du clan dans l'équipe, « Sans le clan ».
+- [x] Bandeau période + mode sur une ligne, docké aussi sur mobile (exception nommée) ; champ de date retiré,
+      soirée dans l'URL (`?soiree=`) ; `MatchHistory` archivé.
+
 #### ~~Refonte de la Carrière PUBG d'un joueur : « des états de service »~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Stats joueur » — [carriere-joueur.md](../features/carriere-joueur.md) :
@@ -3525,7 +3534,7 @@ Livré le 2026-09-17 — doc `docs/features/objets-consommes.md`.
 
 Ces champs sont stockés en DB depuis la migration P1.1 mais n'ont pas tous de vue dédiée :
 
-- `headshotKills` — ✅ affiché dans `/members/[id]/matches` (colonne du tableau) et agrégé dans map-stats (`totalHeadshots`). Absent des pages clan.
+- `headshotKills` — ✅ agrégé dans map-stats (`totalHeadshots`). Affiché dans `/members/[id]/matches` jusqu'à la refonte du 2026-09-27 (colonne du tableau, retiré avec lui). Absent des pages clan.
 - `teamKills` — ❌ non affiché nulle part. La variable `teamKills` dans les pages télémétrie est la somme des kills d'équipe, pas ce champ.
 - `swimDistance` — ❌ non affiché par match. Le lifetime agrégé `swamDistance` est bien présent dans `MemberLifetimeStatsPanel`.
 

@@ -225,6 +225,9 @@ suivante, et affiche plan de vol et cartes.
 
 ## 5. Page `/members/[id]/matches`
 
+Refonte du 2026-09-27 : carnet de vol (chiffres clés, chronologie paginée, soirées et cartes de fin de partie) — voir
+[Matchs d'un joueur](matchs-joueur.md).
+
 **Endpoint :** `GET /api/members/[id]/matches`
 
 ### Mode historique importé
@@ -236,12 +239,12 @@ Déclenché si au moins un query param (`period`, `limit`, `offset`) est présen
 | Paramètre | Valeurs | Défaut |
 |---|---|---|
 | `period` | `week`, `month`, `all` | `all` |
-| `limit` | 1–100 | 10 |
+| `limit` | 1–100, ou `all` (toute la période, sans pagination) | 10 |
 | `offset` | ≥ 0 | 0 |
 | `sortBy` | `pubgCreatedAt`, `kills`, `damageDealt`, `placement` | `pubgCreatedAt` |
 | `sortDirection` | `asc`, `desc` | `desc` |
 
-Note : depuis le 2026-09-26, `week` et `month` sont **calendaires** (semaine ISO depuis lundi 00:00, mois civil — `src/lib/period.ts`), comme le leaderboard et la page matchs clan. La période et la date exacte se choisissent dans le bandeau de la page.
+Note : depuis le 2026-09-26, `week` et `month` sont **calendaires** (semaine ISO depuis lundi 00:00, mois civil — `src/lib/period.ts`), comme le leaderboard et la page matchs clan. Le paramètre `date` (jour exact) reste accepté ; la page ne l'envoie plus depuis la refonte (les soirées le remplacent).
 
 **Colonne `clanMode`** : pour chaque match de l'historique, l'API calcule le mode clan via `SquadMember`/`SquadMatch` :
 - `solo` : pas de `SquadMember` ou compteur ≤ 1.
@@ -249,7 +252,7 @@ Note : depuis le 2026-09-26, `week` et `month` sont **calendaires** (semaine ISO
 - `trio` : compteur = 3.
 - `squad` : compteur ≥ 4.
 
-**Réponse :** `matches[]`, `totalCount`, `sortBy`, `sortDirection`, `mapLabels`.
+**Réponse :** `matches[]` (avec `squad` : coéquipiers du clan, `teamCount`, `telemetryStatus` depuis le 2026-09-27), `totalCount`, `sortBy`, `sortDirection`, `mapLabels`.
 
 ### Mode détection des matchs récents à importer
 

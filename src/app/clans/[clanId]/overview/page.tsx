@@ -14,7 +14,7 @@ import {
   type ExploreLink,
 } from '@/components/clan-overview/ClanOverviewSections'
 import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
-import SquadSynergies from '@/components/SquadSynergies'
+import Link from 'next/link'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -331,22 +331,14 @@ export default function ClanOverviewPage() {
                     clanWinRate={stats.winRate}
                   />
                   <SynergyBarsPanel bars={synergyBars(synergyGroups)}>
-                    {/* Détail complet (paires, escouades, réanimations et kills croisés de la télémétrie). */}
-                    <details className="group">
-                      <summary className="cursor-pointer list-none text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
-                        <span className="group-open:hidden">Toutes les synergies →</span>
-                        <span className="hidden group-open:inline">Replier le détail</span>
-                      </summary>
-                      <div className="mt-3">
-                        <SquadSynergies
-                          clanId={clanId}
-                          period={selectedPeriod}
-                          matchType={selectedMatchType}
-                          mode={selectedMode}
-                          synergies={byMode?.synergies as never}
-                        />
-                      </div>
-                    </details>
+                    {/* Le détail (duos, trios, squads, coopération) vit sur « Style de jeu du clan » depuis le 2026-09-27. */}
+                    <Link
+                      href={`/clans/${clanId}/stats?period=${selectedPeriod}#sec-synergies`}
+                      className="text-xs font-semibold hover:underline"
+                      style={{ color: 'var(--game-link)' }}
+                    >
+                      Synergies et coopération →
+                    </Link>
                   </SynergyBarsPanel>
                 </section>
               </div>

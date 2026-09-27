@@ -1,8 +1,7 @@
 'use client'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-
 import MobileRankList, { type MobileRankRow } from '@/components/ui/MobileRankList'
+import Pagination from '@/components/ui/Pagination'
 import RankCell from '@/components/ui/RankCell'
 import SortableTh from '@/components/ui/SortableTh'
 import ArmoryWeaponImage from '@/components/weapons/ArmoryWeaponImage'
@@ -15,7 +14,6 @@ import {
   formatMeters,
   formatPercent,
   headshotRate,
-  paginationItems,
   rowCategory,
   type ArmoryRow,
   type ArmorySortKey,
@@ -187,53 +185,15 @@ export default function ArmoryRanking({
               </table>
             </div>
 
-            {rows.length > ARMORY_PAGE_SIZE ? (
-              <nav
-                className="flex flex-wrap items-center justify-between gap-2.5 border-t border-gray-200 px-3.5 py-2.5 text-xs text-gray-500"
-                aria-label="Pages du classement"
-              >
-                <span className="tabular-nums">
-                  Lignes {start + 1}–{Math.min(start + ARMORY_PAGE_SIZE, rows.length)} sur {rows.length}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="app-pager-button"
-                    onClick={() => onPageChange(current - 1)}
-                    disabled={current === 1}
-                    aria-label="Page précédente"
-                  >
-                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  {paginationItems(current, pageCount).map((item, index) =>
-                    item === 'gap' ? (
-                      <span key={`gap-${index}`} className="px-1" aria-hidden="true">
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => onPageChange(item)}
-                        aria-current={item === current ? 'page' : undefined}
-                        className={`app-pager-button ${item === current ? 'app-pager-button--active' : ''}`}
-                      >
-                        {item}
-                      </button>
-                    )
-                  )}
-                  <button
-                    type="button"
-                    className="app-pager-button"
-                    onClick={() => onPageChange(current + 1)}
-                    disabled={current === pageCount}
-                    aria-label="Page suivante"
-                  >
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-              </nav>
-            ) : null}
+            <Pagination
+              className="border-t border-gray-200 px-3.5 py-2.5"
+              ariaLabel="Pages du classement"
+              page={current}
+              pageCount={pageCount}
+              total={rows.length}
+              pageSize={ARMORY_PAGE_SIZE}
+              onPageChange={onPageChange}
+            />
           </div>
         </>
       )}

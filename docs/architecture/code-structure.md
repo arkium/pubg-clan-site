@@ -112,7 +112,7 @@ app/api/
       sync-matches/               # Déclenchement sync manuelle
       sync-stats/
       pubg-diff/                  # Diff membres PUBG vs BDD
-      lifetime-stats/
+      lifetime-stats/             # Carrière PUBG du clan (sans période)
       awards/
       challenges/
       cron-control/               # Déclenchement/arrêt des crons
@@ -165,7 +165,7 @@ app/api/
 | `clans/` | Annuaire des clans (`/clans`) : clan épinglé, clan du moment, clans actifs, en sommeil ([clans.md](../features/clans.md) §6 bis) |
 | `Leaderboard.tsx` | Tableau de classement (en-têtes triables, liste mobile) |
 | `SquadMatchList.tsx` | Liste des matchs squad |
-| `SquadSynergies.tsx` | Visualisation des synergies |
+| `clan-stats/` | Sections de « Style de jeu du clan » et cartes de « Carrière PUBG » ([statistiques.md](../features/statistiques.md)) |
 | `TopPerformers.tsx` | Bloc top performeurs |
 | `ProgressionChart.tsx` | Graphique de progression |
 | `ThemeInitializer.tsx` | Initialisation du thème côté client (évite le flash) |

@@ -297,7 +297,6 @@ La télémétrie est un pipeline distinct (`src/lib/pubg-telemetry/`) qui parse 
 | `src/components/matches/MatchResultCard.tsx` | Carte de fin de partie |
 | `src/lib/match-sessions.ts` | Journée de jeu (`sessionDateOf`), bilan de soirée, modes, soirées voisines, libellés |
 | `src/components/SquadMatchList.tsx` | Cartes techniques (page de pilotage de la télémétrie) |
-| `src/components/SquadSynergies.tsx` | Synergies avec badges joueurs |
 | `src/lib/pubg.ts` | `fetchRecentMatchIds()`, `fetchMatchDetails()` |
 | `src/types/squad-matches.ts` | Types contrat de données matchs clan |
 | `src/types/dashboard.ts` | Types `MatchesResponse`, tri, période |

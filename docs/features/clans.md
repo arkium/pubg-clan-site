@@ -323,7 +323,7 @@ vitrine, dans cet ordre :
 | Chiffres clés | Kills, Top 1, Dégâts moyens, Parties (`KpiGrid`, même composant que Matchs et Soirée), chacun avec un lien : Top fraggers (Classement), Revoir les top 1 (Matchs), L'armurerie du clan, Soirées | Oui |
 | Performances par mode | Images duo / trio / squad, top 1 en pastille, parties, kills, win rate, lien vers les soirées | Oui |
 | Duo de la période | Paire au meilleur taux de top 1 avec **au moins 5 parties ensemble** (`pickDuo`), kills de chacun, top 1, **réanimations croisées** (`/api/clans/[clanId]/telemetry/synergies`, `reviveCount`), comparaison au taux du clan | Oui |
-| Synergies de squad | Barres par taux de top 1 (paires et escouades, ≥ 5 parties) ; « Toutes les synergies » déplie le panneau détaillé `SquadSynergies` (paires, escouades, réanimations et kills croisés) | Oui |
+| Synergies de squad | Barres par taux de top 1 (paires et escouades, ≥ 5 parties) ; le lien « Synergies et coopération → » mène à la section `#sec-synergies` de « Style de jeu du clan », période conservée ([Statistiques](statistiques.md)) — le panneau dépliable `SquadSynergies` a été retiré le 2026-09-27 | Oui |
 | Explorer le clan | Pages du clan (registre de navigation, droits respectés) regroupées en Jouer ensemble / Progresser / Se mesurer (`groupByIntent` : une page inconnue va dans Progresser), plus Tournois, Ligue des clans et Comparateur ; indices : parties de la semaine, membres suivis, défis en cours, joueur en tête, rang en Ligue | Non |
 
 Données de la vitrine : `GET /api/clans/[clanId]/overview/showcase` (`src/lib/clan-showcase-service.ts`, logique pure dans

@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       // côté navigateur. Les tournois sont globaux, la redirection se fait maintenant avant tout rendu.
       { source: '/clans/:clanId/tournaments', destination: '/tournaments', permanent: false },
       { source: '/clans/:clanId/tournaments/:tournamentId', destination: '/tournaments/:tournamentId', permanent: false },
+      // « Objets consommés » fondu dans « Style de jeu du clan » (2026-09-27) : même période, section `#sec-items`.
+      { source: '/clans/:clanId/stats/items', destination: '/clans/:clanId/stats#sec-items', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

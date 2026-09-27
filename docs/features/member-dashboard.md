@@ -211,6 +211,12 @@ La table stocke 6 colonnes JSON, une par catégorie. Tous les modes de jeu sont 
 |---|---|---|
 | `weaponsPicked` | `weaponsAcquired` | Armes ramassées |
 | `damageGiven` | `damageDealt` | Dégâts infligés |
+| `timeSurvived` | `timeSurvived` (somme des modes) | Temps passé en partie, secondes — depuis le 2026-09-27 |
+| `roundsPlayed` | `roundsPlayed` (somme des modes) | Parties jouées — depuis le 2026-09-27 |
+| `daysPlayed` | `days` (**maximum** des modes) | Jours de jeu, plancher : l'API compte par mode — depuis le 2026-09-27 |
+
+Les trois derniers champs sont absents des lignes synchronisées avant le 2026-09-27 ; ils arrivent au prochain
+`daily_lifetime_stats_sync` (voir [Statistiques](statistiques.md) §4).
 
 Champ supplémentaire : `lastRefreshedAt` — date de la dernière sync depuis l'API PUBG.
 

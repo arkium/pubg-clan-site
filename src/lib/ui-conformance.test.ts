@@ -59,7 +59,7 @@ const TOOLBAR_PAGES = [
   'src/app/clans/[clanId]/matches/session/[date]/page.tsx',
   'src/app/clans/[clanId]/stats/page.tsx',
   'src/app/clans/[clanId]/stats/weapons/page.tsx',
-  'src/app/clans/[clanId]/stats/items/page.tsx',
+  'src/app/clans/[clanId]/stats/career/page.tsx',
   'src/app/clans/[clanId]/stats/positions/page.tsx',
   'src/app/clans/[clanId]/stats/zone-closures/page.tsx',
   'src/app/clans/[clanId]/stats/heatmap-kills/page.tsx',

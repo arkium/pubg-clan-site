@@ -61,8 +61,11 @@ test('chiffres clés avec « aller plus loin », duo et synergies', async ({ pag
   await expect(duoAndSynergies).toContainText('réanimations croisées')
   await expect(duoAndSynergies).toContainText('28,6 % de top 1 ensemble')
 
-  await duoAndSynergies.getByText('Toutes les synergies →').click()
-  await expect(duoAndSynergies.getByText('Replier le détail')).toBeVisible()
+  // Le détail (duos, trios, squads, coopération) vit sur « Style de jeu du clan » depuis le 2026-09-27.
+  await expect(duoAndSynergies.getByRole('link', { name: 'Synergies et coopération →' })).toHaveAttribute(
+    'href',
+    `/clans/${CLAN_ID}/stats?period=week#sec-synergies`
+  )
 })
 
 test('navigation par intention, avec indices', async ({ page }) => {

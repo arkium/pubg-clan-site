@@ -99,7 +99,7 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 | GET | `/api/clans/[clanId]/cron-control` | `requireRole(['Owner'])` ou SuperUser | ⚠️ Admin web uniquement | Statut santé cron du clan — voir [Cron](../ops/cron.md) |
 | POST | `/api/clans/[clanId]/cron-control` | `requireRole(['Owner'])` ou SuperUser | ⚠️ Admin web uniquement | Déclenche une action cron manuelle — voir [Cron](../ops/cron.md) |
 | GET | `/api/clans/[clanId]/dev/runtime-status` | `requireRole(['Owner'])` | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
-| GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Stats lifetime agrégées de tous les membres du clan — détail ci-dessous |
+| GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Carrière PUBG (lifetime) de tous les membres, sans période — détail ci-dessous |
 | GET | `/api/clans/[clanId]/leaderboard` | `requireNavPermission('clan.leaderboard')` | ✅ Pertinent | Classement clan par période/tri — voir [Leaderboard](../features/leaderboard.md) |
 | GET | `/api/clans/[clanId]/squad-analysis` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Analyse des compositions squad récurrentes — détail ci-dessous |
 | GET | `/api/clans/[clanId]/awards` | `requireRole(['Owner','Admin','Member'])` | ✅ Pertinent | 11 awards fun calculés par période — voir [Awards](../features/awards.md) |
@@ -122,7 +122,8 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 
 ### Détail — `GET /api/clans/[clanId]/lifetime-stats`
 
-- **Réponse :** `{ clan: { id, name, tag }, members: Array<{ memberId, displayName, lastRefreshedAt, stats: LifetimeStats }> }` où `LifetimeStats` a la même forme que celle documentée dans [Dashboard membre](../features/member-dashboard.md) (`combat`, `victory`, `support`, `vehicle`, `movement`, `other`). Vue agrégée clan entier (vs la route membre qui ne renvoie qu'un joueur).
+- **Query :** aucun (la période a été retirée le 2026-09-27 : une carrière n'en dépend pas).
+- **Réponse :** `{ clan: { id, name, tag }, members: Array<{ memberId, displayName, lastRefreshedAt, stats: LifetimeStats }>, activeMemberCount, lifetimeSync: { expression, timezone, runsPerDay } }` où `LifetimeStats` a la même forme que celle documentée dans [Dashboard membre](../features/member-dashboard.md) (`combat`, `victory`, `support`, `vehicle`, `movement`, `other`). Vue agrégée clan entier (vs la route membre qui ne renvoie qu'un joueur). `stats.other` porte aussi `timeSurvived`, `roundsPlayed` et `daysPlayed` pour les lignes synchronisées depuis le 2026-09-27. `lifetimeSync` décrit la planification de `daily_lifetime_stats_sync`. Page : « Carrière PUBG du clan » — [Statistiques](../features/statistiques.md).
 
 ### Détail — `GET /api/clans/[clanId]/squad-analysis`
 

@@ -271,12 +271,5 @@ export function rankArmoryRows(rows: readonly ArmoryRow[], key: ArmorySortKey, d
     .map((entry) => ({ entry, rank: killRank.get(entry) ?? 0 }))
 }
 
-/** Numéros de page à afficher : première, dernière, la courante et ses voisines ; `'gap'` pour « … ». */
-export function paginationItems(page: number, pageCount: number, siblings = 1): Array<number | 'gap'> {
-  const items: Array<number | 'gap'> = []
-  for (let index = 1; index <= pageCount; index++) {
-    if (index === 1 || index === pageCount || Math.abs(index - page) <= siblings) items.push(index)
-    else if (items[items.length - 1] !== 'gap') items.push('gap')
-  }
-  return items
-}
+// Pagination commune aux listes du site (src/lib/pagination.ts), réexportée pour l'armurerie.
+export { paginationItems } from '@/lib/pagination'

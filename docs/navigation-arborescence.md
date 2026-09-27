@@ -77,13 +77,14 @@ La colonne **Position** est un simple numéro d'ordre séquentiel (1, 2, 3…) d
 | 14 | `/clans/[clanId]/matches`                     | ▸▸ Matchs du clan | Tous |
 | 15 | `/clans/[clanId]/matches/[matchId]/telemetry` | ▸▸▸ Détail télémétrie d'un match | Tous |
 | 16 | `/clans/[clanId]/matches/session/[date]`      | ▸▸▸ Session de matchs (par date) | Tous |
-| 17 | `/clans/[clanId]/stats`                       | ▸▸ Stats agrégées | Tous |
+| 17 | `/clans/[clanId]/stats`                       | ▸▸ Style de jeu du clan (2026-09-27) | Tous |
+| 17b | `/clans/[clanId]/stats/career`               | ▸▸▸ Carrière PUBG du clan (2026-09-27) | Tous |
 | 18 | `/clans/[clanId]/stats/weapons`               | ▸▸ L'armurerie du clan | Owner (état actuel) / Tous (cible) |
 | 19 | `/clans/[clanId]/stats/weapons/categories`    | ▸▸▸ Catégories d'armes | **Redirection** vers `…/stats/weapons?cat=AR` depuis le 2026-09-27 (armurerie du clan) |
 | 20 | `/clans/[clanId]/stats/heatmap-kills`         | ▸▸ Heatmap des kills | Owner (état actuel) / Tous (cible) |
 | 21 | `/clans/[clanId]/stats/positions`             | ▸▸ Cartographie tactique | Owner (état actuel) / Tous (cible) |
 | 21b | `/clans/[clanId]/stats/zone-closures`        | ▸▸ Fin de zone (2026-09-17) | Tous |
-| 21c | `/clans/[clanId]/stats/items`                | ▸▸ Objets consommés (2026-09-17) | Tous |
+| 21c | `/clans/[clanId]/stats/items`                | ▸▸ Objets consommés | **Redirection** vers `…/stats#sec-items` depuis le 2026-09-27 |
 | 22 | `/clans/[clanId]/leaderboard`                 | ▸▸ Classement des membres | Tous |
 | 23 | `/clans/[clanId]/awards`                      | ▸▸ Awards / distinctions | Tous |
 | 24 | `/clans/[clanId]/challenges`                  | ▸▸ Challenges | Tous |
@@ -309,7 +310,8 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/zone-closures` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
-| `/clans/[clanId]/stats/items` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
+| `/clans/[clanId]/stats/items` | redirection 307 vers `…/stats#sec-items` (`next.config.ts`) — page supprimée le 2026-09-27 | | | | | | |
+| `/clans/[clanId]/stats/career` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | `/members/[id]/items` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | `/clans/[clanId]/leaderboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/awards` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |

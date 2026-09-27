@@ -25,6 +25,7 @@ export const NAV_ICONS: Record<string, NavIconDef> = {
   'clan.members': { icon: Users, colorClass: 'text-blue-500' },
   'clan.matches': { icon: Swords, colorClass: 'text-red-500' },
   'clan.stats': { icon: BarChart2, colorClass: 'text-purple-500' },
+  'clan.stats-career': { icon: Medal, colorClass: 'text-amber-500' },
   'clan.leaderboard': { icon: Trophy, colorClass: 'text-yellow-500' },
   'clan.awards': { icon: Medal, colorClass: 'text-amber-500' },
   'clan.tournaments': { icon: Trophy, colorClass: 'text-violet-500' },

@@ -146,7 +146,7 @@ type PubgLifetimeMatchesResponse = {
   }
 }
 
-type PubgGameModeStats = {
+export type PubgGameModeStats = {
   assists?: number
   boosts?: number
   damageDealt?: number
@@ -158,6 +158,11 @@ type PubgGameModeStats = {
   losses?: number
   maxKillStreaks?: number
   mostSurvivalTime?: number
+  /** Temps de survie cumulé, en secondes : le temps passé en partie. */
+  timeSurvived?: number
+  roundsPlayed?: number
+  /** Jours joués **dans ce mode** : un même jour compte dans chaque mode joué ce jour-là. */
+  days?: number
   revives?: number
   rideDistance?: number
   roadKills?: number
@@ -382,6 +387,13 @@ export type PubgLifetimeStats = {
   other: {
     weaponsPicked: number
     damageGiven: number
+    /**
+     * Engagement de carrière (ajouté le 2026-09-27, stocké dans la colonne JSON `other` sans migration) : absent des
+     * lignes synchronisées avant cette date, d'où l'optionnel. `daysPlayed` est un plancher — voir `daysPlayedFloor`.
+     */
+    timeSurvived?: number
+    roundsPlayed?: number
+    daysPlayed?: number
   }
 }
 
@@ -760,18 +772,7 @@ function toRatio(numerator: number, denominator: number) {
 }
 
 function aggregateGameModeStats(gameModeStats: Record<string, PubgGameModeStats>) {
-  return Object.values(gameModeStats).reduce<PubgGameModeStats>((acc, modeStats) => {
-    Object.entries(modeStats).forEach(([key, value]) => {
-      if (typeof value !== 'number') {
-        return
-      }
-
-      const statKey = key as keyof PubgGameModeStats
-      acc[statKey] = (acc[statKey] ?? 0) + value
-    })
-
-    return acc
-  }, {})
+  return mergeGameModes(Object.values(gameModeStats))
 }
 
 function buildStatsFromMode(sourceStats: PubgGameModeStats): PubgLifetimeStats {
@@ -816,8 +817,32 @@ function buildStatsFromMode(sourceStats: PubgGameModeStats): PubgLifetimeStats {
     other: {
       weaponsPicked: toNumber(sourceStats.weaponsAcquired),
       damageGiven: toNumber(sourceStats.damageDealt),
+      timeSurvived: toNumber(sourceStats.timeSurvived),
+      roundsPlayed: toNumber(sourceStats.roundsPlayed),
+      daysPlayed: toNumber(sourceStats.days),
     },
   }
+}
+
+/**
+ * Jours de jeu tous modes confondus. L'API ne les donne que mode par mode, et un jour joué en squad puis en duo compte
+ * dans les deux : la somme surestime. Le plus grand des modes est un plancher exact (« au moins N jours »).
+ */
+export function daysPlayedFloor(modes: PubgGameModeStats[]) {
+  return modes.reduce((max, mode) => Math.max(max, toNumber(mode.days)), 0)
+}
+
+/** Somme les modes, sauf les jours : leur plancher (`daysPlayedFloor`). */
+function mergeGameModes(modes: PubgGameModeStats[]): PubgGameModeStats {
+  const merged = modes.reduce<PubgGameModeStats>((acc, modeStats) => {
+    Object.entries(modeStats).forEach(([key, value]) => {
+      if (typeof value !== 'number') return
+      const statKey = key as keyof PubgGameModeStats
+      acc[statKey] = (acc[statKey] ?? 0) + value
+    })
+    return acc
+  }, {})
+  return { ...merged, days: daysPlayedFloor(modes) }
 }
 
 function getModeAggregate(
@@ -827,17 +852,7 @@ function getModeAggregate(
   const present = keys.filter((k) => k in gameModeStats)
   if (present.length === 0) return null
 
-  const merged = present.reduce<PubgGameModeStats>((acc, k) => {
-    Object.entries(gameModeStats[k]).forEach(([key, value]) => {
-      if (typeof value === 'number') {
-        const statKey = key as keyof PubgGameModeStats
-        acc[statKey] = (acc[statKey] ?? 0) + value
-      }
-    })
-    return acc
-  }, {})
-
-  return buildStatsFromMode(merged)
+  return buildStatsFromMode(mergeGameModes(present.map((key) => gameModeStats[key])))
 }
 
 export type PubgLifetimeStatsResult = PubgLifetimeStats & {

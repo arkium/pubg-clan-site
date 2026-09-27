@@ -63,7 +63,9 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Membres':
       case 'Joueurs': return <Users className={className} />
       case 'Matchs': return <History className={className} />
-      case 'Stats': return <BarChart2 className={className} />
+      case 'Stats':
+      case 'Style de jeu du clan': return <BarChart2 className={className} />
+      case 'Carrière PUBG': return <Award className={className} />
       case 'Classement': return <Trophy className={className} />
       case 'Rapports': return <FileText className={className} />
       case 'Challenges': return <Swords className={className} />

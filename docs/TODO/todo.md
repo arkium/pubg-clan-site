@@ -2562,6 +2562,24 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte des statistiques : « Style de jeu du clan » et « Carrière PUBG du clan »~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Statistiques » — [statistiques.md](../features/statistiques.md) :
+- [x] `/clans/[clanId]/stats` devient « Style de jeu du clan » (télémétrie, une période pour toute la page) : profil de
+      jeu, objets consommés, synergies duo / trio / squad **fusionnées** (officielles), coopération.
+- [x] Nouvelle page `/clans/[clanId]/stats/career` « Carrière PUBG du clan », **sans période** ; route `lifetime-stats`
+      sans période ni `PlayerStats`, avec la fréquence réelle de la synchro.
+- [x] Engagement réel : `timeSurvived`, `roundsPlayed`, `days` de l'API lifetime stockés dans `MemberLifetimeStats.other`
+      (sans migration) ; jours de jeu = plancher (max des modes).
+- [x] Pagination partagée (`Pagination`, `src/lib/pagination.ts`) au lieu des défilements horizontaux ; l'armurerie
+      l'utilise aussi.
+- [x] `…/stats/items` → redirection HTTP 307 vers `…/stats#sec-items` ; « Toutes les synergies » de la vue d'ensemble →
+      lien vers `#sec-synergies`. Anciens fichiers et `SquadSynergies` archivés.
+- [ ] Créer l'entrée `NavItem` `clan.stats-career` (« Carrière PUBG ») depuis `/settings/nav-permissions` ; retirer
+      l'entrée « Objets consommés » du clan (redirection) ; renommer éventuellement « Stats » en « Style de jeu du clan ».
+- [ ] Temps de jeu, parties et jours de jeu apparaissent au prochain `daily_lifetime_stats_sync` (04:00 UTC).
+- [ ] Ancres de section sur mobile : à revoir si le besoin se confirme (décision du 2026-09-27).
+
 #### ~~Refonte des tournois : le mode d'abord (`/tournaments`, `/tournaments/[id]`)~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Tournois » — [tournois.md](../features/tournois.md), « Pages joueurs » :

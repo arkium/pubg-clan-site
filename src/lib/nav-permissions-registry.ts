@@ -150,7 +150,15 @@ export const NAV_REGISTRY: NavItemDef[] = [
     label: 'Stats',
     hrefTemplate: '/clans/:clanId/stats',
     defaultRole: 'none',
-    description: 'Statistiques agrégées du clan.',
+    description: 'Style de jeu du clan sur une période : profil de jeu, objets consommés, synergies et coopération (télémétrie).',
+  },
+  {
+    navKey: 'clan.stats-career',
+    section: 'clan-section',
+    label: 'Carrière PUBG',
+    hrefTemplate: '/clans/:clanId/stats/career',
+    defaultRole: 'none',
+    description: 'Carrière PUBG du clan : cumuls depuis la création des comptes (API PUBG), sans période.',
   },
   {
     navKey: 'clan.stats-weapons',

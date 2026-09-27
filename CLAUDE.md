@@ -186,6 +186,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Rang dans un classement (médailles SVG 1 à 3) | `RankCell` | `src/components/ui/RankCell.tsx` |
 | Tri d'un tableau par ses en-têtes (+ rappel docké) | `SortableTh`, `SortReminder` + `useTableSort` | `src/components/ui/SortableTh.tsx`, `src/hooks/useTableSort.ts` |
 | Top 3 d'un classement | `PodiumCards` | `src/components/ui/PodiumCards.tsx` |
+| Pagination numérotée (au lieu d'un défilement horizontal) | `Pagination` + `@/lib/pagination` | `src/components/ui/Pagination.tsx` |
 | Bande « Distinctions » | `DistinctionStrip` + `computeDistinctions` | `src/components/ui/DistinctionStrip.tsx`, `src/lib/distinctions.ts` |
 | Classement sur mobile (puces « Trier par ») | `MobileRankList` | `src/components/ui/MobileRankList.tsx` |
 | Mode d'un tournoi (couleur, icône, libellé) | `TournamentModeBadge`, `tournamentModeClass` + `@/lib/tournament-mode-display` | `src/components/tournaments/TournamentModeBadge.tsx` — docs/features/tournois.md |

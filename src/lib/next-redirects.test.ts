@@ -14,7 +14,7 @@ const APP = path.resolve(__dirname, '../app')
 
 /** `/clans/:clanId/stats/weapons?cat=AR` → `src/app/clans/[clanId]/stats/weapons/page.tsx`. */
 function pageFile(route: string) {
-  const pathname = route.split('?')[0]
+  const pathname = route.split(/[?#]/)[0]
   const segments = pathname.split('/').filter(Boolean).map((segment) => (segment.startsWith(':') ? `[${segment.slice(1)}]` : segment))
   return path.join(APP, ...segments, 'page.tsx')
 }

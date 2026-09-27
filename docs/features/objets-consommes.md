@@ -3,6 +3,10 @@
 Livré le 2026-09-17. Pages `/clans/[clanId]/stats/items` et `/members/[id]/items`, entrées de navigation
 `clan.items` et `member.items`.
 
+> **Depuis le 2026-09-27**, la portée clan est la section « Objets consommés » de « Style de jeu du clan »
+> (`/clans/[clanId]/stats#sec-items`, période commune de la page, listes paginées) ; `/clans/[clanId]/stats/items`
+> redirige en 307 vers elle. La page membre ne change pas. Voir [Statistiques](statistiques.md).
+
 Répond à : **qu'est-ce que l'escouade consomme réellement en match ?** Soins, boosts, carburant et gadgets, objet par
 objet, et non plus un simple compteur de boosts.
 
@@ -57,10 +61,18 @@ Le même panneau (`ItemUsePanel`) sert aux deux portées :
 
 Filtre de période : semaine, mois, tous.
 
+Sur la page clan, la section de « Style de jeu » (`ItemUseSection`, `src/components/clan-stats/PlaystyleSections.tsx`)
+remplace `ItemUsePanel` : familles en grille de deux, objets et membres paginés par 8 au lieu d'un tableau large.
+
 ## Icônes
 
-Les objets observés en production ont leur icône, sauf `Item_BulletproofShield_C` (bouclier pliable) : `ItemIcon`
-n'affiche alors rien, le libellé reste correct. Après une nouvelle saison, relancer
+Le dépôt officiel `pubg/api-assets` n'a que 8 icônes d'objets (`Assets/Item/Use`) : bandage, trousse de soins, kit
+médical, boisson énergisante, analgésique, seringue d'adrénaline, jerrican, VTT. Les autres objets observés en
+production — `Item_BulletproofShield_C` (bouclier pliable), `Item_Bluechip_C` (puce bleue) — n'en ont **aucune**, ni
+dans le dépôt ni ici. `ItemIcon` (page membre) n'affiche alors rien ; les vignettes de « Style de jeu du clan »
+(`ItemVignetteIcon`) affichent un pictogramme propre à l'objet ou à sa famille (soins, boosts, carburant, gadgets,
+non classés), jamais une image cassée. Le nom français vient de `ITEM_LABELS` (`src/lib/clan-playstyle.ts`), le
+dictionnaire PUBG anglais servant de repli. Après une nouvelle saison, relancer
 `npm run sync:pubg-assets -- --items` pour couvrir les nouveaux objets.
 
 Piège déjà traité : l'`itemId` du vélo est `Item_Mountainbike_C` (« b » minuscule) alors que l'asset est

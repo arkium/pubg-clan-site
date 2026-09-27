@@ -270,7 +270,7 @@ import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamMode
 <TeamModeBadge mode={teamModeFromMemberCount(squad.members.length)} />
 ```
 
-Usages actuels : `SquadMatchList`, `SquadSynergies`, `SessionRecap`, pages map-stats.
+Usages actuels : `SquadMatchList`, `SessionRecap`, pages map-stats.
 
 ---
 
@@ -592,7 +592,9 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 |---|---|---|
 | `TopPerformers` | `src/components/TopPerformers.tsx` | Cartes des meilleurs joueurs de la période |
 | `Leaderboard` | `src/components/Leaderboard.tsx` | Classement du clan : `SortableTh`, `RankCell`, colonnes de mode en « Tous », total, `MobileRankList` |
-| `SquadSynergies` | `src/components/SquadSynergies.tsx` | Fréquence des équipes jouant ensemble |
+| `PlaystyleSections` | `src/components/clan-stats/PlaystyleSections.tsx` | Sections de « Style de jeu du clan » : rôles, thèmes, objets consommés paginés, synergies duo/trio/squad, coopération. Voir [Statistiques](../features/statistiques.md) |
+| `CareerMetricCard` | `src/components/clan-stats/CareerMetricCard.tsx` | Carte d'une métrique de carrière : étiquette (Total, Record, Moins = mieux, Mur de la honte), valeur du clan, top 3 `RankCell`, joueurs en attente de synchro |
+| `Pagination` | `src/components/ui/Pagination.tsx` | Pagination numérotée partagée (`paginationItems`, `paginate` de `src/lib/pagination.ts`) : « Lignes 1–8 sur 24 », rien sous deux pages. **À utiliser au lieu d'un défilement horizontal** |
 | `SquadMatchList` | `src/components/SquadMatchList.tsx` | Liste des matchs d'une squad |
 | `SessionLogbook` | `src/components/matches/SessionLogbook.tsx` | Carnet des soirées (page Matchs) |
 | `ProgressionChart` | `src/components/dashboard/ProgressionChart.tsx` | Graphe d'évolution d'une métrique |

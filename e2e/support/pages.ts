@@ -43,10 +43,6 @@ export function mockClanOverview(api: ApiMock) {
     })
 }
 
-export function mockClanItems(api: ApiMock) {
-  api.on('GET', `/api/clans/${CLAN_ID}/telemetry/item-use`, (url) => ({ body: { data: itemUseStats(periodOf(url), true) } }))
-}
-
 /** Le shell charge la fiche du joueur consulté (nom dans le header) sur toutes les pages joueur. */
 function mockMemberShell(api: ApiMock) {
   api.on('GET', `/api/members/${MEMBER_ID}/dashboard`, { body: memberDashboard() })

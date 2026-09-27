@@ -447,7 +447,7 @@ Règles clés :
 - molette via écouteur natif `{ passive: false }`, ancrée sous le curseur, `preventDefault()` seulement si le zoom change ;
 - glisser uniquement au-delà de ×1, vue bornée à la carte.
 
-Utilisé par `DropZoneMapViewport` (drop zones clan/membre, positions clan, `/settings/map-labels`) et `MatchReplay2D`.
+Utilisé par `DropZoneMapViewport` (drop zones clan/membre, positions clan, `/settings/map-labels`) et `MatchReplay2D`. `DropZoneMapViewport` accepte aussi `overlay` (commandes posées sur la carte, hors du calque qui zoome) et `onZoomChange` ; un geste qui part d'un bouton ou d'un lien posé sur la carte reste un clic.
 
 ---
 
@@ -601,6 +601,7 @@ Ces composants sont dans `src/components/` et `src/components/dashboard/`. Ils n
 | `PlayerDashboardSections` | `src/components/player-dashboard/PlayerDashboardSections.tsx` | Blocs du tableau de bord d'un joueur : carte joueur, chiffres clés à mini-barres, meilleure partie, profil de jeu, arsenal, frères d'armes, némésis, drop, dernières parties |
 | `ChevronPager` | `src/components/ui/ChevronPager.tsx` | Rangée paginée par chevrons ‹ › sur mobile (tout affiché à partir de `sm`). **Au lieu d'un défilement horizontal** de puces ou de cartes |
 | `MemberDropInsights` | `src/components/drop-zones/MemberDropInsights.tsx` | Pression au drop et villes d'un joueur, sur sa page Zones de drop |
+| `DropZonesExplorer` (module) | `src/components/drop-zones/DropZonesExplorer.tsx` | Zones de drop clan et joueur : `useDropZonesExplorer` (carte, lentille, spot), `MapPager` ‹ › du bandeau, `PickerChip` (menu joueur / périmètre), `DropZonesMap` (deux lectures, épingles du top 5), `FavoriteSpotCard`, `JumpProfileCard`, `TopSpotsList`, `WhoJumpsWhere` (paginé par chevrons). Voir [Zones de drop](../features/drop-zones.md) |
 | `WeaponCategoryPeriodFilter` | `src/components/WeaponCategoryPeriodFilter.tsx` | Filtre période pour les stats armes par catégorie |
 | `MemberLifetimeStatsPanel` | `src/components/MemberLifetimeStatsPanel.tsx` | Panneau stats lifetime d'un membre |
 | `ItemUsePanel` | `src/components/telemetry/ItemUsePanel.tsx` | Objets consommés : indicateurs, répartition par famille, top objets (cartes mobile + tableau desktop, `ItemIcon`), classement des membres en portée clan. Prop `scope` = `clan` ou `member`. Voir [Objets consommés](../features/objets-consommes.md) |

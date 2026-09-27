@@ -221,26 +221,58 @@ type DropZonesData = {
 
 ---
 
-## Pages UI
+## Pages UI — « une question à la fois » (refonte du 2026-09-27)
+
+Maquette Claude Design « Zones de drop » (`DropZonesPropose`). Les deux pages partagent les composants de
+`src/components/drop-zones/DropZonesExplorer.tsx` et la logique pure de `src/lib/drop-zones-view.ts` (testée par
+`drop-zones-view.test.ts`). **Rien ne change côté API** : tout se calcule depuis `points` et `mapLocations`. Anciennes
+pages et marqueurs (`DropPressureMarker`, `DropPressureLegend`) archivés dans `archive/refonte-ui/drop-zones/`.
+
+### Ce que l'analyse de cohérence a corrigé
+
+| Constat (page d'avant) | Décision |
+|---|---|
+| Trois couches superposées (heatmap carrée, périmètres de toutes les villes, marqueurs dont le fond code la pression et le contour le joueur), deux légendes | **Deux lectures au choix** : « Nos sauts » (un point par saut, couleur = pression) ou « Densité » (halos). Plus de contour par joueur : on **filtre** le joueur. Une seule légende, sous la carte |
+| « Densité » : la heatmap comptait **tout le lobby**, adversaires compris | Densité **de nos sauts**, même filtre que les points (décision du 2026-09-27). La heatmap du lobby reste renvoyée par l'API, plus affichée |
+| Sept compteurs en ligne sans hiérarchie (dont « Cellules visibles ») | **Profil de saut** : barre en 4 niveaux et 3 chiffres (moyenne, pire drop, part de hot drops) |
+| Carte choisie dans une liste ; glisser au doigt existant mais invisible | Bandeau ‹ ERANGEL › avec points de pagination ; sur la carte, étiquettes ‹ carte voisine › et rappel « Glisse la carte pour changer de map » ; la carte suivante arrive du côté du geste |
+| Bandeau : période + 3 listes + texte d'aide, très haut sur mobile | **Une ligne** : carte ‹ ›, période, pastille joueur (menu) ; « N sauts · N matchs » à droite sur ordinateur |
+| Top 5 en tableau de 7 colonnes détaché de la carte | **Épingles** du top 5 sur la carte (rang, nom, sauts, périmètre en pointillés) et liste compacte avec mini-barre de pression ; toucher l'un ou l'autre zoome sur la ville |
+| Maquette : périodes « 7 jours / 30 jours / Tout » | `PeriodFilter` du site : **Semaine / Mois / Tous** (calendaires, sticky.md §2) |
 
 ### `/clans/[clanId]/drop-zones`
 
-Vue clan — points de landing de tous les membres actifs sur la période, superposés sur l'image de la carte. Elle reprend les mêmes statistiques par ville et le même rendu de densité que la page membre :
-
-- Top 5 standardisé avec ville favorite, atterrissages, part, matchs, membres et membre principal ;
-- filtres par période, affichage, carte, joueur et ville ;
-- périmètres circulaires visibles par défaut et masquables depuis la carte ;
-- zoom `1×–4×` par contrôles ou molette et recentrage automatique sur la ville sélectionnée ;
-- déplacement de la carte agrandie par glisser-déposer, sans barres de défilement visibles ;
-- heatmap carrée `40 × 40`, plages logarithmiques, seuil adaptatif et opacité de `10 %` à `60 %` ;
-- points opaques colorés par membre au-dessus des périmètres et de la densité ;
-- vue mobile en liste synthétique sans défilement horizontal de page ;
-- sous la carte, depuis le 2026-09-26 : **Pression au drop** et **Villes et zones de combat** du clan (`ClanDropInsights`,
-  déplacés de la vue d'ensemble), sur la période de la page, tous types de partie et tous modes.
+- **Bandeau** (`DockingToolbar`) sur une ligne, **docké aussi sur mobile** : exception nommée à sticky.md §2
+  (`MOBILE_DOCKED_EXTRA_CONTROLS` dans `ui-conformance.test.ts`) — on change de carte en regardant la carte.
+- **Carte** (`DropZoneMapViewport`, zoom `[ − | ⊙ 1× | + ]`, molette, glisser) : cartes où le clan a sauté, de la plus
+  jouée à la moins jouée ; lentilles « Nos sauts » / « Densité » ; épingles du top 5 ; puce « Ville · Toute la carte ✕ »
+  une fois zoomé ; message « X n'a pas sauté sur Miramar cette semaine » quand le filtre ne laisse rien.
+- **Spot favori** : gros plan de la carte sur la ville, part des drops, pression moyenne et son niveau, « Roi du spot »
+  (le joueur qui y saute le plus), phrase d'ambiance selon le niveau (`SPOT_MOODS`).
+- **Profil de saut** et **Top 5 des spots** (sauts en ville / hors périmètre, pression, part, roi du spot).
+- **Qui saute où** : une carte par joueur sur la carte affichée (sauts, pression moyenne, spot préféré, niveau),
+  **paginée par chevrons** ‹ 1/2 › — 4 cartes par page, 2 sur mobile — au lieu d'un défilement horizontal. Toucher une
+  carte filtre la carte ; le menu du bandeau fait de même.
+- **Rien sous « Qui saute où »** (décision du 2026-09-27, pour s'en tenir à la maquette) : les panneaux **Pression au
+  drop** et **Villes et zones de combat** du clan (`ClanDropInsights`, arrivés de la vue d'ensemble le 2026-09-26) sont
+  retirés de la page et archivés. Le profil de saut et le top 5 couvrent la pression au drop. Les routes
+  `GET /api/clans/[clanId]/drop-pressure-stats` et `GET /api/clans/[clanId]/city-insights` restent en place, sans page
+  qui les appelle.
 
 ### `/members/[id]/drop-zones`
 
-Vue individuelle — points de landing d'un membre, du clan ou de sa meilleure formation, avec mise en avant des zones préférées, le même référentiel de villes et les mêmes interactions de carte que la vue clan.
+Même lecture pour un joueur (décision du 2026-09-27). La pastille du bandeau choisit le **périmètre** : le joueur, son
+meilleur duo / trio / squad, tout le clan ou un autre joueur (paramètres `scope`, `bestMode`, `targetMemberId` de
+l'API, inchangés). « Qui saute où » n'apparaît que si le périmètre compte plusieurs joueurs. Pression au drop et villes
+du joueur (`MemberDropInsights`) restent sous la carte.
+
+### Tests
+
+| Fichier | Couvre |
+|---|---|
+| `src/lib/drop-zones-view.test.ts` | Ville d'un saut (la plus proche, villes désactivées exclues), ordre des cartes et voisines, pression (adversaires ou joueurs), répartition et profil, niveaux, top des spots et roi, « Qui saute où », couleurs, cadrage du gros plan |
+| `src/lib/ui-conformance.test.ts` | Exception nommée du bandeau docké complet sur mobile |
+| `e2e/drop-zones.spec.ts` | Carte ‹ › et points, épingles et zoom, deux lectures, spot favori, profil, top 5, filtre joueur et message vide, « Qui saute où » paginé, glisser pour changer de carte, bandeau docké sur une ligne (aussi sur mobile), période et absence des anciens panneaux ; page joueur : périmètres, panneaux du joueur. Données : `e2e/support/drop-zones.ts` |
 
 ---
 

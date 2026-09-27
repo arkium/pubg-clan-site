@@ -31,6 +31,10 @@ type DropZoneMapViewportProps = {
   showBoundaryControl?: boolean
   onMapClick?: (xPct: number, yPct: number) => void
   onSwipeMap?: (direction: 'prev' | 'next') => void
+  /** Commandes posées sur la carte, hors du calque qui zoome (lentilles, cartes voisines, message). */
+  overlay?: ReactNode
+  /** Niveau de zoom courant (1 = carte entière), pour les commandes qui ne s'affichent qu'à 1×. */
+  onZoomChange?: (zoom: number) => void
 }
 
 const MIN_ZOOM = MAP_ZOOM_MIN
@@ -55,6 +59,8 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       showBoundaryControl = true,
       onMapClick,
       onSwipeMap,
+      overlay,
+      onZoomChange,
     },
     ref
   ) {
@@ -63,6 +69,10 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
     const zoomRef = useRef(MIN_ZOOM)
     const [zoom, setZoom] = useState(MIN_ZOOM)
     const [dragging, setDragging] = useState(false)
+
+    useEffect(() => {
+      onZoomChange?.(zoom)
+    }, [onZoomChange, zoom])
 
     function scrollToPercent(xPct: number, yPct: number, behavior: ScrollBehavior = 'smooth') {
       const viewport = viewportRef.current
@@ -107,6 +117,8 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
     function startDragging(event: ReactPointerEvent<HTMLDivElement>) {
       const viewport = viewportRef.current
       if (!viewport || event.button !== 0) return
+      // Épingles, boutons et liens posés sur la carte gardent leur clic (pas de capture ni de glissé).
+      if ((event.target as HTMLElement).closest('button, a, [data-map-interactive]')) return
 
       dragRef.current = {
         pointerId: event.pointerId,
@@ -251,6 +263,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
           </div>
         </div> : null}
 
+        {overlay}
         <MapZoomControl zoom={zoom} max={MAX_ZOOM} onZoomChange={changeZoom} onReset={reset} />
       </div>
     )

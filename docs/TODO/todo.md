@@ -2562,6 +2562,20 @@ Un tournoi communautaire classe généralement des **équipes** (squads), pas de
 
 ### ✅ Terminé / Livré
 
+#### ~~Refonte des zones de drop : « une question à la fois » (clan et joueur)~~ — ✅ Complété le 2026-09-27
+
+Maquette Claude Design « Zones de drop » — [drop-zones.md](../features/drop-zones.md) :
+- [x] Bandeau sur une ligne (carte ‹ › et points, période, joueur / périmètre), docké aussi sur mobile (exception nommée).
+- [x] Carte à deux lectures (« Nos sauts » coloré par la pression, « Densité » de nos sauts), épingles du top 5 qui
+      zooment, glisser pour changer de carte rendu visible, une seule légende.
+- [x] Spot favori (gros plan, roi du spot, phrase d'ambiance), profil de saut (4 niveaux, 3 chiffres), top 5 compact,
+      « Qui saute où » paginé par chevrons.
+- [x] Même refonte sur la page d'un joueur (périmètres : joueur, meilleur duo / trio / squad, clan, autre joueur).
+- [x] Pression au drop et villes : retirées de la page du clan (maquette), gardées sur celle du joueur. Aucun changement d'API.
+- [ ] La heatmap du lobby (`data.heatmap`) n'est plus affichée : la retirer de la route si personne n'en a l'usage.
+- [ ] `GET /api/clans/[clanId]/drop-pressure-stats` et `GET /api/clans/[clanId]/city-insights` n'ont plus d'appelant :
+      à supprimer sur décision (l'app mobile prévue pourrait s'en servir).
+
 #### ~~Refonte « Membres et joueur » : annuaire des membres et tableau de bord d'un joueur~~ — ✅ Complété le 2026-09-27
 
 Maquette Claude Design « Membres et joueur » — [membres.md](../features/membres.md) :

@@ -3759,3 +3759,19 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
   background-color: var(--theme-ui-accent-soft);
   box-shadow: inset 3px 0 0 var(--theme-ui-accent);
 }
+
+/* Zones de drop : la carte suivante arrive du côté du geste (docs/features/drop-zones.md). */
+@keyframes dz-slide-from-right {
+  from { transform: translateX(28%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes dz-slide-from-left {
+  from { transform: translateX(-28%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.dz-slide-from-right { animation: dz-slide-from-right 0.29s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.dz-slide-from-left { animation: dz-slide-from-left 0.29s cubic-bezier(0.2, 0.7, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .dz-slide-from-right,
+  .dz-slide-from-left { animation: none; }
+}

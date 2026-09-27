@@ -348,7 +348,7 @@ Pour réparer un clan, il suffit de téléverser à nouveau son image depuis « 
 
 | Ancien bloc | Nouvelle place |
 |---|---|
-| Pression au drop, Villes et zones de combat | Page Drop zones du clan (`ClanDropInsights`), tous types de partie et tous modes comme la carte |
+| Pression au drop, Villes et zones de combat | Page Drop zones du clan le 2026-09-26, puis **retirés** le 2026-09-27 avec la refonte de cette page ([drop-zones.md](drop-zones.md)) ; le profil de saut et le top 5 des spots couvrent la pression au drop |
 | Top performers (kills, dégâts, survie) | Page Awards (`ClanTopPerformers`), parties officielles, tous modes |
 | Awards du mode (6 cartes, libellés anglais) | Retirés : la page Awards couvre ces distinctions |
 | Roster des performances | Retiré : Membres (liste) et Classement (statistiques triables) |

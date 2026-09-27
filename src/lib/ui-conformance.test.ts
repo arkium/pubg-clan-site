@@ -112,6 +112,16 @@ const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
   'src/app/clans/page.tsx': 'écart à trancher (recherche et tri de l’annuaire)',
 }
 
+/**
+ * Pages à période dont le bandeau docké sur mobile garde plus que la période — exception à sticky.md §2 (« docké sur
+ * mobile : la période seule »), décidée le 2026-09-27 avec la refonte des zones de drop : on change de carte en
+ * regardant la carte, sur une seule ligne (carte ‹ ›, période, joueur).
+ */
+const MOBILE_DOCKED_EXTRA_CONTROLS: Record<string, string> = {
+  'src/app/clans/[clanId]/drop-zones/page.tsx': 'carte ‹ › et joueur, sur une ligne',
+  'src/app/members/[id]/drop-zones/page.tsx': 'carte ‹ › et périmètre, sur une ligne',
+}
+
 /** Composants autorisés à écouter le défilement de la fenêtre — jamais pour se docker. */
 const ALLOWED_SCROLL_LISTENERS: Record<string, string> = {
   'src/components/ui/SectionAnchorNav.tsx': 'lien actif des ancres',
@@ -138,8 +148,15 @@ describe('ui-conformance — listes déclarées', () => {
       ...Object.keys(ALLOWED_SCROLL_LISTENERS),
       ...Object.keys(ALLOWED_LOCAL_PERIOD_STATE),
       ...Object.keys(MOBILE_DOCKING_WITHOUT_PERIOD),
+      ...Object.keys(MOBILE_DOCKED_EXTRA_CONTROLS),
     ]
     expect(declared.filter((file) => !existsSync(path.join(ROOT, file)))).toEqual([])
+  })
+
+  it('les exceptions « bandeau docké complet sur mobile » sont des pages à bandeau et à période', () => {
+    expect(
+      Object.keys(MOBILE_DOCKED_EXTRA_CONTROLS).filter((file) => !TOOLBAR_PAGES.includes(file) || !read(file).includes('<PeriodFilter'))
+    ).toEqual([])
   })
 })
 

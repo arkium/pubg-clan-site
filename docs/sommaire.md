@@ -41,7 +41,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Awards](features/awards.md) | 11 awards fun, logique de calcul top 3, contrat API complet, formatage des valeurs |
 | [Armes](features/weapons.md) | Stats armes télémétrie (MemberWeaponStats) + Weapon Mastery carrière (MemberWeaponMastery) |
 | [Season stats](features/season-stats.md) | Stats ranked/normal par saison, tier, cron daily, contrats GET/POST |
-| [Zones de drop](features/drop-zones.md) | LogParachuteLanding, grille 40×40, normalisation xPct/yPct, contrat API, limitation backfill |
+| [Zones de drop](features/drop-zones.md) | LogParachuteLanding, normalisation xPct/yPct, contrat API ; pages clan et joueur « une question à la fois » (carte à deux lectures, épingles, spot favori, profil de saut, qui saute où) |
 | [Tournois](features/tournois.md) | 4 modes de tournoi, partage des escouades mixtes, filtres de carte et de mode, page d'administration en 3 onglets, suppression sécurisée |
 | [Statistiques](features/statistiques.md) | « Style de jeu du clan » (télémétrie par période : rôles, objets, synergies, coopération) et « Carrière PUBG du clan » (lifetime, sans période, engagement réel) ; décisions de cohérence, redirections |
 | [Objets consommés](features/objets-consommes.md) | Soins, boosts, carburant et gadgets réellement utilisés : source `LogItemUse`, table `MemberItemUseStat`, page membre et section de « Style de jeu » |

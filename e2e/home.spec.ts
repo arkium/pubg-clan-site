@@ -69,6 +69,21 @@ test('les appels à l’action mènent à /join, /login et au mode visiteur', as
   await expect(page.getByRole('link', { name: 'Voir le classement' })).toHaveAttribute('href', '/clans-leaderboard')
 })
 
+test('« Pourquoi atterrir ici » : Ligue, tournois et comparateur, chacun vers sa page', async ({ page }) => {
+  const why = page.getByRole('region', { name: /Toute la scène PUBG francophone/ })
+  await why.scrollIntoViewIfNeeded()
+  await expect(why.getByRole('article')).toHaveCount(3)
+  await expect(why.getByRole('link', { name: 'Voir la Ligue →' })).toHaveAttribute('href', '/clans-leaderboard')
+  await expect(why.getByRole('link', { name: 'Voir les tournois →' })).toHaveAttribute('href', '/tournaments')
+  await expect(why.getByRole('link', { name: 'Ouvrir le comparateur →' })).toHaveAttribute('href', '/clans/comparator')
+  await expect(why.getByRole('article', { name: /Saute de l.avion/ })).toContainText('ZÉRO INSCRIPTION')
+  // Textes vérifiés contre les pages : le comparateur compare des clans, la Ligue classe au Power score.
+  await expect(why).not.toContainText('deux joueurs')
+  await expect(why).toContainText('Power score')
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
+})
+
 test('ordinateur : compteurs et navigation dans le héros', async ({ page }, testInfo) => {
   test.skip(isNarrow(testInfo), 'sous 1024 px, les compteurs et la navigation passent sous le héros et dans le menu')
   await expect(page.getByText('KILLS CETTE SEMAINE', { exact: true })).toBeVisible()

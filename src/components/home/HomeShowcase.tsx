@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Teko } from 'next/font/google'
-import { ChevronLeft, ChevronRight, LogIn, Menu, Plane, User, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LogIn, Menu, Plane, Swords, Trophy, User, X } from 'lucide-react'
 
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
@@ -16,7 +16,8 @@ import { getPeriodStart } from '@/lib/period'
  * Maquette : Claude Design « Accueil chickendinner.dc.html » (écrans 4a à 4d).
  *
  * Plein écran, sans le shell : héros de jeu (boussole, compteurs, kill feed), Top 1 récents en carrousel, appel à
- * rejoindre. Le héros et le bandeau « Rejoindre » sont sombres par construction (photo) ; le reste suit le thème.
+ * rejoindre, « Pourquoi atterrir ici » (Ligue, tournois, comparateur). Le héros, le bandeau « Rejoindre » et la carte
+ * Tournois sont sombres par construction (photo) ; le reste suit le thème.
  * Affichée à tous : un membre connecté (`accountHref`) y trouve « Mon espace » au lieu de « Se connecter ».
  */
 
@@ -319,6 +320,106 @@ function DinnerSection({
   )
 }
 
+/**
+ * « Pourquoi atterrir ici » : les trois pages publiques qui font venir un clan (maquette, section sous « Rejoindre »).
+ * Textes vérifiés contre les pages le 2026-09-27 : la Ligue classe au Power score (win rate, dégâts, kills, knocks) sur
+ * la semaine, le mois ou depuis le début ; un tournoi compte tout seul ses parties personnalisées, sans inscription ;
+ * le comparateur met des clans face à face (pas des joueurs, et sans mesure de précision).
+ */
+function WhyLandSection() {
+  const plain = [
+    {
+      number: '01',
+      icon: Trophy,
+      iconClass: 'border-amber-400/55 bg-amber-400/10 text-amber-500',
+      eyebrow: 'Ligue des clans FR',
+      title: 'Les clans francophones.',
+      accent: 'Un seul classement.',
+      text: 'Les clans FR réunis sur un même site, classés entre eux au Power score — win rate, dégâts, kills et knocks — sur la semaine, le mois ou depuis le début.',
+      href: '/clans-leaderboard',
+      link: 'Voir la Ligue',
+    },
+    {
+      number: '03',
+      icon: Swords,
+      iconClass: 'border-sky-400/50 bg-sky-400/10 text-sky-500',
+      eyebrow: 'Stats inter-clans et comparateur',
+      title: 'Ton clan contre le leur,',
+      accent: 'stat par stat.',
+      text: 'Mets plusieurs clans face à face : win rate, top 10, dégâts et kills par partie, duels directs, hot drops et survie. Tu sais enfin qui domine vraiment.',
+      href: '/clans/comparator',
+      link: 'Ouvrir le comparateur',
+    },
+  ] as const
+  const card = (item: (typeof plain)[number]) => {
+    const Icon = item.icon
+    return (
+      <article key={item.href} aria-labelledby={`why-${item.number}`} className="app-panel relative flex flex-col gap-3.5 overflow-hidden rounded-[18px] p-5 lg:p-7">
+        <div className="flex items-center justify-between gap-2.5">
+          <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${item.iconClass}`}>
+            <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
+          </span>
+          <span className="home-display text-[40px] leading-none" style={{ color: 'var(--theme-ui-border)' }} aria-hidden="true">
+            {item.number}
+          </span>
+        </div>
+        <span className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">{item.eyebrow}</span>
+        <h3 id={`why-${item.number}`} className="home-display m-0 text-[32px] font-semibold uppercase leading-[0.92] lg:text-[40px]">
+          {item.title}
+          <br />
+          <span className="home-gold">{item.accent}</span>
+        </h3>
+        <p className="m-0 text-[15px] leading-normal text-gray-500">{item.text}</p>
+        <Link href={item.href} className="home-link mt-auto self-start text-sm font-bold">
+          {item.link} →
+        </Link>
+      </article>
+    )
+  }
+  return (
+    <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-why-title">
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-5">
+        <div className="flex flex-col gap-1.5">
+          <span className="home-gold text-xs font-bold uppercase tracking-[0.14em]">Pourquoi atterrir ici</span>
+          <h2 id="home-why-title" className="home-display m-0 text-[38px] font-semibold uppercase leading-[0.95] [text-wrap:balance] lg:text-[56px]">
+            Toute la scène PUBG francophone,
+            <br />
+            dans la même zone.
+          </h2>
+        </div>
+        <div className="grid gap-3.5 md:grid-cols-3">
+          {card(plain[0])}
+          {/* Tournois : carte sombre sur photo, comme le bandeau « Rejoindre ». */}
+          <article aria-labelledby="why-02" className="home-join relative flex flex-col gap-3.5 overflow-hidden rounded-[18px] border border-amber-400/50 p-5 text-white lg:p-7">
+            <div className="absolute inset-0 bg-cover bg-no-repeat opacity-[0.28]" style={{ backgroundImage: `url(${HERO_IMAGE})`, backgroundPosition: '70% 60%' }} aria-hidden="true" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[rgb(20_13_5/0.6)] to-[rgb(20_13_5/0.95)]" aria-hidden="true" />
+            <div className="relative flex items-center justify-between gap-2.5">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400 text-amber-950">
+                <Plane className="h-[22px] w-[22px]" aria-hidden="true" />
+              </span>
+              <span className="-rotate-3 rounded-[5px] bg-amber-400 px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-amber-950">ZÉRO INSCRIPTION</span>
+            </div>
+            <span className="relative text-xs font-bold uppercase tracking-[0.12em] text-amber-200">Tournois</span>
+            <h3 id="why-02" className="home-display relative m-0 text-[32px] font-semibold uppercase leading-[0.92] lg:text-[40px]">
+              Saute de l&apos;avion,
+              <br />
+              <span className="text-amber-400">pas dans un formulaire.</span>
+            </h3>
+            <p className="relative m-0 text-[15px] leading-normal text-white/80">
+              Aucun préenregistrement : tu joues les parties personnalisées du tournoi, elles sont importées et comptées
+              automatiquement avec le barème de l&apos;organisateur.
+            </p>
+            <Link href="/tournaments" className="relative mt-auto self-start text-sm font-bold text-amber-200 hover:underline">
+              Voir les tournois →
+            </Link>
+          </article>
+          {card(plain[1])}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function HomeShowcase({
   visitorMode,
   accountHref,
@@ -523,6 +624,8 @@ export default function HomeShowcase({
           </div>
         </div>
       </section>
+
+      <WhyLandSection />
 
       <footer className="home-footer flex flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-4 py-[22px] text-[13px] text-gray-500 md:px-8 lg:px-14">
         <span>

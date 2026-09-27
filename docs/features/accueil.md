@@ -17,6 +17,7 @@
 | Kill feed (sous le héros, sous 1024 px) | Le même feed, en carte |
 | Chicken Dinner | Carrousel des **3 derniers Top 1** du site : « #1 / N équipes », carte, date, durée, clan, kills, dégâts, kill le plus long, équipe (armes, MVP), lien vers le débriefing |
 | Rejoindre | Trois étapes, « Demander à rejoindre » (`/join`), puis `/clans` : « Voir les clans » pour un connecté, « Parcourir en visiteur » en mode visiteur, rien sinon |
+| Pourquoi atterrir ici (ajouté le 2026-09-27) | « Toute la scène PUBG francophone, dans la même zone » : trois cartes — Ligue des clans (`/clans-leaderboard`), Tournois, carte sombre « Zéro inscription » (`/tournaments`), Comparateur (`/clans/comparator`). Mêmes pages que la navigation du héros, mêmes droits d'accès |
 | Pied de page | `chickendinner.fr · © Arkium`, mention KRAFTON. Remplace le pied de page du layout, masqué sur cette page |
 
 La vitrine est **plein écran pour tous**, connectés compris : pas de menu latéral. Un membre connecté y trouve
@@ -40,6 +41,7 @@ connexion, on arrive toujours sur son tableau de bord, pas sur la vitrine.
 | « #1 / 26 équipes » (maquette) | **Gardé**, sans migration : la télémétrie l'enregistre déjà (`numAliveTeams` des instantanés de phase). Vérifié contre l'API PUBG (29 `rosters` = 29). Partie sans télémétrie : « #1 » seul |
 | Sous-domaine inconnu | Redirige vers la **vitrine** `/` (au lieu de `/clans`) ; un sous-domaine connu mène toujours à la vue d'ensemble de son clan (`fd.chickendinner.fr` → `/clans/28/overview`) |
 | Métadonnées | Titre, description, adresse canonique, aperçu de partage Open Graph et carte large (image dédiée `public/chickendinnerfr.jpg`, 1024 × 541, ratio ≈ 1,91:1), adresse de base tirée de `NEXT_PUBLIC_APP_URL` |
+| Textes de « Pourquoi atterrir ici » | Vérifiés contre les pages le 2026-09-27 et corrigés par rapport à la maquette : la Ligue classe au **Power score** (win rate — pas les victoires —, dégâts, kills, knocks) sur la semaine, le mois ou depuis le début ; un tournoi compte ses **parties personnalisées** (pas « tes parties comme d'habitude »), sans inscription, avec le barème de l'organisateur ; le comparateur met des **clans** face à face (win rate, top 10, dégâts et kills par partie, duels, hot drops, survie) — pas deux joueurs, et aucune mesure de précision. « Tous les clans francophones » devient « Les clans francophones » : seuls les clans suivis sont classés |
 | « Kill feed en direct » | Ce n'est pas du temps réel : une rotation des kills remarquables des 8 dernières victoires, relue au plus toutes les 5 minutes |
 
 ---

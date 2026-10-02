@@ -355,11 +355,12 @@ export async function GET(
           SELECT
             t.squadMatchId,
             sm.mapName,
-            t.landingSamples
+            t.landingSamples,
+            t.landingSamplesGz
           FROM SquadMatchTelemetry t
           INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
           WHERE t.status = 'success'
-            AND t.landingSamples IS NOT NULL
+            AND (t.landingSamples IS NOT NULL OR t.landingSamplesGz IS NOT NULL)
             AND t.squadMatchId IN (${Prisma.join(bestTeam.matchIds)})
           ORDER BY sm.createdAt DESC
         `)
@@ -371,12 +372,13 @@ export async function GET(
         SELECT
           t.squadMatchId,
           sm.mapName,
-          t.landingSamples
+          t.landingSamples,
+          t.landingSamplesGz
         FROM SquadMatchTelemetry t
         INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
         INNER JOIN SquadMember sdm ON sdm.squadMatchId = sm.id
         WHERE t.status = 'success'
-          AND t.landingSamples IS NOT NULL
+          AND (t.landingSamples IS NOT NULL OR t.landingSamplesGz IS NOT NULL)
           AND sdm.memberId = ${memberId}
           ${dateFilter}
         ORDER BY sm.createdAt DESC

@@ -157,12 +157,30 @@ test.describe('Zones de drop d’un joueur', () => {
     await expect(page.getByRole('list', { name: 'Joueurs de la carte' })).toBeVisible()
   })
 
-  test('pression au drop et villes du joueur sous la carte, même période', async ({ api, page }) => {
-    await expect(page.getByRole('region', { name: 'Pression au drop et villes' })).toBeVisible()
+  test('menu des joueurs : la pastille montre le style de jeu de la période, les groupes restent neutres', async ({ api, page }) => {
+    await toolbar(page).getByRole('button', { name: /Périmètre/ }).click()
+    const menu = page.getByRole('menu', { name: 'Périmètre' })
+    const dot = (name: string | RegExp) => menu.getByRole('menuitemradio', { name }).locator('[data-style]')
+    await expect(dot('Joueur Alpha')).toHaveAttribute('data-style', 'fragger')
+    await expect(dot('Joueur Delta')).toHaveAttribute('data-style', 'ghost')
+    await expect(dot('Tout le clan')).toHaveCount(0)
+    await expect(dot(/Son meilleur duo/)).toHaveCount(0)
+    await expect(menu.getByText('Style de jeu sur la période :')).toBeVisible()
+    // Même période que la carte : le style est relu quand la période change.
+    await page.keyboard.press('Escape')
     await periodFilter(page).getByRole('button', { name: 'Mois' }).click()
-    for (const path of ['telemetry/drop-zones', 'drop-pressure', 'city-insights']) {
-      await expect.poll(() => api.paramValues(`/api/members/${MEMBER_ID}/${path}`, 'period').at(-1)).toBe('month')
-    }
+    await expect.poll(() => api.paramValues(`/api/clans/${CLAN_ID}/telemetry/playstyle`, 'period').at(-1)).toBe('month')
+  })
+
+  test('la période recharge la carte ; plus de panneaux sous la carte, un lien vers les zones de combat (2026-10-03)', async ({ api, page }) => {
+    await periodFilter(page).getByRole('button', { name: 'Mois' }).click()
+    await expect.poll(() => api.paramValues(`/api/members/${MEMBER_ID}/telemetry/drop-zones`, 'period').at(-1)).toBe('month')
+    await expect(page.getByRole('heading', { name: 'Pression au drop' })).toHaveCount(0)
+    await expect(page.getByText(/Villes et zones de combat/i)).toHaveCount(0)
+    // Comme pour le clan : les routes des anciens panneaux ne sont plus appelées par cette page.
+    expect(api.paramValues(`/api/members/${MEMBER_ID}/drop-pressure`, 'period')).toEqual([])
+    expect(api.paramValues(`/api/members/${MEMBER_ID}/city-insights`, 'period')).toEqual([])
+    await expect(page.getByRole('link', { name: /cartographie tactique du clan/ })).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/positions`)
     await expectNoHorizontalScroll(page)
   })
 })

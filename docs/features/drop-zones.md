@@ -241,8 +241,32 @@ pages et marqueurs (`DropPressureMarker`, `DropPressureLegend`) archivés dans `
 
 Même lecture pour un joueur (décision du 2026-09-27). La pastille du bandeau choisit le **périmètre** : le joueur, son
 meilleur duo / trio / squad, tout le clan ou un autre joueur (paramètres `scope`, `bestMode`, `targetMemberId` de
-l'API, inchangés). « Qui saute où » n'apparaît que si le périmètre compte plusieurs joueurs. Pression au drop et villes
-du joueur (`MemberDropInsights`) restent sous la carte.
+l'API, inchangés). « Qui saute où » n'apparaît que si le périmètre compte plusieurs joueurs.
+
+**Rien sous la carte non plus** (décision du 2026-10-03, alignée sur le clan) : les panneaux **Pression au drop** et
+**Villes et zones de combat** du joueur (`MemberDropInsights`, venus du tableau de bord le 2026-09-27) sont retirés et
+archivés avec `DropPressureStatsPanel` et `CityInsightsPanel` (`archive/refonte-ui/drop-zones/`). Vérification faite :
+leurs indicateurs (drops, matchs, adversaires moyens, maximum, hot drops) répètent le résumé du bandeau et le profil de
+saut ; le classement des membres répète « Qui saute où » (périmètre « Tout le clan »). Deux lectures disparaissent de la
+page : l'**évolution sur 8 semaines** (déjà retirée côté clan) et les **zones de combat par ville** (kills, dégâts,
+réanimations) — ces dernières vivent sur la **cartographie tactique du clan**, vers laquelle un lien en pied de la carte « Profil de saut »
+renvoie. Les routes `GET /api/members/[id]/drop-pressure` et `GET /api/members/[id]/city-insights` restent : la carte
+« Au drop » du tableau de bord les lit.
+
+**Charte** (2026-10-03) : les deux pages portent `.charte` — lentille « Nos sauts / Densité » et « Toute la carte ✕ »
+en accent (`map-overlay-active`), spot sélectionné et spot favori en accent au lieu du cyan et de l'orange, rangs du top 5
+par `RankCell`, chiffres du profil de saut en Teko, épingles à 11 px minimum. Bandeau : sélecteur de carte, période et
+pastille s'étirent à la hauteur de la ligne (32 px), menu de la pastille au gabarit `app-menu` — vaut aussi pour la
+cartographie tactique, qui partage ces commandes.
+
+**Couleur des joueurs** (2026-10-03) : dans le menu de la pastille et sur les cartes « Qui saute où », la pastille d'un
+joueur prend la couleur de son **style de jeu dominant sur la période affichée** (Fragger, Medic, Ghost — couleurs de la
+liste des membres, `dominantStylesByMember`), lu dans `/api/clans/[clanId]/telemetry/playstyle` (`usePlaystyleColors`).
+Sans télémétrie sur la période, ou sans accès au style de jeu du clan : pastille neutre avec l'initiale. Les groupes
+(« Tout le clan », « Son meilleur duo ») restent neutres ; une légende ferme le menu. Avant : une palette de 10 couleurs
+tirée de l'identifiant, sans signification (deux joueurs pouvaient partager la même). Les **points de la carte** restent
+colorés par la **pression au drop**. La cartographie tactique garde encore l'ancienne palette (ses joueurs y sont
+identifiés par compte PUBG, pas par membre).
 
 ### Tests
 

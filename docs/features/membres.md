@@ -124,7 +124,7 @@ Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne l
 
 | Bloc de l'ancien tableau de bord | Nouvelle place |
 |---|---|
-| Pression au drop (`DropPressureStatsPanel`) et villes (`CityInsightsPanel`, portée membre) | Page « Zones de drop » du joueur (`MemberDropInsights`, sous la carte, même période), comme ceux du clan |
+| Pression au drop (`DropPressureStatsPanel`) et villes (`CityInsightsPanel`, portée membre) | D'abord sous la carte des zones de drop du joueur ; **retirés le 2026-10-03** comme ceux du clan (redondants avec le profil de saut et le top 5) et archivés. Zones de combat : cartographie tactique du clan (lien en pied de la carte « Profil de saut ») — [drop-zones.md](drop-zones.md) |
 | Compositions d'équipe (`TeamPlayCompositionsCard`) | Page « Stats par carte » du joueur, sous les cartes, même période |
 | Stats principales, progression, radar, jauges et évolution du style de jeu, squads fréquents, meilleures performances | Remplacés par les chiffres clés, la meilleure partie, le profil de jeu et les frères d'armes ; composants archivés |
 | Historique des matchs paginé | Page « Matchs » du joueur ; le tableau de bord n'en garde que les 5 dernières |

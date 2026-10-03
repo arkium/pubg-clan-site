@@ -56,6 +56,22 @@ export function dominantRole(scores: { aggression: number; support: number; zone
 }
 
 /**
+ * Style de jeu dominant de chaque joueur **sur une période** (lignes de `/api/clans/[clanId]/telemetry/playstyle`) :
+ * couleur de sa pastille sur les pages à carte (zones de drop). Même calcul que la fiche des membres, mais sur la période
+ * affichée ; un joueur sans score positif n'y figure pas (pastille neutre).
+ */
+export function dominantStylesByMember(
+  rows: ReadonlyArray<{ memberId: number; aggressionScore: number; supportScore: number; zoneDisciplineScore: number }>
+) {
+  const styles = new Map<number, RosterRoleId>()
+  for (const row of rows) {
+    const best = dominantRole({ aggression: row.aggressionScore, support: row.supportScore, zoneDiscipline: row.zoneDisciplineScore })
+    if (best) styles.set(row.memberId, best.id)
+  }
+  return styles
+}
+
+/**
  * « A joué ce soir » : sa dernière partie appartient à la soirée en cours (journée de jeu de Paris, 06:00 → 06:00).
  * Remplace le « en jeu » de la maquette : l'import est horaire, on ne sait pas qui joue à la minute près.
  */

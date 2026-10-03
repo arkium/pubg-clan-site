@@ -3994,3 +3994,14 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .charte .app-player-name-badge {
   font-size: 11px;
 }
+
+/* Commande posée sur une carte (fond toujours sombre) à l'état actif : lentille « Nos sauts / Densité »,
+   « Toute la carte ✕ ». Accent de la page ; sous .charte, encre sombre sur le jaune (jamais de blanc sur le jaune). */
+.map-overlay-active {
+  background-color: var(--theme-ui-accent);
+  color: #fff;
+}
+
+.charte .map-overlay-active {
+  color: #1c1003;
+}

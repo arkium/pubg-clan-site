@@ -1,6 +1,7 @@
 'use client'
 
 import { MapPin } from 'lucide-react'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
@@ -12,15 +13,15 @@ import {
   useDropZonesExplorer,
   WhoJumpsWhere,
 } from '@/components/drop-zones/DropZonesExplorer'
-import { MapPager, mapLabel, PickerChip, type PickerItem } from '@/components/maps/MapToolbarControls'
-import MemberDropInsights from '@/components/drop-zones/MemberDropInsights'
+import { MapPager, mapLabel, PickerChip, PlaystyleLegend, type PickerItem } from '@/components/maps/MapToolbarControls'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { memberColor, type LandingPoint } from '@/lib/drop-zones-view'
+import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
+import { type LandingPoint } from '@/lib/drop-zones-view'
 import type { MapLocations } from '@/lib/map-location-service'
 import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
 
@@ -66,7 +67,8 @@ function parseMemberId(value: string | string[] | undefined) {
 /**
  * Zones de drop d'un joueur — même lecture que la page du clan (maquette « Zones de drop », 2026-09-27 ;
  * docs/features/drop-zones.md). Le menu du bandeau choisit le périmètre : le joueur, son meilleur duo / trio / squad,
- * le clan ou un autre joueur. Pression au drop et villes du joueur restent sous la carte.
+ * le clan ou un autre joueur. Rien sous la carte (2026-10-03) : comme pour le clan, le profil de saut et le top 5
+ * couvrent la pression au drop ; les zones de combat sont sur la cartographie tactique du clan (lien en pied).
  */
 export default function MemberDropZonesPage() {
   const params = useParams()
@@ -88,11 +90,13 @@ export default function MemberDropZonesPage() {
   const points = data?.points ?? NO_POINTS
   const explorer = useDropZonesExplorer(points, data?.mapLocations, filterMemberId)
   const severalPlayers = useMemo(() => new Set(points.map((point) => point.memberId)).size > 1, [points])
+  // Pastilles des joueurs : leur style de jeu dominant sur la période (Fragger, Medic, Ghost), comme la liste des membres.
+  const { colorOf, styleOf } = usePlaystyleColors(data?.member.clanId ?? null, period)
 
   if (!memberId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Identifiant de joueur invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
@@ -101,7 +105,8 @@ export default function MemberDropZonesPage() {
   const target = data?.members.find((member) => member.id === targetMemberId) ?? null
   const scopeLabel =
     scope === 'self' ? playerName : scope === 'clan' ? 'Tout le clan' : scope === 'best' ? BEST_MODE_LABELS[bestMode] : target?.displayName ?? 'Un joueur'
-  const scopeColor = scope === 'self' ? memberColor(memberId) : scope === 'member' && targetMemberId ? memberColor(targetMemberId) : null
+  const scopeMemberId = scope === 'self' ? memberId : scope === 'member' ? targetMemberId : null
+  const scopeColor = scopeMemberId !== null ? colorOf(scopeMemberId) : null
 
   function chooseScope(next: Scope, options: { mode?: BestMode; target?: number } = {}) {
     setScope(next)
@@ -112,7 +117,7 @@ export default function MemberDropZonesPage() {
   }
 
   const items: PickerItem[] = [
-    { key: 'self', label: playerName, color: memberColor(memberId), active: scope === 'self', onSelect: () => chooseScope('self') },
+    { key: 'self', label: playerName, color: colorOf(memberId), avatar: true, style: styleOf(memberId), active: scope === 'self', onSelect: () => chooseScope('self') },
     ...(data?.bestModes ?? []).map((mode) => ({
       key: `best-${mode}`,
       label: BEST_MODE_LABELS[mode],
@@ -126,7 +131,9 @@ export default function MemberDropZonesPage() {
       .map((member) => ({
         key: `member-${member.id}`,
         label: member.displayName,
-        color: memberColor(member.id),
+        color: colorOf(member.id),
+        avatar: true,
+        style: styleOf(member.id),
         active: scope === 'member' && targetMemberId === member.id,
         onSelect: () => chooseScope('member', { target: member.id }),
       })),
@@ -138,7 +145,8 @@ export default function MemberDropZonesPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Zones de drop"
@@ -146,14 +154,14 @@ export default function MemberDropZonesPage() {
           fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Tableau de bord', altHref: '/members' }}
         />
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-[#1a1208] bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
+          className="bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-center bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/drop-zones.jpg')` }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-transparent" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3.5 py-3 sm:px-6 sm:py-5">
             <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-[22px] font-black tracking-tight text-white drop-shadow-md sm:text-3xl">Zones de drop</h1>
+              <MapPin className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Zones de drop</h1>
             </div>
             <p className="text-[13px] text-white/80 drop-shadow-md sm:text-sm">
               {data ? `Où ${playerName} saute, et à quel point ça chauffe à l’atterrissage.` : 'Où le joueur saute, et à quel point ça chauffe à l’atterrissage.'}
@@ -167,13 +175,13 @@ export default function MemberDropZonesPage() {
         <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
           <MapPager maps={explorer.maps} activeMap={explorer.activeMap} onStep={explorer.stepMap} onSelect={explorer.selectMap} />
           <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
-          <PickerChip ariaLabel="Périmètre" label={scopeLabel} color={scopeColor} items={items} />
-          <span className="ml-auto hidden whitespace-nowrap text-[13px] tabular-nums text-gray-500 lg:inline" data-testid="drop-summary">{summary}</span>
+          <PickerChip ariaLabel="Périmètre" label={scopeLabel} color={scopeColor} avatar={scopeMemberId !== null} items={items} legend={<PlaystyleLegend />} />
+          <span className="t-meta t-num ml-auto hidden whitespace-nowrap lg:inline" data-testid="drop-summary">{summary}</span>
         </div>
       </DockingToolbar>
 
       <div className="app-container app-gutter flex flex-col gap-[18px] pb-8">
-        {error ? <p className="app-panel p-4 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
         {!data && loading ? <CardSkeleton /> : null}
 
         {data ? (
@@ -186,13 +194,29 @@ export default function MemberDropZonesPage() {
                 />
                 <div className="flex min-w-0 flex-col gap-[18px]">
                   <FavoriteSpotCard explorer={explorer} title={`Spot favori · ${who}`} />
-                  <JumpProfileCard explorer={explorer} />
+                  <JumpProfileCard
+                    explorer={explorer}
+                    // Où il se bat (kills, dégâts, réanimations par ville) : la cartographie tactique du clan. En pied de
+                    // carte, à côté de la pression au drop, plutôt qu'en bas de page où on ne le voit pas.
+                    footer={
+                      data.member.clanId ? (
+                        <>
+                          Où les combats ont lieu, ville par ville :{' '}
+                          <Link href={`/clans/${data.member.clanId}/stats/positions`} className="app-link font-semibold">
+                            cartographie tactique du clan →
+                          </Link>
+                        </>
+                      ) : undefined
+                    }
+                  />
                   <TopSpotsList explorer={explorer} showKing={severalPlayers && filterMemberId === null} />
                 </div>
               </div>
               {severalPlayers ? (
                 <WhoJumpsWhere
                   explorer={explorer}
+                  colorOf={colorOf}
+                  styleOf={styleOf}
                   periodLabel={PERIOD_WHEN_LABELS[period]}
                   selectedMemberId={filterMemberId}
                   onSelectMember={(next) => {
@@ -203,18 +227,12 @@ export default function MemberDropZonesPage() {
               ) : null}
             </div>
           ) : (
-            <p className="app-panel-muted p-4 text-sm text-gray-500">
+            <p className="app-panel t-body p-6 text-center text-gray-500">
               {scopeLabel} : aucun saut {PERIOD_WHEN_LABELS[period]}.
             </p>
           )
         ) : null}
 
-        {/* Pression au drop et villes du joueur, venues du tableau de bord (2026-09-27, docs/features/membres.md). */}
-        {ready ? (
-          <section id="drop-insights" aria-label="Pression au drop et villes" className="pt-2">
-            <MemberDropInsights memberId={memberId} clanId={data?.member.clanId ?? null} period={period} />
-          </section>
-        ) : null}
       </div>
     </div>
   )

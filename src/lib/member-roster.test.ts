@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   dominantRole,
+  dominantStylesByMember,
   filterRoster,
   isInReserve,
   killsPerMatch,
@@ -40,6 +41,19 @@ describe('dominantRole', () => {
   it('égalité : Fragger, puis Medic, puis Ghost', () => {
     expect(dominantRole({ aggression: 50, support: 50, zoneDiscipline: 50 })?.id).toBe('fragger')
     expect(dominantRole({ aggression: 0, support: 50, zoneDiscipline: 50 })?.id).toBe('medic')
+  })
+})
+
+describe('dominantStylesByMember', () => {
+  it('style dominant de chaque joueur sur la période ; sans score, pas de style (pastille neutre)', () => {
+    const styles = dominantStylesByMember([
+      { memberId: 1, aggressionScore: 82, supportScore: 30, zoneDisciplineScore: 60 },
+      { memberId: 2, aggressionScore: 20, supportScore: 61, zoneDisciplineScore: 40 },
+      { memberId: 3, aggressionScore: 10, supportScore: 0, zoneDisciplineScore: 90 },
+      { memberId: 4, aggressionScore: 0, supportScore: 0, zoneDisciplineScore: 0 },
+    ])
+    expect(Object.fromEntries(styles)).toEqual({ 1: 'fragger', 2: 'medic', 3: 'ghost' })
+    expect(styles.has(4)).toBe(false)
   })
 })
 

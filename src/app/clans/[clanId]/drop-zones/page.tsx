@@ -12,14 +12,15 @@ import {
   useDropZonesExplorer,
   WhoJumpsWhere,
 } from '@/components/drop-zones/DropZonesExplorer'
-import { MapPager, mapLabel, PickerChip } from '@/components/maps/MapToolbarControls'
+import { MapPager, mapLabel, PickerChip, PlaystyleLegend } from '@/components/maps/MapToolbarControls'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { memberColor, type LandingPoint } from '@/lib/drop-zones-view'
+import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
+import { type LandingPoint } from '@/lib/drop-zones-view'
 import type { MapLocations } from '@/lib/map-location-service'
 import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
 
@@ -70,6 +71,8 @@ export default function ClanDropZonesPage() {
     return Array.from(counts.entries()).sort((a, b) => b[1].count - a[1].count || a[1].name.localeCompare(b[1].name, 'fr'))
   }, [explorer.mapPoints, points])
   const memberName = members.find(([id]) => id === memberId)?.[1].name ?? null
+  // Pastilles des joueurs : leur style de jeu dominant sur la période (Fragger, Medic, Ghost), comme la liste des membres.
+  const { colorOf, styleOf } = usePlaystyleColors(clanId, period)
 
   function selectMember(next: number | null) {
     setMemberId(next)
@@ -89,7 +92,8 @@ export default function ClanDropZonesPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Zones de drop"
@@ -97,14 +101,14 @@ export default function ClanDropZonesPage() {
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-[#1a1208] bg-cover bg-no-repeat sm:min-h-[13rem]"
+          className="bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/drop2.jpg')`, backgroundPosition: 'center 40%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-transparent" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3.5 py-3 sm:px-6 sm:py-5">
             <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-orange-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-[22px] font-black tracking-tight text-white drop-shadow-md sm:text-3xl">Zones de drop</h1>
+              <Flame className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Zones de drop</h1>
             </div>
             <p className="text-[13px] text-white/80 drop-shadow-md sm:text-sm">Où le clan saute, et à quel point ça chauffe à l’atterrissage.</p>
           </div>
@@ -122,13 +126,17 @@ export default function ClanDropZonesPage() {
           <PickerChip
             ariaLabel="Joueur"
             label={memberName ?? 'Tout le clan'}
-            color={memberId !== null ? memberColor(memberId) : null}
+            color={memberId !== null ? colorOf(memberId) : null}
+            avatar={memberId !== null}
+            legend={<PlaystyleLegend />}
             items={[
               { key: 'all', label: 'Tout le clan', color: null, count: explorer.mapPoints.length, active: memberId === null, onSelect: () => selectMember(null) },
               ...members.map(([id, entry]) => ({
                 key: String(id),
                 label: entry.name,
-                color: memberColor(id),
+                color: colorOf(id),
+                avatar: true,
+                style: styleOf(id),
                 count: entry.count,
                 active: memberId === id,
                 onSelect: () => selectMember(id),
@@ -157,7 +165,7 @@ export default function ClanDropZonesPage() {
                   <TopSpotsList explorer={explorer} showKing={memberId === null} />
                 </div>
               </div>
-              <WhoJumpsWhere explorer={explorer} periodLabel={PERIOD_WHEN_LABELS[period]} selectedMemberId={memberId} onSelectMember={selectMember} />
+              <WhoJumpsWhere explorer={explorer} colorOf={colorOf} styleOf={styleOf} periodLabel={PERIOD_WHEN_LABELS[period]} selectedMemberId={memberId} onSelectMember={selectMember} />
             </div>
           ) : (
             <p className="app-panel-muted p-4 text-sm text-gray-500">Aucun saut du clan {PERIOD_WHEN_LABELS[period]}.</p>

@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- fonds de carte locaux, positionnés en pourcentage */
 
 import { ChevronLeft, ChevronRight, Crown, MapPin, X } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 
 import DropZoneMapViewport, { type DropZoneMapViewportHandle } from '@/components/drop-zones/DropZoneMapViewport'
 import { DROP_PRESSURE_LEVELS, dropPressureTooltip } from '@/lib/drop-zone-pressure'
@@ -11,7 +11,6 @@ import {
   jumpProfile,
   locationForPoint,
   mapsByJumps,
-  memberColor,
   memberJumpSummaries,
   neighbourMap,
   pressureDistribution,
@@ -21,7 +20,8 @@ import {
   type LandingPoint,
   type SpotStat,
 } from '@/lib/drop-zones-view'
-import { mapLabel } from '@/components/maps/MapToolbarControls'
+import { mapLabel, PlayerDot, PlaystyleLegend } from '@/components/maps/MapToolbarControls'
+import RankCell from '@/components/ui/RankCell'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
 import { paginate } from '@/lib/pagination'
 
@@ -148,7 +148,7 @@ export function DropZonesMap({ explorer, emptyMessage }: { explorer: DropZonesEx
                     type="button"
                     onClick={() => setLens(value)}
                     aria-pressed={lens === value}
-                    className={`h-7 rounded-[7px] px-2.5 text-xs font-bold ${lens === value ? 'bg-orange-500 text-white' : 'text-white/80 hover:text-white'}`}
+                    className={`h-7 rounded-[7px] px-2.5 text-xs font-bold ${lens === value ? 'map-overlay-active' : 'text-white/80 hover:text-white'}`}
                   >
                     {label}
                   </button>
@@ -172,7 +172,7 @@ export function DropZonesMap({ explorer, emptyMessage }: { explorer: DropZonesEx
                 </>
               ) : null}
               {zoom > 1 ? (
-                <button type="button" onClick={clearFocus} className="absolute bottom-2.5 left-1/2 z-40 flex h-[30px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-500 px-3 text-xs font-extrabold text-white">
+                <button type="button" onClick={clearFocus} className="map-overlay-active absolute bottom-2.5 left-1/2 z-40 flex h-[30px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-extrabold">
                   {selectedSpot ? `${selectedSpot.location.name} · ` : ''}Toute la carte
                   <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
@@ -213,8 +213,8 @@ export function DropZonesMap({ explorer, emptyMessage }: { explorer: DropZonesEx
                     left: `${spot.location.xPct}%`,
                     top: `${spot.location.yPct}%`,
                     width: `${spot.location.radiusPct * 2}%`,
-                    border: selected ? '2px solid #22d3ee' : '1.5px dashed rgba(255,255,255,.55)',
-                    backgroundColor: selected ? 'rgba(34,211,238,.1)' : 'transparent',
+                    border: selected ? '2px solid var(--theme-ui-accent)' : '1.5px dashed rgba(255,255,255,.55)',
+                    backgroundColor: selected ? 'var(--theme-ui-accent-tint)' : 'transparent',
                   }}
                 />
               )
@@ -258,8 +258,8 @@ export function DropZonesMap({ explorer, emptyMessage }: { explorer: DropZonesEx
                 <span className="grid h-[18px] w-[18px] place-items-center rounded-full text-[11px] font-black text-[#020617]" style={{ backgroundColor: RANK_COLORS[index] ?? 'rgba(255,255,255,.7)' }}>
                   {index + 1}
                 </span>
-                <span className="max-w-[84px] truncate text-[10px] font-bold sm:max-w-[150px] sm:text-xs">{spot.location.name}</span>
-                <span className="text-[10px] font-extrabold tabular-nums sm:text-xs" style={{ color: RANK_COLORS[index] ?? 'rgba(255,255,255,.85)' }}>{spot.count}</span>
+                <span className="max-w-[84px] truncate text-[11px] font-bold sm:max-w-[150px] sm:text-xs">{spot.location.name}</span>
+                <span className="text-[11px] font-extrabold tabular-nums sm:text-xs" style={{ color: RANK_COLORS[index] ?? 'rgba(255,255,255,.85)' }}>{spot.count}</span>
               </button>
             ))}
           </div>
@@ -304,18 +304,18 @@ export function FavoriteSpotCard({ explorer, title }: { explorer: DropZonesExplo
       type="button"
       onClick={() => explorer.selectSpot(favorite.location)}
       aria-label={`${title} : ${favorite.location.name}`}
-      className="relative flex flex-col gap-2.5 overflow-hidden rounded-2xl border border-orange-500/55 bg-[#0b1220] p-4 text-left text-white shadow-[0_0_0_4px_rgba(249,115,22,.1)]"
+      className="bg-photo-fallback relative flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--theme-ui-accent-ring)] p-4 text-left text-white shadow-[0_0_0_4px_var(--theme-ui-accent-tint)]"
       style={{ backgroundImage: `url('${mapPath(explorer.activeMap)}')`, backgroundSize: '700%', backgroundPosition: spotBackgroundPosition(favorite.location.xPct, favorite.location.yPct) }}
       data-testid="favorite-spot"
     >
       <span className="absolute inset-0 bg-gradient-to-t from-slate-950/95 from-20% to-slate-950/55" aria-hidden="true" />
-      <span className="relative flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-orange-300">
-        <MapPin className="h-3.5 w-3.5 text-orange-400" aria-hidden="true" />
+      <span className="relative flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[var(--theme-ui-accent)]">
+        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
         {title}
       </span>
       <span className="relative flex flex-col gap-0.5">
         <b className="text-[28px] font-black leading-tight tracking-tight">{favorite.location.name}</b>
-        <span className="text-[13px] text-white/75">
+        <span className="t-num text-[13px] text-white/75">
           {integer.format(favorite.count)} saut{favorite.count > 1 ? 's' : ''} sur {integer.format(total)} · {integer.format(favorite.share)} % des drops sur {mapLabel(explorer.activeMap)}
         </span>
       </span>
@@ -325,7 +325,7 @@ export function FavoriteSpotCard({ explorer, title }: { explorer: DropZonesExplo
           {level.label} · {decimal.format(favorite.average)} adv.
         </span>
         {favorite.king && new Set(explorer.visiblePoints.map((point) => point.memberId)).size > 1 ? (
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/60 bg-amber-400/15 px-2.5 py-0.5 text-xs font-extrabold text-amber-200">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--theme-ui-accent)]">
             <Crown className="h-3.5 w-3.5" aria-hidden="true" />
             Roi du spot : {favorite.king.name} ×{favorite.king.count}
           </span>
@@ -344,13 +344,14 @@ function PressureBar({ distribution, thin = false }: { distribution: ReturnType<
   )
 }
 
-export function JumpProfileCard({ explorer }: { explorer: DropZonesExplorerState }) {
+/** `footer` : pied de carte (lien vers une page voisine), sous les chiffres. */
+export function JumpProfileCard({ explorer, footer }: { explorer: DropZonesExplorerState; footer?: ReactNode }) {
   const { profile } = explorer
   return (
     <section className="app-panel flex flex-col gap-3 px-4 py-3.5" aria-labelledby="jump-profile-title">
       <div className="flex items-baseline gap-2">
-        <h2 id="jump-profile-title" className="text-[15px] font-extrabold text-gray-900">Profil de saut</h2>
-        <span className="text-xs text-gray-500">adversaires au sol à 250 m</span>
+        <h2 id="jump-profile-title" className="t-card-title">Profil de saut</h2>
+        <span className="t-meta">adversaires au sol à 250 m</span>
       </div>
       <PressureBar distribution={profile.distribution} />
       <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5">
@@ -364,16 +365,18 @@ export function JumpProfileCard({ explorer }: { explorer: DropZonesExplorerState
       </ul>
       <dl className="grid grid-cols-3 gap-2 border-t border-gray-200 pt-2.5">
         {[
-          { label: 'adversaires en moyenne', value: decimal.format(profile.average), color: undefined },
-          { label: 'au pire drop', value: integer.format(profile.maximum), color: '#ef4444' },
-          { label: 'de hot drops', value: `${integer.format(profile.hotDropShare)} %`, color: '#f97316' },
+          { label: 'adversaires en moyenne', value: decimal.format(profile.average), tone: 'text-gray-900' },
+          { label: 'au pire drop', value: integer.format(profile.maximum), tone: 't-neg' },
+          { label: 'de hot drops', value: `${integer.format(profile.hotDropShare)} %`, tone: 't-warn' },
         ].map((kpi) => (
-          <div key={kpi.label} className="flex flex-col-reverse gap-px">
+          // Chiffres calés en haut : un libellé sur deux lignes (« adversaires en moyenne ») ne décale plus le sien.
+          <div key={kpi.label} className="flex flex-col-reverse justify-end gap-px">
             <dt className="text-[11px] leading-tight text-gray-500">{kpi.label}</dt>
-            <dd className="text-xl font-black tabular-nums text-gray-900" style={kpi.color ? { color: kpi.color } : undefined}>{kpi.value}</dd>
+            <dd className={`t-hero t-hero--sm ${kpi.tone}`}>{kpi.value}</dd>
           </div>
         ))}
       </dl>
+      {footer ? <div className="t-meta border-t border-gray-200 pt-2.5">{footer}</div> : null}
     </section>
   )
 }
@@ -385,8 +388,8 @@ export function TopSpotsList({ explorer, showKing }: { explorer: DropZonesExplor
   return (
     <section className="app-panel flex flex-col overflow-hidden" aria-labelledby="top-spots-title">
       <div className="flex items-baseline gap-2 px-4 pb-2 pt-3">
-        <h2 id="top-spots-title" className="text-[15px] font-extrabold text-gray-900">Top 5 des spots</h2>
-        <span className="text-xs text-gray-500">{integer.format(inCity)} en ville · {integer.format(outside)} hors périmètre</span>
+        <h2 id="top-spots-title" className="t-card-title">Top 5 des spots</h2>
+        <span className="t-meta t-num">{integer.format(inCity)} en ville · {integer.format(outside)} hors périmètre</span>
       </div>
       {top5.length > 0 ? (
         <ol aria-label="Top 5 des spots">
@@ -398,14 +401,9 @@ export function TopSpotsList({ explorer, showKing }: { explorer: DropZonesExplor
                   type="button"
                   onClick={() => explorer.selectSpot(spot.location)}
                   aria-pressed={selected}
-                  className={`grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 border-t border-gray-200 px-4 py-2 text-left hover:bg-gray-50 ${selected ? 'bg-orange-500/10 shadow-[inset_3px_0_0_#f97316]' : ''}`}
+                  className={`grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 border-t border-gray-200 px-4 py-2 text-left hover:bg-gray-50 ${selected ? 'bg-[var(--theme-ui-accent-soft)] shadow-[inset_3px_0_0_var(--theme-ui-accent)]' : ''}`}
                 >
-                  <span
-                    className="grid h-[22px] w-[22px] place-items-center rounded-full text-[11px] font-black"
-                    style={{ backgroundColor: RANK_COLORS[index] ?? 'var(--theme-ui-surface-strong)', color: index < 3 ? (index === 2 ? '#fff' : '#020617') : 'var(--theme-ui-text)' }}
-                  >
-                    {index + 1}
-                  </span>
+                  <RankCell rank={index + 1} size="xs" />
                   <span className="flex min-w-0 flex-col gap-1">
                     <b className="truncate text-sm text-gray-900">{spot.location.name}</b>
                     <PressureBar distribution={spot.distribution} thin />
@@ -414,7 +412,7 @@ export function TopSpotsList({ explorer, showKing }: { explorer: DropZonesExplor
                       {showKing && spot.king ? ` · ${spot.king.name} ×${spot.king.count}` : ''}
                     </span>
                   </span>
-                  <span className="flex flex-col items-end tabular-nums">
+                  <span className="t-num flex flex-col items-end">
                     <b className="text-base text-gray-900">{spot.count}</b>
                     <span className="text-[11px] text-gray-500">{integer.format(spot.share)} %</span>
                   </span>
@@ -445,11 +443,16 @@ export function WhoJumpsWhere({
   periodLabel,
   selectedMemberId,
   onSelectMember,
+  colorOf,
+  styleOf,
 }: {
   explorer: DropZonesExplorerState
   periodLabel: string
   selectedMemberId: number | null
   onSelectMember: (memberId: number | null) => void
+  /** Couleur de la pastille : style de jeu du joueur sur la période (`usePlaystyleColors`) ; `null` : neutre. */
+  colorOf: (memberId: number) => string | null
+  styleOf: (memberId: number) => string | null
 }) {
   const [page, setPage] = useState(1)
   // 2 cartes par page sur mobile, 4 à partir de `sm` : jamais de défilement horizontal.
@@ -462,14 +465,14 @@ export function WhoJumpsWhere({
   return (
     <section className="flex flex-col gap-2.5" aria-labelledby="who-jumps-title">
       <div className="flex items-center gap-2">
-        <h2 id="who-jumps-title" className="whitespace-nowrap text-[17px] font-extrabold text-gray-900">Qui saute où</h2>
-        <span className="truncate text-[13px] text-gray-500">{mapLabel(explorer.activeMap)} · {periodLabel}</span>
+        <h2 id="who-jumps-title" className="t-section-title whitespace-nowrap">Qui saute où</h2>
+        <span className="t-meta truncate">{mapLabel(explorer.activeMap)} · {periodLabel}</span>
         {pageCount > 1 ? (
           <nav className="ml-auto flex items-center gap-1.5" aria-label="Pages des joueurs">
             <button type="button" className="app-pager-button" onClick={() => setPage(current - 1)} disabled={current === 1} aria-label="Joueurs précédents">
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
-            <span className="min-w-[30px] text-center text-xs font-bold tabular-nums text-gray-500">{current}/{pageCount}</span>
+            <span className="t-num min-w-[30px] text-center text-xs font-bold text-gray-500">{current}/{pageCount}</span>
             <button type="button" className="app-pager-button" onClick={() => setPage(current + 1)} disabled={current === pageCount} aria-label="Joueurs suivants">
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -478,7 +481,7 @@ export function WhoJumpsWhere({
       </div>
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" aria-label="Joueurs de la carte">
         {visible.map((member) => {
-          const color = memberColor(member.memberId)
+          const color = colorOf(member.memberId)
           const selected = selectedMemberId === member.memberId
           const level = DROP_PRESSURE_LEVELS[member.level]
           return (
@@ -489,12 +492,11 @@ export function WhoJumpsWhere({
                 aria-pressed={selected}
                 aria-label={`${member.name} : filtrer la carte`}
                 className="app-panel flex w-full min-w-0 flex-col gap-2 px-3.5 py-3 text-left transition hover:border-[var(--theme-ui-accent-ring)]"
-                style={selected ? { borderColor: color, boxShadow: `0 0 0 3px ${color}40` } : undefined}
+                // Carte choisie : état actif en accent (charte) ; la pastille garde la couleur du style de jeu.
+                style={selected ? { borderColor: 'var(--theme-ui-accent-ring)', boxShadow: '0 0 0 3px var(--theme-ui-accent-soft)' } : undefined}
               >
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-black text-[#020617]" style={{ backgroundColor: color }}>
-                    {member.name.replace(/^Joueur\s+/, '').charAt(0).toUpperCase()}
-                  </span>
+                  <PlayerDot label={member.name} color={color} avatar size={32} style={styleOf(member.memberId)} />
                   <span className="flex min-w-0 flex-col">
                     <b className="truncate text-sm text-gray-900">{member.name}</b>
                     <span className="text-[11px] text-gray-500">
@@ -515,6 +517,7 @@ export function WhoJumpsWhere({
           )
         })}
       </ul>
+      <PlaystyleLegend />
     </section>
   )
 }

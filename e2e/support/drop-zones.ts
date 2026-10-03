@@ -1,6 +1,7 @@
 import type { ApiMock } from './api'
 import { CLAN_ID, MEMBER_ID, PLAYERS } from './data'
 import { mockMemberProfile } from './members'
+import { playstyleRows } from './stats'
 
 import { dropPressureLevel } from '@/lib/drop-zone-pressure'
 import type { LandingPoint } from '@/lib/drop-zones-view'
@@ -81,12 +82,22 @@ function dropZonesBody(points: LandingPoint[], extra: Record<string, unknown> = 
   }
 }
 
+/**
+ * Style de jeu du clan sur la période : couleur des pastilles des joueurs dans le menu du bandeau et « Qui saute où ».
+ * Lignes de `e2e/support/stats.ts` : Alpha, Bravo, Charlie en Fragger ; Delta et les suivants en Ghost.
+ */
+function mockPlaystyleColors(api: ApiMock) {
+  api.on('GET', `/api/clans/${CLAN_ID}/telemetry/playstyle`, { body: { ok: true, rows: playstyleRows() } })
+}
+
 export function mockClanDropZones(api: ApiMock, points: LandingPoint[] = dropPoints()) {
+  mockPlaystyleColors(api)
   api.on('GET', `/api/clans/${CLAN_ID}/telemetry/drop-zones`, { body: dropZonesBody(points) })
 }
 
 export function mockMemberDropZones(api: ApiMock) {
   mockMemberProfile(api)
+  mockPlaystyleColors(api)
   const all = dropPoints()
   api
     .on('GET', `/api/members/${MEMBER_ID}/telemetry/drop-zones`, (url) => {
@@ -103,6 +114,6 @@ export function mockMemberDropZones(api: ApiMock) {
         }),
       }
     })
-    .on('GET', `/api/members/${MEMBER_ID}/drop-pressure`, { body: { stats: null, ranking: [], timeline: [] } })
-    .on('GET', `/api/members/${MEMBER_ID}/city-insights`, { body: { insights: null } })
+  // Pas de réponse pour `drop-pressure` ni `city-insights` : la page ne les appelle plus (panneaux retirés le
+  // 2026-10-03) ; un appel serait bloqué et ferait échouer le test.
 }

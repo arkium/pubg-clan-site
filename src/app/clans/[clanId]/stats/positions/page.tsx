@@ -52,7 +52,7 @@ export default function ClanPositionsPage() {
   // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'week')
   const viewportRef = useRef<DropZoneMapViewportHandle>(null)
-  // Lien préfiltré du panneau « Villes » (`?map=&view=`, CityInsightsPanel) : état initial, la page prend le relais.
+  // Lien préfiltré `?map=&view=` (ex-panneau « Villes », archivé le 2026-10-03) : état initial, la page prend le relais.
   const searchParams = useSearchParams()
   const [map, setMap] = useState<string | null>(() => searchParams.get('map'))
   const [memberKey, setMemberKey] = useState<string | null>(null)

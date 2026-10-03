@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Map } from 'lucide-react'
 
+import { PickerChip, PlaystyleLegend, type PickerItem } from '@/components/maps/MapToolbarControls'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
@@ -12,7 +13,9 @@ import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/M
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { SortReminder } from '@/components/ui/SortableTh'
 import TeamPlayCompositionsCard from '@/components/member/TeamPlayCompositionsCard'
+import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
 import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
@@ -177,6 +180,9 @@ function MapCardBanner({
   )
 }
 
+const BEST_MODE_LABELS: Record<BestMode, string> = { duo: 'Son meilleur duo', trio: 'Son meilleur trio', squad: 'Son meilleur squad' }
+const pickClanId = (payload: unknown) => (payload as { clanId?: number | null } | null)?.clanId ?? null
+
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -198,12 +204,6 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(total / 60)
   const remaining = total % 60
   return `${minutes}:${String(remaining).padStart(2, '0')}`
-}
-
-function compactScopeLabel(label: string) {
-  return label
-    .replace(/^Stats cartes de\s+/i, '')
-    .replace(/^Stats cartes du\s+/i, '')
 }
 
 function readInitialSortPreference(): { key: SortKey; dir: 'asc' | 'desc' } {
@@ -245,6 +245,9 @@ export default function MemberMapStatsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MapStatsPayload | null>(null)
+  // Clan du joueur (fiche membre) : le style de jeu de la période colore les pastilles du périmètre.
+  const clanId = usePageData(memberId ? `/api/members/${memberId}` : null, pickClanId).data
+  const { colorOf, styleOf } = usePlaystyleColors(clanId, period)
   const [sortKey, setSortKey] = useState<SortKey>(() => readInitialSortPreference().key)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => readInitialSortPreference().dir)
 
@@ -346,88 +349,42 @@ export default function MemberMapStatsPage() {
     return sortDir === 'asc' ? result : -result
   })
 
-  const scopeLabelMap: Record<Scope, string> = {
-    self: 'Le joueur',
-    member: 'Un joueur spécifique',
-    clan: 'Le clan',
-    best: 'Son meilleur duo/trio/squad',
+  // Périmètre : la même pastille que les zones de drop et le calendrier — le joueur, ses meilleures formations, le clan,
+  // un autre joueur ; chaque joueur à la couleur de son style de jeu sur la période.
+  const members = payload?.options.members ?? []
+  const playerName = members.find((entry) => entry.id === memberId)?.displayName ?? 'Le joueur'
+  const target = members.find((entry) => entry.id === targetMemberId) ?? null
+  const scopeLabel =
+    scope === 'self' ? playerName : scope === 'clan' ? 'Tout le clan' : scope === 'best' ? BEST_MODE_LABELS[bestMode] : target?.displayName ?? 'Un joueur'
+  const scopeMemberId = scope === 'self' ? memberId : scope === 'member' ? targetMemberId : null
+
+  function chooseScope(next: Scope, options: { mode?: BestMode; target?: number } = {}) {
+    setScope(next)
+    if (options.mode) setBestMode(options.mode)
+    setTargetMemberId(options.target ?? null)
   }
 
-  const scopeItems: MobileDropdownNavItem[] = [
-    {
-      key: 'self',
-      label: 'Le joueur',
-      active: scope === 'self',
-      onSelect: () => {
-        setScope('self')
-        setTargetMemberId(null)
-      },
-    },
-    {
-      key: 'member',
-      label: 'Un joueur spécifique',
-      active: scope === 'member',
-      onSelect: () => {
-        setScope('member')
-      },
-    },
-    {
-      key: 'clan',
-      label: 'Le clan',
-      active: scope === 'clan',
-      onSelect: () => {
-        setScope('clan')
-        setTargetMemberId(null)
-      },
-    },
-    {
-      key: 'best',
-      label: 'Son meilleur duo/trio/squad',
-      active: scope === 'best',
-      onSelect: () => {
-        setScope('best')
-        setTargetMemberId(null)
-      },
-    },
-  ]
-
-  const selectedMemberId = targetMemberId ?? payload?.selected.targetMemberId ?? memberId
-  const selectedMemberLabel =
-    (payload?.options.members ?? []).find((entry) => entry.id === selectedMemberId)?.displayName ??
-    `Joueur #${selectedMemberId}`
-
-  const memberItems: MobileDropdownNavItem[] = (payload?.options.members ?? []).map((entry) => ({
-    key: String(entry.id),
-    label: entry.displayName,
-    active: selectedMemberId === entry.id,
-    onSelect: () => setTargetMemberId(entry.id),
-  }))
-
-  const bestModeLabelMap: Record<BestMode, string> = {
-    duo: 'Meilleur duo',
-    trio: 'Meilleur trio',
-    squad: 'Meilleur squad',
-  }
-
-  const bestModeItems: MobileDropdownNavItem[] = [
-    {
-      key: 'duo',
-      label: 'Meilleur duo',
-      active: bestMode === 'duo',
-      onSelect: () => setBestMode('duo'),
-    },
-    {
-      key: 'trio',
-      label: 'Meilleur trio',
-      active: bestMode === 'trio',
-      onSelect: () => setBestMode('trio'),
-    },
-    {
-      key: 'squad',
-      label: 'Meilleur squad',
-      active: bestMode === 'squad',
-      onSelect: () => setBestMode('squad'),
-    },
+  const scopeItems: PickerItem[] = [
+    { key: 'self', label: playerName, color: colorOf(memberId), avatar: true, style: styleOf(memberId), active: scope === 'self', onSelect: () => chooseScope('self') },
+    ...(payload?.options.bestModes ?? []).map((mode) => ({
+      key: `best-${mode}`,
+      label: BEST_MODE_LABELS[mode],
+      color: null,
+      active: scope === 'best' && bestMode === mode,
+      onSelect: () => chooseScope('best', { mode }),
+    })),
+    { key: 'clan', label: 'Tout le clan', color: null, active: scope === 'clan', onSelect: () => chooseScope('clan') },
+    ...members
+      .filter((entry) => entry.id !== memberId)
+      .map((entry) => ({
+        key: `member-${entry.id}`,
+        label: entry.displayName,
+        color: colorOf(entry.id),
+        avatar: true,
+        style: styleOf(entry.id),
+        active: scope === 'member' && targetMemberId === entry.id,
+        onSelect: () => chooseScope('member', { target: entry.id }),
+      })),
   ]
 
   const sortItems: MobileDropdownNavItem[] = (Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
@@ -438,7 +395,7 @@ export default function MemberMapStatsPage() {
   }))
 
   const scopeSummary = payload
-    ? `${payload.scopeLabel ? compactScopeLabel(payload.scopeLabel) : scopeLabelMap[scope]} · ${count.format(payload.totals.rows)} partie${payload.totals.rows > 1 ? 's' : ''} · ${payload.totals.maps} carte${payload.totals.maps > 1 ? 's' : ''}`
+    ? `${scopeLabel} · ${count.format(payload.totals.rows)} partie${payload.totals.rows > 1 ? 's' : ''} · ${payload.totals.maps} carte${payload.totals.maps > 1 ? 's' : ''}`
     : 'Chargement…'
   const dropdownClass = 'min-w-0 max-w-full'
 
@@ -467,7 +424,7 @@ export default function MemberMapStatsPage() {
         ariaLabel="Filtres des statistiques par carte"
         dockedAside={
           <span className="flex items-center gap-3">
-            <span className="whitespace-nowrap text-xs font-semibold text-gray-700">{scopeLabelMap[scope]}</span>
+            <span className="whitespace-nowrap text-xs font-semibold text-gray-700">{scopeLabel}</span>
             <SortReminder label={SORT_LABELS[sortKey]} sortDir={sortDir} />
           </span>
         }
@@ -476,41 +433,14 @@ export default function MemberMapStatsPage() {
           <div className="flex w-full flex-wrap items-center gap-3">
             <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
             {!compact ? (
-              <>
-                <MobileDropdownNav
-                  id={`map-stats-scope-${memberId}`}
-                  label="Filtre"
-                  currentLabel={scopeLabelMap[scope]}
-                  items={scopeItems}
-                  variant="compact"
-                  visibilityClass="block"
-                  className={dropdownClass}
-                />
-
-                {scope === 'member' ? (
-                  <MobileDropdownNav
-                    id={`map-stats-member-${memberId}`}
-                    label="Joueur"
-                    currentLabel={selectedMemberLabel}
-                    items={memberItems}
-                    variant="compact"
-                    visibilityClass="block"
-                    className={dropdownClass}
-                  />
-                ) : null}
-
-                {scope === 'best' ? (
-                  <MobileDropdownNav
-                    id={`map-stats-best-mode-${memberId}`}
-                    label="Formation"
-                    currentLabel={bestModeLabelMap[bestMode]}
-                    items={bestModeItems}
-                    variant="compact"
-                    visibilityClass="block"
-                    className={dropdownClass}
-                  />
-                ) : null}
-              </>
+              <PickerChip
+                ariaLabel="Périmètre"
+                label={scopeLabel}
+                color={scopeMemberId !== null ? colorOf(scopeMemberId) : null}
+                avatar={scopeMemberId !== null}
+                items={scopeItems}
+                legend={<PlaystyleLegend />}
+              />
             ) : null}
           </div>
         )}

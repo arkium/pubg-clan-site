@@ -22,6 +22,7 @@ export function MapPager({
   onStep,
   onSelect,
   accent = 'var(--theme-ui-accent)',
+  labelOf = mapLabel,
 }: {
   maps: readonly string[]
   activeMap: string
@@ -29,6 +30,8 @@ export function MapPager({
   onSelect: (mapName: string) => void
   /** Couleur du point de la carte active (accent de la page : zones de drop ; cyan : cartographie tactique). */
   accent?: string
+  /** Libellé d'une entrée : le nom court de la carte, ou « Toutes » pour l'entrée vide (calendrier d'activité). */
+  labelOf?: (mapName: string) => string
 }) {
   if (maps.length === 0) return null
   return (
@@ -39,15 +42,15 @@ export function MapPager({
       </button>
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-[3px]">
         <b className="max-w-full truncate text-xs font-extrabold text-gray-900 sm:text-[13px] sm:uppercase sm:tracking-[0.06em]" data-testid="active-map">
-          {mapLabel(activeMap)}
+          {labelOf(activeMap)}
         </b>
         <span className="flex gap-1">
           {maps.map((mapName) => (
             <button
-              key={mapName}
+              key={mapName || 'all'}
               type="button"
               onClick={() => mapName !== activeMap && onSelect(mapName)}
-              aria-label={mapLabel(mapName)}
+              aria-label={labelOf(mapName)}
               aria-current={mapName === activeMap ? 'true' : undefined}
               className="h-1 rounded-sm transition-all"
               style={{ width: mapName === activeMap ? 16 : 6, backgroundColor: mapName === activeMap ? accent : 'var(--theme-ui-border)' }}

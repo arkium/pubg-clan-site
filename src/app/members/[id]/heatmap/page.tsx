@@ -4,13 +4,24 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CalendarDays } from 'lucide-react'
 
+import { MapPager, mapLabel, PickerChip, PlaystyleLegend, type PickerItem } from '@/components/maps/MapToolbarControls'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
-import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
+import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
+import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
+import {
+  ACTIVITY_DAY_LABELS,
+  activityByDay,
+  activityHourLabel,
+  activityLevel,
+  busiestSlot,
+  plural,
+} from '@/lib/activity-heatmap'
+import { formatPlayTime } from '@/lib/match-sessions'
+import { PERIOD_WHEN_LABELS, STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
 type HeatmapScope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -51,7 +62,9 @@ type HeatmapPayload = {
   error?: string
 }
 
-const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+const BEST_MODE_LABELS: Record<BestMode, string> = { duo: 'Son meilleur duo', trio: 'Son meilleur trio', squad: 'Son meilleur squad' }
+const pickClanId = (payload: unknown) => (payload as { clanId?: number | null } | null)?.clanId ?? null
+
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) {
     return null
@@ -61,36 +74,10 @@ function parseMemberId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function cellTone(count: number, max: number) {
-  if (count <= 0 || max <= 0) {
-    return 'bg-slate-100'
-  }
-
-  const ratio = count / max
-
-  if (ratio < 0.2) return 'bg-cyan-100'
-  if (ratio < 0.4) return 'bg-cyan-200'
-  if (ratio < 0.6) return 'bg-cyan-300'
-  if (ratio < 0.8) return 'bg-cyan-400'
-  return 'bg-cyan-500'
-}
-
-function formatPlaytime(seconds: number) {
-  const totalSeconds = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  }
-
-  return `${minutes}m`
-}
-
-function hourLabel(hour: number) {
-  return `${String(hour).padStart(2, '0')}h`
-}
-
+/**
+ * Calendrier d'activité d'un joueur — migré vers la charte le 2026-10-03 (docs/ui/index.html) : échelle séquentielle
+ * `app-seq-*` (rampe jaune) au lieu du cyan, KPI de la charte, résumé sous le titre au lieu d'un encart dans le bandeau.
+ */
 export default function MemberHeatmapPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
@@ -104,6 +91,9 @@ export default function MemberHeatmapPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<HeatmapPayload | null>(null)
+  // Clan du joueur (fiche membre) : le style de jeu de la période colore les pastilles du périmètre.
+  const clanId = usePageData(memberId ? `/api/members/${memberId}` : null, pickClanId).data
+  const { colorOf, styleOf } = usePlaystyleColors(clanId, period)
 
   useEffect(() => {
     if (!memberId || !periodReady) {
@@ -168,369 +158,219 @@ export default function MemberHeatmapPage() {
     return (
       <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
-          currentLabel="Heatmap"
+          currentLabel="Calendrier"
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
-        <p className="text-sm text-red-600">ID joueur invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
 
-  const countsByDay = new Map<number, number>()
+  const cells = payload?.heatmap ?? []
+  const dayTotals = activityByDay(cells)
   const countsByDayHour = new Map<string, number>()
-  for (const cell of payload?.heatmap ?? []) {
-    countsByDay.set(cell.dayIndex, (countsByDay.get(cell.dayIndex) ?? 0) + cell.count)
-    countsByDayHour.set(`${cell.dayIndex}-${cell.hour}`, cell.count)
+  for (const cell of cells) countsByDayHour.set(`${cell.dayIndex}-${cell.hour}`, cell.count)
+  const getCellCount = (dayIndex: number, hour: number) => countsByDayHour.get(`${dayIndex}-${hour}`) ?? 0
+  const max = payload?.maxCellCount ?? 0
+  const slot = busiestSlot(cells)
+  const cellTitle = (dayIndex: number, hour: number, count: number) => `${ACTIVITY_DAY_LABELS[dayIndex]} ${activityHourLabel(hour)} : ${plural(count, 'partie')}`
+
+  // Périmètre : la même pastille que les zones de drop du joueur — le joueur, ses meilleures formations, le clan, un autre
+  // joueur ; chaque joueur à la couleur de son style de jeu sur la période.
+  const members = payload?.options.members ?? []
+  const playerName = members.find((entry) => entry.id === memberId)?.displayName ?? 'Le joueur'
+  const target = members.find((entry) => entry.id === targetMemberId) ?? null
+  const scopeLabel =
+    scope === 'self' ? playerName : scope === 'clan' ? 'Tout le clan' : scope === 'best' ? BEST_MODE_LABELS[bestMode] : target?.displayName ?? 'Un joueur'
+  const scopeMemberId = scope === 'self' ? memberId : scope === 'member' ? targetMemberId : null
+
+  function chooseScope(next: HeatmapScope, options: { mode?: BestMode; target?: number } = {}) {
+    setScope(next)
+    if (options.mode) setBestMode(options.mode)
+    setTargetMemberId(options.target ?? null)
   }
 
-  function getCellCount(dayIndex: number, hour: number) {
-    return countsByDayHour.get(`${dayIndex}-${hour}`) ?? 0
-  }
-
-  const scopeLabelMap: Record<HeatmapScope, string> = {
-    self: 'Le joueur',
-    member: 'Un joueur specifique',
-    clan: 'Le clan',
-    best: 'Son meilleur duo/trio/squad',
-  }
-
-  const scopeItems: MobileDropdownNavItem[] = [
-    {
-      key: 'self',
-      label: 'Le joueur',
-      active: scope === 'self',
-      onSelect: () => {
-        setScope('self')
-        setTargetMemberId(null)
-      },
-    },
-    {
-      key: 'member',
-      label: 'Un joueur specifique',
-      active: scope === 'member',
-      onSelect: () => {
-        setScope('member')
-      },
-    },
-    {
-      key: 'clan',
-      label: 'Le clan',
-      active: scope === 'clan',
-      onSelect: () => {
-        setScope('clan')
-        setTargetMemberId(null)
-      },
-    },
-    {
-      key: 'best',
-      label: 'Son meilleur duo/trio/squad',
-      active: scope === 'best',
-      onSelect: () => {
-        setScope('best')
-        setTargetMemberId(null)
-      },
-    },
-  ]
-
-  const selectedMapLabel =
-    mapName === '' ? 'Toutes' : (payload?.options.mapLabels?.[mapName] ?? mapName)
-
-  const mapItems: MobileDropdownNavItem[] = [
-    {
-      key: 'all',
-      label: 'Toutes',
-      active: mapName === '',
-      onSelect: () => setMapName(''),
-    },
-    ...(payload?.options.mapNames ?? []).map((entry) => ({
-      key: entry,
-      label: payload?.options.mapLabels?.[entry] ?? entry,
-      active: mapName === entry,
-      onSelect: () => setMapName(entry),
+  const scopeItems: PickerItem[] = [
+    { key: 'self', label: playerName, color: colorOf(memberId), avatar: true, style: styleOf(memberId), active: scope === 'self', onSelect: () => chooseScope('self') },
+    ...(payload?.options.bestModes ?? []).map((mode) => ({
+      key: `best-${mode}`,
+      label: BEST_MODE_LABELS[mode],
+      color: null,
+      active: scope === 'best' && bestMode === mode,
+      onSelect: () => chooseScope('best', { mode }),
     })),
+    { key: 'clan', label: 'Tout le clan', color: null, active: scope === 'clan', onSelect: () => chooseScope('clan') },
+    ...members
+      .filter((entry) => entry.id !== memberId)
+      .map((entry) => ({
+        key: `member-${entry.id}`,
+        label: entry.displayName,
+        color: colorOf(entry.id),
+        avatar: true,
+        style: styleOf(entry.id),
+        active: scope === 'member' && targetMemberId === entry.id,
+        onSelect: () => chooseScope('member', { target: entry.id }),
+      })),
   ]
 
-  const selectedMemberId = targetMemberId ?? payload?.selected.targetMemberId ?? memberId
-  const selectedMemberLabel =
-    (payload?.options.members ?? []).find((entry) => entry.id === selectedMemberId)?.displayName ??
-    `Joueur #${selectedMemberId}`
-
-  const memberItems: MobileDropdownNavItem[] = (payload?.options.members ?? []).map((entry) => ({
-    key: String(entry.id),
-    label: entry.displayName,
-    active: selectedMemberId === entry.id,
-    onSelect: () => setTargetMemberId(entry.id),
-  }))
-
-  const bestModeLabelMap: Record<BestMode, string> = {
-    duo: 'Meilleur duo',
-    trio: 'Meilleur trio',
-    squad: 'Meilleur squad',
+  // Carte : le sélecteur ‹ › des pages à carte, avec une première entrée « Toutes » (toutes les cartes).
+  const mapChoices = ['', ...(payload?.options.mapNames ?? [])]
+  const mapChoiceLabel = (entry: string) => (entry === '' ? 'Toutes' : (payload?.options.mapLabels?.[entry] ?? mapLabel(entry)))
+  function stepMap(direction: 'prev' | 'next') {
+    const index = Math.max(0, mapChoices.indexOf(mapName))
+    const next = (index + (direction === 'next' ? 1 : -1) + mapChoices.length) % mapChoices.length
+    setMapName(mapChoices[next])
   }
 
-  const bestModeItems: MobileDropdownNavItem[] = [
-    {
-      key: 'duo',
-      label: 'Meilleur duo',
-      active: bestMode === 'duo',
-      onSelect: () => setBestMode('duo'),
-    },
-    {
-      key: 'trio',
-      label: 'Meilleur trio',
-      active: bestMode === 'trio',
-      onSelect: () => setBestMode('trio'),
-    },
-    {
-      key: 'squad',
-      label: 'Meilleur squad',
-      active: bestMode === 'squad',
-      onSelect: () => setBestMode('squad'),
-    },
-  ]
+  const summary = payload
+    ? `${scopeLabel} · ${plural(payload.matchCount, 'partie')} ${PERIOD_WHEN_LABELS[period]}${mapName ? ` · ${mapChoiceLabel(mapName)}` : ''}`
+    : 'Chargement…'
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
-          currentLabel="Heatmap"
+          currentLabel="Calendrier"
           currentHref={`/members/${memberId}/heatmap`}
-          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Tableau de bord', altHref: '/members' }}
         />
         <section>
           <MemberPageHeader
-            title="Calendrier d'activite"
-            subtitle="Repartition de l'activite par jour et par heure."
+            title="Calendrier d’activité"
+            subtitle="Quand il joue : ses parties par jour de la semaine et par heure."
             showBackButton={false}
             backgroundImage="/heatmap.jpg"
-            icon={<CalendarDays className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+            icon={<CalendarDays className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
           />
         </section>
       </div>
 
-      <DockingToolbar ariaLabel="Filtres du calendrier d'activité">
-        {({ isSticky, compact }) => (
-          <div className="flex w-full flex-col gap-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
-              {!compact ? (
-                <>
-                  <MobileDropdownNav
-                    id={`heatmap-scope-${memberId}`}
-                    label="Filtre"
-                    currentLabel={scopeLabelMap[scope]}
-                    items={scopeItems}
-                    variant="compact"
-                    visibilityClass="block"
-                    className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                    leftIcon={(
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                        <path
-                          d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
-                  />
-
-                  <MobileDropdownNav
-                    id={`heatmap-map-${memberId}`}
-                    label="Carte PUBG"
-                    currentLabel={selectedMapLabel}
-                    items={mapItems}
-                    variant="compact"
-                    visibilityClass="block"
-                    className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                    leftIcon={(
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                        <path
-                          d="M3.5 5.5 8 4l4 1.5L16.5 4v10.5L12 16l-4-1.5-4.5 1.5V5.5Z"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  />
-
-                  {scope === 'member' ? (
-                    <MobileDropdownNav
-                      id={`heatmap-member-${memberId}`}
-                      label="Joueur"
-                      currentLabel={selectedMemberLabel}
-                      items={memberItems}
-                      variant="compact"
-                      visibilityClass="block"
-                      className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                      leftIcon={(
-                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                          <path
-                            d="M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm-5.5 5.3a5.5 5.5 0 0 1 11 0"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    />
-                  ) : null}
-
-                  {scope === 'best' ? (
-                    <MobileDropdownNav
-                      id={`heatmap-best-mode-${memberId}`}
-                      label="Formation"
-                      currentLabel={bestModeLabelMap[bestMode]}
-                      items={bestModeItems}
-                      variant="compact"
-                      visibilityClass="block"
-                      className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                      leftIcon={(
-                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                          <path
-                            d="M4.5 15.5h11M4.5 10h11M4.5 4.5h11"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      )}
-                    />
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-            {!isSticky ? (
-              <div className="w-full rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900">
-                <p className="mt-1 font-medium">{payload?.scopeLabel ?? 'Chargement...'}</p>
-                <p className="mt-1 text-xs text-cyan-800">{payload?.matchCount ?? 0} match(s) utilises</p>
-              </div>
+      {/* Même bandeau que les zones de drop : carte ‹ ›, période et périmètre sur une ligne ; docké sur mobile, la période seule. */}
+      <DockingToolbar
+        ariaLabel="Filtres du calendrier d'activité"
+        dockedAside={<span className="whitespace-nowrap text-xs font-semibold text-gray-700">{scopeLabel}{mapName ? ` · ${mapChoiceLabel(mapName)}` : ''}</span>}
+      >
+        {({ compact }) => (
+          <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
+            {!compact ? <MapPager maps={mapChoices} activeMap={mapName} onStep={stepMap} onSelect={setMapName} labelOf={mapChoiceLabel} /> : null}
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+            {!compact ? (
+              <PickerChip
+                ariaLabel="Périmètre"
+                label={scopeLabel}
+                color={scopeMemberId !== null ? colorOf(scopeMemberId) : null}
+                avatar={scopeMemberId !== null}
+                items={scopeItems}
+                legend={<PlaystyleLegend />}
+              />
             ) : null}
           </div>
         )}
       </DockingToolbar>
 
-      <div className="app-container app-gutter space-y-4">
-        {error ? (
-          <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
-        ) : null}
+      <div className="app-container app-gutter flex flex-col gap-4 pb-8">
+        {error ? <p className="app-panel p-3 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
-        <section className="app-panel p-4 shadow-sm">
-          {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
-          {loading && !payload ? (
-            <p className="text-sm text-gray-500">Chargement de la heatmap...</p>
-          ) : !payload || payload.heatmap.length === 0 ? (
-            <p className="text-sm text-gray-500">Aucune activite disponible pour ce filtre.</p>
-          ) : (
-            <div aria-busy={loading} className={loading ? 'space-y-4 opacity-60' : 'space-y-4'}>
-              {/* KPI Cards */}
-              <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
-                  <p className="text-sm font-medium text-gray-500">Temps de jeu total</p>
-                  <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
-                    {formatPlaytime(payload.playtimeSeconds)}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Cumulé sur la période
-                  </p>
-                </div>
+        <div className="flex flex-col gap-0.5">
+          <h2 className="t-section-title">Activité</h2>
+          <p className="t-meta t-num" data-testid="heatmap-summary">{summary}</p>
+        </div>
 
-                <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 shadow-sm">
-                  <p className="text-sm font-medium text-gray-500">Jours actifs</p>
-                  <p className="mt-1 flex items-baseline gap-1 text-2xl font-bold tracking-tight text-gray-900">
-                    {payload.activeDays} <span className="text-sm font-medium text-gray-500">jours</span>
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Avec au moins un match
-                  </p>
-                </div>
+        {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
+        {loading && !payload ? (
+          <p className="app-panel t-body p-6 text-center text-gray-500">Chargement du calendrier…</p>
+        ) : !payload || cells.length === 0 ? (
+          <p className="app-panel t-body p-6 text-center text-gray-500">Aucune partie pour ce filtre {PERIOD_WHEN_LABELS[period]}.</p>
+        ) : (
+          <div aria-busy={loading} className={`flex flex-col gap-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+            <dl className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              <div className="app-panel app-kpi">
+                <dt className="t-label">Temps de jeu</dt>
+                <dd className="t-hero t-hero--md text-gray-900">{formatPlayTime(payload.playtimeSeconds)}</dd>
+                <dd className="t-meta">cumulé sur la période</dd>
+              </div>
+              <div className="app-panel app-kpi">
+                <dt className="t-label">Jours actifs</dt>
+                <dd className="t-hero t-hero--md text-gray-900">{payload.activeDays}</dd>
+                <dd className="t-meta">avec au moins une partie</dd>
+              </div>
+              <div className="app-panel app-kpi">
+                <dt className="t-label">Parties</dt>
+                <dd className="t-hero t-hero--md text-gray-900">{payload.matchCount}</dd>
+                <dd className="t-meta">prises en compte</dd>
+              </div>
+              <div className="app-panel app-kpi" data-testid="busiest-slot">
+                <dt className="t-label">Créneau favori</dt>
+                <dd className="t-hero t-hero--md t-accent">{slot ? `${ACTIVITY_DAY_LABELS[slot.dayIndex]} ${activityHourLabel(slot.hour)}` : '—'}</dd>
+                <dd className="t-meta">{slot ? `${plural(slot.count, 'partie')} sur ce créneau` : 'aucune partie'}</dd>
+              </div>
+            </dl>
+
+            <section aria-labelledby="heatmap-grid-title" className="app-panel flex flex-col gap-3 p-4">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                <h3 id="heatmap-grid-title" className="t-card-title">Par jour et par heure</h3>
+                <span className="t-meta">heure de Paris · total par jour à côté du jour</span>
               </div>
 
+              {/* Mobile : les jours en colonnes, les heures en lignes (24 lignes plutôt que 24 colonnes illisibles). */}
               <div className="md:hidden">
-                <div className="mb-2 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
+                <div className="mb-1.5 grid grid-cols-[40px_repeat(7,minmax(0,1fr))] gap-1">
                   <div />
-                  {DAY_LABELS.map((dayLabel, dayIndex) => (
-                    <div key={`mobile-day-head-${dayLabel}`} className="text-center text-[10px] text-gray-500">
-                      <div className="font-semibold text-gray-600">{dayLabel}</div>
-                      <div>{countsByDay.get(dayIndex) ?? 0}</div>
+                  {ACTIVITY_DAY_LABELS.map((dayLabel, dayIndex) => (
+                    <div key={`mobile-day-head-${dayLabel}`} className="t-num text-center text-[11px] leading-tight text-gray-500">
+                      <div className="font-semibold text-gray-700">{dayLabel}</div>
+                      <div>{dayTotals[dayIndex]}</div>
                     </div>
                   ))}
                 </div>
-
                 {Array.from({ length: 24 }, (_, hour) => (
-                  <div key={`mobile-hour-${hour}`} className="mb-1 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] gap-1">
-                    <div className="flex items-center justify-end pr-1 text-[10px] text-gray-500">{hourLabel(hour)}</div>
-
-                    {DAY_LABELS.map((dayLabel, dayIndex) => {
+                  <div key={`mobile-hour-${hour}`} className="mb-1 grid grid-cols-[40px_repeat(7,minmax(0,1fr))] gap-1">
+                    <div className="t-num flex items-center justify-end pr-1 text-[11px] text-gray-500">{activityHourLabel(hour)}</div>
+                    {ACTIVITY_DAY_LABELS.map((dayLabel, dayIndex) => {
                       const count = getCellCount(dayIndex, hour)
-
-                      return (
-                        <div
-                          key={`mobile-${dayLabel}-${hour}`}
-                          className={`h-5 rounded ${cellTone(count, payload.maxCellCount)}`}
-                          title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
-                        />
-                      )
+                      return <div key={`mobile-${dayLabel}-${hour}`} className={`h-5 rounded-[4px] app-seq-${activityLevel(count, max)}`} title={cellTitle(dayIndex, hour, count)} />
                     })}
                   </div>
                 ))}
               </div>
 
               <div className="hidden md:block">
-                <div className="w-full">
-                  <div className="mb-2 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]">
-                    <div />
-                    {Array.from({ length: 24 }, (_, hour) => (
-                      <div key={`hour-head-${hour}`} className="text-center text-[10px] text-gray-500">
-                        {hour % 2 === 0 ? hourLabel(hour) : ''}
-                      </div>
-                    ))}
-                  </div>
-
-                  {DAY_LABELS.map((dayLabel, dayIndex) => (
-                    <div
-                      key={`day-${dayLabel}`}
-                      className="mb-1 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]"
-                    >
-                      <div className="flex items-center justify-between pr-1 text-[11px] text-gray-700 lg:pr-2 lg:text-xs">
-                        <span className="font-semibold">{dayLabel}</span>
-                        <span className="text-[9px] text-gray-500 lg:text-[10px]">{countsByDay.get(dayIndex) ?? 0}</span>
-                      </div>
-
-                      {Array.from({ length: 24 }, (_, hour) => {
-                        const count = getCellCount(dayIndex, hour)
-
-                        return (
-                          <div
-                            key={`${dayLabel}-${hour}`}
-                            className={`h-5 rounded lg:h-6 ${cellTone(count, payload.maxCellCount)}`}
-                            title={`${dayLabel} ${hourLabel(hour)}: ${count} match(s)`}
-                          />
-                        )
-                      })}
+                <div className="mb-1.5 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]">
+                  <div />
+                  {Array.from({ length: 24 }, (_, hour) => (
+                    <div key={`hour-head-${hour}`} className="t-num text-center text-[11px] text-gray-500">
+                      {hour % 3 === 0 ? activityHourLabel(hour) : ''}
                     </div>
                   ))}
                 </div>
+                {ACTIVITY_DAY_LABELS.map((dayLabel, dayIndex) => (
+                  <div key={`day-${dayLabel}`} className="mb-1 grid grid-cols-[72px_repeat(24,minmax(0,1fr))] gap-1 lg:grid-cols-[90px_repeat(24,minmax(0,1fr))]">
+                    <div className="flex items-center justify-between pr-1 text-xs text-gray-700 lg:pr-2">
+                      <span className="font-semibold">{dayLabel}</span>
+                      <span className="t-num text-[11px] text-gray-500">{dayTotals[dayIndex]}</span>
+                    </div>
+                    {Array.from({ length: 24 }, (_, hour) => {
+                      const count = getCellCount(dayIndex, hour)
+                      return <div key={`${dayLabel}-${hour}`} className={`h-5 rounded-[4px] lg:h-6 app-seq-${activityLevel(count, max)}`} title={cellTitle(dayIndex, hour, count)} />
+                    })}
+                  </div>
+                ))}
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>Faible</span>
-                <div className="h-3 w-6 rounded bg-slate-100" />
-                <div className="h-3 w-6 rounded bg-cyan-100" />
-                <div className="h-3 w-6 rounded bg-cyan-200" />
-                <div className="h-3 w-6 rounded bg-cyan-300" />
-                <div className="h-3 w-6 rounded bg-cyan-400" />
-                <div className="h-3 w-6 rounded bg-cyan-500" />
-                <span>Forte</span>
+              {/* Échelle séquentielle de la charte : la rampe jaune (app-seq-0 à 4), comme le calendrier du tableau de bord. */}
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-500" data-testid="heatmap-legend">
+                <span>Aucune</span>
+                {([0, 1, 2, 3, 4] as const).map((level) => (
+                  <span key={level} className={`h-3 w-5 rounded-[3px] app-seq-${level}`} aria-hidden="true" />
+                ))}
+                <span>Le plus joué</span>
               </div>
-            </div>
-          )}
-        </section>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 import type { ApiMock } from './api'
 import { MEMBER_ID, PLAYERS } from './data'
+import { mockPlaystyleColors } from './drop-zones'
 import { mockMemberProfile } from './members'
 
 /**
@@ -23,6 +24,7 @@ export const MAP_COLUMNS = { matches: 2, kills: 4 } as const
 
 export function mockMapStats(api: ApiMock) {
   mockMemberProfile(api)
+  mockPlaystyleColors(api)
   api.on('GET', `/api/members/${MEMBER_ID}/map-stats`, (url) => {
     const scope = url.searchParams.get('scope') ?? 'self'
     // Le clan : deux fois plus de parties, pour que le changement de filtre se voie.
@@ -47,7 +49,7 @@ export function mockMapStats(api: ApiMock) {
       body: {
         scope,
         scopeLabel: scope === 'clan' ? 'Stats cartes du clan Clan Démo' : `Stats cartes de ${PLAYERS[0].displayName}`,
-        options: { members: PLAYERS.slice(0, 4), bestModes: ['duo', 'trio', 'squad'] },
+        options: { members: PLAYERS.slice(0, 4).map((player) => ({ id: player.memberId, displayName: player.displayName })), bestModes: ['duo', 'trio', 'squad'] },
         selected: { memberId: MEMBER_ID, targetMemberId: null, bestMode: url.searchParams.get('bestMode') ?? 'duo', period: url.searchParams.get('period') ?? 'all' },
         totals: { rows: mapStats.reduce((sum, entry) => sum + entry.matches, 0), maps: mapStats.length },
         mapStats,

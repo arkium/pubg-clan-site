@@ -115,6 +115,23 @@ La heatmap montre la distribution de l'activité du membre par :
 
 La valeur de chaque cellule correspond au nombre de matchs joués à ce créneau horaire. Les données sont dérivées des `pubgCreatedAt` des matchs importés dans la table `Match`.
 
+**Page « Calendrier d'activité »** — migrée vers la charte le 2026-10-03 (`.charte`, docs/ui/index.html) :
+
+- **Bandeau** : le même que les zones de drop du joueur, sur une ligne à 32 px — sélecteur de carte ‹ › (première
+  entrée « Toutes »), période, pastille **Périmètre** (le joueur, son meilleur duo / trio / squad, tout le clan, un autre
+  joueur ; elle remplace les menus « Filtre », « Joueur » et « Formation »). Chaque joueur y porte la couleur de son
+  **style de jeu sur la période** (Fragger, Medic, Ghost — `usePlaystyleColors`, légende en pied de menu). Docké sur
+  mobile : la période seule. Plus d'encart cyan : le résumé (« Joueur Alpha · 39 parties depuis le début ») passe sous
+  le titre « Activité », construit côté page (le `scopeLabel` de l'API n'a pas d'accents).
+- **Quatre chiffres** (KPI de la charte, Teko) : temps de jeu (`formatPlayTime`, « 16 h 54 »), jours actifs, parties,
+  **créneau favori** (le plus joué, « Sam 21h », nouveau).
+- **Grille** jours × heures (heures en lignes sur mobile) sur l'**échelle séquentielle de la charte** `app-seq-0` à
+  `app-seq-4` (rampe jaune, la même que le calendrier du tableau de bord) au lieu du cyan : 0 sans partie, puis quatre
+  quarts du créneau le plus joué. Libellés à 11 px minimum (9 et 10 px avant), une heure sur trois en en-tête.
+
+Logique pure : `src/lib/activity-heatmap.ts` (palier, totaux par jour, créneau favori), testée par
+`activity-heatmap.test.ts`. Test e2e : `e2e/member-heatmap.spec.ts` (données `e2e/support/activity-heatmap.ts`).
+
 ---
 
 ## 6. Routes API concernées

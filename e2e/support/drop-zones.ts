@@ -86,7 +86,7 @@ function dropZonesBody(points: LandingPoint[], extra: Record<string, unknown> = 
  * Style de jeu du clan sur la période : couleur des pastilles des joueurs dans le menu du bandeau et « Qui saute où ».
  * Lignes de `e2e/support/stats.ts` : Alpha, Bravo, Charlie en Fragger ; Delta et les suivants en Ghost.
  */
-function mockPlaystyleColors(api: ApiMock) {
+export function mockPlaystyleColors(api: ApiMock) {
   api.on('GET', `/api/clans/${CLAN_ID}/telemetry/playstyle`, { body: { ok: true, rows: playstyleRows() } })
 }
 

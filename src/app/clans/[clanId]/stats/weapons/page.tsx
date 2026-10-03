@@ -203,7 +203,8 @@ export default function ClanArmoryPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush game-ui flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune PUBG, menu de bandeau, Teko) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="L'armurerie du clan"
@@ -211,14 +212,14 @@ export default function ClanArmoryPage() {
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+          className="relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/banner-weapons.jpg')`, backgroundPosition: 'center 40%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/5 sm:bg-gradient-to-r sm:from-black/90 sm:via-black/45 sm:to-black/10" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 px-3 py-2.5 sm:px-5 sm:py-4">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">L&apos;armurerie du clan</h1>
+              <Crosshair className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">L&apos;armurerie du clan</h1>
             </div>
             {payload ? (
               <div className="flex flex-wrap gap-1.5 text-xs font-semibold text-white">
@@ -226,7 +227,7 @@ export default function ClanArmoryPage() {
                   {formatCount(totalKills)} kills {periodWhen}
                 </span>
                 {signature ? (
-                  <span className="rounded-full border border-amber-400/60 bg-amber-400/20 px-2.5 py-0.5 text-amber-200">
+                  <span className="rounded-full border border-[var(--theme-ui-accent-ring)] bg-[color-mix(in_srgb,var(--theme-ui-accent)_20%,transparent)] px-2.5 py-0.5 text-[var(--theme-ui-accent)]">
                     Arme signature : {signature.name}
                   </span>
                 ) : null}
@@ -275,13 +276,15 @@ export default function ClanArmoryPage() {
 
       <div className="app-container app-gutter">
         {loading && !payload ? <p className="text-sm text-gray-600">Chargement de l&apos;armurerie…</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
         {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
         {!error && payload ? (
           <div aria-busy={loading} className={`flex flex-col gap-[18px]${loading ? ' opacity-60' : ''}`}>
             {payload.note ? (
-              <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{payload.note}</p>
+              <p className="rounded-[10px] border border-[color-mix(in_srgb,var(--game-warn)_45%,transparent)] bg-[var(--game-warn-soft)] px-3 py-2 text-sm text-[var(--game-warn)]">
+                {payload.note}
+              </p>
             ) : null}
 
             <ArmoryCategoryPager

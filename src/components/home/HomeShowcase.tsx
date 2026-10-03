@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Teko } from 'next/font/google'
 import { ChevronLeft, ChevronRight, LogIn, Menu, Plane, Swords, Trophy, User, X } from 'lucide-react'
 
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
@@ -20,8 +19,6 @@ import { getPeriodStart } from '@/lib/period'
  * Tournois sont sombres par construction (photo) ; le reste suit le thème.
  * Affichée à tous : un membre connecté (`accountHref`) y trouve « Mon espace » au lieu de « Se connecter ».
  */
-
-const teko = Teko({ subsets: ['latin'], weight: ['400', '500', '600'], display: 'swap', variable: '--font-teko' })
 
 const HERO_IMAGE = '/5ec73c01-216b-4991-99cf-5ac7fdbaff30.jpg'
 const FEED_VISIBLE = 5
@@ -436,7 +433,7 @@ export default function HomeShowcase({
   const year = new Date().getFullYear()
 
   return (
-    <div className={`home-showcase ${teko.variable} w-full`}>
+    <div className="home-showcase w-full">
       {/* HÉROS */}
       <section className="home-hero relative overflow-hidden text-white">
         <div

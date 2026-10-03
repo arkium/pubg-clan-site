@@ -33,7 +33,7 @@ export function ArmoryLoadout({ slots, onOpen }: { slots: LoadoutSlot[]; onOpen:
             <>
               <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
                 <span className="armory-slot-key">{slot}</span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-white/65">{label}</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-white/65">{label}</span>
               </span>
               {weapon ? (
                 <>
@@ -94,7 +94,7 @@ export function ArmoryCategoryBrief({ info, sharePercent }: { info: WeaponCatego
     <div className="app-panel flex flex-col gap-2 p-3.5">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">Part des kills du clan</span>
-        <b className="text-[22px] font-black tabular-nums text-gray-900">{sharePercent} %</b>
+        <b className="t-hero text-[28px] text-gray-900">{sharePercent} %</b>
       </div>
       <div className="h-2 overflow-hidden rounded bg-[var(--game-track)]">
         <div className="armory-share-bar h-full rounded" style={{ width: `${Math.min(100, sharePercent)}%` }} />
@@ -140,7 +140,7 @@ export function ArmoryRack({ weapons }: { weapons: ArmoryWeapon[] }) {
           return (
             <li
               key={weapon.id}
-              className={`armory-rack-card relative aspect-[3/2] overflow-hidden rounded-xl ${used ? '' : 'armory-rack-card--unused'}`}
+              className={`armory-rack-card relative aspect-[3/2] overflow-hidden rounded-[10px] ${used ? '' : 'armory-rack-card--unused'}`}
             >
               <ArmoryWeaponImage id={weapon.iconId} alt={weapon.name} onDark variant="rack" />
               {used && index < 3 ? (
@@ -151,12 +151,12 @@ export function ArmoryRack({ weapons }: { weapons: ArmoryWeapon[] }) {
               {used ? (
                 <span className="absolute right-2 top-2 rounded-[7px] bg-black/60 px-[7px] py-[3px] text-center">
                   <b className="block text-[13px] leading-none tabular-nums">{formatCount(weapon.kills)}</b>
-                  <span className="text-[9px] text-slate-400">kills</span>
+                  <span className="text-[11px] text-slate-400">kills</span>
                 </span>
               ) : null}
               <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/90 to-transparent px-2.5 pb-2 pt-[18px]">
                 <b className="truncate text-[13px] leading-tight">{weapon.name}</b>
-                <span className="truncate text-[10px] text-slate-300">
+                <span className="truncate text-[11px] text-slate-300">
                   {used && weapon.master ? `Maître : ${weapon.master.displayName}` : 'Aucun kill sur la période'}
                 </span>
                 {used && weapon.accuracy !== null ? (
@@ -167,7 +167,7 @@ export function ArmoryRack({ weapons }: { weapons: ArmoryWeapon[] }) {
                     {Array.from({ length: AMMO_SLOTS }, (_, slot) => (
                       <span key={slot} className={`armory-ammo ${slot < filled ? 'armory-ammo--filled' : ''}`} />
                     ))}
-                    <span className="ml-1 text-[10px] font-bold tabular-nums text-amber-300">{Math.round(weapon.accuracy)} %</span>
+                    <span className="ml-1 text-[11px] font-bold tabular-nums text-amber-300">{Math.round(weapon.accuracy)} %</span>
                   </span>
                 ) : null}
               </div>
@@ -204,7 +204,7 @@ export function ArmoryFeats({ feats, scope }: { feats: ArmoryFeat[]; scope: stri
                 </span>
                 <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500">{feat.label}</span>
               </span>
-              <b className="text-2xl font-black tracking-[-0.02em] tabular-nums text-gray-900">{feat.value ?? '–'}</b>
+              <b className="t-hero text-[30px] text-gray-900">{feat.value ?? '–'}</b>
               <span className="truncate text-xs text-gray-700">{feat.who ?? 'Pas assez de données'}</span>
             </div>
           )

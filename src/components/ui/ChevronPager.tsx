@@ -16,14 +16,20 @@ export default function ChevronPager({
   ariaLabel,
   tone = 'theme',
   className = '',
+  activeKey,
 }: {
   items: Array<{ key: string; node: ReactNode }>
   pageSize: number
   ariaLabel: string
   tone?: 'theme' | 'dark'
   className?: string
+  /** Élément sélectionné : la page qui le contient s'ouvre en premier. */
+  activeKey?: string
 }) {
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => {
+    const index = activeKey ? items.findIndex((item) => item.key === activeKey) : -1
+    return index > 0 ? Math.floor(index / pageSize) + 1 : 1
+  })
   const { current, pageCount, visible } = paginate(items, page, pageSize)
   const button =
     tone === 'dark'

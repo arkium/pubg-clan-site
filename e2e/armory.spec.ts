@@ -18,6 +18,7 @@ const WEAPONS_API = `/api/clans/${CLAN_ID}/telemetry/weapons`
 const pager = (page: Page) => page.getByRole('region', { name: "Catégorie d'armes" })
 const table = (page: Page) => page.getByRole('table')
 const header = (page: Page, name: string) => table(page).getByRole('columnheader', { name, exact: true })
+const tablePages = (page: Page) => page.getByRole('navigation', { name: 'Pages du classement' })
 
 async function openArmory(page: Page, query = '') {
   await page.goto(`${ARMORY}${query}`)
@@ -118,15 +119,15 @@ test.describe('ordinateur et tablette', () => {
   test('tri par les en-têtes et pagination numérotée', async ({ page }) => {
     await openArmory(page)
     await expect(header(page, 'Kills')).toHaveAttribute('aria-sort', 'descending')
-    await expect(page.getByText('Lignes 1–8 sur 168')).toBeVisible()
+    await expect(tablePages(page).getByText('Lignes 1–8 sur 168')).toBeVisible()
 
     await page.getByRole('navigation', { name: 'Pages du classement' }).getByRole('button', { name: '2', exact: true }).click()
-    await expect(page.getByText('Lignes 9–16 sur 168')).toBeVisible()
+    await expect(tablePages(page).getByText('Lignes 9–16 sur 168')).toBeVisible()
 
     // Changer de tri ramène à la première page.
     await header(page, 'Précision').getByRole('button').click()
     await expect(header(page, 'Précision')).toHaveAttribute('aria-sort', 'descending')
-    await expect(page.getByText('Lignes 1–8 sur 168')).toBeVisible()
+    await expect(tablePages(page).getByText('Lignes 1–8 sur 168')).toBeVisible()
 
     // Tirs et touches passent dans l'infobulle de la précision.
     await expect(table(page).locator('tbody td[title="120 touches sur 400 tirs"]').first()).toBeVisible()
@@ -143,4 +144,19 @@ test('mobile : liste de classement à puces « Trier par », sans tableau', asyn
   await openArmory(page)
   await expect(page.getByRole('group', { name: 'Trier par' })).toBeVisible()
   await expect(table(page)).toBeHidden()
+})
+
+test('mobile : au-delà de 15 lignes, pagination plutôt que « Afficher les N autres »', async ({ page }, testInfo) => {
+  test.skip(!isMobile(testInfo), 'vérification propre à la largeur mobile')
+  await openArmory(page)
+  const pages = page.getByRole('navigation', { name: 'Pages de la liste du classement' })
+  await expect(page.getByRole('button', { name: /Afficher les \d+ autres/ })).toHaveCount(0)
+  await expect(pages.getByText('Lignes 1–8 sur 168')).toBeVisible()
+
+  await pages.getByRole('button', { name: '2', exact: true }).click()
+  await expect(pages.getByText('Lignes 9–16 sur 168')).toBeVisible()
+
+  // Changer de tri ramène à la première page.
+  await page.getByRole('group', { name: 'Trier par' }).getByRole('button', { name: 'Dégâts' }).click()
+  await expect(pages.getByText('Lignes 1–8 sur 168')).toBeVisible()
 })

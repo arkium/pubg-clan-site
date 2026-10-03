@@ -155,3 +155,25 @@ test.describe('onglet « Carrière PUBG »', () => {
     await expect.poll(() => api.paramValues(masteryApi, 'v').at(-1)).toBe('1')
   })
 })
+
+test('bandeau : tous les contrôles ont la hauteur du rail, sur les deux onglets', async ({ api, page }) => {
+  mockMemberArsenal(api)
+  await page.goto(`/members/${MEMBER_ID}/weapons?period=all`)
+  await expect(page.getByRole('article', { name: 'Arme de prédilection' })).toBeVisible()
+  // Segmented (icônes comprises), synchro et menu de catégorie : une seule hauteur par ligne (docs/ui/index.html).
+  const heights = () =>
+    toolbar(page).evaluate((bar) =>
+      [...bar.querySelectorAll('.app-segmented-control, [data-testid="mastery-sync"], [data-testid="category-chip"]')]
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .map((el) => Math.round(el.getBoundingClientRect().height))
+    )
+  const site = await heights()
+  expect(site.length).toBeGreaterThanOrEqual(3)
+  expect(new Set(site).size).toBe(1)
+
+  await pubgTab(page).click()
+  await expect(page.getByRole('article', { name: 'Arme la plus maîtrisée' })).toBeVisible()
+  const pubg = await heights()
+  expect(pubg.length).toBeGreaterThanOrEqual(3)
+  expect(new Set(pubg).size).toBe(1)
+})

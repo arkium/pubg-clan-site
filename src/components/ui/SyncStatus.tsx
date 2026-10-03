@@ -37,7 +37,8 @@ export default function SyncStatus({
     </>
   )
   const className =
-    'inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-gray-200 bg-white px-2.5 text-[13px] font-semibold text-gray-700'
+    // Hauteur de la ligne du bandeau (celle du rail segmented), jamais fixe : app-toolbar-btn + self-stretch.
+    'app-toolbar-btn shrink-0 self-stretch'
   if (!canRefresh) {
     return (
       <span className={className} title="Synchronisé chaque nuit" data-testid={testId}>
@@ -50,7 +51,7 @@ export default function SyncStatus({
       type="button"
       onClick={onRefresh}
       disabled={refreshing}
-      className={`${className} hover:bg-gray-50 disabled:opacity-60`}
+      className={className}
       aria-label={`Rafraîchir ${subject}${elapsed ? ` (synchro ${elapsed})` : ''}`}
       data-testid={testId}
     >

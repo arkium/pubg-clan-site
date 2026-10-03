@@ -106,7 +106,7 @@ export default function MemberWeaponsPage() {
   if (!memberId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Identifiant de joueur invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
@@ -148,7 +148,8 @@ export default function MemberWeaponsPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, menu de bandeau, Teko) — docs/ui/index.html.
+    <div className="app-main-flush charte flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
           currentLabel="Armes"
@@ -161,7 +162,7 @@ export default function MemberWeaponsPage() {
             subtitle={isSite ? 'Tes armes dans les parties suivies par le site.' : 'Maîtrise d’arme officielle PUBG, toute ta carrière.'}
             showBackButton={false}
             backgroundImage="/weaponsplayer2.jpg"
-            icon={<Crosshair className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+            icon={<Crosshair className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
           />
         </section>
       </div>
@@ -200,8 +201,8 @@ export default function MemberWeaponsPage() {
       </DockingToolbar>
 
       <div className="app-container app-gutter flex flex-col gap-3.5 pb-8 sm:gap-[18px]">
-        {current.error ? <p className="app-panel p-4 text-sm text-red-600">{current.error}</p> : null}
-        {refreshError ? <p className="app-panel p-3 text-sm text-red-600">{refreshError}</p> : null}
+        {current.error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{current.error}</p> : null}
+        {refreshError ? <p className="app-panel p-3 text-sm text-[var(--theme-ui-negative)]">{refreshError}</p> : null}
         {!current.data && current.loading ? <CardSkeleton /> : null}
 
         {isSite && rows.data ? (

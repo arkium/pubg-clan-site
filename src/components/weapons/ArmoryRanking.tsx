@@ -132,9 +132,9 @@ export default function ArmoryRanking({
                     <SortableTh {...th} column="totalDamage">Dégâts</SortableTh>
                     <SortableTh {...th} column="headshotRate" title="Part des kills en headshot">HS %</SortableTh>
                     <SortableTh {...th} column="accuracy" title="Balles qui touchent ; tirs et touches au survol">Précision</SortableTh>
-                    <SortableTh {...th} column="avgDistance" title="Distance moyenne des kills">Dist. moy.</SortableTh>
+                    <SortableTh {...th} column="avgDistance" title="Distance moyenne des kills" className="hidden lg:table-cell">Dist. moy.</SortableTh>
                     <SortableTh {...th} column="maxDistance" title="Kill le plus lointain">Dist. max</SortableTh>
-                    <SortableTh {...th} column="matchCount" className="pr-3">Matchs</SortableTh>
+                    <SortableTh {...th} column="matchCount" className="hidden pr-3 lg:table-cell">Matchs</SortableTh>
                   </tr>
                 </thead>
                 <tbody>
@@ -156,7 +156,7 @@ export default function ArmoryRanking({
                             </span>
                             <span>{weaponText(entry)}</span>
                             {showCategory ? (
-                              <span className="text-[10px] font-extrabold text-gray-500">{rowCategory(entry)}</span>
+                              <span className="text-[11px] font-extrabold text-gray-500">{rowCategory(entry)}</span>
                             ) : null}
                           </span>
                         </td>
@@ -175,9 +175,9 @@ export default function ArmoryRanking({
                             {accuracyText(entry)}
                           </span>
                         </td>
-                        <td className={`${cell('avgDistance')} whitespace-nowrap`} style={tint('avgDistance')}>{formatMeters(entry.avgDistance)}</td>
+                        <td className={`${cell('avgDistance')} hidden whitespace-nowrap lg:table-cell`} style={tint('avgDistance')}>{formatMeters(entry.avgDistance)}</td>
                         <td className={`${cell('maxDistance')} whitespace-nowrap`} style={tint('maxDistance')}>{maxDistanceText(entry)}</td>
-                        <td className={`${cell('matchCount')} pr-3`} style={tint('matchCount')}>{formatCount(entry.matchCount)}</td>
+                        <td className={`${cell('matchCount')} hidden pr-3 lg:table-cell`} style={tint('matchCount')}>{formatCount(entry.matchCount)}</td>
                       </tr>
                     )
                   })}

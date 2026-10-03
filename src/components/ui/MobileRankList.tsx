@@ -3,12 +3,18 @@
 import { ChevronDown } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
+import ChevronPager from '@/components/ui/ChevronPager'
+import Pagination from '@/components/ui/Pagination'
 import RankCell from '@/components/ui/RankCell'
 import ShowMoreToggle from '@/components/ui/ShowMoreToggle'
 import type { SortDirection } from '@/hooks/useTableSort'
 import { DISTINCTION_BADGE_META, type DistinctionBadgeKey } from '@/lib/distinction-badges'
+import { paginate } from '@/lib/pagination'
+
+/** Au-delà, « Afficher les N autres » déplierait une liste interminable : la liste se pagine. */
+const SHOW_MORE_MAX_ROWS = 15
 
 export type MobileRankRow = {
   key: string | number
@@ -26,7 +32,8 @@ export type MobileRankRow = {
 
 /**
  * Classement sur mobile (docs/ui/composants-refonte.md, `MobileRankList`) : puces « Trier par » (état actif
- * en accent), lignes compactes qui se déplient au toucher, 8 lignes puis « Afficher les N autres ».
+ * en accent), lignes compactes qui se déplient au toucher, 8 lignes puis « Afficher les N autres » jusqu'à 15 lignes,
+ * pagination numérotée au-delà (8 lignes par page, retour à la première page quand le tri ou le contenu change).
  */
 export default function MobileRankList<K extends string>({
   rows,
@@ -50,27 +57,41 @@ export default function MobileRankList<K extends string>({
 }) {
   const [expanded, setExpanded] = useState<string | number | null>(rows[0]?.key ?? null)
   const [showAll, setShowAll] = useState(false)
-  const visible = showAll ? rows : rows.slice(0, initialVisible)
+  const paginated = rows.length > SHOW_MORE_MAX_ROWS
+  // Signature de la liste : la page revient à 1 dès que l'ordre ou le contenu change (tri, filtre, période).
+  const signature = useMemo(() => rows.map((row) => String(row.key)).join('|'), [rows])
+  const [pageState, setPageState] = useState({ signature, page: 1 })
+  const page = pageState.signature === signature ? pageState.page : 1
+  const { current, pageCount, visible: pageRows } = paginate(rows, page, initialVisible)
+  const visible = paginated ? pageRows : showAll ? rows : rows.slice(0, initialVisible)
 
   return (
     <div className="md:hidden">
-      <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Trier par">
-        <span className="shrink-0 pr-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">Trier par</span>
-        {sortOptions.map((option) => {
-          const active = option.value === sortKey
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onSortChange(option.value)}
-              className={`app-sort-chip ${active ? 'app-sort-chip--active' : ''}`}
-            >
-              {option.label}
-              {active ? <span aria-hidden="true"> {sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-            </button>
-          )
-        })}
+      {/* Pas de défilement horizontal (règle du site) : les puces se paginent par chevrons, 3 par page. */}
+      <div className="mb-2 flex flex-col gap-1.5" role="group" aria-label="Trier par">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">Trier par</span>
+        <ChevronPager
+          ariaLabel="Critères de tri"
+          pageSize={3}
+          activeKey={sortKey}
+          items={sortOptions.map((option) => {
+            const active = option.value === sortKey
+            return {
+              key: option.value,
+              node: (
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onSortChange(option.value)}
+                  className={`app-sort-chip ${active ? 'app-sort-chip--active' : ''}`}
+                >
+                  {option.label}
+                  {active ? <span aria-hidden="true"> {sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+              ),
+            }
+          })}
+        />
       </div>
 
       <div className="app-table-shell overflow-hidden">
@@ -97,8 +118,8 @@ export default function MobileRankList<K extends string>({
                   <span className="mt-0.5 block truncate text-xs text-gray-500">{row.subline}</span>
                 </span>
                 <span className="text-right">
-                  <span className="block text-[17px] font-bold leading-none tabular-nums text-gray-900">{row.value}</span>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--theme-ui-accent)]">{metricLabel}</span>
+                  <span className="t-hero t-hero--sm block text-gray-900">{row.value}</span>
+                  <span className="t-label t-accent">{metricLabel}</span>
                 </span>
                 <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
               </button>
@@ -107,7 +128,7 @@ export default function MobileRankList<K extends string>({
                   <div className="grid grid-cols-3 gap-1.5">
                     {row.details.map((detail) => (
                       <div key={detail.label} className="app-panel-muted rounded-lg px-2 py-1.5">
-                        <p className="text-[10px] uppercase tracking-[0.04em] text-gray-500">{detail.label}</p>
+                        <p className="t-label">{detail.label}</p>
                         <p className="text-[13px] font-semibold tabular-nums text-gray-900">{detail.value}</p>
                       </div>
                     ))}
@@ -122,7 +143,7 @@ export default function MobileRankList<K extends string>({
             </div>
           )
         })}
-        {rows.length > initialVisible ? (
+        {!paginated && rows.length > initialVisible ? (
           <ShowMoreToggle
             expanded={showAll}
             onToggle={() => setShowAll((current) => !current)}
@@ -132,6 +153,17 @@ export default function MobileRankList<K extends string>({
           />
         ) : null}
       </div>
+      {paginated ? (
+        <Pagination
+          className="mt-2.5"
+          page={current}
+          pageCount={pageCount}
+          total={rows.length}
+          pageSize={initialVisible}
+          onPageChange={(next) => setPageState({ signature, page: next })}
+          ariaLabel="Pages de la liste du classement"
+        />
+      ) : null}
     </div>
   )
 }

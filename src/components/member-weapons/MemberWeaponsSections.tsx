@@ -96,25 +96,22 @@ export function CategoryMenu({
       role="menuitemradio"
       aria-checked={value === category}
       onClick={() => choose(category)}
-      className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold text-gray-900 hover:bg-gray-100 ${
-        value === category ? 'bg-[var(--theme-ui-accent-soft)]' : ''
-      }`}
+      className={`app-menu__item ${value === category ? 'app-menu__item--active' : ''}`}
     >
       <span>{label}</span>
-      <span className="text-xs tabular-nums text-gray-500">{count}</span>
+      <span className="t-num text-xs opacity-75">{count}</span>
     </button>
   )
   return (
-    <div ref={rootRef} className="relative ml-auto shrink-0">
+    // Étiré à la hauteur de la ligne du bandeau : même hauteur que le segmented voisin.
+    <div ref={rootRef} className="relative ml-auto flex shrink-0 self-stretch">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Catégorie : ${active ? WEAPON_CATEGORY_LABELS[value] : 'toutes'}`}
-        className={`inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border px-2 text-[13px] font-bold sm:px-2.5 ${
-          active ? 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] text-[var(--theme-ui-accent-text)]' : 'border-gray-200 bg-white text-gray-900'
-        }`}
+        className={`app-menu-trigger shrink-0 px-2 sm:px-2.5 ${active ? 'app-menu-trigger--active' : ''}`}
         data-testid="category-chip"
       >
         <span className="truncate">
@@ -134,7 +131,7 @@ export function CategoryMenu({
         <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
       </button>
       {open ? (
-        <div role="menu" aria-label="Catégorie" className="app-panel absolute right-0 top-10 z-50 flex max-h-[60vh] w-[230px] flex-col gap-0.5 overflow-y-auto p-1.5 shadow-xl">
+        <div role="menu" aria-label="Catégorie" className="app-menu absolute right-0 top-full z-50 mt-1.5 w-[230px]">
           {item(null, 'Toutes catégories', total)}
           {counts.map(({ category, count }) => item(category, WEAPON_CATEGORY_LABELS[category], count))}
         </div>
@@ -151,8 +148,8 @@ function HeroStats({ stats, narrow = false }: { stats: Array<[string, string]>; 
     <dl className={`grid gap-2 tabular-nums ${narrow ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-4'}`}>
       {stats.map(([value, label]) => (
         <div key={label} className="flex min-w-0 flex-col-reverse gap-0.5">
-          <dt className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-400">{label}</dt>
-          <dd className="text-lg font-black sm:text-[22px]">{value}</dd>
+          <dt className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-400">{label}</dt>
+          <dd className="t-hero t-hero--sm">{value}</dd>
         </div>
       ))}
     </dl>
@@ -163,7 +160,7 @@ export function FavouriteCard({ weapon, when }: { weapon: MemberWeapon | null; w
   return (
     <article
       aria-label="Arme de prédilection"
-      className="relative flex min-w-0 flex-col gap-3 overflow-hidden rounded-2xl border border-amber-400/45 bg-[radial-gradient(120%_90%_at_80%_20%,#3a2a08,#0b0f1a_65%)] p-[18px] text-white"
+      className="weapon-hero-card weapon-hero-card--favourite relative flex min-w-0 flex-col gap-3 overflow-hidden p-[18px]"
     >
       <span className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">Arme de prédilection · {when}</span>
       {weapon ? (
@@ -258,7 +255,7 @@ export function RecordsStrip({ records }: { records: MemberRecord[] }) {
               <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500">{record.label}</span>
               {record.weapon && record.value !== null ? (
                 <span className="flex min-w-0 items-baseline gap-1.5">
-                  <b className={`text-[17px] tabular-nums ${color}`}>{format(record.value)}</b>
+                  <b className={`t-hero t-hero--sm ${color}`}>{format(record.value)}</b>
                   <span className="truncate text-[13px] font-semibold text-gray-700">au {record.weapon.name}</span>
                 </span>
               ) : (
@@ -355,8 +352,8 @@ function CardHead({ lead, name, badge, sub, big }: { lead?: ReactNode; name: str
         <span className="truncate text-[11px] font-bold text-gray-500">{sub}</span>
       </span>
       <span className="flex shrink-0 flex-col items-end">
-        <b className="text-[22px] font-black leading-none tabular-nums text-gray-900">{formatCount(big)}</b>
-        <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-gray-500">kills</span>
+        <b className="t-hero t-hero--sm text-gray-900">{formatCount(big)}</b>
+        <span className="t-label">kills</span>
       </span>
     </div>
   )
@@ -396,7 +393,6 @@ export function SiteWeaponList({
           onChange={onSort}
           size="sm"
           fullWidthOnMobile
-          className="sm:max-w-[420px]"
         />
       }
       renderCard={(weapon) => {
@@ -432,15 +428,15 @@ function LevelRing({ level, expert, size }: { level: number; expert: number; siz
   if (size === 'sm') {
     return (
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ background }} aria-label={`Niveau ${level}`}>
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-[13px] font-black tabular-nums text-gray-900">{level}</span>
+        <span className="t-hero t-hero--sm grid h-8 w-8 place-items-center rounded-full bg-white text-gray-900">{level}</span>
       </span>
     )
   }
   return (
     <span className="grid h-24 w-24 shrink-0 place-items-center rounded-full sm:h-[120px] sm:w-[120px]" style={{ background }}>
-      <span className="flex h-[82%] w-[82%] flex-col items-center justify-center rounded-full bg-[#0b0f1a]">
-        <b className="text-3xl font-black leading-none tabular-nums sm:text-[38px]">{level}</b>
-        <span className="text-[10px] font-extrabold tracking-[0.12em] text-violet-300">NIVEAU</span>
+      <span className="weapon-hero-ring-core flex h-[82%] w-[82%] flex-col items-center justify-center rounded-full">
+        <b className="t-hero t-hero--lg">{level}</b>
+        <span className="text-[11px] font-extrabold tracking-[0.12em] text-violet-300">NIVEAU</span>
       </span>
     </span>
   )
@@ -450,7 +446,7 @@ function ExpertBadge({ expert, onDark = false }: { expert: number; onDark?: bool
   if (expert <= 0) return null
   return (
     <span
-      className={`shrink-0 rounded-[5px] px-1.5 py-px text-[10px] font-black ${onDark ? 'text-[#0b0f1a]' : 'text-white'}`}
+      className={`shrink-0 rounded-[5px] px-1.5 py-px text-[11px] font-black ${onDark ? 'text-slate-950' : 'text-white'}`}
       style={{ background: expertColor(expert) }}
       data-testid="expert-badge"
     >
@@ -463,7 +459,7 @@ export function MasteryHero({ weapon }: { weapon: MasteryWeapon | null }) {
   return (
     <article
       aria-label="Arme la plus maîtrisée"
-      className="relative flex min-w-0 flex-wrap items-center gap-[18px] overflow-hidden rounded-2xl border border-violet-400/45 bg-[radial-gradient(120%_90%_at_80%_20%,#241a4a,#0b0f1a_65%)] p-[18px] text-white"
+      className="weapon-hero-card weapon-hero-card--mastery relative flex min-w-0 flex-wrap items-center gap-[18px] overflow-hidden p-[18px]"
     >
       {weapon ? (
         <>
@@ -512,13 +508,13 @@ export function CareerPanel({ weapons }: { weapons: MasteryWeapon[] }) {
         ].map(([value, label]) => (
           <div key={label} className="flex flex-col-reverse gap-0.5 rounded-[10px] bg-gray-50 p-2.5">
             <dt className="text-[11px] font-bold text-gray-500">{label}</dt>
-            <dd className="text-lg font-black text-gray-900">{value}</dd>
+            <dd className="t-hero t-hero--sm text-gray-900">{value}</dd>
           </div>
         ))}
       </dl>
       {weapons.length > 0 ? (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500">Niveaux d’expert</span>
+          <span className="t-label">Niveaux d’expert</span>
           <div className="flex h-2.5 overflow-hidden rounded-full bg-gray-100" aria-hidden="true">
             {distribution.map(({ expert, count }) => (
               <span key={expert} style={{ width: `${(count / weapons.length) * 100}%`, background: expertColor(expert) }} />
@@ -563,7 +559,7 @@ export function MasteryList({
       itemKey={(weapon) => weapon.id}
       empty="Aucune arme dans cette catégorie."
       sortControl={
-        <SegmentedControl options={PUBG_SORTS.map((entry) => ({ value: entry.key, label: entry.label }))} value={sort} onChange={onSort} size="sm" fullWidthOnMobile className="sm:max-w-[420px]" />
+        <SegmentedControl options={PUBG_SORTS.map((entry) => ({ value: entry.key, label: entry.label }))} value={sort} onChange={onSort} size="sm" fullWidthOnMobile />
       }
       renderCard={(weapon) => (
         <article aria-label={weapon.name} className="app-panel flex h-full flex-col gap-2.5 p-3.5">

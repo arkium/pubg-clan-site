@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
-import { Inter } from 'next/font/google'
+import { Inter, Teko } from 'next/font/google'
 import packageJson from '../../package.json'
 
 import ClanNavigation from '@/components/ClanNavigation'
@@ -18,6 +18,14 @@ const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter',
+})
+
+// Titres de bannière et chiffres héros (charte UI §3) : `.t-hero`, `.home-display`.
+const teko = Teko({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  display: 'swap',
+  variable: '--font-teko',
 })
 
 export const dynamic = 'force-dynamic'
@@ -55,7 +63,7 @@ export default async function RootLayout({
     })
 
     return (
-      <html lang="fr" className={`h-full antialiased ${inter.variable}`} suppressHydrationWarning>
+      <html lang="fr" className={`h-full antialiased ${inter.variable} ${teko.variable}`} suppressHydrationWarning>
         <body className="min-h-full bg-gray-50 text-gray-900 font-sans" suppressHydrationWarning>
           <ThemeInitializer />
           <DatabaseUnavailable {...databaseError} />
@@ -146,7 +154,7 @@ export default async function RootLayout({
   )
 
   return (
-    <html lang="fr" className={`h-full antialiased ${inter.variable}`} suppressHydrationWarning>
+    <html lang="fr" className={`h-full antialiased ${inter.variable} ${teko.variable}`} suppressHydrationWarning>
       <body className="min-h-full bg-gray-50 text-gray-900 font-sans" suppressHydrationWarning>
         <ThemeInitializer />
         {showAppShell ? (

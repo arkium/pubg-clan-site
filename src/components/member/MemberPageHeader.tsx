@@ -29,7 +29,7 @@ export default function MemberPageHeader({
   if (backgroundImage) {
     return (
       <header
-        className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+        className="member-page-header relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
         style={{ backgroundImage: `url('${backgroundImage}')`, backgroundPosition }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
@@ -49,7 +49,7 @@ export default function MemberPageHeader({
         <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
           <div className="flex items-center gap-1.5 sm:gap-2">
             {icon}
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">{title}</h1>
+            <h1 className="member-page-header-title text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">{title}</h1>
           </div>
           {subtitle ? (
             <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">{subtitle}</p>

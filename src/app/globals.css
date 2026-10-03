@@ -437,6 +437,16 @@ body[data-app-theme] :where(.text-gray-500, .text-slate-500, .text-gray-400) {
   color: var(--theme-ui-text-muted);
 }
 
+/* Variantes de survol du texte : sans ce remap, hover:text-gray-900 restait le gris quasi noir de Tailwind,
+   illisible en thème sombre (fil d'Ariane, liens « Voir… »). */
+body[data-app-theme] :where(.hover\:text-gray-900:hover, .hover\:text-slate-900:hover) {
+  color: var(--theme-ui-text);
+}
+
+body[data-app-theme] :where(.hover\:text-gray-700:hover, .hover\:text-gray-600:hover, .hover\:text-slate-700:hover, .hover\:text-slate-600:hover) {
+  color: var(--theme-ui-text-secondary);
+}
+
 body[data-app-theme] :where(.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover) {
   background-color: var(--theme-ui-hover) !important;
 }
@@ -899,7 +909,7 @@ html[data-app-theme='dark'] :where(.border-orange-200, .border-orange-300) {
 }
 
 .mobile-dropdown-nav--compact .member-section-nav-mobile-label {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.15em;
 }
 
@@ -2364,16 +2374,21 @@ html[data-app-theme='dark'] .dashboard-period-toggle-item-active {
   border-bottom: 1px solid var(--app-border);
 }
 
+/* Podium des classements : or / argent / bronze (même identité que .app-podium-badge),
+   liseré gauche 3 px comme les autres mises en évidence (décision du 2026-10-02 — ex « à valider » charte §0b). */
 .app-table-row--top1 {
-  background-color: rgb(253 230 138 / 0.5);
+  background-color: rgb(254 243 199 / 0.7);
+  box-shadow: inset 3px 0 0 rgb(217 119 6 / 0.9);
 }
 
 .app-table-row--top2 {
-  background-color: rgb(254 243 199 / 0.42);
+  background-color: rgb(226 232 240 / 0.6);
+  box-shadow: inset 3px 0 0 rgb(148 163 184);
 }
 
 .app-table-row--top3 {
-  background-color: rgb(254 249 195 / 0.32);
+  background-color: rgb(255 237 213 / 0.55);
+  box-shadow: inset 3px 0 0 rgb(180 83 9 / 0.8);
 }
 
 .app-table-row:hover {
@@ -2411,15 +2426,18 @@ html[data-app-theme='dark'] .dashboard-period-toggle-item-active {
 }
 
 html[data-app-theme='dark'] .app-table-row--top1 {
-  background-color: rgb(251 191 36 / 0.34);
+  background-color: rgb(251 191 36 / 0.16);
+  box-shadow: inset 3px 0 0 rgb(251 191 36);
 }
 
 html[data-app-theme='dark'] .app-table-row--top2 {
-  background-color: rgb(245 158 11 / 0.28);
+  background-color: rgb(148 163 184 / 0.14);
+  box-shadow: inset 3px 0 0 rgb(148 163 184);
 }
 
 html[data-app-theme='dark'] .app-table-row--top3 {
-  background-color: rgb(217 119 6 / 0.22);
+  background-color: rgb(217 119 6 / 0.14);
+  box-shadow: inset 3px 0 0 rgb(217 119 6);
 }
 
 html[data-app-theme='dark'] .app-podium-badge--gold {
@@ -2749,7 +2767,7 @@ html[data-app-theme='dark'] .home-showcase {
 }
 
 .home-display {
-  font-family: var(--font-teko), 'Teko', ui-sans-serif, sans-serif;
+  font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif;
 }
 
 .home-gold {
@@ -3339,4 +3357,421 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
   .map-toolbar-period .app-segmented-control__item--xs {
     padding-inline: 0.4rem;
   }
+}
+
+/* ── Charte UI chickendinner — migration page par page (docs/ui/index.html, référence cible) ──────────────────────
+   Une page migrée porte `.charte` sur son conteneur : l'accent passe au jaune PUBG (§1.2), « en attente » à l'orange
+   (§1.3), et le menu de filtre du bandeau suit le gabarit du segmented voisin (§4, §5f). Quand toutes les pages seront
+   migrées, ces jetons remonteront dans :root et la classe disparaîtra. */
+.charte {
+  --theme-ui-accent: #f2a900;
+  --theme-ui-accent-text: #8a5a00;
+  --theme-ui-accent-soft: rgb(242 169 0 / 0.12);
+  --theme-ui-accent-tint: rgb(242 169 0 / 0.06);
+  --theme-ui-accent-ring: rgb(217 151 0 / 0.6);
+  --game-warn: rgb(194 65 12);
+  --game-warn-soft: rgb(255 237 213);
+}
+
+html[data-app-theme='dark'] .charte {
+  --theme-ui-accent: #f2a900;
+  --theme-ui-accent-text: #ffc940;
+  --theme-ui-accent-soft: rgb(242 169 0 / 0.14);
+  --theme-ui-accent-tint: rgb(242 169 0 / 0.06);
+  --theme-ui-accent-ring: rgb(242 169 0 / 0.55);
+  --game-warn: rgb(251 146 60);
+  --game-warn-soft: rgb(251 146 60 / 0.14);
+}
+
+/* Segmented actif : teinté (fond accent doux + anneau + texte accent), blanc en clair (§5k). */
+.charte .app-segmented-control__item--active {
+  font-weight: 700;
+}
+
+/* Menu de filtre dans un bandeau (MobileDropdownNav compact) : une seule ligne, intitulé en préfixe, déclencheur
+   étiré à la hauteur de la ligne (donc du rail segmented voisin), mêmes fond et bordure que le rail. */
+.charte .mobile-dropdown-nav--compact {
+  display: flex;
+  align-self: stretch;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-label {
+  align-self: center;
+  margin: 0;
+  color: var(--theme-ui-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-dropdown {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-trigger {
+  min-height: 34px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--theme-toggle-border);
+  border-radius: 10px;
+  background: var(--theme-toggle-track);
+  box-shadow: none;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-trigger:hover {
+  background: var(--theme-ui-hover);
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-trigger[aria-expanded='true'] {
+  border-color: var(--theme-ui-accent-ring);
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-trigger:focus-visible {
+  outline: 2px solid var(--theme-ui-accent-ring);
+  outline-offset: 2px;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-current {
+  min-height: 0;
+  padding: 0;
+  color: var(--theme-ui-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-chevron {
+  color: var(--theme-ui-text-muted);
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-menu {
+  top: calc(100% + 6px);
+  right: auto;
+  width: max-content;
+  min-width: 100%;
+  max-width: min(20rem, 90vw);
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-surface);
+  box-shadow: 0 20px 40px -16px rgb(0 0 0 / 0.5);
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-item {
+  display: flex;
+  white-space: nowrap;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--theme-ui-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-item:hover {
+  background: var(--theme-ui-hover);
+  color: var(--theme-ui-text);
+}
+
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-item-active,
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-item-active:hover {
+  background: var(--theme-ui-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring);
+  color: var(--theme-ui-accent-text);
+  font-weight: 700;
+}
+
+/* Liste longue (joueurs) : barre de défilement fine, aux couleurs du thème. */
+.charte .mobile-dropdown-nav--compact .member-section-nav-mobile-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-ui-border) transparent;
+}
+
+/* Chiffres héros et titre de bannière (§3) : Teko 600, jamais sous 22 px. */
+.t-hero {
+  font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-banner-title {
+  font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif;
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+/* ── Charte UI — classes de rôle (§3 typographie, §1 couleurs sémantiques) ────────────────────────────────────────
+   Une seule écriture par rôle, sur toutes les pages : ne pas recomposer ces styles en ligne ni en utilitaires.
+   Catalogue par usage : docs/ui/index.html#classes. Couleurs neutres du texte : text-gray-900 (texte),
+   text-gray-700 (secondaire), text-gray-500 (atténué), remappées sur le thème plus haut. */
+.t-section-title {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--theme-ui-text);
+}
+
+.t-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--theme-ui-text);
+}
+
+.t-body {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.t-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--theme-ui-text-muted);
+}
+
+.t-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-ui-text-muted);
+}
+
+.t-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tailles des chiffres héros (.t-hero) : 22 px minimum (§3). */
+.t-hero--sm { font-size: 22px; }
+.t-hero--md { font-size: 28px; }
+.t-hero--lg { font-size: 40px; }
+.t-hero--xl { font-size: 56px; }
+
+/* Couleurs sémantiques du texte. Après les rôles : `.t-label.t-accent` colore un surtitre. */
+.t-pos { color: var(--theme-ui-positive); }
+.t-neg { color: var(--theme-ui-negative); }
+.t-accent { color: var(--theme-ui-accent-text); }
+/* Couleurs de jeu : dans un conteneur .game-ui (jetons --game-*). */
+.t-gold { color: var(--game-gold); }
+.t-warn { color: var(--game-warn); }
+.t-sky { color: var(--game-sky); }
+
+/* Indicateur chiffré (KPI) : à poser avec .app-panel ou .app-panel-muted.
+   <div class="app-panel app-kpi"><span class="t-label">…</span><b class="t-hero t-hero--md">…</b>
+   <p class="app-kpi__foot"><span class="app-kpi__delta app-kpi__delta--down">▼ −2 %</span> vs mois dernier</p></div> */
+.app-kpi {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.app-kpi__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+  color: var(--theme-ui-text-muted);
+  font-size: 12px;
+}
+
+.app-kpi__delta {
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-kpi__delta--up { color: var(--theme-ui-positive); }
+.app-kpi__delta--down { color: var(--theme-ui-negative); }
+.app-kpi__delta--flat { color: var(--theme-ui-text-muted); }
+
+/* Menu déroulant à tuiles (charte §5f) : déclencheur aux couleurs du rail segmented, popover, élément choisi teinté.
+   Pour un menu maison (catégorie d'armes…) ; une liste à intitulé passe par MobileDropdownNav compact.
+   .app-toolbar-btn : bouton d'un bandeau (synchro…), même habillage. Dans un bandeau, aucun contrôle n'a de hauteur
+   fixe : il s'étire à la hauteur de la ligne, donc à celle du rail segmented voisin (self-stretch). */
+.app-menu-trigger,
+.app-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-toggle-border);
+  border-radius: 10px;
+  background: var(--theme-toggle-track);
+  color: var(--theme-ui-text);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: border-color 120ms ease-out, background-color 120ms ease-out;
+}
+
+.app-menu-trigger:hover,
+button.app-toolbar-btn:hover:not(:disabled) {
+  background: var(--theme-ui-hover);
+}
+
+.app-menu-trigger[aria-expanded='true'] {
+  border-color: var(--theme-ui-accent-ring);
+}
+
+.app-menu-trigger--active,
+.app-menu-trigger--active:hover {
+  border-color: var(--theme-ui-accent-ring);
+  background: var(--theme-ui-accent-soft);
+  color: var(--theme-ui-accent-text);
+}
+
+.app-menu-trigger:focus-visible,
+.app-toolbar-btn:focus-visible {
+  outline: 2px solid var(--theme-ui-accent-ring);
+  outline-offset: 2px;
+}
+
+.app-toolbar-btn {
+  color: var(--theme-ui-text-secondary);
+  font-weight: 600;
+}
+
+.app-toolbar-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.app-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(60vh, 24rem);
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--app-surface);
+  box-shadow: 0 20px 40px -16px rgb(0 0 0 / 0.5);
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-ui-border) transparent;
+}
+
+.app-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--theme-ui-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.app-menu__item:hover {
+  background: var(--theme-ui-hover);
+  color: var(--theme-ui-text);
+}
+
+.app-menu__item--active,
+.app-menu__item--active:hover {
+  background: var(--theme-ui-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring);
+  color: var(--theme-ui-accent-text);
+  font-weight: 700;
+}
+
+/* En-tête des pages joueur (MemberPageHeader, partagé) : charte sur les pages migrées seulement. */
+.charte .member-page-header {
+  border-radius: 14px;
+}
+
+.charte .member-page-header-title {
+  font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif;
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+/* Cartes héros des armes du joueur (arme de prédilection, arme la plus maîtrisée) : sombres dans les deux thèmes,
+   comme les vitrines de l'armurerie — les silhouettes d'armes sont blanches. */
+.weapon-hero-card {
+  border-radius: 14px;
+  color: #fff;
+}
+
+.weapon-hero-card--favourite {
+  border: 1px solid rgb(251 191 36 / 0.45);
+  background: radial-gradient(120% 90% at 80% 20%, #3a2a08, #0b0f1a 65%);
+}
+
+.weapon-hero-card--mastery {
+  border: 1px solid rgb(167 139 250 / 0.45);
+  background: radial-gradient(120% 90% at 80% 20%, #241a4a, #0b0f1a 65%);
+}
+
+.weapon-hero-ring-core {
+  background: #0b0f1a;
+}
+
+/* Liens (charte §1.2, §4) : un lien se voit au repos (souligné d'accent) et vire à l'accent au survol. Jamais de
+   jaune plein pour un lien ; focus clavier = anneau d'accent. */
+.app-link {
+  color: var(--theme-ui-text);
+  text-decoration: underline;
+  text-decoration-color: var(--theme-ui-accent-ring);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 120ms ease-out, text-decoration-color 120ms ease-out;
+}
+
+.app-link:hover {
+  color: var(--theme-ui-accent-text);
+  text-decoration-color: currentColor;
+}
+
+/* Fil d'Ariane « ‹ Retour à … » : discret au repos mais reconnaissable (souligné d'accent), accent au survol. */
+.app-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  color: var(--theme-ui-text-secondary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--theme-ui-accent-ring);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: color 120ms ease-out, text-decoration-color 120ms ease-out;
+}
+
+.app-back-link:hover {
+  color: var(--theme-ui-accent-text);
+  text-decoration-color: currentColor;
+}
+
+.app-link:focus-visible,
+.app-back-link:focus-visible {
+  outline: 2px solid var(--theme-ui-accent-ring);
+  outline-offset: 2px;
 }

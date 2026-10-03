@@ -29,7 +29,9 @@ export default function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   const sizeClass = size === 'sm' ? 'app-segmented-control__item--sm' : 'app-segmented-control__item--xs'
   const wrapClass = wrap ? 'flex-wrap' : ''
-  const widthClass = fullWidthOnMobile ? 'w-full sm:w-auto' : ''
+  // Le cadre épouse ses boutons (jamais de vide à droite) : pleine largeur partagée sur mobile, ajusté ensuite.
+  const widthClass = fullWidthOnMobile ? 'w-full sm:w-fit' : ''
+  const itemWidthClass = fullWidthOnMobile ? 'flex-1 sm:flex-none' : ''
   const nowrapClass = fullWidthOnMobile && !wrap ? 'sm:flex-nowrap' : ''
 
   return (
@@ -56,21 +58,17 @@ export default function SegmentedControl<T extends string>({
           }}
           disabled={option.disabled}
           aria-pressed={option.value === value}
+          // Bouton flex centré : une icône ne le rend pas plus haut qu'un bouton texte (même hauteur de rail partout).
           className={[
-            'app-segmented-control__item font-medium transition-colors',
+            'app-segmented-control__item inline-flex items-center justify-center gap-1.5 font-medium transition-colors',
             sizeClass,
+            itemWidthClass,
             option.disabled ? 'cursor-not-allowed opacity-45 text-gray-400 hover:bg-transparent' : '',
             option.value === value ? 'app-segmented-control__item--active' : '',
           ].join(' ')}
         >
-          {option.icon ? (
-            <span className="inline-flex items-center gap-1.5">
-              {option.icon}
-              {option.label}
-            </span>
-          ) : (
-            option.label
-          )}
+          {option.icon}
+          {option.label}
         </button>
       ))}
     </div>

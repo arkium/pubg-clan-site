@@ -46,12 +46,9 @@ export function NavigationTrail({ currentLabel, currentHref, fallbackParent, hid
   if (!backEntry || hidden) return null
 
   return (
-    <div className="mb-4 flex items-center text-sm text-gray-500">
-      <Link 
-        href={backEntry.href} 
-        className="flex items-center transition-colors hover:text-gray-900"
-      >
-        <ChevronLeft className="w-4 h-4 mr-1" />
+    <div className="mb-4 flex items-center text-sm">
+      <Link href={backEntry.href} className="app-back-link">
+        <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
         Retour à {backEntry.label}
       </Link>
     </div>

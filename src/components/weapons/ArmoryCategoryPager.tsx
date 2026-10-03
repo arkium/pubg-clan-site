@@ -82,7 +82,7 @@ export default function ArmoryCategoryPager({
               aria-pressed={active}
               title={labelOf(step)}
               onClick={() => onChange(step)}
-              className={`app-sort-chip inline-flex items-center gap-1.5 rounded-[9px]! ${active ? 'app-sort-chip--active' : ''}`}
+              className={`app-sort-chip inline-flex items-center gap-1.5 rounded-[8px]! ${active ? 'app-sort-chip--active' : ''}`}
             >
               <b className="font-extrabold">{step ?? 'Toutes'}</b>
               <span className="tabular-nums opacity-75">{formatCount(killsOf(step))}</span>

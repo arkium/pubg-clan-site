@@ -45,6 +45,7 @@ test('bilan sur une ligne : joueurs, bots et zone à part', async ({ page }) => 
   await expect(tally).toContainText('1,43 K/D')
   await expect(tally).toContainText('14 bots neutralisés')
   await expect(tally).toContainText('9 morts par la zone')
+  await expect(tally).toContainText('2 suicides')
 })
 
 test('chasseurs paginés par 5, duel dans les deux sens, joueur jamais nommé', async ({ page }, testInfo) => {
@@ -63,6 +64,33 @@ test('chasseurs paginés par 5, duel dans les deux sens, joueur jamais nommé', 
   } else {
     await expect(page.getByRole('list', { name: 'Tes proies' }).getByRole('listitem')).toHaveCount(5)
   }
+  await expectNoHorizontalScroll(page)
+})
+
+test('joueurs des clans suivis : écusson sur la ligne, lien vers la page seulement pour le même clan', async ({ page }) => {
+  const hunters = page.getByRole('list', { name: 'Tes chasseurs' })
+  const sel = hunters.getByRole('listitem').nth(3)
+  await expect(sel.getByTestId('tracked-clan')).toHaveText('SALT')
+  await expect(sel.getByRole('link')).toHaveCount(0)
+  const baguette = hunters.getByRole('listitem').nth(1)
+  await expect(baguette.getByTestId('tracked-clan')).toHaveText('Ton clan')
+  await expect(baguette.getByRole('link', { name: 'BaguetteSniper' })).toHaveAttribute('href', '/members/2/dashboard')
+  // Joueur extérieur au site : le tag PUBG en gris, pas d'écusson.
+  await expect(hunters.getByRole('listitem').first().getByTestId('tracked-clan')).toHaveCount(0)
+})
+
+test('carte « Clans suivis » à côté de la death cam : 3 derniers éliminés, derniers à t’avoir eu, totaux', async ({ page }) => {
+  const card = page.getByRole('complementary', { name: 'Clans suivis' })
+  const kills = card.getByRole('list', { name: 'Derniers éliminés' }).getByRole('listitem')
+  await expect(kills).toHaveCount(3)
+  await expect(kills.first()).toContainText('LeGrosSel')
+  await expect(kills.first()).toContainText('×6')
+  await expect(kills.first().getByTestId('tracked-clan')).toHaveText('SALT')
+  await expect(kills.nth(2)).toContainText('CerfVolant')
+  const deaths = card.getByRole('list', { name: 'Derniers à t’avoir eu' }).getByRole('listitem')
+  await expect(deaths).toHaveCount(1)
+  await expect(deaths.first()).toContainText('il y a 14 j')
+  await expect(card.getByTestId('tracked-totals')).toContainText('9 kills · 3 morts contre les clans suivis')
   await expectNoHorizontalScroll(page)
 })
 

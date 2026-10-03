@@ -21,7 +21,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `weekly_report_auto` | `WEEKLY_REPORT_GENERATION_CRON` | `0 8 * * 1` | Génère le rapport hebdomadaire pour tous les clans actifs |
 | `monthly_report_auto` | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génère le rapport mensuel pour tous les clans actifs |
 | `challenge_processing` | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges expirés |
-| `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) |
+| `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) ; **en priorité**, nom et clan des adversaires du kill feed sans nom (« Joueur inconnu ») |
 | `clan_lifecycle_membership_sync` | `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON` | `45 1 * * *` | Vérifie l'appartenance de clan de chaque membre suivi, joueur par joueur |
 | `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
 | `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
@@ -92,6 +92,8 @@ Déclenché à minuit chaque nuit pour tous les clans actifs. Pour chaque clan :
 ### `encountered_player_clan_resolution` — Clans des joueurs croisés
 
 Toutes les 30 min. Sélectionne un lot d'identités non résolues (`selectPrioritizedEncounteredPlayerIdentities`) puis résout leur clan PUBG ; chaque passage est tracé dans `EncounteredPlayerResolutionRun` (pas dans `CronExecution`). Depuis le 2026-09-15, la sélection se fait en deux paliers — identités avec interaction de combat, puis classement complet mis en cache 6 h — au lieu d'un regroupement de ~560 000 lignes à chaque passage (48 s → 1,8 s). Détail et mesures : [database-performance.md](database-performance.md#32-cron-de-résolution-des-adversaires--sélection-en-deux-paliers-2026-09-15).
+
+**Priorité 0** (2026-10-03) : avant les joueurs croisés, le lot prend les adversaires du kill feed jamais relevés dans un lobby (« Joueur inconnu » de la Némésis) — un appel `/players/{id}` donne leur nom et leur clan. Même lot, même quota ; une erreur sur cette étape n'empêche pas la suite du passage. Découverte de ces comptes au plus toutes les 6 h ; comptes introuvables mémorisés dans `KillFeedAccountLookup` (migration `20261003120000_add_kill_feed_account_lookup`, à appliquer avant). Détail : [nemesis.md](../features/nemesis.md#noms-des-adversaires--joueur-inconnu-2026-10-03).
 
 ### `clan_lifecycle_membership_sync` — Appartenance de clan
 

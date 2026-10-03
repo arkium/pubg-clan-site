@@ -102,6 +102,7 @@ type PubgPlayerDetailResponse = {
   data?: {
     id?: string
     attributes?: {
+      name?: string
       clanId?: string
       clanID?: string
       clan_id?: string
@@ -645,6 +646,18 @@ export async function fetchPlayerClan(
   shard: string = 'steam',
   context?: PubgApiCallContext
 ) {
+  return (await fetchPlayerIdentity(playerId, shard, context)).clan
+}
+
+/**
+ * Nom et clan d'un compte en un seul appel (`/players/{id}`). Le nom sert à nommer un adversaire du kill feed jamais
+ * relevé dans un lobby (« Joueur inconnu » de la Némésis) ; le clan, comme `fetchPlayerClan`.
+ */
+export async function fetchPlayerIdentity(
+  playerId: string,
+  shard: string = 'steam',
+  context?: PubgApiCallContext
+): Promise<{ name: string | null; clan: Awaited<ReturnType<typeof fetchPubgClanById>> | null }> {
   ensurePubgApiKey()
 
   console.info('[PUBG] Fetching clan for player', { playerId, shard })
@@ -655,6 +668,7 @@ export async function fetchPlayerClan(
     context
   )
 
+  const name = response.data.data?.attributes?.name?.trim() || null
   const attributeClanId = resolveClanIdFromPlayerAttributes(response.data.data?.attributes)
 
   const relatedClanId = attributeClanId ?? resolveClanRelationshipId(response.data.data?.relationships)
@@ -669,7 +683,7 @@ export async function fetchPlayerClan(
 
   if (!relatedClanId) {
     console.warn('[PUBG] No clan relationship found for player', { playerId, shard })
-    return null
+    return { name, clan: null }
   }
 
   const includedClan = Array.isArray(response.data.included)
@@ -686,7 +700,7 @@ export async function fetchPlayerClan(
           shard,
           clanId: includedClan.id,
         })
-    return normalizePubgClanResource(includedClan)
+    return { name, clan: normalizePubgClanResource(includedClan) }
   }
 
       console.info('[PUBG] Clan not included, fetching clan by id', {
@@ -695,7 +709,7 @@ export async function fetchPlayerClan(
         relatedClanId,
       })
 
-  return fetchPubgClanById(relatedClanId, shard, context)
+  return { name, clan: await fetchPubgClanById(relatedClanId, shard, context) }
 }
 
 export async function fetchRecentMatchIds(

@@ -23,6 +23,7 @@ import {
   getEncounteredPlayerResolutionBatchSize,
   isEncounteredPlayerResolutionEnabled,
 } from '@/lib/encountered-player-resolution-config-service'
+import { resolveKillFeedAccount, selectUnnamedKillFeedAccounts, type KillFeedCandidate } from '@/lib/kill-feed-name-resolution'
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
@@ -1175,12 +1176,35 @@ async function resolveEncounteredPlayerClans() {
     maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
   }
 
+  let killFeedResolved = 0
+  let killFeedNotFound = 0
+  let killFeedFailed = 0
+
   try {
+    // Priorité 0 (2026-10-03) : les adversaires du kill feed jamais relevés dans un lobby (« Joueur inconnu » de la
+    // Némésis). Même lot et même quota : ils passent en tête, les joueurs croisés complètent le lot. Un appel donne
+    // leur nom et leur clan (src/lib/kill-feed-name-resolution.ts). Une erreur ici ne bloque pas la suite du lot.
+    let killFeedCandidates: KillFeedCandidate[] = []
+    try {
+      killFeedCandidates = await selectUnnamedKillFeedAccounts(batchSize)
+    } catch (error) {
+      console.error('[Cron] Kill feed name discovery failed — batch continues with encountered players only', error)
+    }
+    for (const candidate of killFeedCandidates) {
+      const result = await resolveKillFeedAccount(candidate)
+      if (result.outcome === 'not_found') killFeedNotFound += 1
+      else if (result.outcome === 'failed') {
+        killFeedFailed += 1
+        console.error(`[Cron] Failed to resolve name for kill feed account ${candidate.pubgAccountId}`, result.error)
+      } else killFeedResolved += 1
+    }
+
     // Priorisation cross-clan : une identité (pubgAccountId+platformShard)
     // croisée par plusieurs clans suivis est traitée en priorité — un seul
     // appel PUBG résout alors plusieurs lignes EncounteredPlayer d'un coup.
     // Voir docs/TODO/todo.md, section "Priorisation cross-clan".
-    const candidates = await selectPrioritizedEncounteredPlayerIdentities(batchSize, thresholds)
+    const remainingBatch = batchSize - killFeedCandidates.length
+    const candidates = remainingBatch > 0 ? await selectPrioritizedEncounteredPlayerIdentities(remainingBatch, thresholds) : []
 
     uniqueCandidatesSelected = candidates.length
     candidatesSelected = candidates.reduce((sum, candidate) => sum + candidate.distinctClanCount, 0)
@@ -1206,7 +1230,7 @@ async function resolveEncounteredPlayerClans() {
     }
 
     console.info(
-      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — run=${run.id}, uniqueCandidates=${uniqueCandidatesSelected}, crossClanCandidates=${crossClanCandidatesSelected}, resolvedWithClan=${resolvedWithClan}, resolvedWithoutClan=${resolvedWithoutClan}, resolvedFromCache=${resolvedFromCache}, failed=${failed}, rowsUpdated=${encounterRowsUpdated}`
+      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — run=${run.id}, uniqueCandidates=${uniqueCandidatesSelected}, crossClanCandidates=${crossClanCandidatesSelected}, resolvedWithClan=${resolvedWithClan}, resolvedWithoutClan=${resolvedWithoutClan}, resolvedFromCache=${resolvedFromCache}, failed=${failed}, rowsUpdated=${encounterRowsUpdated}, killFeedNamed=${killFeedResolved}, killFeedNotFound=${killFeedNotFound}, killFeedFailed=${killFeedFailed}`
     )
   } catch (error) {
     runStatus = 'failed'
@@ -1224,7 +1248,8 @@ async function resolveEncounteredPlayerClans() {
       .catch(() => null)
     const rateLimitAfter = await getLatestPubgRateLimitSnapshot().catch(() => null)
     const finishedAt = new Date()
-    const pubgApiCalls = resolvedWithClan + resolvedWithoutClan + failed
+    // Les comptes du kill feed consomment le même quota : comptés dans les appels PUBG du passage.
+    const pubgApiCalls = resolvedWithClan + resolvedWithoutClan + failed + killFeedResolved + killFeedNotFound + killFeedFailed
 
     await prisma.encounteredPlayerResolutionRun
       .update({

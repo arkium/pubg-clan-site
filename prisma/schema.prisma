@@ -305,6 +305,22 @@ model ClanEncounter {
 // Journal des passages du résolveur de clan adverse (cron transverse à tous
 // les clans, ou déclenchement manuel SuperUser) — pas de clanId ici
 // contrairement à CronExecution, ce job n'est pas scopé à un seul clan.
+// Adversaires du kill feed (KillEvent) jamais relevés dans un lobby : le cron de résolution des joueurs croisés les
+// traite en priorité pour obtenir leur nom (« Joueur inconnu » de la Némésis). Une ligne n'existe que pour un compte
+// qui a échoué : `notFound` quand l'API PUBG ne le connaît pas (supprimé, banni) — plus jamais redemandé ;
+// `attempts` pour les autres échecs (abandon au-delà d'un seuil). Un compte nommé va dans `Player`, pas ici.
+model KillFeedAccountLookup {
+  pubgAccountId String
+  platformShard String   @default("steam")
+  notFound      Boolean  @default(false)
+  attempts      Int      @default(0)
+  lastAttemptAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@id([pubgAccountId, platformShard])
+  @@map("KillFeedAccountLookup")
+}
+
 model EncounteredPlayerResolutionRun {
   id String @id @default(cuid())
 

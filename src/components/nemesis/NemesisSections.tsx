@@ -1,11 +1,13 @@
 'use client'
 
-import { ChevronDown, ChevronLeft, ChevronRight, Crosshair, Skull, Target, Video } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Crosshair, ShieldCheck, Skull, Target, Video } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
+import RankCell from '@/components/ui/RankCell'
 import ArmoryWeaponImage from '@/components/weapons/ArmoryWeaponImage'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import { revengeLabel, type OpponentRow } from '@/lib/nemesis'
+import { revengeLabel, type OpponentRow, type TrackedClanDuel, type TrackedClanInfo } from '@/lib/nemesis'
 import { paginate } from '@/lib/pagination'
 import { resolveWeaponName } from '@/lib/pubg-assets'
 import { elapsedLabel } from '@/lib/relative-time'
@@ -19,6 +21,8 @@ export type NemesisPayload = {
   botKillCount: number
   botDeathCount: number
   environmentalDeathCount: number
+  /** Morts par sa propre main (grenade, véhicule…) : hors classements, comptées à part. */
+  suicideCount?: number
   topDeathWeapons: Array<{ weaponName: string; count: number }>
   topKillers: OpponentRow[]
   topVictims: OpponentRow[]
@@ -26,6 +30,8 @@ export type NemesisPayload = {
   selectedWeapon: string | null
   /** Libellé de chaque arme renvoyée, calculé par la route. */
   weaponLabels?: Record<string, string>
+  /** Duels contre les autres clans suivis (carte « Clans suivis »). */
+  trackedDuels?: { killCount: number; deathCount: number; recentKills: TrackedClanDuel[]; recentDeaths: TrackedClanDuel[] }
 }
 
 /** Libellé d'une arme : celui de la route, sinon le dictionnaire du client. */
@@ -42,6 +48,45 @@ function subscribeSmallScreen(onChange: () => void) {
   return () => query.removeEventListener('change', onChange)
 }
 const useIsSmall = () => useSyncExternalStore(subscribeSmallScreen, () => !window.matchMedia(SM_QUERY).matches, () => false)
+
+/**
+ * Écusson d'un joueur d'un clan suivi par le site : bouclier + tag, à l'accent. `onDark` : sur les cartes de duel (fond
+ * toujours sombre). Sans écusson, le tag PUBG reste en gris : joueur extérieur au site.
+ */
+function TrackedClanBadge({ tracked, onDark = false }: { tracked: TrackedClanInfo; onDark?: boolean }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] px-1.5 py-px text-[11px] font-extrabold ${
+        onDark ? 'text-[var(--theme-ui-accent)]' : 'text-[var(--theme-ui-accent-text)]'
+      }`}
+      title={tracked.sameClan ? `Ton clan : ${tracked.clanName}` : `Clan suivi par le site : ${tracked.clanName}`}
+      data-testid="tracked-clan"
+    >
+      <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+      {/* « Ton clan » : le bouclier seul sous 640 px, la place va au nom (le titre reste au survol et pour l'accessibilité). */}
+      {tracked.sameClan ? <span className="sr-only sm:not-sr-only">Ton clan</span> : tracked.clanTag}
+    </span>
+  )
+}
+
+/** Tag du joueur : écusson s'il est d'un clan suivi, sinon le tag PUBG en gris. */
+function ClanMark({ row, onDark = false }: { row: Pick<OpponentRow, 'clanTag' | 'tracked'>; onDark?: boolean }) {
+  if (row.tracked) return <TrackedClanBadge tracked={row.tracked} onDark={onDark} />
+  if (!row.clanTag) return null
+  return <span className={`shrink-0 font-mono text-[11px] ${onDark ? 'text-slate-300' : 'text-gray-500'}`}>[{row.clanTag}]</span>
+}
+
+/** Nom d'un adversaire : lien vers sa page s'il est du même clan (les pages joueur ne s'ouvrent qu'au même clan). */
+function OpponentName({ name, tracked, className }: { name: string; tracked: TrackedClanInfo | null | undefined; className: string }) {
+  if (tracked?.sameClan) {
+    return (
+      <Link href={`/members/${tracked.memberId}/dashboard`} className={`app-link ${className}`}>
+        {name}
+      </Link>
+    )
+  }
+  return <b className={className}>{name}</b>
+}
 
 function Silhouette({ weapon, onDark = false, className }: { weapon: string | null; onDark?: boolean; className: string }) {
   if (!weapon) return <span className={className} aria-hidden="true" />
@@ -78,16 +123,15 @@ export function WeaponMenu({ weapons, value, onChange, labels }: { weapons: stri
     setOpen(false)
   }
   return (
-    <div ref={rootRef} className="relative ml-auto min-w-0">
+    // Étiré à la hauteur de la ligne du bandeau : même hauteur que le segmented voisin.
+    <div ref={rootRef} className="relative ml-auto flex min-w-0 self-stretch">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Arme : ${active ? label(value) : 'toutes les armes'}`}
-        className={`inline-flex h-[34px] max-w-full items-center gap-1.5 whitespace-nowrap rounded-[10px] border px-2.5 text-[13px] font-bold ${
-          active ? 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] text-[var(--theme-ui-accent-text)]' : 'border-gray-200 bg-white text-gray-900'
-        }`}
+        className={`app-menu-trigger max-w-full ${active ? 'app-menu-trigger--active' : ''}`}
         data-testid="weapon-chip"
       >
         <Crosshair className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -102,10 +146,10 @@ export function WeaponMenu({ weapons, value, onChange, labels }: { weapons: stri
         <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
       </button>
       {open ? (
-        <div role="menu" aria-label="Arme" className="app-panel absolute right-0 top-10 z-50 flex max-h-[60vh] w-[230px] flex-col gap-0.5 overflow-y-auto p-1.5 shadow-xl">
-          <button type="button" role="menuitemradio" aria-checked={!active} onClick={() => choose(null)} className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] font-semibold text-gray-900 hover:bg-gray-100 ${!active ? 'bg-gray-100' : ''}`}>
+        <div role="menu" aria-label="Arme" className="app-menu absolute right-0 top-full z-50 mt-1.5 w-[230px]">
+          <button type="button" role="menuitemradio" aria-checked={!active} onClick={() => choose(null)} className={`app-menu__item justify-start gap-2.5 ${!active ? 'app-menu__item--active' : ''}`}>
             <span className="h-[22px] w-11 shrink-0" aria-hidden="true" />
-            Toutes les armes
+            <span className="min-w-0 flex-1 truncate text-left">Toutes les armes</span>
           </button>
           {weapons.map((weapon) => (
             <button
@@ -114,10 +158,10 @@ export function WeaponMenu({ weapons, value, onChange, labels }: { weapons: stri
               role="menuitemradio"
               aria-checked={value === weapon}
               onClick={() => choose(weapon)}
-              className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] font-semibold text-gray-900 hover:bg-gray-100 ${value === weapon ? 'bg-gray-100' : ''}`}
+              className={`app-menu__item justify-start gap-2.5 ${value === weapon ? 'app-menu__item--active' : ''}`}
             >
               <Silhouette weapon={weapon} className="h-[22px] w-11" />
-              {label(weapon)}
+              <span className="min-w-0 flex-1 truncate text-left">{label(weapon)}</span>
             </button>
           ))}
         </div>
@@ -134,22 +178,20 @@ function DuelCard({ row, tone, now, emptyText, labels }: { row: OpponentRow | nu
   return (
     <article
       aria-label={nemesis ? 'Ton némésis' : 'Ta proie favorite'}
-      className={`relative flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-2xl border p-4 text-white ${
-        nemesis ? 'border-rose-500/50 bg-[linear-gradient(160deg,#2a0a12,#0b0f1a_70%)]' : 'border-emerald-400/45 bg-[linear-gradient(160deg,#052e22,#0b0f1a_70%)]'
-      }`}
+      className={`duel-card ${nemesis ? 'duel-card--nemesis' : 'duel-card--prey'} relative flex min-w-0 flex-col gap-2.5 overflow-hidden border p-4`}
     >
-      <Icon className={`absolute -right-7 -top-7 h-36 w-36 opacity-[0.12] ${nemesis ? 'text-rose-500' : 'text-emerald-400'}`} aria-hidden="true" />
-      <span className={`text-[11px] font-black tracking-[0.18em] ${nemesis ? 'text-rose-300' : 'text-emerald-300'}`}>
+      <Icon className="duel-card__icon absolute -right-7 -top-7 h-36 w-36 opacity-[0.12]" aria-hidden="true" />
+      <span className="duel-card__eyebrow text-[11px] font-black tracking-[0.18em]">
         {nemesis ? 'TON NÉMÉSIS · T’A ÉLIMINÉ' : 'TA PROIE FAVORITE · TU L’AS ÉLIMINÉ'}
       </span>
       {row ? (
         <>
           <div className="flex min-w-0 items-baseline gap-2">
-            <b className={`truncate text-[22px] font-black tracking-tight sm:text-[26px] ${row.resolved ? '' : 'italic text-white/70'}`}>{opponentName(row)}</b>
-            {row.clanTag ? <span className="shrink-0 font-mono text-xs text-slate-300">[{row.clanTag}]</span> : null}
+            <OpponentName name={opponentName(row)} tracked={row.tracked} className={`truncate text-[22px] font-black tracking-tight sm:text-[26px] ${row.resolved ? '' : 'italic text-white/70'}`} />
+            <ClanMark row={row} onDark />
           </div>
           <div className="flex items-center gap-3">
-            <span className={`text-[40px] font-black leading-none tabular-nums ${nemesis ? 'text-rose-400' : 'text-emerald-400'}`}>×{row.count}</span>
+            <span className="duel-card__count t-hero t-hero--lg">×{row.count}</span>
             <Silhouette weapon={row.topWeapon} onDark className="h-[34px] w-[84px]" />
           </div>
           <span className="text-xs text-slate-300">
@@ -172,18 +214,18 @@ export function FaceOff({ payload, now, weaponLabel }: { payload: NemesisPayload
     <section aria-label="Face-à-face" className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)]">
       <DuelCard row={nemesis} tone="nemesis" now={now} emptyText={`Personne ne t’a éliminé${suffix} sur la période.`} labels={payload.weaponLabels} />
       <article aria-label="Revanche" className="app-panel flex flex-col items-center justify-center gap-1.5 px-4 py-3.5 text-center">
-        <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-gray-500">Revanche</span>
+        <span className="t-label">Revanche</span>
         {nemesis ? (
           <>
-            <span className="flex items-baseline gap-2 text-4xl font-black leading-none tabular-nums">
+            <span className="t-hero t-hero--lg flex items-baseline gap-2">
               <span className="text-[var(--theme-ui-positive)]">{nemesis.reverseCount}</span>
               <span className="text-xl text-gray-500">–</span>
               <span className="text-[var(--theme-ui-negative)]">{nemesis.count}</span>
             </span>
-            <span className="max-w-full truncate text-xs text-gray-500">toi – {opponentName(nemesis)}</span>
+            <span className="t-meta max-w-full truncate">toi – {opponentName(nemesis)}</span>
             {revenge ? (
               <span
-                className={`mt-1 rounded-md px-2 py-0.5 text-[11px] font-extrabold ${revenge.settled ? 'bg-emerald-500/15 text-[var(--theme-ui-positive)]' : 'bg-rose-500/15 text-[var(--theme-ui-negative)]'}`}
+                className={`mt-1 rounded-md px-2 py-0.5 text-[11px] font-extrabold ${revenge.settled ? 'bg-[color-mix(in_srgb,var(--theme-ui-positive)_15%,transparent)] t-pos' : 'bg-[color-mix(in_srgb,var(--theme-ui-negative)_15%,transparent)] t-neg'}`}
                 data-testid="revenge"
               >
                 {revenge.text}
@@ -201,18 +243,19 @@ export function FaceOff({ payload, now, weaponLabel }: { payload: NemesisPayload
 
 export function Tally({ payload }: { payload: NemesisPayload }) {
   const items = [
-    { value: String(payload.playerKills), label: plural(payload.playerKills, 'kill', 'kills'), color: 'var(--theme-ui-positive)' },
-    { value: String(payload.playerDeaths), label: plural(payload.playerDeaths, 'mort', 'morts'), color: 'var(--theme-ui-negative)' },
-    { value: decimal.format(payload.playerKd), label: 'K/D', color: undefined },
-    { value: String(payload.botKillCount), label: plural(payload.botKillCount, 'bot neutralisé', 'bots neutralisés'), color: undefined },
-    { value: String(payload.botDeathCount), label: 'fois tué par un bot', color: undefined },
-    { value: String(payload.environmentalDeathCount), label: plural(payload.environmentalDeathCount, 'mort par la zone', 'morts par la zone'), color: undefined },
+    { value: String(payload.playerKills), label: plural(payload.playerKills, 'kill', 'kills'), tone: 't-pos' },
+    { value: String(payload.playerDeaths), label: plural(payload.playerDeaths, 'mort', 'morts'), tone: 't-neg' },
+    { value: decimal.format(payload.playerKd), label: 'K/D', tone: 'text-gray-900' },
+    { value: String(payload.botKillCount), label: plural(payload.botKillCount, 'bot neutralisé', 'bots neutralisés'), tone: 'text-gray-900' },
+    { value: String(payload.botDeathCount), label: 'fois tué par un bot', tone: 'text-gray-900' },
+    { value: String(payload.environmentalDeathCount), label: plural(payload.environmentalDeathCount, 'mort par la zone', 'morts par la zone'), tone: 'text-gray-900' },
+    { value: String(payload.suicideCount ?? 0), label: plural(payload.suicideCount ?? 0, 'suicide', 'suicides'), tone: 'text-gray-900' },
   ]
   return (
-    <section aria-label="Bilan" className="app-panel flex flex-wrap items-center gap-x-[22px] gap-y-1.5 px-3.5 py-2.5 text-[13px] tabular-nums text-gray-500">
+    <section aria-label="Bilan" className="app-panel t-num flex flex-wrap items-center gap-x-[22px] gap-y-1.5 px-3.5 py-2.5 text-[13px] text-gray-500">
       {items.map((item) => (
         <span key={item.label}>
-          <b className="text-[15px] text-gray-900" style={item.color ? { color: item.color } : undefined}>{item.value}</b> {item.label}
+          <b className={`text-[15px] ${item.tone}`}>{item.value}</b> {item.label}
         </span>
       ))}
     </section>
@@ -230,15 +273,15 @@ function OpponentList({ kind, rows, now, weaponLabel, labels }: { kind: 'hunters
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex items-center gap-2">
-        <Icon className={`h-4 w-4 ${hunters ? 'text-rose-400' : 'text-emerald-400'}`} aria-hidden="true" />
-        <h2 className="text-base font-extrabold text-gray-900">{title}</h2>
-        <span className="text-xs text-gray-500">{hunters ? 'ils t’ont éliminé' : 'tu les as éliminés'}</span>
+        <Icon className={`h-4 w-4 ${hunters ? 't-neg' : 't-pos'}`} aria-hidden="true" />
+        <h2 className="t-card-title">{title}</h2>
+        <span className="t-meta">{hunters ? 'ils t’ont éliminé' : 'tu les as éliminés'}</span>
         {pageCount > 1 ? (
           <nav className="ml-auto flex items-center gap-0.5" aria-label={`Pages · ${title}`}>
             <button type="button" className="app-pager-button" onClick={() => setPage(current - 1)} disabled={current === 1} aria-label="Page précédente">
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </button>
-            <span className="min-w-[28px] text-center text-xs font-bold tabular-nums text-gray-600">{current}/{pageCount}</span>
+            <span className="t-num min-w-[28px] text-center text-xs font-bold text-gray-600">{current}/{pageCount}</span>
             <button type="button" className="app-pager-button" onClick={() => setPage(current + 1)} disabled={current === pageCount} aria-label="Page suivante">
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -247,7 +290,7 @@ function OpponentList({ kind, rows, now, weaponLabel, labels }: { kind: 'hunters
       </div>
       <div className="app-panel overflow-hidden">
         {rows.length === 0 ? (
-          <p className="px-3 py-4 text-center text-[13px] text-gray-500">{weaponLabel ? `Personne au ${weaponLabel} sur la période.` : 'Personne sur la période.'}</p>
+          <p className="t-body px-3 py-4 text-center text-gray-500">{weaponLabel ? `Personne au ${weaponLabel} sur la période.` : 'Personne sur la période.'}</p>
         ) : (
           <ol aria-label={title}>
             {visible.map((row, index) => {
@@ -255,14 +298,14 @@ function OpponentList({ kind, rows, now, weaponLabel, labels }: { kind: 'hunters
               const them = hunters ? row.count : row.reverseCount
               return (
                 <li key={row.key} className="flex items-center gap-2.5 border-t border-gray-200 px-3 py-2 first:border-t-0">
-                  <span className="w-[18px] shrink-0 text-right text-[13px] font-black tabular-nums text-gray-500">{start + index + 1}</span>
+                  <span className="flex w-5 shrink-0 justify-center"><RankCell rank={start + index + 1} size="xs" /></span>
                   <Silhouette weapon={row.topWeapon} className="h-6 w-14" />
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="flex min-w-0 items-baseline gap-1.5">
-                      <b className={`truncate text-sm ${row.resolved ? 'text-gray-900' : 'italic text-gray-500'}`}>{opponentName(row)}</b>
-                      {row.clanTag ? <span className="shrink-0 font-mono text-[11px] text-gray-500">[{row.clanTag}]</span> : null}
+                      <OpponentName name={opponentName(row)} tracked={row.tracked} className={`truncate text-sm font-bold ${row.resolved ? 'text-gray-900' : 'italic text-gray-500'}`} />
+                      <ClanMark row={row} />
                     </span>
-                    <span className="truncate text-xs text-gray-500">
+                    <span className="t-meta truncate">
                       {row.topWeapon ? `${weaponLabelOf(labels, row.topWeapon)} · ` : ''}
                       {elapsedLabel(row.lastAt, now)}
                     </span>
@@ -270,7 +313,7 @@ function OpponentList({ kind, rows, now, weaponLabel, labels }: { kind: 'hunters
                   {row.reverseCount > 0 ? (
                     <span
                       className={`shrink-0 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums ${
-                        me >= them ? 'bg-emerald-500/15 text-[var(--theme-ui-positive)]' : 'bg-rose-500/15 text-[var(--theme-ui-negative)]'
+                        me >= them ? 'bg-[color-mix(in_srgb,var(--theme-ui-positive)_15%,transparent)] t-pos' : 'bg-[color-mix(in_srgb,var(--theme-ui-negative)_15%,transparent)] t-neg'
                       }`}
                       title={`Toi ${me} – ${them} ${opponentName(row)}`}
                       data-testid="duel-badge"
@@ -280,7 +323,7 @@ function OpponentList({ kind, rows, now, weaponLabel, labels }: { kind: 'hunters
                   ) : null}
                   <span
                     className={`min-w-10 shrink-0 rounded-full px-2 py-0.5 text-center text-[13px] font-black tabular-nums ${
-                      hunters ? 'bg-rose-500/15 text-[var(--theme-ui-negative)]' : 'bg-emerald-500/15 text-[var(--theme-ui-positive)]'
+                      hunters ? 'bg-[color-mix(in_srgb,var(--theme-ui-negative)_15%,transparent)] t-neg' : 'bg-[color-mix(in_srgb,var(--theme-ui-positive)_15%,transparent)] t-pos'
                     }`}
                   >
                     ×{row.count}
@@ -322,6 +365,67 @@ export function HuntersAndPrey({ payload, now, weaponLabel }: { payload: Nemesis
   )
 }
 
+// ── Clans suivis ─────────────────────────────────────────────────────────────────────────────────
+
+/** Une liste de la carte : les 3 derniers joueurs (distincts) éliminés, ou les 3 derniers à t'avoir eu. */
+function TrackedDuelList({ duels, tone, now, labels }: { duels: TrackedClanDuel[]; tone: 'kill' | 'death'; now: Date; labels?: Record<string, string> }) {
+  const kill = tone === 'kill'
+  const title = kill ? 'Derniers éliminés' : 'Derniers à t’avoir eu'
+  return (
+    <div className="flex flex-col gap-1.5" data-testid={kill ? 'tracked-recent-kills' : 'tracked-recent-deaths'}>
+      <span className={`t-label ${kill ? 't-pos' : 't-neg'}`}>{title}</span>
+      {duels.length > 0 ? (
+        <ol className="flex flex-col gap-2" aria-label={title}>
+          {duels.map((duel) => (
+            <li key={duel.key} className="flex items-center gap-2.5">
+              <Silhouette weapon={duel.weapon} className="h-6 w-14" />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <OpponentName name={duel.name} tracked={duel.tracked} className="truncate text-sm font-bold text-gray-900" />
+                  <TrackedClanBadge tracked={duel.tracked} />
+                </span>
+                <span className="t-meta truncate">
+                  {duel.weapon ? `${weaponLabelOf(labels, duel.weapon)} · ` : ''}
+                  {elapsedLabel(duel.at, now)}
+                </span>
+              </span>
+              <span
+                className={`t-num min-w-9 shrink-0 rounded-full px-2 py-0.5 text-center text-[13px] font-black ${
+                  kill ? 'bg-[color-mix(in_srgb,var(--theme-ui-positive)_15%,transparent)] t-pos' : 'bg-[color-mix(in_srgb,var(--theme-ui-negative)_15%,transparent)] t-neg'
+                }`}
+                title={`${duel.count} fois sur la période`}
+              >
+                ×{duel.count}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <span className="t-meta">{kill ? 'Aucun joueur d’un autre clan suivi éliminé.' : 'Aucun joueur d’un autre clan suivi ne t’a eu.'}</span>
+      )}
+    </div>
+  )
+}
+
+/** Duels récents contre les autres clans suivis par le site : les 3 derniers éliminés, les 3 derniers à t'avoir eu, les totaux. */
+export function TrackedClans({ duels, now, labels }: { duels: NemesisPayload['trackedDuels']; now: Date; labels?: Record<string, string> }) {
+  return (
+    <aside aria-label="Clans suivis" className="app-panel flex flex-col gap-3 p-3.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <ShieldCheck className="h-4 w-4 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+        <h2 className="t-card-title whitespace-nowrap">Clans suivis</h2>
+        <span className="t-meta">tes derniers duels contre les autres clans du site</span>
+      </div>
+      <TrackedDuelList duels={duels?.recentKills ?? []} tone="kill" now={now} labels={labels} />
+      <TrackedDuelList duels={duels?.recentDeaths ?? []} tone="death" now={now} labels={labels} />
+      <span className="t-meta t-num mt-auto border-t border-gray-200 pt-2.5" data-testid="tracked-totals">
+        Sur la période : <b className="t-pos">{duels?.killCount ?? 0}</b> {(duels?.killCount ?? 0) > 1 ? 'kills' : 'kill'} ·{' '}
+        <b className="t-neg">{duels?.deathCount ?? 0}</b> {(duels?.deathCount ?? 0) > 1 ? 'morts' : 'mort'} contre les clans suivis, quelle que soit l’arme choisie.
+      </span>
+    </aside>
+  )
+}
+
 // ── Death cam ────────────────────────────────────────────────────────────────────────────────────
 
 export function DeathCam({ weapons, labels }: { weapons: NemesisPayload['topDeathWeapons']; labels?: Record<string, string> }) {
@@ -329,9 +433,9 @@ export function DeathCam({ weapons, labels }: { weapons: NemesisPayload['topDeat
   return (
     <aside aria-label="Death cam" className="app-panel flex flex-col gap-2 p-3.5">
       <div className="flex items-center gap-2">
-        <Video className="h-4 w-4 text-rose-400" aria-hidden="true" />
-        <h2 className="text-[15px] font-extrabold text-gray-900">Death cam</h2>
-        <span className="text-xs text-gray-500">les armes qui t’ont eu</span>
+        <Video className="h-4 w-4 t-neg" aria-hidden="true" />
+        <h2 className="t-card-title">Death cam</h2>
+        <span className="t-meta">les armes qui t’ont eu</span>
       </div>
       {weapons.length > 0 ? (
         <ol className="flex flex-col gap-2" aria-label="Armes qui t’ont eu">
@@ -341,19 +445,19 @@ export function DeathCam({ weapons, labels }: { weapons: NemesisPayload['topDeat
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="flex justify-between text-[13px]">
                   <span className="truncate font-semibold text-gray-900">{weaponLabelOf(labels, weapon.weaponName)}</span>
-                  <b className="tabular-nums text-gray-900">{weapon.count}</b>
+                  <b className="t-num text-gray-900">{weapon.count}</b>
                 </span>
                 <span className="h-[5px] overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
-                  <span className="block h-full rounded-full bg-rose-400" style={{ width: `${max > 0 ? Math.round((weapon.count / max) * 100) : 0}%` }} />
+                  <span className="block h-full rounded-full bg-[var(--game-neg)]" style={{ width: `${max > 0 ? Math.round((weapon.count / max) * 100) : 0}%` }} />
                 </span>
               </span>
             </li>
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-gray-500">Aucune mort par arme sur la période.</p>
+        <p className="t-body text-gray-500">Aucune mort par arme sur la période.</p>
       )}
-      <span className="mt-1 text-xs text-gray-500">Toujours sur toutes tes morts de la période, même avec un filtre d’arme.</span>
+      <span className="t-meta mt-1">Toutes tes morts de la période, quelle que soit l’arme choisie.</span>
     </aside>
   )
 }

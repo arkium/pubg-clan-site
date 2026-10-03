@@ -4005,3 +4005,27 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .charte .map-overlay-active {
   color: #1c1003;
 }
+
+/* Némésis : cartes du face-à-face (signature §0b « Conserver ») — toujours sombres dans les deux thèmes, teinte rose pour
+   le némésis, verte pour la proie favorite. Couleurs fixes : elles sont posées sur un fond sombre quel que soit le thème. */
+.duel-card {
+  border-radius: 14px;
+  color: #fff;
+}
+
+.duel-card--nemesis {
+  border-color: rgb(244 63 94 / 0.5);
+  background: linear-gradient(160deg, #2a0a12, #0b0f1a 70%);
+}
+
+.duel-card--prey {
+  border-color: rgb(52 211 153 / 0.45);
+  background: linear-gradient(160deg, #052e22, #0b0f1a 70%);
+}
+
+.duel-card--nemesis .duel-card__eyebrow { color: #fda4af; }
+.duel-card--prey .duel-card__eyebrow { color: #6ee7b7; }
+.duel-card--nemesis .duel-card__count,
+.duel-card--nemesis .duel-card__icon { color: #fb7185; }
+.duel-card--prey .duel-card__count,
+.duel-card--prey .duel-card__icon { color: #34d399; }

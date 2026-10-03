@@ -1,4 +1,4 @@
-import { buildNemesis, isBotAccountId, isRealWeaponName, type OpponentInfo } from '@/lib/nemesis'
+import { buildNemesis, isBotAccountId, trackedClanDuels, isRealWeaponName, type OpponentInfo, type OpponentRow, type TrackedClanInfo } from '@/lib/nemesis'
 import { getPeriodStart } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 import { resolveWeaponName } from '@/lib/pubg-assets'
@@ -60,10 +60,42 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     ).sort((left, right) => resolveWeaponName(left).localeCompare(resolveWeaponName(right), 'fr-FR'))
 
     const encounteredByAccount = new Map(encountered.map((entry) => [entry.pubgAccountId, entry]))
+    // Repli (2026-10-03) : un adversaire jamais croisé dans un lobby par CE clan peut être connu ailleurs — identité
+    // globale `Player` (nommée par un autre clan suivi, ou par le cron qui résout en priorité les comptes du kill feed),
+    // ou joueur croisé par un autre clan. Une seule requête par table, bornée aux comptes encore sans nom.
+    const unnamedAccountIds = Array.from(
+      new Set(
+        [...deaths.map((event) => event.killerAccountId), ...kills.map((event) => event.victimAccountId)].filter(
+          (accountId): accountId is string => !!accountId && !isBotAccountId(accountId) && !encounteredByAccount.has(accountId)
+        )
+      )
+    )
+    const [globalPlayers, otherClansEncountered] = unnamedAccountIds.length
+      ? await Promise.all([
+          prisma.player.findMany({
+            where: { pubgAccountId: { in: unnamedAccountIds } },
+            select: { pubgAccountId: true, pubgPlayerName: true, opponentClan: { select: { tag: true } } },
+          }),
+          prisma.encounteredPlayer.findMany({
+            where: { pubgAccountId: { in: unnamedAccountIds } },
+            select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
+            distinct: ['pubgAccountId'],
+          }),
+        ])
+      : [[], []]
+    const knownElsewhere = new Map<string, { pubgPlayerName: string; pubgClanTag: string | null }>()
+    for (const entry of otherClansEncountered) knownElsewhere.set(entry.pubgAccountId, entry)
+    for (const player of globalPlayers) {
+      // Un `Player` créé sans nom garde son identifiant de compte : ce n'est pas un nom.
+      if (player.pubgPlayerName && player.pubgPlayerName !== player.pubgAccountId) {
+        knownElsewhere.set(player.pubgAccountId, { pubgPlayerName: player.pubgPlayerName, pubgClanTag: player.opponentClan?.tag ?? null })
+      }
+    }
+
     function resolveOpponent(accountId: string | null, rawKey: string | null): OpponentInfo {
       if (isBotAccountId(accountId)) return { key: accountId as string, name: 'Bot', clanTag: null, isBot: true, resolved: true }
       if (accountId) {
-        const info = encounteredByAccount.get(accountId)
+        const info = encounteredByAccount.get(accountId) ?? knownElsewhere.get(accountId)
         if (info) return { key: accountId, name: info.pubgPlayerName, clanTag: info.pubgClanTag, isBot: false, resolved: true }
         // Vu dans le kill feed mais jamais relevé dans un lobby (match rattrapé) : seul l'identifiant est connu.
         return { key: accountId, name: accountId, clanTag: null, isBot: false, resolved: false }
@@ -71,7 +103,35 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return { key: rawKey ?? 'unknown', name: rawKey ?? 'Inconnu', clanTag: null, isBot: false, resolved: true }
     }
 
-    const summary = buildNemesis({ deaths, kills, weapon, resolveOpponent })
+    const built = buildNemesis({ deaths, kills, weapon, resolveOpponent })
+
+    // Joueurs des clans suivis (2026-10-03) : l'effectif actif des clans actifs, ni système ni archivés — quelques
+    // centaines de lignes, une requête. Sert au repère « clan suivi » des lignes et à la carte « Clans suivis ».
+    const trackedMembers = await prisma.clanMember.findMany({
+      where: {
+        pubgAccountId: { not: null },
+        isActive: true,
+        joinStatus: 'active',
+        clan: { isActive: true, isSystem: false, archivedAt: null },
+      },
+      select: { id: true, displayName: true, pubgAccountId: true, clan: { select: { id: true, tag: true, name: true } } },
+    })
+    const trackedByAccount = new Map<string, TrackedClanInfo>()
+    for (const tracked of trackedMembers) {
+      if (!tracked.pubgAccountId || !tracked.clan) continue
+      trackedByAccount.set(tracked.pubgAccountId, {
+        clanId: tracked.clan.id,
+        clanTag: tracked.clan.tag,
+        clanName: tracked.clan.name,
+        memberId: tracked.id,
+        memberName: tracked.displayName,
+        sameClan: tracked.clan.id === member.clanId,
+      })
+    }
+    const trackedOf = (accountId: string) => trackedByAccount.get(accountId) ?? null
+    const withTracked = (rows: OpponentRow[]) => rows.map((row) => ({ ...row, tracked: trackedOf(row.key) }))
+    const trackedDuels = trackedClanDuels({ deaths, kills, trackedOf, resolveOpponent })
+    const summary = { ...built, topKillers: withTracked(built.topKillers), topVictims: withTracked(built.topVictims), trackedDuels }
     // Libellés des armes renvoyées (réglage `/settings/weapon-labels`, sinon nom lisible déduit de l'identifiant) :
     // le dictionnaire statique du client ne connaît pas toutes les armes (« WeapRPD_C »).
     const weaponLabels = await getWeaponLabels()
@@ -79,6 +139,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ...availableWeapons,
       ...summary.topDeathWeapons.map((row) => row.weaponName),
       ...[...summary.topKillers, ...summary.topVictims].flatMap((row) => (row.topWeapon ? [row.topWeapon] : [])),
+      ...[...trackedDuels.recentKills, ...trackedDuels.recentDeaths].flatMap((duel) => (duel.weapon ? [duel.weapon] : [])),
     ])
     return Response.json({
       data: {

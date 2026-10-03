@@ -2,12 +2,18 @@ import type { ApiMock } from './api'
 import { MEMBER_ID } from './data'
 import { mockMemberProfile } from './members'
 
-import type { OpponentRow } from '@/lib/nemesis'
+import type { OpponentRow, TrackedClanInfo } from '@/lib/nemesis'
 
 /**
  * Némésis d'un joueur (e2e/nemesis.spec.ts) : 10 chasseurs, 8 proies, un joueur jamais nommé, des duels dans les deux
  * sens. Noms inventés, dates relatives à l'heure du test ; aucun lien avec la production.
+ * Clans suivis : LeGrosSel [SALT] est d'un autre clan suivi, BaguetteSniper du clan du joueur (son nom mène à sa page).
  */
+
+const TRACKED: Record<string, TrackedClanInfo> = {
+  'acc.sel': { clanId: 5, clanTag: 'SALT', clanName: 'Les Salés', memberId: 51, memberName: 'LeGrosSel', sameClan: false },
+  'acc.baguette': { clanId: 1, clanTag: 'DEMO', clanName: 'Clan Démo', memberId: 2, memberName: 'BaguetteSniper', sameClan: true },
+}
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString()
 const W = (id: string) => `Item_Weapon_${id}_C`
@@ -24,6 +30,7 @@ const row = ([key, name, tag, weapon, count, reverseCount, days]: Row, resolved 
   reverseCount,
   lastAt: daysAgo(days),
   topWeapon: W(weapon),
+  tracked: TRACKED[key] ?? null,
 })
 
 const KILLERS: Row[] = [
@@ -65,6 +72,7 @@ export function nemesisPayload(url: URL) {
       botKillCount: 14,
       botDeathCount: 5,
       environmentalDeathCount: 9,
+      suicideCount: 2,
       topDeathWeapons: [
         { weaponName: W('Kar98k'), count: 11 },
         { weaponName: W('BerylM762'), count: 9 },
@@ -76,6 +84,16 @@ export function nemesisPayload(url: URL) {
       topVictims: filter(victims),
       availableWeapons: ['BerylM762', 'DP28', 'Kar98k', 'M24', 'Mini14', 'Mk14', 'UMP', 'Vector'].map(W),
       selectedWeapon: weapon,
+      trackedDuels: {
+        killCount: 9,
+        deathCount: 3,
+        recentKills: [
+          { key: 'acc.sel', name: 'LeGrosSel', tracked: TRACKED['acc.sel'], weapon: W('UMP'), at: daysAgo(4), count: 6 },
+          { key: 'acc.loup', name: 'LoupSolitaire', tracked: { ...TRACKED['acc.sel'], memberId: 52, memberName: 'LoupSolitaire' }, weapon: W('Kar98k'), at: daysAgo(9), count: 2 },
+          { key: 'acc.cerf', name: 'CerfVolant', tracked: { ...TRACKED['acc.sel'], memberId: 53, memberName: 'CerfVolant' }, weapon: null, at: daysAgo(18), count: 1 },
+        ],
+        recentDeaths: [{ key: 'acc.sel', name: 'LeGrosSel', tracked: TRACKED['acc.sel'], weapon: W('Mk14'), at: daysAgo(14), count: 3 }],
+      },
     },
   }
 }

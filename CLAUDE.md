@@ -381,7 +381,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 18 * * *  →  Send online reminders (if enabled)
 0 8 * * 1  →  Weekly report generation
 0 8 1 * *  →  Monthly report generation
-*/30 * * * *  →  Encountered players PUBG clan resolution (two-tier selection, cached ranking)
+*/30 * * * *  →  Encountered players PUBG clan resolution (two-tier selection, cached ranking) — kill feed names first (« Joueur inconnu »)
 45 1 * * *  →  Clan membership sync (per-player clan check — observe mode by default)
 15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h — never deletes data)
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)

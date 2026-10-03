@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   squadMemberFindFirst: vi.fn(),
   killEventFindMany: vi.fn(),
   encounteredFindMany: vi.fn(),
+  playerFindMany: vi.fn(),
   requireNavPermission: vi.fn(),
   requirePermission: vi.fn(),
   requireSameClanAsMember: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('@/lib/prisma', () => ({
     squadMember: { findMany: mocks.squadMemberFindMany, findFirst: mocks.squadMemberFindFirst },
     killEvent: { findMany: mocks.killEventFindMany },
     encounteredPlayer: { findMany: mocks.encounteredFindMany },
+    player: { findMany: mocks.playerFindMany },
   },
 }))
 
@@ -234,6 +236,8 @@ describe('GET /api/members/[id]/nemesis', () => {
     mocks.memberFindUnique.mockResolvedValue({ clanId: 3 })
     mocks.killEventFindMany.mockResolvedValue([])
     mocks.encounteredFindMany.mockResolvedValue([])
+    mocks.playerFindMany.mockResolvedValue([])
+    mocks.memberFindMany.mockResolvedValue([])
   })
 
   it('sans période : tout l’historique suivi (page Némésis inchangée)', async () => {
@@ -272,5 +276,46 @@ describe('GET /api/members/[id]/nemesis', () => {
     expect(data.topKillers[1]).toMatchObject({ key: 'acc.ghost', resolved: false })
     expect(data).toMatchObject({ playerKills: 1, playerDeaths: 3, botKillCount: 1 })
     expect(data.weaponLabels).toMatchObject({ [beryl]: 'Beryl M762', WeapRPD_C: 'WeapRPD_C' })
+  })
+
+  it('un adversaire inconnu du clan est nommé par l’identité globale (Player) ou un autre clan, jamais par son identifiant', async () => {
+    const event = (killer: string) => ({ killerAccountId: killer, killerRawKey: null, victimAccountId: 'acc.me', victimRawKey: null, weaponName: null, matchDate: new Date('2026-09-20T20:00:00Z') })
+    mocks.killEventFindMany.mockResolvedValueOnce([event('acc.ghost'), event('acc.other'), event('acc.raw')]).mockResolvedValueOnce([])
+    mocks.encounteredFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ pubgAccountId: 'acc.other', pubgPlayerName: 'Croisé ailleurs', pubgClanTag: 'OTH' }])
+    mocks.playerFindMany.mockResolvedValue([
+      { pubgAccountId: 'acc.ghost', pubgPlayerName: 'Fantôme', opponentClan: { tag: 'GHO' } },
+      { pubgAccountId: 'acc.raw', pubgPlayerName: 'acc.raw', opponentClan: null },
+    ])
+
+    const response = await getNemesis(new Request('http://localhost/api/members/7/nemesis'), memberParams())
+    const { data } = await response.json()
+    const byKey = Object.fromEntries(data.topKillers.map((row: { key: string }) => [row.key, row]))
+    expect(byKey['acc.ghost']).toMatchObject({ name: 'Fantôme', clanTag: 'GHO', resolved: true })
+    expect(byKey['acc.other']).toMatchObject({ name: 'Croisé ailleurs', clanTag: 'OTH', resolved: true })
+    expect(byKey['acc.raw']).toMatchObject({ resolved: false })
+    expect(mocks.playerFindMany.mock.calls[0][0].where.pubgAccountId.in.sort()).toEqual(['acc.ghost', 'acc.other', 'acc.raw'])
+  })
+
+  it('joueurs des clans suivis : repère sur les lignes, carte des derniers duels (autres clans seulement)', async () => {
+    const event = (killer: string, victim: string, day: number) => ({ killerAccountId: killer, killerRawKey: null, victimAccountId: victim, victimRawKey: null, weaponName: 'Item_Weapon_M416_C', matchDate: new Date(Date.UTC(2026, 8, day, 20)) })
+    mocks.killEventFindMany
+      .mockResolvedValueOnce([event('acc.rival', 'acc.me', 21), event('acc.mate', 'acc.me', 22), event('acc.ext', 'acc.me', 23)])
+      .mockResolvedValueOnce([event('acc.me', 'acc.rival', 20)])
+    mocks.encounteredFindMany.mockResolvedValue([{ pubgAccountId: 'acc.rival', pubgPlayerName: 'Rival', pubgClanTag: 'RVL' }])
+    mocks.memberFindMany.mockResolvedValue([
+      { id: 41, displayName: 'Rival (fiche)', pubgAccountId: 'acc.rival', clan: { id: 5, tag: 'RVL', name: 'Les Rivaux' } },
+      { id: 42, displayName: 'Coéquipier', pubgAccountId: 'acc.mate', clan: { id: 3, tag: 'DEMO', name: 'Clan Démo' } },
+    ])
+
+    const { data } = await (await getNemesis(new Request('http://localhost/api/members/7/nemesis'), memberParams())).json()
+    const byKey = Object.fromEntries(data.topKillers.map((row: { key: string }) => [row.key, row]))
+    expect(byKey['acc.rival'].tracked).toMatchObject({ clanTag: 'RVL', memberId: 41, sameClan: false })
+    expect(byKey['acc.mate'].tracked).toMatchObject({ memberId: 42, sameClan: true })
+    expect(byKey['acc.ext'].tracked).toBeNull()
+    expect(data.trackedDuels).toMatchObject({ killCount: 1, deathCount: 1, recentDeaths: [{ key: 'acc.rival', name: 'Rival', count: 1 }], recentKills: [{ key: 'acc.rival' }] })
+    // Effectif des clans suivis : clans actifs, ni système ni archivés.
+    expect(mocks.memberFindMany.mock.calls[0][0].where.clan).toEqual({ isActive: true, isSystem: false, archivedAt: null })
   })
 })

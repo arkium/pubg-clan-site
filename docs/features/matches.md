@@ -209,11 +209,36 @@ clair : les 10 482 parties de septembre n'avaient plus ni « Top armes » ni « 
 
 Plan de vol de la soirée (`SessionFlightPlan`) : une étape par partie dans l'ordre du jeu, reliées en pointillés, avec
 miniature de carte, heure, `PlacementBadge` et couronne sur un top 1 ; un clic met la carte de la partie en avant.
-Répartition par mode en barre (Duo, Trio, Squad, avec `TeamModeBadge`). Défilement horizontal au-delà de la largeur.
+Répartition par mode en barre (Duo, Trio, Squad, avec `TeamModeBadge`). Au-delà d'une page, les étapes se **paginent par
+chevrons** ‹ › (4 sous 640 px, 7 jusqu'à 1 023 px, 10 au-delà, « parties 1–4 sur 5 ») — plus de défilement horizontal
+(charte, 2026-10-03).
 
 **Écart constaté avec la maquette** : elle imaginait 5 à 7 parties par soirée. Les clans actifs en jouent bien plus (Aurore_Funeste :
 1 123 parties en septembre, jusqu'à ~60 par jour, plusieurs escouades en parallèle). Le carnet passe les cases à la ligne,
-le plan de vol défile ; aucune donnée n'est tronquée.
+le plan de vol se pagine ; aucune donnée n'est tronquée.
+
+### Charte UI (2026-10-03)
+
+La liste des matchs porte `.charte` ([docs/ui/index.html](../ui/index.html#soirees-matchs)) : icône du bandeau à l'accent,
+période et modes à la même hauteur (rails de 40 px, comme les autres pages du clan).
+
+- **`MatchesBanner`** (partagé avec la soirée et l'annuaire `/clans`) : titre en Teko (`t-banner-title`), fond de repli
+  `bg-photo-fallback`, pastilles en jetons de jeu sur la photo (`.app-on-photo`) — « chicken dinner » en or teinté
+  (était ambre plein), « ont joué ce soir » en vert de jeu. Rien n'y dépend de l'accent : le bandeau reste juste sur la
+  soirée et l'annuaire, pas encore migrés. Hauteur inchangée.
+- **`SessionLogbook`** aligné sur la maquette de la charte : jour et trois chiffres en Teko (`t-hero--sm`), libellés
+  `t-label` (11 px, étaient 10), titre `t-card-title`, joueurs `t-meta`, initiales à 11 px.
+- **`SectionTitle`** : `t-section-title` et `t-meta` (aussi sur la soirée) ; **`PlaceCell`** : `t-num`.
+
+La **soirée** porte aussi `.charte` (même jour) :
+
+- **Navigation entre soirées** à une seule hauteur (32 px aux trois largeurs) : ‹ › en `app-toolbar-btn` (plus de
+  `h-[34px]`), jours à 11 px (étaient 10) étirés à la hauteur de la ligne, jour courant en accent.
+- **`MatchResultCard`** sur le gabarit de la carte du carnet de vol du joueur : tampon `.app-stamp` (était ambre),
+  place en Teko `.app-photo-place` (#1 accent, 2–5 vert clair), fond de repli `bg-photo-fallback`, libellés `t-label`
+  (étaient 10 px), « Débriefing » `app-btn--primary`, « État » `app-btn--secondary`.
+- **`SessionFlightPlan`** : titre `t-card-title`, vignettes sur `bg-photo-fallback`, **pagination par chevrons** au lieu
+  du défilement horizontal (voir plus haut).
 
 ### Navigation par session
 

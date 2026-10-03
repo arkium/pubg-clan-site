@@ -2,6 +2,7 @@ import type { Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
 import { CLAN_ID, DEBRIEF_MATCH_ID } from './support/data'
+import { clickInPlace, dock, scrollToY, settle, toolbar } from './support/layout'
 import { mockMatchDebrief } from './support/pages'
 
 /**
@@ -22,11 +23,53 @@ test.beforeEach(async ({ api, page }) => {
 
 test('en-tête : classement sur le lobby, type de partie, durée, escouade et indicateurs', async ({ page }) => {
   const summary = page.getByRole('region', { name: 'Résumé de la partie' })
-  await expect(summary).toContainText('#1 / 26')
+  // Place en Teko sur la photo, sur le nombre d'équipes du lobby.
+  await expect(summary.getByLabel('Place 1 sur 26 équipes')).toHaveText('#1/26')
   await expect(summary).toContainText('Officiel')
+  // Bots du lobby (comptes ai.… des statistiques par joueur) ; mode, type et bots à la même hauteur.
+  await expect(summary).toContainText('2 bots')
+  const heights = await summary
+    .locator('.app-team-mode-badge, .app-npc-badge--lg, span.rounded-full:text-is("Officiel")')
+    .evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().height)))
+  expect(heights).toHaveLength(3)
+  expect(new Set(heights).size).toBe(1)
   await expect(summary).toContainText('27 min 12')
   await expect(summary.getByRole('list', { name: 'Escouade' })).toContainText('Coéquipier Kilo')
   await expect(summary).toContainText('dont coéquipiers : 1')
+  // Nom à la couleur du style de jeu de la semaine (style de jeu du clan), avec sa légende — plus un vert muet.
+  const alpha = summary.getByRole('list', { name: 'Escouade' }).getByRole('listitem').filter({ hasText: 'Joueur Alpha' })
+  await expect(alpha).toHaveAttribute('title', /Fragger cette semaine/)
+  await expect(summary).toContainText('Style de jeu de la semaine')
+})
+
+test('onglets dans le bandeau collant : docké, il porte le retour du fil d’Ariane (rien de docké sur mobile)', async ({ page }, testInfo) => {
+  const bar = toolbar(page)
+  await expect(bar.getByRole('tablist', { name: 'Débriefing' })).toBeVisible()
+  const target = await page.getByRole('link', { name: 'Retour à Matchs' }).getAttribute('href')
+  await expect(bar.getByTestId('toolbar-back')).toHaveCount(0) // au repos : le fil d'Ariane est juste au-dessus
+  // Page courte avec les données figées : une fenêtre basse laisse de quoi défiler au-delà du seuil.
+  const viewport = page.viewportSize()!
+  await page.setViewportSize({ width: viewport.width, height: 480 })
+  await settle(page)
+  if (isNarrow(testInfo)) {
+    // Pas de période : rien de docké sous 640 px (docs/TODO/sticky.md §2).
+    await scrollToY(page, 1200)
+    await expect(bar).toHaveAttribute('data-docked', 'false')
+    return
+  }
+  await dock(page, 40)
+  const back = bar.getByRole('link', { name: 'Retour à Matchs' })
+  await expect(back).toBeVisible()
+  await expect(back).toHaveAttribute('href', target!)
+  const [backHeight, railHeight] = await Promise.all([
+    back.evaluate((el) => Math.round(el.getBoundingClientRect().height)),
+    bar.getByRole('tablist').evaluate((el) => Math.round(el.getBoundingClientRect().height)),
+  ])
+  expect(backHeight).toBe(railHeight)
+  // Les onglets restent utilisables docké.
+  await clickInPlace(page, tab(page, /Escouade/))
+  await expect(page).toHaveURL(/[?&]tab=squad/)
+  await expect(tab(page, /Escouade/)).toHaveAttribute('aria-selected', 'true')
 })
 
 test('l’onglet actif est dans l’URL, survit au rechargement et se pilote au clavier', async ({ page }) => {
@@ -48,10 +91,14 @@ test('l’onglet actif est dans l’URL, survit au rechargement et se pilote au 
 
 test('chronologie : filtres de portée et de type, détail d’un kill, lien vers le replay', async ({ page }, testInfo) => {
   const timeline = page.getByRole('region', { name: 'Chronologie du match' })
-  // Escouade par défaut : le kill entre deux adversaires (e4) n'apparaît pas.
-  await expect(timeline).not.toContainText('Rival Quatre')
+  // Escouade par défaut : le kill hors escouade (e4, un ours sur un bot) n'apparaît pas.
+  await expect(timeline).not.toContainText('Ours')
   await timeline.getByRole('button', { name: 'Tout le match' }).filter({ visible: true }).click()
-  await expect(timeline).toContainText('Rival Quatre')
+  // Bots et ours en badges, jamais leurs identifiants techniques (ai.…, monster.bear…).
+  await expect(timeline.locator('.app-npc-badge--animal')).toHaveText('Ours')
+  await expect(timeline.locator('.app-npc-badge--bot')).toHaveText('Bot')
+  await expect(timeline).not.toContainText('ai.1042')
+  await expect(timeline).not.toContainText('monster.bear')
 
   await timeline.getByRole('button', { name: /^Kills/ }).filter({ visible: true }).click()
   await expect(timeline).not.toContainText('revient en jeu')

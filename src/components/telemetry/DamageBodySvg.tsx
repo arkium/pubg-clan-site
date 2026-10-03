@@ -20,6 +20,11 @@ export interface DamageBodySvgProps {
   size?: 'sm' | 'md' | 'lg' | number
   showLabels?: boolean
   showTooltips?: boolean
+  /**
+   * Étiquettes chiffrées dessinées sur chaque zone (défaut : oui). À couper sur une petite silhouette (`size="sm"`) :
+   * leur texte y tomberait sous 7 px (charte : 11 px minimum) ; les chiffres vont alors à côté, et dans l'info-bulle.
+   */
+  showValues?: boolean
   interactive?: boolean
   className?: string
   variant?: 'received' | 'dealt'
@@ -100,6 +105,7 @@ export function DamageBodySvg({
   size = 'md',
   showLabels = false,
   showTooltips = true,
+  showValues = true,
   interactive = true,
   className = '',
   variant = 'received',
@@ -375,145 +381,149 @@ export function DamageBodySvg({
           {/* ================================================================= */}
           {/* IN-ZONE DIRECT HUD DATA CHIPS (Always visible right on the body)  */}
           {/* ================================================================= */}
+          {showValues && (
+            <>
 
-          {/* Head Chip */}
-          {headDmg > 0 && (
-            <g transform="translate(50, 27)" pointerEvents="none">
-              <rect
-                x="-18"
-                y="-7"
-                width="36"
-                height="14"
-                rx="4"
-                fill="rgba(15, 23, 42, 0.95)"
-                stroke={headDmg >= 70 ? '#f43f5e' : '#fb923c'}
-                strokeWidth="1.2"
-                className="drop-shadow-md"
-              />
-              <text
-                x="0"
-                y="3.5"
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="8"
-                fontWeight="900"
-                fontFamily="monospace"
-              >
-                {headDmg >= 100 ? '💥 100' : `${Math.round(headDmg)}`}
-              </text>
-            </g>
-          )}
+              {/* Head Chip */}
+              {headDmg > 0 && (
+                <g transform="translate(50, 27)" pointerEvents="none">
+                  <rect
+                    x="-18"
+                    y="-7"
+                    width="36"
+                    height="14"
+                    rx="4"
+                    fill="rgba(15, 23, 42, 0.95)"
+                    stroke={headDmg >= 70 ? '#f43f5e' : '#fb923c'}
+                    strokeWidth="1.2"
+                    className="drop-shadow-md"
+                  />
+                  <text
+                    x="0"
+                    y="3.5"
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="8"
+                    fontWeight="900"
+                    fontFamily="monospace"
+                  >
+                    {headDmg >= 100 ? '💥 100' : `${Math.round(headDmg)}`}
+                  </text>
+                </g>
+              )}
 
-          {/* Torso Chip */}
-          {torsoDmg > 0 && (
-            <g transform="translate(50, 71)" pointerEvents="none">
-              <rect
-                x="-19"
-                y="-7.5"
-                width="38"
-                height="15"
-                rx="4"
-                fill="rgba(15, 23, 42, 0.95)"
-                stroke={torsoDmg >= 70 ? '#f43f5e' : torsoDmg >= 35 ? '#fb923c' : '#facc15'}
-                strokeWidth="1.2"
-                className="drop-shadow-md"
-              />
-              <text
-                x="0"
-                y="3.8"
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="8.5"
-                fontWeight="900"
-                fontFamily="monospace"
-              >
-                🛡️ {Math.round(torsoDmg)}
-              </text>
-            </g>
-          )}
+              {/* Torso Chip */}
+              {torsoDmg > 0 && (
+                <g transform="translate(50, 71)" pointerEvents="none">
+                  <rect
+                    x="-19"
+                    y="-7.5"
+                    width="38"
+                    height="15"
+                    rx="4"
+                    fill="rgba(15, 23, 42, 0.95)"
+                    stroke={torsoDmg >= 70 ? '#f43f5e' : torsoDmg >= 35 ? '#fb923c' : '#facc15'}
+                    strokeWidth="1.2"
+                    className="drop-shadow-md"
+                  />
+                  <text
+                    x="0"
+                    y="3.8"
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="8.5"
+                    fontWeight="900"
+                    fontFamily="monospace"
+                  >
+                    🛡️ {Math.round(torsoDmg)}
+                  </text>
+                </g>
+              )}
 
-          {/* Arms Chip */}
-          {armsDmg > 0 && (
-            <g transform="translate(82, 80)" pointerEvents="none">
-              <rect
-                x="-15"
-                y="-6.5"
-                width="30"
-                height="13"
-                rx="3.5"
-                fill="rgba(15, 23, 42, 0.95)"
-                stroke={armsDmg >= 70 ? '#f43f5e' : '#fb923c'}
-                strokeWidth="1"
-                className="drop-shadow-md"
-              />
-              <text
-                x="0"
-                y="3.2"
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="7.5"
-                fontWeight="900"
-                fontFamily="monospace"
-              >
-                {Math.round(armsDmg)}
-              </text>
-            </g>
-          )}
+              {/* Arms Chip */}
+              {armsDmg > 0 && (
+                <g transform="translate(82, 80)" pointerEvents="none">
+                  <rect
+                    x="-15"
+                    y="-6.5"
+                    width="30"
+                    height="13"
+                    rx="3.5"
+                    fill="rgba(15, 23, 42, 0.95)"
+                    stroke={armsDmg >= 70 ? '#f43f5e' : '#fb923c'}
+                    strokeWidth="1"
+                    className="drop-shadow-md"
+                  />
+                  <text
+                    x="0"
+                    y="3.2"
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="7.5"
+                    fontWeight="900"
+                    fontFamily="monospace"
+                  >
+                    {Math.round(armsDmg)}
+                  </text>
+                </g>
+              )}
 
-          {/* Pelvis Chip */}
-          {pelvisDmg > 0 && (
-            <g transform="translate(50, 110)" pointerEvents="none">
-              <rect
-                x="-16"
-                y="-6.5"
-                width="32"
-                height="13"
-                rx="3.5"
-                fill="rgba(15, 23, 42, 0.95)"
-                stroke={pelvisDmg >= 70 ? '#f43f5e' : '#fb923c'}
-                strokeWidth="1"
-                className="drop-shadow-md"
-              />
-              <text
-                x="0"
-                y="3.2"
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="7.5"
-                fontWeight="900"
-                fontFamily="monospace"
-              >
-                {Math.round(pelvisDmg)}
-              </text>
-            </g>
-          )}
+              {/* Pelvis Chip */}
+              {pelvisDmg > 0 && (
+                <g transform="translate(50, 110)" pointerEvents="none">
+                  <rect
+                    x="-16"
+                    y="-6.5"
+                    width="32"
+                    height="13"
+                    rx="3.5"
+                    fill="rgba(15, 23, 42, 0.95)"
+                    stroke={pelvisDmg >= 70 ? '#f43f5e' : '#fb923c'}
+                    strokeWidth="1"
+                    className="drop-shadow-md"
+                  />
+                  <text
+                    x="0"
+                    y="3.2"
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="7.5"
+                    fontWeight="900"
+                    fontFamily="monospace"
+                  >
+                    {Math.round(pelvisDmg)}
+                  </text>
+                </g>
+              )}
 
-          {/* Legs Chip */}
-          {legsDmg > 0 && (
-            <g transform="translate(50, 156)" pointerEvents="none">
-              <rect
-                x="-16"
-                y="-6.5"
-                width="32"
-                height="13"
-                rx="3.5"
-                fill="rgba(15, 23, 42, 0.95)"
-                stroke={legsDmg >= 70 ? '#f43f5e' : '#fb923c'}
-                strokeWidth="1"
-                className="drop-shadow-md"
-              />
-              <text
-                x="0"
-                y="3.2"
-                textAnchor="middle"
-                fill="#ffffff"
-                fontSize="7.5"
-                fontWeight="900"
-                fontFamily="monospace"
-              >
-                {Math.round(legsDmg)}
-              </text>
-            </g>
+              {/* Legs Chip */}
+              {legsDmg > 0 && (
+                <g transform="translate(50, 156)" pointerEvents="none">
+                  <rect
+                    x="-16"
+                    y="-6.5"
+                    width="32"
+                    height="13"
+                    rx="3.5"
+                    fill="rgba(15, 23, 42, 0.95)"
+                    stroke={legsDmg >= 70 ? '#f43f5e' : '#fb923c'}
+                    strokeWidth="1"
+                    className="drop-shadow-md"
+                  />
+                  <text
+                    x="0"
+                    y="3.2"
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="7.5"
+                    fontWeight="900"
+                    fontFamily="monospace"
+                  >
+                    {Math.round(legsDmg)}
+                  </text>
+                </g>
+              )}
+            </>
           )}
         </svg>
 

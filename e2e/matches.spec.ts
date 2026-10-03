@@ -45,13 +45,25 @@ test.describe('soirée', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Samedi 26 septembre' })).toBeVisible()
   })
 
-  test('la partie de 00:40 reste dans la soirée qui a commencé la veille', async ({ page }) => {
+  test('la partie de 00:40 reste dans la soirée qui a commencé la veille', async ({ page }, testInfo) => {
     const plan = page.getByRole('region', { name: 'Plan de vol de la soirée' })
-    const steps = plan.getByRole('button')
-    await expect(steps).toHaveCount(5)
-    await expect(steps.first()).toHaveAccessibleName(/^19:42/)
-    await expect(steps.last()).toHaveAccessibleName(/^00:40/)
+    const steps = plan.getByRole('button', { name: /^\d{2}:\d{2} · / })
     await expect(plan).toContainText('19:42 → 01:05')
+    await expect(steps.first()).toHaveAccessibleName(/^19:42/)
+    if (isNarrow(testInfo)) {
+      // Jamais de défilement horizontal (charte) : 4 étapes par page sur mobile, la 5e derrière le chevron.
+      await expect(steps).toHaveCount(4)
+      await expect(plan).toContainText('parties 1–4 sur 5')
+      await plan.getByRole('button', { name: 'Parties suivantes' }).click()
+      await expect(steps).toHaveCount(1)
+    } else {
+      await expect(steps).toHaveCount(5)
+    }
+    await expect(steps.last()).toHaveAccessibleName(/^00:40/)
+    const scrollers = await plan.evaluate((node) =>
+      [...node.querySelectorAll('*')].filter((el) => ['auto', 'scroll'].includes(getComputedStyle(el).overflowX)).length
+    )
+    expect(scrollers).toBe(0)
   })
 
   test('navigation datée entre soirées', async ({ page }, testInfo) => {

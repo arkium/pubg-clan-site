@@ -267,3 +267,29 @@ export function throwableSummary(rows: ReadonlyArray<{ itemId: string; count: nu
     return count > 0 ? [`${count} ${count > 1 ? plural : singular}`] : []
   }).join(' · ')
 }
+
+/**
+ * Personnage non joueur du kill-feed et de la chronologie : bot (compte `ai.1042`) ou animal (`monster.bear-02`). La
+ * télémétrie ne leur donne qu'un identifiant technique ; le débriefing affiche un badge (« Bot », « Ours »), jamais
+ * l'identifiant.
+ */
+export type NpcKind = 'bot' | 'bear' | 'animal'
+
+export const NPC_LABELS: Record<NpcKind, string> = { bot: 'Bot', bear: 'Ours', animal: 'Animal' }
+
+export function npcKindOf(name: string | null | undefined): NpcKind | null {
+  const value = (name ?? '').trim().toLowerCase()
+  if (value.startsWith('ai.')) return 'bot'
+  if (value.startsWith('monster.bear')) return 'bear'
+  if (value.startsWith('monster.')) return 'animal'
+  return null
+}
+
+/**
+ * Bots du lobby, comptés dans les statistiques par joueur de la télémétrie (`memberStats`, tout le lobby) : comptes
+ * `ai.…`. `players` compte toutes les lignes, bots compris.
+ */
+export function lobbyBotCount(memberStats: ReadonlyArray<{ memberKey?: string | null }>): { bots: number; players: number } {
+  const keys = memberStats.map((row) => row.memberKey ?? '').filter(Boolean)
+  return { bots: keys.filter((key) => npcKindOf(key) === 'bot').length, players: keys.length }
+}

@@ -105,10 +105,10 @@ export function PlayerDot({ label, color, avatar, size, style }: { label: string
 }
 
 /** Légende des couleurs de pastille : le style de jeu dominant sur la période (couleurs de la liste des membres). */
-export function PlaystyleLegend({ className = '' }: { className?: string }) {
+export function PlaystyleLegend({ className = '', label = 'Style de jeu sur la période' }: { className?: string; label?: string }) {
   return (
     <span className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 ${className}`}>
-      Style de jeu sur la période :
+      {label} :
       {ROSTER_ROLES.map((role) => (
         <span key={role.id} className="inline-flex items-center gap-1">
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: role.color }} aria-hidden="true" />

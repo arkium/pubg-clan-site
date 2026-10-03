@@ -28,7 +28,7 @@ export default function SessionLogbook({
         <span id="sessions-title">Soirées</span>
       </SectionTitle>
       {sessions.length === 0 ? (
-        <p className="app-panel p-4 text-sm text-gray-500">Aucune soirée sur la période sélectionnée.</p>
+        <p className="app-panel t-body p-4 text-gray-500">Aucune soirée sur la période sélectionnée.</p>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {sessions.map((session) => {
@@ -46,13 +46,13 @@ export default function SessionLogbook({
                   className="app-panel grid items-center gap-x-3.5 gap-y-2.5 px-3.5 py-3 transition-colors hover:bg-gray-50 [grid-template-columns:56px_minmax(0,1fr)] sm:[grid-template-columns:56px_minmax(0,1fr)_auto_16px]"
                   style={wins > 0 ? { boxShadow: 'inset 3px 0 0 var(--game-gold)' } : undefined}
                 >
-                  <span className="app-panel-muted flex h-14 w-14 flex-col items-center justify-center">
-                    <span className="text-[22px] font-extrabold leading-none">{day}</span>
-                    <span className="text-[11px] font-semibold uppercase text-gray-500">{weekday}</span>
+                  <span className="app-panel-muted flex h-14 w-14 flex-col items-center justify-center gap-0.5">
+                    <span className="t-hero t-hero--sm text-gray-900">{day}</span>
+                    <span className="t-label">{weekday}</span>
                   </span>
                   <span className="flex min-w-0 flex-col gap-1.5">
                     <span className="flex flex-wrap items-center gap-2">
-                      <b className="text-[15px]">{full}</b>
+                      <b className="t-card-title">{full}</b>
                       {wins > 0 && (
                         <span
                           className="inline-flex items-center gap-1 rounded-full border px-2 text-[11px] font-bold"
@@ -74,28 +74,28 @@ export default function SessionLogbook({
                           <span
                             key={member.memberId}
                             title={member.displayName}
-                            className="-mr-1.5 inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 bg-gray-50 text-[10px] font-bold text-gray-700"
+                            className="-mr-1.5 inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 bg-gray-50 text-[11px] font-bold text-gray-700"
                             style={{ borderColor: 'var(--theme-ui-surface)' }}
                           >
                             {member.displayName.charAt(0).toUpperCase()}
                           </span>
                         ))}
                       </span>
-                      <span className="ml-2 truncate text-xs text-gray-500">
+                      <span className="t-meta ml-2 truncate">
                         {session.members.map((member) => member.displayName).join(', ')}
                         {games.length ? ` · ${modeSummaryText(games)}` : ''}
                       </span>
                     </span>
                   </span>
-                  <span className="col-start-2 flex gap-4 tabular-nums sm:col-start-auto sm:justify-end sm:gap-5">
+                  <span className="col-start-2 flex gap-4 sm:col-start-auto sm:justify-end sm:gap-5">
                     {[
                       { label: 'Kills', value: numberFormat.format(session.totalKills) },
                       { label: 'Dégâts', value: numberFormat.format(Math.round(session.totalDamage)) },
                       { label: 'Durée', value: formatPlayTime(session.totalDuration) },
                     ].map((stat) => (
-                      <span key={stat.label} className="text-left sm:text-right">
-                        <span className="block text-base font-bold">{stat.value}</span>
-                        <span className="block text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-500">{stat.label}</span>
+                      <span key={stat.label} className="flex flex-col gap-0.5 text-left sm:text-right">
+                        <span className="t-hero t-hero--sm whitespace-nowrap text-gray-900">{stat.value}</span>
+                        <span className="t-label">{stat.label}</span>
                       </span>
                     ))}
                   </span>

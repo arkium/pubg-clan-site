@@ -160,7 +160,8 @@ export default function ClanSessionDatePage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush game-ui flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel={full}
@@ -171,7 +172,7 @@ export default function ClanSessionDatePage() {
           image={bannerMap ? mapAssetUrl(bannerMap) : '/matches.jpg'}
           eyebrow={clanName ? `Soirée · ${clanName}` : 'Soirée du clan'}
           icon={MoonStar}
-          iconColor="#fde68a"
+          iconColor="var(--theme-ui-accent)"
           title={full}
           chips={[
             { icon: Gamepad2, text: `${games} partie${games > 1 ? 's' : ''}` },
@@ -181,20 +182,23 @@ export default function ClanSessionDatePage() {
         />
       </div>
 
-      {/* Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). */}
+      {/*
+        Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). Une seule hauteur par ligne : les
+        boutons ‹ › (habillage app-toolbar-btn) et les jours s'étirent à la hauteur de la ligne, sans hauteur fixe.
+      */}
       <DockingToolbar ariaLabel="Navigation entre les soirées" dockOnMobile={false}>
-        <nav className="flex w-full items-center gap-3" aria-label="Soirées voisines">
+        <nav className="flex w-full items-stretch gap-3" aria-label="Soirées voisines">
           {previousDate ? (
             <Link
               href={sessionHref(previousDate)}
-              className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-700 hover:bg-gray-50"
+              className="app-toolbar-btn shrink-0"
               aria-label={`Soirée précédente : ${sessionDateParts(previousDate).full}`}
             >
               <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
               {dayLabel(previousDate)}
             </Link>
           ) : (
-            <span className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-500 opacity-50">
+            <span className="app-toolbar-btn shrink-0 opacity-45" aria-disabled="true">
               <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
               Précédente
             </span>
@@ -204,39 +208,39 @@ export default function ClanSessionDatePage() {
               const parts = sessionDateParts(value)
               const current = value === date
               return (
-                <li key={value}>
+                <li key={value} className="flex">
                   <Link
                     href={sessionHref(value)}
                     title={parts.full}
                     aria-current={current ? 'page' : undefined}
-                    className="inline-flex h-[34px] min-w-10 flex-col items-center justify-center rounded-lg border px-1 text-[10px] font-semibold leading-tight"
+                    className="inline-flex min-h-8 min-w-10 flex-col items-center justify-center rounded-lg border px-1 text-[11px] font-semibold leading-none"
                     style={
                       current
                         ? { borderColor: 'var(--theme-ui-accent-ring)', background: 'var(--theme-ui-accent-soft)', color: 'var(--theme-ui-accent-text)' }
                         : { borderColor: 'var(--theme-ui-border)', color: 'var(--theme-ui-text-muted)' }
                     }
                   >
-                    <b className="text-[13px]">{parts.day}</b>
+                    <b className="t-num text-[13px] leading-tight">{parts.day}</b>
                     {parts.weekday}
                   </Link>
                 </li>
               )
             })}
           </ol>
-          <span className="flex-1 text-center text-xs text-gray-500 sm:hidden">
+          <span className="t-meta flex flex-1 items-center justify-center sm:hidden">
             {currentDateIndex >= 0 ? `Soirée ${sortedSessionDates.length - currentDateIndex} / ${sortedSessionDates.length}` : ''}
           </span>
           {nextDate ? (
             <Link
               href={sessionHref(nextDate)}
-              className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-700 hover:bg-gray-50"
+              className="app-toolbar-btn shrink-0"
               aria-label={`Soirée suivante : ${sessionDateParts(nextDate).full}`}
             >
               {dayLabel(nextDate)}
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
           ) : (
-            <span className="inline-flex h-[34px] shrink-0 items-center gap-1.5 rounded-[9px] border border-gray-200 px-3 text-[13px] font-semibold text-gray-500 opacity-50">
+            <span className="app-toolbar-btn shrink-0 opacity-45" aria-disabled="true">
               Suivante
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
@@ -246,12 +250,14 @@ export default function ClanSessionDatePage() {
 
       <div className="app-container app-gutter flex flex-col gap-4">
         {loading && sessionMatches.length === 0 ? <TableSkeleton /> : null}
-        {error ? <p className="text-sm" style={{ color: 'var(--game-neg)' }}>{error}</p> : null}
+        {error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
         {!error && sessionMatches.length > 0 ? (
           <div aria-busy={loading} className={`flex flex-col gap-4 ${loading ? 'opacity-60' : ''}`}>
             <KpiGrid items={kpis} className="grid-cols-2 lg:grid-cols-4" />
+            {/* `key` : une autre soirée rouvre le plan de vol sur sa première page. */}
             <SessionFlightPlan
+              key={date}
               matches={sessionMatches}
               mapLabels={mapLabels}
               selectedId={selectedId}
@@ -281,7 +287,7 @@ export default function ClanSessionDatePage() {
         ) : null}
 
         {!loading && !error && sessionMatches.length === 0 ? (
-          <p className="app-panel p-4 text-sm text-gray-500">Aucune partie trouvée pour cette date avec les filtres actuels.</p>
+          <p className="app-panel t-body p-4 text-gray-500">Aucune partie trouvée pour cette date avec les filtres actuels.</p>
         ) : null}
       </div>
     </div>

@@ -113,7 +113,8 @@ export default function ClanMatchesPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush game-ui flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Matchs"
@@ -123,7 +124,7 @@ export default function ClanMatchesPage() {
         <MatchesBanner
           image="/matches.jpg"
           icon={Swords}
-          iconColor="#f87171"
+          iconColor="var(--theme-ui-accent)"
           title={clanName ? `Matchs · ${clanName}` : 'Matchs du clan'}
           chips={[
             { icon: CalendarDays, text: periodChipLabel(period) },
@@ -148,7 +149,7 @@ export default function ClanMatchesPage() {
 
       <div className="app-container app-gutter">
         {showLoading && !hasMatches ? <TableSkeleton className="mb-6" /> : null}
-        {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="app-panel mb-6 p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
         {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
         {!error && (!showLoading || hasMatches) ? (

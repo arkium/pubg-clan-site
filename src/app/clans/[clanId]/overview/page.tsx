@@ -248,13 +248,15 @@ export default function ClanOverviewPage() {
   const ready = !loading && !error && data
 
   return (
-    <div className="game-ui">
-      <div className="app-container app-gutter flex flex-col gap-4 pt-8">
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
+      <div className="app-container app-gutter flex flex-col gap-4">
         <NavigationTrail currentLabel="Vue d'ensemble" currentHref={`/clans/${clanId}/overview`} fallbackParent={{ href: '/clans', label: 'Liste des clans' }} />
 
         {loading && <CardSkeleton />}
         {error && (
-          <div className="app-panel p-6 text-sm" style={{ color: 'var(--game-neg)' }}>
+          <div className="app-panel p-6 text-sm text-[var(--theme-ui-negative)]">
             {error === 'Unauthorized' ? 'Vous n’avez pas la permission de voir cette page.' : error}
           </div>
         )}
@@ -271,7 +273,7 @@ export default function ClanOverviewPage() {
               showcase={showcase}
             />
             {!pubg && (
-              <p className="text-sm text-gray-500">Aucune donnée PUBG pour ce clan : lancez une synchronisation depuis les paramètres.</p>
+              <p className="t-body text-gray-500">Aucune donnée PUBG pour ce clan : lancez une synchronisation depuis les paramètres.</p>
             )}
             <ClanBriefing clanId={clanId} showcase={showcase} />
           </>
@@ -292,10 +294,10 @@ export default function ClanOverviewPage() {
         </DockingToolbar>
       )}
 
-      <div className="app-container app-gutter pb-8">
+      <div className="app-container app-gutter">
         {ready && (
           <div className="flex flex-col gap-6">
-            {cacheError && <p className="app-panel p-3 text-sm" style={{ color: 'var(--game-neg)' }}>{cacheError}</p>}
+            {cacheError && <p className="app-panel p-3 text-sm text-[var(--theme-ui-negative)]">{cacheError}</p>}
             {cacheLoading && !cacheData && (
               <div className="flex flex-col gap-3">
                 <Skeleton className="h-24 w-full" />
@@ -332,11 +334,7 @@ export default function ClanOverviewPage() {
                   />
                   <SynergyBarsPanel bars={synergyBars(synergyGroups)}>
                     {/* Le détail (duos, trios, squads, coopération) vit sur « Style de jeu du clan » depuis le 2026-09-27. */}
-                    <Link
-                      href={`/clans/${clanId}/stats?period=${selectedPeriod}#sec-synergies`}
-                      className="text-xs font-semibold hover:underline"
-                      style={{ color: 'var(--game-link)' }}
-                    >
+                    <Link href={`/clans/${clanId}/stats?period=${selectedPeriod}#sec-synergies`} className="app-link self-start text-xs font-semibold">
                       Synergies et coopération →
                     </Link>
                   </SynergyBarsPanel>

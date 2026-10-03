@@ -66,6 +66,7 @@ const TOOLBAR_PAGES = [
   'src/app/clans/[clanId]/drop-zones/page.tsx',
   'src/app/clans/[clanId]/telemetry/opponents/page.tsx',
   'src/app/clans/[clanId]/telemetry/matches/page.tsx',
+  'src/app/clans/[clanId]/telemetry/matches/[matchId]/debrief/page.tsx',
   'src/app/clans/[clanId]/awards/page.tsx',
   'src/app/clans/[clanId]/members/page.tsx',
   'src/app/clans/[clanId]/challenges/page.tsx',
@@ -87,10 +88,14 @@ const TOOLBAR_PAGES = [
   'src/app/clans-leaderboard/page.tsx',
   'src/app/tournaments/page.tsx',
   'src/app/tournaments/[tournamentId]/page.tsx',
+  'src/app/tournaments/[tournamentId]/matches/[matchId]/page.tsx',
 ]
 
 /** Composants partagés qui rendent le bandeau pour la page qui les importe. */
-const TOOLBAR_COMPONENTS: Record<string, string> = {}
+const TOOLBAR_COMPONENTS: Record<string, string> = {
+  // Débriefing d'un match (vues clan et tournoi) : onglets dans le bandeau, sans période, rien de docké sur mobile.
+  '@/components/telemetry/MatchDebriefView': 'src/components/telemetry/MatchDebriefView.tsx',
+}
 
 /**
  * Pages dont les seuls contrôles appartiennent à une section (saison / ranked, filtre de phase d'un

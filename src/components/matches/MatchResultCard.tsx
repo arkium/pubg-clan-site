@@ -54,7 +54,8 @@ export default function MatchResultCard({
   const state = telemetryState(match)
   const viewContext = { period, fromDate: sessionDateOf(match.createdAt) }
   const minutes = Math.round(match.durationSeconds / 60)
-  const placeColor = match.isWin ? '#fbbf24' : match.placement <= 5 ? '#6ee7b7' : '#fff'
+  // Grande place sur la photo (charte) : #1 accent, 2–5 vert clair, sinon blanc — la photo est sombre dans les deux thèmes.
+  const placeClass = match.isWin ? 'app-photo-place--win' : match.placement <= 5 ? 'app-photo-place--top5' : ''
 
   return (
     <article
@@ -69,29 +70,22 @@ export default function MatchResultCard({
       }
       aria-label={`${timeFormat.format(new Date(match.createdAt))} · ${mapLabel} · place ${match.placement}`}
     >
-      <div
-        className="relative h-24 bg-cover bg-center"
-        style={{ backgroundColor: '#0b1120', backgroundImage: image ? `url('${image}')` : undefined }}
-      >
+      <div className="bg-photo-fallback relative h-24 bg-cover bg-center" style={{ backgroundImage: image ? `url('${image}')` : undefined }}>
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-slate-950/15" aria-hidden="true" />
-        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between text-white">
-          <div>
-            <p className="text-[11px] text-white/75">
+        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2 text-white">
+          <div className="min-w-0">
+            <p className="t-num text-[11px] text-white/75">
               {timeFormat.format(new Date(match.createdAt))}
               {minutes > 0 ? ` · ${minutes} min` : ''}
             </p>
-            <p className="text-[17px] font-extrabold">{mapLabel}</p>
+            <p className="truncate text-[17px] font-extrabold">{mapLabel}</p>
           </div>
-          <p className="text-right text-[30px] font-black leading-none tracking-[-0.03em]" style={{ color: placeColor }}>
+          <p className={`app-photo-place t-hero t-hero--md shrink-0 text-right ${placeClass}`}>
             #{match.placement}
             {match.teamCount ? <span className="text-[13px] font-semibold text-white/65">/{match.teamCount}</span> : null}
           </p>
         </div>
-        {match.isWin && (
-          <span className="absolute left-3 top-2.5 -rotate-3 rounded-md bg-amber-400 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[0.04em] text-amber-950">
-            Chicken dinner
-          </span>
-        )}
+        {match.isWin && <span className="app-stamp absolute left-3 top-2.5">Chicken dinner</span>}
         <span className="absolute right-3 top-2.5 flex items-center gap-1">
           <MatchTypeBadge matchType={match.matchType} />
           <TeamModeBadge mode={teamModeOf(match.members.length)} size="xs" />
@@ -101,45 +95,39 @@ export default function MatchResultCard({
       <div className="flex flex-1 flex-col gap-2.5 p-3">
         <ul className="flex flex-col gap-1.5" aria-label="Kills par joueur">
           {killBars(match.members, sessionMaxKills).map((bar) => (
-            <li key={bar.name} className="grid items-center gap-2 text-xs [grid-template-columns:1fr_70px_22px]">
+            <li key={bar.name} className="grid items-center gap-2 text-xs text-gray-900 [grid-template-columns:1fr_70px_22px]">
               <span className="truncate font-semibold">{bar.name}</span>
               <span className="h-1.5 rounded-full" style={{ background: 'var(--game-track)' }} aria-hidden="true">
                 <span className="block h-1.5 rounded-full" style={{ width: `${bar.percent}%`, background: 'var(--game-neg)' }} />
               </span>
-              <b className="text-right tabular-nums">{bar.kills}</b>
+              <b className="t-num text-right">{bar.kills}</b>
             </li>
           ))}
         </ul>
-        <dl className="grid grid-cols-3 gap-1.5 tabular-nums">
+        <dl className="t-num grid grid-cols-3 gap-1.5">
           {[
             { label: 'Kills', value: numberFormat.format(match.totalKills) },
             { label: 'Dégâts', value: numberFormat.format(Math.round(match.totalDamage)) },
             { label: 'Réa.', value: numberFormat.format(match.totalRevives) },
           ].map((stat) => (
-            <div key={stat.label} className="app-panel-muted px-2 py-1.5">
-              <dt className="text-[10px] font-semibold uppercase text-gray-500">{stat.label}</dt>
-              <dd className="text-[15px] font-extrabold">{stat.value}</dd>
+            <div key={stat.label} className="app-panel-muted min-w-0 px-2 py-1.5">
+              <dt className="t-label truncate">{stat.label}</dt>
+              <dd className="text-[15px] font-extrabold text-gray-900">{stat.value}</dd>
             </div>
           ))}
         </dl>
         <div className="mt-auto flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-500" title={state.title}>
-            <span className="h-[7px] w-[7px] rounded-full" style={{ background: state.color }} aria-hidden="true" />
-            {state.label}
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] text-gray-500" title={state.title}>
+            <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: state.color }} aria-hidden="true" />
+            <span className="truncate">{state.label}</span>
           </span>
+          {/* Même gabarit que la carte du carnet de vol du joueur : action principale en accent, « État » en secondaire. */}
           {state.ready ? (
-            <Link
-              href={matchDebriefPath(clanId, match.id, viewContext)}
-              className="inline-flex h-[30px] items-center rounded-lg px-3 text-xs font-bold text-white"
-              style={{ background: 'var(--theme-ui-accent)' }}
-            >
+            <Link href={matchDebriefPath(clanId, match.id, viewContext)} className="app-btn app-btn--xs app-btn--primary shrink-0">
               Débriefing
             </Link>
           ) : (
-            <Link
-              href={matchTelemetryAuditPath(clanId, match.id, viewContext)}
-              className="inline-flex h-[30px] items-center rounded-lg border border-gray-200 px-3 text-xs font-bold text-gray-700 hover:bg-gray-50"
-            >
+            <Link href={matchTelemetryAuditPath(clanId, match.id, viewContext)} className="app-btn app-btn--xs app-btn--secondary shrink-0">
               État
             </Link>
           )}

@@ -15,6 +15,7 @@ import {
   DEBRIEF_MATCH_ID,
 } from './data'
 import { mockMemberProfile } from './members'
+import { playstyleRows } from './stats'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
 /** Réponses figées de chaque page testée (API du navigateur, paramètres lus depuis l'URL). */
@@ -70,6 +71,8 @@ export function mockMatchDebrief(api: ApiMock) {
   api
     .on('GET', `${base}/telemetry`, (url) => ({ body: debriefTelemetry(Number(url.searchParams.get('teamId')) || null) }))
     .on('GET', `${base}/replay`, { status: 404, body: { ok: false, error: { message: 'Replay indisponible pour ce match.' } } })
+    // Style de jeu de la semaine des membres de l'escouade (couleur des noms).
+    .on('GET', `/api/clans/${CLAN_ID}/telemetry/playstyle`, { body: { ok: true, rows: playstyleRows() } })
 }
 
 /** Matchs du clan et page d'une soirée : une seule API, lue avec la période de l'URL. */

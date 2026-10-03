@@ -1437,16 +1437,24 @@ export function MatchReplay2D({
     },
   ]
 
-  const visibilityOptions: Array<{ value: VisibilityMode; label: string; title?: string }> = [
+  const visibilityOptions: Array<{ value: VisibilityMode; label: string; hint?: string; title?: string }> = [
     {
       value: 'squad',
       label: data.match.clanTag ? `Escouade [${data.match.clanTag}]` : 'Escouade',
+      hint: '+ contacts',
       title: 'Escouade analysée et adversaires au contact direct',
     },
     ...(hasTrackedClans
-      ? [{ value: 'tracked' as const, label: 'Clans suivis', title: `Clans suivis présents : ${data.match.trackedClanTags.join(', ')}` }]
+      ? [
+          {
+            value: 'tracked' as const,
+            label: 'Clans suivis',
+            hint: data.match.trackedClanTags.join(', '),
+            title: `Clans suivis présents : ${data.match.trackedClanTags.join(', ')}`,
+          },
+        ]
       : []),
-    { value: 'all', label: `Global (${data.match.totalPlayers})` },
+    { value: 'all', label: 'Tout le lobby', hint: `${data.match.totalPlayers} joueurs`, title: 'Tous les joueurs de la partie' },
   ]
 
   return (
@@ -1495,7 +1503,7 @@ export function MatchReplay2D({
                 </span>
                 {flight.source === 'landings' ? (
                   <span
-                    className="whitespace-nowrap rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200"
+                    className="whitespace-nowrap rounded bg-amber-500/20 px-1.5 py-0.5 text-[11px] font-semibold text-amber-200"
                     title="Cet axe est déduit des points d’atterrissage : l’appareil n’a pas été suivi directement."
                   >
                     axe estimé
@@ -1643,20 +1651,26 @@ export function MatchReplay2D({
       {/* --- Panneau latéral (sous la carte sur mobile) --- */}
       <aside className="flex flex-col gap-3" aria-label="Réglages du replay">
         <div className="app-panel flex flex-col gap-2 p-3">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Joueurs affichés</span>
-          <div className="debrief-seg flex-wrap" role="group" aria-label="Joueurs affichés">
-            {visibilityOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={visibility === option.value}
-                onClick={() => changeVisibility(option.value)}
-                title={option.title}
-                className="!px-2.5 !text-xs"
-              >
-                {option.label}
-              </button>
-            ))}
+          <span className="t-label">Joueurs affichés</span>
+          {/* Choix exclusif dans un panneau de 300 px : une tuile par ligne (gabarit du menu, élément choisi teinté en
+              accent) plutôt qu'un rail segmenté qui passait sur deux lignes. */}
+          <div className="flex flex-col gap-0.5" role="group" aria-label="Joueurs affichés">
+            {visibilityOptions.map((option) => {
+              const active = visibility === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => changeVisibility(option.value)}
+                  title={option.title}
+                  className={`app-menu__item ${active ? 'app-menu__item--active' : ''}`}
+                >
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {option.hint ? <span className="t-num min-w-0 truncate text-xs font-medium opacity-75">{option.hint}</span> : null}
+                </button>
+              )
+            })}
           </div>
           <p className="flex flex-wrap gap-x-2 text-xs text-gray-500">
             <span className="inline-flex items-center gap-1">
@@ -1672,7 +1686,7 @@ export function MatchReplay2D({
         </div>
 
         <div className="app-panel flex flex-col gap-2 p-3">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+          <span className="t-label inline-flex items-center gap-1.5">
             <Focus className="h-3.5 w-3.5" aria-hidden="true" /> Suivi caméra
           </span>
           <div className="flex flex-wrap gap-1.5">
@@ -1703,14 +1717,14 @@ export function MatchReplay2D({
             })}
           </div>
           {follow !== null && (
-            <button type="button" onClick={resetCamera} className="self-start text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
+            <button type="button" onClick={resetCamera} className="app-link self-start text-xs font-semibold">
               Libérer la caméra
             </button>
           )}
         </div>
 
         <div className="app-panel flex flex-col gap-1 p-3">
-          <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Calques</span>
+          <span className="t-label mb-1">Calques</span>
           {layerToggles
             .filter((toggle) => !toggle.hidden)
             .map((toggle) => {
@@ -1735,7 +1749,7 @@ export function MatchReplay2D({
 
         {(phaseStarts.length > 0 || flightTiming || recallFlights.length > 0) && (
           <div className="app-panel flex flex-col gap-2 p-3">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">Aller à</span>
+            <span className="t-label">Aller à</span>
             <div className="flex flex-wrap gap-1.5">
               {flightTiming && (
                 <button

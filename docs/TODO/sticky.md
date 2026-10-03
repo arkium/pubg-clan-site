@@ -489,6 +489,7 @@ d'exceptions : toutes les pages déclarées sont conformes.
 | Rechargement | — | Résultats précédents gardés, estompés (`aria-busy`) pendant un changement de filtre, sur toutes les pages à bandeau | Sinon la page se repliait sous le bandeau docké et remontait |
 | Menus déroulants dans le bandeau docké | — | Intitulé visible masqué, conservé dans le nom accessible du bouton | Bandeau docké moins haut sur les pages cartographiques |
 | Accessibilité des boutons segmentés | — | `aria-pressed` sur chaque bouton de `SegmentedControl` | État sélectionné annoncé, et testable |
+| Détection du docking | Sentinelle + `IntersectionObserver`, marge haute = header | Marge basse prolongée sans fin (2026-10-03) | Une sentinelle sous l'écran passait d'un coup au-dessus du header (touche Fin, ancre, débriefing au grand en-tête) sans signal : « dehors » → « dehors ». Prolongée, elle compte « dedans » tant qu'elle est sous le header |
 | Défaut des pages | Inchangé | Inchangé (semaine, sauf objets, adversaires, statistiques par carte et calendrier : « Tous » ; fin de zone : mois) | — |
 
 Découvert par les tests, hors de ce chantier : un **premier** visiteur qui ouvre directement une page de clan est

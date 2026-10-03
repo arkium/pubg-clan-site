@@ -1338,6 +1338,52 @@ html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
   opacity: 0.5;
 }
 
+/* Case de type d'événement (chronologie, mobile) : icône, libellé court et compteur en coin, sur 58 px. Une classe
+   plutôt que h-[58px] : la hauteur de .debrief-chip, hors couche, l'emporterait sur l'utilitaire. */
+.debrief-chip--tile {
+  height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+/* Personnage non joueur (débriefing) : bot en ciel, à la façon du badge « Casual » — une partie peuplée de bots se joue
+   presque comme une Casual — ; animal (ours) en or. Jetons --game-* (dans .game-ui). --lg : badge de l'en-tête
+   (« 37 bots »), à la hauteur des badges voisins. */
+.app-npc-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.app-npc-badge--bot {
+  border-color: var(--game-sky-ring);
+  background: var(--game-sky-soft);
+  color: var(--game-sky);
+}
+
+.app-npc-badge--animal {
+  border-color: var(--game-gold-ring);
+  background: var(--game-gold-soft);
+  color: var(--game-gold);
+}
+
+.app-npc-badge--lg {
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
 .debrief-icon-btn {
   display: inline-flex;
   flex-shrink: 0;
@@ -2227,6 +2273,46 @@ button.app-toolbar-btn:hover:not(:disabled) {
   opacity: 0.45;
 }
 
+/* Lien posé en bouton de bandeau (demandes en attente…) : même survol que le bouton. */
+a.app-toolbar-btn:hover {
+  background: var(--theme-ui-hover);
+}
+
+/* Champ de recherche d'un bandeau : habillage du rail segmented et hauteur de la ligne (règle « une seule hauteur
+   par ligne ») — <label class="app-toolbar-search"><svg/><input type="search"/></label>, jamais de h-9. */
+.app-toolbar-search {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-toggle-border);
+  border-radius: 10px;
+  background: var(--theme-toggle-track);
+  color: var(--theme-ui-text-muted);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.app-toolbar-search:focus-within {
+  border-color: var(--theme-ui-accent-ring);
+  box-shadow: 0 0 0 3px var(--theme-ui-accent-soft);
+}
+
+.app-toolbar-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--theme-ui-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.app-toolbar-search input::placeholder {
+  color: var(--theme-ui-text-muted);
+}
+
 .app-menu {
   display: flex;
   flex-direction: column;
@@ -2522,6 +2608,21 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
       color: #6ee7b7;
     }
 
+    /* Couleurs de jeu posées sur une photo (toujours sombre, dans les deux thèmes) : la variante sombre des jetons
+       --game-*, sinon l'or et les fonds teintés du thème clair (brun, crème opaque) s'éteignent sur la photo. */
+    .app-on-photo {
+      --game-pos: rgb(52 211 153);
+      --game-neg: rgb(251 113 133);
+      --game-sky: rgb(125 211 252);
+      --game-gold: rgb(252 211 77);
+      --game-pos-soft: rgb(16 185 129 / 0.2);
+      --game-neg-soft: rgb(244 63 94 / 0.2);
+      --game-sky-soft: rgb(14 165 233 / 0.2);
+      --game-gold-soft: rgb(251 191 36 / 0.18);
+      --game-gold-ring: rgb(251 191 36 / 0.6);
+      --game-pos-ring: rgb(52 211 153 / 0.5);
+    }
+
     /* Tuile de chiffre compacte (statistiques d'une carte, d'une formation) : valeur puis libellé, centrés.
        --active : la tuile du critère de tri, teintée accent. Couleur de la valeur : text-gray-900 ou classe t-*. */
     .app-stat-tile {
@@ -2793,7 +2894,7 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
       ══════════════════════════════════════════════════════════ -->
       <section class="docs-section" id="synchro-code">
         <h2 class="docs-section-title"><span class="docs-section-num">00</span>Synchronisation avec le code</h2>
-        <p class="text-gray-700" style="margin:-0.75rem 0 1.25rem;max-width:760px;font-size:13px;line-height:1.55;"><b>Cette page est la référence cible</b> — migration page par page : une page migrée porte la classe <code>.charte</code> sur son conteneur (jetons d’accent jaune, « en attente » orange, menu de bandeau), plus <code>.t-hero</code> / <code>.t-banner-title</code>. <b>Pages migrées :</b> armurerie du clan (02/10/2026), armes du joueur (03/10/2026), tableau de bord du joueur (03/10/2026), carrière PUBG du joueur (03/10/2026), carnet de vol du joueur (03/10/2026), statistiques par carte du joueur (03/10/2026), style de jeu du joueur (page créée selon la charte, 03/10/2026), zones de drop du clan et du joueur (03/10/2026), calendrier d'activité du joueur (03/10/2026), Némésis du joueur (03/10/2026), objets consommés du joueur (03/10/2026). La charte y est appliquée (accent jaune PUBG, Teko sur les titres et chiffres héros, rayons, vocabulaire) et le code migre vers elle. Comparaison avec <code>src/app/globals.css</code> et <code>src/components/ui/*</code> (arkium/pubg-clan-site, main, 02/10/2026). Chaque section porte un statut et la liste de ses écarts. Les composants du code qui manquaient sont ajoutés dans leur section avec l'étiquette <span class="sync-tag sync-tag--new">Ajouté depuis le code</span>.</p>
+        <p class="text-gray-700" style="margin:-0.75rem 0 1.25rem;max-width:760px;font-size:13px;line-height:1.55;"><b>Cette page est la référence cible</b> — migration page par page : une page migrée porte la classe <code>.charte</code> sur son conteneur (jetons d’accent jaune, « en attente » orange, menu de bandeau), plus <code>.t-hero</code> / <code>.t-banner-title</code>. <b>Pages migrées :</b> armurerie du clan (02/10/2026), armes du joueur (03/10/2026), tableau de bord du joueur (03/10/2026), carrière PUBG du joueur (03/10/2026), carnet de vol du joueur (03/10/2026), statistiques par carte du joueur (03/10/2026), style de jeu du joueur (page créée selon la charte, 03/10/2026), zones de drop du clan et du joueur (03/10/2026), calendrier d'activité du joueur (03/10/2026), Némésis du joueur (03/10/2026), objets consommés du joueur (03/10/2026), vue d'ensemble du clan (03/10/2026), membres du clan (03/10/2026), matchs du clan (03/10/2026), soirée du clan (03/10/2026), débriefing d'un match (03/10/2026, vues clan et tournoi). La charte y est appliquée (accent jaune PUBG, Teko sur les titres et chiffres héros, rayons, vocabulaire) et le code migre vers elle. Comparaison avec <code>src/app/globals.css</code> et <code>src/components/ui/*</code> (arkium/pubg-clan-site, main, 02/10/2026). Chaque section porte un statut et la liste de ses écarts. Les composants du code qui manquaient sont ajoutés dans leur section avec l'étiquette <span class="sync-tag sync-tag--new">Ajouté depuis le code</span>.</p>
         <div class="sync-grid">
           <div class="sync-box"><span class="sync-kpi">37</span><h3>Classes du code non documentées</h3><p>Pagination <code>app-pager-button</code>, liens actifs, tailles de badge, <code>members-*</code>, <code>member-lifetime-*</code>, tiroir mobile.</p></div>
           <div class="sync-box"><span class="sync-kpi">12</span><h3>Classes de la doc absentes de globals.css</h3><p><code>app-input</code>, <code>app-select</code>, <code>app-trophy-chip</code>, <code>p-slot-badge*</code> (7), <code>esport-vs-badge</code>, <code>theme-toggle-btn</code> (propre à la doc).</p></div>
@@ -3192,7 +3293,8 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-segmented-control · app-segmented-control__item · app-segmented-control__item--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Choix exclusif court (période, mode) — via <code>SegmentedControl</code></td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-sort-chip · app-sort-chip--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Puce de tri ou de filtre</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-sort-chip app-sort-chip--active">Kills ↓</button> <button class="app-sort-chip">Dégâts</button></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">mobile-dropdown-nav--compact</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Liste déroulante charte (dans <code>.charte</code>) — jamais de &lt;select&gt;</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
-                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-toolbar-btn</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Bouton d’un bandeau (synchro…) : habillage du rail, hauteur de la ligne (avec self-stretch), jamais de hauteur fixe</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-toolbar-btn">Synchro il y a 9 h</button></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-toolbar-btn</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Bouton d’un bandeau (synchro…) : habillage du rail, hauteur de la ligne (avec self-stretch), jamais de hauteur fixe. Aussi sur un lien (demandes en attente des membres)</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-toolbar-btn">Synchro il y a 9 h</button></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-toolbar-search</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Champ de recherche d’un bandeau (membres du clan) : <code>&lt;label&gt;</code> loupe + <code>input type="search"</code>, habillage du rail, s’étire à la hauteur de la ligne, anneau d’accent au focus — jamais de <code>h-9</code></td><td style="padding:8px 12px;vertical-align:middle;"><label class="app-toolbar-search" style="width:180px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="Nom ou pseudo PUBG" /></label></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-menu-trigger · app-menu-trigger--active · app-menu · app-menu__item · app-menu__item--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Menu maison à tuiles (catégorie d’armes du joueur) : déclencheur aux couleurs du rail, popover, élément choisi teinté</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-menu-trigger app-menu-trigger--active">Fusils d’assaut ▾</button></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-pager-button · app-pager-button--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Chevrons et pages (ChevronPager, listes paginées)</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-pager-button">‹</button><button class="app-pager-button app-pager-button--active">2</button><button class="app-pager-button">›</button></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-pagination-button · app-pagination-label</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Pagination numérotée d’un tableau (<code>Pagination</code>)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
@@ -3253,7 +3355,7 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
             <table style="width:100%;border-collapse:collapse;">
               <thead class="app-table-head"><tr><th class="t-label" style="padding:8px 12px;text-align:left;">Classe</th><th class="t-label" style="padding:8px 12px;text-align:left;">Rôle</th><th class="t-label" style="padding:8px 12px;text-align:left;">Aperçu</th></tr></thead>
               <tbody>
-                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">debrief-seg · debrief-chip · debrief-icon-btn · debrief-switch</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Contrôles du débriefing et du replay 2D (actif en accent)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">debrief-seg · debrief-chip · debrief-icon-btn · debrief-switch</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Contrôles du débriefing et du replay 2D (actif en accent). <code>debrief-chip--tile</code> : case de type d’événement sur mobile (58 px, icône et compteur)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">debrief-row--kill · debrief-row--death</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Ligne d’événement teintée + liseré</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">armory-showcase · armory-rack-card · armory-slot-key · armory-code-tag</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Vitrines d’armes sur ardoise sombre</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">armory-pager-button · armory-progress-step</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Sélecteur à chevrons et crans (catégories)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
@@ -3262,6 +3364,8 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">career-hero-card</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Fond sombre (radial) de la carte « États de service » et de la carte « Carrière PUBG » du tableau de bord — toujours sombre, rayon 14</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">dog-tag · dog-tag--mini · dog-tag__back · dog-tag__hole</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Plaque militaire gravée : plaque avant en métal, version réduite (74 px), plaque arrière pivotée, trou de la chaînette — signature §0b</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-photo-place · app-photo-place--win · app-photo-place--top5</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Grande place sur une photo de carte (toujours sombre) : blanc, #1 accent, 2–5 vert clair — avec <code>t-hero t-hero--md</code></td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-npc-badge · --bot · --animal · --lg</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Personnage non joueur du débriefing : « Bot » en ciel (à la façon du badge « Casual »), « Ours » en or, à la place de l’identifiant technique ; <code>--lg</code> : « N bots » dans l’en-tête, à la hauteur des badges voisins. Jetons <code>--game-*</code> (dans <code>.game-ui</code>)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-on-photo</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Portée à poser sur une photo (vitrine du clan, bandeau d'image) : les jetons <code>--game-*</code> (or, kill, ciel, vert et leurs fonds) prennent leur variante sombre dans les deux thèmes — sans elle, l'or du thème clair vire au brun sur la photo</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">map-overlay-active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Commande posée sur une carte (fond toujours sombre) à l’état actif — lentille « Nos sauts / Densité », « Toute la carte ✕ » : fond accent, encre sombre sous <code>.charte</code></td><td style="padding:8px 12px;vertical-align:middle;"><span style="display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:rgb(2 6 23 / 0.8);"><span class="charte" style="display:contents;"><span class="map-overlay-active" style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:7px;font-size:12px;font-weight:700;">Nos sauts</span></span><span style="display:inline-flex;align-items:center;height:28px;padding:0 10px;font-size:12px;font-weight:700;color:rgb(255 255 255 / 0.8);">Densité</span></span></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">duel-card · duel-card--nemesis · duel-card--prey · duel-card__eyebrow · duel-card__count · duel-card__icon</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Cartes du face-à-face de la Némésis (signature §0b) : fond sombre teinté rose (némésis) ou vert (proie), surtitre, compteur Teko et icône aux couleurs fixes</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">rank-emblem</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Écusson hexagonal du rang classé : dégradé de <code>--rank-color</code> (posée par le composant) vers l’encre sombre</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
@@ -3916,8 +4020,8 @@ border-gray-200  ← hardcodé</code>
         </div>
         <div class="docs-subsection">
           <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Type de partie — MatchTypeBadge <span class="sync-tag sync-tag--new">Ajouté depuis le code</span></div>
-          <div class="ex-row"><span class="inline-flex items-center rounded-full border bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-700/50 px-2.5 py-0.5 text-xs font-semibold">Casual</span><span class="inline-flex items-center rounded-full border bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700/50 px-2.5 py-0.5 text-xs font-semibold">Event</span><span class="inline-flex items-center rounded-full border bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border-rose-200 dark:border-rose-700/50 px-2.5 py-0.5 text-xs font-semibold">Arcade</span><span class="inline-flex items-center rounded-full border bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-700/50 px-2.5 py-0.5 text-xs font-semibold">Custom</span><span class="inline-flex items-center rounded-full border bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/50 px-2.5 py-0.5 text-xs font-semibold">Ranked</span><span class="inline-flex items-center rounded-full border bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-semibold">Training</span></div><div class="ex-row" style="margin-top:8px;"><span class="inline-flex items-center rounded-full border bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Casual</span><span class="inline-flex items-center rounded-full border bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Event</span><span class="inline-flex items-center rounded-full border bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border-rose-200 dark:border-rose-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Arcade</span><span class="inline-flex items-center rounded-full border bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Custom</span><span class="inline-flex items-center rounded-full border bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Ranked</span><span class="inline-flex items-center rounded-full border bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Training</span></div>
-          <div class="docs-label">src/components/ui/MatchTypeBadge.tsx · sm / xs (xs passe de 10 à 11 px, charte §3). « Official » masqué par défaut. Event ambre, proche de l'accent : à valider.</div>
+          <div class="ex-row charte"><span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold" style="border-color:var(--theme-ui-accent-ring);background:var(--theme-ui-accent-soft);color:var(--theme-ui-accent-text);">Officiel</span><span class="inline-flex items-center rounded-full border bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-700/50 px-2.5 py-0.5 text-xs font-semibold">Casual</span><span class="inline-flex items-center rounded-full border bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700/50 px-2.5 py-0.5 text-xs font-semibold">Event</span><span class="inline-flex items-center rounded-full border bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border-rose-200 dark:border-rose-700/50 px-2.5 py-0.5 text-xs font-semibold">Arcade</span><span class="inline-flex items-center rounded-full border bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-700/50 px-2.5 py-0.5 text-xs font-semibold">Custom</span><span class="inline-flex items-center rounded-full border bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/50 px-2.5 py-0.5 text-xs font-semibold">Ranked</span><span class="inline-flex items-center rounded-full border bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-xs font-semibold">Training</span></div><div class="ex-row" style="margin-top:8px;"><span class="inline-flex items-center rounded-full border bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Casual</span><span class="inline-flex items-center rounded-full border bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Event</span><span class="inline-flex items-center rounded-full border bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border-rose-200 dark:border-rose-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Arcade</span><span class="inline-flex items-center rounded-full border bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Custom</span><span class="inline-flex items-center rounded-full border bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/50 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Ranked</span><span class="inline-flex items-center rounded-full border bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700 px-1.5 py-0.5 font-medium leading-none" style="font-size:11px;">Training</span></div>
+          <div class="docs-label">src/components/ui/MatchTypeBadge.tsx · sm / xs (xs à 11 px, charte §3 — appliqué au code le 03/10/2026). <b>« Officiel »</b> (03/10/2026) : teinte d'accent de la charte (jaune PUBG sous <code>.charte</code> — <code>--theme-ui-accent-soft</code> / <code>-ring</code> / <code>-text</code>, pas de <code>dark:</code>), masquée par défaut ; <code>showOfficial</code> l'affiche là où le type doit toujours se lire — en-tête du débriefing, à côté du badge de mode (<code>TeamModeBadge</code> sm, libellé PUBG « Squad FPP »). Ne jamais refaire une puce « Officiel » à la main. Event ambre, proche de l'accent : à valider.</div>
         </div>
       </section>
 
@@ -6053,7 +6157,7 @@ border-gray-200  ← hardcodé</code>
             <li><strong>Contenu docké :</strong> sur ordinateur, les contrôles seulement ; compteurs, dates et notes restent au repos (<code class="docs-code">isSticky</code>). Sur mobile (&lt; 640 px), la période seule (<code class="docs-code">compact</code>). Une page sans période passe <code class="docs-code">dockOnMobile={false}</code>.</li>
             <li><strong>Une seule couche collante :</strong> header (<code class="docs-code">z-40</code>), puis au plus un bandeau (<code class="docs-code">z-30</code>). Les ancres de section sont une ligne du bandeau (<code class="docs-code">SectionAnchorNav</code>, une ligne qui défile horizontalement), jamais un second élément collant.</li>
             <li><strong>Hauteur du header :</strong> publiée en direct dans <code class="docs-code">--app-header-height</code> ; tout décalage collant s'en sert (<code class="docs-code">top-[calc(var(--app-header-height)+…)]</code>), jamais de <code class="docs-code">top-20</code> en dur.</li>
-            <li><strong>Pas de saut :</strong> un espaceur réserve la hauteur perdue à la bascule ; l'ancrage de défilement du navigateur est suspendu pendant la bascule. Détection par sentinelle et <code class="docs-code">IntersectionObserver</code>, jamais par écoute du défilement.</li>
+            <li><strong>Pas de saut :</strong> un espaceur réserve la hauteur perdue à la bascule ; l'ancrage de défilement du navigateur est suspendu pendant la bascule. Détection par sentinelle et <code class="docs-code">IntersectionObserver</code>, jamais par écoute du défilement. Zone observée prolongée sans fin vers le bas (03/10/2026) : une sentinelle sous l'écran compte « dedans », si bien qu'un saut direct au-delà du header (touche Fin, ancre, bandeau bas dans une page à grand en-tête comme le débriefing) docke aussi.</li>
             <li><strong>Rechargement :</strong> quand un filtre change, les résultats précédents restent affichés, estompés (<code class="docs-code">aria-busy</code>, <code class="docs-code">opacity-60</code>) : la page ne se replie pas sous le bandeau.</li>
             <li><strong>Menus déroulants :</strong> hauteur maximale <code class="docs-code">min(60vh, 24rem)</code> et défilement interne ; dans le bandeau docké, leur intitulé visible disparaît (il reste dans le nom accessible).</li>
             <li><strong>Ancres et focus :</strong> <code class="docs-code">scroll-padding-top</code> global = header + bandeau : une ancre ou un élément focalisé au clavier n'arrive jamais dessous.</li>
@@ -7340,10 +7444,10 @@ return (
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/</code> Vitrine</td><td style="padding:0.5rem;">héros, kill feed, dinner hebdo, recrutement, « Pourquoi atterrir ici »</td><td style="padding:0.5rem;"><a href="#vitrine" class="app-link">Vitrine</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans-leaderboard</code></td><td style="padding:0.5rem;">podium en marches, fil de ligue, tableau Power score</td><td style="padding:0.5rem;"><a href="#ligue" class="app-link">Ligue</a> · <a href="#tableaux" class="app-link">Tableaux</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans</code> · <code class="docs-code">/clans/comparator</code></td><td style="padding:0.5rem;">annuaire, face-à-face, radar, ADN, heatmap d'activité</td><td style="padding:0.5rem;"><a href="#comparateur" class="app-link">Comparateur</a> · maquettes <a href="#slots-esport" class="app-link">Slots VS</a> / <a href="#dataviz-esport" class="app-link">Dataviz</a></td></tr>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/overview</code></td><td style="padding:0.5rem;">briefing de la semaine, palmarès, trophées par jour, portes d'entrée</td><td style="padding:0.5rem;"><a href="#vue-ensemble" class="app-link">Vue d'ensemble</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/overview</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">briefing de la semaine, palmarès, trophées par jour, portes d'entrée ; nom en <code>t-banner-title</code>, chiffres en Teko, couleurs de jeu lisibles sur photo (<code>.app-on-photo</code>), liens <code>app-link</code></td><td style="padding:0.5rem;"><a href="#vue-ensemble" class="app-link">Vue d'ensemble</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/leaderboard</code></td><td style="padding:0.5rem;">page de référence de la refonte : podium, tableau trié, distinctions</td><td style="padding:0.5rem;"><a href="#tableaux" class="app-link">Tableaux</a> · <a href="#leaderboards" class="app-link">Leaderboards</a> · PodiumCards, RankCell, DistinctionStrip</td></tr>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/members</code></td><td style="padding:0.5rem;">fiches soldat, rôles Fragger/Medic/Ghost, réserve</td><td style="padding:0.5rem;"><a href="#cartes" class="app-link">Cartes membres</a> · <a href="#roles" class="app-link">Rôles</a></td></tr>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/matches</code> + soirée</td><td style="padding:0.5rem;">carnet des soirées, plan de vol, cartes de fin de partie</td><td style="padding:0.5rem;"><a href="#soirees-matchs" class="app-link">Soirées &amp; matchs</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/members</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">fiches soldat, rôles Fragger/Medic/Ghost, réserve ; titre Teko, bandeau à une seule hauteur (recherche <code>app-toolbar-search</code>, demandes en attente <code>app-toolbar-btn</code>, nombre en <code>t-warn</code>)</td><td style="padding:0.5rem;"><a href="#cartes" class="app-link">Cartes membres</a> · <a href="#roles" class="app-link">Rôles</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/matches</code> <span class="sync-tag sync-tag--ok">charte</span> + soirée <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">carnet des soirées, plan de vol, cartes de fin de partie ; bandeau Teko et jetons sur photo, carnet en Teko ; soirée : navigation à une seule hauteur, cartes de fin de partie au gabarit du joueur, plan de vol paginé par chevrons</td><td style="padding:0.5rem;"><a href="#soirees-matchs" class="app-link">Soirées &amp; matchs</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/stats</code> (+ career, weapons <span class="sync-tag sync-tag--ok">charte</span>, positions, heatmap, zones)</td><td style="padding:0.5rem;">KPI, style de jeu, carrière, armurerie, cartes interactives</td><td style="padding:0.5rem;"><a href="#stats" class="app-link">Cartes stats</a> · <a href="#carriere" class="app-link">Carrière</a> · <a href="#armurerie" class="app-link">Armurerie</a> · <a href="#zoom-carte" class="app-link">Zoom carte</a> — style de jeu dans <a href="#stats" class="app-link">Cartes stats</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/drop-zones</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/members/[id]/drop-zones</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/members/[id]/heatmap</code> <span class="sync-tag sync-tag--ok">charte</span> (calendrier d'activité : bandeau des pages à carte — carte ‹ › avec « Toutes », période, périmètre —, échelle <code class="docs-code">app-seq</code>, KPI, créneau favori)</td><td style="padding:0.5rem;">cartes à filtres, bandeau docké (carte ‹ ›, période, pastille à 32 px), filtre joueur, glissement de carte — rien sous la carte</td><td style="padding:0.5rem;"><a href="#zoom-carte" class="app-link">Zoom carte</a> · <a href="#sticky-toolbar" class="app-link">Bandeau sticky</a> · <a href="#controles" class="app-link">Contrôles</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/awards</code> · <code class="docs-code">/challenges</code></td><td style="padding:0.5rem;">meilleurs joueurs, défis, récompenses</td><td style="padding:0.5rem;"><a href="#defis-recompenses" class="app-link">Défis &amp; top performers</a></td></tr>
@@ -7352,7 +7456,7 @@ return (
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/nemesis</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">face-à-face, revanche, chasseurs/proies, death cam</td><td style="padding:0.5rem;"><a href="#nemesis" class="app-link">Némésis</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/items</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">rewards</code></td><td style="padding:0.5rem;">objets utilisés, récompenses du joueur</td><td style="padding:0.5rem;"><a href="#objets-joueur" class="app-link">Objets &amp; récompenses</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/tournaments</code> (+ détail, manche)</td><td style="padding:0.5rem;">modes, places, ligne du lecteur, diffusion Discord</td><td style="padding:0.5rem;"><a href="#tournois" class="app-link">Tournois</a></td></tr>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">…/telemetry/matches/[id]/debrief</code></td><td style="padding:0.5rem;">replay 2D, timeline, escouade analysée, silhouette</td><td style="padding:0.5rem;"><a href="#debrief-replay" class="app-link">Débriefing</a> · <a href="#silhouette-impacts" class="app-link">Silhouette</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">…/telemetry/matches/[id]/debrief</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">replay 2D, timeline, escouade analysée, silhouette ; carte en Teko, vainqueur en or, chronologie sans défilement, silhouette sans étiquettes illisibles</td><td style="padding:0.5rem;"><a href="#debrief-replay" class="app-link">Débriefing</a> · <a href="#silhouette-impacts" class="app-link">Silhouette</a></td></tr>
                 <tr><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/join</code> · <code class="docs-code">/login</code></td><td style="padding:0.5rem;">modales et formulaires d'entrée</td><td style="padding:0.5rem;"><a href="#modales" class="app-link">Modales</a> · <a href="#controles" class="app-link">Contrôles</a></td></tr>
               </tbody>
             </table>
@@ -7600,6 +7704,14 @@ return (
           <span class="sync-tag sync-tag--new" style="margin-left:auto;">Ajouté depuis le code</span>
         </h2>
         <div class="sync-note"><b>Source :</b> <code>src/components/clan-overview/ClanOverviewSections.tsx</code> — page <code>/clans/[id]/overview</code>, docs/features/clans.md. Signature §0b « Conserver » : briefing de la semaine (cartes illustrées, liseré 3 px par fait, chiffre géant sur image, trophées par jour).</div>
+        <div class="sync-note"><b>Page migrée (03/10/2026) :</b><ul>
+          <li>Conteneur <code>app-main-flush game-ui charte</code>. Nom du clan en <code>t-banner-title</code> ; niveau, palmarès, chiffres des modes et du duo en Teko (<code>t-hero</code>) ; surtitres <code>t-label</code>, titres <code>t-section-title</code> / <code>t-card-title</code>, notes <code>t-meta</code>.</li>
+          <li>Tag du clan et pastille « N top 1 » des modes : fond accent, encre sombre (était ambre). Tampon « Winner winner #1 » : <code>.app-stamp</code>.</li>
+          <li><b><code>.app-on-photo</code></b> (nouveau) sur la vitrine et les bandeaux du briefing : la variante sombre des jetons <code>--game-*</code> dans les deux thèmes — l'or du thème clair (brun) et ses fonds crème opaques s'éteignaient sur la photo. Tuile « Ligue des clans » en blanc sur voile.</li>
+          <li>Liseré du tir de la semaine en <code>--game-sky</code> (était <code>--game-neg</code>), comme le prévoit cette section. Le liseré reste sous le bandeau d'image (hauteur 104 px inchangée).</li>
+          <li>Liens : <code>app-link</code> partout (briefing, modes, synergies, chiffres clés de <code>KpiGrid</code>, posés en pied de carte) — plus d'indigo <code>--game-link</code> en sombre.</li>
+          <li>Synergies : meilleur groupe en accent plein, suivants en accent à 45 % (l'or du thème clair virait au brun).</li>
+        </ul></div>
 
         <div class="docs-subsection">
           <div class="docs-subsection-title">Briefing de la semaine — carte illustrée à liseré</div>
@@ -7613,7 +7725,7 @@ return (
               <a style="margin-top:6px;align-self:flex-start;display:inline-flex;height:30px;align-items:center;border-radius:8px;background:var(--theme-ui-accent);color:var(--accentOn);padding:0 12px;font-size:12px;font-weight:700;">Voir le débriefing</a>
             </div>
           </div>
-          <code class="docs-code">liseré gauche 3 px à la couleur du fait (top 1 --game-gold, kill le plus long --game-sky, série --game-pos) · photo en lent panoramique .game-pan (coupé par prefers-reduced-motion) · chiffre géant en Teko sur l'image</code>
+          <code class="docs-code">liseré 3 px à la couleur du fait (top 1 --game-gold, kill le plus long --game-sky, série --game-pos) — dans le code, sous le bandeau d'image · photo en lent panoramique .game-pan (coupé par prefers-reduced-motion) · chiffre géant en Teko sur l'image · .app-on-photo sur le bandeau</code>
           <div class="docs-label">Trois cartes par semaine (victoire, kill le plus long, série). Le voile et le texte blanc sur photo sont les seuls hex autorisés (§1).</div>
         </div>
 
@@ -7920,6 +8032,7 @@ return (
           </div>
           <code class="docs-code">src/components/members/MemberCard.tsx · en-tête teinté par le rôle (tint 18 %) + silhouette de l'arme fétiche à 13 % · grille K/M / Win rate / Parties · pied : arme fétiche + médailles (opacité 35 % à zéro)</code>
           <div class="docs-label">Toute la carte est un lien vers le tableau de bord du membre ; au survol elle se soulève et se borde en accent. Les couleurs de rôle sont celles de <code>ROSTER_ROLES</code> — ne pas en inventer d'autres.</div>
+          <div class="sync-note"><b>Code aligné sur cette fiche (03/10/2026, page des membres migrée) :</b><ul><li>Chiffres <code>t-hero t-hero--sm</code> (étaient 16 px Inter), libellés <code>t-label</code> 11 px (étaient 10 px), nom <code>t-card-title</code>.</li><li>Pastille de rôle à 11 px, encre sombre ; « a joué ce soir » en <code>t-pos</code> ; point vert de l'avatar en <code>--theme-ui-positive</code> (était emerald-500) ; fond d'avatar <code>bg-photo-fallback</code> (était <code>bg-[#0b1120]</code>).</li><li>Page : <code>.charte</code>, titre <code>t-banner-title</code>, titres de section <code>t-section-title</code>, notes <code>t-meta</code>.</li></ul></div>
         </div>
       </section>
 
@@ -8492,6 +8605,7 @@ return (
             </span>
           </div>
           <div class="docs-label">Bloc date 56×56 <code>.app-panel-muted</code>, badge « Top 1 » or, cases <code>PlaceCell</code>, avatars empilés (−6 px), trois chiffres. Une soirée gagnante porte un liseré gauche 3 px <code>--game-gold</code>. Toute la ligne est un lien vers la page de la soirée.</div>
+          <div class="sync-note"><b>Code aligné (03/10/2026, liste des matchs migrée) :</b><ul><li><code>SessionLogbook</code> : jour et chiffres <code>t-hero t-hero--sm</code>, libellés <code>t-label</code> (étaient 10 px), titre <code>t-card-title</code>, joueurs <code>t-meta</code>, initiales 11 px (étaient 10).</li><li><code>MatchesBanner</code> (liste, soirée, annuaire des clans) : titre <code>t-banner-title</code>, <code>bg-photo-fallback</code>, <code>.app-on-photo</code> ; pastille « chicken dinner » en or teinté <code>--game-gold*</code> (était ambre plein), « ont joué ce soir » en <code>--game-pos*</code>, surtitre de la soirée en or. Aucune dépendance à l’accent : juste aussi sur les pages pas encore sous <code>.charte</code>.</li><li><code>SectionTitle</code> : <code>t-section-title</code> + <code>t-meta</code>.</li></ul></div>
         </div>
 
         <div class="docs-subsection">
@@ -8542,8 +8656,8 @@ return (
               </div>
             </div>
           </div>
-          <code class="docs-code">étape = heure + vignette ronde (anneau --game-gold si top 1, couronne) + PlacementBadge · sélection = anneau accent + halo accent-soft · barre des modes : duo --game-sky, trio --game-violet, squad --game-pos</code>
-          <div class="docs-label">src/components/matches/SessionFlightPlan.tsx · les étapes sont reliées en pointillés <code>--game-track-strong</code> comme la trajectoire de l'avion. Un clic met la partie en avant dans la liste.</div>
+          <code class="docs-code">étape = heure + vignette ronde (anneau --game-gold si top 1, couronne) + PlacementBadge · sélection = anneau accent + halo accent-soft · barre des modes : duo --game-sky, trio --game-violet, squad --game-pos · au-delà d'une page : chevrons app-pager-button (4 / 7 / 10 étapes selon la largeur), « parties 1–4 sur 5 »</code>
+          <div class="docs-label">src/components/matches/SessionFlightPlan.tsx · les étapes sont reliées en pointillés <code>--game-track-strong</code> comme la trajectoire de l'avion. Un clic met la partie en avant dans la liste. <b>Plus de défilement horizontal</b> (03/10/2026, règle « jamais de défilement horizontal ») : les étapes se paginent par chevrons, 4 sous 640 px, 7 jusqu'à 1 023 px, 10 au-delà ; titre <code>t-card-title</code>, vignettes sur <code>bg-photo-fallback</code>.</div>
         </div>
 
         <div class="docs-subsection">
@@ -8575,6 +8689,7 @@ return (
           </div>
           <code class="docs-code">état télémétrie : prête --game-pos · en attente --game-warn · en erreur --game-neg · expirée --theme-ui-text-muted</code>
           <div class="docs-label">src/components/matches/MatchResultCard.tsx · bandeau image 96 px (fond de repli <code>bg-photo-fallback</code>), tampon <code>.app-stamp</code> (Token charte : ambre → accent, encre sombre), place en Teko <code>.app-photo-place</code> (#1 accent, ≤5 vert clair, sinon blanc — couleurs fixes : la photo est sombre dans les deux thèmes), action <code>app-btn--primary</code> (accent sous <code>.charte</code>), barres de kills <code>--game-neg</code> sur <code>--game-track</code>. Une victoire borde la carte en <code>--game-gold-ring</code> ; la sélection en <code>--theme-ui-accent-ring</code> + halo.</div>
+          <div class="sync-note"><b>Code aligné (03/10/2026, soirée migrée) :</b> tampon <code>.app-stamp</code> (était ambre en dur), place <code>app-photo-place t-hero t-hero--md</code> (était 30 px + hex), <code>bg-photo-fallback</code> (était <code>#0b1120</code>), libellés <code>t-label</code> (étaient 10 px), « Débriefing » <code>app-btn app-btn--xs app-btn--primary</code>, « État » <code>app-btn--secondary</code> — même gabarit que la carte du carnet de vol du joueur.</div>
         </div>
 
         <div class="docs-subsection">
@@ -9094,7 +9209,8 @@ return (
                 <tr><td style="padding:0.5rem;">Carte (pan + zoom)</td><td style="padding:0.5rem;"><code class="docs-code">MapZoomControl</code> + <code class="docs-code">@/lib/map-zoom</code></td><td style="padding:0.5rem;"><a href="#zoom-carte" class="app-link">§25 Zoom cartographique</a></td></tr>
                 <tr><td style="padding:0.5rem;">Vitesse de lecture</td><td style="padding:0.5rem;"><code class="docs-code">.debrief-seg</code> (×1 à ×8)</td><td style="padding:0.5rem;">ci-dessus</td></tr>
                 <tr><td style="padding:0.5rem;">Lecture / pause / début</td><td style="padding:0.5rem;"><code class="docs-code">.debrief-icon-btn</code></td><td style="padding:0.5rem;">ci-dessus</td></tr>
-                <tr><td style="padding:0.5rem;">Joueurs affichés</td><td style="padding:0.5rem;"><code class="docs-code">.debrief-chip</code> (opacité 50&nbsp;% si éliminé)</td><td style="padding:0.5rem;">ci-dessus</td></tr>
+                <tr><td style="padding:0.5rem;">Joueurs affichés (Escouade / Clans suivis / Tout le lobby)</td><td style="padding:0.5rem;">Une tuile par ligne, <code class="docs-code">app-menu__item</code> + <code class="docs-code">--active</code>, indice à droite (tags, nombre de joueurs) — pas de rail segmenté : à trois choix, il passait sur deux lignes dans le panneau de 300&nbsp;px (03/10/2026)</td><td style="padding:0.5rem;"><a href="#controles" class="app-link">Menu à tuiles</a></td></tr>
+                <tr><td style="padding:0.5rem;">Suivi caméra</td><td style="padding:0.5rem;"><code class="docs-code">.debrief-chip</code> (opacité 50&nbsp;% si éliminé)</td><td style="padding:0.5rem;">ci-dessus</td></tr>
                 <tr><td style="padding:0.5rem;">Couches (trajets, zones…)</td><td style="padding:0.5rem;"><code class="docs-code">.debrief-chip</code> + <code class="docs-code">.debrief-switch</code></td><td style="padding:0.5rem;">ci-dessus</td></tr>
                 <tr><td style="padding:0.5rem;">Flux d'événements</td><td style="padding:0.5rem;">icônes kill / mise à terre / réanimation / rappel teintées <code class="docs-code">--game-*</code></td><td style="padding:0.5rem;">couleurs de jeu</td></tr>
                 <tr><td style="padding:0.5rem;">Chronologie des combats</td><td style="padding:0.5rem;"><code class="docs-code">MatchCombatTimeline.tsx</code></td><td style="padding:0.5rem;">débriefing, onglet Duels</td></tr>
@@ -9128,6 +9244,7 @@ return (
           </div>
           <code class="docs-code">src/components/telemetry/MatchDebriefView.tsx · tuile d'équipe : place (couronne or sur le top 1), tag, kills, statut (« Out à mm:ss »), barre de survie · sélection = bordure + fond + halo accent · pagination par debrief-icon-btn, pages de 4 (2 sur mobile)</code>
           <div class="docs-label">La tuile choisie pilote tout le débriefing (onglets, silhouette, timeline). Un « ~ » devant la place signale un classement estimé d'après l'ordre des éliminations.</div>
+          <div class="sync-note"><b>Page migrée (03/10/2026) :</b><ul><li><code>main.debrief</code> porte <code>.charte</code> (vues clan et tournoi) ; les contrôles <code>.debrief-*</code>, déjà en accent, passent au jaune.</li><li>Vainqueur (couronne, trophée, barre de survie) en <code>--game-gold</code> : sous <code>.charte</code>, <code>--game-warn</code> est l’orange « en attente ».</li><li>En-tête : carte en <code>t-banner-title</code>, indicateurs <code>t-hero--md</code> sur deux colonnes jusqu’à 1 023 px ; Escouade / Duels en <code>t-card-title</code> et <code>t-hero--sm</code>.</li><li>Chronologie : puces de type à la ligne (plus de défilement horizontal), <code>.debrief-chip--tile</code> sur mobile, 11 px minimum.</li><li>Replay 2D : canevas et surimpressions conservés (signature §0b).</li><li><b>Onglets dans le bandeau collant</b> (<code>DockingToolbar</code>) : rail segmenté (<code>app-segmented-control</code>, vrais onglets <code>role="tab"</code>, flèches du clavier), sous l’en-tête ; docké, il ouvre sur le retour du fil d’Ariane (« ‹ Matchs »). Pas de période : rien de docké sur mobile. Ordre : en-tête → onglets → escouade analysée → contenu de l’onglet.</li><li>Lien « Audit technique » retiré (l’audit reste ouvert par « État » sur la carte de partie). Mode de jeu en <code>TeamModeBadge</code>, type de partie en <code>MatchTypeBadge</code> (« Officiel » compris).</li><li><b>Bots et animaux</b> (<code>.app-npc-badge</code>, nouveau) : dans la chronologie et les duels, un bot (<code>ai.1042</code>) s’affiche « Bot » (ciel, à la façon du badge « Casual »), un ours (<code>monster.bear-02</code>) « Ours » (or) — jamais l’identifiant technique (<code>npcKindOf</code>, <code>CombatantName</code>). En-tête : badge « N bots » (<code>--lg</code>) compté dans <code>memberStats</code> (tout le lobby), titre « une partie peuplée de bots se joue presque comme une Casual ».</li><li>En-tête : mode, type et bots groupés et étirés à <b>une seule hauteur</b> ; place en Teko sur la photo (<code>app-photo-place t-hero--xl</code>, « #1/26 », #1 accent, 2–5 vert clair) au lieu de <code>PlacementBadge</code>.</li><li>Membres de l’escouade (en-tête, cartes Escouade) à la couleur de leur <b>style de jeu de la semaine</b> (<code>usePlaystyleColors(clan, "week")</code>) : pastille <code>ROSTER_ROLES</code>, nom en <code>--game-neg</code> / <code>--game-sky</code> / <code>--game-pos</code>, légende <code>PlaystyleLegend</code> ; sans style connu, nom neutre.</li></ul></div>
         </div>
       </section>
 
@@ -9168,6 +9285,7 @@ return (
                 <tr><td style="padding:0.5rem;"><code class="docs-code">variant</code></td><td style="padding:0.5rem;"><code class="docs-code">'dealt' | 'received'</code></td><td style="padding:0.5rem;">Libellés et teinte : tirs infligés ou subis.</td></tr>
                 <tr><td style="padding:0.5rem;"><code class="docs-code">size</code></td><td style="padding:0.5rem;"><code class="docs-code">'sm' | 'md' | 'lg' | number</code></td><td style="padding:0.5rem;">Taille de la silhouette.</td></tr>
                 <tr><td style="padding:0.5rem;"><code class="docs-code">showLabels</code> / <code class="docs-code">showTooltips</code> / <code class="docs-code">interactive</code></td><td style="padding:0.5rem;"><code class="docs-code">boolean</code></td><td style="padding:0.5rem;">Légende, info-bulles et survol des zones.</td></tr>
+                <tr><td style="padding:0.5rem;"><code class="docs-code">showValues</code></td><td style="padding:0.5rem;"><code class="docs-code">boolean</code> (défaut <code class="docs-code">true</code>)</td><td style="padding:0.5rem;">Étiquettes chiffrées sur les zones. À couper en <code class="docs-code">size="sm"</code> : elles y sortent à 6–7 px (11 px minimum) — le débriefing les remplace par les barres voisines et l’info-bulle.</td></tr>
                 <tr><td style="padding:0.5rem;"><code class="docs-code">unavailable</code> / <code class="docs-code">unavailableLabel</code></td><td style="padding:0.5rem;"><code class="docs-code">boolean</code> / <code class="docs-code">string</code></td><td style="padding:0.5rem;">Match sans zones capturées : message à la place d'une silhouette vide.</td></tr>
               </tbody>
             </table>

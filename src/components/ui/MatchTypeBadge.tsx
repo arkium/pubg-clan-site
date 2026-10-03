@@ -13,6 +13,12 @@ type BadgeConfig = {
 }
 
 const BADGE_CONFIGS: Record<string, BadgeConfig> = {
+  // Partie officielle : teinte d'accent de la charte (jaune PUBG sous `.charte`), jetons du thème — pas de nouveau
+  // `dark:`. Masquée par défaut ; `showOfficial` l'affiche là où le type doit toujours se lire (débriefing).
+  official: {
+    label: 'Officiel',
+    classes: 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] text-[var(--theme-ui-accent-text)]',
+  },
   casual: {
     label: 'Casual',
     classes:
@@ -70,7 +76,7 @@ export default function MatchTypeBadge({
   const sizeClasses =
     size === 'sm'
       ? 'px-2.5 py-0.5 text-xs font-semibold'
-      : 'px-1.5 py-0.5 text-[10px] font-medium leading-none'
+      : 'px-1.5 py-0.5 text-[11px] font-medium leading-none'
 
   return (
     <span

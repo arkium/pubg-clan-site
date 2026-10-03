@@ -422,6 +422,9 @@ export function debriefTelemetry(teamId: number | null = null) {
         memberStats: [
           { memberKey: 'account.alpha', weapons: [{ shotsFired: 100, hitsLanded: 30 }], damageTaken: 250 },
           { memberKey: 'account.mate', weapons: [{ shotsFired: 40, hitsLanded: 8 }], damageTaken: 180 },
+          // Deux bots dans le lobby : badge « 2 bots » de l'en-tête.
+          { memberKey: 'ai.1042', weapons: [], damageTaken: 100 },
+          { memberKey: 'ai.1043', weapons: [], damageTaken: 100 },
         ],
         phaseSnapshots: [
           { isGame: 0.1, timestampSeconds: 10, numAliveTeams: 26 },
@@ -444,7 +447,8 @@ export function debriefTelemetry(teamId: number | null = null) {
           weaponName: 'WeapHK416_C', damageReason: 'HeadShot', distanceMeters: 42,
         }),
         combat('e3', 'kill', 500, 2, { actorName: 'Rival Deux', targetName: 'Joueur Bravo', targetAffiliation: 'current_clan', isSquadTarget: true, weaponName: 'WeapAWM_C', distanceMeters: 310 }),
-        combat('e4', 'kill', 520, 2, { actorName: 'Rival Trois', targetName: 'Rival Quatre', weaponName: 'WeapM16A4_C', distanceMeters: 60 }),
+        // Hors escouade : un ours élimine un bot (identifiants techniques de la télémétrie, affichés en badges).
+        combat('e4', 'kill', 520, 2, { actorName: 'monster.bear-02', targetName: 'ai.1042', weaponName: 'WeapM16A4_C', distanceMeters: 60 }),
         combat('e5', 'recall', 700, 2, { actorName: 'Joueur Bravo', actorAffiliation: 'current_clan', isSquadActor: true, targetName: '' }),
       ],
       killEvents: [

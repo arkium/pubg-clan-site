@@ -344,6 +344,14 @@ Aucun endroit ne laisse alors un cadre vide :
 
 Pour réparer un clan, il suffit de téléverser à nouveau son image depuis « Accueil login ».
 
+**Charte UI** (2026-10-03) : la page porte `.charte` (accent jaune, Teko, classes de rôle — [docs/ui/index.html](../ui/index.html#vue-ensemble)).
+Nom du clan en `t-banner-title`, niveau et chiffres du palmarès en Teko, tag et pastilles « top 1 » en accent ; sur les
+photos (vitrine, bandeaux du briefing), `.app-on-photo` reprend la variante sombre des couleurs de jeu dans les deux
+thèmes. Briefing : tampon « Winner winner #1 » `.app-stamp`, distance du tir en Teko, liseré du tir en `--game-sky`
+(était `--game-neg`), trophées par jour en or à 11 px. Liens en `app-link` (plus d'indigo `--game-link` en sombre),
+y compris ceux des chiffres clés, posés en pied de carte pour rester alignés. Synergies : meilleur groupe en accent
+plein, les suivants en accent atténué.
+
 **Blocs déplacés** (décision du 2026-09-26 : rien n'est supprimé du site) :
 
 | Ancien bloc | Nouvelle place |

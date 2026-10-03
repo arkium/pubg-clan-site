@@ -3068,6 +3068,52 @@ html[data-app-theme='dark'] .debrief-seg > button[aria-pressed='true'] {
   opacity: 0.5;
 }
 
+/* Case de type d'événement (chronologie, mobile) : icône, libellé court et compteur en coin, sur 58 px. Une classe
+   plutôt que h-[58px] : la hauteur de .debrief-chip, hors couche, l'emporterait sur l'utilitaire. */
+.debrief-chip--tile {
+  height: 58px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+/* Personnage non joueur (débriefing) : bot en ciel, à la façon du badge « Casual » — une partie peuplée de bots se joue
+   presque comme une Casual — ; animal (ours) en or. Jetons --game-* (dans .game-ui). --lg : badge de l'en-tête
+   (« 37 bots »), à la hauteur des badges voisins. */
+.app-npc-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.app-npc-badge--bot {
+  border-color: var(--game-sky-ring);
+  background: var(--game-sky-soft);
+  color: var(--game-sky);
+}
+
+.app-npc-badge--animal {
+  border-color: var(--game-gold-ring);
+  background: var(--game-gold-soft);
+  color: var(--game-gold);
+}
+
+.app-npc-badge--lg {
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
 .debrief-icon-btn {
   display: inline-flex;
   flex-shrink: 0;
@@ -3659,6 +3705,46 @@ button.app-toolbar-btn:hover:not(:disabled) {
   opacity: 0.45;
 }
 
+/* Lien posé en bouton de bandeau (demandes en attente…) : même survol que le bouton. */
+a.app-toolbar-btn:hover {
+  background: var(--theme-ui-hover);
+}
+
+/* Champ de recherche d'un bandeau : habillage du rail segmented et hauteur de la ligne (règle « une seule hauteur
+   par ligne ») — <label class="app-toolbar-search"><svg/><input type="search"/></label>, jamais de h-9. */
+.app-toolbar-search {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-toggle-border);
+  border-radius: 10px;
+  background: var(--theme-toggle-track);
+  color: var(--theme-ui-text-muted);
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.app-toolbar-search:focus-within {
+  border-color: var(--theme-ui-accent-ring);
+  box-shadow: 0 0 0 3px var(--theme-ui-accent-soft);
+}
+
+.app-toolbar-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--theme-ui-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.app-toolbar-search input::placeholder {
+  color: var(--theme-ui-text-muted);
+}
+
 .app-menu {
   display: flex;
   flex-direction: column;
@@ -3945,6 +4031,21 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 
 .app-photo-place--top5 {
   color: #6ee7b7;
+}
+
+/* Couleurs de jeu posées sur une photo (toujours sombre, dans les deux thèmes) : la variante sombre des jetons
+   --game-*, sinon l'or et les fonds teintés du thème clair (brun, crème opaque) s'éteignent sur la photo. */
+.app-on-photo {
+  --game-pos: rgb(52 211 153);
+  --game-neg: rgb(251 113 133);
+  --game-sky: rgb(125 211 252);
+  --game-gold: rgb(252 211 77);
+  --game-pos-soft: rgb(16 185 129 / 0.2);
+  --game-neg-soft: rgb(244 63 94 / 0.2);
+  --game-sky-soft: rgb(14 165 233 / 0.2);
+  --game-gold-soft: rgb(251 191 36 / 0.18);
+  --game-gold-ring: rgb(251 191 36 / 0.6);
+  --game-pos-ring: rgb(52 211 153 / 0.5);
 }
 
 /* Tuile de chiffre compacte (statistiques d'une carte, d'une formation) : valeur puis libellé, centrés.

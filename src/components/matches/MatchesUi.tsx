@@ -25,7 +25,7 @@ export function PlaceCell({ place, title }: { place: number; title?: string }) {
   return (
     <span
       title={title}
-      className="inline-flex h-[22px] min-w-7 items-center justify-center rounded-[5px] border px-1 text-[11px] font-bold tabular-nums"
+      className="t-num inline-flex h-[22px] min-w-7 items-center justify-center rounded-[5px] border px-1 text-[11px] font-bold"
       style={placeToneStyle(place)}
     >
       {place}
@@ -37,8 +37,10 @@ export function PlaceCell({ place, title }: { place: number; title?: string }) {
 export type BannerChip = { icon?: LucideIcon; text: string; gold?: boolean; live?: boolean }
 
 /**
- * Bandeau d'image partagé par la liste des matchs et la page d'une soirée. Hauteurs reprises de l'ancien bandeau de
- * la page Matchs (règle : ne jamais changer la hauteur d'un bandeau d'image).
+ * Bandeau d'image partagé par la liste des matchs, la page d'une soirée et l'annuaire des clans. Hauteurs reprises de
+ * l'ancien bandeau de la page Matchs (règle : ne jamais changer la hauteur d'un bandeau d'image). Charte : titre en
+ * Teko (`t-banner-title`), pastilles en jetons de jeu sur la photo (`.app-on-photo`) — rien ne dépend de l'accent, le
+ * bandeau reste juste sur une page pas encore migrée (`.charte`).
  */
 export function MatchesBanner({
   image,
@@ -57,15 +59,15 @@ export function MatchesBanner({
 }) {
   return (
     <header
-      className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-      style={{ backgroundColor: '#0b1120', backgroundImage: image ? `url('${image}')` : undefined, backgroundPosition: 'center 40%' }}
+      className="app-on-photo bg-photo-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
+      style={{ backgroundImage: image ? `url('${image}')` : undefined, backgroundPosition: 'center 40%' }}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-slate-950/20 sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/55 sm:to-slate-950/10" />
-      <div className="absolute inset-0 flex flex-col justify-end gap-2.5 px-3.5 py-3 text-white sm:px-6 sm:py-5">
-        {eyebrow && <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-amber-200">{eyebrow}</span>}
-        <div className="flex items-center gap-2.5">
-          <Icon className="h-5 w-5 shrink-0 sm:h-[22px] sm:w-[22px]" style={{ color: iconColor }} aria-hidden="true" />
-          <h1 className="m-0 text-[19px] font-extrabold leading-tight tracking-[-0.02em] sm:text-[26px]">{title}</h1>
+      <div className="absolute inset-0 flex flex-col justify-end gap-2 px-3 py-2.5 text-white sm:px-5 sm:py-4">
+        {eyebrow && <span className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[var(--game-gold)]">{eyebrow}</span>}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Icon className="h-5 w-5 shrink-0 sm:h-6 sm:w-6" style={{ color: iconColor }} aria-hidden="true" />
+          <h1 className="t-banner-title m-0 drop-shadow-md">{title}</h1>
         </div>
         <ul className="flex flex-wrap items-center gap-1.5 text-xs">
           {chips.map((chip) => {
@@ -75,14 +77,14 @@ export function MatchesBanner({
                 key={chip.text}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-semibold ${
                   chip.gold
-                    ? 'border-amber-400 bg-amber-400/90 text-amber-950'
+                    ? 'border-[var(--game-gold-ring)] bg-[var(--game-gold-soft)] text-[var(--game-gold)]'
                     : chip.live
-                      ? 'border-emerald-400/60 bg-emerald-500/25 text-white'
+                      ? 'border-[var(--game-pos-ring)] bg-[var(--game-pos-soft)] text-white'
                       : 'border-white/25 bg-white/15 text-white'
                 }`}
               >
                 {chip.live ? (
-                  <span className="h-[7px] w-[7px] rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgb(52_211_153/0.3)]" aria-hidden="true" />
+                  <span className="h-[7px] w-[7px] rounded-full bg-[var(--game-pos)] shadow-[0_0_0_3px_var(--game-pos-soft)]" aria-hidden="true" />
                 ) : ChipIcon ? (
                   <ChipIcon className="h-3 w-3" aria-hidden="true" />
                 ) : null}
@@ -121,8 +123,9 @@ export function KpiGrid({ items, className = '' }: { items: Kpi[]; className?: s
             <dd className="t-hero t-hero--md text-gray-900">{item.value}</dd>
             <dd className="t-meta">{item.detail}</dd>
             {item.link ? (
-              <dd className="mt-1">
-                <Link href={item.link.href} className="text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
+              // En pied de carte : les liens restent alignés quand un détail passe sur deux lignes.
+              <dd className="mt-auto pt-1">
+                <Link href={item.link.href} className="app-link text-xs font-semibold">
                   {item.link.label} →
                 </Link>
               </dd>
@@ -137,8 +140,8 @@ export function KpiGrid({ items, className = '' }: { items: Kpi[]; className?: s
 export function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 className="m-0 text-lg font-bold">{children}</h2>
-      {aside ? <span className="text-xs text-gray-500">{aside}</span> : null}
+      <h2 className="t-section-title m-0">{children}</h2>
+      {aside ? <span className="t-meta">{aside}</span> : null}
     </div>
   )
 }

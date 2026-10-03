@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
+  Bot,
   ChevronLeft,
   ChevronRight,
   Crosshair,
@@ -23,13 +24,18 @@ import {
   Users,
 } from 'lucide-react'
 
+import { PlaystyleLegend } from '@/components/maps/MapToolbarControls'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
-import PlacementBadge from '@/components/ui/PlacementBadge'
 import RankCell from '@/components/ui/RankCell'
+import TeamModeBadge, { type TeamMode } from '@/components/ui/TeamModeBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { CombatantName } from '@/components/telemetry/NpcBadge'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
+import { rosterRole, type RosterRoleId } from '@/lib/member-roster'
 import { mapAssetUrl, resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
-import { matchDebriefPath, matchTelemetryAuditPath, matchTournamentDebriefPath } from '@/lib/match-links'
+import { matchDebriefPath, matchTournamentDebriefPath } from '@/lib/match-links'
 import { formatMatchDuration, teamCountFromPhaseSnapshots } from '@/lib/home-showcase'
 import {
   DEBRIEF_TAB_PARAM,
@@ -37,6 +43,7 @@ import {
   clampPage,
   formatClock,
   formatDistance,
+  lobbyBotCount,
   pageOfIndex,
   parseDebriefTab,
   phaseStartTimes,
@@ -220,6 +227,19 @@ function useMediaQuery(query: string) {
 
 const SILHOUETTE_ZONES: BodyZone[] = ['head', 'torso', 'pelvis', 'arms', 'legs']
 
+/**
+ * Nom d'un membre de l'escouade à la couleur de son style de jeu de la semaine (Fragger, Medic, Ghost). En texte, les
+ * jetons de thème (charte, « Rôles ») : foncés en clair pour rester lisibles ; la pastille garde la teinte de la liste
+ * des membres (`ROSTER_ROLES`). Sans style connu : texte neutre, plus de vert qui ne voulait rien dire.
+ */
+const STYLE_TEXT: Record<RosterRoleId, string> = { fragger: 'var(--game-neg)', medic: 'var(--game-sky)', ghost: 'var(--game-pos)' }
+
+/** Mode d'équipe d'un mode de jeu PUBG (`duo-fpp`, `squad`, `normal-solo-fpp`…) ; `null` hors Solo / Duo / Trio / Squad. */
+function teamModeOfGameMode(gameMode: string): TeamMode | null {
+  const found = /(?:^|[-_ ])(solo|duo|trio|squad)(?:$|[-_ ])/.exec(gameMode.toLowerCase())
+  return found ? (found[1] as TeamMode) : null
+}
+
 function toZoneRecord(breakdown: BodyZoneBreakdown[] | undefined, field: 'damage' | 'hits'): Record<BodyZoneKey, number> {
   const record: Record<BodyZoneKey, number> = { head: 0, torso: 0, pelvis: 0, arms: 0, legs: 0 }
   for (const row of breakdown ?? []) {
@@ -234,7 +254,7 @@ function MateBadge({ mate }: { mate: Pick<SquadMateApi, 'clanTag' | 'trackedClan
   if (mate.trackedClan) {
     return (
       <span
-        className="text-[10px] font-bold uppercase tracking-[0.04em]"
+        className="text-[11px] font-bold uppercase tracking-[0.04em]"
         style={{ color: 'var(--theme-ui-accent-text)' }}
         title={`Coéquipier suivi dans le clan ${mate.trackedClan.name ?? mate.trackedClan.tag ?? ''} du site, qui n'a pas encore synchronisé ce match : statistiques issues de la télémétrie.`}
       >
@@ -245,7 +265,7 @@ function MateBadge({ mate }: { mate: Pick<SquadMateApi, 'clanTag' | 'trackedClan
   const checkedOn = mate.pubgClanCheckedAt ? new Date(mate.pubgClanCheckedAt).toLocaleDateString('fr-FR') : null
   return (
     <span
-      className="text-[10px] font-bold uppercase tracking-[0.04em]"
+      className="text-[11px] font-bold uppercase tracking-[0.04em]"
       style={{ color: 'var(--game-mate)' }}
       title={`Coéquipier sans fiche membre sur le site : statistiques issues de la télémétrie.${
         mate.clanTag ? ` Tag [${mate.clanTag}] = clan PUBG${checkedOn ? ` relevé le ${checkedOn}` : ''}, il peut avoir changé depuis.` : ''
@@ -259,7 +279,7 @@ function MateBadge({ mate }: { mate: Pick<SquadMateApi, 'clanTag' | 'trackedClan
 function TelemetryChip() {
   return (
     <span
-      className="rounded border px-1 text-[10px] font-bold"
+      className="rounded border px-1 text-[11px] font-bold"
       style={{ borderColor: 'var(--game-mate)', color: 'var(--game-mate)' }}
       title="Frag retrouvé dans le kill-feed de la télémétrie : le clan du joueur n'avait pas synchronisé ce match."
     >
@@ -269,7 +289,7 @@ function TelemetryChip() {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">{children}</span>
+  return <span className="t-label">{children}</span>
 }
 
 // ── Bande des équipes ────────────────────────────────────────────────────────────────────────────
@@ -371,8 +391,8 @@ function TeamStrip({
                 }
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="inline-flex h-[22px] shrink-0 items-center gap-1 rounded-md border border-gray-200 px-1.5 text-xs font-extrabold tabular-nums">
-                    {winner && <Crown className="h-3 w-3" style={{ color: 'var(--game-warn)' }} aria-label="Vainqueur" />}
+                  <span className="t-num inline-flex h-[22px] shrink-0 items-center gap-1 rounded-md border border-gray-200 px-1.5 text-xs font-extrabold text-gray-900">
+                    {winner && <Crown className="h-3 w-3" style={{ color: 'var(--game-gold)' }} aria-label="Vainqueur" />}
                     {team.placement !== null && team.placement <= 3 && !team.placementEstimated && !winner && (
                       <RankCell rank={team.placement} size="xs" />
                     )}
@@ -386,14 +406,14 @@ function TeamStrip({
                   </span>
                   {selected && <ScanEye className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--theme-ui-accent)' }} aria-label="Escouade analysée" />}
                 </span>
-                <span className="flex items-center gap-2.5 whitespace-nowrap text-xs tabular-nums text-gray-500">
+                <span className="t-num flex items-center gap-2.5 whitespace-nowrap text-xs text-gray-500">
                   <span className="inline-flex items-center gap-1">
                     <Crosshair className="h-3 w-3" style={{ color: 'var(--game-neg)' }} aria-hidden="true" />
                     <b className="text-gray-900">{team.kills}</b> kills
                   </span>
                   <span className="inline-flex min-w-0 items-center gap-1 overflow-hidden">
                     {winner ? (
-                      <Trophy className="h-3 w-3 shrink-0" style={{ color: 'var(--game-warn)' }} aria-hidden="true" />
+                      <Trophy className="h-3 w-3 shrink-0" style={{ color: 'var(--game-gold)' }} aria-hidden="true" />
                     ) : (
                       <Skull className="h-3 w-3 shrink-0" aria-hidden="true" />
                     )}
@@ -409,7 +429,7 @@ function TeamStrip({
                     className="absolute inset-y-0 left-0 rounded-full"
                     style={{
                       width: `${durationSeconds ? survival : 0}%`,
-                      background: selected ? 'var(--theme-ui-accent)' : winner ? 'var(--game-warn)' : 'var(--theme-ui-text-muted)',
+                      background: selected ? 'var(--theme-ui-accent)' : winner ? 'var(--game-gold)' : 'var(--theme-ui-text-muted)',
                     }}
                   />
                   {durationSeconds
@@ -435,7 +455,7 @@ function TeamStrip({
             {prev}
             {next}
           </span>
-          <span className="whitespace-nowrap text-xs tabular-nums text-gray-500">
+          <span className="t-num whitespace-nowrap text-xs text-gray-500">
             Équipes{' '}
             <b className="text-gray-900">
               {currentPage * perPage + 1}–{Math.min(teams.length, currentPage * perPage + perPage)}
@@ -476,12 +496,12 @@ function TournamentRoundBanner({ tournament, focusClanId }: { tournament: Tourna
     <section className="app-panel flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <Trophy className="h-5 w-5 shrink-0" style={{ color: 'var(--game-warn)' }} aria-hidden="true" />
+          <Trophy className="h-5 w-5 shrink-0" style={{ color: 'var(--game-gold)' }} aria-hidden="true" />
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.08em]" style={{ color: 'var(--game-warn)' }}>
+            <p className="t-label t-gold">
               Manche {tournament.roundNumber} / {tournament.totalRounds}
             </p>
-            <p className="truncate text-base font-extrabold">{tournament.title}</p>
+            <p className="t-card-title truncate">{tournament.title}</p>
           </div>
         </div>
         <Link href={`/tournaments/${tournament.id}`} className="debrief-icon-btn h-8 gap-1.5 px-3 text-xs font-semibold">
@@ -489,7 +509,7 @@ function TournamentRoundBanner({ tournament, focusClanId }: { tournament: Tourna
         </Link>
       </div>
       {tournament.scores.length > 0 && (
-        <div className="app-table-shell overflow-x-auto">
+        <div className="app-table-shell">
           <table className="min-w-full text-xs">
             <thead className="text-gray-500">
               <tr>
@@ -517,7 +537,7 @@ function TournamentRoundBanner({ tournament, focusClanId }: { tournament: Tourna
                   <td className="px-2 py-1.5 text-center tabular-nums">{score.totalKills}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     <b>{score.points} pts</b>
-                    <span className="ml-1.5 text-gray-500">
+                    <span className="ml-1.5 hidden text-gray-500 sm:inline">
                       ({score.placementScore} placement + {score.killScore} kills
                       {score.winBonus ? ` + ${score.winBonus} victoire` : ''})
                     </span>
@@ -544,14 +564,9 @@ const TABS: Array<{ value: DebriefTab; label: string; short: string; icon: typeo
 export function MatchDebriefView({
   context,
   matchId,
-  period = 'week',
-  fromDate = null,
 }: {
   context: MatchDebriefContext
   matchId: string
-  /** Vue clan : contexte de la liste d'origine, repris par le lien vers l'audit technique. */
-  period?: 'week' | 'month'
-  fromDate?: string | null
 }) {
   const clanId = context.kind === 'clan' ? context.clanId : null
   const tournamentId = context.kind === 'tournament' ? context.tournamentId : null
@@ -705,6 +720,8 @@ export function MatchDebriefView({
   )
 
   const memberStats = useMemo(() => parseJson<Array<MemberStatsRow & { memberKey?: string }>>(telemetry?.memberStats, []), [telemetry?.memberStats])
+  // Bots du lobby (comptes `ai.…` de memberStats, qui couvre tout le lobby) : badge de l'en-tête.
+  const botCount = useMemo(() => lobbyBotCount(memberStats), [memberStats])
   const weaponStats = useMemo(
     () => parseJson<Array<{ weaponName?: string; kills?: number; damageDealt?: number; shotsFired?: number; hitsLanded?: number }>>(telemetry?.weaponStats, []),
     [telemetry?.weaponStats]
@@ -717,6 +734,9 @@ export function MatchDebriefView({
   // Membres suivis de l'escouade mise en avant. Pas `SquadMatch.total*` : une manche de tournoi réunit
   // plusieurs équipes suivies sur la même ligne, ses totaux les additionnent toutes.
   const focusMembers = useMemo(() => match?.members ?? [], [match?.members])
+  // Style de jeu de la semaine des membres suivis : clan de l'escouade analysée (un autre clan suivi quand on en change
+  // dans la bande). Sans accès à son style de jeu, la réponse est refusée et les noms restent neutres.
+  const { styleOf } = usePlaystyleColors(match?.focus?.clanId ?? (clanId ? Number(clanId) : null), 'week')
   const squadMates = useMemo(() => payload?.squadMates ?? [], [payload?.squadMates])
   const clanTotals = focusMembers.reduce(
     (totals, member) => ({
@@ -748,6 +768,7 @@ export function MatchDebriefView({
         )
         return {
           key: `member-${member.memberId}`,
+          memberId: member.memberId as number | null,
           name: member.displayName,
           mate: null as SquadMateApi | null,
           kills: member.kills,
@@ -761,6 +782,7 @@ export function MatchDebriefView({
       }),
       ...squadMates.map((mate) => ({
         key: `mate-${mate.accountId}`,
+        memberId: null as number | null,
         name: mate.name,
         mate: mate as SquadMateApi | null,
         kills: mate.kills,
@@ -791,27 +813,27 @@ export function MatchDebriefView({
 
   if (loading) {
     return (
-      <main className="debrief game-ui app-container app-main space-y-4">
+      <div className="debrief game-ui charte app-container app-main space-y-4">
         <NavigationTrail currentLabel="Débriefing" currentHref={pageHref} fallbackParent={fallbackParent} />
         <CardSkeleton className="h-48" />
         <CardSkeleton className="h-96" />
-      </main>
+      </div>
     )
   }
 
   if (error || !match) {
     return (
-      <main className="debrief game-ui app-container app-main space-y-4">
+      <div className="debrief game-ui charte app-container app-main space-y-4">
         <NavigationTrail currentLabel="Erreur" currentHref={pageHref} fallbackParent={fallbackParent} />
         <div className="app-panel p-6" role="alert">
           <p className="font-semibold" style={{ color: 'var(--game-neg)' }}>
             {error || 'Match introuvable.'}
           </p>
-          <Link href={fallbackParent.href} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>
+          <Link href={fallbackParent.href} className="app-link mt-3 inline-flex items-center gap-1.5 text-xs font-semibold">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> {clanId ? 'Retour à la liste des matchs' : 'Retour au tournoi'}
           </Link>
         </div>
-      </main>
+      </div>
     )
   }
 
@@ -857,439 +879,488 @@ export function MatchDebriefView({
         : '—'
     return (
       <li key={kill.id} className="debrief-row flex items-center gap-2.5 px-3.5 py-2 text-[13px]">
-        <span className="w-10 shrink-0 text-xs tabular-nums text-gray-500">{at}</span>
+        <span className="t-num w-10 shrink-0 text-xs text-gray-500">{at}</span>
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
-          <b className="truncate" style={{ color: won ? (kill.isClanKill ? 'var(--game-pos)' : 'var(--game-mate)') : 'var(--theme-ui-text)' }}>
-            {!won && kill.killerClanTag ? `[${kill.killerClanTag}] ` : ''}
-            {kill.killerName}
-          </b>
+          <CombatantName name={kill.killerName}>
+            <b className="truncate" style={{ color: won ? (kill.isClanKill ? 'var(--game-pos)' : 'var(--game-mate)') : 'var(--theme-ui-text)' }}>
+              {!won && kill.killerClanTag ? `[${kill.killerClanTag}] ` : ''}
+              {kill.killerName}
+            </b>
+          </CombatantName>
           <span className="shrink-0 text-gray-500" aria-hidden="true">
             →
           </span>
-          <span className="truncate" style={{ color: won ? 'var(--theme-ui-text-secondary)' : kill.isClanVictim ? 'var(--game-neg)' : 'var(--game-mate)' }}>
-            {won && kill.victimClanTag ? `[${kill.victimClanTag}] ` : ''}
-            {kill.victimName}
-          </span>
+          <CombatantName name={kill.victimName}>
+            <span className="truncate" style={{ color: won ? 'var(--theme-ui-text-secondary)' : kill.isClanVictim ? 'var(--game-neg)' : 'var(--game-mate)' }}>
+              {won && kill.victimClanTag ? `[${kill.victimClanTag}] ` : ''}
+              {kill.victimName}
+            </span>
+          </CombatantName>
         </span>
         {kill.source === 'telemetry' && <TelemetryChip />}
         <span className="hidden whitespace-nowrap text-xs text-gray-700 sm:inline">
           {weaponDisplayName(kill.damageCauser, weaponLabels)}
           {kill.headshot ? ' · tête' : ''}
         </span>
-        <span className="w-11 shrink-0 text-right text-xs tabular-nums text-gray-500">{kill.distance > 0 ? `${Math.round(kill.distance)} m` : ''}</span>
+        <span className="t-num w-11 shrink-0 text-right text-xs text-gray-500">{kill.distance > 0 ? `${Math.round(kill.distance)} m` : ''}</span>
       </li>
     )
   }
 
   return (
-    <main className="debrief game-ui app-container app-main flex flex-col gap-4">
-      <NavigationTrail
-        currentLabel={`Débriefing #${match.placement} · ${resolveMapName(match.mapName)}`}
-        currentHref={pageHref}
-        fallbackParent={fallbackParent}
-      />
-
-      {clanId && (
-        <div className="-mt-2 flex justify-end">
-          <Link
-            href={matchTelemetryAuditPath(clanId, matchId, { period, fromDate: fromDate ?? undefined })}
-            className="inline-flex items-center gap-1 text-[13px] font-semibold text-gray-500 hover:text-gray-900"
-          >
-            Audit technique <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-        </div>
-      )}
-
-      {tournament && <TournamentRoundBanner tournament={tournament} focusClanId={match.focus?.clanId ?? null} />}
-
-      {/* --- En-tête : carte, classement, escouade, indicateurs --- */}
-      <section className="app-panel flex flex-col overflow-hidden p-0 sm:flex-row" aria-label="Résumé de la partie">
-        <div
-          className="relative h-[120px] shrink-0 bg-cover bg-center sm:h-auto sm:w-[220px]"
-          style={{ backgroundColor: '#0b1120', backgroundImage: mapImage ? `url(${mapImage})` : undefined }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 to-slate-950/10" aria-hidden="true" />
-          <div className="absolute bottom-3.5 left-4 flex flex-col gap-1 text-white">
-            <PlacementBadge
-              placement={match.placement}
-              label={lobbyTeams ? `#${match.placement} / ${lobbyTeams}` : undefined}
-              className="self-start"
-            />
-            <span className="text-xs font-semibold uppercase tracking-[0.06em] text-white/80">{outcome}</span>
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-3.5 p-4 sm:px-5 sm:py-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.02em]">{resolveMapName(match.mapName)}</h1>
-            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
-              {resolveGameMode(match.gameMode)}
-            </span>
-            {!match.matchType || match.matchType === 'official' ? (
-              <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-xs font-semibold text-gray-700">Officiel</span>
-            ) : (
-              <MatchTypeBadge matchType={match.matchType} size="sm" />
-            )}
-            <span className="text-xs text-gray-500">{[formatMatchDate(match.createdAt), duration].filter(Boolean).join(' · ')}</span>
-          </div>
-          <ul className="flex flex-wrap gap-1.5" aria-label="Escouade">
-            {focusMembers.map((member) => (
-              <li key={member.memberId} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs">
-                <span className="font-bold" style={{ color: 'var(--game-pos)' }}>
-                  {member.displayName}
-                </span>
-                <span className="tabular-nums text-gray-500">
-                  {member.kills} K · {numberFormat.format(Math.round(member.damage))}
-                </span>
-              </li>
-            ))}
-            {squadMates.map((mate) => (
-              <li
-                key={mate.accountId}
-                className="inline-flex items-center gap-1.5 rounded-full border border-dashed bg-gray-50 px-2.5 py-1 text-xs"
-                style={{ borderColor: 'var(--game-mate)' }}
-                title={`${mate.name} — ${mate.knockouts} mise(s) à terre, ${mate.revives} réanimation(s), ${mate.recalls} rappel(s), ${mate.deaths} mort(s). Statistiques issues de la télémétrie.`}
-              >
-                <span className="font-bold" style={{ color: 'var(--game-mate)' }}>
-                  {mate.name}
-                </span>
-                <MateBadge mate={mate} />
-                <span className="tabular-nums text-gray-500">
-                  {mate.kills} K · {numberFormat.format(Math.round(mate.damage))}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {kpis.map((kpi) => {
-              const Icon = kpi.icon
-              return (
-                <div key={kpi.label} className="app-panel-muted px-3 py-2.5" title={kpi.title}>
-                  <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">
-                    <Icon className="h-[13px] w-[13px] shrink-0" style={{ color: kpi.color }} aria-hidden="true" />
-                    {kpi.label}
-                  </dt>
-                  <dd className="mt-0.5 text-2xl font-extrabold tabular-nums">{kpi.value}</dd>
-                  <dd className="text-[11px] text-gray-500">{kpi.sub}</dd>
-                </div>
-              )
-            })}
-          </dl>
-        </div>
-      </section>
-
-      {teams.length > 1 && (
-        <TeamStrip
-          teams={teams}
-          focusTeamId={focusTeamId}
-          busy={refreshing}
-          durationSeconds={durationSeconds}
-          phaseTicks={phaseTicks}
-          onSelect={selectTeam}
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur ; en-tête et contenu de l'onglet alignés sur la grille.
+    <div className="debrief game-ui charte app-main-flush flex-1">
+      <div className="app-container app-gutter flex flex-col gap-4">
+        <NavigationTrail
+          currentLabel={`Débriefing #${match.placement} · ${resolveMapName(match.mapName)}`}
+          currentHref={pageHref}
+          fallbackParent={fallbackParent}
         />
-      )}
-      {refreshError && (
-        <p className="text-xs font-semibold" style={{ color: 'var(--game-neg)' }} role="alert">
-          {refreshError}
-        </p>
-      )}
 
-      {/* --- Onglets --- */}
-      <div role="tablist" aria-label="Débriefing" className="flex gap-0 border-b border-gray-200 sm:gap-1">
-        {TABS.map((tab, index) => {
-          const active = tab.value === activeTab
-          const Icon = tab.icon
-          return (
-            <button
-              key={tab.value}
-              ref={(node) => {
-                tabRefs.current[index] = node
-              }}
-              type="button"
-              role="tab"
-              id={`debrief-tab-${tab.value}`}
-              aria-selected={active}
-              aria-controls={`debrief-panel-${tab.value}`}
-              tabIndex={active ? 0 : -1}
-              onClick={() => setActiveTab(tab.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
-                event.preventDefault()
-                const nextIndex = (index + (event.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length
-                setActiveTab(TABS[nextIndex].value)
-                tabRefs.current[nextIndex]?.focus()
-              }}
-              className={`-mb-px inline-flex flex-1 flex-col items-center justify-center gap-1 border-b-2 px-0.5 pb-2.5 pt-2 text-[11px] sm:flex-none sm:flex-row sm:gap-1.5 sm:px-3.5 sm:py-2.5 sm:text-sm ${
-                active ? 'font-bold' : 'border-transparent font-medium text-gray-500 hover:text-gray-900'
-              }`}
-              style={active ? { borderColor: 'var(--theme-ui-accent)', color: 'var(--theme-ui-accent-text)' } : undefined}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              <span className="sm:hidden">{tab.short}</span>
-              <span className="hidden sm:inline">{tab.label}</span>
-              {tab.value === 'combat' && (
-                <span className="hidden rounded-full border border-gray-200 bg-gray-50 px-1.5 text-[11px] font-semibold tabular-nums text-gray-500 sm:inline">
-                  {timelineEvents.length}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+        {tournament && <TournamentRoundBanner tournament={tournament} focusClanId={match.focus?.clanId ?? null} />}
 
-      <div role="tabpanel" id={`debrief-panel-${activeTab}`} aria-labelledby={`debrief-tab-${activeTab}`} className={refreshing ? 'opacity-60 transition-opacity' : undefined}>
-        {activeTab === 'combat' && (
-          <MatchCombatTimeline
-            events={timelineEvents}
-            clanTag={clanTag}
-            otherTrackedClanTags={otherTrackedClanTags}
-            weaponLabels={weaponLabels}
-            onShowInReplay={showInReplay}
-          />
-        )}
-
-        {activeTab === 'replay' && (
-          <section className="flex flex-col gap-4">
-            {replayLoading && <CardSkeleton className="h-96" />}
-            {replayError && !replayLoading && (
-              <div className="app-panel flex flex-col items-start gap-3 p-6 text-sm font-semibold" role="alert">
-                <p style={{ color: 'var(--game-neg)' }}>{replayError}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    replayLoadedRef.current = false
-                    setReplayError('')
-                    setReplayRetryToken((token) => token + 1)
-                  }}
-                  className="debrief-icon-btn h-8 gap-1.5 px-3 text-xs font-bold"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Réessayer
-                </button>
-              </div>
-            )}
-            {!replayLoading && !replayError && !replayData && (
-              <div className="app-panel p-6 text-sm font-semibold text-gray-500">Aucune donnée de replay renvoyée pour ce match.</div>
-            )}
-            {replayData && !replayLoading && (
-              <MatchReplay2D data={replayData} focusTeamId={focusTeamId} focusTag={match.focus?.tag ?? null} startAt={replayStart} />
-            )}
-          </section>
-        )}
-
-        {activeTab === 'squad' && (
-          <section className="flex flex-col gap-3.5">
-            <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
-              {squadCards.map((card) => {
-                const accuracy = accuracyOf(card.stats)
-                const mate = card.mate
-                const color = mate ? 'var(--game-mate)' : 'var(--game-pos)'
-                return (
-                  <article
-                    key={card.key}
-                    className={`app-panel flex flex-col gap-3 p-3.5 ${mate ? 'border-dashed' : ''}`}
-                    style={mate ? { borderColor: 'var(--game-mate)' } : undefined}
+        {/* --- En-tête : carte, classement, escouade, indicateurs --- */}
+        <section className="app-panel flex flex-col overflow-hidden p-0 sm:flex-row" aria-label="Résumé de la partie">
+          <div
+            className="bg-photo-fallback relative h-[120px] shrink-0 bg-cover bg-center sm:h-auto sm:w-[220px]"
+            style={{ backgroundImage: mapImage ? `url(${mapImage})` : undefined }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 to-slate-950/10" aria-hidden="true" />
+            <div className="absolute bottom-3.5 left-4 flex flex-col gap-1 text-white">
+              {/* Place en Teko sur la photo (charte, .app-photo-place) : #1 accent, 2–5 vert clair, sinon blanc. */}
+              <b
+                className={`app-photo-place t-hero t-hero--xl ${match.placement === 1 ? 'app-photo-place--win' : match.placement <= 5 ? 'app-photo-place--top5' : ''}`}
+                aria-label={lobbyTeams ? `Place ${match.placement} sur ${lobbyTeams} équipes` : `Place ${match.placement}`}
+              >
+                #{match.placement}
+                {lobbyTeams ? <span className="text-2xl text-white/65">/{lobbyTeams}</span> : null}
+              </b>
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-white/80">{outcome}</span>
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-3.5 p-4 sm:px-5 sm:py-4">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="t-banner-title m-0 text-gray-900">{resolveMapName(match.mapName)}</h1>
+              {/* Badges de la partie, étirés à une seule hauteur : mode, type, bots du lobby. */}
+              <span className="inline-flex flex-wrap items-stretch gap-2">
+                {teamModeOfGameMode(match.gameMode) ? (
+                  // Badge de mode du site (icône et couleur du mode), libellé PUBG complet : « Duo TPP », « Squad FPP ».
+                  <TeamModeBadge mode={teamModeOfGameMode(match.gameMode)!} label={resolveGameMode(match.gameMode)} size="sm" />
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 text-xs font-semibold text-gray-700">
+                    {resolveGameMode(match.gameMode)}
+                  </span>
+                )}
+                {/* Type de partie toujours lisible ici : « Officiel » compris (variante de MatchTypeBadge, à l'accent). */}
+                <MatchTypeBadge matchType={match.matchType || 'official'} size="sm" showOfficial />
+                {botCount.bots > 0 ? (
+                  // Une partie peuplée de bots se joue presque comme une Casual : badge à la façon du badge « Casual ».
+                  <span
+                    className="app-npc-badge app-npc-badge--bot app-npc-badge--lg"
+                    title={`${botCount.bots} bots sur ${botCount.players} joueurs : une partie peuplée de bots se joue presque comme une Casual`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="app-panel-muted inline-flex h-9 w-9 shrink-0 items-center justify-center text-[13px] font-extrabold"
-                        style={{ color }}
-                        aria-hidden="true"
-                      >
-                        {card.name.charAt(0).toUpperCase()}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[15px] font-bold" style={{ color }}>
-                          {card.name}
-                        </p>
-                        <p className="truncate text-xs text-gray-500">
-                          {mate ? (
-                            <>
-                              <MateBadge mate={mate} /> · télémétrie · {card.sub}
-                            </>
-                          ) : (
-                            card.sub
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[22px] font-extrabold tabular-nums">{card.kills}</p>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-500">kills</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 tabular-nums">
-                      <div>
-                        <p className="text-[11px] text-gray-500">Dégâts infligés</p>
-                        <p className="text-[15px] font-bold">{numberFormat.format(card.damage)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] text-gray-500">Dégâts subis</p>
-                        <p className="text-[15px] font-bold">
-                          {card.stats?.damageTaken ? numberFormat.format(Math.round(card.stats.damageTaken)) : '—'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-500">Précision</span>
-                        {accuracy.percent !== null ? (
-                          <b className="tabular-nums">
-                            {accuracy.percent} % <span className="font-medium text-gray-500">({accuracy.hits}/{accuracy.shots})</span>
-                          </b>
-                        ) : (
-                          <span className="text-gray-500">—</span>
-                        )}
-                      </div>
-                      <div className="h-1.5 rounded-full" style={{ background: 'var(--game-track)' }}>
-                        <div
-                          className="h-1.5 rounded-full"
-                          style={{ width: `${Math.min(100, (accuracy.percent ?? 0) * 2)}%`, background: 'var(--game-pos)' }}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 text-xs text-gray-700">
-                      {card.walk !== null && (
-                        <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">{formatDistance(card.walk)} à pied</span>
-                      )}
-                      {card.ride > 0 && (
-                        <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">{formatDistance(card.ride)} en véhicule</span>
-                      )}
-                      {card.throws && <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">{card.throws}</span>}
-                    </div>
-                  </article>
+                    <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+                    {botCount.bots} bot{botCount.bots > 1 ? 's' : ''}
+                  </span>
+                ) : null}
+              </span>
+              <span className="t-meta t-num">{[formatMatchDate(match.createdAt), duration].filter(Boolean).join(' · ')}</span>
+            </div>
+            <ul className="flex flex-wrap gap-1.5" aria-label="Escouade">
+              {focusMembers.map((member) => {
+                const style = styleOf(member.memberId)
+                const role = style ? rosterRole(style) : null
+                return (
+                <li
+                  key={member.memberId}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs"
+                  title={role ? `${member.displayName} — ${role.label} cette semaine` : `${member.displayName} — pas de style de jeu connu cette semaine`}
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: role?.color ?? 'var(--theme-ui-text-muted)' }} aria-hidden="true" />
+                  <span className="font-bold" style={{ color: style ? STYLE_TEXT[style] : 'var(--theme-ui-text)' }}>
+                    {member.displayName}
+                  </span>
+                  {role ? <span className="sr-only">({role.label})</span> : null}
+                  <span className="t-num text-gray-500">
+                    {member.kills} K · {numberFormat.format(Math.round(member.damage))}
+                  </span>
+                </li>
                 )
               })}
-            </div>
+              {squadMates.map((mate) => (
+                <li
+                  key={mate.accountId}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed bg-gray-50 px-2.5 py-1 text-xs"
+                  style={{ borderColor: 'var(--game-mate)' }}
+                  title={`${mate.name} — ${mate.knockouts} mise(s) à terre, ${mate.revives} réanimation(s), ${mate.recalls} rappel(s), ${mate.deaths} mort(s). Statistiques issues de la télémétrie.`}
+                >
+                  <span className="font-bold" style={{ color: 'var(--game-mate)' }}>
+                    {mate.name}
+                  </span>
+                  <MateBadge mate={mate} />
+                  <span className="t-num text-gray-500">
+                    {mate.kills} K · {numberFormat.format(Math.round(mate.damage))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {focusMembers.some((member) => styleOf(member.memberId)) ? <PlaystyleLegend label="Style de jeu de la semaine" className="-mt-2" /> : null}
+            <dl className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+              {kpis.map((kpi) => {
+                const Icon = kpi.icon
+                return (
+                  <div key={kpi.label} className="app-panel-muted flex min-w-0 flex-col gap-1 px-3 py-2.5" title={kpi.title}>
+                    <dt className="t-label flex items-center gap-1.5">
+                      <Icon className="h-[13px] w-[13px] shrink-0" style={{ color: kpi.color }} aria-hidden="true" />
+                      {kpi.label}
+                    </dt>
+                    <dd className="t-hero t-hero--md text-gray-900">{kpi.value}</dd>
+                    <dd className="t-meta truncate">{kpi.sub}</dd>
+                  </div>
+                )
+              })}
+            </dl>
+          </div>
+        </section>
+      </div>
 
-            <div className="app-panel flex flex-col gap-2.5 p-3.5">
-              <h2 className="m-0 text-[15px] font-bold">Arsenal de l’escouade</h2>
-              {weaponStats.length === 0 ? (
-                <p className="text-xs text-gray-500">Aucune statistique d’arme disponible.</p>
-              ) : (
-                <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
-                  {weaponStats.slice(0, 9).map((weapon) => {
-                    const shots = Number(weapon.shotsFired) || 0
-                    const hits = Number(weapon.hitsLanded) || 0
-                    const percent = shots > 0 ? Math.round((hits / shots) * 100) : null
-                    const tone = percent === null ? 'var(--theme-ui-text-muted)' : percent >= 30 ? 'var(--game-pos)' : percent >= 22 ? 'var(--game-warn)' : 'var(--game-neg)'
-                    return (
-                      <div key={weapon.weaponName} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <b className="truncate text-sm">{weaponDisplayName(weapon.weaponName, weaponLabels)}</b>
-                          <span className="whitespace-nowrap text-xs tabular-nums text-gray-500">
-                            {weapon.kills || 0} K · {numberFormat.format(Math.round(weapon.damageDealt || 0))} dégâts
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--game-track)' }}>
-                            <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, (percent ?? 0) * 2)}%`, background: tone }} />
-                          </div>
-                          <span className="w-12 text-right text-xs font-bold tabular-nums">{percent !== null ? `${percent} %` : '—'}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
+      {/*
+        Onglets dans le bandeau collant (docs/ui/index.html#sticky-toolbar) : docké sous le header, il ouvre sur le retour
+        du fil d'Ariane. Rail segmenté (gabarit des onglets de bandeau), vrais onglets : role="tab", flèches du clavier,
+        onglet porté par l'URL. Pas de période : rien de docké sur mobile (docs/TODO/sticky.md §2).
+      */}
+      <DockingToolbar ariaLabel="Onglets du débriefing" dockOnMobile={false}>
+        <div role="tablist" aria-label="Débriefing" className="app-segmented-control inline-flex w-full border border-gray-200 sm:w-fit">
+          {TABS.map((tab, index) => {
+            const active = tab.value === activeTab
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.value}
+                ref={(node) => {
+                  tabRefs.current[index] = node
+                }}
+                type="button"
+                role="tab"
+                id={`debrief-tab-${tab.value}`}
+                aria-selected={active}
+                aria-controls={`debrief-panel-${tab.value}`}
+                tabIndex={active ? 0 : -1}
+                onClick={() => setActiveTab(tab.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
+                  event.preventDefault()
+                  const nextIndex = (index + (event.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length
+                  setActiveTab(TABS[nextIndex].value)
+                  tabRefs.current[nextIndex]?.focus()
+                }}
+                className={`app-segmented-control__item app-segmented-control__item--xs inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 font-medium transition-colors max-sm:!px-1.5 sm:flex-none ${
+                  active ? 'app-segmented-control__item--active' : ''
+                }`}
+              >
+                <Icon className="hidden h-3.5 w-3.5 shrink-0 sm:block" aria-hidden="true" />
+                <span className="truncate sm:hidden">{tab.short}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+                {tab.value === 'combat' && (
+                  // Sans bordure ni marge verticale : le compteur ne rend pas l'onglet plus haut que les autres.
+                  <span className="t-num hidden rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold leading-4 text-gray-500 sm:inline">
+                    {timelineEvents.length}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </DockingToolbar>
+
+      {/* Sous les onglets : l'escouade analysée, qui pilote tous les onglets, puis le contenu de l'onglet. */}
+      <div className="app-container app-gutter flex flex-col gap-4">
+        {teams.length > 1 && (
+          <TeamStrip
+            teams={teams}
+            focusTeamId={focusTeamId}
+            busy={refreshing}
+            durationSeconds={durationSeconds}
+            phaseTicks={phaseTicks}
+            onSelect={selectTeam}
+          />
+        )}
+        {refreshError && (
+          <p className="text-xs font-semibold" style={{ color: 'var(--game-neg)' }} role="alert">
+            {refreshError}
+          </p>
+        )}
+        <div
+          role="tabpanel"
+          id={`debrief-panel-${activeTab}`}
+          aria-labelledby={`debrief-tab-${activeTab}`}
+          className={refreshing ? 'opacity-60 transition-opacity' : undefined}
+        >
+          {activeTab === 'combat' && (
+            <MatchCombatTimeline
+              events={timelineEvents}
+              clanTag={clanTag}
+              otherTrackedClanTags={otherTrackedClanTags}
+              weaponLabels={weaponLabels}
+              onShowInReplay={showInReplay}
+            />
+          )}
+
+          {activeTab === 'replay' && (
+            <section className="flex flex-col gap-4">
+              {replayLoading && <CardSkeleton className="h-96" />}
+              {replayError && !replayLoading && (
+                <div className="app-panel flex flex-col items-start gap-3 p-6 text-sm font-semibold" role="alert">
+                  <p style={{ color: 'var(--game-neg)' }}>{replayError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      replayLoadedRef.current = false
+                      setReplayError('')
+                      setReplayRetryToken((token) => token + 1)
+                    }}
+                    className="debrief-icon-btn h-8 gap-1.5 px-3 text-xs font-bold"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Réessayer
+                  </button>
                 </div>
               )}
-            </div>
-          </section>
-        )}
+              {!replayLoading && !replayError && !replayData && (
+                <div className="app-panel p-6 text-sm font-semibold text-gray-500">Aucune donnée de replay renvoyée pour ce match.</div>
+              )}
+              {replayData && !replayLoading && (
+                <MatchReplay2D data={replayData} focusTeamId={focusTeamId} focusTag={match.focus?.tag ?? null} startAt={replayStart} />
+              )}
+            </section>
+          )}
 
-        {activeTab === 'duels' && (
-          <section className="flex flex-col gap-3.5">
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))]">
-              {[
-                { title: 'Duels gagnés', score: `+${squadKills.length}`, color: 'var(--game-pos)', rows: squadKills, won: true, empty: 'Aucune élimination enregistrée.' },
-                { title: 'Duels perdus', score: `−${squadDeaths.length}`, color: 'var(--game-neg)', rows: squadDeaths, won: false, empty: 'Aucun membre éliminé.' },
-              ].map((column) => (
-                <div key={column.title} className="app-panel overflow-hidden p-0">
-                  <div className="debrief-row flex items-baseline justify-between px-3.5 py-3" style={{ boxShadow: `inset 3px 0 0 ${column.color}` }}>
-                    <h2 className="m-0 text-[15px] font-bold">{column.title}</h2>
-                    <span className="text-[22px] font-extrabold tabular-nums" style={{ color: column.color }}>
-                      {column.score}
-                    </span>
-                  </div>
-                  {column.rows.length === 0 ? (
-                    <p className="px-3.5 py-3 text-xs text-gray-500">{column.empty}</p>
-                  ) : (
-                    <ol>{column.rows.map((kill) => duelRow(kill, column.won))}</ol>
-                  )}
-                </div>
-              ))}
-            </div>
-            {(unlistedSquadKills > 0 || !killFeedAvailable) && (
-              <p className="text-xs text-gray-500">
-                {!killFeedAvailable &&
-                  "Match analysé avant l'enregistrement du kill-feed complet : seuls les frags des clans ayant synchronisé le match apparaissent. "}
-                {unlistedSquadKills > 0 &&
-                  `${unlistedSquadKills} kill${unlistedSquadKills > 1 ? 's' : ''} de l’escouade selon les statistiques du match ${
-                    unlistedSquadKills > 1 ? 'ne sont pas détaillés' : 'n’est pas détaillé'
-                  } ici.`}
-              </p>
-            )}
-
-            <div className="app-panel flex flex-col gap-3.5 p-4">
-              <div>
-                <h2 className="m-0 text-[15px] font-bold">Zones d’impact</h2>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  {bodyZonesAvailable
-                    ? 'Touches localisées par la télémétrie. Les dégâts qu’un joueur s’inflige ne comptent pas comme infligés.'
-                    : 'Match analysé avant la capture des zones d’impact : aucune répartition n’est inventée ici. Une nouvelle synchronisation télémétrie la calcule (matchs de moins de 14 jours).'}
-                </p>
-              </div>
-              {bodyZonesAvailable && (
-                <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))]">
-                  {(['dealt', 'taken'] as const).map((direction) => {
-                    const breakdown = squadBodyZones?.[direction]
-                    const summary = zoneBars(breakdown)
-                    const color = direction === 'dealt' ? 'var(--game-pos)' : 'var(--game-neg)'
-                    return (
-                      <div key={direction} className="app-panel-muted flex gap-3.5 px-3.5 py-3">
-                        <div className="hidden w-[92px] shrink-0 sm:block">
-                          <DamageBodySvg
-                            damageByZone={toZoneRecord(breakdown, 'damage')}
-                            hitsByZone={toZoneRecord(breakdown, 'hits')}
-                            size="sm"
-                            variant={direction === 'dealt' ? 'dealt' : 'received'}
-                            showLabels={false}
-                            showTooltips
-                          />
+          {activeTab === 'squad' && (
+            <section className="flex flex-col gap-3.5">
+              <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
+                {squadCards.map((card) => {
+                  const accuracy = accuracyOf(card.stats)
+                  const mate = card.mate
+                  const style = card.memberId !== null ? styleOf(card.memberId) : null
+                  const role = style ? rosterRole(style) : null
+                  // Coéquipier hors site : sa teinte « non suivi » ; membre : son style de la semaine, sinon neutre.
+                  const color = mate ? 'var(--game-mate)' : style ? STYLE_TEXT[style] : 'var(--theme-ui-text)'
+                  return (
+                    <article
+                      key={card.key}
+                      className={`app-panel flex flex-col gap-3 p-3.5 ${mate ? 'border-dashed' : ''}`}
+                      style={mate ? { borderColor: 'var(--game-mate)' } : undefined}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="app-panel-muted inline-flex h-9 w-9 shrink-0 items-center justify-center text-[13px] font-extrabold"
+                          style={{ color }}
+                          aria-hidden="true"
+                        >
+                          {card.name.charAt(0).toUpperCase()}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-bold" style={{ color }}>
+                            {card.name}
+                          </p>
+                          <p className="truncate text-xs text-gray-500">
+                            {mate ? (
+                              <>
+                                <MateBadge mate={mate} /> · télémétrie · {card.sub}
+                              </>
+                            ) : (
+                              <>
+                                {role ? (
+                                  <>
+                                    <b style={{ color }}>{role.label}</b> ·{' '}
+                                  </>
+                                ) : null}
+                                {card.sub}
+                              </>
+                            )}
+                          </p>
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-col gap-2">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <b className="text-sm" style={{ color }}>
-                              {direction === 'dealt' ? 'Tirs infligés' : 'Tirs subis'}
+                        <div className="text-right">
+                          <p className="t-hero t-hero--sm text-gray-900">{card.kills}</p>
+                          <p className="t-label">kills</p>
+                        </div>
+                      </div>
+                      <div className="t-num grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-[11px] text-gray-500">Dégâts infligés</p>
+                          <p className="text-[15px] font-bold text-gray-900">{numberFormat.format(card.damage)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-gray-500">Dégâts subis</p>
+                          <p className="text-[15px] font-bold text-gray-900">
+                            {card.stats?.damageTaken ? numberFormat.format(Math.round(card.stats.damageTaken)) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Précision</span>
+                          {accuracy.percent !== null ? (
+                            <b className="t-num text-gray-900">
+                              {accuracy.percent} % <span className="font-medium text-gray-500">({accuracy.hits}/{accuracy.shots})</span>
                             </b>
-                            <span className="text-xs text-gray-500">
-                              {summary.hits} touche{summary.hits > 1 ? 's' : ''}
-                              {summary.headPercent !== null ? ` · ${summary.headPercent} % à la tête` : ''}
-                            </span>
-                          </div>
-                          {summary.bars.map((bar) => (
-                            <div key={bar.zone} className="grid items-center gap-2 text-xs tabular-nums [grid-template-columns:62px_1fr_72px]">
-                              <span className="text-gray-700">{bar.label}</span>
-                              <div className="h-2 rounded-full" style={{ background: 'var(--game-track)' }}>
-                                <div className="h-2 rounded-full" style={{ width: `${bar.widthPercent}%`, background: color }} />
-                              </div>
-                              <span className="text-right text-gray-500">
-                                {bar.hits} · {numberFormat.format(bar.damage)}
-                              </span>
-                            </div>
-                          ))}
-                          {summary.unlocalizedDamage > 0 && (
-                            <p className="text-[11px] text-gray-500">
-                              + {numberFormat.format(summary.unlocalizedDamage)} dégâts non localisés (
-                              {direction === 'dealt' ? 'explosifs, véhicules…' : 'zone bleue, chute, explosion'})
-                            </p>
+                          ) : (
+                            <span className="text-gray-500">—</span>
                           )}
                         </div>
+                        <div className="h-1.5 rounded-full" style={{ background: 'var(--game-track)' }}>
+                          <div
+                            className="h-1.5 rounded-full"
+                            style={{ width: `${Math.min(100, (accuracy.percent ?? 0) * 2)}%`, background: 'var(--game-pos)' }}
+                          />
+                        </div>
                       </div>
-                    )
-                  })}
-                </div>
+                      <div className="flex flex-wrap gap-1.5 text-xs text-gray-700">
+                        {card.walk !== null && (
+                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">{formatDistance(card.walk)} à pied</span>
+                        )}
+                        {card.ride > 0 && (
+                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">{formatDistance(card.ride)} en véhicule</span>
+                        )}
+                        {card.throws && <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">{card.throws}</span>}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+
+              <div className="app-panel flex flex-col gap-2.5 p-3.5">
+                <h2 className="t-card-title m-0">Arsenal de l’escouade</h2>
+                {weaponStats.length === 0 ? (
+                  <p className="t-meta">Aucune statistique d’arme disponible.</p>
+                ) : (
+                  <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
+                    {weaponStats.slice(0, 9).map((weapon) => {
+                      const shots = Number(weapon.shotsFired) || 0
+                      const hits = Number(weapon.hitsLanded) || 0
+                      const percent = shots > 0 ? Math.round((hits / shots) * 100) : null
+                      const tone = percent === null ? 'var(--theme-ui-text-muted)' : percent >= 30 ? 'var(--game-pos)' : percent >= 22 ? 'var(--game-warn)' : 'var(--game-neg)'
+                      return (
+                        <div key={weapon.weaponName} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <b className="truncate text-sm text-gray-900">{weaponDisplayName(weapon.weaponName, weaponLabels)}</b>
+                            <span className="t-num whitespace-nowrap text-xs text-gray-500">
+                              {weapon.kills || 0} K · {numberFormat.format(Math.round(weapon.damageDealt || 0))} dégâts
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 flex-1 rounded-full" style={{ background: 'var(--game-track)' }}>
+                              <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, (percent ?? 0) * 2)}%`, background: tone }} />
+                            </div>
+                            <span className="t-num w-12 text-right text-xs font-bold text-gray-900">{percent !== null ? `${percent} %` : '—'}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'duels' && (
+            <section className="flex flex-col gap-3.5">
+              <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))]">
+                {[
+                  { title: 'Duels gagnés', score: `+${squadKills.length}`, color: 'var(--game-pos)', rows: squadKills, won: true, empty: 'Aucune élimination enregistrée.' },
+                  { title: 'Duels perdus', score: `−${squadDeaths.length}`, color: 'var(--game-neg)', rows: squadDeaths, won: false, empty: 'Aucun membre éliminé.' },
+                ].map((column) => (
+                  <div key={column.title} className="app-panel overflow-hidden p-0">
+                    <div className="debrief-row flex items-baseline justify-between px-3.5 py-3" style={{ boxShadow: `inset 3px 0 0 ${column.color}` }}>
+                      <h2 className="t-card-title m-0">{column.title}</h2>
+                      <span className="t-hero t-hero--sm" style={{ color: column.color }}>
+                        {column.score}
+                      </span>
+                    </div>
+                    {column.rows.length === 0 ? (
+                      <p className="t-meta px-3.5 py-3">{column.empty}</p>
+                    ) : (
+                      <ol>{column.rows.map((kill) => duelRow(kill, column.won))}</ol>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {(unlistedSquadKills > 0 || !killFeedAvailable) && (
+                <p className="t-meta">
+                  {!killFeedAvailable &&
+                    "Match analysé avant l'enregistrement du kill-feed complet : seuls les frags des clans ayant synchronisé le match apparaissent. "}
+                  {unlistedSquadKills > 0 &&
+                    `${unlistedSquadKills} kill${unlistedSquadKills > 1 ? 's' : ''} de l’escouade selon les statistiques du match ${
+                      unlistedSquadKills > 1 ? 'ne sont pas détaillés' : 'n’est pas détaillé'
+                    } ici.`}
+                </p>
               )}
-            </div>
-          </section>
-        )}
+
+              <div className="app-panel flex flex-col gap-3.5 p-4">
+                <div>
+                  <h2 className="t-card-title m-0">Zones d’impact</h2>
+                  <p className="t-meta mt-0.5">
+                    {bodyZonesAvailable
+                      ? 'Touches localisées par la télémétrie. Les dégâts qu’un joueur s’inflige ne comptent pas comme infligés.'
+                      : 'Match analysé avant la capture des zones d’impact : aucune répartition n’est inventée ici. Une nouvelle synchronisation télémétrie la calcule (matchs de moins de 14 jours).'}
+                  </p>
+                </div>
+                {bodyZonesAvailable && (
+                  <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))]">
+                    {(['dealt', 'taken'] as const).map((direction) => {
+                      const breakdown = squadBodyZones?.[direction]
+                      const summary = zoneBars(breakdown)
+                      const color = direction === 'dealt' ? 'var(--game-pos)' : 'var(--game-neg)'
+                      return (
+                        <div key={direction} className="app-panel-muted flex gap-3.5 px-3.5 py-3">
+                          <div className="hidden w-[92px] shrink-0 sm:block">
+                            <DamageBodySvg
+                              damageByZone={toZoneRecord(breakdown, 'damage')}
+                              hitsByZone={toZoneRecord(breakdown, 'hits')}
+                              size="sm"
+                              variant={direction === 'dealt' ? 'dealt' : 'received'}
+                              showLabels={false}
+                              showValues={false}
+                              showTooltips
+                            />
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col gap-2">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <b className="text-sm" style={{ color }}>
+                                {direction === 'dealt' ? 'Tirs infligés' : 'Tirs subis'}
+                              </b>
+                              <span className="text-xs text-gray-500">
+                                {summary.hits} touche{summary.hits > 1 ? 's' : ''}
+                                {summary.headPercent !== null ? ` · ${summary.headPercent} % à la tête` : ''}
+                              </span>
+                            </div>
+                            {summary.bars.map((bar) => (
+                              <div key={bar.zone} className="grid items-center gap-2 text-xs tabular-nums [grid-template-columns:62px_1fr_72px]">
+                                <span className="text-gray-700">{bar.label}</span>
+                                <div className="h-2 rounded-full" style={{ background: 'var(--game-track)' }}>
+                                  <div className="h-2 rounded-full" style={{ width: `${bar.widthPercent}%`, background: color }} />
+                                </div>
+                                <span className="text-right text-gray-500">
+                                  {bar.hits} · {numberFormat.format(bar.damage)}
+                                </span>
+                              </div>
+                            ))}
+                            {summary.unlocalizedDamage > 0 && (
+                              <p className="text-[11px] text-gray-500">
+                                + {numberFormat.format(summary.unlocalizedDamage)} dégâts non localisés (
+                                {direction === 'dealt' ? 'explosifs, véhicules…' : 'zone bleue, chute, explosion'})
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   )
 }

@@ -10,6 +10,8 @@ import {
   groupTimelineByPhase,
   hitZoneLabel,
   isHeadshot,
+  lobbyBotCount,
+  npcKindOf,
   pageOfIndex,
   parseDebriefTab,
   phaseStartTimes,
@@ -169,5 +171,26 @@ describe('debrief-view — lancers', () => {
       ])
     ).toBe('1 grenade · 3 fumigènes')
     expect(throwableSummary([])).toBe('')
+  })
+})
+
+describe('debrief-view — bots et animaux', () => {
+  it('reconnaît un bot (ai.…) et un ours (monster.bear…), quelle que soit la casse', () => {
+    expect(npcKindOf('ai.1042')).toBe('bot')
+    expect(npcKindOf('AI.7')).toBe('bot')
+    expect(npcKindOf('monster.bear-02')).toBe('bear')
+    expect(npcKindOf('monster.wolf-1')).toBe('animal')
+    // Un pseudo qui commence par « ai » sans point reste un joueur.
+    expect(npcKindOf('aiden')).toBeNull()
+    expect(npcKindOf('Joueur Alpha')).toBeNull()
+    expect(npcKindOf(null)).toBeNull()
+  })
+
+  it('compte les bots du lobby dans les statistiques par joueur', () => {
+    expect(lobbyBotCount([{ memberKey: 'account.a' }, { memberKey: 'ai.1' }, { memberKey: 'ai.2' }, { memberKey: null }, {}])).toEqual({
+      bots: 2,
+      players: 3,
+    })
+    expect(lobbyBotCount([])).toEqual({ bots: 0, players: 0 })
   })
 })

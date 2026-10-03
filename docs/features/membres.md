@@ -43,6 +43,15 @@ Medic, Ghost), tri (Activité, Nom, K/M, Médailles), lien « Demandes en attent
 Logique pure : `src/lib/member-roster.ts` (rôle dominant, « ce soir », libellés d'activité, réserve, tris, filtres,
 initiales).
 
+**Charte UI** (2026-10-03) : la page porte `.charte` ([docs/ui/index.html](../ui/index.html#cartes)). Titre du bandeau
+en `t-banner-title` (Teko), icône à l'accent, « ont joué ce soir » en vert de jeu sur la photo (`.app-on-photo`) ;
+hauteur du bandeau inchangée. Bandeau de filtres à **une seule hauteur par ligne** (32 px, mesuré aux trois largeurs) :
+recherche `.app-toolbar-search` (nouvelle classe, habillage du rail, texte d'aide « Nom ou pseudo » pour tenir sur la
+ligne), rails segmented, et « Demandes en attente (N) » en `app-toolbar-btn`, le nombre en orange (`t-warn`, charte
+§1.3) dès qu'une demande attend. Fiche : chiffres en Teko (`t-hero--sm`), libellés `t-label`, nom `t-card-title`,
+pastille de rôle à 11 px (était 10), « a joué ce soir » en `t-pos`. Les pastilles de rôle gardent les teintes de
+`ROSTER_ROLES` en fond plein à encre sombre — lisibles dans les deux thèmes, jamais en texte coloré.
+
 ### API — `GET /api/clans/[clanId]/members/cards`
 
 Permission `clan.members`. Réponse : `{ clan, members: RosterMember[], pendingCount }`. `pendingCount` vaut `null`

@@ -50,7 +50,7 @@ export function MemberAvatar({ member, size, now }: { member: Pick<RosterMember,
   const box = size === 'md' ? 'h-[52px] w-[52px] rounded-[14px] text-[17px]' : 'h-8 w-8 rounded-[9px] text-xs'
   return (
     <span
-      className={`relative grid shrink-0 place-items-center border-2 bg-[#0b1120] font-black tracking-wide text-white ${box}`}
+      className={`bg-photo-fallback relative grid shrink-0 place-items-center border-2 font-black tracking-wide text-white ${box}`}
       style={{ borderColor: color }}
     >
       {member.avatarUrl && !failed ? (
@@ -60,7 +60,7 @@ export function MemberAvatar({ member, size, now }: { member: Pick<RosterMember,
       )}
       {tonight ? (
         <span
-          className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--theme-ui-surface)] bg-emerald-500"
+          className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--theme-ui-surface)] bg-[var(--theme-ui-positive)]"
           title="A joué ce soir"
           data-testid="played-tonight"
         />
@@ -93,29 +93,30 @@ export default function MemberCard({ member, now }: { member: RosterMember; now:
         ) : null}
         <MemberAvatar member={member} size="md" now={now} />
         <span className="relative flex min-w-0 flex-col gap-1">
-          <b className="truncate text-[15px] text-gray-900">{member.displayName}</b>
+          <b className="t-card-title truncate">{member.displayName}</b>
           <span className="flex min-w-0 items-center gap-1.5">
             {role ? (
-              <span className="shrink-0 rounded-[5px] px-1.5 py-px text-[10px] font-black uppercase tracking-[0.08em] text-[#0b1120]" style={{ backgroundColor: role.color }}>
+              // Pastille pleine à la couleur du rôle, encre sombre : lisible dans les deux thèmes (§10, jamais en texte coloré sur fond clair).
+              <span className="shrink-0 rounded-[5px] px-1.5 py-px text-[11px] font-black uppercase tracking-[0.08em] text-slate-950" style={{ backgroundColor: role.color }}>
                 {role.label}
               </span>
             ) : null}
-            <span className={`truncate text-xs ${tonight ? 'font-semibold text-[var(--theme-ui-positive)]' : 'text-gray-500'}`}>
+            <span className={`truncate text-xs ${tonight ? 't-pos font-semibold' : 'text-gray-500'}`}>
               {lastSeenLabel(member.lastMatchAt, now)}
             </span>
           </span>
         </span>
       </div>
-      <dl className="grid grid-cols-3 border-y border-gray-200 tabular-nums">
+      <dl className="grid grid-cols-3 border-y border-gray-200">
         {stats.map((stat, index) => (
-          <div key={stat.label} className={`flex flex-col-reverse items-center px-1 py-2 ${index < 2 ? 'border-r border-gray-200' : ''}`}>
-            <dt className="text-[10px] font-bold uppercase tracking-[0.06em] text-gray-500">{stat.label}</dt>
-            <dd className="text-base font-extrabold text-gray-900">{stat.value}</dd>
+          <div key={stat.label} className={`flex flex-col-reverse items-center gap-0.5 px-1 py-2 ${index < 2 ? 'border-r border-gray-200' : ''}`}>
+            <dt className="t-label">{stat.label}</dt>
+            <dd className="t-hero t-hero--sm text-gray-900">{stat.value}</dd>
           </div>
         ))}
       </dl>
       <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
-        <span className="flex min-w-0 items-center gap-1.5 text-xs text-gray-600">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-gray-700">
           {member.favoriteWeapon ? (
             <>
               <WeaponSilhouette id={member.favoriteWeapon.id} className="h-4 w-10 shrink-0" />
@@ -125,7 +126,7 @@ export default function MemberCard({ member, now }: { member: RosterMember; now:
             <span className="truncate text-gray-500">Pas encore d’arme fétiche</span>
           )}
         </span>
-        <span className="flex shrink-0 gap-2 text-xs font-extrabold tabular-nums text-gray-900">
+        <span className="t-num flex shrink-0 gap-2 text-xs font-extrabold text-gray-900">
           {MEDALS.map((medal) => {
             const count = member.medals[medal.key]
             return (

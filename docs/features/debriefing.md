@@ -58,6 +58,49 @@ Côté client : nombre d'équipes du lobby (« #1 / 25 ») par `teamCountFromPha
 de l'accueil), débuts de phase par `phaseStartTimes`, heure des duels = `timestampSeconds` du kill (epoch) moins
 `createdAt`.
 
+## 4 bis. Charte UI (2026-10-03)
+
+Le débriefing porte `.charte` ([docs/ui/index.html](../ui/index.html#debrief-replay)) — vue clan **et** vue tournoi, qui
+partagent `MatchDebriefView`. Les contrôles `.debrief-*` étaient déjà en accent : ils passent au jaune sans retouche.
+
+- **En-tête** : nom de carte en Teko (`t-banner-title`), indicateurs en `t-hero--md` / `t-label` / `t-meta`, sur deux
+  colonnes jusqu'à 1 023 px (à quatre, « Réanimations » débordait de sa tuile sur tablette), fond de repli
+  `bg-photo-fallback`.
+- **Vainqueur en or** : couronne, trophée et barre de survie du top 1 en `--game-gold` (étaient `--game-warn`, qui
+  devient l'orange « en attente » sous `.charte`). Bandeau de manche (tournoi) : `t-label t-gold`, `t-card-title` ;
+  détail des points masqué sous 640 px au lieu d'un tableau qui défile.
+- **Chronologie** : les puces de type **passent à la ligne** (elles défilaient de côté) ; cases de type sur mobile en
+  `.debrief-chip--tile` (nouvelle classe : la hauteur fixe de `.debrief-chip` l'emportait sur `h-[58px]`), textes à
+  11 px (étaient 10), tuiles du détail en `t-label`, « Voir dans le replay » en `app-link`.
+- **Escouade / Duels** : titres `t-card-title`, kills et scores en Teko (`t-hero--sm`), libellés `t-label`.
+- **Silhouette des impacts** : nouvelle option `showValues` de `DamageBodySvg` (défaut : oui). Le débriefing la coupe :
+  à 85 px, les étiquettes chiffrées dessinées sur les zones sortaient à 6–7 px ; les barres voisines et l'info-bulle
+  donnent les mêmes touches et dégâts.
+- **Replay 2D** (signature §0b, conservé) : « axe estimé » à 11 px, « Libérer la caméra » en `app-link`, intitulés du
+  panneau en `t-label`. **Joueurs affichés** : le rail segmenté passait sur deux lignes dans le panneau de 300 px ; une
+  tuile par choix (gabarit `app-menu__item`, choisi teinté en accent) — « Escouade [TAG] · + contacts », « Clans suivis ·
+  tags », « Tout le lobby · N joueurs » (était « Global (N) »). Les couleurs du canevas et des surimpressions sur la
+  carte ne changent pas.
+
+- **Bandeau d'onglets** (2026-10-03) : Chronologie / Replay / Escouade / Duels dans un `DockingToolbar`, rail
+  segmenté (`app-segmented-control`) qui garde de vrais onglets (`role="tab"`, flèches, `?tab=`). Docké sous le header,
+  il ouvre sur le retour du fil d'Ariane ; pas de période, donc rien de docké sur mobile (sticky.md §2). Ordre : en-tête,
+  onglets, **escouade analysée**, contenu de l'onglet. La page déclare son bandeau dans `ui-conformance.test.ts` par
+  `MatchDebriefView` (vues clan et tournoi). La vue n'ouvre plus de second `<main>`.
+- **Lien « Audit technique » retiré** de l'en-tête (et les props `period` / `fromDate` qui ne servaient qu'à lui) : l'audit
+  s'ouvre par « État » sur la carte de partie et depuis la page de pilotage de la télémétrie.
+- **Style de jeu de la semaine** : pastille et nom des membres de l'escouade (en-tête, cartes Escouade) à la couleur de
+  leur style dominant de la semaine en cours, lu dans le style de jeu du clan de l'escouade analysée
+  (`usePlaystyleColors`) ; libellé du style dans la carte, légende sous l'escouade. Sans accès ou sans style : neutre.
+  Les coéquipiers hors site gardent leur teinte « non suivi ».
+- **Badges** : mode de jeu en `TeamModeBadge` (libellé PUBG « Squad FPP »), type de partie en `MatchTypeBadge` avec sa
+  nouvelle variante « Officiel » à l'accent de la charte (`showOfficial`), et **« N bots »** quand le lobby en compte
+  (comptes `ai.…` de `memberStats`, qui couvre tout le lobby — `lobbyBotCount`) : une officielle peuplée de bots se
+  joue presque comme une Casual. Les trois badges sont étirés à une seule hauteur.
+- **Place** : en Teko sur la photo de la carte (« #1/26 », `.app-photo-place`), au lieu de la pastille `PlacementBadge`.
+- **Bots et animaux** dans la chronologie et les duels : badge « Bot » (`ai.1042`) ou « Ours » (`monster.bear-02`) au
+  lieu de l'identifiant technique (`npcKindOf`, `CombatantName`, `.app-npc-badge`).
+
 ## 5. Fichiers
 
 | Fichier | Rôle |

@@ -64,12 +64,14 @@ export function useStickyToolbar() {
       observer?.disconnect()
       observer = new IntersectionObserver(
         ([entry]) => {
-          // Docké seulement quand la sentinelle est passée AU-DESSUS du bas du header : une
-          // sentinelle encore sous l'écran n'est pas non plus « en intersection ».
+          // Docké seulement quand la sentinelle est passée AU-DESSUS du bas du header.
           const headerBottom = entry.rootBounds?.top ?? 0
           setIsSticky(!entry.isIntersecting && entry.boundingClientRect.top < headerBottom)
         },
-        { threshold: 0, rootMargin: `-${Math.round(readHeaderHeight())}px 0px 0px 0px` }
+        // Zone observée prolongée sans fin vers le bas : une sentinelle encore sous l'écran compte « dedans ». Sans
+        // cela, un saut direct de sous l'écran à au-dessus du header (touche Fin, ancre, bandeau bas dans une page à
+        // grand en-tête) passerait de « dehors » à « dehors » sans aucun signal, et le bandeau ne se dockerait pas.
+        { threshold: 0, rootMargin: `-${Math.round(readHeaderHeight())}px 0px 1000000px 0px` }
       )
       observer.observe(node)
     }

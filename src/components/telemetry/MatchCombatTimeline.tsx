@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Crosshair, Filter, HeartHandshake, Info, Layers, Plane, ShieldAlert, Skull } from 'lucide-react'
 
 import type { BodyZoneKey } from './DamageBodySvg'
+import { CombatantName } from './NpcBadge'
 import {
   countTimelineTypes,
   filterTimeline,
@@ -97,7 +98,7 @@ function targetColor(ev: CombatEvent) {
 function TelemetryChip() {
   return (
     <span
-      className="rounded border px-1 text-[10px] font-bold"
+      className="rounded border px-1 text-[11px] font-bold"
       style={{ borderColor: 'var(--game-mate)', color: 'var(--game-mate)' }}
       title="Frag retrouvé dans le kill-feed de la télémétrie : le clan du joueur n'avait pas synchronisé ce match."
     >
@@ -151,7 +152,7 @@ export function MatchCombatTimeline({
             </button>
           ))}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto" role="group" aria-label="Type d'événement">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Type d'événement">
           {TYPE_FILTERS.map((option) => (
             <button
               key={option.value}
@@ -161,7 +162,7 @@ export function MatchCombatTimeline({
               onClick={() => setType(option.value)}
             >
               {option.label}
-              <span className="tabular-nums text-gray-500">{counts[option.value]}</span>
+              <span className="t-num text-gray-500">{counts[option.value]}</span>
             </button>
           ))}
         </div>
@@ -187,11 +188,11 @@ export function MatchCombatTimeline({
                 aria-pressed={active}
                 aria-label={`${option.label} (${counts[option.value]})`}
                 onClick={() => setType(option.value)}
-                className="debrief-chip relative h-[58px] flex-col justify-center gap-0.5 rounded-[10px] px-0"
+                className="debrief-chip debrief-chip--tile relative"
               >
-                <span className="absolute right-1.5 top-1 text-[10px] font-bold tabular-nums">{counts[option.value]}</span>
+                <span className="t-num absolute right-1.5 top-1 text-[11px] font-bold">{counts[option.value]}</span>
                 <Icon className="h-[18px] w-[18px]" style={{ color: active ? 'var(--theme-ui-accent-text)' : option.color }} aria-hidden="true" />
-                <span className="text-[10px] font-bold">{option.short}</span>
+                <span className="text-[11px] font-bold">{option.short}</span>
               </button>
             )
           })}
@@ -199,7 +200,7 @@ export function MatchCombatTimeline({
       </div>
 
       {/* Bilan de l'escouade */}
-      <div className="hidden flex-wrap gap-4 text-[13px] tabular-nums sm:flex">
+      <div className="t-num hidden flex-wrap gap-4 text-[13px] sm:flex">
         <span>
           <b style={{ color: 'var(--game-pos)' }}>+{totals.kills}</b> <span className="text-gray-500">kills</span>
         </span>
@@ -234,7 +235,7 @@ export function MatchCombatTimeline({
                 <span className="text-[11px] font-extrabold uppercase tracking-[0.08em]" style={{ color: 'var(--theme-ui-accent-text)' }}>
                   Phase {group.phase}
                 </span>
-                <span className="text-xs tabular-nums text-gray-500">à partir de {formatClock(group.start)}</span>
+                <span className="t-num text-xs text-gray-500">à partir de {formatClock(group.start)}</span>
                 {group.summary && <span className="ml-auto text-xs text-gray-500">{group.summary}</span>}
               </div>
               <ol>
@@ -255,7 +256,7 @@ export function MatchCombatTimeline({
                         : [weapon, distance].filter(Boolean).join(' · ') || 'Arme inconnue'
                   const content = (
                     <>
-                      <span className="text-xs font-semibold tabular-nums text-gray-500">{formatClock(ev.timestamp)}</span>
+                      <span className="t-num text-xs font-semibold text-gray-500">{formatClock(ev.timestamp)}</span>
                       <span
                         className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-[7px]"
                         style={{ background: meta.soft }}
@@ -266,9 +267,11 @@ export function MatchCombatTimeline({
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex min-w-0 items-center gap-1.5 text-sm">
                           {ev.actorClanTag && <span className="shrink-0 text-[11px] font-bold text-gray-500">[{ev.actorClanTag}]</span>}
-                          <span className="truncate font-bold" style={{ color: actorColor(ev) }}>
-                            {ev.actorName}
-                          </span>
+                          <CombatantName name={ev.actorName}>
+                            <span className="truncate font-bold" style={{ color: actorColor(ev) }}>
+                              {ev.actorName}
+                            </span>
+                          </CombatantName>
                           {ev.type === 'recall' ? (
                             <span className="shrink-0 text-gray-500">revient en jeu</span>
                           ) : (
@@ -277,9 +280,11 @@ export function MatchCombatTimeline({
                                 →
                               </span>
                               {ev.targetClanTag && <span className="shrink-0 text-[11px] font-bold text-gray-500">[{ev.targetClanTag}]</span>}
-                              <span className="truncate font-semibold" style={{ color: targetColor(ev) }}>
-                                {ev.targetName}
-                              </span>
+                              <CombatantName name={ev.targetName}>
+                                <span className="truncate font-semibold" style={{ color: targetColor(ev) }}>
+                                  {ev.targetName}
+                                </span>
+                              </CombatantName>
                             </>
                           )}
                         </span>
@@ -326,8 +331,8 @@ export function MatchCombatTimeline({
                             { label: 'Zone touchée', value: hitZoneLabel(ev.damageReason) },
                           ].map((tile) => (
                             <div key={tile.label} className="app-panel-muted px-2.5 py-2">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-gray-500">{tile.label}</p>
-                              <p className="text-sm font-bold">{tile.value}</p>
+                              <p className="t-label">{tile.label}</p>
+                              <p className="text-sm font-bold text-gray-900">{tile.value}</p>
                             </div>
                           ))}
                           {onShowInReplay && (
@@ -335,8 +340,7 @@ export function MatchCombatTimeline({
                               <button
                                 type="button"
                                 onClick={() => onShowInReplay(Math.max(0, ev.timestamp - 5))}
-                                className="text-[13px] font-semibold hover:underline"
-                                style={{ color: 'var(--game-link)' }}
+                                className="app-link text-[13px] font-semibold"
                               >
                                 Voir dans le replay →
                               </button>

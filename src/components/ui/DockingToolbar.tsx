@@ -1,7 +1,10 @@
 'use client'
 
+import { ChevronLeft } from 'lucide-react'
+import Link from 'next/link'
 import React, { useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 
+import { useNavBack } from '@/hooks/useNavBack'
 import { useStickyToolbar } from '@/hooks/useStickyToolbar'
 
 /** Sous cette largeur, le bandeau docké ne garde que la période (docs/TODO/sticky.md §2). */
@@ -61,6 +64,8 @@ const DOCKED_OUTER: Record<NonNullable<DockingToolbarProps['variant']>, string> 
  *   `var(--app-header-height)`, seulement `border-b`, sans transition géométrique.
  * - La hauteur perdue à la bascule est réservée par un espaceur : le contenu ne saute pas.
  * - La hauteur du bandeau est publiée dans `--app-toolbar-height` (marges de défilement).
+ * - Docké, le retour du fil d'Ariane (`NavigationTrail`, via `useNavBack`) ouvre le bandeau : « ‹ cible » sur
+ *   ordinateur et tablette, « ‹ » seul sur mobile, à la hauteur du rail.
  *
  * À placer HORS de tout conteneur de largeur (`main.app-main-flush` pleine largeur, blocs internes
  * en `app-container app-gutter`), sinon il ne peut pas s'étendre une fois docké.
@@ -79,6 +84,7 @@ export function DockingToolbar({
   const isSticky = pastHeader && (dockOnMobile || !isMobile)
   const compact = isSticky && isMobile
   const content = typeof children === 'function' ? children({ isSticky, compact }) : children
+  const back = useNavBack()
 
   const barRef = useRef<HTMLDivElement | null>(null)
   const spacerRef = useRef<HTMLDivElement | null>(null)
@@ -115,6 +121,13 @@ export function DockingToolbar({
         if (spacerRef.current) spacerRef.current.style.height = '0px'
       }
       document.documentElement.style.setProperty('--app-toolbar-height', `${bar.offsetHeight}px`)
+
+      // Retour docké : hauteur du premier rail du bandeau, même quand le contenu tient sur deux lignes.
+      const back = bar.querySelector<HTMLElement>('[data-testid="toolbar-back"]')
+      if (back) {
+        const reference = bar.querySelector<HTMLElement>('[data-toolbar-content] .app-segmented-control, [data-toolbar-content] button, [data-toolbar-content] a')
+        back.style.height = reference ? `${reference.offsetHeight}px` : ''
+      }
     }
 
     measure()
@@ -159,11 +172,30 @@ export function DockingToolbar({
         <div
           className={
             isSticky
-              ? `app-container app-gutter flex flex-col gap-3 sm:flex-row sm:items-center ${compact ? 'py-2' : 'py-3'}`
+              ? `app-container app-gutter flex items-start sm:gap-3 ${compact ? 'gap-1.5 py-2' : 'gap-2 py-3'}`
               : RESTING_INNER[variant]
           }
         >
-          {content}
+          {isSticky && back ? (
+            <Link
+              href={back.href}
+              aria-label={`Retour à ${back.label}`}
+              title={`Retour à ${back.label}`}
+              className="app-toolbar-btn shrink-0 px-2 lg:px-2.5"
+              data-testid="toolbar-back"
+            >
+              <ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {/* Nom de la cible à partir de 1 024 px ; en dessous, la place va aux contrôles de la page. */}
+              <span className="hidden max-w-[10rem] truncate lg:inline">{back.label}</span>
+            </Link>
+          ) : null}
+          {/* Même arborescence au repos et docké (les contrôles restent montés) : enveloppe neutre au repos. */}
+          <div
+            data-toolbar-content=""
+            className={isSticky ? 'flex min-w-0 flex-1 flex-col gap-3 self-center sm:flex-row sm:items-center' : 'contents'}
+          >
+            {content}
+          </div>
           {isSticky && !compact && dockedAside ? <div className="hidden shrink-0 sm:ml-auto sm:block">{dockedAside}</div> : null}
         </div>
       </div>

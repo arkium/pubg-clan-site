@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Map } from 'lucide-react'
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Map } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
@@ -10,6 +10,7 @@ import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import RankCell from '@/components/ui/RankCell'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
+import { SortReminder } from '@/components/ui/SortableTh'
 import TeamPlayCompositionsCard from '@/components/member/TeamPlayCompositionsCard'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
@@ -50,29 +51,31 @@ type SortKey =
   | 'totalRevives'
   | 'avgDurationSeconds'
 
+// Vocabulaire de la charte (§6 bis) : Victoires, Dégâts, Knocks, Assistances, Réanimations ; abrégés dans les tuiles.
 const SORT_LABELS: Record<SortKey, string> = {
   mapLabel: 'Carte',
   matches: 'Matchs',
-  wins: 'Wins',
+  wins: 'Victoires',
   winRate: 'Win rate',
   top10Rate: 'Top 10',
   avgPlacement: 'Place moyenne',
   totalKills: 'Kills',
-  totalKnockouts: 'KO',
-  totalAssists: 'Assists',
-  totalDamage: 'Damage',
+  totalKnockouts: 'Knocks',
+  totalAssists: 'Assistances',
+  totalDamage: 'Dégâts',
   totalHeadshots: 'Headshots',
-  totalRevives: 'Revives',
-  avgDurationSeconds: 'Duree moyenne',
+  totalRevives: 'Réanimations',
+  avgDurationSeconds: 'Durée moyenne',
 }
 
-type StatTone = 'success' | 'danger' | 'info' | 'neutral'
+// Couleurs sémantiques de la charte (.game-ui) : positif, négatif, ciel de jeu, neutre.
+type StatTone = 'pos' | 'neg' | 'sky' | 'neutral'
 
-function statToneClass(tone: StatTone) {
-  if (tone === 'success') return 'text-emerald-500'
-  if (tone === 'danger') return 'text-red-500'
-  if (tone === 'info') return 'text-blue-500'
-  return 'text-gray-900'
+const STAT_TONE_CLASS: Record<StatTone, string> = {
+  pos: 't-pos',
+  neg: 't-neg',
+  sky: 't-sky',
+  neutral: 'text-gray-900',
 }
 
 function CompactStat({
@@ -86,17 +89,10 @@ function CompactStat({
   tone: StatTone
   active?: boolean
 }) {
-  const boxClass = active
-    ? 'rounded-lg border border-[rgba(217,119,6,0.4)] bg-[rgba(217,119,6,0.12)] px-1 py-1.5 text-center'
-    : 'rounded-lg bg-gray-50 px-1 py-1.5 text-center'
-  const labelClass = active
-    ? 'mt-1 text-[9px] font-bold uppercase leading-tight tracking-wide text-[rgb(217,119,6)]'
-    : 'mt-1 text-[9px] font-semibold uppercase leading-tight tracking-wide text-gray-500'
-
   return (
-    <div className={boxClass}>
-      <p className={`text-base font-black leading-none tabular-nums ${statToneClass(tone)}`}>{value}</p>
-      <p className={labelClass}>{label}</p>
+    <div className={`app-stat-tile ${active ? 'app-stat-tile--active' : ''}`}>
+      <span className={`app-stat-tile__value ${STAT_TONE_CLASS[tone]}`}>{value}</span>
+      <span className="app-stat-tile__label">{label}</span>
     </div>
   )
 }
@@ -147,10 +143,10 @@ function MapCardBanner({
 
   if (imgFailed) {
     return (
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 px-3 pt-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500">Carte</p>
-          <h3 className="mt-1 text-xl font-semibold text-gray-900">{mapLabel}</h3>
+          <p className="t-label">Carte</p>
+          <h3 className="t-card-title mt-1">{mapLabel}</h3>
         </div>
         {podiumRank ? (
           <RankCell rank={podiumRank} size="md" />
@@ -160,7 +156,7 @@ function MapCardBanner({
   }
 
   return (
-    <div className="-mx-4 -mt-4 mb-4 h-28 overflow-hidden rounded-t-2xl relative">
+    <div className="bg-photo-fallback relative h-28 overflow-hidden">
       <img
         src={`/maps/pubg/${mapName}.webp`}
         alt={mapLabel}
@@ -168,9 +164,9 @@ function MapCardBanner({
         onError={() => setImgFailed(true)}
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-2 px-4 pb-3">
+      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-2 px-3 pb-2.5">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">Carte</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/70">Carte</p>
           <h3 className="text-lg font-bold leading-tight text-white drop-shadow">{mapLabel}</h3>
         </div>
         {podiumRank ? (
@@ -190,15 +186,18 @@ function parseMemberId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+const count = new Intl.NumberFormat('fr-FR')
+
 function formatPercent(value: number) {
-  return `${(value * 100).toFixed(1)}%`
+  return `${(value * 100).toFixed(1).replace('.', ',')} %`
 }
 
+/** Durée en minutes:secondes (« 24:05 ») : tient dans une tuile. */
 function formatDuration(seconds: number) {
   const total = Math.max(0, Math.round(seconds))
   const minutes = Math.floor(total / 60)
   const remaining = total % 60
-  return `${minutes}m ${String(remaining).padStart(2, '0')}s`
+  return `${minutes}:${String(remaining).padStart(2, '0')}`
 }
 
 function compactScopeLabel(label: string) {
@@ -325,7 +324,7 @@ export default function MemberMapStatsPage() {
           currentHref={`/members`}
           fallbackParent={{ href: `/members`, label: 'Membres' }}
         />
-        <p className="text-sm text-red-600">ID joueur invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
@@ -349,7 +348,7 @@ export default function MemberMapStatsPage() {
 
   const scopeLabelMap: Record<Scope, string> = {
     self: 'Le joueur',
-    member: 'Un joueur specifique',
+    member: 'Un joueur spécifique',
     clan: 'Le clan',
     best: 'Son meilleur duo/trio/squad',
   }
@@ -366,7 +365,7 @@ export default function MemberMapStatsPage() {
     },
     {
       key: 'member',
-      label: 'Un joueur specifique',
+      label: 'Un joueur spécifique',
       active: scope === 'member',
       onSelect: () => {
         setScope('member')
@@ -438,127 +437,96 @@ export default function MemberMapStatsPage() {
     onSelect: () => setSortKey(key),
   }))
 
+  const scopeSummary = payload
+    ? `${payload.scopeLabel ? compactScopeLabel(payload.scopeLabel) : scopeLabelMap[scope]} · ${count.format(payload.totals.rows)} partie${payload.totals.rows > 1 ? 's' : ''} · ${payload.totals.maps} carte${payload.totals.maps > 1 ? 's' : ''}`
+    : 'Chargement…'
+  const dropdownClass = 'min-w-0 max-w-full'
+
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
           currentLabel="Statistiques Cartes"
           currentHref={`/members/${memberId}/map-stats`}
-          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Tableau de bord', altHref: '/members' }}
         />
         <section>
           <MemberPageHeader
             title="Statistique des cartes"
-            subtitle="Pilote les performances d'equipe carte par carte avec les filtres actifs."
+            subtitle="Pilote les performances d’équipe carte par carte avec les filtres actifs."
             showBackButton={false}
             backgroundImage="/map-stats.jpg"
-            icon={<Map className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+            icon={<Map className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
           />
         </section>
       </div>
 
-      <DockingToolbar ariaLabel="Filtres des statistiques par carte">
-        {({ isSticky, compact }) => (
-          <div className="flex w-full flex-col gap-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
-              {!compact ? (
-                <>
+      <DockingToolbar
+        ariaLabel="Filtres des statistiques par carte"
+        dockedAside={
+          <span className="flex items-center gap-3">
+            <span className="whitespace-nowrap text-xs font-semibold text-gray-700">{scopeLabelMap[scope]}</span>
+            <SortReminder label={SORT_LABELS[sortKey]} sortDir={sortDir} />
+          </span>
+        }
+      >
+        {({ compact }) => (
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+            {!compact ? (
+              <>
+                <MobileDropdownNav
+                  id={`map-stats-scope-${memberId}`}
+                  label="Filtre"
+                  currentLabel={scopeLabelMap[scope]}
+                  items={scopeItems}
+                  variant="compact"
+                  visibilityClass="block"
+                  className={dropdownClass}
+                />
+
+                {scope === 'member' ? (
                   <MobileDropdownNav
-                    id={`map-stats-scope-${memberId}`}
-                    label="Filtre"
-                    currentLabel={scopeLabelMap[scope]}
-                    items={scopeItems}
+                    id={`map-stats-member-${memberId}`}
+                    label="Joueur"
+                    currentLabel={selectedMemberLabel}
+                    items={memberItems}
                     variant="compact"
                     visibilityClass="block"
-                    className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                    leftIcon={(
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                        <path
-                          d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    )}
+                    className={dropdownClass}
                   />
+                ) : null}
 
-                  {scope === 'member' ? (
-                    <MobileDropdownNav
-                      id={`map-stats-member-${memberId}`}
-                      label="Joueur"
-                      currentLabel={selectedMemberLabel}
-                      items={memberItems}
-                      variant="compact"
-                      visibilityClass="block"
-                      className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                      leftIcon={(
-                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                          <path
-                            d="M10 10.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm-5.5 5.3a5.5 5.5 0 0 1 11 0"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      )}
-                    />
-                  ) : null}
-
-                  {scope === 'best' ? (
-                    <MobileDropdownNav
-                      id={`map-stats-best-mode-${memberId}`}
-                      label="Formation"
-                      currentLabel={bestModeLabelMap[bestMode]}
-                      items={bestModeItems}
-                      variant="compact"
-                      visibilityClass="block"
-                      className="w-full sm:min-w-[11rem] sm:flex-1 md:w-fit md:flex-none md:max-w-full"
-                      leftIcon={(
-                        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                          <path
-                            d="M4.5 15.5h11M4.5 10h11M4.5 4.5h11"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      )}
-                    />
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-            {!isSticky ? (
-              <div className="w-full rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-center text-sm text-cyan-900">
-                <p className="font-medium">{payload?.scopeLabel ? compactScopeLabel(payload.scopeLabel) : 'Chargement...'}</p>
-                <p className="mt-1 text-xs text-cyan-800">
-                  {payload?.totals.rows ?? 0} lignes matches · {payload?.totals.maps ?? 0} cartes
-                </p>
-              </div>
+                {scope === 'best' ? (
+                  <MobileDropdownNav
+                    id={`map-stats-best-mode-${memberId}`}
+                    label="Formation"
+                    currentLabel={bestModeLabelMap[bestMode]}
+                    items={bestModeItems}
+                    variant="compact"
+                    visibilityClass="block"
+                    className={dropdownClass}
+                  />
+                ) : null}
+              </>
             ) : null}
           </div>
         )}
       </DockingToolbar>
 
-      <div className="app-container app-gutter space-y-4">
-        {error ? (
-          <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
-        ) : null}
+      <div className="app-container app-gutter flex flex-col gap-4 pb-8 sm:gap-6">
+        {error ? <p className="app-panel p-3 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
-        <section className="app-panel p-4 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Performance par carte</h2>
-              <p className="text-sm text-gray-500">
-                Compare rapidement les performances par carte selon la selection active en haut de page.
-              </p>
+        <section aria-labelledby="map-stats-title" className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="map-stats-title" className="t-section-title">Performance par carte</h2>
+              <p className="t-meta t-num">{scopeSummary}</p>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center lg:min-w-[23rem]">
+            {/* Tri des cartes : menu de la charte + sens, à la hauteur du menu (une seule hauteur par ligne). */}
+            <div className="flex items-stretch gap-2">
               <MobileDropdownNav
                 id={`map-stats-sort-${memberId}`}
                 label="Trier par"
@@ -566,69 +534,49 @@ export default function MemberMapStatsPage() {
                 items={sortItems}
                 variant="compact"
                 visibilityClass="block"
-                className="w-full"
-                leftIcon={(
-                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                    <path
-                      d="M4.5 6.5h11M4.5 10h7.5M4.5 13.5h4"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                )}
+                className={dropdownClass}
               />
-
               <button
                 type="button"
                 onClick={() => setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'))}
-                className="inline-flex h-10 items-center justify-center self-end rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="app-toolbar-btn shrink-0 px-2"
                 aria-label={sortDir === 'asc' ? 'Tri croissant actif' : 'Tri décroissant actif'}
                 title={sortDir === 'asc' ? 'Tri croissant' : 'Tri décroissant'}
               >
-                <span className="inline-flex items-center gap-2" aria-hidden="true">
-                  <span className={sortDir === 'asc' ? 'text-slate-900' : 'text-slate-400'}>↑</span>
-                  <span className={sortDir === 'desc' ? 'text-slate-900' : 'text-slate-400'}>↓</span>
-                </span>
+                {sortDir === 'asc' ? <ArrowUpNarrowWide className="h-4 w-4" aria-hidden="true" /> : <ArrowDownWideNarrow className="h-4 w-4" aria-hidden="true" />}
               </button>
             </div>
           </div>
 
           {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
           {loading && !payload ? (
-            <p className="text-sm text-gray-500">Chargement des stats par carte...</p>
+            <p className="app-panel t-body p-6 text-center text-gray-500">Chargement des statistiques par carte…</p>
           ) : !payload || payload.mapStats.length === 0 ? (
-            <p className="text-sm text-gray-500">Aucune statistique disponible pour les filtres sélectionnés.</p>
+            <p className="app-panel t-body p-6 text-center text-gray-500">Aucune statistique disponible pour les filtres sélectionnés.</p>
           ) : (
-            <div
-              aria-busy={loading}
-              className={`map-stats-grid grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3${loading ? ' opacity-60' : ''}`}
-            >
+            <div aria-busy={loading} className={`grid grid-cols-1 gap-3 transition-opacity md:grid-cols-2 xl:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
               {sortedMapStats.map((entry, index) => {
                 const podiumRank = sortKey !== 'mapLabel' && index < 3 ? index + 1 : null
 
                 return (
-                  <article
-                    key={entry.mapName}
-                    className="map-stats-card overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-gray-50 p-4 shadow-sm"
-                  >
+                  <article key={entry.mapName} aria-label={entry.mapLabel} className="app-panel overflow-hidden p-0">
                     <MapCardBanner mapName={entry.mapName} mapLabel={entry.mapLabel} podiumRank={podiumRank} />
 
-                    <div className="grid grid-cols-4 gap-1.5">
-                      <CompactStat label="Matchs" value={entry.matches} tone="neutral" active={sortKey === 'matches'} />
-                      <CompactStat label="Victoires" value={entry.wins} tone="success" active={sortKey === 'wins'} />
-                      <CompactStat label="Win rate" value={formatPercent(entry.winRate)} tone="success" active={sortKey === 'winRate'} />
-                      <CompactStat label="Top 10" value={formatPercent(entry.top10Rate)} tone="success" active={sortKey === 'top10Rate'} />
+                    <div className="grid grid-cols-4 gap-1.5 p-3">
+                      <CompactStat label="Matchs" value={count.format(entry.matches)} tone="neutral" active={sortKey === 'matches'} />
+                      <CompactStat label="Victoires" value={count.format(entry.wins)} tone="pos" active={sortKey === 'wins'} />
+                      <CompactStat label="Win rate" value={formatPercent(entry.winRate)} tone="pos" active={sortKey === 'winRate'} />
+                      <CompactStat label="Top 10" value={formatPercent(entry.top10Rate)} tone="pos" active={sortKey === 'top10Rate'} />
 
-                      <CompactStat label="Place moy." value={Math.round(entry.avgPlacement)} tone="neutral" active={sortKey === 'avgPlacement'} />
-                      <CompactStat label="Kills" value={entry.totalKills} tone="danger" active={sortKey === 'totalKills'} />
-                      <CompactStat label="KO" value={entry.totalKnockouts} tone="danger" active={sortKey === 'totalKnockouts'} />
-                      <CompactStat label="Headshots" value={entry.totalHeadshots} tone="danger" active={sortKey === 'totalHeadshots'} />
+                      <CompactStat label="Place" value={Math.round(entry.avgPlacement)} tone="neutral" active={sortKey === 'avgPlacement'} />
+                      <CompactStat label="Kills" value={count.format(entry.totalKills)} tone="neg" active={sortKey === 'totalKills'} />
+                      <CompactStat label="Knocks" value={count.format(entry.totalKnockouts)} tone="neg" active={sortKey === 'totalKnockouts'} />
+                      <CompactStat label="Headshots" value={count.format(entry.totalHeadshots)} tone="neg" active={sortKey === 'totalHeadshots'} />
 
-                      <CompactStat label="Dégâts" value={Math.round(entry.totalDamage)} tone="neutral" active={sortKey === 'totalDamage'} />
-                      <CompactStat label="Assistances" value={entry.totalAssists} tone="info" active={sortKey === 'totalAssists'} />
-                      <CompactStat label="Réanimations" value={entry.totalRevives} tone="info" active={sortKey === 'totalRevives'} />
-                      <CompactStat label="Duree" value={formatDuration(entry.avgDurationSeconds)} tone="neutral" active={sortKey === 'avgDurationSeconds'} />
+                      <CompactStat label="Dégâts" value={count.format(Math.round(entry.totalDamage))} tone="neutral" active={sortKey === 'totalDamage'} />
+                      <CompactStat label="Assist." value={count.format(entry.totalAssists)} tone="sky" active={sortKey === 'totalAssists'} />
+                      <CompactStat label="Réa." value={count.format(entry.totalRevives)} tone="sky" active={sortKey === 'totalRevives'} />
+                      <CompactStat label="Durée" value={formatDuration(entry.avgDurationSeconds)} tone="neutral" active={sortKey === 'avgDurationSeconds'} />
                     </div>
                   </article>
                 )
@@ -639,7 +587,7 @@ export default function MemberMapStatsPage() {
 
         {/* Compositions d'équipe, venues du tableau de bord le 2026-09-27 (docs/features/membres.md). */}
         {memberId && periodReady ? (
-          <section id="compositions" aria-label="Compositions d’équipe" className="pb-8">
+          <section id="compositions" aria-label="Compositions d’équipe">
             <TeamPlayCompositionsCard memberId={memberId} period={period} />
           </section>
         ) : null}

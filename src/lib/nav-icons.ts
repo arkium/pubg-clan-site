@@ -11,6 +11,7 @@ import {
   Map,
   Skull,
   Calendar,
+  Radar,
   Link as LinkIcon,
   type LucideIcon
 } from 'lucide-react'
@@ -38,6 +39,7 @@ export const NAV_ICONS: Record<string, NavIconDef> = {
   // Member section
   'member.matches': { icon: Swords, colorClass: 'text-red-500' },
   'member.stats': { icon: Medal, colorClass: 'text-amber-500' }, // Carrière PUBG (maquette « Stats joueur »)
+  'member.playstyle': { icon: Radar, colorClass: 'text-emerald-500' }, // Style de jeu (télémétrie), comme celui du clan
   'member.weapons': { icon: Crosshair, colorClass: 'text-blue-500' },
   'member.nemesis': { icon: Skull, colorClass: 'text-slate-800' },
   'member.map-stats': { icon: Map, colorClass: 'text-emerald-500' },

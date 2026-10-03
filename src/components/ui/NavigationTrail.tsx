@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
+import { publishNavBack } from '@/hooks/useNavBack'
 import { NAV_STACK_STORAGE_KEY, parseNavStack, recordNavigation } from '@/lib/nav-stack'
 
 export interface FallbackParent {
@@ -42,6 +43,12 @@ export function NavigationTrail({ currentLabel, currentHref, fallbackParent, hid
       setBackEntry(fallbackParent)
     }
   }, [currentLabel, currentHref, fallbackParent, forceFallback])
+
+  // Le bandeau collant reprend ce retour une fois docké (DockingToolbar) ; rien à reprendre quand le fil est masqué.
+  useEffect(() => {
+    publishNavBack(hidden ? null : backEntry)
+    return () => publishNavBack(null)
+  }, [backEntry, hidden])
 
   if (!backEntry || hidden) return null
 

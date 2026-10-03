@@ -55,7 +55,7 @@ function Pager({ label, page, pageCount, onPage, previousLabel, nextLabel }: { l
       <button type="button" className="app-pager-button" onClick={() => onPage(page - 1)} disabled={page === 1} aria-label={previousLabel}>
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       </button>
-      <span className="min-w-[48px] text-center text-[13px] font-bold tabular-nums text-gray-600">
+      <span className="t-num min-w-[48px] text-center text-[13px] font-bold text-gray-600">
         {page} / {pageCount}
       </span>
       <button type="button" className="app-pager-button" onClick={() => onPage(page + 1)} disabled={page === pageCount} aria-label={nextLabel}>
@@ -94,17 +94,18 @@ export function ModeMenu({ counts, total, value, onChange }: { counts: Array<{ m
       role="menuitemradio"
       aria-checked={value === mode}
       onClick={() => choose(mode)}
-      className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold text-gray-900 hover:bg-gray-100 ${value === mode ? 'bg-[var(--theme-ui-accent-soft)]' : ''}`}
+      className={`app-menu__item ${value === mode ? 'app-menu__item--active' : ''}`}
     >
       <span className="inline-flex items-center gap-2">
         <span className="h-2 w-2 rounded-sm" style={{ background: color }} aria-hidden="true" />
         {label}
       </span>
-      <span className="text-xs tabular-nums text-gray-500">{games}</span>
+      <span className="t-num text-xs opacity-75">{games}</span>
     </button>
   )
   return (
-    <div ref={rootRef} className="relative ml-auto shrink-0">
+    // Étiré à la hauteur de la ligne du bandeau : même hauteur que le segmented voisin.
+    <div ref={rootRef} className="relative ml-auto flex shrink-0 self-stretch">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -112,9 +113,7 @@ export function ModeMenu({ counts, total, value, onChange }: { counts: Array<{ m
         aria-expanded={open}
         aria-label={`Mode : ${value ? PLAYER_MODE_LABELS[value] : 'tous les modes'}`}
         data-testid="mode-chip"
-        className={`inline-flex h-[34px] items-center gap-1.5 whitespace-nowrap rounded-[10px] border px-2.5 text-[13px] font-bold ${
-          value ? 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] text-[var(--theme-ui-accent-text)]' : 'border-gray-200 bg-white text-gray-900'
-        }`}
+        className={`app-menu-trigger shrink-0 ${value ? 'app-menu-trigger--active' : ''}`}
       >
         {value ? (
           PLAYER_MODE_LABELS[value]
@@ -127,7 +126,7 @@ export function ModeMenu({ counts, total, value, onChange }: { counts: Array<{ m
         <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
       </button>
       {open ? (
-        <div role="menu" aria-label="Mode" className="app-panel absolute right-0 top-10 z-50 flex w-[210px] flex-col gap-0.5 p-1.5 shadow-xl">
+        <div role="menu" aria-label="Mode" className="app-menu absolute right-0 top-full z-50 mt-1.5 w-[210px]">
           {item(null, 'Tous les modes', total, 'var(--theme-ui-text-muted)')}
           {counts.map(({ mode, count: games }) => item(mode, PLAYER_MODE_LABELS[mode], games, MODE_COLORS[mode]))}
         </div>
@@ -168,9 +167,9 @@ export function Chronology({
   return (
     <section aria-labelledby="chronology-title" className="app-panel flex flex-col gap-3 px-4 pb-4 pt-3.5">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <h2 id="chronology-title" className="text-base font-extrabold text-gray-900">Chronologie</h2>
+        <h2 id="chronology-title" className="t-card-title">Chronologie</h2>
         {total > 0 ? (
-          <span className="text-xs tabular-nums text-gray-500">
+          <span className="t-meta t-num">
             parties {from} à {to} sur {total} · de la plus ancienne à la plus récente
           </span>
         ) : null}
@@ -200,12 +199,11 @@ export function Chronology({
                   aria-label={`${day} · ${timeFormat.format(new Date(match.pubgCreatedAt))} · ${mapLabel} · place ${match.placement} · ${match.kills} kills`}
                   className="flex min-w-0 max-w-full flex-col items-center gap-[5px] rounded-[10px] px-0.5 pb-1 pt-0.5"
                 >
-                  <span className="h-[15px] whitespace-nowrap text-[10px] font-extrabold tracking-[0.04em] text-gray-500">{firstOfSession ? day : ''}</span>
-                  <span className="text-[11px] tabular-nums text-gray-500">{timeFormat.format(new Date(match.pubgCreatedAt))}</span>
+                  <span className="h-[15px] whitespace-nowrap text-[11px] font-extrabold leading-[15px] text-gray-500">{firstOfSession ? day : ''}</span>
+                  <span className="t-num text-[11px] text-gray-500">{timeFormat.format(new Date(match.pubgCreatedAt))}</span>
                   <span
-                    className="relative block h-[34px] w-[34px] rounded-full bg-cover bg-center sm:h-11 sm:w-11"
+                    className="bg-photo-fallback relative block h-[34px] w-[34px] rounded-full bg-cover bg-center sm:h-11 sm:w-11"
                     style={{
-                      backgroundColor: '#0b1120',
                       backgroundImage: image ? `url('${image}')` : undefined,
                       boxShadow: `0 0 0 3px ${selected ? 'var(--theme-ui-accent)' : win ? 'var(--game-gold)' : 'var(--theme-ui-surface)'}${selected ? ', 0 0 0 7px var(--theme-ui-accent-soft)' : ''}`,
                     }}
@@ -213,7 +211,7 @@ export function Chronology({
                     {win ? <Crown className="absolute -top-[10px] left-1/2 -ml-2 h-4 w-4" style={{ color: 'var(--game-gold)' }} aria-hidden="true" /> : null}
                   </span>
                   <PlacementBadge placement={match.placement} />
-                  <span className="whitespace-nowrap text-[11px] tabular-nums text-gray-700">{match.kills} K</span>
+                  <span className="t-num whitespace-nowrap text-[11px] text-gray-700">{match.kills} K</span>
                 </button>
               </li>
             )
@@ -257,7 +255,7 @@ function PlayerMatchCard({ match, mapLabel, selected, period }: { match: Dashboa
   const win = match.placement === 1
   const badge = telemetryBadge(match.telemetryStatus)
   const minutes = Math.round(match.duration / 60)
-  const placeColor = win ? '#fbbf24' : match.placement <= 5 ? '#6ee7b7' : '#fff'
+  const placeClass = win ? 'app-photo-place--win' : match.placement <= 5 ? 'app-photo-place--top5' : ''
   const context = { period, fromDate: sessionDateOf(match.pubgCreatedAt) }
   const canLink = match.clanId && match.squadMatchId
   return (
@@ -268,10 +266,10 @@ function PlayerMatchCard({ match, mapLabel, selected, period }: { match: Dashboa
       style={selected ? { borderColor: 'var(--theme-ui-accent-ring)', boxShadow: '0 0 0 3px var(--theme-ui-accent-soft)' } : win ? { borderColor: 'var(--game-gold-ring)' } : undefined}
       data-selected={selected ? 'true' : 'false'}
     >
-      <div className="relative h-[84px] bg-cover bg-center sm:h-[92px]" style={{ backgroundColor: '#0b1120', backgroundImage: image ? `url('${image}')` : undefined }}>
+      <div className="bg-photo-fallback relative h-[84px] bg-cover bg-center sm:h-[92px]" style={{ backgroundImage: image ? `url('${image}')` : undefined }}>
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-slate-950/15" aria-hidden="true" />
         {win ? (
-          <span className="absolute left-2.5 top-2 -rotate-3 rounded-[5px] bg-amber-400 px-2 py-0.5 text-[10px] font-black tracking-[0.04em] text-amber-950">CHICKEN DINNER</span>
+          <span className="app-stamp absolute left-2.5 top-2">Chicken dinner</span>
         ) : null}
         <span className="absolute right-2.5 top-2 flex items-center gap-1">
           <MatchTypeBadge matchType={match.matchType ?? null} />
@@ -279,33 +277,33 @@ function PlayerMatchCard({ match, mapLabel, selected, period }: { match: Dashboa
         </span>
         <div className="absolute inset-x-2.5 bottom-2 flex items-end justify-between gap-2 text-white">
           <span className="flex min-w-0 flex-col">
-            <span className="text-[11px] tabular-nums text-white/75">
+            <span className="t-num text-[11px] text-white/75">
               {timeFormat.format(new Date(match.pubgCreatedAt))}
               {minutes > 0 ? ` · ${minutes} min` : ''}
             </span>
             <b className="truncate text-base font-extrabold">{mapLabel}</b>
           </span>
-          <b className="shrink-0 text-[28px] font-black leading-none tracking-[-0.03em] tabular-nums" style={{ color: placeColor }}>
+          <b className={`app-photo-place t-hero t-hero--md shrink-0 ${placeClass}`}>
             #{match.placement}
             {match.teamCount ? <span className="text-xs font-semibold text-white/65">/{match.teamCount}</span> : null}
           </b>
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-2 p-2.5">
-        <dl className="grid grid-cols-4 gap-1.5 tabular-nums">
+        <dl className="t-num grid grid-cols-4 gap-1.5">
           {[
             ['Kills', count.format(match.kills)],
             ['Dégâts', count.format(Math.round(match.damageDealt))],
-            ['Assists', count.format(match.assists)],
+            ['Assist.', count.format(match.assists)],
             ['Réa.', count.format(match.revives)],
           ].map(([label, value]) => (
-            <div key={label} className="flex flex-col-reverse rounded-lg bg-gray-50 px-1.5 py-1">
-              <dt className="text-[9px] font-extrabold uppercase text-gray-500">{label}</dt>
-              <dd className="text-sm font-bold text-gray-900">{value}</dd>
+            <div key={label} className="app-panel-muted flex min-w-0 flex-col-reverse px-1.5 py-1">
+              <dt className="truncate text-[11px] font-bold text-gray-500">{label}</dt>
+              <dd className="text-[15px] font-extrabold text-gray-900">{value}</dd>
             </div>
           ))}
         </dl>
-        <span className="truncate text-xs text-gray-500">{match.squad.length > 0 ? `avec ${match.squad.join(', ')}` : 'Sans coéquipier du clan'}</span>
+        <span className="t-meta truncate">{match.squad.length > 0 ? `avec ${match.squad.join(', ')}` : 'Sans coéquipier du clan'}</span>
         <div className="mt-auto flex items-center justify-between gap-2">
           <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] text-gray-500" title={badge.title}>
             <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: TONE_COLORS[badge.tone] }} aria-hidden="true" />
@@ -314,15 +312,14 @@ function PlayerMatchCard({ match, mapLabel, selected, period }: { match: Dashboa
           {canLink && match.telemetryStatus === 'success' ? (
             <Link
               href={matchDebriefPath(match.clanId!, match.squadMatchId!, context)}
-              className="inline-flex h-7 shrink-0 items-center rounded-lg px-2.5 text-xs font-extrabold text-white"
-              style={{ background: 'var(--theme-ui-accent)' }}
+              className="app-btn app-btn--xs app-btn--primary shrink-0"
             >
               Débriefing
             </Link>
           ) : canLink && match.telemetryStatus ? (
             <Link
               href={matchTelemetryAuditPath(match.clanId!, match.squadMatchId!, context)}
-              className="inline-flex h-7 shrink-0 items-center rounded-lg border border-gray-200 px-2.5 text-xs font-extrabold text-gray-700 hover:bg-gray-50"
+              className="app-btn app-btn--xs app-btn--secondary shrink-0"
             >
               État
             </Link>
@@ -363,11 +360,11 @@ export function SessionList({
   return (
     <section aria-labelledby="sessions-title" className="flex flex-col gap-2.5">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <h2 id="sessions-title" className="text-[17px] font-extrabold text-gray-900">Soirées</h2>
-        <span className="text-[13px] text-gray-500">{sessions.length > 0 ? 'la plus récente en haut' : ''}</span>
+        <h2 id="sessions-title" className="t-section-title">Soirées</h2>
+        <span className="t-meta">{sessions.length > 0 ? 'la plus récente en haut' : ''}</span>
         <Pager label="Soirées" page={page} pageCount={pageCount} onPage={onPage} previousLabel="Soirées plus récentes" nextLabel="Soirées plus anciennes" />
       </div>
-      {sessions.length === 0 ? <p className="rounded-xl border border-dashed border-gray-200 p-6 text-center text-[13px] text-gray-500">{emptyText}</p> : null}
+      {sessions.length === 0 ? <p className="app-panel t-body p-6 text-center text-gray-500">{emptyText}</p> : null}
       <ul className="flex flex-col gap-2.5" aria-label="Soirées">
         {sessions.map((session) => {
           const open = session.date === openDate
@@ -383,20 +380,20 @@ export function SessionList({
                 aria-controls={`session-${session.date}`}
                 className="flex w-full flex-wrap items-center gap-3 px-3.5 py-3 text-left"
               >
-                <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[10px] border border-gray-200 bg-gray-50">
-                  <b className="text-[17px] leading-none text-gray-900">{parts.day}</b>
-                  <span className="text-[10px] font-extrabold uppercase text-gray-500">{parts.weekday}</span>
+                <span className="app-panel-muted flex h-11 w-11 shrink-0 flex-col items-center justify-center">
+                  <b className="t-hero t-hero--sm text-gray-900">{parts.day}</b>
+                  <span className="t-label">{parts.weekday}</span>
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="flex flex-wrap items-center gap-2">
-                    <b className="text-[15px] text-gray-900">{title}</b>
+                    <b className="t-card-title">{title}</b>
                     {session.wins > 0 ? (
-                      <span className="-rotate-2 rounded-[5px] bg-amber-400 px-1.5 py-px text-[10px] font-black tracking-[0.04em] text-amber-950">
-                        {session.wins > 1 ? `${session.wins} CHICKEN DINNERS` : 'CHICKEN DINNER'}
+                      <span className="app-stamp app-stamp--sm">
+                        {session.wins > 1 ? `${session.wins} chicken dinners` : 'Chicken dinner'}
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-xs tabular-nums text-gray-500">
+                  <span className="t-meta t-num">
                     {session.matches.length} partie{session.matches.length > 1 ? 's' : ''} · {timeFormat.format(new Date(session.start))} → {timeFormat.format(new Date(session.end))} ·{' '}
                     {session.kills} kills · meilleure place #{session.bestPlace}
                   </span>

@@ -100,6 +100,9 @@ test.describe("Vue d'ensemble (page de référence)", () => {
     mockClanOverview(api)
     await page.goto(`/clans/${CLAN_ID}/overview`)
     await expect(toolbar(page)).toBeVisible()
+    // Le contenu au-dessus du bandeau (briefing, images) grandit au chargement : mesurer le seuil une fois la page posée.
+    await page.waitForLoadState('networkidle')
+    await settle(page)
     const threshold = await dockingThreshold(page)
     const content = page.locator('[data-docking-toolbar] + div + div')
 

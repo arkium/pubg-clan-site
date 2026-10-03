@@ -128,7 +128,8 @@ export function CategoryMenu({
             </>
           )}
         </span>
-        <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+        {/* Sous 640 px, l'icône de filtre suffit : la place va au retour du bandeau docké. */}
+        <ChevronDown className="hidden h-3 w-3 shrink-0 sm:block" aria-hidden="true" />
       </button>
       {open ? (
         <div role="menu" aria-label="Catégorie" className="app-menu absolute right-0 top-full z-50 mt-1.5 w-[230px]">

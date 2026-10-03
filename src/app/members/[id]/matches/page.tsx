@@ -89,7 +89,7 @@ export default function MemberMatchesPage() {
   if (!memberId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Identifiant de joueur invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
@@ -149,7 +149,8 @@ export default function MemberMatchesPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush game-ui flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
           currentLabel="Matchs"
@@ -161,7 +162,7 @@ export default function MemberMatchesPage() {
           subtitle={subtitle}
           showBackButton={false}
           backgroundImage="/matchesplayer.jpg"
-          icon={<Plane className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+          icon={<Plane className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
         />
       </div>
 
@@ -177,7 +178,7 @@ export default function MemberMatchesPage() {
       </DockingToolbar>
 
       <div className="app-container app-gutter flex flex-col gap-3.5 pb-8 sm:gap-[18px]">
-        {response.error ? <p className="app-panel p-4 text-sm text-red-600">{response.error}</p> : null}
+        {response.error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{response.error}</p> : null}
         {!data && response.loading ? <CardSkeleton /> : null}
         {data ? (
           <div className={`flex flex-col gap-3.5 transition-opacity sm:gap-[18px] ${response.loading ? 'opacity-60' : ''}`} aria-busy={response.loading}>
@@ -227,7 +228,7 @@ export default function MemberMatchesPage() {
               period={period}
               emptyText={mode ? 'Aucune partie dans ce mode sur la période.' : 'Aucune partie sur la période.'}
             />
-            <p className="text-xs text-gray-500">
+            <p className="t-meta">
               Parties suivies par le site, regroupées par soirée (de 06:00 à 06:00, heure de Paris). Mode : membres du clan dans
               l’équipe ; « Sans le clan » : aucun coéquipier du clan, donc pas de débriefing.
             </p>

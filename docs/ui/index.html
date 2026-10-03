@@ -2347,6 +2347,228 @@ button.app-toolbar-btn:hover:not(:disabled) {
   outline: 2px solid var(--theme-ui-accent-ring);
   outline-offset: 2px;
 }
+  
+/* Fonds de repli sous une photo ou une carte PUBG (avant chargement de l'image) : sombres dans les deux thèmes, car
+   le texte posé dessus est blanc. Une seule écriture au lieu de bg-[#…] répétés dans les composants. */
+.bg-photo-fallback {
+  background-color: #0b1120;
+}
+
+.bg-map-fallback {
+  background-color: #1c2a1a;
+}
+
+.bg-hero-fallback {
+  background-color: #1a1410;
+}
+  
+/* Tailwind 4 pose le séparateur de divide-y en bas de chaque enfant sauf le dernier (> :not(:last-child)) ; l'ancien
+   sélecteur (frère suivant) laissait le premier séparateur au gris Tailwind, blanc en thème sombre. Les deux sont couverts. */
+body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300, .divide-slate-100, .divide-slate-200) > :not([hidden]) ~ :not([hidden]),
+body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300, .divide-slate-100, .divide-slate-200) > :not(:last-child) {
+  border-color: var(--theme-ui-border);
+}
+
+/* Échelle séquentielle (charte §1.4, rampe jaune validée le 03/10/2026) : calendrier d'activité, heatmaps, densités.
+   --track → accent 25 % → 50 % → 80 % → accent plein. Chaque palier porte sa couleur de texte lisible : sombre
+   (#1c1003, « accentOn ») sur les deux paliers les plus jaunes, jamais de blanc sur le jaune. */
+.app-seq-0 {
+  background-color: var(--theme-ui-surface-strong);
+  color: var(--theme-ui-text-secondary);
+}
+
+.app-seq-1 {
+  background-color: color-mix(in srgb, var(--theme-ui-accent) 25%, transparent);
+  color: var(--theme-ui-text-secondary);
+}
+
+.app-seq-2 {
+  background-color: color-mix(in srgb, var(--theme-ui-accent) 50%, transparent);
+  color: var(--theme-ui-text);
+}
+
+.app-seq-3 {
+  background-color: color-mix(in srgb, var(--theme-ui-accent) 80%, transparent);
+  color: #1c1003;
+}
+
+.app-seq-4 {
+  background-color: var(--theme-ui-accent);
+  color: #1c1003;
+}
+
+    /* Carrière PUBG : carte « États de service » et plaque militaire gravée (signature §0b, à conserver telle quelle) —
+       matières sombres et métal, identiques dans les deux thèmes. Une seule écriture au lieu de dégradés en ligne. */
+    .career-hero-card {
+      border-radius: 14px;
+      background: radial-gradient(120% 100% at 0% 0%, #1f2937, #0b0f1a 70%);
+      color: #fff;
+    }
+
+    .dog-tag {
+      background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 45%, #cbd5e1 60%, #64748b 100%);
+      color: #1e293b;
+      box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.6), 0 14px 24px -10px rgb(0 0 0 / 0.7);
+      text-shadow: 0 1px 0 rgb(255 255 255 / 0.6);
+    }
+
+    .dog-tag--mini {
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
+      text-shadow: none;
+    }
+
+    .dog-tag__back {
+      background: linear-gradient(135deg, #64748b, #334155);
+      box-shadow: 0 10px 20px -8px rgb(0 0 0 / 0.6);
+    }
+
+    .dog-tag__hole {
+      background: #0b0f1a;
+      box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.8);
+    }
+
+    /* Écusson de rang classé : la couleur du palier (--rank-color, posée par le composant) vers l'encre sombre. */
+    .rank-emblem {
+      background: linear-gradient(160deg, var(--rank-color, #64748b), #0b0f1a);
+    }
+
+    /* Charte : pastille de place (§5) — #1 jaune à encre sombre, 2–5 vert, 6–10 neutre bordé, au-delà neutre ; rayon 6.
+       Le sélecteur sombre est répété : les règles `html[data-app-theme='dark'] .app-placement-badge--*` sont plus fortes. */
+    .charte .app-placement-badge {
+      min-width: 2.5rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .charte .app-placement-badge--winner,
+    html[data-app-theme='dark'] .charte .app-placement-badge--winner {
+      border-color: transparent;
+      background-color: var(--theme-ui-accent);
+      color: #1c1003;
+      box-shadow: none;
+    }
+
+    .charte .app-placement-badge--top5,
+    html[data-app-theme='dark'] .charte .app-placement-badge--top5 {
+      border-color: transparent;
+      background-color: color-mix(in srgb, var(--theme-ui-positive) 16%, transparent);
+      color: var(--theme-ui-positive);
+    }
+
+    .charte .app-placement-badge--top10,
+    html[data-app-theme='dark'] .charte .app-placement-badge--top10 {
+      border-color: var(--theme-toggle-border);
+      background-color: var(--theme-ui-surface-soft);
+      color: var(--theme-ui-text-secondary);
+    }
+
+    .charte .app-placement-badge--default,
+    html[data-app-theme='dark'] .charte .app-placement-badge--default {
+      border-color: transparent;
+      background-color: var(--theme-ui-surface-soft);
+      color: var(--theme-ui-text-muted);
+    }
+
+    /* Charte : bouton principal (§5b) — fond accent, encre sombre (« accentOn », jamais de blanc sur le jaune). */
+    .charte .app-btn--primary,
+    html[data-app-theme='dark'] .charte .app-btn--primary {
+      border-color: transparent;
+      background-color: var(--theme-ui-accent);
+      color: #1c1003;
+      font-weight: 700;
+    }
+
+    .charte .app-btn--primary:hover:not(:disabled) {
+      background-color: #d99700;
+    }
+
+    html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
+      background-color: #ffbe1a;
+    }
+
+    /* Tampon « Chicken dinner » incliné (signature §0b, couleur Token : ambre → accent). --sm : dans une ligne de texte. */
+    .app-stamp {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--theme-ui-accent);
+      color: #1c1003;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      line-height: 1.35;
+      text-transform: uppercase;
+      white-space: nowrap;
+      transform: rotate(-3deg);
+    }
+
+    .app-stamp--sm {
+      padding: 1px 6px;
+      transform: rotate(-2deg);
+    }
+
+    /* Grande place sur une photo de carte (toujours sombre, dans les deux thèmes) : #1 accent, 2–5 vert clair, sinon blanc. */
+    .app-photo-place {
+      color: #fff;
+    }
+
+    .app-photo-place--win {
+      color: var(--theme-ui-accent);
+    }
+
+    .app-photo-place--top5 {
+      color: #6ee7b7;
+    }
+
+    /* Tuile de chiffre compacte (statistiques d'une carte, d'une formation) : valeur puis libellé, centrés.
+       --active : la tuile du critère de tri, teintée accent. Couleur de la valeur : text-gray-900 ou classe t-*. */
+    .app-stat-tile {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 6px 4px;
+      border: 1px solid var(--app-border);
+      border-radius: 8px;
+      background: var(--app-surface-muted);
+      text-align: center;
+    }
+
+    .app-stat-tile__value {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .app-stat-tile__label {
+      max-width: 100%;
+      overflow: hidden;
+      color: var(--theme-ui-text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .app-stat-tile--active {
+      border-color: var(--theme-ui-accent-ring);
+      background: var(--theme-ui-accent-soft);
+    }
+
+    .app-stat-tile--active .app-stat-tile__label {
+      color: var(--theme-ui-accent-text);
+      font-weight: 700;
+    }
+
+    /* Charte : badge de nom de joueur à 11 px minimum (§3). */
+    .charte .app-player-name-badge {
+      font-size: 11px;
+    }
   </style>
 </head>
 <body data-app-theme="light">
@@ -2536,7 +2758,7 @@ button.app-toolbar-btn:hover:not(:disabled) {
       ══════════════════════════════════════════════════════════ -->
       <section class="docs-section" id="synchro-code">
         <h2 class="docs-section-title"><span class="docs-section-num">00</span>Synchronisation avec le code</h2>
-        <p class="text-gray-700" style="margin:-0.75rem 0 1.25rem;max-width:760px;font-size:13px;line-height:1.55;"><b>Cette page est la référence cible</b> — migration page par page : une page migrée porte la classe <code>.charte</code> sur son conteneur (jetons d’accent jaune, « en attente » orange, menu de bandeau), plus <code>.t-hero</code> / <code>.t-banner-title</code>. <b>Pages migrées :</b> armurerie du clan (02/10/2026), armes du joueur (03/10/2026). La charte y est appliquée (accent jaune PUBG, Teko sur les titres et chiffres héros, rayons, vocabulaire) et le code migre vers elle. Comparaison avec <code>src/app/globals.css</code> et <code>src/components/ui/*</code> (arkium/pubg-clan-site, main, 02/10/2026). Chaque section porte un statut et la liste de ses écarts. Les composants du code qui manquaient sont ajoutés dans leur section avec l'étiquette <span class="sync-tag sync-tag--new">Ajouté depuis le code</span>.</p>
+        <p class="text-gray-700" style="margin:-0.75rem 0 1.25rem;max-width:760px;font-size:13px;line-height:1.55;"><b>Cette page est la référence cible</b> — migration page par page : une page migrée porte la classe <code>.charte</code> sur son conteneur (jetons d’accent jaune, « en attente » orange, menu de bandeau), plus <code>.t-hero</code> / <code>.t-banner-title</code>. <b>Pages migrées :</b> armurerie du clan (02/10/2026), armes du joueur (03/10/2026), tableau de bord du joueur (03/10/2026), carrière PUBG du joueur (03/10/2026), carnet de vol du joueur (03/10/2026), statistiques par carte du joueur (03/10/2026), style de jeu du joueur (page créée selon la charte, 03/10/2026). La charte y est appliquée (accent jaune PUBG, Teko sur les titres et chiffres héros, rayons, vocabulaire) et le code migre vers elle. Comparaison avec <code>src/app/globals.css</code> et <code>src/components/ui/*</code> (arkium/pubg-clan-site, main, 02/10/2026). Chaque section porte un statut et la liste de ses écarts. Les composants du code qui manquaient sont ajoutés dans leur section avec l'étiquette <span class="sync-tag sync-tag--new">Ajouté depuis le code</span>.</p>
         <div class="sync-grid">
           <div class="sync-box"><span class="sync-kpi">37</span><h3>Classes du code non documentées</h3><p>Pagination <code>app-pager-button</code>, liens actifs, tailles de badge, <code>members-*</code>, <code>member-lifetime-*</code>, tiroir mobile.</p></div>
           <div class="sync-box"><span class="sync-kpi">12</span><h3>Classes de la doc absentes de globals.css</h3><p><code>app-input</code>, <code>app-select</code>, <code>app-trophy-chip</code>, <code>p-slot-badge*</code> (7), <code>esport-vs-badge</code>, <code>theme-toggle-btn</code> (propre à la doc).</p></div>
@@ -2705,15 +2927,15 @@ button.app-toolbar-btn:hover:not(:disabled) {
             <span class="text-gray-700" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;"><span style="width:10px;height:10px;border-radius:3px;background:#34d399;"></span>Squad</span>
             <span style="width:16px;"></span>
             <span style="display:inline-flex;align-items:center;gap:3px;">
-              <span style="width:26px;height:16px;border-radius:4px;background:var(--game-track);"></span>
-              <span style="width:26px;height:16px;border-radius:4px;background:rgba(242,169,0,.25);"></span>
-              <span style="width:26px;height:16px;border-radius:4px;background:rgba(242,169,0,.5);"></span>
-              <span style="width:26px;height:16px;border-radius:4px;background:rgba(242,169,0,.8);"></span>
-              <span style="width:26px;height:16px;border-radius:4px;background:var(--theme-ui-accent);"></span>
+              <span class="app-seq-0" style="display:grid;place-items:center;width:30px;height:24px;border-radius:6px;font-size:11px;font-weight:700;">0</span>
+              <span class="app-seq-1" style="display:grid;place-items:center;width:30px;height:24px;border-radius:6px;font-size:11px;font-weight:700;">1</span>
+              <span class="app-seq-2" style="display:grid;place-items:center;width:30px;height:24px;border-radius:6px;font-size:11px;font-weight:700;">2</span>
+              <span class="app-seq-3" style="display:grid;place-items:center;width:30px;height:24px;border-radius:6px;font-size:11px;font-weight:700;">4</span>
+              <span class="app-seq-4" style="display:grid;place-items:center;width:30px;height:24px;border-radius:6px;font-size:11px;font-weight:700;">6+</span>
             </span>
-            <span class="t-meta">rampe séquentielle (calendrier, heatmap, densité)</span>
+            <span class="t-meta">rampe séquentielle (calendrier, heatmap, densité) — <span class="sync-tag sync-tag--ok">Validée 03/10/2026</span></span>
           </div>
-          <div class="docs-label">Catégoriel : une couleur par mode, identique partout (barres du plan de vol, graphiques, badges). Séquentiel : <code>--track</code> → jaune 25/50/80 % → <code>--accent</code> — plus de rampe bleue <code>--cal1..4</code>. Toute nouvelle couleur s'ajoute ICI avant usage ; pas de variable propre à une page.</div>
+          <div class="docs-label">Catégoriel : une couleur par mode, identique partout (barres du plan de vol, graphiques, badges). Séquentiel : <code>--track</code> → jaune 25/50/80 % → <code>--accent</code> — plus de rampe bleue <code>--cal1..4</code>. <b>Validé le 03/10/2026</b> : classes <code>app-seq-0</code> à <code>app-seq-4</code>, qui portent aussi la couleur de texte lisible de chaque palier — texte sombre (<code>#1c1003</code>) sur les deux paliers les plus jaunes, jamais de blanc sur le jaune (≈ 2:1). Contrastes mesurés sur le calendrier du tableau de bord : 4,7:1 à 12,5:1 selon le palier et le thème. En code : calendrier d’activité du joueur. Toute nouvelle couleur s'ajoute ICI avant usage ; pas de variable propre à une page.</div>
         </div>
       </section>
 
@@ -2745,7 +2967,7 @@ button.app-toolbar-btn:hover:not(:disabled) {
               </tbody>
             </table>
           </div>
-          <div class="docs-label"><b>À valider</b> (garder l'actuel) : barres de comparaison jaune/indigo (B reste indigo « comparé ») · badge texte Solo ambre ou slate · pastille Duo verte → bleu Duo · chiffre géant Inter 900 ou Teko 600 · calendrier rampe bleue → jaune · or des médailles texte → <code>#F2A900</code> (SVG inchangés) · rôle Owner ambre ou bronze. <b>Tranché le 02/10/2026 :</b> lignes Top 1-3 des tableaux = fonds or / argent / bronze + liseré 3 px.</div>
+          <div class="docs-label"><b>À valider</b> (garder l'actuel) : barres de comparaison jaune/indigo (B reste indigo « comparé ») · badge texte Solo ambre ou slate · pastille Duo verte → bleu Duo · chiffre géant Inter 900 ou Teko 600 · or des médailles texte → <code>#F2A900</code> (SVG inchangés) · rôle Owner ambre ou bronze. <b>Tranché le 02/10/2026 :</b> lignes Top 1-3 des tableaux = fonds or / argent / bronze + liseré 3 px. <b>Tranché le 03/10/2026 :</b> calendrier d’activité = rampe jaune (<code>app-seq-0</code> à <code>-4</code>), plus de rampe bleue.</div>
         </div>
 
         <div class="docs-subsection">
@@ -2902,6 +3124,7 @@ button.app-toolbar-btn:hover:not(:disabled) {
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-panel-muted</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Panneau secondaire teinté</td><td style="padding:8px 12px;vertical-align:middle;"><div class="app-panel-muted" style="padding:6px 10px;">app-panel-muted</div></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-panel-hover</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Panneau cliquable : se soulève au survol</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">game-ui</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Conteneur des pages de jeu : active les jetons <code>--game-*</code></td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">bg-photo-fallback · bg-map-fallback · bg-hero-fallback</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Fond sombre de repli sous une photo, une carte PUBG ou un bandeau joueur (avant chargement de l’image) — au lieu de bg-[#…]</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">charte</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Page migrée vers la charte : accent jaune, menu de bandeau, en-tête des pages joueur (à retirer quand tout sera migré)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">member-page-header · member-page-header-title</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Accroches de l’en-tête partagé des pages joueur : bannière rayon 14 et titre Teko sous <code>.charte</code></td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
               </tbody>
@@ -2915,7 +3138,9 @@ button.app-toolbar-btn:hover:not(:disabled) {
               <thead class="app-table-head"><tr><th class="t-label" style="padding:8px 12px;text-align:left;">Classe</th><th class="t-label" style="padding:8px 12px;text-align:left;">Rôle</th><th class="t-label" style="padding:8px 12px;text-align:left;">Aperçu</th></tr></thead>
               <tbody>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-kpi</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Mise en page d’un KPI (avec app-panel ou app-panel-muted)</td><td style="padding:8px 12px;vertical-align:middle;"><div class="app-panel-muted app-kpi" style="display:inline-flex;"><span class="t-label">Kills</span><b class="t-hero t-hero--md text-gray-900">312</b></div></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-stat-tile · app-stat-tile__value · app-stat-tile__label · app-stat-tile--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Tuile de chiffre compacte (grille de 3 ou 4) : valeur 16 px 800 puis libellé 11 px tronqué ; <code>--active</code> = critère de tri, teinté accent. Couleur de valeur : <code>text-gray-900</code> ou <code>t-pos</code> / <code>t-neg</code> / <code>t-sky</code></td><td style="padding:8px 12px;vertical-align:middle;"><span style="display:inline-grid;grid-template-columns:repeat(2,64px);gap:6px;"><span class="app-stat-tile app-stat-tile--active"><span class="app-stat-tile__value text-gray-900">48</span><span class="app-stat-tile__label">Matchs</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-neg">92</span><span class="app-stat-tile__label">Kills</span></span></span></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-kpi__foot · app-kpi__delta</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Ligne de comparaison et variation (jamais coupée)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-seq-0 · app-seq-1 · app-seq-2 · app-seq-3 · app-seq-4</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Échelle séquentielle (calendrier, heatmap, densité) : fond + texte lisible par palier — rampe jaune validée le 03/10/2026</td><td style="padding:8px 12px;vertical-align:middle;"><span style="display:inline-flex;gap:3px;"><span class="app-seq-0" style="display:grid;place-items:center;width:26px;height:22px;border-radius:6px;font-size:11px;font-weight:700;">0</span><span class="app-seq-1" style="display:grid;place-items:center;width:26px;height:22px;border-radius:6px;font-size:11px;font-weight:700;">1</span><span class="app-seq-2" style="display:grid;place-items:center;width:26px;height:22px;border-radius:6px;font-size:11px;font-weight:700;">2</span><span class="app-seq-3" style="display:grid;place-items:center;width:26px;height:22px;border-radius:6px;font-size:11px;font-weight:700;">4</span><span class="app-seq-4" style="display:grid;place-items:center;width:26px;height:22px;border-radius:6px;font-size:11px;font-weight:700;">6+</span></span></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-kpi__delta--up · --down · --flat</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Variation positive, négative, stable</td><td style="padding:8px 12px;vertical-align:middle;"><span class="app-kpi__delta app-kpi__delta--up">▲ +14 %</span> <span class="app-kpi__delta app-kpi__delta--down">▼ −2 %</span></td></tr>
               </tbody>
             </table>
@@ -2927,7 +3152,7 @@ button.app-toolbar-btn:hover:not(:disabled) {
             <table style="width:100%;border-collapse:collapse;">
               <thead class="app-table-head"><tr><th class="t-label" style="padding:8px 12px;text-align:left;">Classe</th><th class="t-label" style="padding:8px 12px;text-align:left;">Rôle</th><th class="t-label" style="padding:8px 12px;text-align:left;">Aperçu</th></tr></thead>
               <tbody>
-                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-btn + --primary · --secondary · --danger · --danger-solid</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Boutons (un seul principal par écran)</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-btn app-btn--primary app-btn--sm">Principal</button> <button class="app-btn app-btn--secondary app-btn--sm">Secondaire</button></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-btn + --primary · --secondary · --danger · --danger-solid</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Boutons (un seul principal par écran, sauf l’action de chaque carte d’une liste). Sous <code>.charte</code>, <code>--primary</code> = fond accent jaune, encre sombre</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-btn app-btn--primary app-btn--sm">Principal</button> <button class="app-btn app-btn--secondary app-btn--sm">Secondaire</button></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-btn--md · --sm · --xs</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Tailles de bouton : 36 · 32 · 28 px</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-segmented-control · app-segmented-control__item · app-segmented-control__item--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Choix exclusif court (période, mode) — via <code>SegmentedControl</code></td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-sort-chip · app-sort-chip--active</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Puce de tri ou de filtre</td><td style="padding:8px 12px;vertical-align:middle;"><button class="app-sort-chip app-sort-chip--active">Kills ↓</button> <button class="app-sort-chip">Dégâts</button></td></tr>
@@ -2946,7 +3171,8 @@ button.app-toolbar-btn:hover:not(:disabled) {
             <table style="width:100%;border-collapse:collapse;">
               <thead class="app-table-head"><tr><th class="t-label" style="padding:8px 12px;text-align:left;">Classe</th><th class="t-label" style="padding:8px 12px;text-align:left;">Rôle</th><th class="t-label" style="padding:8px 12px;text-align:left;">Aperçu</th></tr></thead>
               <tbody>
-                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-placement-badge--winner · --top5 · --top10 · --default</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Place finale (via <code>PlacementBadge</code>, jamais en direct)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-placement-badge--winner · --top5 · --top10 · --default</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Place finale (via <code>PlacementBadge</code>, jamais en direct). Sous <code>.charte</code> : rayon 6, 11 px 900, #1 jaune à encre sombre, 2–5 vert, 6–10 neutre bordé</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-stamp · app-stamp--sm</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Tampon « Chicken dinner » incliné (−3°, −2° en ligne de texte) : fond accent, encre sombre, capitales par le CSS — le texte reste « Chicken dinner »</td><td style="padding:8px 12px;vertical-align:middle;"><span class="app-stamp">Chicken dinner</span> <span class="app-stamp app-stamp--sm">2 chicken dinners</span></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-team-mode-badge--solo · --duo · --trio · --squad</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Mode d’équipe (via <code>TeamModeBadge</code>) ; tailles --xs, --xxs, --table-head</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-player-name-badge</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Pseudo d’un joueur (via <code>PlayerNameBadge</code>)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-meta-pill · app-performer-pill</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Pastille méta à icône ; distinction ×N (--award)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
@@ -2998,6 +3224,10 @@ button.app-toolbar-btn:hover:not(:disabled) {
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">armory-pager-button · armory-progress-step</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Sélecteur à chevrons et crans (catégories)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">armory-ammo · armory-share-bar</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Chargeur de précision ; barre de part des kills</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">weapon-hero-card · weapon-hero-card--favourite · weapon-hero-card--mastery · weapon-hero-ring-core</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Cartes héros sombres des armes du joueur (arme de prédilection, arme la plus maîtrisée)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">career-hero-card</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Fond sombre (radial) de la carte « États de service » et de la carte « Carrière PUBG » du tableau de bord — toujours sombre, rayon 14</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">dog-tag · dog-tag--mini · dog-tag__back · dog-tag__hole</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Plaque militaire gravée : plaque avant en métal, version réduite (74 px), plaque arrière pivotée, trou de la chaînette — signature §0b</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-photo-place · app-photo-place--win · app-photo-place--top5</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Grande place sur une photo de carte (toujours sombre) : blanc, #1 accent, 2–5 vert clair — avec <code>t-hero t-hero--md</code></td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">rank-emblem</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Écusson hexagonal du rang classé : dégradé de <code>--rank-color</code> (posée par le composant) vers l’encre sombre</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">pubg-icon-filter</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Silhouette d’arme blanche → noire en thème clair</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">game-pan</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Panoramique lent d’une photo (coupé si moins de mouvement demandé)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
               </tbody>
@@ -4156,7 +4386,7 @@ border-gray-200  ← hardcodé</code>
           <span class="docs-section-num">12</span>
           Tableaux
          <span class="sync-tag sync-tag--gap" style="margin-left:auto;">Écarts</span></h2>
-        <div class="sync-note"><b>Par rapport au code :</b><ul><li><code>SortReminder</code> (rappel du tri dans le bandeau docké) absent. Ajouté ci-dessous.</li><li><code>app-table-shell</code> : le code n'a pas <code>overflow:hidden</code>.</li><li>Tableau large : jamais de défilement de côté — liste mobile sous 768 px, colonnes secondaires <code>hidden lg:table-cell</code> de 768 à 1 023 px (armurerie). Règle complète : <a href="#pagination" class="app-link">Pagination</a>.</li></ul></div>
+        <div class="sync-note"><b>Par rapport au code :</b><ul><li><code>SortReminder</code> (rappel du tri dans le bandeau docké) absent. Ajouté ci-dessous.</li><li><code>app-table-shell</code> : le code n'a pas <code>overflow:hidden</code>.</li><li>Listes <code>divide-y divide-gray-200</code> : le remap du thème couvre désormais le sélecteur de Tailwind 4 (<code>&gt; :not(:last-child)</code>) — avant, le premier séparateur restait gris clair Tailwind, blanc en thème sombre (« Dernières parties », réserve des membres…).</li><li>Tableau large : jamais de défilement de côté — liste mobile sous 768 px, colonnes secondaires <code>hidden lg:table-cell</code> de 768 à 1 023 px (armurerie). Règle complète : <a href="#pagination" class="app-link">Pagination</a>.</li></ul></div>
 
         <!-- Structure de base -->
         <div class="docs-subsection">
@@ -5854,6 +6084,55 @@ border-gray-200  ← hardcodé</code>
         </div>
 
         <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Retour dans le bandeau docké — « ‹ » du fil d'Ariane <span class="sync-tag sync-tag--new">Règle du site · 03/10/2026</span></div>
+          <div class="t-body text-gray-700" style="margin-bottom:12px;max-width:760px;">
+            Une fois le bandeau docké, le fil d'Ariane est hors de vue : le bandeau reprend son retour en <b>premier élément</b>, pour revenir à la page précédente sans remonter en haut. Au repos, rien — le fil d'Ariane est juste au-dessus.
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px;max-width:760px;">
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <span class="t-label">Ordinateur (≥ 1 024 px) — icône + nom de la cible</span>
+              <div class="charte" style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border:1px solid var(--app-border);border-radius:14px;background:var(--app-surface);">
+                <a href="#sticky-toolbar" class="app-toolbar-btn" style="height:34px;" aria-label="Retour à Membres"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Membres</a>
+                <div class="app-segmented-control inline-flex border border-gray-200">
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs app-segmented-control__item--active inline-flex items-center justify-center whitespace-nowrap font-medium">Semaine</button>
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs inline-flex items-center justify-center whitespace-nowrap font-medium">Mois</button>
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs inline-flex items-center justify-center whitespace-nowrap font-medium">Tous</button>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <span class="t-label">Mobile et tablette — icône seule, carré à la hauteur du rail</span>
+              <div class="charte" style="display:flex;align-items:flex-start;gap:6px;padding:8px 16px;border:1px solid var(--app-border);border-radius:14px;background:var(--app-surface);max-width:375px;">
+                <a href="#sticky-toolbar" class="app-toolbar-btn" style="height:34px;padding:0 8px;" aria-label="Retour à Joueur Alpha"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></a>
+                <div class="app-segmented-control inline-flex border border-gray-200">
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs app-segmented-control__item--active inline-flex items-center justify-center whitespace-nowrap font-medium">Site</button>
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs inline-flex items-center justify-center whitespace-nowrap font-medium">PUBG</button>
+                </div>
+                <div class="app-segmented-control inline-flex border border-gray-200">
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs app-segmented-control__item--active inline-flex items-center justify-center whitespace-nowrap font-medium">Semaine</button>
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs inline-flex items-center justify-center whitespace-nowrap font-medium">Mois</button>
+                  <button type="button" class="app-segmented-control__item app-segmented-control__item--xs inline-flex items-center justify-center whitespace-nowrap font-medium">Tous</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="overflow-x:auto;margin-top:12px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;max-width:760px;" class="text-gray-700">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--app-border);"><th class="t-label" style="padding:0.5rem;">Règle</th><th class="t-label" style="padding:0.5rem;">Détail</th></tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Quand</td><td style="padding:0.5rem;">Seulement docké, sur toutes les largeurs. Jamais au repos.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Où mène-t-il</td><td style="padding:0.5rem;">Exactement la cible du fil d'Ariane (page précédente de la visite, sinon parent par défaut) — publiée par <code class="docs-code">NavigationTrail</code> via <code class="docs-code">useNavBack</code>, jamais recalculée. Page sans fil d'Ariane (Ligue, Tournois) : pas de bouton.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Taille</td><td style="padding:0.5rem;">Hauteur du <b>premier rail</b> du bandeau, même si le contenu tient sur deux lignes (classement) — règle « une seule hauteur par ligne ». Habillage <code class="docs-code">app-toolbar-btn</code>.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Libellé</td><td style="padding:0.5rem;">Nom de la cible à partir de 1 024 px (tronqué à 10 rem) ; icône seule en dessous. Nom accessible et infobulle : « Retour à … » partout.</td></tr>
+                <tr><td style="padding:0.5rem;white-space:nowrap;">Place sur mobile</td><td style="padding:0.5rem;">Le bandeau docké reste sur une ligne sans déborder : une page déjà pleine libère la place (armes du joueur : chevron ▾ du menu catégorie masqué sous 640 px, l'icône de filtre suffit).</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <code class="docs-code">src/components/ui/DockingToolbar.tsx (data-testid="toolbar-back") · src/hooks/useNavBack.ts · test e2e : members.spec.ts « le retour du fil d'Ariane reste à portée »</code>
+          <div class="docs-label">Vérifié sur 16 pages à bandeau, à 375, 768 et 1 280 px : bouton à la hauteur du rail partout (32 ou 40 px), aucun débordement dû au bouton. Écart existant relevé au passage : sur tablette, le tableau du classement du clan déborde déjà de la page au repos (page non migrée — règle « colonnes secondaires masquées de 768 à 1 023 px » à appliquer).</div>
+        </div>
+
+        <div class="docs-subsection">
           <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Filtre dans le bandeau — <code>MobileDropdownNav</code> variante <code>compact</code> <span class="sync-tag sync-tag--ok">Migré · armurerie</span></div>
           <div class="charte app-panel" style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 16px;max-width:860px;">
             <div class="app-segmented-control inline-flex border border-gray-200" role="group" aria-label="Période">
@@ -6917,7 +7196,7 @@ return (
             </table>
           </div>
           <code class="docs-code">src/components/ui/NavigationTrail.tsx → class="app-back-link" · contrastes mesurés (armes du joueur) : repos 13,6:1 sombre / 9,9:1 clair · survol 13,1:1 / 5,7:1</code>
-          <div class="docs-label"><b>Corrigé le 03/10/2026 :</b> le fil d'Ariane passait au survol au gris quasi noir de Tailwind (<code>hover:text-gray-900</code>, non remappé), soit ≈ 1,1:1 en thème sombre — sombre sur sombre. Les variantes <code>hover:text-gray-900/700/600</code> sont désormais remappées sur le thème (22 autres emplois du site en profitent). Sur une page pas encore migrée, l'accent du survol reste celui du thème actuel (indigo) jusqu'à sa migration (<code>.charte</code>).</div>
+          <div class="docs-label"><b>Corrigé le 03/10/2026 :</b> le fil d'Ariane passait au survol au gris quasi noir de Tailwind (<code>hover:text-gray-900</code>, non remappé), soit ≈ 1,1:1 en thème sombre — sombre sur sombre. Les variantes <code>hover:text-gray-900/700/600</code> sont désormais remappées sur le thème (22 autres emplois du site en profitent). Sur une page pas encore migrée, l'accent du survol reste celui du thème actuel (indigo) jusqu'à sa migration (<code>.charte</code>). Une fois le bandeau docké, ce retour est repris en tête du bandeau — <a href="#sticky-toolbar" class="app-link">Bandeau sticky › Retour</a>.</div>
         </div>
       </section>
 
@@ -7013,9 +7292,10 @@ return (
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/members</code></td><td style="padding:0.5rem;">fiches soldat, rôles Fragger/Medic/Ghost, réserve</td><td style="padding:0.5rem;"><a href="#cartes" class="app-link">Cartes membres</a> · <a href="#roles" class="app-link">Rôles</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/matches</code> + soirée</td><td style="padding:0.5rem;">carnet des soirées, plan de vol, cartes de fin de partie</td><td style="padding:0.5rem;"><a href="#soirees-matchs" class="app-link">Soirées &amp; matchs</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/stats</code> (+ career, weapons <span class="sync-tag sync-tag--ok">charte</span>, positions, heatmap, zones)</td><td style="padding:0.5rem;">KPI, style de jeu, carrière, armurerie, cartes interactives</td><td style="padding:0.5rem;"><a href="#stats" class="app-link">Cartes stats</a> · <a href="#carriere" class="app-link">Carrière</a> · <a href="#armurerie" class="app-link">Armurerie</a> · <a href="#zoom-carte" class="app-link">Zoom carte</a> — style de jeu dans <a href="#stats" class="app-link">Cartes stats</a></td></tr>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/drop-zones</code> · <code class="docs-code">/members/[id]/drop-zones|heatmap|map-stats</code></td><td style="padding:0.5rem;">cartes à filtres, bandeau docké, filtre joueur, glissement de carte</td><td style="padding:0.5rem;"><a href="#zoom-carte" class="app-link">Zoom carte</a> · <a href="#sticky-toolbar" class="app-link">Bandeau sticky</a> · <a href="#controles" class="app-link">Contrôles</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/drop-zones</code> · <code class="docs-code">/members/[id]/drop-zones|heatmap</code></td><td style="padding:0.5rem;">cartes à filtres, bandeau docké, filtre joueur, glissement de carte</td><td style="padding:0.5rem;"><a href="#zoom-carte" class="app-link">Zoom carte</a> · <a href="#sticky-toolbar" class="app-link">Bandeau sticky</a> · <a href="#controles" class="app-link">Contrôles</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/[id]/awards</code> · <code class="docs-code">/challenges</code></td><td style="padding:0.5rem;">meilleurs joueurs, défis, récompenses</td><td style="padding:0.5rem;"><a href="#defis-recompenses" class="app-link">Défis &amp; top performers</a></td></tr>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/dashboard</code></td><td style="padding:0.5rem;">KPI vs clan, modules carrière/armes/soirées du joueur</td><td style="padding:0.5rem;"><a href="#stats" class="app-link">Cartes stats</a> · <a href="#carriere" class="app-link">Carrière</a> · <a href="#armurerie" class="app-link">Armurerie</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/dashboard</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">KPI vs clan, modules carrière/armes/soirées du joueur</td><td style="padding:0.5rem;"><a href="#stats" class="app-link">Cartes stats</a> · <a href="#carriere" class="app-link">Carrière</a> · <a href="#armurerie" class="app-link">Armurerie</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/stats</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/members/[id]/weapons</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/members/[id]/matches</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/members/[id]/map-stats</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/members/[id]/playstyle</code> <span class="sync-tag sync-tag--new">nouvelle · charte</span></td><td style="padding:0.5rem;">style de jeu du joueur (rôles comparés au clan, thèmes, coopération), carrière PUBG (états de service, saisons, vitrine, hauts faits, fiches par thème), armes du joueur, carnet de vol (chronologie, soirées, cartes de fin de partie), statistiques par carte (cartes à tuiles, compositions d’équipe)</td><td style="padding:0.5rem;"><a href="#carriere" class="app-link">Carrière</a> · <a href="#armurerie" class="app-link">Armurerie</a> · <a href="#soirees-matchs" class="app-link">Soirées &amp; matchs</a> · <a href="#stats" class="app-link">Cartes stats</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/nemesis</code></td><td style="padding:0.5rem;">face-à-face, revanche, chasseurs/proies, death cam</td><td style="padding:0.5rem;"><a href="#nemesis" class="app-link">Némésis</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/members/[id]/items</code> · <code class="docs-code">rewards</code></td><td style="padding:0.5rem;">objets utilisés, récompenses du joueur</td><td style="padding:0.5rem;"><a href="#objets-joueur" class="app-link">Objets &amp; récompenses</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/tournaments</code> (+ détail, manche)</td><td style="padding:0.5rem;">modes, places, ligne du lecteur, diffusion Discord</td><td style="padding:0.5rem;"><a href="#tournois" class="app-link">Tournois</a></td></tr>
@@ -7976,7 +8256,7 @@ return (
             </div>
           </div>
           <code class="docs-code">src/components/player-dashboard/PlayerDashboardSections.tsx · note « vs clan » = écart à la moyenne du clan (clanGap) · barres d'activité par soirée ou par semaine, barre courante en --theme-ui-positive (ou --theme-ui-text-secondary si l'écart n'est pas positif)</code>
-          <div class="docs-label">Un KPI au-dessus de la moyenne du clan borde sa carte en <code>--theme-ui-accent-ring</code> et passe sa note en <code>--theme-ui-positive</code>. Les barres restantes restent en <code>--theme-ui-border</code> — une seule valeur mise en avant (charte §5g).</div>
+          <div class="docs-label"><b>En code depuis le 03/10/2026 :</b> <code>PlayerKpis</code> = <code>app-panel app-kpi</code> + <code>t-label</code> + <code>t-hero t-hero--md</code> + note <code>app-kpi__delta--up</code> ou <code>t-meta</code>. Un KPI au-dessus de la moyenne du clan borde sa carte en <code>--theme-ui-accent-ring</code> et passe sa note en <code>--theme-ui-positive</code>. Les barres restantes restent en <code>--theme-ui-border</code> — une seule valeur mise en avant (charte §5g).</div>
         </div>
         <div class="docs-subsection">
           <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Style de jeu du clan — <code>PlaystyleRoleCards</code> (jauge en arc 270°) <span class="sync-tag sync-tag--new">Ajouté depuis le code</span></div>
@@ -8016,6 +8296,84 @@ return (
             </div>
           </div>
           <code class="docs-code">src/components/clan-stats/PlaystyleSections.tsx · ArcGauge : cercle r=34, arc 270° (rotate 135°), piste --theme-ui-surface-strong, remplissage à la couleur du rôle · % en Teko</code>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Statistiques par carte du joueur — tuiles <code>app-stat-tile</code> <span class="sync-tag sync-tag--ok">Migrée · 03/10/2026</span></div>
+          <div class="t-body text-gray-700" style="margin-bottom:12px;max-width:760px;">Page <code>/members/[id]/map-stats</code> : une carte <code>.app-panel</code> par map (bandeau photo, médaille <code>RankCell</code> du top 3 du tri) et douze tuiles. La tuile du critère de tri est teintée accent ; le tri se choisit au-dessus des cartes (menu compact + sens <code>app-toolbar-btn</code>, même hauteur) et se rappelle dans le bandeau docké (<code>SortReminder</code>).</div>
+          <div class="charte game-ui" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;">
+            <article class="app-panel" style="overflow:hidden;padding:0;width:320px;">
+              <div class="bg-photo-fallback" style="position:relative;height:112px;background:#0b1120 url('../../public/maps/pubg/Baltic_Main.webp') center/cover;">
+                <div style="position:absolute;inset:0;background:linear-gradient(0deg, rgb(0 0 0 / 0.75), rgb(0 0 0 / 0.2) 50%, transparent);"></div>
+                <div style="position:absolute;left:12px;right:12px;bottom:10px;color:#fff;"><p style="margin:0;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgb(255 255 255 / 0.7);">Carte</p><h3 style="margin:0;font-size:18px;font-weight:700;">Erangel</h3></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:12px;">
+                <span class="app-stat-tile app-stat-tile--active"><span class="app-stat-tile__value text-gray-900">48</span><span class="app-stat-tile__label">Matchs</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-pos">6</span><span class="app-stat-tile__label">Victoires</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-pos">12,5 %</span><span class="app-stat-tile__label">Win rate</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-pos">37,5 %</span><span class="app-stat-tile__label">Top 10</span></span>
+                <span class="app-stat-tile"><span class="app-stat-tile__value text-gray-900">9</span><span class="app-stat-tile__label">Place</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-neg">92</span><span class="app-stat-tile__label">Kills</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-neg">101</span><span class="app-stat-tile__label">Knocks</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-neg">21</span><span class="app-stat-tile__label">Headshots</span></span>
+                <span class="app-stat-tile"><span class="app-stat-tile__value text-gray-900">14 820</span><span class="app-stat-tile__label">Dégâts</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-sky">30</span><span class="app-stat-tile__label">Assist.</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-sky">12</span><span class="app-stat-tile__label">Réa.</span></span><span class="app-stat-tile"><span class="app-stat-tile__value text-gray-900">24:55</span><span class="app-stat-tile__label">Durée</span></span>
+              </div>
+            </article>
+            <article class="app-panel-muted" style="display:flex;flex-direction:column;gap:12px;padding:12px;width:300px;border-left:3px solid var(--game-violet);">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span class="app-team-mode-badge app-team-mode-badge--trio app-team-mode-badge--sm">Meilleur trio</span><span class="t-hero t-hero--sm" style="color:var(--game-violet);">14,3 %</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;"><p class="t-label" style="margin:0;">Composition</p><div style="display:flex;flex-wrap:wrap;gap:6px;"><span class="app-player-name-badge">Joueur Alpha</span><span class="app-player-name-badge">Joueur Bravo</span><span class="app-player-name-badge">Joueur Charlie</span></div></div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;"><span class="app-stat-tile"><span class="app-stat-tile__value text-gray-900">14</span><span class="app-stat-tile__label">Matchs</span></span><span class="app-stat-tile"><span class="app-stat-tile__value t-pos">2</span><span class="app-stat-tile__label">Victoires</span></span><span class="app-stat-tile"><span class="app-stat-tile__value text-gray-900">10,2</span><span class="app-stat-tile__label">Place moy.</span></span></div>
+            </article>
+          </div>
+          <div style="overflow-x:auto;margin-top:12px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;max-width:760px;" class="text-gray-700">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--app-border);"><th class="t-label" style="padding:0.5rem;">Règle</th><th class="t-label" style="padding:0.5rem;">Détail</th></tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Couleurs</td><td style="padding:0.5rem;">Résultats <code>t-pos</code>, combat <code>t-neg</code>, soutien <code>t-sky</code>, le reste neutre. Plus de <code>text-blue-500</code> ni de teintes ambre en <code>rgba()</code>.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Libellés</td><td style="padding:0.5rem;">11 px minimum (au lieu de 9 px), jamais coupés : abrégés dans la tuile (« Assist. », « Réa. », « Place », « Durée »), complets dans le menu de tri (« Assistances », « Réanimations », « Place moyenne », « Durée moyenne »). Nombres <code>fr-FR</code>, pourcentages « 12,5 % », durée « 24:55 ».</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Compositions</td><td style="padding:0.5rem;">Carte <code>app-panel-muted</code> avec un liseré 3 px à la couleur du mode (<code>--game-sky</code> / <code>--game-violet</code> / <code>--game-pos</code>), win rate en Teko de la même couleur, coéquipiers en <code>PlayerNameBadge</code> (11 px sous <code>.charte</code>), trois tuiles. Une colonne jusqu’à 1 023 px.</td></tr>
+                <tr><td style="padding:0.5rem;white-space:nowrap;">Bandeau</td><td style="padding:0.5rem;">Période + menu « Filtre » (et « Joueur » ou « Formation » selon le filtre), à la même hauteur. Le résumé (« Joueur Alpha · 118 parties · 5 cartes ») a quitté le bandeau : il passe sous le titre de section en <code>t-meta</code>, plus d’encart cyan.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <code class="docs-code">src/app/members/[id]/map-stats/page.tsx (CompactStat) · src/components/member/TeamPlayCompositionsCard.tsx · test e2e : map-stats.spec.ts</code>
+          <div class="docs-label">Vérifié à 375, 768 et 1 280 px, thèmes clair et sombre : aucun débordement, aucun texte sous 11 px, aucun libellé tronqué, bandeau à une hauteur par ligne.</div>
+        </div>
+        <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Style de jeu du joueur — rôle comparé au clan <span class="sync-tag sync-tag--new">Nouvelle page · 03/10/2026</span></div>
+          <div class="t-body text-gray-700" style="margin-bottom:12px;max-width:760px;">Page <code>/members/[id]/playstyle</code>, créée selon la charte : la télémétrie du joueur sur la période, comparée aux joueurs du clan mesurés. Le tableau de bord en garde le résumé (carte « Profil de jeu », lien « Détail → »). Détail fonctionnel : docs/features/membres.md §3 bis.</div>
+          <div class="charte game-ui" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;max-width:900px;">
+              <article class="app-panel" style="display:flex;flex-direction:column;gap:12px;padding:16px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span class="t-hero t-hero--sm" style="display:grid;place-items:center;width:64px;height:64px;border-radius:9999px;border:7px solid color-mix(in srgb, var(--game-neg) 30%, transparent);border-top-color:var(--game-neg);border-left-color:var(--game-neg);color:var(--game-neg);">82 %</span>
+                  <span style="display:flex;flex-direction:column;gap:2px;"><span class="t-label" style="color:var(--game-neg);">Fragger</span><b class="t-card-title">Agressivité</b></span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--app-border);padding-top:12px;">
+                  <div style="position:relative;height:10px;border-radius:6px;background:var(--theme-ui-surface-strong);"><div style="height:100%;width:82%;border-radius:6px;background:var(--game-neg);"></div><span style="position:absolute;top:-3px;left:61%;height:16px;width:2px;background:var(--theme-ui-text);"></span></div>
+                  <div style="display:flex;justify-content:space-between;gap:8px;"><span class="t-meta">Moyenne du clan <b class="t-num text-gray-900">61 %</b></span><span class="app-kpi__delta app-kpi__delta--up" style="font-size:12px;">+21 pts vs clan</span></div>
+                  <span class="t-meta t-num">Meilleur du clan</span>
+                </div>
+              </article>
+              <article class="app-panel" style="display:flex;flex-direction:column;gap:12px;padding:16px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span class="t-hero t-hero--sm" style="display:grid;place-items:center;width:64px;height:64px;border-radius:9999px;border:7px solid color-mix(in srgb, var(--game-pos) 30%, transparent);border-top-color:var(--game-pos);border-left-color:var(--game-pos);color:var(--game-pos);">60 %</span>
+                  <span style="display:flex;flex-direction:column;gap:2px;"><span class="t-label" style="color:var(--game-pos);">Ghost</span><b class="t-card-title">Discipline zone</b></span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--app-border);padding-top:12px;">
+                  <div style="position:relative;height:10px;border-radius:6px;background:var(--theme-ui-surface-strong);"><div style="height:100%;width:60%;border-radius:6px;background:var(--game-pos);"></div><span style="position:absolute;top:-3px;left:71%;height:16px;width:2px;background:var(--theme-ui-text);"></span></div>
+                  <div style="display:flex;justify-content:space-between;gap:8px;"><span class="t-meta">Moyenne du clan <b class="t-num text-gray-900">71 %</b></span><span class="app-kpi__delta app-kpi__delta--down" style="font-size:12px;">−11 pts vs clan</span></div>
+                  <span class="t-meta t-num">8ᵉ sur 8 joueurs du clan</span>
+                </div>
+              </article>
+          </div>
+          <div style="overflow-x:auto;margin-top:12px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;max-width:760px;" class="text-gray-700">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--app-border);"><th class="t-label" style="padding:0.5rem;">Bloc</th><th class="t-label" style="padding:0.5rem;">Règle</th></tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Couleurs de rôle</td><td style="padding:0.5rem;">Jetons de thème <code>--game-neg</code> (Fragger), <code>--game-sky</code> (Medic), <code>--game-pos</code> (Ghost) : même teinte que le tableau de bord en sombre, foncée en clair pour rester lisible comme texte. Jamais les teintes fixes de <code>rosterRole</code> pour du texte sur fond clair.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Comparaison</td><td style="padding:0.5rem;">Repère de la moyenne du clan sur la barre (comme le tableau de bord), écart en points <code>app-kpi__delta--up/down/flat</code>, rang en <code>t-meta</code>. Sans données du clan : une phrase, jamais un tiret ou une puce vide.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Thèmes</td><td style="padding:0.5rem;">Carte <code>.app-panel</code>, tableau Joueur (13 px 700) / Clan (atténué) en regard ; segments de barre en jetons <code>--game-*</code>.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Coopération</td><td style="padding:0.5rem;">KPI <code>app-panel app-kpi</code> (Teko), tableau <code>app-table-shell</code> avec <code>RankCell</code>, colonnes secondaires masquées sous 640 / 768 px, <code>Pagination</code> au-delà de 10 coéquipiers.</td></tr>
+                <tr><td style="padding:0.5rem;white-space:nowrap;">Ancres</td><td style="padding:0.5rem;">Libellés courts (« Profil », « Mobilité », « Coopération ») : la rangée d'ancres tient sur 375 px sans défiler. <code>SectionAnchorNav</code> défile encore horizontalement quand ses libellés débordent (style de jeu du clan) — écart à corriger dans le composant.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <code class="docs-code">src/app/members/[id]/playstyle/page.tsx · src/components/player-playstyle/PlayerPlaystyleSections.tsx · src/lib/player-playstyle.ts · test e2e : player-playstyle.spec.ts</code>
+          <div class="docs-label">Vérifié à 375, 768 et 1 280 px et sur iPhone, thèmes clair et sombre : aucun débordement, aucun texte sous 11 px, chiffres ≥ 20 px en Teko, aucune ancre coupée.</div>
         </div>
       </section>
 
@@ -8140,10 +8498,10 @@ return (
           <div class="app-panel" style="display:flex;flex-direction:column;overflow:hidden;padding:0;max-width:340px;border-color:var(--game-gold-ring);">
             <div style="position:relative;height:96px;background:#0b1120 url('../../public/maps/pubg/Baltic_Main.webp') center/cover;">
               <div style="position:absolute;inset:0;background:linear-gradient(0deg, rgb(2 6 23 / 0.9), rgb(2 6 23 / 0.15));"></div>
-              <span style="position:absolute;left:12px;top:10px;transform:rotate(-3deg);border-radius:6px;background:var(--theme-ui-accent);color:var(--accentOn);padding:2px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;">Chicken dinner</span>
+              <span class="app-stamp" style="position:absolute;left:12px;top:10px;">Chicken dinner</span>
               <div style="position:absolute;left:12px;right:12px;bottom:10px;display:flex;align-items:flex-end;justify-content:space-between;color:#fff;">
                 <div><div style="font-size:11px;color:rgb(255 255 255 / 0.75);">11:11 · 29 min</div><div style="font-size:17px;font-weight:800;">Erangel</div></div>
-                <div class="t-hero t-hero--md t-gold" style="line-height:1;">#1<span style="font-size:13px;font-weight:600;color:rgb(255 255 255 / 0.65);">/53</span></div>
+                <div class="app-photo-place app-photo-place--win t-hero t-hero--md">#1<span style="font-size:13px;font-weight:600;color:rgb(255 255 255 / 0.65);">/53</span></div>
               </div>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px;padding:12px;">
@@ -8158,12 +8516,43 @@ return (
               </dl>
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                 <span class="text-gray-500" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;"><span style="height:7px;width:7px;border-radius:9999px;background:var(--game-pos);"></span>Télémétrie prête</span>
-                <a style="display:inline-flex;height:30px;align-items:center;border-radius:8px;background:var(--theme-ui-accent);color:var(--accentOn);padding:0 12px;font-size:12px;font-weight:700;">Débriefing</a>
+                <a class="app-btn app-btn--xs app-btn--primary">Débriefing</a>
               </div>
             </div>
           </div>
           <code class="docs-code">état télémétrie : prête --game-pos · en attente --game-warn · en erreur --game-neg · expirée --theme-ui-text-muted</code>
-          <div class="docs-label">src/components/matches/MatchResultCard.tsx · bandeau image 96 px, tampon « Chicken dinner » incliné −3° (Token charte : ambre → accent), place colorée (#1 or, ≤5 vert, sinon blanc), barres de kills <code>--game-neg</code> sur <code>--game-track</code>. Une victoire borde la carte en <code>--game-gold-ring</code> ; la sélection en <code>--theme-ui-accent-ring</code> + halo.</div>
+          <div class="docs-label">src/components/matches/MatchResultCard.tsx · bandeau image 96 px (fond de repli <code>bg-photo-fallback</code>), tampon <code>.app-stamp</code> (Token charte : ambre → accent, encre sombre), place en Teko <code>.app-photo-place</code> (#1 accent, ≤5 vert clair, sinon blanc — couleurs fixes : la photo est sombre dans les deux thèmes), action <code>app-btn--primary</code> (accent sous <code>.charte</code>), barres de kills <code>--game-neg</code> sur <code>--game-track</code>. Une victoire borde la carte en <code>--game-gold-ring</code> ; la sélection en <code>--theme-ui-accent-ring</code> + halo.</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Carnet de vol du joueur — <code>/members/[id]/matches</code> <span class="sync-tag sync-tag--ok">Migrée · 03/10/2026</span></div>
+          <div class="t-body text-gray-700" style="margin-bottom:12px;max-width:760px;">Mêmes briques que la soirée du clan, version joueur (<code>src/components/player-matches/PlayerMatchesSections.tsx</code>). Ce qui fait foi :</div>
+          <div class="charte" style="display:flex;flex-direction:column;gap:14px;max-width:760px;">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+              <span class="app-panel-muted" style="display:flex;height:44px;width:44px;flex-direction:column;align-items:center;justify-content:center;"><b class="t-hero t-hero--sm text-gray-900">3</b><span class="t-label">sam.</span></span>
+              <span style="display:flex;flex-direction:column;gap:2px;"><span style="display:flex;align-items:center;gap:8px;"><b class="t-card-title">Ce soir</b><span class="app-stamp app-stamp--sm">Chicken dinner</span></span><span class="t-meta t-num">3 parties · 21:00 → 22:27 · 10 kills · meilleure place #1</span></span>
+              <span style="display:flex;gap:6px;margin-left:auto;"><span class="app-placement-badge app-placement-badge--winner">#1</span><span class="app-placement-badge app-placement-badge--top5">#4</span><span class="app-placement-badge app-placement-badge--top10">#8</span><span class="app-placement-badge app-placement-badge--default">#19</span></span>
+            </div>
+            <dl class="t-num" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0;max-width:300px;">
+              <div class="app-panel-muted" style="display:flex;flex-direction:column-reverse;padding:4px 6px;"><dt class="text-gray-500" style="font-size:11px;font-weight:700;">Kills</dt><dd class="text-gray-900" style="margin:0;font-size:15px;font-weight:800;">7</dd></div>
+              <div class="app-panel-muted" style="display:flex;flex-direction:column-reverse;padding:4px 6px;"><dt class="text-gray-500" style="font-size:11px;font-weight:700;">Dégâts</dt><dd class="text-gray-900" style="margin:0;font-size:15px;font-weight:800;">850</dd></div>
+              <div class="app-panel-muted" style="display:flex;flex-direction:column-reverse;padding:4px 6px;"><dt class="text-gray-500" style="font-size:11px;font-weight:700;">Assists</dt><dd class="text-gray-900" style="margin:0;font-size:15px;font-weight:800;">1</dd></div>
+              <div class="app-panel-muted" style="display:flex;flex-direction:column-reverse;padding:4px 6px;"><dt class="text-gray-500" style="font-size:11px;font-weight:700;">Réa.</dt><dd class="text-gray-900" style="margin:0;font-size:15px;font-weight:800;">1</dd></div>
+            </dl>
+          </div>
+          <div style="overflow-x:auto;margin-top:12px;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;max-width:760px;" class="text-gray-700">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--app-border);"><th class="t-label" style="padding:0.5rem;">Bloc</th><th class="t-label" style="padding:0.5rem;">Règle</th></tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Bandeau</td><td style="padding:0.5rem;">Période + menu des modes <code>app-menu-trigger</code> / <code>app-menu</code> / <code>app-menu__item</code> (gabarit du menu de catégorie des armes), étiré à la hauteur du segmented (32 px). Mode choisi : <code>app-menu-trigger--active</code>.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Chiffres clés</td><td style="padding:0.5rem;"><code>KpiGrid</code> (partagé avec les matchs et la vue d'ensemble du clan) : <code>app-panel app-kpi</code>, libellé <code>t-label</code>, valeur <code>t-hero t-hero--md</code>, détail <code>t-meta</code>.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Chronologie</td><td style="padding:0.5rem;">Titre <code>t-card-title</code>, jour au-dessus de la première partie d'une soirée en 11 px (jamais 10), vignette ronde sur <code>bg-photo-fallback</code>, place par <code>PlacementBadge</code>.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Soirées</td><td style="padding:0.5rem;">Titre <code>t-section-title</code> ; bloc date <code>app-panel-muted</code> 44 px, jour Teko <code>t-hero--sm</code>, jour de semaine <code>t-label</code> ; tampon <code>app-stamp--sm</code> ; état vide en <code>app-panel</code> (plus de cadre pointillé).</td></tr>
+                <tr><td style="padding:0.5rem;white-space:nowrap;">Carte de partie</td><td style="padding:0.5rem;">Comme <code>MatchResultCard</code> ci-dessus ; tuiles de chiffres <code>app-panel-muted</code>, libellé 11 px (plus de 9 px), valeur 15 px 800 ; « Débriefing » <code>app-btn--primary</code>, « État » <code>app-btn--secondary</code>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="docs-label">Vérifié à 375, 768 et 1 280 px, thèmes clair et sombre : aucun débordement, aucun texte sous 11 px, chiffres ≥ 20 px tous en Teko, bandeau à une seule hauteur (32 px). Test e2e : player-matches.spec.ts.</div>
         </div>
       </section>
 
@@ -8219,15 +8608,15 @@ return (
           Carrière du joueur
           <span class="sync-tag sync-tag--new" style="margin-left:auto;">Ajouté depuis le code</span>
         </h2>
-        <div class="sync-note"><b>Source :</b> <code>src/components/player-career/CareerSections.tsx</code> + <code>src/lib/player-career.ts</code> — page <code>/clans/[clanId]/stats/career</code> (et module du tableau de bord joueur). La plaque affiche le libellé « K/D » du jeu PUBG (ratio officiel de la carrière) — écart vocabulaire charte §5j assumé, à trancher.</div>
+        <div class="sync-note"><b>Source :</b> <code>src/components/player-career/CareerSections.tsx</code> + <code>src/lib/player-career.ts</code> — page <code>/members/[id]/stats</code>, migrée vers la charte le 03/10/2026 (et carte « Carrière PUBG » du tableau de bord joueur). Hauts faits et fiches par thème : couleurs sémantiques <code>t-accent</code> / <code>t-neg</code> / <code>t-pos</code> / <code>t-sky</code> (ciel de jeu, <code>.game-ui</code>), plus de teintes Tailwind en dur. La plaque affiche le libellé « K/D » du jeu PUBG (ratio officiel de la carrière) — écart vocabulaire charte §5j assumé, à trancher.</div>
 
         <div class="docs-subsection">
           <div class="docs-subsection-title">États de service — plaque militaire gravée (<code>data-testid="dog-tag"</code>)</div>
-          <div style="position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:24px;overflow:hidden;border-radius:14px;border:1px solid var(--theme-ui-border);background:radial-gradient(120% 100% at 0% 0%, #1f2937, #0b0f1a 70%);padding:18px 22px;color:#fff;max-width:640px;">
+          <div class="charte career-hero-card" style="position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:24px;overflow:hidden;border:1px solid var(--theme-ui-border);padding:18px 22px;max-width:640px;">
             <div style="position:relative;height:136px;width:230px;flex-shrink:0;">
-              <span style="position:absolute;left:18px;top:6px;height:86%;width:86%;transform:rotate(8deg);border-radius:22px;background:linear-gradient(135deg,#64748b,#334155);box-shadow:0 10px 20px -8px rgba(0,0,0,0.6);" aria-hidden="true"></span>
-              <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0;border-radius:22px;background:linear-gradient(135deg,#e2e8f0 0%,#94a3b8 45%,#cbd5e1 60%,#64748b 100%);padding:14px 12px 14px 34px;font-family:ui-monospace,Menlo,monospace;color:#1e293b;box-shadow:inset 0 2px 0 rgba(255,255,255,0.6),0 14px 24px -10px rgba(0,0,0,0.7);text-shadow:0 1px 0 rgba(255,255,255,0.6);">
-                <span style="position:absolute;left:12px;top:50%;margin-top:-6px;height:12px;width:12px;border-radius:9999px;background:#0b0f1a;box-shadow:inset 0 1px 2px rgba(0,0,0,0.8);" aria-hidden="true"></span>
+              <span class="dog-tag__back" style="position:absolute;left:18px;top:6px;height:86%;width:86%;transform:rotate(8deg);border-radius:22px;" aria-hidden="true"></span>
+              <div class="dog-tag" style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0;border-radius:22px;padding:14px 12px 14px 34px;font-family:ui-monospace,Menlo,monospace;">
+                <span class="dog-tag__hole" style="position:absolute;left:12px;top:50%;margin-top:-6px;height:12px;width:12px;border-radius:9999px;" aria-hidden="true"></span>
                 <b style="font-size:22px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Msieupanda</b>
                 <span style="font-size:11px;font-weight:700;text-transform:uppercase;">T3N3T · [TNT]</span>
                 <span style="font-size:11px;font-weight:700;">TOP 1 ×390 · K/D 1,84</span>
@@ -8235,17 +8624,17 @@ return (
               </div>
             </div>
             <div style="display:flex;min-width:220px;flex:1;flex-direction:column;gap:12px;">
-              <span class="t-gold" style="font-size:11px;font-weight:900;letter-spacing:0.18em;">ÉTATS DE SERVICE · TOUS MODES</span>
+              <span style="font-size:11px;font-weight:900;letter-spacing:0.18em;color:var(--theme-ui-accent);">ÉTATS DE SERVICE · TOUS MODES</span>
               <dl class="t-num" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px 16px;margin:0;">
-                <div><dt style="font-size:11px;color:rgb(255 255 255 / 0.55);">chicken dinners</dt><dd class="t-hero t-hero--sm t-gold" style="margin:0;">390</dd></div>
+                <div><dt style="font-size:11px;color:rgb(255 255 255 / 0.55);">chicken dinners</dt><dd class="t-hero t-hero--sm" style="margin:0;color:var(--theme-ui-accent);">390</dd></div>
                 <div><dt style="font-size:11px;color:rgb(255 255 255 / 0.55);">kills</dt><dd class="t-hero t-hero--sm" style="margin:0;">8 067</dd></div>
                 <div><dt style="font-size:11px;color:rgb(255 255 255 / 0.55);">ratio K/D</dt><dd class="t-hero t-hero--sm" style="margin:0;">1,84</dd></div>
                 <div><dt style="font-size:11px;color:rgb(255 255 255 / 0.55);">dégâts</dt><dd class="t-hero t-hero--sm" style="margin:0;">1 102 k</dd></div>
               </dl>
             </div>
           </div>
-          <code class="docs-code">plaque : plaque arrière pivotée 8° + plaque avant en dégradé métal, texte gravé (font-mono, text-shadow blanc) · fond du module : radial sombre, toujours sombre dans les deux thèmes</code>
-          <div class="docs-label">src/components/player-career/CareerSections.tsx · la plaque reprend le nom, le clan PUBG, Top 1, ratio et volume de parties. Une version réduite (74 px) sert d'en-tête aux autres modules de la page. Les dégradés métal sont volontairement en dur : c'est une matière, pas une couleur d'interface (signature « Conserver », charte §0b).</div>
+          <code class="docs-code">.career-hero-card (fond radial, toujours sombre) · .dog-tag (plaque avant, métal gravé) · .dog-tag__back (plaque arrière pivotée 8°) · .dog-tag__hole · .dog-tag--mini (74 px, tableau de bord) · .rank-emblem (écusson, --rank-color)</code>
+          <div class="docs-label">src/components/player-career/CareerSections.tsx · la plaque reprend le nom, le clan PUBG, Top 1, ratio et volume de parties. Une version réduite (74 px) sert d'en-tête aux autres modules de la page. Les dégradés métal sont une matière, pas une couleur d'interface (signature « Conserver », charte §0b) : ils sont écrits <b>une seule fois</b>, dans les classes ci-dessus — jamais en ligne dans un composant. Surtitre et Top 1 en accent (<code>--theme-ui-accent</code>, lisible sur le fond sombre dans les deux thèmes), chiffres en Teko (<code>t-hero</code>).</div>
         </div>
       </section>
 

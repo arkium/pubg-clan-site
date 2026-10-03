@@ -54,16 +54,19 @@ export function DashboardCard({
   return (
     <article
       aria-label={title}
-      className={`app-panel flex flex-col gap-2.5 p-3.5 ${tone === 'danger' ? 'border-red-500/35' : ''} ${className}`.trim()}
+      className={`app-panel flex flex-col gap-2.5 p-3.5 ${tone === 'danger' ? 'border-[color-mix(in_srgb,var(--theme-ui-negative)_35%,transparent)]' : ''} ${className}`.trim()}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-[15px] font-extrabold text-gray-900">{title}</h2>
-        {link ? (
-          <Link href={link.href} className="shrink-0 text-xs font-semibold text-[var(--theme-ui-accent-text)] hover:underline">
-            {link.label}
-          </Link>
-        ) : aside ? (
-          <span className="shrink-0 text-xs text-gray-500">{aside}</span>
+        <h2 className="t-card-title">{title}</h2>
+        {aside || link ? (
+          <span className="flex shrink-0 items-baseline gap-3">
+            {aside ? <span className="text-xs text-gray-500">{aside}</span> : null}
+            {link ? (
+              <Link href={link.href} className="app-link text-xs font-semibold">
+                {link.label}
+              </Link>
+            ) : null}
+          </span>
         ) : null}
       </div>
       {children}
@@ -99,27 +102,27 @@ export function PlayerHero({
 
   return (
     <header
-      className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-[#1a1410] bg-cover bg-no-repeat text-white sm:min-h-[13rem]"
+      className="bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat text-white sm:min-h-[13rem]"
       style={{ backgroundImage: `url('/member-dashboard.jpg')`, backgroundPosition: 'center 25%' }}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/60 to-slate-950/30 sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/60 sm:to-slate-950/10" />
       <div className="relative flex min-h-[10rem] flex-col justify-end gap-4 px-3.5 pb-3.5 pt-6 sm:min-h-[13rem] sm:px-7 sm:pb-5">
         <div className="flex items-center gap-4">
           <span
-            className="relative grid h-16 w-16 shrink-0 place-items-center rounded-[20px] border-[3px] bg-[#0b1120] text-[22px] font-black sm:h-[84px] sm:w-[84px] sm:text-[28px]"
+            className="bg-photo-fallback relative grid h-16 w-16 shrink-0 place-items-center rounded-[14px] border-[3px] text-[22px] font-black sm:h-[84px] sm:w-[84px] sm:text-[28px]"
             style={{ borderColor: color, boxShadow: roleMeta ? `0 0 0 6px ${roleMeta.tint}` : undefined }}
           >
             {member.avatarUrl && !avatarFailed ? (
-              <img src={member.avatarUrl} alt="" className="h-full w-full rounded-[17px] object-cover" onError={() => setAvatarFailed(true)} />
+              <img src={member.avatarUrl} alt="" className="h-full w-full rounded-[11px] object-cover" onError={() => setAvatarFailed(true)} />
             ) : (
               rosterInitials(member.displayName)
             )}
             {tonight ? (
-              <span className="absolute -bottom-1.5 -right-1.5 h-4 w-4 rounded-full border-[3px] border-[#0b1120] bg-emerald-500" title="A joué ce soir" />
+              <span className="absolute -bottom-1.5 -right-1.5 h-4 w-4 rounded-full border-[3px] border-slate-950 bg-emerald-500" title="A joué ce soir" />
             ) : null}
           </span>
           <div className="flex min-w-0 flex-col gap-1.5">
-            <h1 className="truncate text-2xl font-black leading-none tracking-tight sm:text-[34px]">{member.displayName}</h1>
+            <h1 className="t-banner-title truncate">{member.displayName}</h1>
             <span className="text-[13px] text-white/75">
               {[
                 member.pubgPlayerName !== member.displayName ? member.pubgPlayerName : null,
@@ -131,12 +134,12 @@ export function PlayerHero({
             </span>
             <div className="flex flex-wrap gap-1.5" data-testid="player-badges">
               {roleMeta && role ? (
-                <span className="rounded-md px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.08em] text-[#0b1120]" style={{ backgroundColor: roleMeta.color }}>
+                <span className="rounded-md px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.08em] text-slate-950" style={{ backgroundColor: roleMeta.color }}>
                   {roleMeta.label} · {Math.round(role.score)} %
                 </span>
               ) : null}
               {distinction ? (
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-400/90 px-2 py-0.5 text-[11px] font-extrabold text-[#1c1003]">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--theme-ui-accent)] px-2 py-0.5 text-[11px] font-extrabold text-slate-950">
                   <img src={DISTINCTION_BADGE_META[distinction].iconPath} width={14} height={14} alt="" />
                   {DISTINCTION_BADGE_META[distinction].shortLabel} {PERIOD_OF_LABELS[period]}
                 </span>
@@ -161,11 +164,11 @@ export function PlayerHero({
                 node: (
                   <Link
                     href={item.href}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] border border-white/20 bg-slate-950/55 px-2.5 text-xs font-semibold text-white backdrop-blur-md transition hover:border-white/40 hover:bg-slate-950/75"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-white/20 bg-slate-950/55 px-2.5 text-xs font-semibold text-white backdrop-blur-md transition hover:border-white/40 hover:bg-slate-950/75"
                   >
                     <Icon className={`h-3.5 w-3.5 ${colorClass}`} aria-hidden="true" />
                     {item.label}
-                    {item.badge ? <span className="rounded-[5px] bg-white/15 px-1.5 text-[10px] font-extrabold">{item.badge}</span> : null}
+                    {item.badge ? <span className="rounded-[6px] bg-white/15 px-1.5 text-[11px] font-extrabold">{item.badge}</span> : null}
                   </Link>
                 ),
               }
@@ -241,16 +244,16 @@ export function PlayerKpis({ data, now }: { data: PlayerDashboardResponse; now: 
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className={`app-panel flex flex-col gap-1.5 p-3.5 ${kpi.positive ? 'border-[var(--theme-ui-accent-ring)]' : ''}`}
+          className={`app-panel app-kpi ${kpi.positive ? 'border-[var(--theme-ui-accent-ring)]' : ''}`}
           data-testid={`kpi-${kpi.label}`}
         >
-          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500">{kpi.label}</span>
+          <span className="t-label">{kpi.label}</span>
           <div className="flex items-end justify-between gap-2">
-            <b className="whitespace-nowrap text-[22px] font-black leading-none tracking-tight tabular-nums text-gray-900 sm:text-[28px]">{kpi.value}</b>
+            <b className="t-hero t-hero--md whitespace-nowrap text-gray-900">{kpi.value}</b>
             <ActivityBars values={kpi.values} labels={labels} currentIndex={currentIndex} positive={kpi.positive} name={`${kpi.label} ${unit}`} />
           </div>
           {kpi.note ? (
-            <span className={`text-xs font-semibold ${kpi.positive ? 'text-[var(--theme-ui-positive)]' : 'text-gray-500'}`}>{kpi.note}</span>
+            <span className={kpi.positive ? 'app-kpi__delta app-kpi__delta--up text-xs' : 't-meta'}>{kpi.note}</span>
           ) : null}
         </div>
       ))}
@@ -280,12 +283,12 @@ export function BestMatchCard({ match }: { match: PlayerDashboardResponse['bestM
   return (
     <article
       aria-label="Meilleure partie de la période"
-      className="relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-2xl border border-amber-400/50 bg-[#1c2a1a] bg-cover bg-center text-white"
+      className="bg-map-fallback relative flex min-h-[220px] flex-col justify-end overflow-hidden rounded-[14px] border border-[var(--theme-ui-accent-ring)] bg-cover bg-center text-white"
       style={map ? { backgroundImage: `url('${map}')` } : undefined}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 from-30% to-slate-950/35" />
       {match.placement === 1 ? (
-        <span className="absolute left-3 top-3 -rotate-2 rounded-md bg-amber-400 px-2.5 py-0.5 text-[11px] font-black tracking-[0.06em] text-[#1c1003]">
+        <span className="absolute left-3 top-3 -rotate-2 rounded-md bg-[var(--theme-ui-accent)] px-2.5 py-0.5 text-[11px] font-black tracking-[0.06em] text-slate-950">
           WINNER WINNER CHICKEN DINNER
         </span>
       ) : null}
@@ -293,21 +296,21 @@ export function BestMatchCard({ match }: { match: PlayerDashboardResponse['bestM
         <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/70">Meilleure partie de la période</h2>
         <dl className="grid grid-cols-3 gap-2 tabular-nums">
           <div className="flex flex-col-reverse">
-            <dt className="text-[10px] font-bold uppercase text-white/70">kills</dt>
-            <dd className="text-[30px] font-black leading-none text-amber-300">{match.kills}</dd>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-white/70">kills</dt>
+            <dd className="t-hero t-hero--md text-[var(--theme-ui-accent)]">{match.kills}</dd>
           </div>
           <div className="flex flex-col-reverse">
-            <dt className="text-[10px] font-bold uppercase text-white/70">dégâts</dt>
-            <dd className="text-[30px] font-black leading-none">{formatInteger(match.damage)}</dd>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-white/70">dégâts</dt>
+            <dd className="t-hero t-hero--md">{formatInteger(match.damage)}</dd>
           </div>
           <div className="flex flex-col-reverse">
-            <dt className="text-[10px] font-bold uppercase text-white/70">{match.placement === 1 ? 'top 1' : 'place'}</dt>
-            <dd className="text-[30px] font-black leading-none">#{match.placement}</dd>
+            <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-white/70">{match.placement === 1 ? 'top 1' : 'place'}</dt>
+            <dd className="t-hero t-hero--md">#{match.placement}</dd>
           </div>
         </dl>
         <span className="text-xs text-white/80">{details.join(' · ')}</span>
         {match.debriefHref ? (
-          <Link href={match.debriefHref} className="self-start text-xs font-semibold text-amber-200 hover:underline">
+          <Link href={match.debriefHref} className="self-start text-xs font-semibold text-[var(--theme-ui-accent)] underline decoration-[var(--theme-ui-accent-ring)] underline-offset-4 hover:decoration-current">
             Revoir la partie →
           </Link>
         ) : null}
@@ -316,15 +319,16 @@ export function BestMatchCard({ match }: { match: PlayerDashboardResponse['bestM
   )
 }
 
-export function PlayerProfileCard({ playstyle }: { playstyle: PlayerPlaystyle }) {
+export function PlayerProfileCard({ playstyle, memberId }: { playstyle: PlayerPlaystyle; memberId: number }) {
   const current = playstyle.current
   return (
     <DashboardCard
       title="Profil de jeu"
+      link={{ href: `/members/${memberId}/playstyle`, label: 'Détail →' }}
       aside={
         playstyle.clan ? (
           <span className="inline-flex items-center gap-1.5 text-[11px]">
-            <span className="h-3 w-0.5 bg-gray-900" aria-hidden="true" />
+            <span className="h-3 w-0.5 bg-[var(--theme-ui-text)]" aria-hidden="true" />
             moyenne du clan
           </span>
         ) : undefined
@@ -346,20 +350,19 @@ export function PlayerProfileCard({ playstyle }: { playstyle: PlayerPlaystyle })
                     <span className="inline-flex items-baseline gap-2 tabular-nums">
                       {trend ? (
                         <span
-                          className="text-[11px] font-bold"
-                          style={{ color: (row.trend ?? 0) > 0 ? 'var(--theme-ui-positive)' : (row.trend ?? 0) < 0 ? 'var(--theme-ui-negative)' : 'var(--theme-ui-text-muted)' }}
+                          className={`text-[11px] font-bold ${(row.trend ?? 0) > 0 ? 't-pos' : (row.trend ?? 0) < 0 ? 't-neg' : 'text-gray-500'}`}
                           title="Écart avec la période précédente, en points"
                         >
                           {trend}
                         </span>
                       ) : null}
-                      <b className="text-base" style={{ color }}>{row.value} %</b>
+                      <b className="t-hero t-hero--sm" style={{ color }}>{row.value} %</b>
                     </span>
                   </div>
-                  <div className="relative h-2.5 rounded-[5px] bg-[var(--theme-ui-surface-strong)]">
-                    <div className="h-full rounded-[5px]" style={{ width: `${row.value}%`, backgroundColor: color }} />
+                  <div className="relative h-2.5 rounded-[6px] bg-[var(--theme-ui-surface-strong)]">
+                    <div className="h-full rounded-[6px]" style={{ width: `${row.value}%`, backgroundColor: color }} />
                     {row.clan !== null ? (
-                      <span className="absolute -top-[3px] h-4 w-0.5 bg-gray-900" style={{ left: `${row.clan}%` }} title={`Moyenne du clan : ${row.clan} %`} />
+                      <span className="absolute -top-[3px] h-4 w-0.5 bg-[var(--theme-ui-text)]" style={{ left: `${row.clan}%` }} title={`Moyenne du clan : ${row.clan} %`} />
                     ) : null}
                   </div>
                 </li>
@@ -369,15 +372,15 @@ export function PlayerProfileCard({ playstyle }: { playstyle: PlayerPlaystyle })
           <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-gray-200 pt-3 tabular-nums">
             <div className="flex flex-col-reverse">
               <dt className="text-[11px] text-gray-500">du temps en zone sûre</dt>
-              <dd className="text-[15px] font-bold text-gray-900">{Math.round(current.safeZonePercent)} %</dd>
+              <dd className="t-hero t-hero--sm text-gray-900">{Math.round(current.safeZonePercent)} %</dd>
             </div>
             <div className="flex flex-col-reverse">
               <dt className="text-[11px] text-gray-500">des dégâts soignés</dt>
-              <dd className="text-[15px] font-bold text-gray-900">{current.healCoveragePercent === null ? '–' : `${Math.round(current.healCoveragePercent)} %`}</dd>
+              <dd className="t-hero t-hero--sm text-gray-900">{current.healCoveragePercent === null ? '–' : `${Math.round(current.healCoveragePercent)} %`}</dd>
             </div>
             <div className="flex flex-col-reverse">
               <dt className="text-[11px] text-gray-500">premier contact</dt>
-              <dd className="text-[15px] font-bold text-gray-900">
+              <dd className="t-hero t-hero--sm text-gray-900">
                 {current.firstContactPhase === null ? '–' : `phase ${oneDecimal.format(current.firstContactPhase)}`}
               </dd>
             </div>
@@ -418,7 +421,7 @@ export function ArsenalCard({ weapons, memberId }: { weapons: ArsenalWeapon[]; m
           {weapons.map((weapon) => {
             const headshotShare = weapon.kills > 0 ? (weapon.headshots / weapon.kills) * 100 : 0
             return (
-              <li key={weapon.weaponName} className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-2.5 py-2 text-white">
+              <li key={weapon.weaponName} className="flex items-center gap-2.5 rounded-[10px] bg-gradient-to-r from-slate-800 to-slate-900 px-2.5 py-2 text-white">
                 <WhiteWeapon id={weapon.weaponName} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <b className="truncate text-[13px]">{weapon.weaponLabel}</b>
@@ -426,7 +429,7 @@ export function ArsenalCard({ weapons, memberId }: { weapons: ArsenalWeapon[]; m
                     {Math.round(headshotShare)} % HS · {Math.round(weapon.accuracy)} % précision
                   </span>
                 </span>
-                <b className="text-[15px] tabular-nums text-amber-300" title="Kills">{weapon.kills}</b>
+                <b className="t-hero t-hero--sm text-[var(--theme-ui-accent)]" title="Kills">{weapon.kills}</b>
               </li>
             )
           })}
@@ -451,7 +454,7 @@ export function MatesCard({ mates }: { mates: PlayerDashboardResponse['mates'] }
               <li key={mate.memberId}>
                 <Link href={`/members/${mate.memberId}/dashboard`} className="flex items-center gap-2.5 rounded-lg transition hover:bg-gray-50">
                   <span
-                    className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] border-2 bg-[#0b1120] text-xs font-black text-white"
+                    className="bg-photo-fallback grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] border-2 text-xs font-black text-white"
                     style={{ borderColor: role?.color ?? 'var(--theme-ui-border)' }}
                   >
                     {rosterInitials(mate.displayName)}
@@ -496,24 +499,24 @@ export function NemesisCard({ nemesis, memberId }: { nemesis: NemesisSummary | n
       {killer || victim ? (
         <>
           {killer ? (
-            <div className="flex items-center gap-2.5 rounded-xl bg-red-500/10 p-2.5">
-              <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-red-950">
-                <Skull className="h-[18px] w-[18px] text-red-400" aria-hidden="true" />
+            <div className="flex items-center gap-2.5 rounded-[10px] bg-[color-mix(in_srgb,var(--theme-ui-negative)_10%,transparent)] p-2.5">
+              <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-[color-mix(in_srgb,var(--theme-ui-negative)_18%,transparent)]">
+                <Skull className="t-neg h-[18px] w-[18px]" aria-hidden="true" />
               </span>
               <span className="flex min-w-0 flex-col">
-                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--theme-ui-negative)]">Ton bourreau</span>
+                <span className="t-label t-neg">Ton bourreau</span>
                 <b className="truncate text-[13px] text-gray-900">{opponentName(killer)}</b>
                 <span className="text-[11px] text-gray-500">t’a éliminé {killer.count} fois</span>
               </span>
             </div>
           ) : null}
           {victim ? (
-            <div className="flex items-center gap-2.5 rounded-xl bg-gray-50 p-2.5">
-              <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-amber-400/15">
-                <Crosshair className="h-[18px] w-[18px] text-amber-500" aria-hidden="true" />
+            <div className="flex items-center gap-2.5 rounded-[10px] bg-gray-50 p-2.5">
+              <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] bg-[var(--theme-ui-accent-soft)]">
+                <Crosshair className="t-accent h-[18px] w-[18px]" aria-hidden="true" />
               </span>
               <span className="flex min-w-0 flex-col">
-                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-amber-500">Ta victime préférée</span>
+                <span className="t-label t-accent">Ta victime préférée</span>
                 <b className="truncate text-[13px] text-gray-900">{opponentName(victim)}</b>
                 <span className="text-[11px] text-gray-500">éliminé {victim.count} fois</span>
               </span>
@@ -549,10 +552,10 @@ export function DropCard({ city, drop, memberId }: { city: CityInsights | null; 
     <DashboardCard title="Au drop" link={{ href: `/members/${memberId}/drop-zones`, label: 'Zones →' }}>
       {favorite ? (
         <div
-          className="relative h-[74px] overflow-hidden rounded-xl bg-[#1c2a1a] bg-cover bg-center"
+          className="bg-map-fallback relative h-[74px] overflow-hidden rounded-[10px] bg-cover bg-center"
           style={map ? { backgroundImage: `url('${map}')` } : undefined}
         >
-          <span className="absolute bottom-1.5 left-2 rounded-[5px] bg-slate-950/70 px-1.5 text-[11px] font-extrabold text-white">
+          <span className="absolute bottom-1.5 left-2 rounded-[6px] bg-slate-950/70 px-1.5 text-[11px] font-extrabold text-white">
             Ville favorite : {favorite.name}
           </span>
         </div>
@@ -579,8 +582,8 @@ export function RecentMatches({ matches, mapLabels, memberId, period }: { matche
   return (
     <section aria-label="Dernières parties" className="app-panel overflow-hidden">
       <div className="flex items-baseline justify-between gap-2 border-b border-gray-200 px-3.5 py-3">
-        <h2 className="text-base font-extrabold text-gray-900">Dernières parties</h2>
-        <Link href={`/members/${memberId}/matches?period=${period}`} className="text-xs font-semibold text-[var(--theme-ui-accent-text)] hover:underline">
+        <h2 className="t-card-title">Dernières parties</h2>
+        <Link href={`/members/${memberId}/matches?period=${period}`} className="app-link text-xs font-semibold">
           Tout l’historique →
         </Link>
       </div>
@@ -592,7 +595,7 @@ export function RecentMatches({ matches, mapLabels, memberId, period }: { matche
               <>
                 <PlacementBadge placement={match.placement} className="justify-self-start" />
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="h-[26px] w-9 shrink-0 rounded-md bg-[#1c2a1a] bg-cover bg-center" style={map ? { backgroundImage: `url('${map}')` } : undefined} />
+                  <span className="bg-map-fallback h-[26px] w-9 shrink-0 rounded-md bg-cover bg-center" style={map ? { backgroundImage: `url('${map}')` } : undefined} />
                   <span className="flex min-w-0 flex-col">
                     <b className="truncate text-[13px] text-gray-900">{mapLabels[match.mapName] ?? match.mapName}</b>
                     <span className="truncate text-[11px] text-gray-500">

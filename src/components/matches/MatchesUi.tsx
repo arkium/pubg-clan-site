@@ -113,13 +113,13 @@ export function KpiGrid({ items, className = '' }: { items: Kpi[]; className?: s
       {items.map((item) => {
         const Icon = item.icon
         return (
-          <div key={item.label} className="app-panel flex flex-col gap-1 px-3.5 py-3">
-            <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">
+          <div key={item.label} className="app-panel app-kpi">
+            <dt className="t-label flex items-center gap-1.5">
               <Icon className="h-[13px] w-[13px] shrink-0" style={{ color: item.color }} aria-hidden="true" />
               {item.label}
             </dt>
-            <dd className="text-[26px] font-extrabold tracking-[-0.02em] tabular-nums">{item.value}</dd>
-            <dd className="text-xs text-gray-500">{item.detail}</dd>
+            <dd className="t-hero t-hero--md text-gray-900">{item.value}</dd>
+            <dd className="t-meta">{item.detail}</dd>
             {item.link ? (
               <dd className="mt-1">
                 <Link href={item.link.href} className="text-xs font-semibold hover:underline" style={{ color: 'var(--game-link)' }}>

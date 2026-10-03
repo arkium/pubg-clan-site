@@ -7,6 +7,7 @@ pages refaites :
 |---|---|---|---|
 | Membres du clan | `/clans/[clanId]/members` | `clan.members` | Fiches des membres actifs, **sans période** (30 derniers jours pour les chiffres) |
 | Tableau de bord d'un joueur | `/members/[id]/dashboard` | `member.dashboard` | **Une seule période** pour toute la page (semaine par défaut) |
+| Style de jeu d'un joueur (ajoutée le 2026-10-03) | `/members/[id]/playstyle` | `member.playstyle` | Télémétrie, **une seule période** (semaine par défaut), comparée au clan — §3 bis |
 
 Les anciennes versions sont dans `archive/refonte-ui/membres/` (ignoré par git).
 
@@ -90,6 +91,35 @@ Logique pure : `src/lib/player-dashboard.ts` (clés de période, barres d'activi
 Le tableau de bord lit aussi, sur la même période : `telemetry/weapons`, `city-insights`, `matches` (5 parties) et le
 classement du clan (`/api/clans/[clanId]/leaderboard`, parties officielles) pour la distinction.
 
+## 3 bis. Style de jeu d'un joueur (`/members/[id]/playstyle`)
+
+Ajoutée le 2026-10-03, écrite d'emblée selon la charte (`.charte`, docs/ui/index.html). Le tableau de bord n'en garde
+que le résumé : la carte « Profil de jeu » porte un lien **« Détail → »** vers cette page. Elle rend visible ce que la
+route `/api/members/[id]/telemetry/playstyle` calculait déjà sans qu'aucune page ne l'affiche, et donne au joueur
+l'équivalent du style de jeu du clan (`/clans/[clanId]/stats`).
+
+- **Bandeau** : période (`PeriodFilter` + `usePagePeriod`), contexte au repos (« 20 parties analysées · comparé à 8
+  joueurs du clan »), ancres Profil / Mobilité / Coopération en seconde ligne. Docké sur mobile : la période seule.
+- **Profil de jeu** : une carte par rôle (Fragger, Medic, Ghost) — jauge et score en Teko, barre avec le repère de la
+  moyenne du clan, écart en points (« +21 pts vs clan ») et rang (« 2ᵉ sur 8 joueurs du clan », « Meilleur du clan »).
+  Moyenne et rang sur les joueurs du clan mesurés **sur la même période**, le joueur compris même si la route du clan
+  ne l'a pas renvoyé. Seul mesuré, ou sans accès aux données du clan : pas de comparaison.
+- **Mobilité, cercle et survie** : les trois thèmes du style de jeu du clan (`playstyleThemes`), appliqués à la seule
+  ligne du joueur, avec la colonne « Clan » en regard.
+- **Coopération** : ses coéquipiers dans les binômes du clan (parties officielles, tous modes, comme le clan) — 4
+  chiffres (coéquipiers, réanimations, co-kills, recalls) et un tableau trié par la pondération de l'indice de synergie
+  (réanimations ×3, co-kills ×2, dégâts partagés ×1), paginé par 10. Un nom mène au style de jeu du coéquipier.
+- **Aller plus loin** : Objets consommés, Compositions d'équipe (`map-stats#compositions`), Carrière PUBG.
+- **Aucune partie analysée** sur la période : un message, pas de sections vides ; les liens restent.
+
+Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne le clan), puis
+`/api/clans/[clanId]/telemetry/playstyle` et `/api/clans/[clanId]/telemetry/synergies`. Logique pure :
+`src/lib/player-playstyle.ts` (comparaison, rang, coéquipiers) ; blocs : `src/components/player-playstyle/`.
+
+**Navigation** : `member.playstyle` dans les trois registres (`nav-permissions-registry`, `nav-parent-registry`,
+`nav-icons`). Le menu lit la table `NavItem` : l'entrée n'y apparaît qu'après `npx tsx scripts/seed-playstyle-nav.ts`
+(idempotent, écrit en base — à lancer au déploiement).
+
 ## 4. Blocs déplacés
 
 | Bloc de l'ancien tableau de bord | Nouvelle place |
@@ -112,9 +142,11 @@ classement du clan (`/api/clans/[clanId]/leaderboard`, parties officielles) pour
 | Fichier | Couvre |
 |---|---|
 | `src/lib/member-roster.test.ts` | Rôle dominant et égalités, « ce soir » en journée de Paris, libellés, réserve, K/M et win rate, tris, filtres sans accents, initiales |
+| `src/lib/player-playstyle.test.ts` | Style de jeu du joueur : moyenne du clan joueur compris, rang et ex aequo, joueur absent des lignes du clan, sans comparaison, écart en points, coéquipiers côté partenaire et tri, contexte du bandeau |
 | `src/lib/player-dashboard.test.ts` | Clés de période (janvier → décembre), barres par soirée (partie de nuit la veille), semaines du mois, 8 semaines, écart au clan, profil et tendance |
 | `src/lib/member-routes-contracts.test.ts` | Contrats (Prisma simulé) : fiches (rôle, 30 jours officiels, arme fétiche, demandes réservées), tableau de bord (forme, meilleure partie, frères d'armes, profil), pression au drop, période de la Némésis |
 | `e2e/members.spec.ts` | Les deux pages : « ce soir » sans « en jeu », fiches et lien, réserve, filtres et tri, demandes en attente, docking (pas sur mobile / oui sur le tableau de bord), période unique, chiffres clés, meilleure partie, profil, cartes et liens, dernières parties, calendrier et carte Carrière, chevrons sur mobile, aucun défilement horizontal. Données : `e2e/support/members.ts` |
+| `e2e/player-playstyle.spec.ts` | Style de jeu du joueur : score, moyenne et rang par rôle, contexte du bandeau, thèmes avec la colonne Clan, coéquipiers triés et leur lien, période sans partie analysée, aucun défilement horizontal, lien « Détail → » du tableau de bord. Données : `e2e/support/player-playstyle.ts` |
 
 ## Voir aussi
 

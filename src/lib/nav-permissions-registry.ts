@@ -260,6 +260,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Statistiques globales du joueur.',
   },
   {
+    navKey: 'member.playstyle',
+    section: 'member-section',
+    label: 'Style de jeu',
+    hrefTemplate: '/members/:memberId/playstyle',
+    defaultRole: 'none',
+    description: 'Télémétrie du joueur comparée au clan : profil par rôle, mobilité, cercle, survie, coopération.',
+  },
+  {
     navKey: 'member.weapons',
     section: 'member-section',
     label: 'Armes',

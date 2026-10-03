@@ -34,6 +34,11 @@ const FALLBACK_MATRIX: Record<string, FallbackDef> = {
     labelKey: 'primary.dashboard',
     labelFallback: 'Dashboard',
   },
+  'member.playstyle': {
+    hrefTemplate: '/members/:id/dashboard',
+    labelKey: 'primary.dashboard',
+    labelFallback: 'Dashboard',
+  },
   'member.weapons': {
     hrefTemplate: '/members/:id/dashboard',
     labelKey: 'primary.dashboard',

@@ -125,7 +125,8 @@ export default function DashboardPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush charte flex-1">
       <div className="app-container app-gutter flex flex-col gap-4">
         <NavigationTrail
           currentLabel={data?.member.displayName ?? 'Tableau de bord'}
@@ -142,7 +143,7 @@ export default function DashboardPage() {
             now={now}
           />
         ) : dashboard.error ? (
-          <p className="app-panel p-4 text-sm text-red-600">Tableau de bord indisponible : {dashboard.error}</p>
+          <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">Tableau de bord indisponible : {dashboard.error}</p>
         ) : (
           <CardSkeleton />
         )}
@@ -167,7 +168,7 @@ export default function DashboardPage() {
 
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
             <BestMatchCard match={data.bestMatch} />
-            <PlayerProfileCard playstyle={data.playstyle} />
+            <PlayerProfileCard playstyle={data.playstyle} memberId={memberId} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -51,8 +51,8 @@ const ROLE_STYLE: Record<PlaystyleRoleId, { color: string; icon: LucideIcon }> =
   ghost: { color: '#10b981', icon: Shield },
 }
 
-/** Jauge en arc de 270°, comme le tableau de bord d'un joueur. */
-function ArcGauge({ value, color }: { value: number; color: string }) {
+/** Jauge en arc de 270°, comme le tableau de bord d’un joueur ; reprise par le style de jeu du joueur. */
+export function ArcGauge({ value, color }: { value: number; color: string }) {
   const radius = 34
   const circumference = 2 * Math.PI * radius
   const arc = circumference * 0.75

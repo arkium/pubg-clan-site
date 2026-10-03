@@ -64,7 +64,7 @@ test.describe('carnet de vol', () => {
     await expect(page.getByRole('navigation', { name: 'Pages · Soirées' })).toContainText('1 / 2')
     await expect(sessionButton(page, 0)).toHaveAttribute('aria-expanded', 'true')
     await expect(sessionButton(page, 0)).toContainText('Ce soir')
-    await expect(sessionButton(page, 0)).toContainText('CHICKEN DINNER')
+    await expect(sessionButton(page, 0)).toContainText(/chicken dinner/i) // capitales par le CSS (.app-stamp)
     const today = sessions(page).getByRole('listitem').first()
     await expect(today.getByRole('link', { name: 'Débriefing' }).first()).toHaveAttribute('href', new RegExp(`/clans/1/telemetry/matches/sm-\\d+/debrief\\?period=week&fromDate=${sessionDaysAgo(0)}`))
     await expect(today).toContainText('Télémétrie en attente')

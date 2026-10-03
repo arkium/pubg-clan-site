@@ -105,6 +105,22 @@ test.describe('Tableau de bord d’un joueur', () => {
     await expect(page.getByRole('region', { name: 'Chiffres clés' })).toBeVisible()
   })
 
+  test('bandeau docké : le retour du fil d’Ariane reste à portée (toutes largeurs)', async ({ page }) => {
+    const trail = page.getByRole('link', { name: 'Retour à Membres' })
+    const target = await trail.getAttribute('href')
+    await expect(toolbar(page).getByTestId('toolbar-back')).toHaveCount(0) // au repos : le fil d'Ariane est juste au-dessus
+    await dock(page)
+    const back = toolbar(page).getByRole('link', { name: 'Retour à Membres' })
+    await expect(back).toBeVisible()
+    await expect(back).toHaveAttribute('href', target!)
+    // À la hauteur du rail de la période, jamais plus haut.
+    const [backHeight, railHeight] = await Promise.all([
+      back.evaluate((el) => Math.round(el.getBoundingClientRect().height)),
+      toolbar(page).locator('.app-segmented-control').first().evaluate((el) => Math.round(el.getBoundingClientRect().height)),
+    ])
+    expect(backHeight).toBe(railHeight)
+  })
+
   test('carte joueur : rôle de la période, distinction, soirée en cours, suivi depuis', async ({ page }) => {
     const badges = page.getByTestId('player-badges')
     await expect(badges).toContainText('Fragger · 82 %')

@@ -72,6 +72,7 @@ const TOOLBAR_PAGES = [
   // Joueur
   'src/app/members/[id]/dashboard/page.tsx',
   'src/app/members/[id]/stats/page.tsx',
+  'src/app/members/[id]/playstyle/page.tsx',
   'src/app/members/[id]/matches/page.tsx',
   'src/app/members/[id]/weapons/page.tsx',
   'src/app/members/[id]/items/page.tsx',

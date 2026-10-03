@@ -2,6 +2,7 @@
 
 import { Bomb, Car, Crosshair, Flame, Footprints, HeartPulse, Hourglass, Ruler, Trophy } from 'lucide-react'
 import Link from 'next/link'
+import type { CSSProperties } from 'react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import {
@@ -62,13 +63,13 @@ export function ServiceRecord({
   return (
     <article
       aria-label="États de service"
-      className="relative flex min-w-0 flex-wrap items-center gap-4 overflow-hidden rounded-2xl border border-gray-200 bg-[radial-gradient(120%_100%_at_0%_0%,#1f2937,#0b0f1a_70%)] p-4 text-white sm:gap-6 sm:px-[22px] sm:py-5"
+      className="career-hero-card relative flex min-w-0 flex-wrap items-center gap-4 overflow-hidden border border-gray-200 p-4 sm:gap-6 sm:px-[22px] sm:py-5"
     >
       {/* Plaque militaire : gravée au nom du joueur, sur sa chaîne. */}
       <div className="relative h-[120px] w-[200px] shrink-0 sm:h-[136px] sm:w-[230px]" data-testid="dog-tag">
-        <span className="absolute left-[18px] top-1.5 h-[86%] w-[86%] rotate-[8deg] rounded-[22px] bg-[linear-gradient(135deg,#64748b,#334155)] shadow-[0_10px_20px_-8px_rgba(0,0,0,0.6)]" aria-hidden="true" />
-        <div className="absolute inset-0 flex flex-col justify-center gap-[3px] min-w-0 rounded-[22px] bg-[linear-gradient(135deg,#e2e8f0_0%,#94a3b8_45%,#cbd5e1_60%,#64748b_100%)] py-3.5 pl-[34px] pr-3 font-mono text-[#1e293b] shadow-[inset_0_2px_0_rgba(255,255,255,0.6),0_14px_24px_-10px_rgba(0,0,0,0.7)] [text-shadow:0_1px_0_rgba(255,255,255,0.6)]">
-          <span className="absolute left-3 top-1/2 -mt-1.5 h-3 w-3 rounded-full bg-[#0b0f1a] shadow-[inset_0_1px_2px_rgba(0,0,0,0.8)]" aria-hidden="true" />
+        <span className="dog-tag__back absolute left-[18px] top-1.5 h-[86%] w-[86%] rotate-[8deg] rounded-[22px]" aria-hidden="true" />
+        <div className="dog-tag absolute inset-0 flex min-w-0 flex-col justify-center gap-[3px] rounded-[22px] py-3.5 pl-[34px] pr-3 font-mono">
+          <span className="dog-tag__hole absolute left-3 top-1/2 -mt-1.5 h-3 w-3 rounded-full" aria-hidden="true" />
           <b className="truncate text-xl font-black uppercase tracking-[0.06em] sm:text-[22px]">{name}</b>
           {clan ? <span className="truncate text-[11px] font-bold uppercase">{clan.name} · [{clan.tag}]</span> : null}
           <span className="truncate text-[11px] font-bold">
@@ -80,17 +81,17 @@ export function ServiceRecord({
         </div>
       </div>
       <div className="flex min-w-[220px] flex-1 flex-col gap-3">
-        <span className="text-[11px] font-black tracking-[0.18em] text-amber-300">ÉTATS DE SERVICE · {modeLabel}</span>
+        <span className="text-[11px] font-black tracking-[0.18em] text-[var(--theme-ui-accent)]">ÉTATS DE SERVICE · {modeLabel}</span>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 tabular-nums">
           {[
-            [formatCount(stats.victory.wins), 'chicken dinners', 'text-amber-300'],
+            [formatCount(stats.victory.wins), 'chicken dinners', 'text-[var(--theme-ui-accent)]'],
             [formatCount(stats.combat.kills), 'kills', 'text-white'],
             [formatRatio(stats.combat.kdRatio), 'ratio K/D', 'text-white'],
             [formatThousands(stats.other.damageGiven), 'dégâts', 'text-white'],
           ].map(([value, label, color]) => (
             <div key={label} className="flex flex-col-reverse gap-0.5">
               <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-slate-400">{label}</dt>
-              <dd className={`text-[26px] font-black leading-none sm:text-[32px] ${color}`}>{value}</dd>
+              <dd className={`t-hero t-hero--lg ${color}`}>{value}</dd>
             </div>
           ))}
         </dl>
@@ -113,7 +114,7 @@ export function SeasonsCard({ seasons, tab, onTab }: { seasons: SeasonRow[]; tab
   return (
     <section aria-labelledby="seasons-title" className="app-panel flex min-w-0 flex-col gap-2.5 p-3.5" style={ranked && current?.rankedTier ? { borderColor: `${color}66` } : undefined}>
       <div className="flex items-center gap-2">
-        <h2 id="seasons-title" className="text-[15px] font-extrabold text-gray-900">Saisons</h2>
+        <h2 id="seasons-title" className="t-card-title">Saisons</h2>
         <SegmentedControl
           options={[
             { value: 'ranked', label: 'Ranked' },
@@ -131,14 +132,14 @@ export function SeasonsCard({ seasons, tab, onTab }: { seasons: SeasonRow[]; tab
           <>
             <div className="flex items-center gap-3.5">
               <span
-                className="grid h-[72px] w-16 shrink-0 place-items-center [clip-path:polygon(50%_0,100%_22%,100%_78%,50%_100%,0_78%,0_22%)]"
-                style={{ background: `linear-gradient(160deg, ${color}, #0b0f1a)` }}
+                className="rank-emblem grid h-[72px] w-16 shrink-0 place-items-center [clip-path:polygon(50%_0,100%_22%,100%_78%,50%_100%,0_78%,0_22%)]"
+                style={{ '--rank-color': color } as CSSProperties}
                 aria-hidden="true"
               >
-                <b className="text-lg font-black text-white">{current.rankedSubTier ?? ''}</b>
+                <b className="t-hero t-hero--sm text-white">{current.rankedSubTier ?? ''}</b>
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-gray-500">{seasonLabel(current.seasonId)} · en cours</span>
+                <span className="t-label">{seasonLabel(current.seasonId)} · en cours</span>
                 <b className="text-[22px] font-black" style={{ color }} data-testid="current-tier">
                   {rankedTierLabel(current.rankedTier, current.rankedSubTier)}
                 </b>
@@ -208,10 +209,10 @@ export function MedalShowcase({ medals, counts, mode }: { medals: CareerMedal[];
   return (
     <section
       aria-labelledby="medals-title"
-      className="flex flex-col gap-2.5 rounded-2xl border border-amber-400/45 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),transparent)] p-3.5"
+      className="flex flex-col gap-2.5 rounded-[14px] border border-[var(--theme-ui-accent-ring)] bg-[linear-gradient(180deg,var(--theme-ui-accent-tint),transparent)] p-3.5"
     >
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <h2 id="medals-title" className="text-base font-extrabold text-gray-900">Vitrine du clan</h2>
+        <h2 id="medals-title" className="t-card-title">Vitrine du clan</h2>
         <span className="text-[13px] text-gray-600">
           {mode === 'all' ? 'Tes places sur le podium du clan, stat par stat.' : 'Calculée sur tous les modes.'}
         </span>
@@ -245,10 +246,11 @@ export function MedalShowcase({ medals, counts, mode }: { medals: CareerMedal[];
 // ── Hauts faits et fiches ────────────────────────────────────────────────────────────────────────
 
 const RECORD_STYLE: Record<CareerRecord['id'], { Icon: typeof Ruler; color: string; bg: string }> = {
-  longest: { Icon: Ruler, color: 'text-amber-500', bg: 'bg-amber-400/15' },
-  streak: { Icon: Flame, color: 'text-rose-500', bg: 'bg-rose-500/15' },
-  survival: { Icon: Hourglass, color: 'text-emerald-500', bg: 'bg-emerald-500/15' },
-  roadkills: { Icon: Car, color: 'text-sky-500', bg: 'bg-sky-400/15' },
+  // Couleurs de la charte : accent (record), négatif, positif, ciel de jeu (.game-ui), neutre.
+  longest: { Icon: Ruler, color: 't-accent', bg: 'bg-[var(--theme-ui-accent-soft)]' },
+  streak: { Icon: Flame, color: 't-neg', bg: 'bg-[color-mix(in_srgb,var(--theme-ui-negative)_15%,transparent)]' },
+  survival: { Icon: Hourglass, color: 't-pos', bg: 'bg-[color-mix(in_srgb,var(--theme-ui-positive)_15%,transparent)]' },
+  roadkills: { Icon: Car, color: 't-sky', bg: 'bg-[var(--game-sky-soft)]' },
   vehicles: { Icon: Bomb, color: 'text-gray-600', bg: 'bg-gray-100' },
 }
 
@@ -259,10 +261,10 @@ export function CareerRecords({ records }: { records: CareerRecord[] }) {
         const { Icon, color, bg } = RECORD_STYLE[record.id]
         return (
           <li key={record.id} className={`app-panel flex flex-col gap-1.5 p-3 ${record.id === 'vehicles' ? 'col-span-2 lg:col-span-1' : ''}`}>
-            <span className={`grid h-8 w-8 place-items-center rounded-[9px] ${bg}`}>
+            <span className={`grid h-8 w-8 place-items-center rounded-[8px] ${bg}`}>
               <Icon className={`h-[17px] w-[17px] ${color}`} aria-hidden="true" />
             </span>
-            <b className="text-xl font-black tabular-nums text-gray-900">{record.value}</b>
+            <b className="t-hero t-hero--sm text-gray-900">{record.value}</b>
             <span className="text-xs text-gray-500">{record.label}</span>
           </li>
         )
@@ -272,10 +274,10 @@ export function CareerRecords({ records }: { records: CareerRecord[] }) {
 }
 
 const THEME_STYLE: Record<CareerTheme['id'], { Icon: typeof Ruler; color: string }> = {
-  combat: { Icon: Crosshair, color: 'text-rose-500' },
-  victory: { Icon: Trophy, color: 'text-amber-500' },
-  support: { Icon: HeartPulse, color: 'text-emerald-500' },
-  movement: { Icon: Footprints, color: 'text-sky-500' },
+  combat: { Icon: Crosshair, color: 't-neg' },
+  victory: { Icon: Trophy, color: 't-accent' },
+  support: { Icon: HeartPulse, color: 't-pos' },
+  movement: { Icon: Footprints, color: 't-sky' },
 }
 
 export function CareerThemes({ themes, ranks, showMedals }: { themes: CareerTheme[]; ranks: MedalRanks; showMedals: boolean }) {
@@ -287,7 +289,7 @@ export function CareerThemes({ themes, ranks, showMedals }: { themes: CareerThem
           <section key={theme.id} aria-labelledby={`theme-${theme.id}`} className="app-panel flex flex-col gap-1 p-3.5">
             <div className="flex items-center gap-2 pb-1.5">
               <Icon className={`h-4 w-4 ${color}`} aria-hidden="true" />
-              <h2 id={`theme-${theme.id}`} className="text-[15px] font-extrabold text-gray-900">{theme.title}</h2>
+              <h2 id={`theme-${theme.id}`} className="t-card-title">{theme.title}</h2>
             </div>
             <dl>
               {theme.rows.map((row) => {
@@ -325,17 +327,17 @@ export function CareerSummaryCard({
   return (
     <Link
       href={`/members/${memberId}/stats`}
-      className="relative flex items-center gap-3.5 overflow-hidden rounded-2xl border border-gray-200 bg-[radial-gradient(120%_100%_at_0%_0%,#1f2937,#0b0f1a_70%)] p-3.5 text-white hover:border-[var(--theme-ui-accent-ring)]"
+      className="career-hero-card relative flex items-center gap-3.5 overflow-hidden border border-gray-200 p-3.5 hover:border-[var(--theme-ui-accent-ring)]"
       aria-label="Carrière PUBG : voir la page"
       data-testid="career-card"
     >
-      <span className="relative flex h-12 w-[74px] shrink-0 flex-col justify-center rounded-xl bg-[linear-gradient(135deg,#e2e8f0_0%,#94a3b8_45%,#cbd5e1_60%,#64748b_100%)] pl-[18px] font-mono text-[#1e293b] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]" aria-hidden="true">
-        <span className="absolute left-1.5 top-1/2 -mt-[3.5px] h-[7px] w-[7px] rounded-full bg-[#0b0f1a]" />
+      <span className="dog-tag dog-tag--mini relative flex h-12 w-[74px] shrink-0 flex-col justify-center rounded-xl pl-[18px] font-mono" aria-hidden="true">
+        <span className="dog-tag__hole absolute left-1.5 top-1/2 -mt-[3.5px] h-[7px] w-[7px] rounded-full" />
         <b className="text-[13px] leading-none">×{stats ? formatCount(stats.victory.wins) : '—'}</b>
-        <span className="text-[9px] font-extrabold">TOP 1</span>
+        <span className="text-[11px] font-extrabold">TOP 1</span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[11px] font-black tracking-[0.14em] text-amber-300">CARRIÈRE PUBG</span>
+        <span className="text-[11px] font-black tracking-[0.14em] text-[var(--theme-ui-accent)]">CARRIÈRE PUBG</span>
         {stats ? (
           <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-300">
             <span>
@@ -360,18 +362,13 @@ export function CareerSummaryCard({
           </span>
         ) : null}
       </span>
-      <span className="shrink-0 text-xs font-bold text-indigo-300">Voir →</span>
+      <span className="shrink-0 text-xs font-bold text-[var(--theme-ui-accent)]">Voir →</span>
     </Link>
   )
 }
 
-const CALENDAR_LEVEL = [
-  'bg-gray-100',
-  'bg-[color-mix(in_srgb,var(--theme-ui-accent)_25%,transparent)]',
-  'bg-[color-mix(in_srgb,var(--theme-ui-accent)_50%,transparent)]',
-  'bg-[color-mix(in_srgb,var(--theme-ui-accent)_75%,transparent)]',
-  'bg-[var(--theme-ui-accent)]',
-] as const
+// Échelle séquentielle de la charte (§1.4) : fond et couleur de texte lisible par palier.
+const CALENDAR_LEVEL = ['app-seq-0', 'app-seq-1', 'app-seq-2', 'app-seq-3', 'app-seq-4'] as const
 const WEEKDAY_HEAD = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 const LONG_DATE = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
 
@@ -383,14 +380,14 @@ export function CalendarCard({
   return (
     <section aria-labelledby="calendar-title" className="app-panel flex flex-col gap-2.5 p-3.5">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 id="calendar-title" className="text-[15px] font-extrabold text-gray-900">Calendrier</h2>
+        <h2 id="calendar-title" className="t-card-title">Calendrier</h2>
         <span className="text-xs text-gray-500">5 dernières semaines</span>
       </div>
       {calendar ? (
         <>
           <div className="grid grid-cols-7 gap-1" aria-hidden="true">
             {WEEKDAY_HEAD.map((day, index) => (
-              <span key={index} className="text-center text-[10px] font-extrabold text-gray-500">
+              <span key={index} className="text-center text-[11px] font-extrabold text-gray-500">
                 {day}
               </span>
             ))}
@@ -405,13 +402,13 @@ export function CalendarCard({
                   aria-label={cell.future ? undefined : title}
                   data-games={cell.games}
                   data-in-period={cell.inPeriod ? 'true' : 'false'}
-                  className={`relative grid h-7 place-items-center rounded-md text-[10px] font-bold tabular-nums ${
+                  className={`relative grid h-7 place-items-center rounded-md text-[11px] font-bold tabular-nums ${
                     cell.future ? 'border border-gray-200 opacity-35' : `${CALENDAR_LEVEL[cell.level]} ${cell.inPeriod ? '' : 'opacity-35'}`
-                  } ${cell.today ? 'ring-2 ring-inset ring-[var(--theme-ui-text)]' : ''} ${cell.level >= 3 ? 'text-white' : 'text-gray-500'}`}
+                  } ${cell.today ? 'ring-2 ring-inset ring-[var(--theme-ui-text)]' : ''}`}
                 >
                   {cell.future ? '' : cell.dayOfMonth}
                   {!cell.future && cell.wins > 0 ? (
-                    <span className="absolute -right-[3px] -top-[3px] h-[9px] w-[9px] rounded-full border-2 border-[var(--theme-ui-surface)] bg-amber-400" data-testid="calendar-win" aria-hidden="true" />
+                    <span className="absolute -right-[3px] -top-[3px] h-[9px] w-[9px] rounded-full border-2 border-[var(--theme-ui-surface)] bg-[var(--theme-ui-accent)]" data-testid="calendar-win" aria-hidden="true" />
                   ) : null}
                 </li>
               )
@@ -424,7 +421,7 @@ export function CalendarCard({
             ))}
             <span>6+ parties</span>
             <span className="ml-2 inline-flex items-center gap-1">
-              <span className="h-[9px] w-[9px] rounded-full bg-amber-400" />
+              <span className="h-[9px] w-[9px] rounded-full bg-[var(--theme-ui-accent)]" />
               top 1
             </span>
           </div>

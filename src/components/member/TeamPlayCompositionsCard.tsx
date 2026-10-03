@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import type { DashboardPeriod } from '@/types/dashboard'
@@ -19,40 +20,17 @@ type BestComposition = {
 }
 
 function formatPercent(value: number) {
-  return `${(value * 100).toFixed(1)}%`
+  return `${(value * 100).toFixed(1).replace('.', ',')} %`
 }
 
-function modeCardTone(mode: BestMode) {
-  if (mode === 'duo') {
-    return {
-      card: 'border-sky-200 bg-sky-50 text-sky-800',
-      title: 'text-sky-900',
-      playersWrap: 'border-sky-200 bg-white/80',
-      playerPill: 'border-sky-200 bg-white text-sky-900',
-      metric: 'border-sky-200 bg-white/85',
-      metricValue: 'text-sky-900',
-    }
-  }
-
-  if (mode === 'trio') {
-    return {
-      card: 'border-violet-200 bg-violet-50 text-violet-800',
-      title: 'text-violet-900',
-      playersWrap: 'border-violet-200 bg-white/80',
-      playerPill: 'border-violet-200 bg-white text-violet-900',
-      metric: 'border-violet-200 bg-white/85',
-      metricValue: 'text-violet-900',
-    }
-  }
-
-  return {
-    card: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    title: 'text-emerald-900',
-    playersWrap: 'border-emerald-200 bg-white/80',
-    playerPill: 'border-emerald-200 bg-white text-emerald-900',
-    metric: 'border-emerald-200 bg-white/85',
-    metricValue: 'text-emerald-900',
-  }
+/**
+ * Couleur de mode de la charte (.game-ui) : duo ciel, trio violet, squad vert — liseré de la carte et win rate.
+ * Liseré posé en ligne : la bordure de .app-panel-muted (hors couche) l'emporterait sur un utilitaire Tailwind.
+ */
+const MODE_COLORS: Record<BestMode, string> = {
+  duo: 'var(--game-sky)',
+  trio: 'var(--game-violet)',
+  squad: 'var(--game-pos)',
 }
 
 type TeamPlayCompositionsCardProps = {
@@ -100,65 +78,59 @@ export default function TeamPlayCompositionsCard({ memberId, period = 'all' }: T
   }
 
   return (
-    <section className="app-panel p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">Team Play Duo/Trio/Squad</h2>
-      <p className="mb-3 text-sm text-gray-500">
-        Repere en un coup d&apos;oeil les coequipiers avec qui ton impact est le plus fort.
-      </p>
+    <section className="app-panel flex flex-col gap-3 p-4">
+      <div>
+        <h2 className="t-card-title">Team play Duo / Trio / Squad</h2>
+        <p className="t-meta">Repère en un coup d’œil les coéquipiers avec qui ton impact est le plus fort.</p>
+      </div>
 
       {loading ? (
         <CardSkeleton />
       ) : (
-        <div className="grid gap-3 md:grid-cols-3">
-          {(compositions ?? []).map((entry) => {
-            const tone = modeCardTone(entry.mode)
+        <div className="grid gap-3 lg:grid-cols-3">
+          {(compositions ?? []).map((entry) => (
+            <article
+              key={entry.mode}
+              aria-label={entry.label}
+              className="app-panel-muted flex flex-col gap-3 p-3"
+              style={{ borderLeft: `3px solid ${MODE_COLORS[entry.mode]}` }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <TeamModeBadge mode={entry.mode} label={entry.label} size="sm" className="shadow-none" />
+                <span className="t-hero t-hero--sm" style={{ color: MODE_COLORS[entry.mode] }}>
+                  {formatPercent(entry.winRate)}
+                </span>
+              </div>
 
-            return (
-              <article key={entry.mode} className={`rounded-2xl border p-4 shadow-sm ${tone.card}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <TeamModeBadge mode={entry.mode} label={entry.label} size="sm" className="shadow-none" />
-                  <span className={`text-lg font-bold ${tone.title}`}>{formatPercent(entry.winRate)}</span>
-                </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="t-label">Composition</p>
+                {entry.teamMembers.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {entry.teamMembers.map((name) => (
+                      <PlayerNameBadge key={`${entry.mode}-${name}`} name={name} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="t-meta">Aucune composition</p>
+                )}
+              </div>
 
-                <div className={`mt-3 rounded-xl border p-3 ${tone.playersWrap}`}>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Composition</p>
-                  {entry.teamMembers.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {entry.teamMembers.map((name) => (
-                        <span
-                          key={`${entry.mode}-${name}`}
-                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-sm font-semibold ${tone.playerPill}`}
-                        >
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">Aucune composition</p>
-                  )}
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="app-stat-tile">
+                  <span className="app-stat-tile__value text-gray-900">{entry.matches}</span>
+                  <span className="app-stat-tile__label">Matchs</span>
                 </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Matchs</p>
-                    <p className={`mt-1 text-lg font-bold ${tone.metricValue}`}>{entry.matches}</p>
-                  </div>
-                  <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Wins</p>
-                    <p className={`mt-1 text-lg font-bold ${tone.metricValue}`}>{entry.wins}</p>
-                  </div>
-                  <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Win rate</p>
-                    <p className={`mt-1 text-base font-bold ${tone.metricValue}`}>{formatPercent(entry.winRate)}</p>
-                  </div>
-                  <div className={`rounded-xl border p-2.5 text-center ${tone.metric}`}>
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Place moy.</p>
-                    <p className={`mt-1 text-base font-bold ${tone.metricValue}`}>{entry.avgPlacement.toFixed(2)}</p>
-                  </div>
+                <div className="app-stat-tile">
+                  <span className="app-stat-tile__value t-pos">{entry.wins}</span>
+                  <span className="app-stat-tile__label">Victoires</span>
                 </div>
-              </article>
-            )
-          })}
+                <div className="app-stat-tile">
+                  <span className="app-stat-tile__value text-gray-900">{entry.avgPlacement.toFixed(1).replace('.', ',')}</span>
+                  <span className="app-stat-tile__label">Place moy.</span>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       )}
     </section>

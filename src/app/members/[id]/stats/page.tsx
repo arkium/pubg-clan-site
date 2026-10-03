@@ -118,7 +118,8 @@ export default function MemberCareerPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
           currentLabel="Carrière PUBG"
@@ -131,7 +132,7 @@ export default function MemberCareerPage() {
             subtitle={name ? `Toute la carrière de ${name}, selon les chiffres officiels PUBG.` : 'Toute la carrière, selon les chiffres officiels PUBG.'}
             showBackButton={false}
             backgroundImage="/statsplayer.jpg"
-            icon={<Medal className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />}
+            icon={<Medal className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
           />
         </section>
       </div>
@@ -149,7 +150,8 @@ export default function MemberCareerPage() {
             size="xs"
             className="shrink-0"
           />
-          <span className="ml-auto">
+          {/* Étiré à la hauteur de la ligne : même hauteur que le segmented voisin. */}
+          <span className="ml-auto flex self-stretch">
             <SyncStatus
               lastRefresh={data?.lastRefreshedAt ?? null}
               now={now}
@@ -165,7 +167,7 @@ export default function MemberCareerPage() {
       </DockingToolbar>
 
       <div className="app-container app-gutter flex flex-col gap-3.5 pb-8 sm:gap-[18px]">
-        {refreshError ? <p className="app-panel p-3 text-sm text-red-600">{refreshError}</p> : null}
+        {refreshError ? <p className="app-panel p-3 text-sm text-[var(--theme-ui-negative)]">{refreshError}</p> : null}
         {career.error ? (
           <p className="app-panel p-4 text-sm text-gray-600">Carrière PUBG indisponible : aucun compte PUBG relié ou API injoignable.</p>
         ) : null}

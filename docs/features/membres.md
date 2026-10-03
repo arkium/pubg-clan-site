@@ -22,7 +22,7 @@ Les anciennes versions sont dans `archive/refonte-ui/membres/` (ignoré par git)
 | Maquette : Némésis sur la période de la page, mais la route n'avait pas de période (500 derniers duels) | Période **facultative** ajoutée à `GET /api/members/[id]/nemesis` ; sans elle, tout l'historique. Depuis la refonte de la page ([nemesis.md](nemesis.md)), la route lit tous les duels, sans plafond |
 | Maquette : « membre depuis mars 2025 ». `ClanMember.createdAt` est la date d'**ajout au site**, pas l'entrée dans le clan PUBG | « suivi depuis mars 2025 » |
 | Maquette : « sur 64 équipes », « Survie au drop », « Part des drops » : aucune de ces valeurs n'est enregistrée | Non affichés. Meilleure partie : place ; Au drop : drops analysés, drops chauds, adversaires à 250 m, ville favorite |
-| Maquette : puces des pages du joueur en **défilement horizontal** sur mobile | **Chevrons** ‹ › (`ChevronPager`) : 4 puces à la fois sur mobile, toutes à partir de `sm` |
+| Maquette : puces des pages du joueur en **défilement horizontal** sur mobile | **Chevrons** ‹ › (`ChevronPager`) : 4 puces à la fois sur mobile, toutes à partir de `sm` — puis **puces retirées le 2026-10-03** : chaque page a son lien dans une carte (vérifié : les 9 entrées visibles du registre — les 3 autres sont `hidden` — ont chacune leur carte) |
 
 ## 2. « Membres du clan » (`/clans/[clanId]/members`)
 
@@ -56,8 +56,10 @@ quand le lecteur n'a pas `manage_members`. Chaque membre : `memberId`, `displayN
 
 - **Carte joueur** (bandeau d'image, hauteur minimale inchangée) : avatar entouré de la couleur du rôle, nom, pseudo
   PUBG, clan, « suivi depuis », rôle de la période (« Fragger · 82 % »), distinction du classement du clan sur la
-  période (`computeDistinctions`, « Top killer de la semaine »), « A joué ce soir ». Les pages du joueur (registre de
-  navigation, droits respectés) en puces ; « Matchs » porte le nombre de parties de la période.
+  période (`computeDistinctions`, « Top killer de la semaine »), « A joué ce soir ». **Plus de puces** vers les pages
+  du joueur (2026-10-03) : elles doublonnaient les liens des cartes — Carrière, Armes (Arsenal), Style de jeu (Profil de
+  jeu, « Détail → »), Objets consommés, Némésis, Cartes, Drop zones (Au drop), Calendrier (« Détail → »), Matchs
+  (« Tout l'historique → »).
 - **Bandeau de période** : `PeriodFilter` + `usePagePeriod`, docké aussi sur mobile (page à période). Au repos :
   « Comparé à la moyenne du clan et à la période précédente ».
 - **4 chiffres clés** : Kills et Dégâts avec l'écart à la moyenne du clan (« +18 % vs clan », rien sans moyenne),
@@ -74,8 +76,14 @@ quand le lecteur n'a pas `manage_members`. Chaque membre : `memberId`, `displayN
   bots neutralisés → Némésis), **Au drop** (ville favorite, drops analysés, drops chauds, adversaires à 250 m → Zones
   de drop).
 - **5 dernières parties** (débriefing quand il existe), puis « Tout l'historique → » (`/members/[id]/matches`).
-- Dernière ligne en deux (2026-09-27) : parties et **carte Carrière PUBG** à gauche, **calendrier** des 5 dernières
-  semaines à droite, sans période — voir [Carrière PUBG d'un joueur](carriere-joueur.md) §4.
+- **Dernières parties** et **calendrier** des 5 dernières semaines côte à côte, **à la même hauteur** (bas alignés, les
+  lignes des parties se partagent la hauteur ; le résumé du calendrier reste en pied). Le calendrier mène à la page du
+  calendrier d'activité (« Détail → », `/members/[id]/heatmap`).
+- **Rangée de trois cartes résumé** (2026-10-03), même matière sombre et même gabarit (« Voir → » sur la ligne du
+  surtitre) : **Carrière PUBG** (sans période — voir [Carrière PUBG d'un joueur](carriere-joueur.md) §4), **Objets
+  consommés** (par match, total, famille dominante, objet le plus utilisé — `/api/members/[id]/item-use`) et **Cartes**
+  (carte la plus jouée, ses parties et son win rate, nombre de cartes jouées — `/api/members/[id]/map-stats`), ces deux
+  dernières sur la période de la page (`src/components/player-dashboard/SummaryLinkCards.tsx`).
 
 Logique pure : `src/lib/player-dashboard.ts` (clés de période, barres d'activité, écart au clan, profil et tendance).
 
@@ -109,7 +117,11 @@ l'équivalent du style de jeu du clan (`/clans/[clanId]/stats`).
 - **Coopération** : ses coéquipiers dans les binômes du clan (parties officielles, tous modes, comme le clan) — 4
   chiffres (coéquipiers, réanimations, co-kills, recalls) et un tableau trié par la pondération de l'indice de synergie
   (réanimations ×3, co-kills ×2, dégâts partagés ×1), paginé par 10. Un nom mène au style de jeu du coéquipier.
-- **Aller plus loin** : Objets consommés, Compositions d'équipe (`map-stats#compositions`), Carrière PUBG.
+- **Meilleures formations** (2026-10-03, venues des statistiques par carte) : meilleurs duo, trio et squad de la période
+  (`bestCompositions` de `/api/members/[id]/map-stats`), cartes `.app-panel` à liseré de la couleur du mode, win rate en
+  Teko, coéquipiers, matchs / victoires / place moyenne ; un mode jamais joué n'est pas affiché. Hors des ancres du
+  bandeau (trois ancres tiennent sur 375 px, pas quatre).
+- **Aller plus loin** : Objets consommés, Statistiques par carte, Carrière PUBG.
 - **Aucune partie analysée** sur la période : un message, pas de sections vides ; les liens restent.
 
 Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne le clan), puis
@@ -125,7 +137,7 @@ Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne l
 | Bloc de l'ancien tableau de bord | Nouvelle place |
 |---|---|
 | Pression au drop (`DropPressureStatsPanel`) et villes (`CityInsightsPanel`, portée membre) | D'abord sous la carte des zones de drop du joueur ; **retirés le 2026-10-03** comme ceux du clan (redondants avec le profil de saut et le top 5) et archivés. Zones de combat : cartographie tactique du clan (lien en pied de la carte « Profil de saut ») — [drop-zones.md](drop-zones.md) |
-| Compositions d'équipe (`TeamPlayCompositionsCard`) | Page « Stats par carte » du joueur, sous les cartes, même période |
+| Compositions d'équipe (`TeamPlayCompositionsCard`) | Page « Stats par carte » du joueur, puis (2026-10-03) **style de jeu du joueur**, section « Meilleures formations » (`BestCompositions`) ; composant supprimé |
 | Stats principales, progression, radar, jauges et évolution du style de jeu, squads fréquents, meilleures performances | Remplacés par les chiffres clés, la meilleure partie, le profil de jeu et les frères d'armes ; composants archivés |
 | Historique des matchs paginé | Page « Matchs » du joueur ; le tableau de bord n'en garde que les 5 dernières |
 

@@ -6,7 +6,9 @@ import { useMemo } from 'react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import {
+  BestCompositions,
   PLAYSTYLE_LINK_ICONS,
+  type BestComposition,
   PlayerCooperation,
   PlayerRoleCards,
   PlayerThemeCards,
@@ -49,6 +51,7 @@ function parseMemberId(value: string | string[] | undefined) {
 const pickPlayer = (payload: unknown) => (payload as { data?: PlayerPlaystyleResponse } | null)?.data ?? null
 const pickRows = (payload: unknown) => (payload as { rows?: ClanPlaystyleRow[] } | null)?.rows ?? null
 const pickPairs = (payload: unknown) => (payload as { rows?: CooperationPair[] } | null)?.rows ?? null
+const pickCompositions = (payload: unknown) => (payload as { bestCompositions?: BestComposition[] } | null)?.bestCompositions ?? null
 
 /**
  * Style de jeu d'un joueur — docs/features/membres.md. La télémétrie de ses matchs sur **une seule période** (semaine
@@ -67,6 +70,8 @@ export default function MemberPlaystylePage() {
   const clanBase = clanId && ready ? `/api/clans/${clanId}/telemetry` : null
   const clan = usePageData(clanBase && `${clanBase}/playstyle?period=${period}`, pickRows)
   const cooperation = usePageData(clanBase && `${clanBase}/synergies?period=${period}&matchType=${SYNERGY_MATCH_TYPE}&mode=all`, pickPairs)
+  const compositions = usePageData(memberId && ready ? `/api/members/${memberId}/map-stats?period=${period}` : null, pickCompositions)
+  const playedCompositions = (compositions.data ?? []).filter((entry) => entry.matches > 0)
 
   if (!memberId) {
     return (
@@ -161,12 +166,26 @@ export default function MemberPlaystylePage() {
           </>
         ) : null}
 
+        {/* Meilleures formations (venues des statistiques par carte le 2026-10-03) : les parties du joueur, pas la
+            télémétrie — affichées même quand aucune partie n'a été analysée. */}
+        {playedCompositions.length > 0 ? (
+          <SectionBlock
+            id="sec-teams"
+            title="Meilleures formations"
+            subtitle="Ses meilleurs duo, trio et squad sur la période : les coéquipiers avec qui son impact est le plus fort."
+          >
+            <div aria-busy={compositions.loading} className={fading(compositions.loading)}>
+              <BestCompositions compositions={playedCompositions} />
+            </div>
+          </SectionBlock>
+        ) : null}
+
         {player.data ? (
           <section aria-label="Aller plus loin">
             <PlaystyleLinks
               links={[
                 { href: `/members/${memberId}/items`, title: 'Objets consommés', text: 'Soins, boosts, carburant et gadgets utilisés en match.', icon: PLAYSTYLE_LINK_ICONS.items },
-                { href: `/members/${memberId}/map-stats#compositions`, title: 'Compositions d’équipe', text: 'Ses meilleurs duo, trio et squad.', icon: PLAYSTYLE_LINK_ICONS.compositions },
+                { href: `/members/${memberId}/map-stats`, title: 'Statistiques par carte', text: 'Ses performances carte par carte.', icon: PLAYSTYLE_LINK_ICONS.maps },
                 { href: `/members/${memberId}/stats`, title: 'Carrière PUBG', text: 'Ses cumuls officiels, toutes saisons.', icon: PLAYSTYLE_LINK_ICONS.career },
               ]}
             />

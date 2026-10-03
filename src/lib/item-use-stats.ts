@@ -63,6 +63,11 @@ type LoadInput = {
   memberId?: number
   period: ItemUsePeriod
   bounds: { startDate: Date; endDate: Date } | null
+  /**
+   * Familles écartées de tous les chiffres (total, matchs, parts). Page joueur : `None` — puce bleue, clés de salles
+   * secrètes, badge d'accès, qui ne sont pas des consommables (décision du 2026-10-03).
+   */
+  excludeSubCategories?: string[]
 }
 
 function scope(input: LoadInput) {
@@ -73,6 +78,9 @@ function scope(input: LoadInput) {
   }
   if (input.bounds) {
     parts.push(Prisma.sql`i.matchDate >= ${input.bounds.startDate} AND i.matchDate <= ${input.bounds.endDate}`)
+  }
+  if (input.excludeSubCategories?.length) {
+    parts.push(Prisma.sql`i.subCategory NOT IN (${Prisma.join(input.excludeSubCategories)})`)
   }
   return parts.length > 0 ? Prisma.join(parts, ' AND ') : Prisma.sql`1 = 1`
 }

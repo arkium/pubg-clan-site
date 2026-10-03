@@ -6,13 +6,11 @@ import Link from 'next/link'
 import { Crosshair, Skull } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
-import ChevronPager from '@/components/ui/ChevronPager'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import { DISTINCTION_BADGE_META, type DistinctionBadgeKey } from '@/lib/distinction-badges'
 import { matchDebriefPath } from '@/lib/match-links'
 import { sessionDateOf } from '@/lib/match-sessions'
 import { playedTonight, rosterInitials, rosterRole, type RosterRoleId } from '@/lib/member-roster'
-import { getNavIcon } from '@/lib/nav-icons'
 import { PERIOD_OF_LABELS, type StandardPeriod } from '@/lib/period'
 import { barHeights, clanGap, clanGapLabel, profileRows, trendLabel } from '@/lib/player-dashboard'
 import { mapAssetUrl, weaponWhiteIconUrl } from '@/lib/pubg-assets'
@@ -78,21 +76,17 @@ const EmptyNote = ({ children }: { children: ReactNode }) => <p className="text-
 
 // ── Carte joueur (bandeau) ────────────────────────────────────────────────────────────────────────
 
-export type HeroNavItem = { navKey: string; label: string; href: string; badge?: string }
-
 export function PlayerHero({
   member,
   role,
   distinction,
   period,
-  navItems,
   now,
 }: {
   member: PlayerDashboardResponse['member']
   role: { id: RosterRoleId; score: number } | null
   distinction: DistinctionBadgeKey | null
   period: StandardPeriod
-  navItems: HeroNavItem[]
   now: Date
 }) {
   const [avatarFailed, setAvatarFailed] = useState(false)
@@ -152,29 +146,7 @@ export function PlayerHero({
             </div>
           </div>
         </div>
-        {navItems.length > 0 ? (
-          <ChevronPager
-            ariaLabel="Pages du joueur"
-            tone="dark"
-            pageSize={4}
-            items={navItems.map((item) => {
-              const { icon: Icon, colorClass } = getNavIcon(item.navKey)
-              return {
-                key: item.navKey,
-                node: (
-                  <Link
-                    href={item.href}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-[8px] border border-white/20 bg-slate-950/55 px-2.5 text-xs font-semibold text-white backdrop-blur-md transition hover:border-white/40 hover:bg-slate-950/75"
-                  >
-                    <Icon className={`h-3.5 w-3.5 ${colorClass}`} aria-hidden="true" />
-                    {item.label}
-                    {item.badge ? <span className="rounded-[6px] bg-white/15 px-1.5 text-[11px] font-extrabold">{item.badge}</span> : null}
-                  </Link>
-                ),
-              }
-            })}
-          />
-        ) : null}
+        {/* Plus de puces vers les pages du joueur (2026-10-03) : chaque page a son lien dans une carte du tableau de bord. */}
       </div>
     </header>
   )
@@ -580,7 +552,8 @@ export function DropCard({ city, drop, memberId }: { city: CityInsights | null; 
 
 export function RecentMatches({ matches, mapLabels, memberId, period }: { matches: DashboardMatch[]; mapLabels: Record<string, string>; memberId: number; period: StandardPeriod }) {
   return (
-    <section aria-label="Dernières parties" className="app-panel overflow-hidden">
+    // Même hauteur que le calendrier voisin (grille étirée) : les lignes se partagent la hauteur, bas des cartes alignés.
+    <section aria-label="Dernières parties" className="app-panel flex flex-col overflow-hidden">
       <div className="flex items-baseline justify-between gap-2 border-b border-gray-200 px-3.5 py-3">
         <h2 className="t-card-title">Dernières parties</h2>
         <Link href={`/members/${memberId}/matches?period=${period}`} className="app-link text-xs font-semibold">
@@ -588,7 +561,7 @@ export function RecentMatches({ matches, mapLabels, memberId, period }: { matche
         </Link>
       </div>
       {matches.length > 0 ? (
-        <ol className="divide-y divide-gray-200">
+        <ol className="flex flex-1 flex-col divide-y divide-gray-200">
           {matches.map((match) => {
             const map = mapAssetUrl(match.mapName)
             const row = (
@@ -611,12 +584,12 @@ export function RecentMatches({ matches, mapLabels, memberId, period }: { matche
                 </span>
               </>
             )
-            const grid = 'grid grid-cols-[44px_minmax(0,1fr)_64px] items-center gap-3 px-3.5 py-2 sm:grid-cols-[48px_minmax(0,1fr)_90px_110px]'
+            const grid = 'grid flex-1 grid-cols-[44px_minmax(0,1fr)_64px] items-center gap-3 px-3.5 py-2 sm:grid-cols-[48px_minmax(0,1fr)_90px_110px]'
             const href = match.telemetryAvailable && match.squadMatchId && match.clanId
               ? matchDebriefPath(match.clanId, match.squadMatchId, { period })
               : null
             return (
-              <li key={match.id}>
+              <li key={match.id} className="flex flex-1 flex-col">
                 {href ? (
                   <Link href={href} className={`${grid} transition hover:bg-gray-50`}>
                     {row}

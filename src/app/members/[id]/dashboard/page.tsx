@@ -14,20 +14,20 @@ import {
   PlayerProfileCard,
   RecentMatches,
   type ArsenalWeapon,
-  type HeroNavItem,
   type NemesisSummary,
 } from '@/components/player-dashboard/PlayerDashboardSections'
 import { CalendarCard, CareerSummaryCard } from '@/components/player-career/CareerSections'
+import { ItemsSummaryCard, MapsSummaryCard, type MapSummaryRow } from '@/components/player-dashboard/SummaryLinkCards'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { computeDistinctions, distinctionsByMember } from '@/lib/distinctions'
-import { STANDARD_PERIODS } from '@/lib/period'
+import type { ItemUseStats } from '@/lib/item-use-stats'
+import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
 import { buildCalendar, medalCounts, type CalendarDay, type LifetimeStats, type MedalRanks, type SeasonRow } from '@/lib/player-career'
 import { profileRole } from '@/lib/player-dashboard'
 import type { CityInsights } from '@/types/city-insights'
@@ -42,6 +42,8 @@ const pickNemesis = (payload: unknown) => (payload as { data?: NemesisSummary } 
 const pickCity = (payload: unknown) => (payload as { insights?: CityInsights } | null)?.insights ?? null
 const pickDrop = (payload: unknown) => (payload as { stats?: DropPressureDashboardStats } | null)?.stats ?? null
 const pickMatches = (payload: unknown) => (payload as MatchesResponse | null) ?? null
+const pickItems = (payload: unknown) => (payload as { data?: ItemUseStats } | null)?.data ?? null
+const pickMaps = (payload: unknown) => (payload as { mapStats?: MapSummaryRow[] } | null)?.mapStats ?? null
 const pickLeaderboard = (payload: unknown) => (payload as LeaderboardResponse | null)?.leaderboard ?? []
 const pickCareer = (payload: unknown) => {
   const body = payload as { stats?: LifetimeStats; clanRanks?: MedalRanks } | null
@@ -69,7 +71,6 @@ export default function DashboardPage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
   const { clanId: selectedClanId } = useSelectedClan()
-  const sectionItems = useSectionNavItems('member-section', selectedClanId, memberId)
   // Période de toute la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [now] = useState(() => new Date())
@@ -85,6 +86,9 @@ export default function DashboardPage() {
     base && `${base}/matches?period=${period}&limit=5&offset=0&sortBy=pubgCreatedAt&sortDirection=desc`,
     pickMatches
   )
+  // Cartes résumé « Objets consommés » et « Cartes » : même période que la page.
+  const items = usePageData(base && `${base}/item-use?period=${period}`, pickItems)
+  const maps = usePageData(base && `${base}/map-stats?period=${period}`, pickMaps)
   const clanId = dashboard.data?.member.clan?.id ?? selectedClanId
   const ranking = usePageData(
     dashboard.data?.member.clan ? `/api/clans/${dashboard.data.member.clan.id}/leaderboard?period=${period}&sortBy=kills&matchType=official&mode=all` : null,
@@ -102,15 +106,6 @@ export default function DashboardPage() {
     if (!memberId || !ranking.data) return null
     return distinctionsByMember(computeDistinctions(ranking.data)).get(memberId)?.[0] ?? null
   }, [memberId, ranking.data])
-
-  const navItems: HeroNavItem[] = sectionItems
-    .filter((item) => item.navKey !== 'member.dashboard')
-    .map((item) => ({
-      navKey: item.navKey,
-      label: item.label,
-      href: item.href,
-      badge: item.navKey === 'member.matches' && matches.data && matches.data.totalCount > 0 ? String(matches.data.totalCount) : undefined,
-    }))
 
   if (!memberId) {
     return (
@@ -139,7 +134,6 @@ export default function DashboardPage() {
             role={profileRole(data.playstyle.current)}
             distinction={distinction}
             period={period}
-            navItems={navItems}
             now={now}
           />
         ) : dashboard.error ? (
@@ -178,18 +172,22 @@ export default function DashboardPage() {
             <DropCard city={city.data} drop={drop.data} memberId={memberId} />
           </div>
 
-          {/* Dernière ligne en deux : les parties et la carrière à gauche, le calendrier à droite (maquette 25f). */}
-          <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-            <div className="flex min-w-0 flex-col gap-3">
-              <RecentMatches matches={matches.data?.matches ?? []} mapLabels={matches.data?.mapLabels ?? {}} memberId={memberId} period={period} />
-              <CareerSummaryCard
-                memberId={memberId}
-                stats={career.data?.stats ?? null}
-                currentSeason={season.data}
-                goldMedals={career.data ? medalCounts(career.data.clanRanks)[1] : 0}
-              />
-            </div>
-            <CalendarCard calendar={calendar} />
+          {/* Les parties à gauche, le calendrier à droite (maquette 25f), même hauteur : bas des deux cartes alignés. */}
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+            <RecentMatches matches={matches.data?.matches ?? []} mapLabels={matches.data?.mapLabels ?? {}} memberId={memberId} period={period} />
+            <CalendarCard calendar={calendar} href={`/members/${memberId}/heatmap`} />
+          </div>
+
+          {/* Cartes résumé alignées (2026-10-03) : carrière PUBG (sans période), objets consommés et cartes (période). */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <CareerSummaryCard
+              memberId={memberId}
+              stats={career.data?.stats ?? null}
+              currentSeason={season.data}
+              goldMedals={career.data ? medalCounts(career.data.clanRanks)[1] : 0}
+            />
+            <ItemsSummaryCard memberId={memberId} stats={items.data} when={PERIOD_WHEN_LABELS[period]} />
+            <MapsSummaryCard memberId={memberId} maps={maps.data} when={PERIOD_WHEN_LABELS[period]} />
           </div>
         </div>
       ) : null}

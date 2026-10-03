@@ -76,6 +76,11 @@ describe('item use route contracts', () => {
     expect(mocks.loadItemUseStats).toHaveBeenCalledWith(expect.objectContaining({ memberId: 42, period: 'all' }))
   })
 
+  it('vue membre : la catégorie None (puce bleue, clés) est écartée de tous les chiffres', async () => {
+    await getMemberItemUse(new Request('http://localhost:3000/api/members/42/item-use'), { params: Promise.resolve({ id: '42' }) })
+    expect(mocks.loadItemUseStats).toHaveBeenCalledWith(expect.objectContaining({ memberId: 42, excludeSubCategories: ['None'] }))
+  })
+
   it('protège la vue membre par l’appartenance au même clan', async () => {
     mocks.requireSameClanAsMember.mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))
 

@@ -53,13 +53,27 @@ anciens ne peuvent être récupérés qu'en les resynchronisant, dans la fenêtr
 
 Le même panneau (`ItemUsePanel`) sert aux deux portées :
 
-- indicateurs : objets consommés, moyenne par match, famille dominante ;
-- répartition par famille (Soins, Boosts, Carburant, Gadgets, Non classés) ;
-- objets les plus consommés, en cartes sur mobile et en tableau sur desktop, avec icône (`ItemIcon`) et libellé
-  (`resolveItemName`) ;
+- indicateurs : objets consommés (« 46 matchs analysés depuis le 18/09/2026 » — la date du premier match couvert,
+  `dataStart`), moyenne par match, famille dominante ;
+- répartition par famille (Soins, Boosts, Carburant, Gadgets, Non classés), chacune avec sa **moyenne par match**
+  mise en avant (chiffre en Teko, « 2,9 par match » ; « < 0,1 » pour une famille rare, jamais « 0 ») ;
+- objets les plus consommés, en cartes sur mobile et en tableau sur desktop, avec icône (`ItemIcon`) et nom français
+  (`itemLabel`, comme le style de jeu du clan ; le dictionnaire PUBG anglais en repli) ;
 - classement par membre, sur la page clan seulement.
 
 Filtre de période : semaine, mois, tous.
+
+**Catégorie `None` écartée de la page joueur** (2026-10-03) : puce bleue (`Item_Bluechip_C`), clés de salles
+secrètes (`Item_*_Key_C`, `Item_BTSecretRoom_Key_C`), badge d'accès — pas des consommables. La route membre passe
+`excludeSubCategories: ['None']` à `loadItemUseStats` : elle sort de **tous** les chiffres (total, matchs, parts,
+famille dominante), pas seulement de l'affichage. Le style de jeu du clan les garde (la puce bleue y a son libellé).
+
+**Page joueur, charte (2026-10-03)** : bannière des pages joueur (`MemberPageHeader`, « Objets consommés de … », image
+`/sauvetage2.jpg` faute d'image dédiée), fil d'Ariane vers **le tableau de bord du joueur** (il menait à la vue
+d'ensemble du clan), KPI `app-kpi` en Teko, couleurs de familles en jetons de jeu (soins `--game-pos`, boosts
+`--game-warn`, carburant `--game-sky`, gadgets `--game-violet`), tableau `app-table-shell`. Lecture par
+`usePageData` : pendant un changement de période, les résultats précédents restent affichés, estompés. Test :
+`e2e/member-items.spec.ts`.
 
 Sur la page clan, la section de « Style de jeu » (`ItemUseSection`, `src/components/clan-stats/PlaystyleSections.tsx`)
 remplace `ItemUsePanel` : familles en grille de deux, objets et membres paginés par 8 au lieu d'un tableau large.
@@ -69,7 +83,9 @@ remplace `ItemUsePanel` : familles en grille de deux, objets et membres paginés
 Le dépôt officiel `pubg/api-assets` n'a que 8 icônes d'objets (`Assets/Item/Use`) : bandage, trousse de soins, kit
 médical, boisson énergisante, analgésique, seringue d'adrénaline, jerrican, VTT. Les autres objets observés en
 production — `Item_BulletproofShield_C` (bouclier pliable), `Item_Bluechip_C` (puce bleue) — n'en ont **aucune**, ni
-dans le dépôt ni ici. `ItemIcon` (page membre) n'affiche alors rien ; les vignettes de « Style de jeu du clan »
+dans le dépôt ni ici. `ItemIcon` (page membre) n'affiche alors rien. Ces icônes sont des **rendus en couleur** : `ItemIcon` ne porte pas le
+filtre `pubg-icon-filter` (qui noircit en thème clair les icônes blanches des armes et en faisait des silhouettes
+noires — corrigé le 2026-10-03) ; les vignettes de « Style de jeu du clan »
 (`ItemVignetteIcon`) affichent un pictogramme propre à l'objet ou à sa famille (soins, boosts, carburant, gadgets,
 non classés), jamais une image cassée. Le nom français vient de `ITEM_LABELS` (`src/lib/clan-playstyle.ts`), le
 dictionnaire PUBG anglais servant de repli. Après une nouvelle saison, relancer

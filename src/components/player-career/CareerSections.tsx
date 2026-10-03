@@ -337,7 +337,11 @@ export function CareerSummaryCard({
         <span className="text-[11px] font-extrabold">TOP 1</span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[11px] font-black tracking-[0.14em] text-[var(--theme-ui-accent)]">CARRIÈRE PUBG</span>
+        {/* « Voir → » sur la ligne du surtitre, comme les cartes « Objets consommés » et « Cartes » alignées à côté. */}
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-[11px] font-black tracking-[0.14em] text-[var(--theme-ui-accent)]">CARRIÈRE PUBG</span>
+          <span className="shrink-0 text-xs font-bold text-[var(--theme-ui-accent)]">Voir →</span>
+        </span>
         {stats ? (
           <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums text-slate-300">
             <span>
@@ -362,7 +366,6 @@ export function CareerSummaryCard({
           </span>
         ) : null}
       </span>
-      <span className="shrink-0 text-xs font-bold text-[var(--theme-ui-accent)]">Voir →</span>
     </Link>
   )
 }
@@ -374,14 +377,24 @@ const LONG_DATE = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'nume
 
 export function CalendarCard({
   calendar,
+  href,
 }: {
   calendar: { cells: CalendarCell[]; playedDays: number; elapsedDays: number; favouriteDay: string | null; favouriteSlot: string | null } | null
+  /** Page du calendrier d'activité (jours × heures) : lien « Détail → », comme les autres cartes du tableau de bord. */
+  href?: string
 }) {
   return (
     <section aria-labelledby="calendar-title" className="app-panel flex flex-col gap-2.5 p-3.5">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="calendar-title" className="t-card-title">Calendrier</h2>
-        <span className="text-xs text-gray-500">5 dernières semaines</span>
+        <span className="flex shrink-0 items-baseline gap-3">
+          <span className="text-xs text-gray-500">5 dernières semaines</span>
+          {href ? (
+            <Link href={href} className="app-link text-xs font-semibold">
+              Détail →
+            </Link>
+          ) : null}
+        </span>
       </div>
       {calendar ? (
         <>
@@ -425,7 +438,7 @@ export function CalendarCard({
               top 1
             </span>
           </div>
-          <dl className="grid grid-cols-3 gap-2 border-t border-gray-200 pt-2.5 tabular-nums">
+          <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-gray-200 pt-2.5 tabular-nums">
             {[
               [`${calendar.playedDays} jour${calendar.playedDays > 1 ? 's' : ''}`, `joués sur ${calendar.elapsedDays}`],
               [calendar.favouriteDay ?? '—', 'jour favori'],

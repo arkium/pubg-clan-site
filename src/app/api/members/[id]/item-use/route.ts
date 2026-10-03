@@ -30,6 +30,8 @@ export async function GET(
       memberId,
       period,
       bounds: getItemUsePeriodBounds(period),
+      // Puce bleue, clés, badge d'accès (`None`) : pas des consommables, hors de la page joueur.
+      excludeSubCategories: ['None'],
     })
 
     return Response.json({ data: stats })

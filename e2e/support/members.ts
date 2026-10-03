@@ -1,6 +1,6 @@
 import type { ApiMock } from './api'
 import { mockCareerApis, mockMemberCalendar } from './career'
-import { CLAN_ID, MEMBER_ID, PLAYERS, leaderboardResponse, memberWeapons } from './data'
+import { CLAN_ID, MEMBER_ID, PLAYERS, itemUseStats, leaderboardResponse, memberWeapons } from './data'
 
 import type { RosterMember } from '@/lib/member-roster'
 import { activityBuckets } from '@/lib/player-dashboard'
@@ -178,6 +178,18 @@ export function mockPlayerDashboard(api: ApiMock) {
     })
     .on('GET', `/api/members/${MEMBER_ID}/matches`, { body: recentMatches() })
     .on('GET', `/api/clans/${CLAN_ID}/leaderboard`, (url) => ({ body: leaderboardResponse(periodOf(url)) }))
+    // Cartes résumé « Objets consommés » et « Cartes » (2026-10-03), même période que la page.
+    .on('GET', `/api/members/${MEMBER_ID}/item-use`, (url) => ({ body: { data: itemUseStats(periodOf(url), false) } }))
+    .on('GET', `/api/members/${MEMBER_ID}/map-stats`, {
+      body: {
+        mapStats: [
+          { mapName: 'Desert_Main', mapLabel: 'Miramar', matches: 12, wins: 1, winRate: 1 / 12 },
+          { mapName: 'Baltic_Main', mapLabel: 'Erangel', matches: 30, wins: 4, winRate: 4 / 30 },
+          { mapName: 'Tiger_Main', mapLabel: 'Taego', matches: 0, wins: 0, winRate: 0 },
+        ],
+        bestCompositions: [],
+      },
+    })
   // Sans période : carte Carrière PUBG et calendrier des 5 dernières semaines (e2e/support/career.ts).
   mockCareerApis(api)
   mockMemberCalendar(api)

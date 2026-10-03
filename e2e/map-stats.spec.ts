@@ -65,9 +65,8 @@ test.describe('statistiques par carte', () => {
     expect(Math.abs(rail!.height - chip!.height)).toBeLessThanOrEqual(1)
   })
 
-  test('compositions : les trois formations', async ({ page }) => {
-    const compositions = page.getByRole('region', { name: 'Compositions d’équipe' })
-    await expect(compositions.getByRole('article')).toHaveCount(3)
-    await expect(compositions.getByRole('article', { name: 'Meilleur squad' })).toContainText('Joueur Delta')
+  test('les formations ont quitté la page (style de jeu du joueur, 2026-10-03)', async ({ page }) => {
+    await expect(page.getByRole('region', { name: 'Compositions d’équipe' })).toHaveCount(0)
+    await expect(page.getByText(/Team play/)).toHaveCount(0)
   })
 })

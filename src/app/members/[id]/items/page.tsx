@@ -2,16 +2,17 @@
 
 import { Pill } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
+import MemberPageHeader from '@/components/member/MemberPageHeader'
 import ItemUsePanel from '@/components/telemetry/ItemUsePanel'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
-import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import type { ItemUseStats } from '@/lib/item-use-stats'
-import { STANDARD_PERIODS } from '@/lib/period'
+import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
 
 function parseMemberId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -19,91 +20,55 @@ function parseMemberId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+const pickStats = (payload: unknown) => (payload as { data?: ItemUseStats } | null)?.data ?? null
+const pickName = (payload: unknown) => (payload as { displayName?: string } | null)?.displayName ?? null
+
+/**
+ * Objets consommés d'un joueur — soins, boosts, carburant et gadgets utilisés en match, objet par objet. Migrée vers la
+ * charte le 2026-10-03 (docs/ui/index.html) : bannière des pages joueur, KPI de la charte, couleurs de familles en jetons.
+ * Pendant un changement de période, les résultats précédents restent affichés, estompés.
+ */
 export default function MemberItemUsePage() {
   const params = useParams()
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
-  const { clanId } = useSelectedClan()
-
   // Période de la page : URL, puis mémoire de la visite, puis « Tous » (docs/TODO/sticky.md §4.E).
-  const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'all')
-  const [stats, setStats] = useState<ItemUseStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!memberId || !periodReady) return
-    let cancelled = false
-
-    async function load() {
-      try {
-        setLoading(true)
-        setError('')
-        const response = await fetch(`/api/members/${memberId}/item-use?period=${period}`, { cache: 'no-store' })
-        const payload = (await response.json()) as { data?: ItemUseStats; error?: string }
-        if (cancelled) return
-        if (!response.ok || !payload.data) {
-          setStats(null)
-          setError(payload.error ?? 'Chargement impossible.')
-          return
-        }
-        setStats(payload.data)
-      } catch {
-        if (!cancelled) {
-          setStats(null)
-          setError('Chargement impossible.')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [memberId, period, periodReady])
+  const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'all')
+  const { data, loading, error } = usePageData(memberId && ready ? `/api/members/${memberId}/item-use?period=${period}` : null, pickStats)
+  const name = usePageData(memberId ? `/api/members/${memberId}` : null, pickName).data
 
   if (!memberId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Membre invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
-      <div className="app-container app-gutter">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
+      <div className="app-container app-gutter space-y-4">
         <NavigationTrail
           currentLabel="Objets consommés"
           currentHref={`/members/${memberId}/items`}
-          fallbackParent={
-            clanId
-              ? { href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }
-              : { href: '/members', label: 'Membres' }
-          }
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: name ?? 'Tableau de bord', altHref: '/members' }}
         />
-
-        <header className="app-panel flex flex-wrap items-start gap-3 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
-            <Pill className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-gray-900">Objets consommés</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Soins, boosts, carburant et gadgets utilisés en match, détaillés objet par objet.
-            </p>
-          </div>
-        </header>
+        <MemberPageHeader
+          title={name ? `Objets consommés de ${name}` : 'Objets consommés'}
+          subtitle={`Soins, boosts, carburant et gadgets utilisés en match ${PERIOD_WHEN_LABELS[period]}, objet par objet.`}
+          showBackButton={false}
+          backgroundImage="/sauvetage2.jpg"
+          icon={<Pill className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
+        />
       </div>
 
       <DockingToolbar ariaLabel="Période des objets consommés du joueur">
         <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
       </DockingToolbar>
 
-      <div className="app-container app-gutter">
-        <ItemUsePanel stats={stats} loading={loading} error={error} scope="member" />
+      <div className="app-container app-gutter pb-8">
+        <ItemUsePanel stats={data} loading={loading} error={error ? 'Chargement impossible.' : ''} scope="member" />
       </div>
     </div>
   )

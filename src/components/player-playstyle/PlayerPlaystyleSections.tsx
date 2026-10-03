@@ -1,13 +1,15 @@
 'use client'
 
-import { Car, Crosshair, HeartPulse, MapPin, Package, RefreshCcw, Shield, Target, Users, type LucideIcon } from 'lucide-react'
+import { Car, Crosshair, HeartPulse, Map as MapIcon, MapPin, Package, RefreshCcw, Shield, Target, Users, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
 
 import { ArcGauge } from '@/components/clan-stats/PlaystyleSections'
 import Pagination from '@/components/ui/Pagination'
+import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import RankCell from '@/components/ui/RankCell'
 import SortableTh from '@/components/ui/SortableTh'
+import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { formatDecimal, formatInteger, formatPercent, playstyleThemes, type ClanPlaystyleRow, type PlaystyleRoleId } from '@/lib/clan-playstyle'
 import { paginate } from '@/lib/pagination'
 import { cooperationTotals, roleDeltaLabel, type CooperationPartner, type PlayerRoleComparison } from '@/lib/player-playstyle'
@@ -293,6 +295,79 @@ export function PlayerCooperation({ partners }: { partners: CooperationPartner[]
   )
 }
 
+// ── Meilleures formations (venues des statistiques par carte, 2026-10-03) ──────────────────────────
+
+export type BestMode = 'duo' | 'trio' | 'squad'
+
+/** Une formation de `bestCompositions` (`/api/members/[id]/map-stats`) : la meilleure équipe du joueur dans ce mode. */
+export type BestComposition = {
+  mode: BestMode
+  label: string
+  teamMembers: string[]
+  matches: number
+  wins: number
+  winRate: number
+  avgPlacement: number
+}
+
+/** Couleur de mode de la charte : duo ciel, trio violet, squad vert — liseré de la carte et win rate. */
+const MODE_COLORS: Record<BestMode, string> = { duo: 'var(--game-sky)', trio: 'var(--game-violet)', squad: 'var(--game-pos)' }
+
+const percent = (value: number) => `${(value * 100).toFixed(1).replace('.', ',')} %`
+
+/**
+ * Ses meilleurs duo, trio et squad sur la période. Cartes `.app-panel` de la page, liseré 3 px à la couleur du mode
+ * (posé en ligne : la bordure de `.app-panel`, hors couche, l'emporterait sur un utilitaire), win rate en Teko.
+ */
+export function BestCompositions({ compositions }: { compositions: BestComposition[] }) {
+  return (
+    <div className="grid gap-3 lg:grid-cols-3">
+      {compositions.map((entry) => (
+        <article
+          key={entry.mode}
+          aria-label={entry.label}
+          className="app-panel flex flex-col gap-3 p-4"
+          style={{ borderLeft: `3px solid ${MODE_COLORS[entry.mode]}` }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <TeamModeBadge mode={entry.mode} label={entry.label} size="sm" className="shadow-none" />
+            <span className="flex flex-col items-end">
+              <b className="t-hero t-hero--md" style={{ color: MODE_COLORS[entry.mode] }}>{percent(entry.winRate)}</b>
+              <span className="t-meta">win rate</span>
+            </span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="t-label">Composition</span>
+            {entry.teamMembers.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {entry.teamMembers.map((name) => (
+                  <PlayerNameBadge key={`${entry.mode}-${name}`} name={name} />
+                ))}
+              </div>
+            ) : (
+              <span className="t-meta">Aucune composition</span>
+            )}
+          </div>
+          <div className="mt-auto grid grid-cols-3 gap-1.5">
+            <div className="app-stat-tile">
+              <span className="app-stat-tile__value text-gray-900">{formatInteger(entry.matches)}</span>
+              <span className="app-stat-tile__label">Matchs</span>
+            </div>
+            <div className="app-stat-tile">
+              <span className="app-stat-tile__value t-pos">{formatInteger(entry.wins)}</span>
+              <span className="app-stat-tile__label">Victoires</span>
+            </div>
+            <div className="app-stat-tile">
+              <span className="app-stat-tile__value text-gray-900">{formatDecimal(entry.avgPlacement)}</span>
+              <span className="app-stat-tile__label">Place moy.</span>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
 // ── Aller plus loin ─────────────────────────────────────────────────────────────────────────────────
 
 export function PlaystyleLinks({ links }: { links: Array<{ href: string; title: string; text: string; icon: LucideIcon }> }) {
@@ -318,7 +393,7 @@ export function PlaystyleLinks({ links }: { links: Array<{ href: string; title: 
   )
 }
 
-export const PLAYSTYLE_LINK_ICONS = { items: Package, compositions: Users, career: Shield } satisfies Record<string, LucideIcon>
+export const PLAYSTYLE_LINK_ICONS = { items: Package, maps: MapIcon, career: Shield } satisfies Record<string, LucideIcon>
 
 export function SectionBlock({ id, title, subtitle, children }: { id: string; title: string; subtitle: string; children: ReactNode }) {
   return (

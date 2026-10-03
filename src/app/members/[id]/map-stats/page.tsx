@@ -12,7 +12,6 @@ import RankCell from '@/components/ui/RankCell'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { SortReminder } from '@/components/ui/SortableTh'
-import TeamPlayCompositionsCard from '@/components/member/TeamPlayCompositionsCard'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
@@ -514,13 +513,7 @@ export default function MemberMapStatsPage() {
             </div>
           )}
         </section>
-
-        {/* Compositions d'équipe, venues du tableau de bord le 2026-09-27 (docs/features/membres.md). */}
-        {memberId && periodReady ? (
-          <section id="compositions" aria-label="Compositions d’équipe">
-            <TeamPlayCompositionsCard memberId={memberId} period={period} />
-          </section>
-        ) : null}
+        {/* Les meilleures formations (duo / trio / squad) sont sur le style de jeu du joueur depuis le 2026-10-03. */}
       </div>
     </div>
   )

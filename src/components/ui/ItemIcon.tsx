@@ -29,7 +29,9 @@ export default function ItemIcon({ id, label, size = 'md', className }: ItemIcon
     <img
       src={itemIconUrl(id)}
       alt={altText}
-      className={['pubg-icon-filter shrink-0 object-contain', sizeClass[size], className ?? ''].filter(Boolean).join(' ')}
+      // Pas de `pubg-icon-filter` : il noircit en thème clair les icônes blanches des armes, mais les icônes d'objets
+      // sont des rendus en couleur (« jamais recolorées », docs/ui/index.html) — elles devenaient des silhouettes noires.
+      className={['shrink-0 object-contain', sizeClass[size], className ?? ''].filter(Boolean).join(' ')}
       onError={() => setFailed(true)}
     />
   )

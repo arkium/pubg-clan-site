@@ -8,7 +8,7 @@ import { mockClanMembers, mockPlayerDashboard } from './support/members'
 /**
  * Membres du clan et tableau de bord d'un joueur — docs/features/membres.md (maquette « Membres et joueur »,
  * 2026-09-27). « A joué ce soir » remplace le « en jeu » de la maquette (import horaire) ; K/M, win rate et parties sur
- * 30 jours ; une seule période pour tout le tableau de bord ; chevrons au lieu d'un défilement horizontal.
+ * 30 jours ; une seule période pour tout le tableau de bord ; liens des cartes vers chaque page du joueur (plus de puces dans le bandeau).
  */
 
 const isMobile = (testInfo: TestInfo) => ['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name)
@@ -132,10 +132,29 @@ test.describe('Tableau de bord d’un joueur', () => {
   test('une seule période pour toute la page', async ({ api, page }) => {
     await periodFilter(page).getByRole('button', { name: 'Mois' }).click()
     await expect(page).toHaveURL(/[?&]period=month\b/)
-    for (const path of ['dashboard', 'telemetry/weapons', 'nemesis', 'city-insights', 'drop-pressure', 'matches']) {
+    for (const path of ['dashboard', 'telemetry/weapons', 'nemesis', 'city-insights', 'drop-pressure', 'matches', 'item-use', 'map-stats']) {
       await expect.poll(() => api.paramValues(`/api/members/${MEMBER_ID}/${path}`, 'period').at(-1)).toBe('month')
     }
     await expect(page.getByTestId('kpi-Kills')).toContainText('256')
+  })
+
+  test('cartes résumé alignées : carrière, objets consommés, cartes ; calendrier vers sa page', async ({ page }, testInfo) => {
+    const items = page.getByTestId('items-card')
+    await expect(items).toHaveAttribute('href', `/members/${MEMBER_ID}/items`)
+    // Semaine : 100 objets sur 25 matchs, boosts en tête.
+    await expect(items).toContainText('4 par match')
+    await expect(items).toContainText('Surtout boosts (50 %)')
+    const maps = page.getByTestId('maps-card')
+    await expect(maps).toHaveAttribute('href', `/members/${MEMBER_ID}/map-stats`)
+    await expect(maps).toContainText('Erangel · 30 parties')
+    await expect(maps).toContainText('2 cartes jouées cette semaine')
+    // Même rangée que la carte Carrière PUBG à partir de 768 px (empilées en dessous).
+    if (!['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name)) {
+      const career = await page.getByTestId('career-card').boundingBox()
+      const itemsBox = await items.boundingBox()
+      expect(Math.abs(career!.y - itemsBox!.y)).toBeLessThanOrEqual(1)
+    }
+    await expect(page.getByRole('region', { name: 'Calendrier' }).getByRole('link', { name: 'Détail →' })).toHaveAttribute('href', `/members/${MEMBER_ID}/heatmap`)
   })
 
   test('chiffres clés : écart au clan, top 1, barres d’activité', async ({ page }) => {
@@ -177,7 +196,7 @@ test.describe('Tableau de bord d’un joueur', () => {
     await expect(recent.getByRole('link', { name: 'Tout l’historique →' })).toHaveAttribute('href', `/members/${MEMBER_ID}/matches?period=week`)
   })
 
-  test('dernière ligne : calendrier des 5 semaines (sans lien) et carte Carrière PUBG', async ({ page }) => {
+  test('calendrier des 5 semaines (un seul lien : sa page) et carte Carrière PUBG', async ({ page }) => {
     const calendar = page.getByRole('region', { name: 'Calendrier' })
     const days = calendar.getByRole('list', { name: 'Parties par jour' }).getByRole('listitem')
     await expect(days).toHaveCount(35)
@@ -185,7 +204,7 @@ test.describe('Tableau de bord d’un joueur', () => {
     await expect(calendar.getByTestId('calendar-win')).toHaveCount(2)
     await expect(calendar).toContainText('3 jours')
     await expect(calendar).toContainText('21 h – 23 h')
-    await expect(calendar.getByRole('link')).toHaveCount(0)
+    await expect(calendar.getByRole('link')).toHaveCount(1)
     const career = page.getByTestId('career-card')
     await expect(career).toHaveAttribute('href', `/members/${MEMBER_ID}/stats`)
     await expect(career).toContainText('×42')
@@ -193,19 +212,12 @@ test.describe('Tableau de bord d’un joueur', () => {
     await expect(career).toContainText('1 médaille d’or dans le clan')
   })
 
-  test('pages du joueur : puces dans le bandeau, chevrons sur mobile au lieu d’un défilement', async ({ page }, testInfo) => {
-    const nav = page.getByRole('navigation', { name: 'Pages du joueur' })
-    await expect(nav.getByRole('link', { name: /Tableau de bord/ })).toHaveCount(0)
-    if (isMobile(testInfo)) {
-      await expect(nav.getByRole('link')).toHaveCount(4)
-      const firstChip = (await nav.getByRole('link').first().textContent()) ?? ''
-      await nav.getByRole('button', { name: 'Éléments suivants' }).click()
-      await expect(nav.getByRole('link').first()).not.toHaveText(firstChip)
-      await expect(nav.getByRole('button', { name: 'Éléments précédents' })).toBeEnabled()
-    } else {
-      await expect(nav.getByRole('button', { name: 'Éléments suivants' })).toBeHidden()
-      // Badge : nombre de parties de la période.
-      await expect(nav.getByRole('link', { name: /Matchs/ })).toContainText('25')
+  test('plus de puces dans le bandeau : chaque page du joueur s’ouvre depuis une carte', async ({ page }) => {
+    // Décision du 2026-10-03 : les puces doublonnaient les liens des cartes.
+    await expect(page.getByRole('navigation', { name: 'Pages du joueur' })).toHaveCount(0)
+    const main = page.locator('main')
+    for (const path of ['stats', 'weapons', 'playstyle', 'items', 'nemesis', 'map-stats', 'drop-zones', 'heatmap', 'matches']) {
+      await expect(main.locator(`a[href^="/members/${MEMBER_ID}/${path}"]`).first()).toBeVisible()
     }
     await expectNoHorizontalScroll(page)
   })

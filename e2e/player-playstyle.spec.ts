@@ -60,6 +60,14 @@ test.describe('style de jeu du joueur', () => {
     await expect(page.getByRole('link', { name: /Objets consommés/ })).toHaveAttribute('href', `/members/${MEMBER_ID}/items`)
   })
 
+  test('meilleures formations : venues des statistiques par carte, sans le mode jamais joué', async ({ page }) => {
+    const teams = section(page, 'Meilleures formations')
+    await expect(teams.getByRole('article')).toHaveCount(2)
+    await expect(teams.getByRole('article', { name: 'Meilleur squad' })).toContainText('Joueur Delta')
+    await expect(teams.getByRole('article', { name: 'Meilleur duo' })).toContainText('19,2 %')
+    await expect(page.getByRole('link', { name: /Statistiques par carte/ })).toHaveAttribute('href', `/members/${MEMBER_ID}/map-stats`)
+  })
+
   test('aucun défilement horizontal', async ({ page }) => {
     await expect(section(page, 'Coopération').getByRole('table')).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)

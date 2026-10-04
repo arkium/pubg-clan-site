@@ -46,6 +46,9 @@ type Props = {
   overlay?: ReactNode
 }
 
+/** Zoom jusqu'à ×8 : placer un point au plus près (une carte de 8 km, soit environ 1,6 m par pixel sur un écran de bureau). */
+export const RESOURCE_MAP_MAX_ZOOM = 8
+
 const SQUARE = 'absolute grid h-[26px] w-[26px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[6px] border-2'
 
 function pointTone(point: ResourcePointView) {
@@ -86,6 +89,7 @@ export default function ResourceMapCanvas({
       <DropZoneMapViewport
         ref={viewportRef}
         showBoundaryControl={false}
+        maxZoom={RESOURCE_MAP_MAX_ZOOM}
         onMapClick={placing ? (xPct, yPct) => onPlace(metersFromPercent(map.sizeMeters, xPct, yPct)) : undefined}
         overlay={
           <>

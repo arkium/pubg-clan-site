@@ -86,6 +86,10 @@ Onglets réservés « Carte | Validation | Historique » sur la même page (`?ta
   flèches 10 m / Maj + flèches 50 m) ; notification annulable 7 s (un lot s'annule action par action) ; « Valider la
   sélection » affiche le nombre choisi ; l'historique se lit par pages de 7, page en état local.
 
+Carte : zoom jusqu'à ×8 (`RESOURCE_MAP_MAX_ZOOM`, boutons, molette) et, sur mobile, **pincement à deux doigts**
+(zoom continu, calé au lâcher sur le palier de ×0,5 le plus proche — commun à toutes les cartes de
+`DropZoneMapViewport`, 05/10/2026). Le fond de carte reste l'image de 1 008 px : au-delà de ×4, il devient flou.
+
 Page joueur — choix de mise en œuvre : un emplacement observé ne se signale pas (il est calculé) ; les compteurs des
 couches sont recalculés côté page (filtre drop zones compris) ; cercles de 800 m visibles quand le filtre est actif ;
 « Toujours là » et « Signaler » désactivés une fois faits ; pas de puce d'état pour une carte jamais vérifiée ;

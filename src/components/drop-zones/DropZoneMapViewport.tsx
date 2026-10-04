@@ -12,7 +12,7 @@ import {
 } from 'react'
 
 import MapZoomControl from '@/components/ui/MapZoomControl'
-import { MAP_ZOOM_MIN, clampMapZoom, stepMapZoom, wheelZoomDirection } from '@/lib/map-zoom'
+import { MAP_ZOOM_DEFAULT_MAX, MAP_ZOOM_MIN, clampMapZoom, pinchMapZoom, snapMapZoom, stepMapZoom, wheelZoomDirection } from '@/lib/map-zoom'
 
 type MapFocusLocation = {
   xPct: number
@@ -35,11 +35,22 @@ type DropZoneMapViewportProps = {
   overlay?: ReactNode
   /** Niveau de zoom courant (1 = carte entière), pour les commandes qui ne s'affichent qu'à 1×. */
   onZoomChange?: (zoom: number) => void
+  /** Zoom maximal de cette carte (4 par défaut ; la Carte des ressources monte à 8). */
+  maxZoom?: number
 }
 
 const MIN_ZOOM = MAP_ZOOM_MIN
-const MAX_ZOOM = 4
 const SWIPE_THRESHOLD_PX = 60
+
+/** Pincement à deux doigts en cours : écart et zoom de départ, point de la carte (fraction) sous le milieu des doigts. */
+type PinchState = {
+  startDistance: number
+  startZoom: number
+  anchorX: number
+  anchorY: number
+  midX: number
+  midY: number
+}
 
 type DragState = {
   pointerId: number
@@ -61,18 +72,27 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       onSwipeMap,
       overlay,
       onZoomChange,
+      maxZoom = MAP_ZOOM_DEFAULT_MAX,
     },
     ref
   ) {
     const viewportRef = useRef<HTMLDivElement>(null)
     const dragRef = useRef<DragState | null>(null)
     const zoomRef = useRef(MIN_ZOOM)
+    const maxZoomRef = useRef(maxZoom)
+    // Doigts posés sur la carte (pointeurs tactiles) et pincement en cours.
+    const touchesRef = useRef(new Map<number, { x: number; y: number }>())
+    const pinchRef = useRef<PinchState | null>(null)
     const [zoom, setZoom] = useState(MIN_ZOOM)
     const [dragging, setDragging] = useState(false)
 
     useEffect(() => {
       onZoomChange?.(zoom)
     }, [onZoomChange, zoom])
+
+    useEffect(() => {
+      maxZoomRef.current = maxZoom
+    }, [maxZoom])
 
     function scrollToPercent(xPct: number, yPct: number, behavior: ScrollBehavior = 'smooth') {
       const viewport = viewportRef.current
@@ -87,7 +107,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
 
     function changeZoom(nextZoom: number) {
       const viewport = viewportRef.current
-      const boundedZoom = clampMapZoom(nextZoom, MAX_ZOOM)
+      const boundedZoom = clampMapZoom(nextZoom, maxZoom)
       const centerX = viewport
         ? ((viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth) * 100
         : 50
@@ -114,8 +134,90 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
       requestAnimationFrame(() => scrollToPercent(location.xPct, location.yPct))
     }
 
+    /** Applique un zoom en gardant le point `anchor` (fraction de la carte) sous la position `mid` du cadre. */
+    function zoomAround(nextZoom: number, anchorX: number, anchorY: number, midX: number, midY: number) {
+      const viewport = viewportRef.current
+      if (!viewport) return
+      zoomRef.current = nextZoom
+      setZoom(nextZoom)
+      requestAnimationFrame(() => {
+        viewport.scrollTo({ left: anchorX * viewport.scrollWidth - midX, top: anchorY * viewport.scrollHeight - midY, behavior: 'auto' })
+      })
+    }
+
+    function touchMidpoint(viewport: HTMLDivElement) {
+      const [first, second] = [...touchesRef.current.values()]
+      const bounds = viewport.getBoundingClientRect()
+      return {
+        distance: Math.hypot(second.x - first.x, second.y - first.y),
+        midX: (first.x + second.x) / 2 - bounds.left,
+        midY: (first.y + second.y) / 2 - bounds.top,
+      }
+    }
+
+    /**
+     * Pincement à deux doigts (mobile) : zoom continu autour du milieu des doigts, calé au lâcher sur le palier de ×0,5
+     * le plus proche. Le second doigt annule le glissé et le clic du premier. Renvoie vrai si l'événement est pris.
+     */
+    function trackTouch(event: ReactPointerEvent<HTMLDivElement>, phase: 'down' | 'move' | 'up') {
+      if (event.pointerType !== 'touch') return false
+      const viewport = viewportRef.current
+      if (!viewport) return false
+      const touches = touchesRef.current
+
+      if (phase === 'down') {
+        touches.set(event.pointerId, { x: event.clientX, y: event.clientY })
+        if (touches.size !== 2) return false
+        const { distance, midX, midY } = touchMidpoint(viewport)
+        pinchRef.current = {
+          startDistance: distance,
+          startZoom: zoomRef.current,
+          anchorX: (viewport.scrollLeft + midX) / viewport.scrollWidth,
+          anchorY: (viewport.scrollTop + midY) / viewport.scrollHeight,
+          midX,
+          midY,
+        }
+        for (const pointerId of touches.keys()) {
+          if (!viewport.hasPointerCapture(pointerId)) viewport.setPointerCapture(pointerId)
+        }
+        dragRef.current = null
+        setDragging(false)
+        event.preventDefault()
+        return true
+      }
+
+      if (!touches.has(event.pointerId)) return false
+      if (phase === 'move') {
+        touches.set(event.pointerId, { x: event.clientX, y: event.clientY })
+        const pinch = pinchRef.current
+        if (!pinch || touches.size < 2) return false
+        const { distance, midX, midY } = touchMidpoint(viewport)
+        pinch.midX = midX
+        pinch.midY = midY
+        zoomAround(pinchMapZoom(pinch.startZoom, pinch.startDistance, distance, maxZoomRef.current), pinch.anchorX, pinch.anchorY, midX, midY)
+        event.preventDefault()
+        return true
+      }
+
+      // Lâcher : le pincement finit dès qu'un des deux doigts se lève ; le doigt restant ne glisse ni ne clique.
+      touches.delete(event.pointerId)
+      if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId)
+      const pinch = pinchRef.current
+      if (pinch) {
+        pinchRef.current = null
+        zoomAround(snapMapZoom(zoomRef.current, maxZoomRef.current), pinch.anchorX, pinch.anchorY, pinch.midX, pinch.midY)
+        dragRef.current = null
+        setDragging(false)
+        return true
+      }
+      return false
+    }
+
     function startDragging(event: ReactPointerEvent<HTMLDivElement>) {
       const viewport = viewportRef.current
+      if (trackTouch(event, 'down')) return
+      // Doigt resté posé après un pincement : ni glissé ni clic tant que tous les doigts ne sont pas levés.
+      if (event.pointerType === 'touch' && touchesRef.current.size > 1) return
       if (!viewport || event.button !== 0) return
       // Épingles, boutons et liens posés sur la carte gardent leur clic (pas de capture ni de glissé).
       if ((event.target as HTMLElement).closest('button, a, [data-map-interactive]')) return
@@ -134,6 +236,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
     }
 
     function dragMap(event: ReactPointerEvent<HTMLDivElement>) {
+      if (trackTouch(event, 'move')) return
       const viewport = viewportRef.current
       const drag = dragRef.current
       if (!viewport || !drag || drag.pointerId !== event.pointerId) return
@@ -152,6 +255,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
     }
 
     function stopDragging(event: ReactPointerEvent<HTMLDivElement>) {
+      if (trackTouch(event, 'up')) return
       const viewport = viewportRef.current
       const drag = dragRef.current
       if (!viewport || !drag || drag.pointerId !== event.pointerId) return
@@ -187,7 +291,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
         const direction = wheelZoomDirection(event.deltaY)
         if (direction === null) return
 
-        const nextZoom = stepMapZoom(zoomRef.current, direction, MAX_ZOOM)
+        const nextZoom = stepMapZoom(zoomRef.current, direction, maxZoomRef.current)
         if (nextZoom === zoomRef.current) return
 
         const bounds = activeViewport.getBoundingClientRect()
@@ -264,7 +368,7 @@ const DropZoneMapViewport = forwardRef<DropZoneMapViewportHandle, DropZoneMapVie
         </div> : null}
 
         {overlay}
-        <MapZoomControl zoom={zoom} max={MAX_ZOOM} onZoomChange={changeZoom} onReset={reset} />
+        <MapZoomControl zoom={zoom} max={maxZoom} onZoomChange={changeZoom} onReset={reset} />
       </div>
     )
   }

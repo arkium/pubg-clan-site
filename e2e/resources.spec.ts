@@ -563,3 +563,50 @@ test('aucun défilement horizontal : repos, fiche, parcours et remerciement', as
   await expect(flow(page)).toHaveAttribute('data-step', 'done')
   expect(await horizontalOverflow(page)).toEqual({ page: 0, scrollers: [] })
 })
+
+test.describe('zoom de la carte', () => {
+  const zoomLabel = (page: Page) => map(page).getByRole('button', { name: 'Afficher la carte entière' })
+
+  test('jusqu’à ×8 aux boutons, puis « + » désactivé ; « 1× » revient à la carte entière', async ({ api, page }) => {
+    mockResources(api)
+    await openPage(page)
+    const zoomIn = map(page).getByRole('button', { name: 'Augmenter le zoom' })
+    for (let step = 0; step < 14; step += 1) await zoomIn.click()
+    await expect(zoomLabel(page)).toContainText('8×')
+    await expect(zoomIn).toBeDisabled()
+    await zoomLabel(page).click()
+    await expect(zoomLabel(page)).toContainText('1×')
+  })
+
+  test('pincer à deux doigts zoome autour des doigts, se cale sur un palier, sans poser de point', async ({ api, page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'chromium-mobile', 'geste à deux doigts : protocole tactile de Chromium (écran tactile du profil mobile)')
+    mockResources(api, { signedIn: true })
+    await openPage(page)
+    const box = (await viewport(page).boundingBox())!
+    const cx = Math.round(box.x + box.width / 2)
+    const cy = Math.round(box.y + box.height / 2)
+    const cdp = await page.context().newCDPSession(page)
+    const fingers = (spread: number) => [
+      { x: cx - spread / 2, y: cy, id: 1 },
+      { x: cx + spread / 2, y: cy, id: 2 },
+    ]
+    async function pinch(from: number, to: number) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(from) })
+      const steps = 6
+      for (let index = 1; index <= steps; index += 1) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: fingers(from + ((to - from) * index) / steps) })
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    }
+
+    // Écart ×3 : 40 → 120 px.
+    await pinch(40, 120)
+    await expect(zoomLabel(page)).toContainText('3×')
+    // Rapprocher les doigts : retour à la carte entière.
+    await pinch(150, 50)
+    await expect(zoomLabel(page)).toContainText('1×')
+    // Aucun point posé, aucune fiche ouverte par le geste.
+    await expect(flow(page)).toHaveCount(0)
+    await expect(sheet(page)).toHaveCount(0)
+  })
+})

@@ -6589,7 +6589,7 @@ return (
               <tbody>
                 <tr class="app-table-row">
                   <td style="padding:0.625rem 0.875rem;font-weight:600;">Paliers</td>
-                  <td class="text-gray-500" style="padding:0.625rem 0.875rem;">Additifs de <code class="docs-code">×0,5</code> (<code class="docs-code">MAP_ZOOM_STEP</code>), de <code class="docs-code">×1</code> à <code class="docs-code">×4</code> par défaut. Un plafond plus haut est admis quand la lecture l'exige : <code class="docs-code">×8</code> sur le replay, pour séparer les joueurs d'un même bâtiment.</td>
+                  <td class="text-gray-500" style="padding:0.625rem 0.875rem;">Additifs de <code class="docs-code">×0,5</code> (<code class="docs-code">MAP_ZOOM_STEP</code>), de <code class="docs-code">×1</code> à <code class="docs-code">×4</code> par défaut. Un plafond plus haut est admis quand la lecture l'exige : <code class="docs-code">×8</code> sur le replay, pour séparer les joueurs d'un même bâtiment, et sur la Carte des ressources, pour placer un point au plus près (prop <code class="docs-code">maxZoom</code> de <code class="docs-code">DropZoneMapViewport</code>, 05/10/2026).</td>
                 </tr>
                 <tr class="app-table-row">
                   <td style="padding:0.625rem 0.875rem;font-weight:600;">Molette</td>
@@ -6602,6 +6602,10 @@ return (
                 <tr class="app-table-row">
                   <td style="padding:0.625rem 0.875rem;font-weight:600;">Glisser</td>
                   <td class="text-gray-500" style="padding:0.625rem 0.875rem;">Déplacement uniquement au-delà de <code class="docs-code">×1</code>, seuil de 5 px avant de considérer un glisser. La vue reste <strong>bornée à la carte</strong> : jamais de vide autour. Curseur <code class="docs-code">cursor-grab</code> / <code class="docs-code">cursor-grabbing</code> zoomé, <code class="docs-code">cursor-crosshair</code> à ×1 si un clic a un effet (sélection de joueur, pose de libellé).</td>
+                </tr>
+                <tr class="app-table-row">
+                  <td style="padding:0.625rem 0.875rem;font-weight:600;">Pincer</td>
+                  <td class="text-gray-500" style="padding:0.625rem 0.875rem;">Mobile : deux doigts zooment <strong>en continu</strong> autour du milieu des doigts (<code class="docs-code">pinchMapZoom</code>), puis le zoom se cale au lâcher sur le palier de <code class="docs-code">×0,5</code> le plus proche (<code class="docs-code">snapMapZoom</code>). Le second doigt annule le glissé et le clic du premier ; le doigt resté posé ne glisse ni ne clique. Pointeurs tactiles capturés par le cadre (<code class="docs-code">touch-none</code> : le navigateur ne zoome pas la page). Dans <code class="docs-code">DropZoneMapViewport</code>, donc sur toutes ses cartes (05/10/2026).</td>
                 </tr>
                 <tr class="app-table-row">
                   <td style="padding:0.625rem 0.875rem;font-weight:600;">Placement</td>

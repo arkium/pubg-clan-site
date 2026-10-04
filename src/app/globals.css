@@ -3349,15 +3349,17 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
 /* Sur une image sombre (bandeau, carte « en direct », manche), la couleur claire du mode, quel que soit le thème. */
 .tournament-mode--on-image { --tmode-text: color-mix(in oklch, var(--tmode) 45%, white); }
 
-/* Place à une manche (« forme ») : Top 1 en or, Top 10 en accent, au-delà en retrait. */
+/* Place à une manche (« forme ») — charte UI, 04/10/2026 : Top 1 en accent plein à encre sombre (« accentOn », comme
+   `.charte .app-placement-badge--winner` et `app-stamp` : jamais de blanc sur le jaune), Top 10 en accent teinté,
+   au-delà en retrait, absent en contour seul. 11 px minimum (charte §3), rayon 6 (badge, §2). */
 .tournament-place {
   display: inline-grid;
   place-items: center;
   min-width: 26px;
   height: 22px;
   padding: 0 4px;
-  border-radius: 5px;
-  font-size: 10px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   background-color: var(--theme-ui-surface-strong);
@@ -3370,8 +3372,8 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
 }
 
 .tournament-place--win {
-  background-color: rgb(251 191 36);
-  color: rgb(28 16 3);
+  background-color: var(--theme-ui-accent);
+  color: #1c1003;
 }
 
 .tournament-place--absent {
@@ -3743,6 +3745,54 @@ a.app-toolbar-btn:hover {
 
 .app-toolbar-search input::placeholder {
   color: var(--theme-ui-text-muted);
+}
+
+/*
+ * Champ de formulaire de la charte (docs/ui/index.html#controles) : 36 px, rayon 10, focus à l'accent, erreur au
+ * jeton négatif (`aria-invalid="true"`). Dans `@layer components`, contrairement aux autres classes globales : une
+ * utilitaire (largeur, hauteur, police chiffrée `t-num`) l'emporte sur le gabarit.
+ */
+@layer components {
+  .app-input {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--theme-ui-border);
+    border-radius: 10px;
+    background: var(--theme-ui-surface);
+    color: var(--theme-ui-text);
+    font-size: 13px;
+    font-weight: 500;
+    outline: none;
+    transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+  }
+
+  textarea.app-input {
+    height: auto;
+    min-height: 88px;
+    padding: 8px 12px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  .app-input::placeholder {
+    color: var(--theme-ui-text-muted);
+  }
+
+  .app-input:focus {
+    border-color: var(--theme-ui-accent-ring);
+    box-shadow: 0 0 0 3px var(--theme-ui-accent-soft);
+  }
+
+  .app-input[aria-invalid='true'] {
+    border-color: var(--theme-ui-negative);
+  }
+
+  .app-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
 }
 
 .app-menu {

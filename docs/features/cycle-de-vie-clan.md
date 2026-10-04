@@ -182,6 +182,12 @@ La route renvoie **409** en cas de refus : la requête est bien formée, c'est l
 ### Deux vues
 
 - **`/clans/mutations`** — visible par tout membre connecté, n'expose que les mouvements réellement survenus (`applied`, `reverted`).
+  Charte UI (2026-10-04) : bandeau photo, mouvements **groupés par jour de Paris** (une synchronisation de 01:45 tombe
+  sur son propre jour, pas sur la veille UTC), nature du mouvement en tuile de couleur de jeu — arrivée (depuis « sans
+  clan »), départ (vers « sans clan »), transfert, annulé — puis la source en clair, pagination numérotée (25 par page,
+  la page précédente reste affichée, estompée, pendant le chargement). Un visiteur reçoit une invitation à se connecter
+  plutôt qu'une erreur (l'API répond 401). Nature et regroupement : `src/lib/clan-mutations-view.ts` (+ test) ; e2e :
+  `e2e/clan-mutations.spec.ts`.
 - **Onglet « Mutations » de `/settings/clan-lifecycle`** — SuperUser, **tous statuts**, avec les actions « Annuler » et « Marquer comme vu ». C'est là qu'on comprend *pourquoi* un mouvement n'a pas encore eu lieu.
 
 ### Deux actions qu'il ne faut pas confondre
@@ -464,3 +470,33 @@ sous-domaine unique (`Clan.subdomain`) — `smk.chickendinner.fr` redirige vers 
   redirige vers la vitrine `/` tant que le clan n'est pas réactivé).
 - **Modification** : réservée au SuperUser, dans les paramètres du clan (« Adresse du clan »). L'ancien
   sous-domaine est libéré immédiatement.
+
+## 14. Page de réglages — charte UI (04/10/2026)
+
+`/settings/clan-lifecycle` suit la charte (`docs/ui/index.html`) depuis le 2026-10-04. Mêmes routes, mêmes corps
+envoyés, même lien profond `?tab=` (`mutations`, `pending`, `archived`, `ungrouped`, `settings`, `health`).
+
+- **Structure** : page à bandeau (`app-main-flush game-ui charte`) — fil d'Ariane vers l'espace SuperUser, bandeau photo
+  (`/clan_banner 2.jpg`, titre Teko, pastille du mode), puis `DockingToolbar` des six onglets (`ToolbarGroup`
+  « Section », compteurs au repos seulement, `dockOnMobile={false}` : pas de période). Docké, les onglets prennent leur
+  libellé court pour tenir sur une ligne à côté du retour du fil d'Ariane. Sous 640 px, les onglets passent dans un
+  menu de la charte (`app-menu-trigger`), comme le filtre de statut du journal.
+- **Découpage** : la page ne garde que l'orchestration (vue d'ensemble, onglet courant, toasts) ; les sections sont dans
+  `src/components/clan-lifecycle/` — `LifecycleHeader` (bandeau, onglets, rappel du mode), `MutationsSection`,
+  `ClanRequestsSections` (en attente, archivés), `ParkingSection`, `SettingsSection`, `HealthSection`, et
+  `LifecycleShared` (types, lecture `useLifecycleResource`, états vide / erreur / squelette, interrupteur, menu,
+  modale, toasts).
+- **Ce qui a changé à l'écran** : l'onglet « Ungrouped » s'appelle « Parking » (valeur d'URL inchangée) ; statuts,
+  origines et raisons en mots de joueur (« Appliqué », « Détecté — a changé de clan »…), la valeur technique en
+  infobulle ; nature du mouvement en tuile d'icône aux couleurs de jeu ; confirmations « Refuser » et « Réactiver le
+  suivi » en modale de la charte au lieu de `window.confirm` ; toasts en bas à droite (5 s, trois au plus) ; champs
+  `app-input` à bornes vérifiées avant envoi (erreur sous le champ, mêmes bornes que la route) ; interrupteurs de la
+  charte ; santé en tuiles chiffrées, KPI et tableau sans défilement horizontal.
+- **Rechargements** : une action ou un filtre garde la liste précédente estompée au lieu de la replier ; une section
+  en erreur l'affiche avec « Réessayer » (avant : liste vide, prise pour « rien à traiter »). Un réglage enregistré
+  réaligne le formulaire sur les valeurs relues sans effacer une saisie en cours.
+- **Journal paginé** : la route renvoyait déjà 30 lignes par page et le total ; la page affiche désormais la
+  pagination numérotée (`?page=` à partir de la page 2, première page à la même adresse qu'avant). Le parking est
+  paginé côté client, par 10.
+
+Tests : `e2e/clan-lifecycle.spec.ts` (données fictives `e2e/support/clan-lifecycle.ts`, toutes les API simulées).

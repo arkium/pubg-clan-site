@@ -1,123 +1,55 @@
 'use client'
 
-import Link from 'next/link'
+import { Lock } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useState } from 'react'
-import {
-  AlertTriangle,
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  Loader2,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-} from 'lucide-react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import { ArchivedClansSection, PendingClansSection } from '@/components/clan-lifecycle/ClanRequestsSections'
+import { HealthSection } from '@/components/clan-lifecycle/HealthSection'
+import {
+  CountersLine,
+  LIFECYCLE_TABS,
+  LifecycleBanner,
+  LifecycleTabs,
+  ModeCallout,
+  panelId,
+  parseLifecycleTab,
+  tabId,
+  type LifecycleTab,
+} from '@/components/clan-lifecycle/LifecycleHeader'
+import { ErrorState, ToastStack, type LifecycleOverview, type Toast, type ToastTone } from '@/components/clan-lifecycle/LifecycleShared'
+import { MutationsSection } from '@/components/clan-lifecycle/MutationsSection'
+import { ParkingSection } from '@/components/clan-lifecycle/ParkingSection'
+import { SettingsSection } from '@/components/clan-lifecycle/SettingsSection'
+import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import ToolbarGroup from '@/components/ui/ToolbarGroup'
 
 /**
- * Page SuperUser unique « Cycle de vie des clans » — chantier 5.
+ * Page SuperUser unique « Cycle de vie des clans » — chantier 5 (docs/features/cycle-de-vie-clan.md).
  *
- * Cinq onglets pour une seule thématique : mutations, clans en attente, parking,
- * paramètres et santé. Le regroupement comble aussi un trou fonctionnel — aucune
- * page ne permettait jusqu'ici de valider un clan en attente.
+ * Six onglets pour une seule thématique : mutations, clans en attente, clans archivés, parking, paramètres et santé.
+ * Le regroupement comble aussi un trou fonctionnel — aucune page ne permettait jusqu'ici de valider un clan en attente.
+ *
+ * Charte UI (docs/ui/index.html, 04/10/2026) : bandeau photo, onglets dans un bandeau collant (`DockingToolbar`, rien
+ * de docké sur mobile), sections dans src/components/clan-lifecycle/. La page ne garde que l'orchestration : vue
+ * d'ensemble (`GET /api/settings/clan-lifecycle`), onglet courant (`?tab=`) et toasts.
  */
 
-type TabKey = 'mutations' | 'pending' | 'archived' | 'ungrouped' | 'settings' | 'health'
-
-type Settings = {
-  mode: 'observe' | 'apply'
-  confirmationsRequired: number
-  maxMovesRatioPercent: number
-  archiveAfterDays: number
-  autoArchive: boolean
-  autoPromote: boolean
-  webhookUrl: string | null
-}
-
-type Counters = {
-  unacknowledged: number
-  observed: number
-  pending: number
-  pendingClans: number
-  archivedClans: number
-  ungroupedMembers: number
-  archiveCandidates: number
-}
-
-type Run = {
-  id: string
-  status: string
-  mode: string
-  startedAt: string
-  durationMs: number | null
-  membersScanned: number
-  apiCalls: number
-  statesUnknown: number
-  discrepanciesFound: number
-  awaitingConfirmation: number
-  movementsPlanned: number
-  movementsApplied: number
-  circuitBreakerTripped: boolean
-  movesRatioPercent: number | null
-}
-
-type Overview = {
-  settings: Settings
-  health: { lastRun: Run | null; recentRuns: Run[]; ungroupedDailyApiCalls: number }
-  counters: Counters
-}
-
-function formatDate(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function Badge({ count }: { count: number }) {
-  if (count <= 0) return null
-  return (
-    <span className="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white">
-      {count}
-    </span>
-  )
-}
-
-const TAB_KEYS: TabKey[] = ['mutations', 'pending', 'archived', 'ungrouped', 'settings', 'health']
-
-function parseTab(value: string | null): TabKey {
-  return TAB_KEYS.find((key) => key === value) ?? 'mutations'
-}
-
-export default function ClanLifecyclePage() {
-  // `?tab=` sert les liens profonds de l'annuaire des joueurs ; useSearchParams impose une
-  // frontière Suspense (CLAUDE.md, piège n° 5).
-  return (
-    <Suspense
-      fallback={
-        <main className="app-container app-main">
-          <p className="text-sm text-slate-600 dark:text-slate-400">Chargement...</p>
-        </main>
-      }
-    >
-      <ClanLifecycleContent />
-    </Suspense>
-  )
-}
+const TOAST_MS = 5000
+const MAX_TOASTS = 3
 
 function ClanLifecycleContent() {
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<TabKey>(() => parseTab(searchParams.get('tab')))
-  const [overview, setOverview] = useState<Overview | null>(null)
+  const [tab, setTab] = useState<LifecycleTab>(() => parseLifecycleTab(searchParams.get('tab')))
+  const [overview, setOverview] = useState<LifecycleOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [forbidden, setForbidden] = useState(false)
   const [refreshToken, setRefreshToken] = useState(0)
-  const [toast, setToast] = useState<{ text: string; tone: 'success' | 'error' } | null>(null)
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const toastSeq = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -133,10 +65,13 @@ function ClanLifecycleContent() {
           signal: controller.signal,
         })
 
-        if (res.status === 403) throw new Error('Accès réservé au SuperUser.')
+        if (res.status === 403) {
+          if (!cancelled) setForbidden(true)
+          return
+        }
         if (!res.ok) throw new Error('Impossible de charger la page.')
 
-        const data = (await res.json()) as Overview
+        const data = (await res.json()) as LifecycleOverview
         if (!cancelled) setOverview(data)
       } catch (err) {
         if ((err as Error).name === 'AbortError') return
@@ -153,1040 +88,124 @@ function ClanLifecycleContent() {
     }
   }, [refreshToken])
 
-  function refresh() {
-    setRefreshToken((token) => token + 1)
+  const refresh = useCallback(() => setRefreshToken((token) => token + 1), [])
+
+  const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((toast) => toast.id !== id)), [])
+
+  const showToast = useCallback(
+    (text: string, tone: ToastTone) => {
+      toastSeq.current += 1
+      const id = toastSeq.current
+      setToasts((current) => [...current, { id, text, tone }].slice(-MAX_TOASTS))
+      window.setTimeout(() => dismissToast(id), TOAST_MS)
+    },
+    [dismissToast]
+  )
+
+  const currentTab = LIFECYCLE_TABS.find((entry) => entry.value === tab) ?? LIFECYCLE_TABS[0]
+
+  function renderTab(data: LifecycleOverview) {
+    switch (tab) {
+      case 'settings':
+        return <SettingsSection settings={data.settings} onSaved={refresh} onToast={showToast} />
+      case 'health':
+        return <HealthSection health={data.health} />
+      case 'ungrouped':
+        return <ParkingSection onChanged={refresh} onToast={showToast} />
+      case 'pending':
+        return <PendingClansSection onChanged={refresh} onToast={showToast} />
+      case 'archived':
+        return <ArchivedClansSection onChanged={refresh} onToast={showToast} />
+      default:
+        return <MutationsSection onChanged={refresh} onToast={showToast} />
+    }
   }
 
-  function showToast(text: string, tone: 'success' | 'error') {
-    setToast({ text, tone })
-    window.setTimeout(() => setToast(null), 5000)
-  }
-
-  const counters = overview?.counters
-
-  const tabs: Array<{ value: TabKey; label: string }> = [
-    { value: 'mutations', label: 'Mutations' },
-    { value: 'pending', label: 'Clans en attente' },
-    { value: 'archived', label: 'Clans archivés' },
-    { value: 'ungrouped', label: 'Ungrouped' },
-    { value: 'settings', label: 'Paramètres' },
-    { value: 'health', label: 'Santé' },
-  ]
+  // Réglages et santé se lisent dans la vue d'ensemble : estompés pendant son rechargement, jamais repliés.
+  const fadesWithOverview = tab === 'settings' || tab === 'health'
 
   return (
-    <main className="app-container app-main">
-      <div className="mb-6">
-        <Link
-          href="/settings/superuser"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Espace SuperUser
-        </Link>
-      </div>
-
-      <div className="app-panel rounded-2xl p-6">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-500">
-            <ShieldCheck className="h-6 w-6" aria-hidden="true" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-black text-slate-900 dark:text-white">
-              Cycle de vie des clans
-            </h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Détection des changements d’appartenance, validation des clans découverts, parking des
-              joueurs sans clan, et réglages de l’automatisation.
-            </p>
-          </div>
-        </div>
-
-        {overview ? (
-          <div
-            className={`mt-4 rounded-xl border p-3 text-sm ${
-              overview.settings.mode === 'apply'
-                ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200'
-                : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300'
-            }`}
-          >
-            {overview.settings.mode === 'apply' ? (
-              <>
-                <strong>Mode application.</strong> Les mouvements confirmés sont appliqués
-                automatiquement, sans validation.
-              </>
-            ) : (
-              <>
-                <strong>Mode observation.</strong> Les écarts sont journalisés mais{' '}
-                <strong>aucun membre n’est déplacé</strong>, quel que soit le nombre de
-                confirmations atteint.
-              </>
-            )}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-4">
-        <SegmentedControl
-          options={tabs}
-          value={tab}
-          onChange={setTab}
-          size="sm"
-          wrap
-          fullWidthOnMobile
+    <>
+      <div className="app-container app-gutter">
+        <NavigationTrail
+          currentLabel="Cycle de vie des clans"
+          currentHref="/settings/clan-lifecycle"
+          fallbackParent={{ href: '/settings/superuser', label: 'Espace SuperUser' }}
         />
-        {counters ? (
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            {counters.unacknowledged} mouvement(s) à relire
-            <Badge count={counters.unacknowledged} /> · {counters.pendingClans} clan(s) en attente
-            <Badge count={counters.pendingClans} /> · {counters.archivedClans} clan(s) archivé(s) ·{' '}
-            {counters.ungroupedMembers} joueur(s) au
-            parking, dont {counters.archiveCandidates} archivable(s)
-            <Badge count={counters.archiveCandidates} />
+        <LifecycleBanner settings={overview?.settings ?? null} />
+      </div>
+
+      {forbidden ? (
+        <div className="app-container app-gutter pb-8 pt-[18px]">
+          <p className="app-panel flex items-start gap-2.5 p-4 text-[13px] text-gray-700" data-testid="clan-lifecycle-forbidden">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+            Accès réservé au SuperUser : le cycle de vie des clans s’applique à tous les clans.
           </p>
-        ) : null}
-      </div>
-
-      {toast ? (
-        <div
-          className={`mt-4 rounded-xl border p-3 text-sm ${
-            toast.tone === 'success'
-              ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/30 dark:text-emerald-200'
-              : 'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800/60 dark:bg-rose-950/30 dark:text-rose-200'
-          }`}
-        >
-          {toast.text}
         </div>
-      ) : null}
-
-      <div className="app-panel mt-4 rounded-2xl p-6">
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500 dark:text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Chargement…
-          </div>
-        ) : error ? (
-          <div className="py-8 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-500" aria-hidden="true" />
-            <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{error}</p>
-            <button type="button" onClick={refresh} className="app-btn app-btn--md app-btn--secondary mt-4">
-              Réessayer
-            </button>
-          </div>
-        ) : !overview ? null : tab === 'settings' ? (
-          <SettingsTab settings={overview.settings} onSaved={refresh} onToast={showToast} />
-        ) : tab === 'health' ? (
-          <HealthTab health={overview.health} />
-        ) : tab === 'ungrouped' ? (
-          <UngroupedTab onChanged={refresh} onToast={showToast} />
-        ) : tab === 'pending' ? (
-          <PendingClansTab onChanged={refresh} onToast={showToast} />
-        ) : tab === 'archived' ? (
-          <ArchivedClansTab onChanged={refresh} onToast={showToast} />
-        ) : (
-          <MutationsTab onChanged={refresh} onToast={showToast} />
-        )}
-      </div>
-    </main>
-  )
-}
-
-// ---------------------------------------------------------------- Paramètres
-
-function SettingsTab({
-  settings,
-  onSaved,
-  onToast,
-}: {
-  settings: Settings
-  onSaved: () => void
-  onToast: (text: string, tone: 'success' | 'error') => void
-}) {
-  const [draft, setDraft] = useState(settings)
-  const [webhookInput, setWebhookInput] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  async function save(patch: Record<string, unknown>) {
-    setSaving(true)
-    try {
-      const res = await fetch('/api/settings/clan-lifecycle', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(patch),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Échec de l’enregistrement')
-      onToast('Réglage enregistré.', 'success')
-      onSaved()
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Erreur inconnue', 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="app-panel-muted rounded-xl p-4">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">Mode d’exécution</p>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-          En <strong>observation</strong>, les écarts sont journalisés sans qu’aucun membre ne soit
-          déplacé. Passer en <strong>application</strong> est la seule décision qui engage : relisez
-          les mouvements confirmés avant de basculer.
-        </p>
-        <div className="mt-3">
-          <SegmentedControl
-            options={[
-              { value: 'observe', label: 'Observation' },
-              { value: 'apply', label: 'Application' },
-            ]}
-            value={draft.mode}
-            onChange={(mode) => {
-              setDraft((d) => ({ ...d, mode }))
-              void save({ mode })
-            }}
-            size="sm"
-          />
+      ) : !overview && error ? (
+        <div className="app-container app-gutter pb-8 pt-[18px]">
+          <section className="app-panel">
+            <ErrorState message={error} onRetry={refresh} testId="clan-lifecycle-error" />
+          </section>
         </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <NumberField
-          label="Confirmations exigées"
-          hint="Passages quotidiens concordants avant d’agir. Mesuré le 2026-09-20 : 2 aurait déclenché à tort."
-          value={draft.confirmationsRequired}
-          min={1}
-          max={10}
-          disabled={saving}
-          onCommit={(confirmationsRequired) => {
-            setDraft((d) => ({ ...d, confirmationsRequired }))
-            void save({ confirmationsRequired })
-          }}
-        />
-        <NumberField
-          label="Coupe-circuit (% de l’effectif)"
-          hint="Au-delà, le passage s’abandonne sans rien appliquer."
-          value={draft.maxMovesRatioPercent}
-          min={1}
-          max={100}
-          disabled={saving}
-          onCommit={(maxMovesRatioPercent) => {
-            setDraft((d) => ({ ...d, maxMovesRatioPercent }))
-            void save({ maxMovesRatioPercent })
-          }}
-        />
-        <NumberField
-          label="Archivage du parking (jours)"
-          hint="Inactivité au-delà de laquelle un joueur du parking devient archivable."
-          value={draft.archiveAfterDays}
-          min={1}
-          max={3650}
-          disabled={saving}
-          onCommit={(archiveAfterDays) => {
-            setDraft((d) => ({ ...d, archiveAfterDays }))
-            void save({ archiveAfterDays })
-          }}
-        />
-      </div>
-
-      <ToggleField
-        label="Promotion automatique depuis le parking"
-        hint="Sort un joueur du parking dès que son clan est détecté, si ce clan est déjà suivi."
-        value={draft.autoPromote}
-        onChange={(autoPromote) => {
-          setDraft((d) => ({ ...d, autoPromote }))
-          void save({ autoPromote })
-        }}
-      />
-      <ToggleField
-        label="Archivage automatique du parking"
-        hint="Archive sans validation au-delà du seuil. Désactivé, le cron se contente de marquer les candidats."
-        value={draft.autoArchive}
-        onChange={(autoArchive) => {
-          setDraft((d) => ({ ...d, autoArchive }))
-          void save({ autoArchive })
-        }}
-      />
-
-      <div className="app-panel-muted rounded-xl p-4">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">
-          Salon Discord d’administration
-        </p>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-          Reçoit chaque mouvement automatique. Laisser vide coupe les notifications — ce n’est pas
-          une erreur. Webhook global, distinct de celui de chaque clan.
-        </p>
-        <p className="mt-2 text-xs font-mono text-slate-500 dark:text-slate-400">
-          Actuel : {settings.webhookUrl ?? 'non configuré'}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <input
-            type="url"
-            value={webhookInput}
-            onChange={(e) => setWebhookInput(e.target.value)}
-            placeholder="https://discord.com/api/webhooks/..."
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-          />
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void save({ webhookUrl: webhookInput })}
-            className="app-btn app-btn--md app-btn--primary inline-flex items-center gap-2"
-          >
-            <Save className="h-4 w-4" aria-hidden="true" />
-            Enregistrer
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function NumberField({
-  label,
-  hint,
-  value,
-  min,
-  max,
-  disabled,
-  onCommit,
-}: {
-  label: string
-  hint: string
-  value: number
-  min: number
-  max: number
-  disabled?: boolean
-  onCommit: (value: number) => void
-}) {
-  const [local, setLocal] = useState(String(value))
-
-  return (
-    <div className="app-panel-muted rounded-xl p-4">
-      <label className="text-sm font-bold text-slate-900 dark:text-white">{label}</label>
-      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{hint}</p>
-      <div className="mt-2 flex gap-2">
-        <input
-          type="number"
-          min={min}
-          max={max}
-          value={local}
-          disabled={disabled}
-          onChange={(e) => setLocal(e.target.value)}
-          className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-        />
-        <button
-          type="button"
-          disabled={disabled || Number(local) === value}
-          onClick={() => onCommit(Number(local))}
-          className="app-btn app-btn--md app-btn--secondary disabled:opacity-40"
-        >
-          Appliquer
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function ToggleField({
-  label,
-  hint,
-  value,
-  onChange,
-}: {
-  label: string
-  hint: string
-  value: boolean
-  onChange: (value: boolean) => void
-}) {
-  return (
-    <div className="app-panel-muted flex items-start justify-between gap-4 rounded-xl p-4">
-      <div className="min-w-0">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">{label}</p>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{hint}</p>
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        aria-pressed={value}
-        className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors ${
-          value
-            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-        }`}
-      >
-        {value ? 'Activé' : 'Désactivé'}
-      </button>
-    </div>
-  )
-}
-
-// --------------------------------------------------------------------- Santé
-
-function HealthTab({ health }: { health: Overview['health'] }) {
-  const { lastRun, recentRuns, ungroupedDailyApiCalls } = health
-
-  return (
-    <div className="space-y-5">
-      <div className="app-panel-muted rounded-xl p-4">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">Dernier passage</p>
-        {lastRun ? (
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-            <Stat label="Statut" value={lastRun.status} />
-            <Stat label="Mode" value={lastRun.mode} />
-            <Stat label="Membres" value={String(lastRun.membersScanned)} />
-            <Stat label="Appels PUBG" value={String(lastRun.apiCalls)} />
-            <Stat label="Écarts" value={String(lastRun.discrepanciesFound)} />
-            <Stat label="En attente" value={String(lastRun.awaitingConfirmation)} />
-            <Stat label="Appliqués" value={String(lastRun.movementsApplied)} />
-            <Stat label="États indéterminés" value={String(lastRun.statesUnknown)} />
-          </dl>
-        ) : (
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Aucun passage enregistré.</p>
-        )}
-      </div>
-
-      <div className="app-panel-muted rounded-xl p-4">
-        <p className="text-sm font-bold text-slate-900 dark:text-white">Coût quotidien du parking</p>
-        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-          <strong>{ungroupedDailyApiCalls}</strong> appel(s) PUBG par jour, un par joueur au parking,
-          en plus de leur synchronisation de matchs. C’est ce que l’archivage réduit.
-        </p>
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-          Derniers passages
-        </p>
-        <ul className="space-y-2">
-          {recentRuns.map((run) => (
-            <li
-              key={run.id}
-              className="app-panel-muted flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl p-3 text-xs"
-            >
-              {run.circuitBreakerTripped ? (
-                <AlertTriangle className="h-4 w-4 text-rose-500" aria-hidden="true" />
-              ) : run.status === 'success' ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
-              ) : (
-                <Clock className="h-4 w-4 text-slate-400" aria-hidden="true" />
-              )}
-              <span className="font-semibold text-slate-900 dark:text-white">{run.status}</span>
-              <span className="text-slate-500 dark:text-slate-400">{run.mode}</span>
-              <span className="text-slate-500 dark:text-slate-400">
-                {run.membersScanned} membres · {run.apiCalls} appels · {run.movementsApplied} appliqué(s)
-              </span>
-              <span className="ml-auto text-slate-400">{formatDate(run.startedAt)}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-slate-400 dark:text-slate-500">{label}</dt>
-      <dd className="font-bold text-slate-900 dark:text-white">{value}</dd>
-    </div>
-  )
-}
-
-// ------------------------------------------------------------------ Ungrouped
-
-type UngroupedMember = {
-  memberId: number
-  displayName: string
-  lastMatchAt: string | null
-  inactiveDays: number | null
-  eligibleAt: string | null
-  isCandidate: boolean
-}
-
-function UngroupedTab({
-  onChanged,
-  onToast,
-}: {
-  onChanged: () => void
-  onToast: (text: string, tone: 'success' | 'error') => void
-}) {
-  const [members, setMembers] = useState<UngroupedMember[]>([])
-  const [thresholdDays, setThresholdDays] = useState(90)
-  const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [token, setToken] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoading(true)
-        const res = await fetch('/api/settings/clan-lifecycle/ungrouped', { cache: 'no-store' })
-        const data = await res.json()
-        if (!cancelled && res.ok) {
-          setMembers(data.members ?? [])
-          setThresholdDays(data.thresholdDays ?? 90)
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [token])
-
-  const candidates = members.filter((m) => m.isCandidate)
-
-  async function archiveAll() {
-    setBusy(true)
-    try {
-      const res = await fetch('/api/settings/clan-lifecycle/ungrouped', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'archive', memberIds: candidates.map((c) => c.memberId) }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Échec')
-      onToast(data.message, 'success')
-      setToken((t) => t + 1)
-      onChanged()
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Erreur', 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Chargement…
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-600 dark:text-slate-300">
-          {members.length} joueur(s) au parking · <strong>{candidates.length}</strong> archivable(s)
-          au-delà de {thresholdDays} jours
-        </p>
-        {candidates.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => void archiveAll()}
-            disabled={busy}
-            className="app-btn app-btn--md inline-flex items-center gap-2 bg-amber-600 font-bold text-white hover:bg-amber-500"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-            Archiver les {candidates.length} candidat(s)
-          </button>
-        ) : null}
-      </div>
-
-      {members.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-          Le parking est vide.
-        </p>
       ) : (
-        <ul className="space-y-2">
-          {members.map((member) => (
-            <li
-              key={member.memberId}
-              className="app-panel-muted flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl p-3 text-sm"
-            >
-              <span className="font-semibold text-slate-900 dark:text-white">
-                {member.displayName}
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {member.inactiveDays === null
-                  ? 'aucun match connu'
-                  : `${member.inactiveDays} j d’inactivité`}
-              </span>
-              <span className="ml-auto text-xs text-slate-400">
-                {member.isCandidate ? (
-                  <span className="rounded-md bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                    archivable
-                  </span>
-                ) : (
-                  `éligible le ${formatDate(member.eligibleAt)}`
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-// ------------------------------------------------------------ Clans en attente
-
-type PendingClan = {
-  id: number
-  name: string
-  tag: string
-  platformShard: string
-  createdAt: string
-  origin: 'join_request' | 'auto_detected'
-  requester: { memberId: number; playerName: string; contactEmail: string | null } | null
-  pendingPromotions: number
-}
-
-function PendingClansTab({
-  onChanged,
-  onToast,
-}: {
-  onChanged: () => void
-  onToast: (text: string, tone: 'success' | 'error') => void
-}) {
-  const [clans, setClans] = useState<PendingClan[]>([])
-  const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<number | null>(null)
-  const [token, setToken] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoading(true)
-        const res = await fetch('/api/settings/clan-lifecycle/pending-clans', { cache: 'no-store' })
-        const data = await res.json()
-        if (!cancelled && res.ok) setClans(data.clans ?? [])
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [token])
-
-  async function decide(clanId: number, decision: 'approve' | 'reject') {
-    if (decision === 'reject' && !window.confirm('Refuser cette demande de clan ?')) {
-      return
-    }
-
-    setBusyId(clanId)
-    try {
-      const res = await fetch(`/api/clans/${clanId}/${decision}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Échec')
-      onToast(data.message, 'success')
-      setToken((t) => t + 1)
-      onChanged()
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Erreur', 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Chargement…
-      </div>
-    )
-  }
-
-  if (clans.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-        Aucun clan en attente de validation.
-      </p>
-    )
-  }
-
-  return (
-    <ul className="space-y-3">
-      {clans.map((clan) => (
-        <li key={clan.id} className="app-panel-muted rounded-xl p-4 text-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-slate-900 dark:text-white">
-              [{clan.tag}] {clan.name}
-            </span>
-            <span
-              className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                clan.origin === 'auto_detected'
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-              }`}
-            >
-              {clan.origin === 'auto_detected' ? 'découvert automatiquement' : 'demande /join'}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">{clan.platformShard}</span>
-            {clan.tag ? (
-              <Link
-                href={`/settings/opponents?opponentsQ=${encodeURIComponent(clan.tag)}`}
-                className="text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
-                title="Historique de confrontations de ce clan dans l’Observatoire, pour décider en connaissance de cause"
-              >
-                Confrontations
-              </Link>
-            ) : null}
-            <span className="ml-auto text-xs text-slate-400">{formatDate(clan.createdAt)}</span>
-          </div>
-
-          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-            {clan.requester ? (
-              <>
-                Demandeur : <strong>{clan.requester.playerName}</strong>
-                {' · '}
-                {clan.requester.contactEmail ? (
-                  <span className="font-mono">{clan.requester.contactEmail}</span>
-                ) : (
-                  <span className="italic text-slate-400">aucun email de contact</span>
-                )}
-              </>
-            ) : (
-              <span className="italic text-slate-500 dark:text-slate-400">
-                Aucun demandeur — ce clan a été découvert par la synchronisation, pas demandé.
-              </span>
-            )}
-            {clan.pendingPromotions > 0 ? (
-              <>
-                {' · '}
-                <strong>{clan.pendingPromotions}</strong> joueur(s) y seront rattachés à
-                l’activation
-              </>
-            ) : null}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void decide(clan.id, 'approve')}
-              disabled={busyId === clan.id}
-              className="app-btn app-btn--md inline-flex items-center gap-2 bg-emerald-600 font-bold text-white hover:bg-emerald-500"
-            >
-              {busyId === clan.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : null}
-              Valider
-            </button>
-            <button
-              type="button"
-              onClick={() => void decide(clan.id, 'reject')}
-              disabled={busyId === clan.id}
-              className="app-btn app-btn--md app-btn--secondary"
-            >
-              Refuser
-            </button>
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-// ------------------------------------------------------------ Clans archivés
-
-type ArchivedClan = {
-  id: number
-  name: string
-  tag: string
-  platformShard: string
-  archivedAt: string | null
-  archivedReason: string | null
-  attachedMembers: number
-}
-
-const ARCHIVE_REASON_LABELS: Record<string, string> = {
-  unfollowed: 'suivi arrêté',
-  rejected: 'demande refusée',
-}
-
-/**
- * Clans qu'on ne suit plus, ou dont la demande a été refusée — docs/TODO/clan-archive.md §4.C.
- * Réactiver remet le clan en service sans réintégrer ses anciens membres.
- */
-function ArchivedClansTab({
-  onChanged,
-  onToast,
-}: {
-  onChanged: () => void
-  onToast: (text: string, tone: 'success' | 'error') => void
-}) {
-  const [clans, setClans] = useState<ArchivedClan[]>([])
-  const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<number | null>(null)
-  const [token, setToken] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoading(true)
-        const res = await fetch('/api/settings/clan-lifecycle/archived-clans', { cache: 'no-store' })
-        const data = await res.json()
-        if (!cancelled && res.ok) setClans(data.clans ?? [])
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [token])
-
-  async function reactivate(clan: ArchivedClan) {
-    if (!window.confirm(`Suivre de nouveau [${clan.tag}] ${clan.name} ? Ses anciens membres ne seront pas réintégrés automatiquement.`)) {
-      return
-    }
-
-    setBusyId(clan.id)
-    try {
-      const res = await fetch(`/api/settings/clans/${clan.id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'reactivate' }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Échec')
-      onToast(data.message, 'success')
-      setToken((t) => t + 1)
-      onChanged()
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Erreur', 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  if (loading) {
-    return <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Chargement…</p>
-  }
-
-  if (clans.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-        Aucun clan archivé. Arrêter le suivi d’un clan se fait depuis l’Observatoire (« Vos clans suivis ») ou
-        depuis les paramètres du clan.
-      </p>
-    )
-  }
-
-  return (
-    <ul className="space-y-3">
-      {clans.map((clan) => (
-        <li key={clan.id} className="app-panel-muted rounded-xl p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-900 dark:text-white">
-              [{clan.tag}] {clan.name}
-            </span>
-            <span
-              className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                clan.archivedReason === 'rejected'
-                  ? 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300'
-                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-              }`}
-            >
-              {ARCHIVE_REASON_LABELS[clan.archivedReason ?? ''] ?? clan.archivedReason ?? 'archivé'}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">{clan.platformShard}</span>
-            <span className="ml-auto text-xs text-slate-400">archivé le {formatDate(clan.archivedAt)}</span>
-          </div>
-
-          <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-            {clan.attachedMembers > 0
-              ? `${clan.attachedMembers} fiche(s) encore rattachée(s) (membres désactivés ou demandeur).`
-              : 'Aucune fiche rattachée.'}
-          </div>
-
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => void reactivate(clan)}
-              disabled={busyId === clan.id}
-              className="app-btn app-btn--md app-btn--secondary inline-flex items-center gap-2"
-            >
-              {busyId === clan.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-              Réactiver le suivi
-            </button>
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-// ----------------------------------------------------------------- Mutations
-
-type LifecycleMutation = {
-  id: string
-  source: string
-  status: string
-  detectedAt: string
-  acknowledgedAt: string | null
-  clanMember: { id: number; displayName: string } | null
-  previousClan: { tag: string | null } | null
-  newClan: { tag: string | null } | null
-}
-
-function MutationsTab({
-  onChanged,
-  onToast,
-}: {
-  onChanged: () => void
-  onToast: (text: string, tone: 'success' | 'error') => void
-}) {
-  const [mutations, setMutations] = useState<LifecycleMutation[]>([])
-  const [status, setStatus] = useState<string>('all')
-  const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [token, setToken] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        setLoading(true)
-        const query = status === 'all' ? '' : `?status=${status}`
-        const res = await fetch(`/api/settings/clan-lifecycle/mutations${query}`, {
-          cache: 'no-store',
-        })
-        const data = await res.json()
-        if (!cancelled && res.ok) setMutations(data.mutations ?? [])
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [status, token])
-
-  async function act(changeId: string, action: 'revert' | 'acknowledge') {
-    setBusyId(changeId)
-    try {
-      const res = await fetch('/api/settings/clan-lifecycle/mutations', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action, changeId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Échec')
-      onToast(data.message, 'success')
-      setToken((t) => t + 1)
-      onChanged()
-    } catch (err) {
-      onToast(err instanceof Error ? err.message : 'Erreur', 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  return (
-    <div>
-      {/* Les deux actions se ressemblent mais n'ont rien a voir : l'une modifie les
-          données, l'autre pas. La confusion a été constatee a l'usage. */}
-      <div className="app-panel-muted mb-4 rounded-xl p-3 text-xs text-slate-600 dark:text-slate-300">
-        <p className="mb-1.5 font-bold text-slate-900 dark:text-white">Les deux actions</p>
-        <ul className="space-y-1">
-          <li className="flex items-start gap-2">
-            <RotateCcw className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-            <span>
-              <strong>Annuler</strong> — replace réellement le joueur dans son clan précédent et
-              écrit une ligne inverse. Modifie les données.
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
-            <span>
-              <strong>Marquer comme vu</strong> — indique que vous avez relu ce mouvement et qu’il
-              est normal. Le sort de la file de relecture, <strong>sans rien modifier</strong>.
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div className="mb-4">
-        <SegmentedControl
-          options={[
-            { value: 'all', label: 'Tous' },
-            { value: 'applied', label: 'Appliqués' },
-            { value: 'observed', label: 'En cours de confirmation' },
-            { value: 'pending', label: 'En attente de clan' },
-            { value: 'reverted', label: 'Annulés' },
-          ]}
-          value={status}
-          onChange={setStatus}
-          size="xs"
-          wrap
-        />
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Chargement…
-        </div>
-      ) : mutations.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-          Aucun événement pour ce filtre.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {mutations.map((mutation) => (
-            <li
-              key={mutation.id}
-              className="app-panel-muted flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl p-3 text-sm"
-            >
-              <span className="font-semibold text-slate-900 dark:text-white">
-                {mutation.clanMember?.displayName ?? '—'}
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                [{mutation.previousClan?.tag ?? '—'}] → [{mutation.newClan?.tag ?? '—'}]
-              </span>
-              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {mutation.source}
-              </span>
-              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {mutation.status}
-              </span>
-              <span className="text-xs text-slate-400">{formatDate(mutation.detectedAt)}</span>
-
-              <div className="ml-auto flex gap-2">
-                {mutation.status === 'applied' ? (
-                  <button
-                    type="button"
-                    onClick={() => void act(mutation.id, 'revert')}
-                    disabled={busyId === mutation.id}
-                    title="Replacer le membre dans son clan précédent"
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                    Annuler
-                  </button>
-                ) : null}
-                {mutation.acknowledgedAt === null && mutation.status === 'applied' ? (
-                  <button
-                    type="button"
-                    onClick={() => void act(mutation.id, 'acknowledge')}
-                    disabled={busyId === mutation.id}
-                    title={'Sort ce mouvement de la file de relecture. Ne modifie rien.'}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    Marquer comme vu
-                  </button>
-                ) : null}
+        <>
+          {/* Bandeau des onglets ; sans période, rien de docké sur mobile (docs/TODO/sticky.md §2). */}
+          <DockingToolbar ariaLabel="Sections du cycle de vie des clans" dockOnMobile={false}>
+            {({ isSticky }) => (
+              <div className="flex w-full min-w-0 flex-col gap-2">
+                <ToolbarGroup label="Section" showLabel={!isSticky}>
+                  <LifecycleTabs value={tab} onChange={setTab} counters={overview?.counters} short={isSticky} />
+                </ToolbarGroup>
+                {!isSticky && overview ? <CountersLine counters={overview.counters} /> : null}
               </div>
-            </li>
-          ))}
-        </ul>
+            )}
+          </DockingToolbar>
+
+          <div className="app-container app-gutter flex flex-col gap-[18px] pb-8">
+            {overview ? <ModeCallout mode={overview.settings.mode} /> : null}
+            {overview && error ? (
+              <p className="text-[13px] font-semibold text-[var(--theme-ui-negative)]" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <section role="tabpanel" id={panelId(tab)} aria-labelledby={tabId(tab)} aria-label={currentTab.label} data-testid="clan-lifecycle-panel">
+              {!overview ? (
+                <CardSkeleton />
+              ) : (
+                <div
+                  className={`transition-opacity ${fadesWithOverview && loading ? 'opacity-60' : ''}`}
+                  aria-busy={fadesWithOverview && loading ? true : undefined}
+                >
+                  {renderTab(overview)}
+                </div>
+              )}
+            </section>
+          </div>
+        </>
       )}
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+    </>
+  )
+}
+
+export default function ClanLifecyclePage() {
+  return (
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) ; `.game-ui` : jetons --game-*.
+    <div className="app-main-flush game-ui charte flex-1">
+      {/* `?tab=` sert les liens profonds (annuaire des joueurs, zone de danger d'un clan) ; useSearchParams impose une
+          frontière Suspense (CLAUDE.md, piège n° 5). */}
+      <Suspense
+        fallback={
+          <div className="app-container app-gutter">
+            <CardSkeleton />
+          </div>
+        }
+      >
+        <ClanLifecycleContent />
+      </Suspense>
     </div>
   )
 }

@@ -62,19 +62,56 @@ manche, sans aucun message.**
 
 ## Page d'administration
 
-`/clans/[clanId]/settings/tournaments`, réservée à `manage_settings`, organisée en trois onglets :
+`/clans/[clanId]/settings/tournaments`, réservée à `manage_settings` (ou SuperUser ; sinon renvoi vers la vue
+d'ensemble du clan), organisée en trois onglets :
 
 1. **Tournois** — recherche, filtre de statut, tournois actifs en cartes, brouillons et tournois terminés en
    accordéon. Actions par tournoi : synchroniser PUBG, diffuser sur Discord, voir le classement, modifier, supprimer.
-2. **Créer / Modifier** — formulaire en cinq blocs : informations générales, mode de tournoi et attribution des
-   points, format et filtres PUBG, barème, diffusion Discord.
+2. **Créer** (ou **Modifier** quand un tournoi est en cours d'édition) — formulaire en cinq blocs : informations
+   générales, mode de tournoi et attribution des points, format et filtres PUBG, barème, diffusion Discord.
 3. **Guide** — ce que le tournoi comptabilise, les quatre modes, les escouades mixtes, la marche à suivre.
+
+**Charte UI** (`docs/ui/index.html`, 2026-10-04) : la page porte `.charte` et `.game-ui`. La page garde l'état et les
+appels API ; les blocs vivent dans `src/components/tournament-admin/` (`TournamentAdminSections` : bandeau, cartes,
+liste, alertes, toast, menu de statut ; `TournamentEditor` : formulaire ; `tournament-form.ts` : état, valeurs par
+défaut, contrôles et corps envoyé, repris tels quels de l'ancienne page).
+
+- **Bandeau d'image** (`/ClanLeaderboardTable.jpg`, hauteur standard 10 / 13 rem) : « Gestion des tournois » en
+  `t-banner-title`, trophée à l'accent ; « Nouveau tournoi » en haut à droite, en verre dépoli (charte, En-têtes).
+- **Bandeau collant** (`DockingToolbar`, `ToolbarGroup`) : onglets (icônes lucide, plus d'émoji), puis recherche
+  (`app-toolbar-search`) et statut sur l'onglet Tournois. Page sans période : **rien de docké sur mobile**
+  (`dockOnMobile={false}`, sticky.md §2). Docké sur ordinateur, le statut passe en menu (`StatusFilterMenu`) pour tenir
+  sur une ligne. Hors du contrôle `ui-conformance` (pages d'administration hors périmètre).
+- **Cartes** `app-panel` : mode par `TournamentModeBadge`, statut en pastille (actif teinté à l'accent, brouillon et
+  terminé neutres), format, carte et dates (avec l'année) en `app-meta-pill`, « Tous formats » quand le format est
+  libre ; « Supprimer » en `app-btn--danger`, écarté à droite. État vide : bordure tiretée, rayon 14.
+- **Formulaire** : champs `app-input` (36 px, focus à l'accent), intitulé au-dessus, aide en `t-meta`. Les contrôles
+  sont les mêmes qu'avant (titre, dates, fin après début) mais l'erreur s'affiche **sous le champ** au jeton négatif
+  (`aria-invalid`, formulaire `noValidate`) ; l'erreur du serveur s'affiche sous le formulaire, à côté du bouton.
+  Statut en `SegmentedControl` ; format PUBG (5 choix) en tuiles compactes ; mode du tournoi et escouades mixtes en
+  tuiles radio (choix teinté à l'accent, icône du mode à sa couleur `--tmode`) ; carte (11 choix) en menu de la charte
+  (`app-menu-trigger` / `app-menu`). **Plus aucun `<select>` natif.**
+- **Messages** : alertes en ligne de la charte (succès au jeton positif, erreur au négatif) ; synchronisation en toast
+  (en bas à droite, centré en bas sur mobile ; en cours au ciel, réussite positive, échec négatif), fermé à la main
+  comme avant.
 
 ### Suppression
 
 `TournamentDeleteModal` confirme avant d'appeler `DELETE /api/clans/[clanId]/tournaments/[tournamentId]`. La modale
 dit explicitement ce qui est conservé : **les matchs PUBG, la télémétrie et les statistiques restent en base**, seule
-la configuration du tournoi disparaît.
+la configuration du tournoi disparaît. Modale de la charte (comme la confirmation du mot de passe de `/account`) : voile
+`app-modal-backdrop`, carte `app-panel`, tuile d'icône au jeton négatif, titre `t-section-title`, « Annuler » en
+secondaire et « Supprimer définitivement » en `app-btn--danger` (jamais jaune) ; Échap ferme, sauf pendant la
+suppression.
+
+### Tests de la page
+
+`e2e/tournament-admin.spec.ts` (simulations dans `e2e/support/tournament-admin.ts`, organisateur `manage_settings`,
+toutes les API interceptées, `DELETE` par une route Playwright dédiée) : liste et archives, recherche et statut, état
+vide, création (erreurs sous les champs, corps du `POST` complet), erreur du serveur, modification (valeurs héritées
+normalisées, corps du `PATCH`), suppression par la modale (Échap, `DELETE`), synchronisation et toast, diffusion
+Discord (aperçu, manche déjà diffusée, envoi simulé), guide, bandeau docké sur ordinateur et jamais sur mobile, refus
+sans droit, aucun défilement horizontal ni `<select>` natif.
 
 ## Pages joueurs (refonte du 2026-09-27, maquette « Tournois »)
 
@@ -114,8 +151,7 @@ Libellés et textes des modes : **une seule source**, `TOURNAMENT_MODE_DESCRIPTI
   d'image en `t-banner-title` (Teko), compteur « en direct » à l'accent dès qu'un tournoi se joue, neutre sinon ;
   bandeau collant à une seule hauteur (`app-toolbar-search`, statut `self-stretch`). Docké sur mobile, le statut passe
   dans un menu (`TournamentStatusMenu`) pour tenir sur une ligne avec la recherche. La hauteur du bandeau d'image ne
-  change pas. Restent hors charte : la page d'un tournoi (badges de phase en couleurs fixes) et `.tournament-place`
-  (10 px, à passer à 11 px dans `globals.css`).
+  change pas. La page d'un tournoi a suivi le même jour (voir plus bas) ; `.tournament-place` est à 11 px.
 
 `GET /api/tournaments` (`src/lib/tournament-overview.ts`) classe par `computeTournamentModeStandings`, comme la page de
 détail ; l'ancienne version classait **toujours par clan**, d'où un clan « vainqueur » d'un tournoi solo. Chaque résumé
@@ -144,21 +180,49 @@ internes ne comptent pas.
 
 La page montre :
 
-1. **En-tête sur la carte** (celle du tournoi, sinon celle de la dernière manche) : état, mode, format, organisateur,
-   dates, fin ou début, et **le mode en clair** (« Inter-clans : une ligne par clan… ») ; manches, participants, heure de
-   la dernière manche. Actions d'organisateur (synchroniser, diffuser, paramètres) pour qui peut les exécuter.
+1. **En-tête sur la carte** (celle du tournoi, sinon celle de la dernière manche — `TournamentDetailHeader`) : état,
+   mode, format, organisateur, dates, fin ou début, et **le mode en clair** (« Inter-clans : une ligne par clan… ») ;
+   manches, participants, heure de la dernière manche. Actions d'organisateur (synchroniser, diffuser, paramètres) pour
+   qui peut les exécuter.
 2. **Bandeau collant** : ancres Classement / Manches / Barème (`SectionAnchorNav`) et, connecté, la place du lecteur
-   (« Ton clan : 2e · à 6 pts du 1er »). Docke aussi sur mobile (exception à sticky.md §2). Sans manche, l'ancre
-   « Manches » disparaît avec sa section.
+   (« Ton clan : 2e · à 6 pts du 1er », `TournamentViewerChip`). Docke aussi sur mobile (exception à sticky.md §2). Sans
+   manche, l'ancre « Manches » disparaît avec sa section.
 3. **Podium** (`PodiumCards`, ordinateur) et **MVP dans tous les modes** (il n'apparaissait qu'en solo).
 4. **Classement** : ta ligne surlignée et marquée, barre de points à la couleur du mode, kills, Top 1 et **forme** (place
-   à chaque manche, #1 en or, « – » absent). Composition en pastilles pour les équipes libres. En inter-clans,
+   à chaque manche, #1 en accent plein, « – » absent). Composition en pastilles pour les équipes libres. En inter-clans,
    « Cumul par clan / Détail par escouade » reste proposé (décision du 2026-09-27).
-5. **Trophée des clans** en solo.
-6. **Manches une par une** : puces M1…Mn et chevrons, la dernière d'abord ; carte, chicken dinner, MVP, lien vers le
-   débrief 2D, scores (ta ligne surlignée).
+5. **Trophée des clans** en solo, rangs par `RankCell`.
+6. **Manches une par une** : puces M1…Mn et chevrons, la dernière d'abord ; carte, tampon « Chicken dinner » et
+   vainqueur, MVP, lien vers le débrief 2D, scores (ta ligne surlignée).
 7. **Barème** en barres Top 1 → Top 10, puis par kill, bonus Top 1, manches retenues et, en inter-clans, la règle
    d'escouade mixte (`placementScale`, `tournamentRuleLines`).
+
+**Charte UI** (`docs/ui/index.html`, section « Tournois », 2026-10-04) : la page porte `.charte` (avec `.game-ui` et la
+classe du mode) ; classes de rôle partout (`t-section-title`, `t-card-title`, `t-meta`, `t-num`, `t-hero`).
+
+- **En-tête** : photo `.app-on-photo bg-hero-fallback`, rayon 14, titre `t-banner-title` précédé du trophée à l'accent,
+  chiffres en Teko. La hauteur du bandeau d'image ne change pas (≈ 207 px au lieu de 210 sur ordinateur, structure
+  identique : textes à gauche, trois tuiles à droite). Lien de l'organisateur blanc souligné d'accent.
+- **État** (`TournamentPhaseBadge`, `data-testid="tournament-phase"`) : « en direct » en **accent plein à encre
+  sombre**, comme la carte « en direct » de la liste (charte §1.2 : jamais de blanc sur le jaune) ; à venir (horloge),
+  terminé (drapeau) et brouillon (crayon) en puce neutre sur la photo (`border-white/25 bg-white/15`). Plus aucun
+  `bg-red-500` / `bg-sky-500` / `bg-amber-400`.
+- **Lecteur** : pastille de place, marque « Ton clan » et ligne `.tournament-row--viewer` en accent teinté (plus de
+  marque blanche sur l'accent). Dans le bandeau, la pastille prend la hauteur de la ligne des ancres (`self-stretch`,
+  plus de `h-[34px]`). **Docké sur mobile, une seule ligne** (charte §6) : ancres sans icône, pastille réduite au rang
+  (« 2e », phrase entière en infobulle et pour les lecteurs d'écran).
+- **Or et accent** : Top 1 du classement en `t-gold`, MVP du tournoi dans un `.app-panel` teinté or (`--game-gold-soft`,
+  chiffres en Teko) ; place #1 d'une manche (`.tournament-place--win`) en accent plein. Barème : une seule barre à
+  l'accent, le Top 1, les autres à la couleur des traits (`--game-track-strong`, charte §5g). Lien « Débrief 2D » à
+  l'accent sur la photo (plus d'indigo).
+- **Aucun défilement horizontal** (charte §4) : le tableau n'a plus de conteneur défilant ; sous 768 px, kills et Top 1
+  passent dans la sous-ligne et la forme disparaît ; la forme est bornée aux **5 dernières manches** de 768 à 1 023 px
+  et aux **10 dernières** au-delà (« Forme · 10 dernières »). Les puces de manche ne défilent plus : jusqu'à 7 manches,
+  toutes ; au-delà, la première, la courante et ses voisines, la dernière, « … » entre elles (`paginationItems`).
+- **`.tournament-place`** (`globals.css`) : 11 px (10 px avant), rayon 6, #1 en accent plein à encre sombre (`#1c1003`,
+  comme `.charte .app-placement-badge--winner`), Top 10 en accent teinté, au-delà en retrait, absent en contour.
+- **États** : chargement par `CardSkeleton`, erreur en `t-neg` avec lien `app-link`, classement vide en état vide de la
+  charte (panneau, trophée atténué, message).
 
 Sans manche comptabilisée, le message du joueur ne parle pas de synchronisation : seul l'organisateur reçoit
 « Lancez une synchronisation PUBG… ».
@@ -212,6 +276,23 @@ L'orchestration (`discord-tournament-service.ts`) réutilise `buildRoundViews` e
 **l'embed et la page de détail affichent donc exactement les mêmes chiffres**. En scrims internes, le MVP est
 restreint au clan organisateur — sinon un joueur d'un autre clan présent dans la partie pourrait être sacré.
 
+### Modale de diffusion (charte UI, 2026-10-04)
+
+`TournamentBroadcastModal` s'ouvre depuis l'administration et depuis la page d'un tournoi (props inchangées :
+`clanId`, `tournamentId`, `tournamentTitle`, `onClose`, `onBroadcast`). Modale de la charte : voile
+`app-modal-backdrop`, carte `app-panel`, tuile mégaphone teintée à l'accent, titre `t-section-title`, en-tête et
+actions fixes avec un corps qui défile (sur mobile, « Confirmer » reste visible sous un long aperçu) ; Échap ferme.
+
+- **Manche à diffuser** : menu de la charte (`app-menu-trigger` / `app-menu`), plus de `<select>` natif ; la dernière
+  manche est choisie par défaut, une manche déjà partie porte « Déjà diffusée » en orange d'attente (`--game-warn`).
+- **Manche déjà diffusée** : alerte en orange d'attente, bouton « Confirmer et rediffuser » ; erreur au jeton négatif.
+- **Aperçu** (`DiscordEmbedPreview`, partagé avec `/clans/[clanId]/settings/discord`) : surfaces, textes et liens
+  (`app-link`) aux jetons du thème, plus de bleu ni d'indigo en dur, plus de `dark:`. **Signature Discord gardée** :
+  le liseré gauche à la couleur que porte l'embed (`embed.color`, une donnée du message) ; les émojis du texte font
+  partie du message publié et restent. Pendant le calcul d'une autre manche, l'aperçu précédent reste, estompé.
+- Les jetons `--game-warn` / `--game-warn-soft` supposent un ancêtre `.game-ui` : c'est le cas des deux pages qui
+  ouvrent la modale.
+
 ## Guide « Comment fonctionne un tournoi ? »
 
 Sept fiches, définies une seule fois dans `src/lib/tournament-guide.ts` et rendues par
@@ -242,7 +323,8 @@ moteur n'y est pas décrit.
 | `tournament-overview.test.ts` | Liste publique : vainqueur et participants selon le mode (joueur en solo, escouade en intra-clan), dernière manche, classement détaillé seulement en direct, noms en deux requêtes |
 | `tournament-mode-display.test.ts` | Unités par mode, repérage du lecteur (clan, joueur, équipe), phrase « Ton clan est 2e… », forme par manche, comptes à rebours, barème et règles |
 | `next-redirects.test.ts` | Chaque redirection de `next.config.ts` mène à une page existante et ne masque aucune page ; anciennes adresses de tournoi par clan |
-| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections |
+| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections ; charte du détail (2026-10-04) : « en direct » à l'accent sans couleur en dur, `.tournament-place` ≥ 11 px, aucun défilement horizontal, bandeau docké sur une ligne à 375 px, 12 manches (puces paginées, forme bornée), tournoi à venir |
+| `e2e/tournament-admin.spec.ts` | Administration (2026-10-04) : liste et archives, recherche et statut, création et modification (corps vérifiés), suppression en modale, synchronisation, diffusion Discord simulée, guide, refus sans droit, aucun défilement horizontal ni select natif |
 | `tournament-standings-view.test.ts` | Libellés des participants, rangs, MVP, manches numérotées, trophée des clans, détail par escouade |
 | `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord |
 | `discord/discord-tournament-service.test.ts` | Diffusion dans les 4 modes, MVP restreint en scrims internes, webhooks, journalisation |

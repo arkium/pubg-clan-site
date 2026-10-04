@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Megaphone } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AlertTriangle, ChevronDown, Megaphone, Send, X } from 'lucide-react'
 
 import DiscordEmbedPreview from '@/components/discord/DiscordEmbedPreview'
 import type { DiscordWebhookPayload } from '@/lib/discord/discord-client'
@@ -35,6 +35,91 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+const roundLabel = (round: Round) => `Manche #${round.roundNumber} — ${formatDateTime(round.playedAt)}`
+
+/** Pastille « déjà diffusée » : orange d'attente (charte §1.3), jamais jaune. */
+function SentBadge() {
+  return (
+    <span className="shrink-0 rounded-[6px] bg-[var(--game-warn-soft)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--game-warn)]">
+      Déjà diffusée
+    </span>
+  )
+}
+
+/**
+ * Choix de la manche : menu de la charte (`app-menu-trigger` / `app-menu`), intitulé au-dessus — jamais de `<select>`
+ * natif. Le nombre de manches n'est pas borné : la liste défile dans le menu.
+ */
+function RoundMenu({ rounds, value, onChange }: { rounds: Round[]; value: string | null; onChange: (matchId: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [open])
+  const current = rounds.find((round) => round.squadMatchId === value) ?? rounds[rounds.length - 1]
+  return (
+    <div className="flex flex-col gap-1">
+      <span id="broadcast-round-label" className="text-[13px] font-semibold text-gray-700">
+        Manche à diffuser
+      </span>
+      <div ref={rootRef} className="relative">
+        <button
+          id="broadcast-round"
+          type="button"
+          onClick={() => setOpen((state) => !state)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Manche à diffuser : ${roundLabel(current)}${current.sentAt ? ' (déjà diffusée)' : ''}`}
+          className="app-menu-trigger h-9 w-full justify-between"
+        >
+          <span className="t-num truncate">{roundLabel(current)}</span>
+          <span className="flex shrink-0 items-center gap-2">
+            {current.sentAt ? <SentBadge /> : null}
+            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </span>
+        </button>
+        {open ? (
+          <div role="menu" aria-labelledby="broadcast-round-label" className="app-menu absolute inset-x-0 top-full z-20 mt-1.5">
+            {rounds.map((round) => (
+              <button
+                key={round.squadMatchId}
+                type="button"
+                role="menuitemradio"
+                aria-checked={round.squadMatchId === current.squadMatchId}
+                onClick={() => {
+                  onChange(round.squadMatchId)
+                  setOpen(false)
+                }}
+                className={`app-menu__item ${round.squadMatchId === current.squadMatchId ? 'app-menu__item--active' : ''}`}
+              >
+                <span className="t-num truncate">{roundLabel(round)}</span>
+                {round.sentAt ? <SentBadge /> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Diffusion d'une manche de tournoi sur Discord : choix de la manche, aperçu exact du message, envoi sur confirmation.
+ * Ouverte depuis l'administration des tournois et depuis la page d'un tournoi (API de props inchangée).
+ *
+ * Modale de la charte UI (docs/ui/index.html#modales) : voile `app-modal-backdrop`, carte `app-panel`, tuile d'icône
+ * teintée à l'accent, titre de section, Annuler en secondaire et confirmation en principal. Alertes aux jetons :
+ * manche déjà diffusée en orange d'attente (`--game-warn`), erreur au jeton négatif.
+ */
 export default function TournamentBroadcastModal({
   clanId,
   tournamentId,
@@ -148,111 +233,115 @@ export default function TournamentBroadcastModal({
     }
   }, [baseUrl, onBroadcast, onClose, selectedMatchId])
 
+  // Échap ferme la modale (un menu ouvert se ferme d'abord : il intercepte la même touche), sauf pendant l'envoi.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || sending) return
+      if (document.querySelector('#broadcast-round[aria-expanded="true"]')) return
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose, sending])
+
   return (
     <div
-      className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+      className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="tournament-broadcast-title"
+      data-testid="tournament-broadcast-modal"
     >
-      <div className="app-modal-card max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500">
-              <Megaphone className="h-6 w-6" />
-            </div>
-            <div>
-              <h3
-                id="tournament-broadcast-title"
-                className="text-lg font-black text-slate-900 dark:text-white"
-              >
-                Diffuser une manche sur Discord
-              </h3>
-              <p className="app-modal-subtitle text-xs text-slate-500 dark:text-slate-400">
-                {tournamentTitle}
-              </p>
-            </div>
+      {/* En-tête et actions fixes, corps défilant : sur mobile, « Confirmer » reste à portée sous un long aperçu. */}
+      <div className="app-panel flex max-h-[90vh] w-full max-w-2xl flex-col p-5 sm:p-6">
+        <div className="flex shrink-0 items-start gap-3">
+          <span
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[var(--theme-ui-accent-soft)] shadow-[inset_0_0_0_1px_var(--theme-ui-accent-ring)]"
+            aria-hidden="true"
+          >
+            <Megaphone className="h-[18px] w-[18px] text-[var(--theme-ui-accent-text)]" />
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <h2 id="tournament-broadcast-title" className="t-section-title">
+              Diffuser une manche sur Discord
+            </h2>
+            <p className="t-meta break-words">{tournamentTitle}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+            aria-label="Fermer"
+            className="-mr-1 -mt-1 shrink-0 rounded-[8px] p-1.5 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900"
           >
-            Fermer
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
-        {loadingRounds ? (
-          <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">Chargement des manches...</p>
-        ) : rounds.length === 0 ? (
-          <div className="app-modal-callout mt-6 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Aucune manche comptabilisée pour l&apos;instant. Lancez d&apos;abord une
-              synchronisation du tournoi.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="mt-6 space-y-2">
-              <label
-                htmlFor="broadcast-round"
-                className="text-sm font-medium text-slate-700 dark:text-slate-200"
-              >
-                Manche à diffuser
-              </label>
-              <select
-                id="broadcast-round"
-                value={selectedMatchId ?? ''}
-                onChange={(event) => setSelectedMatchId(event.target.value)}
-                className="app-modal-select w-full rounded border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                {rounds.map((round) => (
-                  <option key={round.squadMatchId} value={round.squadMatchId}>
-                    Manche #{round.roundNumber} — {formatDateTime(round.playedAt)}
-                    {round.sentAt ? ' (déjà diffusée)' : ''}
-                  </option>
-                ))}
-              </select>
+        <div className="-mx-1 mt-5 min-h-0 flex-1 overflow-y-auto px-1 pb-1">
+          {loadingRounds ? (
+            <div className="flex flex-col gap-3" aria-busy="true">
+              <p className="t-meta">Chargement des manches…</p>
+              <div className="app-panel-muted h-24 animate-pulse motion-reduce:animate-none" />
             </div>
-
-            {preview?.alreadySentAt ? (
-              <div className="app-modal-callout mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/60 dark:bg-amber-950/30">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
-                <p className="text-xs text-amber-800 dark:text-amber-300">
-                  Cette manche a déjà été diffusée le {formatDateTime(preview.alreadySentAt)}. La
-                  confirmer publiera un second message.
-                </p>
-              </div>
-            ) : null}
-
-            {preview?.usesTournamentOverride ? (
-              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                Envoi via le webhook spécifique de ce tournoi.
+          ) : rounds.length === 0 ? (
+            // État vide de la charte : bordure tiretée, rayon 14.
+            <div className="rounded-[14px] border border-dashed border-gray-200 px-4 py-6 text-center">
+              <p className="t-body text-gray-700">
+                Aucune manche comptabilisée pour l&apos;instant. Lancez d&apos;abord une synchronisation du tournoi.
               </p>
-            ) : null}
-
-            <div className="app-modal-inner-card mt-4 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              {loadingPreview ? (
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Calcul des scores de la manche...
-                </p>
-              ) : preview ? (
-                <DiscordEmbedPreview payload={preview.preview} />
-              ) : (
-                <p className="text-sm text-slate-500 dark:text-slate-400">Aucun aperçu disponible.</p>
-              )}
             </div>
-          </>
-        )}
+          ) : (
+            <div className="flex flex-col gap-4">
+              <RoundMenu rounds={rounds} value={selectedMatchId} onChange={setSelectedMatchId} />
 
-        {error ? (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
-          </div>
-        ) : null}
+              {preview?.alreadySentAt ? (
+                <div
+                  role="status"
+                  className="flex items-start gap-2.5 rounded-[14px] border border-[color-mix(in_srgb,var(--game-warn)_45%,transparent)] bg-[var(--game-warn-soft)] px-3.5 py-3"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--game-warn)]" aria-hidden="true" />
+                  <p className="t-body text-gray-700">
+                    Cette manche a déjà été diffusée le <span className="t-num">{formatDateTime(preview.alreadySentAt)}</span>. La
+                    confirmer publiera un second message.
+                  </p>
+                </div>
+              ) : null}
 
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <span className="t-label">Aperçu du message</span>
+                  {preview?.usesTournamentOverride ? <span className="t-meta">Envoi via le webhook spécifique de ce tournoi.</span> : null}
+                </div>
+                {/* Pendant le calcul d'une autre manche, l'aperçu précédent reste affiché, estompé. */}
+                <div
+                  className={`app-panel-muted p-3 transition-opacity sm:p-4 ${loadingPreview && preview ? 'opacity-60' : ''}`}
+                  aria-busy={loadingPreview}
+                  data-testid="tournament-broadcast-preview"
+                >
+                  {preview ? (
+                    <DiscordEmbedPreview payload={preview.preview} />
+                  ) : loadingPreview ? (
+                    <p className="t-meta">Calcul des scores de la manche…</p>
+                  ) : (
+                    <p className="t-meta">Aucun aperçu disponible.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error ? (
+            <div
+              role="alert"
+              className="mt-4 flex items-start gap-2.5 rounded-[14px] border border-[color-mix(in_srgb,var(--theme-ui-negative)_45%,transparent)] bg-[color-mix(in_srgb,var(--theme-ui-negative)_10%,transparent)] px-3.5 py-3"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--theme-ui-negative)]" aria-hidden="true" />
+              <p className="t-body text-gray-700">{error}</p>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-5 flex shrink-0 flex-wrap items-center justify-end gap-3">
           <button type="button" onClick={onClose} className="app-btn app-btn--md app-btn--secondary">
             Annuler
           </button>
@@ -260,10 +349,11 @@ export default function TournamentBroadcastModal({
             type="button"
             onClick={handleBroadcast}
             disabled={sending || loadingPreview || !preview}
-            className="app-btn app-btn--md app-btn--primary"
+            className="app-btn app-btn--md app-btn--primary gap-1.5"
           >
+            <Send className="h-4 w-4" aria-hidden="true" />
             {sending
-              ? 'Envoi en cours...'
+              ? 'Envoi en cours…'
               : preview?.alreadySentAt
                 ? 'Confirmer et rediffuser'
                 : 'Confirmer et envoyer sur Discord'}

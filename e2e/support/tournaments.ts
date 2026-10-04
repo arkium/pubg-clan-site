@@ -12,6 +12,7 @@ import type { TournamentRoundView, TournamentStandingView } from '@/lib/tourname
 
 export const LIVE_TOURNAMENT_ID = 'coupe-automne'
 export const SOLO_TOURNAMENT_ID = 'solo-showdown'
+export const UPCOMING_TOURNAMENT_ID = 'scrims-jeudi'
 
 const DAY = 86_400_000
 const at = (offsetMs: number) => new Date(Date.now() + offsetMs).toISOString()
@@ -75,7 +76,7 @@ export function tournamentOverviews(): TournamentOverview[] {
       standings: LIVE_STANDINGS,
       winner: LIVE_STANDINGS[0],
     }),
-    overview({ id: 'scrims-jeudi', title: 'Scrims du jeudi', mode: 'intra_clan', phase: 'upcoming', startDate: at(5 * 3_600_000), endDate: at(6 * 3_600_000), mapName: 'Savage_Main', mapLabel: 'Sanhok', roundCount: 0, participantCount: 0 }),
+    overview({ id: UPCOMING_TOURNAMENT_ID, title: 'Scrims du jeudi', mode: 'intra_clan', phase: 'upcoming', startDate: at(5 * 3_600_000), endDate: at(6 * 3_600_000), mapName: 'Savage_Main', mapLabel: 'Sanhok', roundCount: 0, participantCount: 0 }),
     overview({ id: 'mix-2', title: 'Mix & Match #2', mode: 'custom_teams', phase: 'upcoming', startDate: at(9 * DAY), endDate: at(15 * DAY), mapName: null, mapLabel: null, roundCount: 0, participantCount: 0 }),
     overview({ id: SOLO_TOURNAMENT_ID, title: 'Solo Showdown', mode: 'solo_ffa', phase: 'finished', gameMode: 'normal-solo', startDate: at(-20 * DAY), endDate: at(-14 * DAY), participantCount: 12, clanCount: 4, winner: soloWinner, leaders: [soloWinner] }),
     overview({ id: 'mix-1', title: 'Mix & Match #1', mode: 'custom_teams', phase: 'finished', startDate: at(-60 * DAY), endDate: at(-54 * DAY), winner: teamWinner, leaders: [teamWinner] }),
@@ -93,18 +94,19 @@ function view(row: TournamentStandingSummary, rank: number): TournamentStandingV
   return { ...row, totalDamage: row.totalKills * 140, matchesPlayed: 5, bestPlacement: 1, averagePlacement: 3, rank }
 }
 
-function rounds(): TournamentRoundView[] {
-  return MAPS.map((mapName, index) => {
+/** `count` manches ; au-delà de 5, cartes et places reprennent le même cycle (puces paginées, forme bornée). */
+function rounds(count = MAPS.length): TournamentRoundView[] {
+  return Array.from({ length: count }, (_, index) => {
     const scores = LIVE_STANDINGS.map((row) => {
       const clanId = (row.participant as { clanId: number }).clanId
-      const place = PLACES[clanId][index]
+      const place = PLACES[clanId][index % MAPS.length]
       return { key: row.key, label: row.label, points: Math.max(0, 11 - place) + 3, totalKills: 3, bestPlacement: place, placementScore: Math.max(0, 11 - place), killScore: 3, winBonus: place === 1 ? 2 : 0, memberLabels: [] }
     }).sort((left, right) => right.points - left.points)
     return {
       index: index + 1,
       matchId: `match-${index + 1}`,
-      createdAt: at(-(5 - index) * 3_600_000),
-      mapName,
+      createdAt: at(-(count - index) * 3_600_000),
+      mapName: MAPS[index % MAPS.length],
       gameMode: 'normal-squad',
       winnerLabel: scores.find((score) => score.bestPlacement === 1)?.label ?? null,
       mvp: { memberId: 1, label: '[DEMO] Joueur Alpha', kills: 6, damage: 820 },
@@ -122,7 +124,7 @@ const RULES = {
   bestOfRounds: null,
 }
 
-export function liveTournamentStandings() {
+export function liveTournamentStandings(roundCount = MAPS.length) {
   return {
     tournament: {
       id: LIVE_TOURNAMENT_ID,
@@ -142,8 +144,33 @@ export function liveTournamentStandings() {
       view({ ...summary('team:1:2:3:4', { kind: 'team', memberIds: [1, 2, 3, 4], clanIds: [CLAN_ID] }, '[DEMO] Joueur Alpha, [DEMO] Joueur Bravo', 30, 11, 1, [CLAN_ID]), memberLabels: ['[DEMO] Joueur Alpha', '[DEMO] Joueur Bravo'] }, 1),
     ],
     clanTrophy: [],
-    rounds: rounds(),
+    rounds: rounds(roundCount),
     mvp: { memberId: 1, label: '[DEMO] Joueur Alpha', kills: 24, damage: 3380 },
+  }
+}
+
+/** Scrims internes qui commencent dans 5 h : aucune manche, classement vide. */
+export function upcomingTournamentStandings() {
+  const rules = { ...RULES, mode: 'intra_clan' as const }
+  return {
+    tournament: {
+      id: UPCOMING_TOURNAMENT_ID,
+      title: 'Scrims du jeudi',
+      description: null,
+      status: 'active',
+      startDate: at(5 * 3_600_000),
+      endDate: at(6 * 3_600_000),
+      gameMode: 'normal-squad',
+      mapName: 'Savage_Main',
+      organizerClan: ORGANIZER,
+      rules,
+    },
+    rules,
+    modeStandings: [],
+    squadBreakdown: [],
+    clanTrophy: [],
+    rounds: [],
+    mvp: null,
   }
 }
 
@@ -195,6 +222,7 @@ export function mockTournaments(api: ApiMock) {
     .on('GET', '/api/tournaments', { body: { tournaments: tournamentOverviews() } })
     .on('GET', `/api/tournaments/${LIVE_TOURNAMENT_ID}/standings`, { body: liveTournamentStandings() })
     .on('GET', `/api/tournaments/${SOLO_TOURNAMENT_ID}/standings`, { body: soloTournamentStandings() })
+    .on('GET', `/api/tournaments/${UPCOMING_TOURNAMENT_ID}/standings`, { body: upcomingTournamentStandings() })
 }
 
 /** Le lecteur est membre du clan démo (sans droit d'organisateur). */

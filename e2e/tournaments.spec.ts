@@ -1,9 +1,16 @@
-import type { Page, TestInfo } from '@playwright/test'
+import type { Locator, Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
 import { CLAN_ID } from './support/data'
 import { appHeader, dock, toolbar } from './support/layout'
-import { LIVE_TOURNAMENT_ID, SOLO_TOURNAMENT_ID, mockTournaments, signInAsMember } from './support/tournaments'
+import {
+  LIVE_TOURNAMENT_ID,
+  SOLO_TOURNAMENT_ID,
+  UPCOMING_TOURNAMENT_ID,
+  liveTournamentStandings,
+  mockTournaments,
+  signInAsMember,
+} from './support/tournaments'
 
 /**
  * Tournois — docs/features/tournois.md, « Pages joueurs » (maquette « Tournois », 2026-09-27). Le mode d'abord : cartes
@@ -14,6 +21,33 @@ import { LIVE_TOURNAMENT_ID, SOLO_TOURNAMENT_ID, mockTournaments, signInAsMember
 const isMobile = (testInfo: TestInfo) => ['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name)
 const modeCards = (page: Page) => page.getByRole('region', { name: 'Modes de tournoi' })
 const palmares = (page: Page) => page.getByRole('region', { name: 'Palmarès' })
+const phaseBadge = (page: Page) => page.getByTestId('tournament-phase')
+const roundPicker = (page: Page) => page.locator('#tournament-rounds').getByRole('group', { name: 'Choisir une manche' })
+
+/** Teintes Tailwind en dur interdites par la charte (docs/ui/index.html, « Interdits »). */
+const HARD_CODED_COLOR = /\b(?:bg|text|border)-(?:red|sky|amber|emerald|rose|blue|indigo|orange|yellow)-\d{2,3}\b/
+
+/** Couleur de fond calculée de l'élément, et celle du jeton `--theme-ui-accent` à sa place. */
+async function backgroundAndAccent(locator: Locator) {
+  return locator.evaluate((element) => {
+    const probe = document.createElement('span')
+    probe.style.backgroundColor = 'var(--theme-ui-accent)'
+    element.parentElement?.appendChild(probe)
+    const accent = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return { background: getComputedStyle(element).backgroundColor, accent }
+  })
+}
+
+/** Débordement horizontal de la page, et blocs de la page qui défilent de côté (charte : jamais). */
+async function horizontalScroll(page: Page) {
+  return page.evaluate(() => ({
+    page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    scrollers: [...document.querySelectorAll('.app-main-flush *')]
+      .filter((element) => ['auto', 'scroll'].includes(getComputedStyle(element).overflowX) && element.scrollWidth > element.clientWidth + 1)
+      .map((element) => element.className.toString().slice(0, 80)),
+  }))
+}
 
 test.beforeEach(({ api }) => {
   mockTournaments(api)
@@ -102,7 +136,26 @@ test.describe('détail d’un tournoi inter-clans', () => {
   test.beforeEach(async ({ api, page }) => {
     signInAsMember(api)
     await page.goto(`/tournaments/${LIVE_TOURNAMENT_ID}`)
+    // Le shell remonte la page quand la session arrive (WebKit) : un clic fait avant serait perdu.
+    await page.waitForLoadState('networkidle')
     await expect(page.getByRole('heading', { level: 1, name: 'Coupe d’automne' })).toBeVisible()
+  })
+
+  test('« en direct » à l’accent de la charte, aucune couleur en dur dans l’en-tête', async ({ page }) => {
+    await expect(phaseBadge(page)).toHaveText('EN DIRECT')
+    await expect(phaseBadge(page)).toHaveAttribute('data-phase', 'live')
+    // Plus de pastille rouge : l'accent plein (charte §1.2), comme la carte « en direct » de la liste.
+    const { background, accent } = await backgroundAndAccent(phaseBadge(page))
+    expect(background).toBe(accent)
+    const classes = await page.locator('header').filter({ has: page.getByRole('heading', { level: 1 }) }).evaluate((header) =>
+      [header, ...header.querySelectorAll('*')].map((element) => element.getAttribute('class') ?? '').join(' ')
+    )
+    expect(classes).not.toMatch(HARD_CODED_COLOR)
+    await expect(page.getByRole('heading', { level: 1 })).toHaveClass(/\bt-banner-title\b/)
+  })
+
+  test('aucun défilement horizontal, tableau et manches compris', async ({ page }) => {
+    expect(await horizontalScroll(page)).toEqual({ page: 0, scrollers: [] })
   })
 
   test('le mode est dit en clair, la place du lecteur est dans le bandeau', async ({ page }) => {
@@ -121,7 +174,14 @@ test.describe('détail d’un tournoi inter-clans', () => {
     if (!isMobile(testInfo)) {
       await expect(mine.locator('.tournament-place')).toHaveCount(5)
       await expect(mine.locator('.tournament-place--win')).toHaveCount(1)
+      // #1 en accent plein (« #1 jaune à encre sombre », comme PlacementBadge sous la charte).
+      const { background, accent } = await backgroundAndAccent(mine.locator('.tournament-place--win'))
+      expect(background).toBe(accent)
     }
+    // Charte §3 : aucun texte sous 11 px, places de la forme et des manches comprises.
+    const sizes = await page.locator('.tournament-place').evaluateAll((places) => places.map((place) => parseFloat(getComputedStyle(place).fontSize)))
+    expect(sizes.length).toBeGreaterThan(0)
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(11)
     await expect(page.getByText('MVP du tournoi')).toBeVisible()
   })
 
@@ -156,13 +216,67 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await dock(page)
     await expect(toolbar(page).getByRole('link', { name: 'Manches' })).toBeVisible()
     await expect(page.getByTestId('tournament-viewer-position')).toBeVisible()
+    // Docké, une seule ligne (charte §6), 375 px compris : ancres et place du lecteur sur la même ligne.
+    const centers = await Promise.all(
+      [
+        toolbar(page).getByRole('link', { name: 'Classement' }),
+        toolbar(page).getByRole('link', { name: 'Barème' }),
+        page.getByTestId('tournament-viewer-position'),
+      ].map(async (locator) => {
+        const box = await locator.boundingBox()
+        return box ? box.y + box.height / 2 : Number.NaN
+      })
+    )
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(4)
   })
+})
+
+test('douze manches : puces paginées, forme bornée, aucun défilement horizontal', async ({ api, page }, testInfo) => {
+  signInAsMember(api)
+  api.on('GET', `/api/tournaments/${LIVE_TOURNAMENT_ID}/standings`, { body: liveTournamentStandings(12) })
+  await page.goto(`/tournaments/${LIVE_TOURNAMENT_ID}`)
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('heading', { level: 1, name: 'Coupe d’automne' })).toBeVisible()
+
+  // La première, la courante et ses voisines, la dernière : « … » entre elles (charte, « Pagination »).
+  const chips = roundPicker(page).getByRole('button', { name: /^M\d+$/ })
+  await expect(chips).toHaveText(['M1', 'M11', 'M12'])
+  await roundPicker(page).getByRole('button', { name: 'M1', exact: true }).click()
+  await expect(page.locator('#tournament-rounds').getByRole('article')).toHaveAttribute('aria-label', 'Manche 1')
+  await expect(chips).toHaveText(['M1', 'M2', 'M12'])
+  await roundPicker(page).getByRole('button', { name: 'Manche suivante' }).click()
+  await expect(chips).toHaveText(['M1', 'M2', 'M3', 'M12'])
+
+  if (!isMobile(testInfo)) {
+    // Forme bornée aux dernières manches : 5 sous 1 024 px, 10 au-delà.
+    const visible = await page
+      .locator('tr[aria-current="true"] .tournament-place')
+      .evaluateAll((places) => places.filter((place) => place.getClientRects().length > 0).length)
+    expect(visible).toBe(testInfo.project.name === 'chromium-tablet' ? 5 : 10)
+  }
+  expect(await horizontalScroll(page)).toEqual({ page: 0, scrollers: [] })
+})
+
+test('tournoi à venir : état neutre, classement vide sans invitation à synchroniser', async ({ api, page }) => {
+  signInAsMember(api)
+  await page.goto(`/tournaments/${UPCOMING_TOURNAMENT_ID}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Scrims du jeudi' })).toBeVisible()
+  await expect(phaseBadge(page)).toHaveText('À VENIR')
+  await expect(phaseBadge(page)).not.toHaveClass(HARD_CODED_COLOR)
+  const { background, accent } = await backgroundAndAccent(phaseBadge(page))
+  expect(background).not.toBe(accent)
+  await expect(page.getByText(/commence dans [45] h/)).toBeVisible()
+  const standings = page.locator('#tournament-standings')
+  await expect(standings).toContainText('Le tournoi n’a pas commencé')
+  await expect(standings).not.toContainText('synchronisation')
+  await expect(toolbar(page).getByRole('link', { name: 'Manches' })).toHaveCount(0)
 })
 
 test('détail d’un tournoi solo : trophée des clans, « Toi », pas d’escouades mixtes', async ({ api, page }) => {
   signInAsMember(api)
   await page.goto(`/tournaments/${SOLO_TOURNAMENT_ID}`)
   await expect(page.getByRole('heading', { level: 1, name: 'Solo Showdown' })).toBeVisible()
+  await expect(phaseBadge(page)).toHaveText('TERMINÉ')
   await expect(page.getByTestId('tournament-viewer-position')).toContainText('Toi : 2e')
   await expect(page.getByRole('region', { name: 'Trophée des clans' })).toContainText('[RATZ] Les Ratz')
   await expect(page.locator('#tournament-rules')).not.toContainText('Escouades mixtes')

@@ -13,6 +13,7 @@ function isSafeHref(url: string) {
 /**
  * Rend le sous-ensemble de markdown que produisent nos generateurs d'embed
  * (gras et liens), pour que l'apercu corresponde a ce que Discord affichera.
+ * Liens de la charte (`app-link`) : plus de bleu en dur.
  */
 function renderInlineMarkdown(text: string): ReactNode[] {
   const nodes: ReactNode[] = []
@@ -29,7 +30,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
 
     if (bold !== undefined) {
       nodes.push(
-        <strong key={`b-${match.index}`} className="font-semibold">
+        <strong key={`b-${match.index}`} className="font-semibold text-gray-900">
           {bold}
         </strong>
       )
@@ -41,7 +42,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
             href={linkUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-blue-500 hover:underline"
+            className="app-link"
           >
             {linkLabel}
           </a>
@@ -78,25 +79,29 @@ function toCssColor(color: number | undefined) {
   return `#${(color ?? 0x99aab5).toString(16).padStart(6, '0')}`
 }
 
+/**
+ * Aperçu d'un message Discord, tel que le webhook le publiera. Charte UI (docs/ui/index.html) : surfaces, textes et
+ * liens aux jetons du thème (clair et sombre sans `dark:`). Seule couleur propre à Discord, gardée comme signature : le
+ * liseré gauche de l'embed, à la couleur que porte le message (`embed.color`, donnée et non teinte de page). Les émojis
+ * du texte font partie du message publié : ils restent.
+ */
 export default function DiscordEmbedPreview({ payload }: { payload: DiscordWebhookPayload }) {
   const embed = payload.embeds[0]
 
   if (!embed) return null
 
   return (
-    <div className="space-y-2">
-      {payload.content ? (
-        <p className="text-sm font-semibold text-indigo-500">{payload.content}</p>
-      ) : null}
+    <div className="flex min-w-0 flex-col gap-2" data-testid="discord-embed-preview">
+      {payload.content ? <p className="t-body font-semibold text-gray-900">{payload.content}</p> : null}
 
       <div
-        className="rounded-lg border-l-4 bg-gray-50 p-4 dark:bg-slate-900/60"
+        className="min-w-0 break-words rounded-[8px] border-l-4 bg-[var(--theme-ui-surface)] p-3 shadow-[inset_0_0_0_1px_var(--theme-ui-border)] sm:p-4"
         style={{ borderLeftColor: toCssColor(embed.color) }}
       >
         {embed.title ? (
-          <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
+          <p className="text-[13px] font-bold text-gray-900">
             {embed.url && isSafeHref(embed.url) ? (
-              <a href={embed.url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
+              <a href={embed.url} target="_blank" rel="noreferrer" className="app-link">
                 {embed.title}
               </a>
             ) : (
@@ -106,7 +111,7 @@ export default function DiscordEmbedPreview({ payload }: { payload: DiscordWebho
         ) : null}
 
         {embed.description ? (
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+          <p className="t-body mt-1 text-gray-700">
             <MultilineText text={embed.description} />
           </p>
         ) : null}
@@ -114,11 +119,9 @@ export default function DiscordEmbedPreview({ payload }: { payload: DiscordWebho
         {embed.fields?.length ? (
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
             {embed.fields.map((field, index) => (
-              <div key={index} className={field.inline ? 'min-w-24' : 'w-full'}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
-                  {field.name}
-                </p>
-                <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300">
+              <div key={index} className={`min-w-0 ${field.inline ? 'min-w-24' : 'w-full'}`}>
+                <p className="text-[13px] font-bold text-gray-900">{field.name}</p>
+                <p className="t-body mt-0.5 text-gray-700">
                   <MultilineText text={field.value} />
                 </p>
               </div>
@@ -127,13 +130,11 @@ export default function DiscordEmbedPreview({ payload }: { payload: DiscordWebho
         ) : null}
 
         {embed.thumbnail ? (
-          <p className="mt-3 text-xs italic text-gray-500 dark:text-gray-400">
-            Vignette : {embed.thumbnail.url}
-          </p>
+          <p className="t-meta mt-3 break-all italic">Vignette : {embed.thumbnail.url}</p>
         ) : null}
 
         {embed.footer ? (
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p className="t-meta t-num mt-3">
             {embed.footer.text}
             {embed.timestamp
               ? ` · ${new Date(embed.timestamp).toLocaleString('fr-FR', {

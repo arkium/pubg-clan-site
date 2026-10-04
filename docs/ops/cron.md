@@ -25,6 +25,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `clan_lifecycle_membership_sync` | `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON` | `45 1 * * *` | Vérifie l'appartenance de clan de chaque membre suivi, joueur par joueur |
 | `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
 | `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
+| `resource_vehicle_spots` | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Recalcule les emplacements des véhicules observés de la carte des ressources (90 derniers jours) |
 
 La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune à tous les schedules.
 
@@ -162,6 +163,46 @@ dans [database-performance.md](database-performance.md#4bis-compression-de-la-g�
 `scripts/check-purge-protections.ts` (poids des protections), `scripts/check-purge-collateral.ts`
 (agrégats déjà calculés), `scripts/check-purge-update-cost.ts` (coût d'écriture, transaction annulée).
 
+### `resource_vehicle_spots` — Véhicules observés de la carte des ressources
+
+À 06:30, après `telemetry_geo_purge_count` (06:00, ~22 s). Seule `encountered_player_clan_resolution` (`*/30`, quelques
+secondes de base) tombe à la même minute ; aucun autre travail lourd ne chevauche. Code :
+`src/lib/resources/resource-vehicle-spots.ts` (`computeResourceVehicleSpots`). Fonctionnalité :
+[carte-ressources.md](../features/carte-ressources.md).
+
+**Ce qu'il fait**, carte par carte (les cinq cartes de `RESOURCE_MAPS`) :
+
+- parties des **90 derniers jours** (`OBSERVATION_WINDOW_DAYS`) de types `official`, `competitive` et `airoyale` (mêmes
+  points d'apparition ; parties personnalisées, `event`, arcade et `rumble` exclues, ~2 % des parties) ;
+- lecture de `vehicleSamples` + `vehicleSamplesGz` **par lots de 50 parties**, décodés par `decodeTelemetryRow` ;
+  une carte à la fois, seules les observations retenues restent en mémoire ;
+- observations : premières montées de chaque véhicule si la télémétrie porte `vehicleUniqueId`, sinon montées de
+  phase ≤ 1 non passagères (`teammateAboard !== true`) ; montées au **lobby** (avant l'embarquement dans l'avion)
+  ignorées ; centimètres → mètres, hors carte ignoré ;
+- regroupement (`clusterObservations`), puis **une transaction par carte** qui remplace tous ses `ResourceVehicleSpot`
+  (singletons compris : le seuil d'affichage est appliqué par la route) et met à jour `ResourceVehicleMapStat`
+  (`analysedMatches` = parties avec des échantillons de véhicules, `windowDays`, `computedAt`).
+
+**Coût mesuré le 2026-10-04** (simulation, 150 parties par carte, 713 analysées) : 1,2 s, tas max 80 Mo. Volume complet :
+~17 500 parties sur 90 jours (Erangel ~9 800), soit de l'ordre de 30 s ; le regroupement de 343 000 observations
+synthétiques prend 175 ms.
+
+**Trace :** tâche globale, donc **pas de ligne `CronExecution`** (dont `clanId` est obligatoire) — comme
+`telemetry_geo_purge_count`. La date du dernier calcul est `ResourceVehicleMapStat.computedAt` ; le journal donne une
+ligne par carte (`[Cron] Véhicules observés — Erangel : … parties analysées — …`). Un passage encore en cours bloque le
+suivant (verrou en mémoire du process cron).
+
+**Lancement manuel :**
+
+```bash
+npx tsx scripts/compute-resource-vehicle-spots.ts --dry-run --limit 150   # lecture seule, résumé par carte et famille
+npx tsx scripts/compute-resource-vehicle-spots.ts                         # écrit (premier remplissage après migration)
+```
+
+Prérequis : migration `20261005090000_add_resource_map` appliquée (tables `ResourceVehicleSpot` et
+`ResourceVehicleMapStat`) ; sans elle, le cron échoue à l'écriture de la première carte (journalisé, rien d'autre
+n'est touché).
+
 ---
 
 ## Actions manuelles (page ops cron SuperUser)
@@ -195,7 +236,7 @@ Colonnes clés :
 | `durationMs` | int | Durée en millisecondes |
 | `message` | string | Résumé lisible |
 | `details` | JSON | Détails structurés (erreurs, stats, etc.) |
-| `clanId` | int | Clan concerné (null pour les jobs globaux) |
+| `clanId` | int | Clan concerné — obligatoire : les jobs globaux (`db_maintenance`, `telemetry_geo_purge_count`, `resource_vehicle_spots`…) n'écrivent pas dans cette table |
 
 Pour `sync_matches`, `details` peut contenir :
 
@@ -326,6 +367,7 @@ Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indé
 | `MONTHLY_REPORT_GENERATION_CRON` | `0 8 1 * *` | Génération rapport mensuel |
 | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges |
 | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Comptage du volume purgeable des tracés GPS |
+| `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Emplacements des véhicules observés (carte des ressources) |
 
 ### Télémétrie sync (cron + workers)
 

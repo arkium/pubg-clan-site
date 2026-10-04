@@ -137,7 +137,9 @@ Champs JSON de données parsées :
 - `deathSamples`, `landingSamples`, `phaseSnapshots`
 - `killSamples`, `shotSamples`, `damageSamples`
 - `knockoutSamples`, `reviveSamples`, `vehicleSamples` (montée / descente, type d'engin et, depuis le 2026-10-04,
-  `teammateAboard` : un coéquipier à bord — voir [positions.md](../features/positions.md) §4.3)
+  `teammateAboard` : un coéquipier à bord — voir [positions.md](../features/positions.md) §4.3 ; depuis le 2026-10-05,
+  `vehicleId` (modèle) et `vehicleUniqueId` (identifiant dans la partie), omis quand l'événement ne les porte pas —
+  voir [parser.md](../telemetry/parser.md#9-logvehicleride))
 
 `attemptCount` et `nextRetryAt` gèrent les retries. Les jobs bloqués en `running` depuis plus de 10 min sont récupérés automatiquement au démarrage du worker.
 

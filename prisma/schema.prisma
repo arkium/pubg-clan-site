@@ -569,6 +569,12 @@ model UserAccount {
   sessions            UserSession[]
   invites             MemberInvite[]
   passwordResetTokens PasswordResetToken[]
+  resourcePointsCreated   ResourcePoint[]        @relation("ResourcePointCreatedBy")
+  resourcePointsValidated ResourcePoint[]        @relation("ResourcePointValidatedBy")
+  resourceReports         ResourceReport[]       @relation("ResourceReportAuthor")
+  resourceReportsResolved ResourceReport[]       @relation("ResourceReportResolvedBy")
+  resourceConfirmations   ResourceConfirmation[]
+  resourceActions         ResourceAction[]       @relation("ResourceActionActor")
 
   @@map("UserAccount")
 }
@@ -1537,4 +1543,122 @@ model SystemStatsCache {
 
   @@unique([period])
   @@map("SystemStatsCache")
+}
+
+/// Carte des ressources (docs/features/carte-ressources.md) : point saisi par un joueur (station-service, garage,
+/// ponton, salle secrète), commun à tout le site. Visible de tous une fois validé par un SuperUser ; en attente, de
+/// son auteur et des SuperUsers seulement. Coordonnées en mètres sur la carte.
+model ResourcePoint {
+  id                String       @id @default(cuid())
+  mapName           String       @db.VarChar(40)
+  kind              String       @db.VarChar(20) // fuel | garage | dock | secret_room
+  x                 Float
+  y                 Float
+  status            String       @default("pending") @db.VarChar(12) // pending | validated | rejected | removed
+  comment           String?      @db.VarChar(280)
+  createdByUserId   Int?
+  createdBy         UserAccount? @relation("ResourcePointCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  validatedByUserId Int?
+  validatedBy       UserAccount? @relation("ResourcePointValidatedBy", fields: [validatedByUserId], references: [id], onDelete: SetNull)
+  validatedAt       DateTime?
+  /// Dernier « Toujours là » : un point validé redevient « à confirmer » si la carte est marquée à revérifier après.
+  lastConfirmedAt   DateTime?
+  confirmationCount Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  reports       ResourceReport[]
+  confirmations ResourceConfirmation[]
+
+  @@index([mapName, status])
+  @@index([createdByUserId, status])
+}
+
+/// Signalement d'un point : n'existe plus, mal placé (nouvelle position), mauvais type (nouveau type). Les
+/// signalements identiques sont regroupés dans la file de validation.
+model ResourceReport {
+  id               String        @id @default(cuid())
+  pointId          String
+  point            ResourcePoint @relation(fields: [pointId], references: [id], onDelete: Cascade)
+  kind             String        @db.VarChar(12) // missing | misplaced | wrong_kind
+  proposedX        Float?
+  proposedY        Float?
+  proposedKind     String?       @db.VarChar(20)
+  comment          String?       @db.VarChar(280)
+  status           String        @default("pending") @db.VarChar(12) // pending | accepted | refused | cancelled
+  userId           Int
+  user             UserAccount   @relation("ResourceReportAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  resolvedByUserId Int?
+  resolvedBy       UserAccount?  @relation("ResourceReportResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  resolvedAt       DateTime?
+  createdAt        DateTime      @default(now())
+
+  @@index([status, pointId])
+  @@index([userId, status])
+}
+
+/// « Toujours là » : un joueur confirme un point validé, notamment après une mise à jour PUBG.
+model ResourceConfirmation {
+  id        String        @id @default(cuid())
+  pointId   String
+  point     ResourcePoint @relation(fields: [pointId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      UserAccount   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@index([pointId, createdAt])
+  @@index([userId])
+}
+
+/// État de vérification d'une carte : dernière vérification complète, et date depuis laquelle ses points sont à
+/// revérifier (mise à jour PUBG).
+model ResourceMapState {
+  mapName         String    @id @db.VarChar(40)
+  verifiedAt      DateTime?
+  recheckSince    DateTime?
+  updatedByUserId Int?
+  updatedAt       DateTime  @updatedAt
+}
+
+/// Historique des décisions des SuperUsers, annulables : l'état d'avant (`before`) est restauré si rien n'a changé
+/// depuis (`after`).
+model ResourceAction {
+  id             String       @id @default(cuid())
+  actorUserId    Int?
+  actor          UserAccount? @relation("ResourceActionActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action         String       @db.VarChar(24)
+  mapName        String       @db.VarChar(40)
+  pointId        String?
+  summary        String       @db.VarChar(255)
+  before         Json?
+  after          Json?
+  createdAt      DateTime     @default(now())
+  undoneAt       DateTime?
+  undoneByUserId Int?
+
+  @@index([createdAt])
+  @@index([mapName, createdAt])
+}
+
+/// Véhicules observés : emplacements où des véhicules ont été pris en début de partie, recalculés chaque nuit sur les
+/// parties suivies des 90 derniers jours (cron `resource_vehicle_spots`). Coordonnées en mètres.
+model ResourceVehicleSpot {
+  id           Int      @id @default(autoincrement())
+  mapName      String   @db.VarChar(40)
+  family       String   @db.VarChar(10) // car | moto | boat | glider | land
+  x            Float
+  y            Float
+  observations Int
+  matches      Int
+  computedAt   DateTime
+
+  @@index([mapName, family])
+}
+
+/// Parties analysées par carte pour l'agrégat des véhicules observés (dénominateur des « 62 % des parties »).
+model ResourceVehicleMapStat {
+  mapName         String   @id @db.VarChar(40)
+  analysedMatches Int
+  windowDays      Int
+  computedAt      DateTime
 }

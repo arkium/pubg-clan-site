@@ -4096,6 +4096,9 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
   --game-gold-soft: rgb(251 191 36 / 0.18);
   --game-gold-ring: rgb(251 191 36 / 0.6);
   --game-pos-ring: rgb(52 211 153 / 0.5);
+  /* « En attente / à confirmer » sur une photo ou une carte (toujours sombre) : l'orange clair, quel que soit le thème. */
+  --game-warn: rgb(251 146 60);
+  --game-warn-soft: rgb(249 115 22 / 0.2);
 }
 
 /* Tuile de chiffre compacte (statistiques d'une carte, d'une formation) : valeur puis libellé, centrés.

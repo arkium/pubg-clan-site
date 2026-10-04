@@ -28,6 +28,7 @@ import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/interna
 import { prisma } from '@/lib/prisma'
 import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
 import { refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
+import { computeResourceVehicleSpots, formatResourceVehicleMapSummary } from '@/lib/resources/resource-vehicle-spots'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import {
   fetchCurrentSeason,
@@ -84,6 +85,8 @@ const globalForCron = globalThis as typeof globalThis & {
   clanLifecycleMembershipSyncCronTask?: ScheduledTask
   dbMaintenanceCronTask?: ScheduledTask
   geoPurgeCountCronTask?: ScheduledTask
+  resourceVehicleSpotsCronTask?: ScheduledTask
+  resourceVehicleSpotsInProgress?: boolean
 }
 
 function isCronWorkerEnabled() {
@@ -1133,6 +1136,35 @@ async function runGeoPurgeCount() {
   }
 }
 
+/**
+ * Emplacements des véhicules observés de la Carte des ressources : relit les montées de véhicules des 90 derniers jours
+ * (~17 500 parties sur les cinq cartes, par lots de 50) et remplace, carte par carte, `ResourceVehicleSpot` et
+ * `ResourceVehicleMapStat`. Tâche globale : pas de ligne `CronExecution` (dont `clanId` est obligatoire), la trace est
+ * `ResourceVehicleMapStat.computedAt` et le journal, comme `telemetry_geo_purge_count`.
+ */
+async function runResourceVehicleSpots() {
+  if (globalForCron.resourceVehicleSpotsInProgress) {
+    console.warn('[Cron] Véhicules observés (carte des ressources) ignoré — passage précédent encore en cours')
+    return
+  }
+
+  globalForCron.resourceVehicleSpotsInProgress = true
+  try {
+    const summary = await computeResourceVehicleSpots({
+      now: new Date(),
+      onMap: (map) => console.info(`[Cron] Véhicules observés — ${formatResourceVehicleMapSummary(map)}`),
+    })
+    console.info(
+      `[Cron] Véhicules observés (carte des ressources) — ${summary.maps.length} cartes en ` +
+        `${(summary.durationMs / 1000).toFixed(0)}s (tas max ${summary.peakHeapMb} Mo)`
+    )
+  } catch (error) {
+    console.error('[Cron] Véhicules observés (carte des ressources) échoué', error)
+  } finally {
+    globalForCron.resourceVehicleSpotsInProgress = false
+  }
+}
+
 async function resolveEncounteredPlayerClans() {
   if (globalForCron.encounteredPlayerResolutionInProgress) {
     console.warn('[Cron] Encountered player clan resolution skipped — previous run still in progress')
@@ -1290,6 +1322,7 @@ export type CronScheduleKey =
   | 'clan_lifecycle_membership_sync'
   | 'db_maintenance'
   | 'telemetry_geo_purge_count'
+  | 'resource_vehicle_spots'
 
 type CronScheduleGlobalKey =
   | 'clanLifecycleMembershipSyncCronTask'
@@ -1302,6 +1335,7 @@ type CronScheduleGlobalKey =
   | 'encounteredPlayerResolutionCronTask'
   | 'dbMaintenanceCronTask'
   | 'geoPurgeCountCronTask'
+  | 'resourceVehicleSpotsCronTask'
 
 type CronScheduleDefinition = {
   key: CronScheduleKey
@@ -1387,6 +1421,16 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '0 6 * * *',
     globalKey: 'geoPurgeCountCronTask',
     run: runGeoPurgeCount,
+  },
+  {
+    // 06:30 : apres le comptage de purge geo (06:00, ~22 s depuis la compression, ~4 min avant) et avant
+    // l'usage de la journee. Lit les colonnes vehicules de ~17 500 telemetries (lots de 50) ; seule
+    // encountered_player_clan_resolution (*/30, quelques secondes de base) tombe a la meme minute.
+    key: 'resource_vehicle_spots',
+    envVar: 'RESOURCE_VEHICLE_SPOTS_CRON',
+    defaultExpression: '30 6 * * *',
+    globalKey: 'resourceVehicleSpotsCronTask',
+    run: runResourceVehicleSpots,
   },
 ]
 

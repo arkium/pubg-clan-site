@@ -387,6 +387,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 45 1 * * *  →  Clan membership sync (per-player clan check — observe mode by default)
 15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h — never deletes data)
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)
+30 6 * * *  →  Resource map vehicle spots (véhicules observés de la Carte des ressources, 90 derniers jours — docs/features/carte-ressources.md)
 ```
 
 **Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.

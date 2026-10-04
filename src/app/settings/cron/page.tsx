@@ -185,6 +185,7 @@ const SCHEDULE_LABELS: Record<string, string> = {
   encountered_player_clan_resolution: 'Résolution clans joueurs rencontrés',
   clan_lifecycle_membership_sync: 'Appartenance de clan (cycle de vie)',
   db_maintenance: 'Maintenance de la base',
+  resource_vehicle_spots: 'Véhicules observés (carte des ressources)',
 }
 
 const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
@@ -212,6 +213,8 @@ const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
     'Vérifie chaque jour, joueur par joueur, si les membres suivis sont toujours dans leur clan PUBG. Un écart doit être confirmé plusieurs passages d\'affilée avant tout mouvement, et le passage s\'abandonne si trop de membres bougeraient d\'un coup. En mode observation (défaut), rien n\'est appliqué.',
   db_maintenance:
     'Clôture des exécutions restées « en cours » plus de 6 h après l\'arrêt de leur processus. Ne supprime aucune donnée : ni jobs échoués, ni captures de télémétrie.',
+  resource_vehicle_spots:
+    'Recalcule, carte par carte, les emplacements où des véhicules sont trouvés en début de partie (montées des 90 derniers jours) pour la carte des ressources. Remplace les emplacements de chaque carte ; tâche globale, sans ligne dans l\'historique par clan.',
 }
 
 // ---------------------------------------------------------------------------

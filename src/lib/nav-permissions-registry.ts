@@ -102,6 +102,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'none',
     description: 'Entraînement au mortier (mesure à la grille, réglage de la distance, séries de 10 cibles) et guide ; classement des artilleurs du clan.',
   },
+  {
+    navKey: 'primary.resources',
+    section: 'nav-primary',
+    label: 'Carte des ressources',
+    hrefTemplate: '/carte-des-ressources',
+    defaultRole: 'none',
+    description: 'Carte des ressources : véhicules repérés dans les parties suivies, et stations-service, garages, pontons et salles secrètes placés par les joueurs.',
+  },
 
   // --- Clan section nav ---
   {

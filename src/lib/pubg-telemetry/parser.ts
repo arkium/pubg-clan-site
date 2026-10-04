@@ -175,6 +175,17 @@ export type TelemetryVehicleSample = {
    * non les passagers (`vehicleTripFlags`). Absent : télémétrie stockée avant le 2026-10-04, déduit à la lecture.
    */
   teammateAboard?: boolean
+  /**
+   * Modèle PUBG du véhicule (`vehicle.vehicleId`, ex. `Dacia_A_01_v2_C`, `BP_Motorbike_04_C`) : distingue voitures et
+   * motos, que `vehicleType` confond (`WheeledVehicle`). Le skin d'un joueur peut changer le suffixe (`_Esports_C`,
+   * `_LGD_C`), pas la famille. Absent : télémétrie analysée avant le 2026-10-05.
+   */
+  vehicleId?: string
+  /**
+   * Identifiant du véhicule dans la partie (`vehicle.vehicleUniqueId`), documenté par PUBG mais absent des 46 000
+   * événements véhicule des captures de juin à septembre 2026 : lu au cas où il apparaîtrait, omis sinon.
+   */
+  vehicleUniqueId?: number
 }
 
 type ShotClusterAccum = {
@@ -637,6 +648,16 @@ function getReviverLocation(event: TelemetryEvent): { x: number; y: number } | n
 
 function getVehicleType(event: TelemetryEvent): string | null {
   return getFirstStringFromPaths(event, ['vehicle.vehicleType', 'vehicleType'])
+}
+
+/** Modèle et identifiant du véhicule, seulement s'ils sont présents (champs omis sinon : JSON stocké inchangé). */
+function getVehicleIdentity(event: TelemetryEvent): { vehicleId?: string; vehicleUniqueId?: number } {
+  const vehicleId = getFirstStringFromPaths(event, ['vehicle.vehicleId'])
+  const vehicleUniqueId = getFirstNumberFromPaths(event, ['vehicle.vehicleUniqueId'])
+  return {
+    ...(vehicleId ? { vehicleId } : {}),
+    ...(vehicleUniqueId !== null ? { vehicleUniqueId } : {}),
+  }
 }
 
 /** Coéquipier (même `teamId`, autre joueur) parmi `fellowPassengers` ; `undefined` si la liste manque. */
@@ -1515,6 +1536,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
             x: vehicleLocation.x,
             y: vehicleLocation.y,
             teammateAboard: hasTeammateAboard(event, actorKey, actorTeamId),
+            ...getVehicleIdentity(event),
           })
         }
       }

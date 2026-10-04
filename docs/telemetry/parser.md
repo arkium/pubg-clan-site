@@ -189,6 +189,12 @@ Un joueur monte dans un véhicule.
 
 Données extraites :
 - `characterKey`, `vehicleType`, phase, timestamp, position
+- depuis le 2026-10-05, `vehicleId` (modèle PUBG, `vehicle.vehicleId` : `Dacia_A_01_v2_C`, `BP_Motorbike_04_C`… — seul
+  moyen de distinguer voitures et motos, toutes deux `WheeledVehicle`) et `vehicleUniqueId` (`vehicle.vehicleUniqueId`,
+  identifiant du véhicule dans la partie). Les deux sont **omis quand l'événement ne les porte pas** :
+  `vehicleUniqueId`, documenté par PUBG, n'apparaît dans aucun des 46 000 événements véhicule des captures de juin à
+  septembre 2026. Les échantillons analysés avant cette date n'ont ni l'un ni l'autre ; tout lecteur doit s'en passer
+  (carte des ressources : famille « voiture ou moto », voir `src/lib/resources/resource-vehicle-spots.ts`)
 
 Effets :
 - Incrémente `vehicleRideEvents` dans `memberStats`
@@ -199,7 +205,7 @@ Effets :
 Un joueur descend d'un véhicule.
 
 Données extraites :
-- `characterKey`, `vehicleType`, phase, timestamp, position
+- `characterKey`, `vehicleType`, phase, timestamp, position ; `vehicleId` / `vehicleUniqueId` comme pour la montée
 - `maxSpeed` — vitesse maximale atteinte dans ce véhicule (km/h)
 
 Effets :

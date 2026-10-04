@@ -442,6 +442,55 @@ Contrat partagé par les routes, la page et les tests e2e : `src/lib/mortar/mort
 
 ---
 
+## Carte des ressources — `/api/resources/*`
+
+| Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
+|---|---|---|---|---|
+| GET | `/api/resources?map=` | Public ; propositions du lecteur si session, toutes pour un SuperUser | ✅ Pertinent | `ResourceMapResponse` : points saisis, véhicules observés, état de la carte — détail ci-dessous, voir [Carte des ressources](../features/carte-ressources.md) |
+| GET | `/api/resources/drop-zones?clanId=&map=` | `requireNavPermission('clan.drop-zones')` (comme la page « Zones de drop ») | ✅ Pertinent | `ResourceDropZonesResponse` : trois zones de drop les plus fréquentes du clan sur la carte |
+| POST | `/api/resources/points` | Session (cookie) | ✅ Pertinent | `{ map, kind, x, y, comment? }` → `201` `ResourceProposalResponse` (proposition en attente) |
+| POST | `/api/resources/points/[pointId]/cancel` | Session, auteur | ✅ Pertinent | `{ ok: true }` : l'auteur retire sa proposition en attente (ligne supprimée) |
+| POST | `/api/resources/points/[pointId]/confirm` | Session | ✅ Pertinent | `{ point }` : « Toujours là », idempotent |
+| POST | `/api/resources/points/[pointId]/reports` | Session | ✅ Pertinent | `{ kind, x?, y?, proposedKind?, comment? }` → `201` `ResourceReportResponse` |
+| GET | `/api/resources/admin/queue` | SuperUser (session) | ⚠️ Admin web uniquement | `ResourceQueueResponse` : file de validation toutes cartes, état par carte |
+| POST | `/api/resources/admin/decisions` | SuperUser | ⚠️ Admin web uniquement | `{ decisions }` → `ResourceDecisionsResponse` : décisions par lot, résultat par ligne |
+| POST | `/api/resources/admin/maps/[map]` | SuperUser | ⚠️ Admin web uniquement | `{ action: 'recheck' \| 'verify' }` → `{ map: ResourceMapSummary }` |
+| GET | `/api/resources/admin/history?page=` | SuperUser | ⚠️ Admin web uniquement | `ResourceHistoryResponse` : décisions des 30 derniers jours, pages de 7 |
+| POST | `/api/resources/admin/history/[actionId]/undo` | SuperUser | ⚠️ Admin web uniquement | `{ ok: true }` : restaure l'état d'avant si rien n'a changé depuis |
+
+Contrat partagé par les routes, la page et les tests e2e : `src/lib/resources/resource-api.ts` ; règles pures : `src/lib/resources/resource-map.ts` ; services Prisma : `src/lib/resources/resource-service.ts` (joueur), `src/lib/resources/resource-service-admin.ts` (SuperUser), historique pur : `src/lib/resources/resource-history.ts`. Tests : `src/lib/resources/resource-route-contracts.test.ts` (base en mémoire `resource-test-db.ts`, aucun accès à la base), `resource-history.test.ts`.
+
+Erreurs : `{ error, code }` en français — `400` (`unknown_map`, `invalid_kind`, `outside_map`, `comment_too_long`, `invalid_report`, `invalid_body`, `invalid_action`), `401` `unauthorized`, `403` `forbidden`, `404` `not_found`, `409` (`duplicate`, `not_pending`, `not_validated`, `already_reported`, `modified`, `already_undone`, `not_undoable`), `429` `too_many_pending`. Coordonnées en mètres, contrôlées par `insideResourceMap`, arrondies au dixième.
+
+### Détail — `GET /api/resources?map=`
+
+- **Points :** `validated` pour tous (`state` = `validated` ou `to_confirm` selon `ResourceMapState.recheckSince`, `resourcePointState`) ; `pending` : ceux du lecteur (`mine`), tous pour un SuperUser ; jamais `rejected` / `removed`. `comment` seulement pour l'auteur et les SuperUsers. `createdBy` = `{ name, validatedCount }` ; `validatedBy` = nom.
+- **Nom affiché :** `UserAccount.displayName`, sinon `displayName` d'un membre lié (`MemberIdentity`, identité principale d'abord), sinon « Joueur » — **jamais l'e-mail**. `validatedCount` = `ResourcePoint` `validated` créés par le joueur + `ResourceReport` `accepted`.
+- **Lecteur :** `reportedByMe` (signalement `pending`), `confirmedByMe` (confirmation postérieure à `recheckSince`, toute confirmation s'il n'y en a pas) ; `viewer.queueCount` = lignes de la file pour un SuperUser, `null` sinon.
+- **Observés :** `ResourceVehicleSpot` + `ResourceVehicleMapStat` de la carte (cron `resource_vehicle_spots`), filtrés par `isSpotShown`, `share = spotShare`. `counts.observed` par famille (emplacements affichés), `counts.points` par type (points validés). Tables vides → réponse vide cohérente.
+
+### Détail — `GET /api/resources/drop-zones?clanId=&map=`
+
+- Atterrissages du clan sur la carte des **90 derniers jours**, lus dans `DropPressureStat` (une ligne par membre et par partie, déjà calculée pour « Zones de drop » — aucune lecture de télémétrie), rangés par ville (`locationForPoint` sur `getMapLocations()`, lieux activés) ; hors de toute ville : ignorés.
+- **Réponse :** `{ clanId, map, centers, radiusMeters: 800 }` — `centers` = trois villes au plus, par atterrissages décroissants puis nom ; `x`, `y` = **moyenne des atterrissages du clan** dans la ville, en mètres.
+
+### Détail — contributions (session requise, `401` sinon)
+
+- **Proposer :** type et carte valides, position dans la carte, commentaire ≤ 280 caractères. `429` au-delà de **20 propositions en attente** par joueur ; `409` `duplicate` si un point du même type, validé ou en attente, est à **moins de 25 m**.
+- **Annuler :** l'auteur seul (`403`), proposition encore en attente (`409`) ; la ligne est **supprimée** (rien n'a été validé). Un refus de SuperUser, lui, passe le point en `rejected`.
+- **Toujours là :** point `validated` (`409` en attente, `404` refusé / retiré) ; une confirmation par joueur et par période de revérification — un second clic renvoie le point sans écrire ; sinon `ResourceConfirmation` + `lastConfirmedAt = now`, `confirmationCount + 1`.
+- **Signaler :** `missing` (position et type envoyés ignorés), `misplaced` (`x`, `y` dans la carte, à plus de 15 m de l'actuelle), `wrong_kind` (`proposedKind` valide ≠ type actuel) ; un seul signalement `pending` par joueur et par point (`409` `already_reported`).
+
+### Détail — SuperUser (`401` sans session, `403` sans `isSuperUser`)
+
+- **File :** une ligne par proposition `pending` (`point:<id>`) et par groupe de signalements `pending` identiques (`report:<pointId>:<kind>`) sur un point encore validé ; `misplaced` → position demandée = moyenne ; `wrong_kind` → type le plus demandé (le premier demandé à égalité). Du plus ancien au plus récent (premier signalement du groupe). `maps` : les cinq cartes, points validés, `verifiedAt`, `recheckSince`.
+- **Décisions** (100 au plus par envoi, chacune dans sa transaction, `ok: false` + message sans arrêter le lot) : proposition `validate` / `refuse` (`rejected`) / `edit` (type et/ou position corrigés, puis validation) ; signalements `validate` (`missing` → point `removed` et les autres signalements en attente du point `cancelled` ; `misplaced` → déplacé ; `wrong_kind` → retypé ; signalements `accepted`), `refuse` (`refused`), `edit` (correction donnée appliquée, signalements `accepted`). Chaque décision écrit **une** `ResourceAction` (`before` / `after` = point et signalements touchés, `after.label` = libellés figés) dans la même transaction.
+- **Carte :** `recheck` → `recheckSince = now` ; `verify` → `verifiedAt = now`, `recheckSince = null` ; chacune écrit une action annulable.
+- **Historique :** actions des 30 derniers jours, plus récentes d'abord, pages de 7 ; `verb` / `object` / `detail` comme la maquette (« a validé » « Station-service · F-L » « Proposée par Vexa ») ; `undoable` = non annulée, pas elle-même une annulation, et lignes encore dans leur état d'après (type, position, statut ; dates de vérification pour une carte).
+- **Annuler :** dans une transaction, restaure les champs que la décision avait changés si l'état actuel est encore celui d'après (`409` `modified` sinon) — un « Toujours là » postérieur est gardé ; marque `undoneAt` / `undoneByUserId` et écrit une action « a annulé ». Une annulation ne s'annule pas (`409` `not_undoable`).
+
+---
+
 ## Internal / Cron — `/api/internal/cron/*`
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |

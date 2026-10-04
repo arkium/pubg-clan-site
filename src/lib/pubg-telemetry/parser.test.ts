@@ -867,4 +867,27 @@ describe('véhicules — qui est à bord', () => {
       ['delta', undefined],
     ])
   })
+
+  it('garde le modèle (vehicleId) et l’identifiant (vehicleUniqueId) du véhicule, omis quand ils manquent', () => {
+    const at = { location: { x: 1000, y: 2000 } }
+    const snapshot = parseTelemetrySnapshot([
+      // Forme réelle (captures 2026) : vehicleId présent, vehicleUniqueId absent.
+      { _T: 'LogVehicleRide', character: { accountId: 'alpha', teamId: 1, ...at }, vehicle: { vehicleType: 'WheeledVehicle', vehicleId: 'BP_Motorbike_04_C', seatIndex: 0 }, fellowPassengers: [] },
+      { _T: 'LogVehicleLeave', character: { accountId: 'alpha', teamId: 1, ...at }, vehicle: { vehicleType: 'WheeledVehicle', vehicleId: 'BP_Motorbike_04_C', vehicleUniqueId: 42 }, fellowPassengers: [] },
+      { _T: 'LogVehicleRide', character: { accountId: 'bravo', teamId: 2, ...at }, vehicle: { vehicleType: 'WheeledVehicle', vehicleId: '  ', vehicleUniqueId: '7' } },
+      { _T: 'LogVehicleRide', character: { accountId: 'charlie', teamId: 3, ...at }, vehicle: { vehicleType: 'FloatingVehicle', vehicleUniqueId: 0 } },
+    ])
+
+    const [ride, leave, blank, boat] = snapshot.vehicleSamples
+    expect(ride).toMatchObject({ action: 'ride', vehicleType: 'WheeledVehicle', vehicleId: 'BP_Motorbike_04_C' })
+    expect('vehicleUniqueId' in ride).toBe(false)
+    expect(leave).toMatchObject({ action: 'leave', vehicleId: 'BP_Motorbike_04_C', vehicleUniqueId: 42 })
+    // Chaîne vide et identifiant non numérique : champs omis, pas de valeur inventée.
+    expect('vehicleId' in blank).toBe(false)
+    expect('vehicleUniqueId' in blank).toBe(false)
+    expect(boat).toMatchObject({ vehicleType: 'FloatingVehicle', vehicleUniqueId: 0 })
+    expect('vehicleId' in boat).toBe(false)
+    // Le JSON stocké n'a aucune clé de plus quand les champs manquent.
+    expect(Object.keys(JSON.parse(JSON.stringify(blank)))).not.toContain('vehicleId')
+  })
 })

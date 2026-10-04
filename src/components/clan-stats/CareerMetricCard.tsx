@@ -3,29 +3,33 @@ import type { CareerMetricResult } from '@/lib/clan-career'
 
 /**
  * Une statistique de carrière : valeur du clan, ce qu'elle compte (Total, Moyenne, Record, Moins = mieux, Mur de la
- * honte) et les trois joueurs en tête, médailles `RankCell`.
+ * honte) et les trois joueurs en tête, médailles `RankCell`. Charte : valeur en chiffre héros Teko, étiquette à 11 px
+ * minimum, « Mur de la honte » au jeton négatif (plus de rose en dur).
  */
+const NEGATIVE_RING = 'border-[color-mix(in_srgb,var(--theme-ui-negative)_40%,transparent)]!'
+const NEGATIVE_SOFT = 'bg-[color-mix(in_srgb,var(--theme-ui-negative)_15%,transparent)]'
+
 export default function CareerMetricCard({ result }: { result: CareerMetricResult }) {
   const { metric, tag, value, top, missing } = result
   const shame = metric.order === 'shame'
   const reverse = metric.order === 'lower'
   return (
     <article
-      className={`app-panel flex flex-col gap-2.5 p-3.5 ${shame ? 'border-rose-400/40!' : ''}`}
+      className={`app-panel flex flex-col gap-2.5 p-3.5 ${shame ? NEGATIVE_RING : ''}`}
       aria-label={metric.label}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="text-[13px] font-bold text-gray-700">{metric.label}</span>
-          <b className="text-[22px] font-black tracking-[-0.02em] tabular-nums text-gray-900">
+          <b className="t-hero t-hero--sm text-gray-900">
             {value === null ? '–' : metric.format(value)}
           </b>
           {metric.note && value !== null ? <span className="text-[11px] text-gray-500">{metric.note}</span> : null}
         </span>
         <span
-          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] ${
+          className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.04em] ${
             shame
-              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300'
+              ? `${NEGATIVE_SOFT} t-neg`
               : reverse
                 ? 'bg-[var(--theme-ui-accent-soft)] text-[var(--theme-ui-accent-text)]'
                 : 'app-panel-muted text-gray-500'

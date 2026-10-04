@@ -1,8 +1,8 @@
 'use client'
 
-import { Crown, Info } from 'lucide-react'
+import { Crown } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import Leaderboard from '@/components/Leaderboard'
 import DistinctionStrip from '@/components/ui/DistinctionStrip'
@@ -13,6 +13,7 @@ import PodiumCards from '@/components/ui/PodiumCards'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { SortReminder } from '@/components/ui/SortableTh'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
+import ToolbarGroup from '@/components/ui/ToolbarGroup'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -58,27 +59,6 @@ function formatSyncDate(value: string | null) {
   const day = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
   const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   return `Synchronisé le ${day} à ${time}`
-}
-
-/** Groupe de contrôles du bandeau : intitulé au repos seulement (docké, les contrôles restent seuls). */
-function ToolbarGroup({ label, hint, showLabel, children }: { label: string; hint?: string; showLabel: boolean; children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1.5">
-      {showLabel ? (
-        <span className="t-label flex items-center gap-1.5">
-          {label}
-          {hint ? (
-            // Icône plutôt qu'un « i » à 9 px (charte : 11 px minimum) ; le texte reste dans l'infobulle et pour les lecteurs d'écran.
-            <span title={hint} className="inline-flex">
-              <Info className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="sr-only">{hint}</span>
-            </span>
-          ) : null}
-        </span>
-      ) : null}
-      {children}
-    </div>
-  )
 }
 
 export default function LeaderboardPage() {

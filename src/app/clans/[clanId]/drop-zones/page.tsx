@@ -82,7 +82,7 @@ export default function ClanDropZonesPage() {
   if (!clanId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Clan invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Clan invalide.</p>
       </div>
     )
   }
@@ -101,7 +101,7 @@ export default function ClanDropZonesPage() {
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
         <header
-          className="bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
+          className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/drop2.jpg')`, backgroundPosition: 'center 40%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-transparent" />
@@ -148,7 +148,7 @@ export default function ClanDropZonesPage() {
       </DockingToolbar>
 
       <div className="app-container app-gutter flex flex-col gap-[18px] pb-8">
-        {error ? <p className="app-panel p-4 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
         {!data && loading ? <CardSkeleton /> : null}
 
         {data ? (

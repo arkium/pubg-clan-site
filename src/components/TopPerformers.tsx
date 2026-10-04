@@ -1,7 +1,7 @@
 import RankCell from '@/components/ui/RankCell'
 import Link from 'next/link'
 import { useState } from 'react'
-import { Target, Flame, HeartPulse } from 'lucide-react'
+import { Crosshair, Flame, HeartPulse, type LucideIcon } from 'lucide-react'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import ShowMoreToggle from '@/components/ui/ShowMoreToggle'
 
@@ -12,50 +12,49 @@ interface TopPerformersProps {
   performers: TopPerformersData
 }
 
+/**
+ * Une liste du podium : icône à la couleur de son thème (charte : combat négatif, dégâts accent, survie positif, comme
+ * les fiches de carrière), rangs par `RankCell`, valeurs en chiffres tabulaires. Aucune couleur en dur.
+ */
 function PerformerList({
   title,
   icon: Icon,
+  iconClass,
   entries,
   value,
-  toneClass,
-  valueClass,
 }: {
   title: string
-  icon: any
+  icon: LucideIcon
+  iconClass: string
   entries: PerformerEntry[]
   value(entry: PerformerEntry): ReactNode
-  toneClass: string
-  valueClass: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const visibleEntries = expanded ? entries : entries.slice(0, 3)
 
   return (
-    <div className={`app-panel p-3 transition-all hover:shadow-md ${toneClass}`}>
-      <div className="mb-3 flex items-center gap-2">
-        <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${valueClass}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+    <section className="app-panel flex flex-col gap-2.5 p-3.5" aria-label={title}>
+      <div className="flex items-center gap-2">
+        <Icon className={`h-4 w-4 ${iconClass}`} aria-hidden="true" />
+        <h3 className="t-card-title">{title}</h3>
       </div>
       {entries.length === 0 ? (
-        <p className="text-xs italic text-gray-500">Aucune donnée disponible.</p>
+        <p className="text-xs text-gray-500">Aucune donnée disponible.</p>
       ) : (
         <>
-          <ol className="space-y-2 text-sm">
+          <ol className="flex flex-col">
             {visibleEntries.map((entry, index) => (
-              <li key={entry.memberId} className="flex min-h-6 items-center justify-between gap-2">
-                <span className="flex items-center gap-2 font-semibold text-gray-900">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-                    <RankCell rank={index + 1} size="xs" />
-                  </span>
-                  <Link href={`/members/${entry.memberId}/dashboard`} className="hover:text-emerald-500 transition-colors">
-                    {entry.displayName}
-                  </Link>
+              <li key={entry.memberId} className="flex min-h-8 items-center gap-2 border-t border-gray-200 py-1 text-[13px] first:border-t-0">
+                <span className="flex w-5 shrink-0 justify-center">
+                  <RankCell rank={index + 1} size="xs" />
                 </span>
-                <span className={`inline-flex items-center font-bold tabular-nums ${valueClass}`}>
-                  {value(entry)}
-                </span>
+                <Link
+                  href={`/members/${entry.memberId}/dashboard`}
+                  className={`min-w-0 flex-1 truncate text-gray-900 transition-colors hover:text-[var(--theme-ui-accent-text)] ${index === 0 ? 'font-bold' : ''}`}
+                >
+                  {entry.displayName}
+                </Link>
+                <span className="t-num shrink-0 font-bold text-gray-900">{value(entry)}</span>
               </li>
             ))}
           </ol>
@@ -64,43 +63,42 @@ function PerformerList({
           )}
         </>
       )}
-    </div>
+    </section>
   )
 }
 
 export default function TopPerformers({ performers }: TopPerformersProps) {
   return (
-    <section>
-      <h3 className="text-sm font-semibold text-gray-700">Podium des performances</h3>
-      <p className="mb-3 text-xs text-gray-500">
-        Classement des membres du clan sur les éliminations, les dégâts infligés et la meilleure survie moyenne.
-      </p>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="t-section-title">Podium des performances</h2>
+        <p className="t-meta">
+          Classement des membres du clan sur les éliminations, les dégâts infligés et la meilleure survie moyenne.
+        </p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PerformerList
-          title="Top Éliminations"
-          icon={Target}
+          title="Top éliminations"
+          icon={Crosshair}
+          iconClass="t-neg"
           entries={performers.kills}
           value={(entry) => entry.totalKills}
-          toneClass="hover:border-red-500"
-          valueClass="text-red-500 bg-red-500/10"
         />
         <PerformerList
-          title="Top Dégâts"
+          title="Top dégâts"
           icon={Flame}
+          iconClass="t-accent"
           entries={performers.damage}
           value={(entry) => Math.round(entry.totalDamage).toLocaleString('fr-FR')}
-          toneClass="hover:border-orange-500"
-          valueClass="text-orange-500 bg-orange-500/10"
         />
         <PerformerList
-          title="Top Survie"
+          title="Top survie"
           icon={HeartPulse}
+          iconClass="t-pos"
           entries={performers.survival}
           value={(entry) => <PlacementBadge placement={entry.averagePlacement} />}
-          toneClass="hover:border-emerald-500"
-          valueClass="text-emerald-500 bg-emerald-500/10"
         />
       </div>
-    </section>
+    </div>
   )
 }

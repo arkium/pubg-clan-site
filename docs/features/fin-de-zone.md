@@ -47,12 +47,40 @@ ce biais reste lisible, et signale les échantillons de moins de 20 observations
 
 ## La page
 
-Filtres : période (semaine, mois, tous), carte, joueur, plage tactique. Elle montre :
+Refondue le 2026-10-04 selon la charte UI (règle « Pages à carte », [docs/ui/index.html](../ui/index.html#zoom-carte)) et
+pour être lue par les joueurs, pas seulement par l'analyste.
 
-- quatre indicateurs : observations, position moyenne (`distanceRatio`), part dans le cercle, survivants moyens ;
-- la carte des positions d'arrivée, un point par case, taille proportionnelle au nombre d'arrivées ;
-- le détail par fermeture : observations, parts centre / bord / hors zone, ratio moyen ;
-- le Top 5 des secteurs d'arrivée, avec les périmètres de villes déjà configurés.
+**Bandeau** : photo `/banner-phases.jpg` (le mur de la zone bleue), titre Teko. **Filtres** sur une ligne, comme les
+zones de drop et la cartographie tactique : carte ‹ ›, période, pastille joueur (couleur du style de jeu sur la période,
+`usePlaystyleColors`) ; docké sur mobile, la ligne reste entière (exception `MOBILE_DOCKED_EXTRA_CONTROLS` du contrôle
+`ui-conformance`). Phase du cercle : le `PhasePicker` de la cartographie, à côté de la carte. Plus de listes
+déroulantes à intitulé (« Carte », « Joueur », « Plage tactique »).
+
+De haut en bas :
+
+- **la carte des arrivées** (points à l'accent, taille selon le nombre d'arrivées dans la case) et, à côté, **la cible** :
+  centre / bord intérieur / dehors en anneaux (`--game-pos` / `--game-warn` / `--game-neg`), la distance moyenne au
+  centre en pointillés d'accent, exprimée en **% du rayon** (0 au centre, 100 sur le bord) plutôt qu'en ratio brut ;
+- **un verdict** en une phrase : « La zone vous colle aux talons » (≥ 30 % dehors), « Maîtres du centre » (≥ 25 % au
+  centre), « Surfeurs de bord » (≥ 55 % au bord), sinon « Placement équilibré » ;
+- **trois titres** parmi les joueurs d'au moins dix fermetures : *Roi du cercle* (le plus près du centre en moyenne),
+  *Increvable* (le plus de fermetures vécues), *Coureur de zone bleue* (le plus souvent dehors, s'il l'a déjà été) ;
+- **phase par phase** : une barre centre / bord / dehors par phase qui commence, et la part dehors ;
+- **le top 5 des secteurs d'arrivée** (périmètres de villes configurés) ;
+- **« Qui joue le cercle »** : les joueurs du plus central au plus excentré, avec un profil — *Court après la zone*
+  (≥ 33 % dehors), *Joue le centre* (≥ 25 % au centre), *Longe le bord* (≥ 60 % au bord), *Équilibré* ; « trop peu de
+  fermetures » sous dix. Toucher un joueur filtre la carte, la cible et le verdict. Paginé comme « Qui saute où » des
+  zones de drop : chevrons ‹ n/N › dans l'en-tête, 5 joueurs par page sur mobile, 8 au-delà, rangs continus d'une page à
+  l'autre ; un joueur choisi par la pastille du bandeau amène sa page.
+
+Seuils calés sur les données réelles (`scripts/measure-zone-closures.ts`, lecture seule, clan 13 le 2026-10-04) : le
+bord domine (50 à 68 % des fermetures), le centre reste rare (10 à 30 %), 14 à 45 % finissent dehors. Un seuil
+« majorité au centre » ne serait jamais atteint. Logique pure : `src/lib/zone-closure-view.ts` (tests
+`zone-closure-view.test.ts`) ; composants : `src/components/zone-closures/ZoneClosureSections.tsx`.
+
+L'API renvoie désormais, pour chaque membre (mêmes filtres que la page, sans le filtre de membre), sa distance moyenne
+et ses bandes : une seule requête agrégée de plus en SQL (`SUM(z.zoneBand = 'center')`…), 60 à 400 ms pour la page
+complète selon la période. Tests e2e : `e2e/zone-closures.spec.ts`.
 
 ## Alimentation
 

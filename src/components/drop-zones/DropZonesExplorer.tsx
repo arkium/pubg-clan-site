@@ -304,7 +304,7 @@ export function FavoriteSpotCard({ explorer, title }: { explorer: DropZonesExplo
       type="button"
       onClick={() => explorer.selectSpot(favorite.location)}
       aria-label={`${title} : ${favorite.location.name}`}
-      className="bg-photo-fallback relative flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--theme-ui-accent-ring)] p-4 text-left text-white shadow-[0_0_0_4px_var(--theme-ui-accent-tint)]"
+      className="app-on-photo bg-photo-fallback relative flex flex-col gap-2.5 overflow-hidden rounded-[14px] border border-[var(--theme-ui-accent-ring)] p-4 text-left text-white shadow-[0_0_0_4px_var(--theme-ui-accent-tint)]"
       style={{ backgroundImage: `url('${mapPath(explorer.activeMap)}')`, backgroundSize: '700%', backgroundPosition: spotBackgroundPosition(favorite.location.xPct, favorite.location.yPct) }}
       data-testid="favorite-spot"
     >
@@ -314,7 +314,7 @@ export function FavoriteSpotCard({ explorer, title }: { explorer: DropZonesExplo
         {title}
       </span>
       <span className="relative flex flex-col gap-0.5">
-        <b className="text-[28px] font-black leading-tight tracking-tight">{favorite.location.name}</b>
+        <b className="t-hero t-hero--lg">{favorite.location.name}</b>
         <span className="t-num text-[13px] text-white/75">
           {integer.format(favorite.count)} saut{favorite.count > 1 ? 's' : ''} sur {integer.format(total)} · {integer.format(favorite.share)} % des drops sur {mapLabel(explorer.activeMap)}
         </span>
@@ -325,7 +325,7 @@ export function FavoriteSpotCard({ explorer, title }: { explorer: DropZonesExplo
           {level.label} · {decimal.format(favorite.average)} adv.
         </span>
         {favorite.king && new Set(explorer.visiblePoints.map((point) => point.memberId)).size > 1 ? (
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--theme-ui-accent)]">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--game-gold-ring)] bg-[var(--game-gold-soft)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--game-gold)]">
             <Crown className="h-3.5 w-3.5" aria-hidden="true" />
             Roi du spot : {favorite.king.name} ×{favorite.king.count}
           </span>

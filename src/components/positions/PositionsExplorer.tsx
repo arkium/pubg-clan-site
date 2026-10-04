@@ -306,13 +306,14 @@ export function EventLegend({ event, roleIndex }: { event: PositionEvent; roleIn
 
 const PHASE_RING: Record<TacticalPhase, number> = { all: 26, early: 20, mid: 13, late: 7 }
 
-export function PhasePicker({ value, onChange }: { value: TacticalPhase; onChange: (phase: TacticalPhase) => void }) {
+/** `meta` : phrase d'aide propre à la page (la fin de zone n'a pas de zone moyenne dessinée sur la carte). */
+export function PhasePicker({ value, onChange, meta }: { value: TacticalPhase; onChange: (phase: TacticalPhase) => void; meta?: string }) {
   return (
     <section className="app-panel flex flex-col gap-2 px-3.5 py-3" aria-labelledby="phase-title">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <h2 id="phase-title" className="t-card-title whitespace-nowrap">Phase du cercle</h2>
         <span className="t-meta">
-          {value === 'all' ? 'filtre les événements selon l’avancée de la zone' : 'cercle blanc : zone moyenne de cette phase'}
+          {meta ?? (value === 'all' ? 'filtre les événements selon l’avancée de la zone' : 'cercle blanc : zone moyenne de cette phase')}
         </span>
       </div>
       <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Phase du cercle">

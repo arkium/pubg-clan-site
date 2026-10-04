@@ -106,7 +106,7 @@ export default function ClanCareerPage() {
   if (!clanId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Clan invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Clan invalide.</p>
       </div>
     )
   }
@@ -116,25 +116,27 @@ export default function ClanCareerPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush game-ui flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Carrière PUBG"
           currentHref={`/clans/${clanId}/stats/career`}
           fallbackParent={{ href: `/clans/${clanId}/stats`, label: 'Style de jeu du clan', altHref: '/clans' }}
         />
+        {/* Hauteur du bandeau inchangée : seul son contenu suit la charte (titre Teko, pastilles sur la photo). */}
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-[center_40%] bg-no-repeat sm:min-h-[13rem]"
+          className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-[center_40%] bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/clan-stats2.jpg')` }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-black/20 sm:bg-gradient-to-r sm:from-black/90 sm:via-black/45 sm:to-black/5" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2.5 px-3 py-2.5 sm:px-5 sm:py-4">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Medal className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Carrière PUBG du clan</h1>
+              <Medal className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Carrière PUBG du clan</h1>
             </div>
             <div className="flex flex-wrap gap-1.5 text-xs font-semibold text-white">
-              <span className="rounded-full border border-amber-400/60 bg-amber-400/20 px-2.5 py-0.5 text-amber-200">
+              <span className="rounded-full border border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] px-2.5 py-0.5 text-[var(--theme-ui-accent)]">
                 Depuis la création des comptes
               </span>
               {data ? (
@@ -161,7 +163,7 @@ export default function ClanCareerPage() {
                   </span>
                 ) : null}
                 <span>Source : API PUBG, statistiques de carrière de chaque joueur</span>
-                <Link href={`/clans/${clanId}/stats`} className="ml-auto font-semibold text-[var(--theme-ui-accent-text)] hover:underline">
+                <Link href={`/clans/${clanId}/stats`} className="app-link ml-auto font-semibold">
                   Style de jeu du clan →
                 </Link>
               </div>
@@ -173,7 +175,7 @@ export default function ClanCareerPage() {
 
       <div className="app-container app-gutter flex flex-col gap-[22px]">
         {loading && !data ? <CardSkeleton /> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
         {data && members.length === 0 ? (
           <p className="app-panel p-4 text-sm text-gray-600">
@@ -184,7 +186,7 @@ export default function ClanCareerPage() {
         {data && members.length > 0 ? (
           <>
             {unsynced > 0 ? (
-              <p className="app-panel-muted rounded-lg px-3 py-2 text-xs text-gray-600">
+              <p className="app-panel-muted px-3 py-2 text-xs text-gray-600">
                 {unsynced} membre{unsynced > 1 ? 's' : ''} actif{unsynced > 1 ? 's' : ''} sans carrière PUBG synchronisée (compte
                 introuvable ou synchro à venir) : absent{unsynced > 1 ? 's' : ''} des totaux.
               </p>
@@ -194,11 +196,12 @@ export default function ClanCareerPage() {
               {headline.map((item) => {
                 const Icon = HEADLINE_ICONS[item.id]
                 return (
-                  <div key={item.id} className="app-panel relative flex flex-col gap-1 overflow-hidden border-amber-400/50! p-4">
-                    <Icon className="absolute -bottom-3 -right-2 h-[72px] w-[72px] text-amber-400/15" aria-hidden="true" />
-                    <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500">{item.label}</span>
-                    <b className="text-2xl font-black tracking-[-0.03em] tabular-nums text-[var(--game-gold)] lg:text-[32px]">{item.value}</b>
-                    <span className="text-xs text-gray-700">{item.detail}</span>
+                  // KPI de la charte (`app-kpi`, chiffre héros Teko) en or de jeu : des cumuls de carrière, pas une période.
+                  <div key={item.id} className="app-panel app-kpi relative overflow-hidden border-[var(--game-gold-ring)]!">
+                    <Icon className="absolute -bottom-3 -right-2 h-[72px] w-[72px] text-[var(--game-gold)] opacity-15" aria-hidden="true" />
+                    <span className="t-label">{item.label}</span>
+                    <b className="t-hero t-hero--md t-gold">{item.value}</b>
+                    <span className="app-kpi__foot">{item.detail}</span>
                   </div>
                 )
               })}
@@ -206,7 +209,7 @@ export default function ClanCareerPage() {
 
             {groups.map((group) => (
               <section key={group.id} id={`career-${group.id}`} aria-labelledby={`career-${group.id}-title`} className="flex flex-col gap-2.5">
-                <h2 id={`career-${group.id}-title`} className="text-lg font-extrabold text-gray-900">
+                <h2 id={`career-${group.id}-title`} className="t-section-title">
                   {group.title}
                 </h2>
                 <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">

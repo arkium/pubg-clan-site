@@ -24,6 +24,15 @@ export type ZoneClosurePhaseStat = {
   bands: ZoneClosureBandCounts
 }
 
+/** Un membre sur les mêmes filtres que la page (carte, période, phase), sans le filtre de membre : « Qui joue le cercle ». */
+export type ZoneClosureMemberStat = {
+  memberId: number
+  displayName: string
+  positions: number
+  averageRatio: number
+  bands: ZoneClosureBandCounts
+}
+
 export type ZoneClosureCityStat = {
   locationId: string
   name: string
@@ -35,7 +44,7 @@ export type ZoneClosureSummary = {
   period: ZoneClosurePeriod
   selectedMap: string | null
   maps: Array<{ mapName: string; positions: number; matches: number }>
-  members: Array<{ memberId: number; displayName: string; positions: number }>
+  members: ZoneClosureMemberStat[]
   counts: {
     positions: number
     matches: number
@@ -129,8 +138,23 @@ export async function loadZoneClosureSummary(
       WHERE ${where}
       GROUP BY z.xIndex, z.yIndex
     `),
-    prisma.$queryRaw<Array<{ memberId: number; displayName: string; positions: bigint }>>(Prisma.sql`
-      SELECT z.memberId, cm.displayName, COUNT(*) AS positions
+    prisma.$queryRaw<Array<{
+      memberId: number
+      displayName: string
+      positions: bigint
+      averageRatio: number | null
+      center: bigint | number | null
+      edge: bigint | number | null
+      outside: bigint | number | null
+    }>>(Prisma.sql`
+      SELECT
+        z.memberId,
+        cm.displayName,
+        COUNT(*) AS positions,
+        AVG(z.distanceRatio) AS averageRatio,
+        SUM(z.zoneBand = 'center') AS center,
+        SUM(z.zoneBand = 'edge') AS edge,
+        SUM(z.zoneBand = 'outside') AS outside
       FROM ZoneClosurePosition z
       INNER JOIN ClanMember cm ON cm.id = z.memberId
       WHERE ${filters({ ...scoped, memberId: null })}
@@ -214,6 +238,8 @@ export async function loadZoneClosureSummary(
       memberId: row.memberId,
       displayName: row.displayName,
       positions: Number(row.positions),
+      averageRatio: Number(row.averageRatio ?? 0),
+      bands: { center: Number(row.center ?? 0), edge: Number(row.edge ?? 0), outside: Number(row.outside ?? 0) },
     })),
     counts: {
       positions: Number(total?.positions ?? 0),

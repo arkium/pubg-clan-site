@@ -130,27 +130,33 @@ La page `awards/page.tsx` applique la fonction `formatAwardValue(award, value)` 
 
 ## Page `/clans/[clanId]/awards`
 
-Client Component (`'use client'`). Structure :
+Client Component (`'use client'`), migré vers la charte UI le 2026-10-04 (`.charte`, [docs/ui/index.html](../ui/index.html)).
+Structure :
 
-1. **En-tête** (`app-panel`) : titre, description, bouton Rafraichir, `ClanSectionNav`.
-2. **Bandeau de filtres** (`DockingToolbar`) : `PeriodFilter` Semaine / Mois / Tous, mode de calcul Normal / Tous ; compteur de matchs et explication au repos seulement.
-3. **Grille d'awards** : `grid-cols-1 md:grid-cols-2 xl:grid-cols-3`, une carte `app-panel` par award.
+1. **Bandeau photo** (`/awards.jpg`, `.app-on-photo`) : titre `t-banner-title` (Teko), pastille « N matchs pris en compte ».
+2. **Bandeau de filtres** (`DockingToolbar`, groupes `ToolbarGroup` à intitulé au repos) : **Période** (`PeriodFilter`),
+   **Type de match** Officiel / Tous — même vocabulaire que le classement ; l'API garde `scope=normal|all`, la règle de
+   chaque option est dans l'infobulle — et **Calcul** → bouton `app-toolbar-btn` « Rafraîchir » (`force=true`), à la
+   hauteur des segmented. Docké sur mobile : la période seule.
+3. **Grille d'awards** : `grid-cols-1 md:grid-cols-2 xl:grid-cols-3`, une carte `app-panel` par award (`AwardCard`).
 4. **Podium des performances** (depuis le 2026-09-26, déplacé de la vue d'ensemble) : `ClanTopPerformers` → `TopPerformers`
    (kills, dégâts, survie), sur la période de la page, parties officielles, tous modes.
 
 Chaque carte award contient :
-- Clé de l'award en label secondaire (uppercase)
-- `label` en titre principal (`h2`)
-- Emoji thématique (table `AWARD_EMOJI_BY_KEY` dans la page)
-- `description` en texte
-- Liste ordonnée `top3` avec médaille (or/argent/bronze), nom du joueur, valeur formatée dans un bloc `app-panel-muted`
-- Message "Pas de données sur cette période" si `top3` est vide
+- une **tuile lucide teintée à l'accent** (table `AWARD_ICON_BY_KEY` : crâne, flamme, voiture, empreintes, pousse, bière,
+  pansement, bombe, viseur, sac, camion) — la charte §5 interdit les emoji ;
+- `label` en titre (`t-card-title`, `h2`) et `description` (`t-meta`) — la clé technique n'est plus affichée ;
+- le **lauréat** mis en avant : médaille `RankCell`, nom, valeur en chiffre héros `t-hero t-hero--sm t-accent`
+  (`data-testid="award-winner"`), puis les deux suivants en plus petit ;
+- « Pas de données sur cette période. » si `top3` est vide.
 
 **États gérés** :
-- `loading` : message "Chargement des awards..."
-- `error` : message d'erreur en `text-rose-800`
-- `refreshing` : bouton désactivé, label "Rafraichissement..."
-- Redirection login automatique si 401/403
+- `loading` : squelette `CardSkeleton` au premier chargement ; ensuite les awards précédents restent, estompés ;
+- `error` : message au jeton négatif (`--theme-ui-negative`) ;
+- `refreshing` : bouton désactivé, icône qui tourne, « Rafraîchissement… » ;
+- Redirection login automatique si 401/403.
+
+Tests e2e : `e2e/awards.spec.ts` (données `e2e/support/awards.ts`).
 
 ---
 

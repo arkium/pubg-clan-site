@@ -13,10 +13,10 @@ export default function ClanTopPerformers({ clanId, period }: { clanId: number; 
   const { data, loading } = useClanMatchesCache(clanId, period, 'official')
   const performers = data?.payload.byMode.all.topPerformers as unknown as TopPerformersData | undefined
   if (!performers) {
-    return loading ? <div className="app-panel mt-6 h-40 animate-pulse" aria-busy="true" /> : null
+    return loading ? <div className="app-panel h-40 animate-pulse" aria-busy="true" /> : null
   }
   return (
-    <section className="mt-6" aria-label="Top performers">
+    <section aria-label="Top performers">
       <TopPerformers performers={performers} />
     </section>
   )

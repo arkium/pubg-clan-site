@@ -1,59 +1,56 @@
 'use client'
 
-import Image from 'next/image'
-import { Target } from 'lucide-react'
+import { AlertTriangle, Target } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import DropZoneMapViewport, {
-  type DropZoneMapViewportHandle,
-} from '@/components/drop-zones/DropZoneMapViewport'
+import { type DropZoneMapViewportHandle } from '@/components/drop-zones/DropZoneMapViewport'
+import { MapPager, mapLabel, PickerChip, PlaystyleLegend } from '@/components/maps/MapToolbarControls'
+import { PhasePicker } from '@/components/positions/PositionsExplorer'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
-import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import RankCell from '@/components/ui/RankCell'
-import SortableTh from '@/components/ui/SortableTh'
 import PeriodFilter from '@/components/ui/PeriodFilter'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import {
+  ArrivalSectors,
+  PhaseBreakdown,
+  WhoPlaysTheCircle,
+  ZoneClosureMap,
+  ZoneTarget,
+  ZoneTitles,
+} from '@/components/zone-closures/ZoneClosureSections'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
-import { STANDARD_PERIODS } from '@/lib/period'
-import { TACTICAL_PHASE_OPTIONS, parseTacticalPhase, type TacticalPhase } from '@/lib/tactical-phase'
-
-type ZoneBand = 'center' | 'edge' | 'outside'
+import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
+import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
+import { type TacticalPhase } from '@/lib/tactical-phase'
+import {
+  rankZoneMembers,
+  zoneTitles,
+  zoneVerdict,
+  type ZoneBandCounts,
+  type ZoneMemberStat,
+} from '@/lib/zone-closure-view'
 
 type ZoneClosureResponse = {
   selectedMap: string | null
   selectedMapLabel: string | null
   mapOptions: Array<{ mapName: string; label: string; positions: number; matches: number }>
-  members: Array<{ memberId: number; displayName: string; positions: number }>
+  members: ZoneMemberStat[]
   counts: { positions: number; matches: number; closures: number; members: number; averageSurvivors: number }
-  bands: Record<ZoneBand, number>
+  bands: ZoneBandCounts
   averageRatio: number
-  byPhase: Array<{ phase: number; positions: number; averageRatio: number; bands: Record<ZoneBand, number> }>
+  byPhase: Array<{ phase: number; positions: number; averageRatio: number; bands: ZoneBandCounts }>
   cells: Array<{ xIndex: number; yIndex: number; count: number }>
   topCities: Array<{ locationId: string; name: string; positions: number; share: number }>
   dataStart: string | null
   error?: string
 }
 
-const GRID_SIZE = 40
-
-// Même convention d'assets que les autres pages cartographiques.
-function mapAssetPath(mapName: string) {
-  return `/maps/pubg/${mapName}.webp`
-}
-
-const BAND_META: Record<ZoneBand, { label: string; description: string; color: string }> = {
-  center: { label: 'Centre', description: 'à moins de la moitié du rayon', color: '#22c55e' },
-  edge: { label: 'Bord intérieur', description: 'dans le cercle, au-delà de la moitié du rayon', color: '#eab308' },
-  outside: { label: 'Hors zone', description: 'encore dehors à la fermeture', color: '#ef4444' },
-}
-
 /** Échantillon jugé trop mince pour être commenté : on affiche la valeur, avec une réserve explicite. */
 const LOW_SAMPLE_THRESHOLD = 20
 
-const numberFormat = new Intl.NumberFormat('fr-FR')
-const formatShare = (value: number, total: number) =>
-  total > 0 ? `${((value / total) * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %` : '—'
+const integer = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
+const decimal = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
 
 function parseClanId(value: string | string[] | undefined) {
   if (!value || Array.isArray(value)) return null
@@ -61,6 +58,11 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+/**
+ * Fin de zone — docs/features/fin-de-zone.md. Page à carte selon la charte (docs/ui/index.html, « Pages à carte »,
+ * 04/10/2026) : carte ‹ ›, période et joueur sur une ligne, comme les zones de drop ; la cible et son verdict, trois
+ * titres, phase par phase, top 5 des secteurs et « Qui joue le cercle ».
+ */
 export default function ZoneClosuresPage() {
   const params = useParams()
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
@@ -74,6 +76,8 @@ export default function ZoneClosuresPage() {
   const [payload, setPayload] = useState<ZoneClosureResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Pastilles des joueurs : style de jeu dominant sur la période, comme les zones de drop.
+  const { colorOf, styleOf } = usePlaystyleColors(clanId, period)
 
   useEffect(() => {
     if (!clanId || !periodReady) return
@@ -113,279 +117,138 @@ export default function ZoneClosuresPage() {
     }
   }, [clanId, period, periodReady, mapName, memberId, phase])
 
-  const mapItems = (payload?.mapOptions ?? []).map((option) => ({
-    key: `map-${option.mapName}`,
-    label: `${option.label} (${numberFormat.format(option.positions)})`,
-    active: (payload?.selectedMap ?? '') === option.mapName,
-    onSelect: () => {
-      setMapName(option.mapName)
-      mapViewportRef.current?.reset()
-    },
-  }))
+  const maps = useMemo(() => (payload?.mapOptions ?? []).map((option) => option.mapName), [payload?.mapOptions])
+  const activeMap = payload?.selectedMap ?? ''
+  const members = useMemo(() => payload?.members ?? [], [payload?.members])
+  const ranked = useMemo(() => rankZoneMembers(members), [members])
+  const titles = useMemo(() => zoneTitles(members), [members])
 
-  const memberItems = [
-    { key: 'member-all', label: 'Tous', active: memberId === null, onSelect: () => setMemberId(null) },
-    ...(payload?.members ?? []).map((member) => ({
-      key: `member-${member.memberId}`,
-      label: `${member.displayName} (${numberFormat.format(member.positions)})`,
-      active: memberId === member.memberId,
-      onSelect: () => setMemberId(member.memberId),
-    })),
-  ]
+  function selectMap(next: string) {
+    setMapName(next)
+    mapViewportRef.current?.reset()
+  }
 
-  const phaseItems = TACTICAL_PHASE_OPTIONS.map((option) => ({
-    key: `phase-${option.value}`,
-    label: option.label,
-    active: phase === option.value,
-    onSelect: () => setPhase(parseTacticalPhase(option.value)),
-  }))
-
-  const totalBands = payload ? payload.bands.center + payload.bands.edge + payload.bands.outside : 0
-  const maxCellCount = payload?.cells.reduce((max, cell) => Math.max(max, cell.count), 0) ?? 0
-  const lowSample = totalBands > 0 && totalBands < LOW_SAMPLE_THRESHOLD
+  function stepMap(direction: 'prev' | 'next') {
+    if (maps.length < 2) return
+    const index = Math.max(0, maps.indexOf(activeMap))
+    selectMap(maps[(index + (direction === 'next' ? 1 : -1) + maps.length) % maps.length])
+  }
 
   if (!clanId) {
     return (
       <div className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Clan invalide.</p>
+        <p className="text-sm text-[var(--theme-ui-negative)]">Clan invalide.</p>
       </div>
     )
   }
 
+  const memberName = memberId !== null ? members.find((member) => member.memberId === memberId)?.displayName ?? null : null
+  const totalBands = payload ? payload.bands.center + payload.bands.edge + payload.bands.outside : 0
+  const lowSample = totalBands > 0 && totalBands < LOW_SAMPLE_THRESHOLD
+  const activeMapLabel = payload?.selectedMapLabel ?? (activeMap ? mapLabel(activeMap) : 'la carte')
+  const summary = payload
+    ? `${integer.format(payload.counts.closures)} fermetures · ${integer.format(payload.counts.matches)} matchs · ${decimal.format(payload.counts.averageSurvivors)} survivants en moyenne`
+    : ''
+
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Fin de zone"
           currentHref={`/clans/${clanId}/stats/zone-closures`}
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
-
-        <header className="app-panel flex flex-wrap items-start gap-3 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-500">
-            <Target className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-gray-900">Densité des positions en fin de zone</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Où l’escouade termine ses rotations quand un rétrécissement s’achève et que le nouveau cercle devient
-              stable. Une position par membre encore en vie et par fermeture.
+        {/* Bandeau photo de la charte, même hauteur que les autres pages (le mur de la zone bleue). */}
+        <header
+          className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
+          style={{ backgroundImage: `url('/banner-phases.jpg')`, backgroundPosition: 'center 35%' }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3.5 py-3 sm:px-6 sm:py-5">
+            <div className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Fin de zone</h1>
+            </div>
+            <p className="text-[13px] text-white/80 drop-shadow-md sm:text-sm">
+              Où le clan finit ses rotations quand le cercle se referme — au centre, au bord, ou encore dehors.
             </p>
           </div>
         </header>
       </div>
 
+      {/*
+        Même bandeau que les zones de drop (exception à sticky.md §2, décision du 2026-09-27) : docké sur mobile, il
+        garde la carte, la période et le joueur sur une seule ligne — on change de carte en regardant la carte.
+      */}
       <DockingToolbar ariaLabel="Filtres de la fin de zone">
-        {({ compact }) => (
-          <div className="flex w-full flex-col gap-3">
-            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
-            {!compact ? (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <MobileDropdownNav id="zone-map" variant="compact" label="Carte" currentLabel={payload?.selectedMapLabel ?? 'Aucune carte'} items={mapItems} visibilityClass="" className="w-full" />
-                <MobileDropdownNav id="zone-member" variant="compact" label="Joueur" currentLabel={memberId ? payload?.members.find((member) => member.memberId === memberId)?.displayName ?? '—' : 'Tous'} items={memberItems} visibilityClass="" className="w-full" />
-                <MobileDropdownNav id="zone-phase" variant="compact" label="Plage tactique" currentLabel={TACTICAL_PHASE_OPTIONS.find((option) => option.value === phase)?.label ?? ''} items={phaseItems} visibilityClass="" className="w-full" />
-              </div>
-            ) : null}
-          </div>
-        )}
+        <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
+          <MapPager maps={maps} activeMap={activeMap} onStep={stepMap} onSelect={selectMap} />
+          <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+          <PickerChip
+            ariaLabel="Joueur"
+            label={memberName ?? 'Tout le clan'}
+            color={memberId !== null ? colorOf(memberId) : null}
+            avatar={memberId !== null}
+            legend={<PlaystyleLegend />}
+            items={[
+              { key: 'all', label: 'Tout le clan', color: null, count: payload?.counts.positions, active: memberId === null, onSelect: () => setMemberId(null) },
+              ...members.map((member) => ({
+                key: String(member.memberId),
+                label: member.displayName,
+                color: colorOf(member.memberId),
+                avatar: true,
+                style: styleOf(member.memberId),
+                count: member.positions,
+                active: memberId === member.memberId,
+                onSelect: () => setMemberId(member.memberId),
+              })),
+            ]}
+          />
+          <span className="ml-auto hidden whitespace-nowrap text-[13px] tabular-nums text-gray-500 lg:inline" data-testid="zone-summary">
+            {summary}
+          </span>
+        </div>
       </DockingToolbar>
 
-      <div className="app-container app-gutter">
-        {error ? <p className="mb-5 text-sm text-red-600">{error}</p> : null}
-        {loading && !payload ? <p className="text-sm text-gray-500">Chargement…</p> : null}
+      <div className="app-container app-gutter flex flex-col gap-[18px] pb-8">
+        {error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
+        {loading && !payload ? <CardSkeleton /> : null}
 
         {payload && payload.counts.positions === 0 && !loading ? (
-          <section className="app-panel p-4">
-            <p className="text-sm text-gray-600">
-              Aucune fin de zone enregistrée pour ces filtres. Les fermetures sont écrites au moment de l’analyse des
-              matchs ; les matchs dont les positions brutes ont été purgées ne peuvent plus être rattrapés.
-            </p>
-          </section>
+          <p className="app-panel-muted p-4 text-sm text-gray-600">
+            {memberName ?? 'Le clan'} n’a vécu aucune fin de zone sur {activeMapLabel} {PERIOD_WHEN_LABELS[period]}. Les fermetures sont
+            écrites à l’analyse des matchs ; celles dont les positions brutes ont été purgées ne peuvent plus être rattrapées.
+          </p>
         ) : null}
 
+        {/* Pendant un rechargement, la page précédente reste affichée, estompée : elle ne se replie pas. */}
         {payload && payload.counts.positions > 0 ? (
-          <>
-            <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="app-panel p-4">
-                <p className="text-xs font-semibold uppercase text-slate-500">Observations</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">{numberFormat.format(payload.counts.positions)}</p>
-                <p className="text-xs text-gray-500">
-                  {numberFormat.format(payload.counts.closures)} fermetures · {numberFormat.format(payload.counts.matches)} matchs ·{' '}
-                  {numberFormat.format(payload.counts.members)} joueurs
-                </p>
-              </div>
-              <div className="app-panel p-4">
-                <p className="text-xs font-semibold uppercase text-slate-500">Position moyenne</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {payload.averageRatio.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Distance au centre divisée par le rayon : 0 au centre, 1 sur le bord.
-                </p>
-              </div>
-              <div className="app-panel p-4">
-                <p className="text-xs font-semibold uppercase text-slate-500">Dans le cercle</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {formatShare(payload.bands.center + payload.bands.edge, totalBands)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {formatShare(payload.bands.outside, totalBands)} encore dehors à la fermeture
-                </p>
-              </div>
-              <div className="app-panel p-4">
-                <p className="text-xs font-semibold uppercase text-slate-500">Survivants du lobby</p>
-                <p className="mt-1 text-2xl font-bold text-gray-900">
-                  {payload.counts.averageSurvivors.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
-                </p>
-                <p className="text-xs text-gray-500">en moyenne au moment des fermetures observées</p>
-              </div>
-            </section>
-
-            {lowSample ? (
-              <p className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Échantillon réduit ({numberFormat.format(totalBands)} observations) : à lire comme une tendance, pas
-                comme une statistique.
-              </p>
-            ) : null}
-
-            <section className="app-panel mb-5 overflow-hidden p-0">
-              <div className="border-b border-gray-200 px-4 py-3 text-sm text-gray-600">
-                Positions d’arrivée sur {payload.selectedMapLabel ?? 'la carte'} — la taille du point suit le nombre
-                d’arrivées dans la case.
-              </div>
-              <div className="p-3 sm:p-4">
-                <DropZoneMapViewport ref={mapViewportRef} showBoundaryControl={false}>
-                  {payload.selectedMap ? (
-                    <>
-                      <Image
-                        src={mapAssetPath(payload.selectedMap)}
-                        alt={payload.selectedMapLabel ?? payload.selectedMap}
-                        fill
-                        className="object-cover opacity-80 brightness-[0.72] saturate-[0.8] contrast-[1.08]"
-                        sizes="(max-width: 1280px) 100vw, 70vw"
-                        unoptimized
-                      />
-                      <div className="absolute inset-0 bg-slate-950/20" />
-                    </>
-                  ) : null}
-                  <div className="absolute inset-0 overflow-hidden">
-                    {payload.cells.map((cell) => {
-                      const ratio = maxCellCount > 0 ? cell.count / maxCellCount : 0
-                      const size = 8 + Math.sqrt(ratio) * 22
-                      return (
-                        <div
-                          key={`${cell.xIndex}-${cell.yIndex}`}
-                          className="absolute z-20 rounded-full border border-white/80"
-                          style={{
-                            left: `${((cell.xIndex + 0.5) / GRID_SIZE) * 100}%`,
-                            top: `${((cell.yIndex + 0.5) / GRID_SIZE) * 100}%`,
-                            width: `${size}px`,
-                            height: `${size}px`,
-                            transform: 'translate(-50%, -50%)',
-                            backgroundColor: `rgba(34, 211, 238, ${0.25 + ratio * 0.6})`,
-                            boxShadow: `0 0 ${6 + ratio * 12}px rgba(34, 211, 238, 0.7)`,
-                          }}
-                          title={`${numberFormat.format(cell.count)} arrivée(s)`}
-                        />
-                      )
-                    })}
-                  </div>
-                </DropZoneMapViewport>
-              </div>
-            </section>
-
-            <div className="grid gap-5 xl:grid-cols-2">
-              <section className="app-panel p-4">
-                <h2 className="text-base font-semibold text-gray-900">Par fermeture</h2>
-                <p className="mt-1 text-xs text-gray-500">
-                  Numéro de la phase qui commence. Le nombre d’observations décroît avec les phases : seuls les membres
-                  encore en vie y figurent, c’est le biais de survie.
-                </p>
-                <div className="app-table-shell mt-3 overflow-x-auto">
-                  <table className="w-full table-auto text-[13px]">
-                    <thead className="app-table-head">
-                      <tr>
-                        <SortableTh align="left" className="pl-3">Phase</SortableTh>
-                        <SortableTh>Observations</SortableTh>
-                        <SortableTh>Centre</SortableTh>
-                        <SortableTh>Bord</SortableTh>
-                        <SortableTh>Hors zone</SortableTh>
-                        <SortableTh className="pr-3">Ratio moyen</SortableTh>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payload.byPhase.map((entry) => (
-                        <tr key={entry.phase} className="app-table-row">
-                          <td className="px-3 py-2 font-medium text-gray-900">Phase {entry.phase}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{numberFormat.format(entry.positions)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatShare(entry.bands.center, entry.positions)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatShare(entry.bands.edge, entry.positions)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">{formatShare(entry.bands.outside, entry.positions)}</td>
-                          <td className="px-3 py-2 text-right tabular-nums">
-                            {entry.averageRatio.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ul className="mt-3 space-y-1 text-xs text-gray-500">
-                  {(Object.keys(BAND_META) as ZoneBand[]).map((band) => (
-                    <li key={band} className="flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BAND_META[band].color }} />
-                      <span>
-                        <strong className="text-gray-700">{BAND_META[band].label}</strong> — {BAND_META[band].description}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <section className="app-panel p-4">
-                <h2 className="text-base font-semibold text-gray-900">Top 5 des secteurs d’arrivée</h2>
-                <p className="mt-1 text-xs text-gray-500">
-                  Villes configurées pour cette carte ; les arrivées hors de tout périmètre ne sont pas classées.
-                </p>
-                {payload.topCities.length > 0 ? (
-                  <div className="app-table-shell mt-3 overflow-x-auto">
-                    <table className="w-full table-auto text-[13px]">
-                      <thead className="app-table-head">
-                        <tr>
-                          <SortableTh align="left" className="w-12 pl-3">#</SortableTh>
-                          <SortableTh align="left">Secteur</SortableTh>
-                          <SortableTh>Arrivées</SortableTh>
-                          <SortableTh className="pr-3">Part</SortableTh>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {payload.topCities.map((city, index) => (
-                          <tr key={city.locationId} className={`app-table-row ${index < 3 ? `app-table-row--top${index + 1}` : ''}`}>
-                            <td className="py-2 pl-3 pr-[9px]">
-                              <RankCell rank={index + 1} />
-                            </td>
-                            <td className="px-3 py-2 font-medium text-gray-900">{city.name}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{numberFormat.format(city.positions)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {city.share.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-gray-500">Aucune arrivée dans un périmètre configuré.</p>
-                )}
-                {payload.dataStart ? (
-                  <p className="mt-3 text-xs text-gray-500">
-                    Données depuis le{' '}
-                    {new Date(payload.dataStart).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}.
+          <div className={`flex flex-col gap-[18px] transition-opacity ${loading ? 'opacity-60' : ''}`} aria-busy={loading}>
+            <div className="grid items-start gap-[18px] lg:grid-cols-[minmax(0,1fr)_340px]">
+              <ZoneClosureMap ref={mapViewportRef} mapName={payload.selectedMap} mapLabel={activeMapLabel} cells={payload.cells} />
+              <div className="flex min-w-0 flex-col gap-[18px]">
+                <ZoneTarget bands={payload.bands} averageRatio={payload.averageRatio} verdict={zoneVerdict(payload.bands)} />
+                <PhasePicker value={phase} onChange={setPhase} meta="filtre les fermetures selon l’avancée de la partie" />
+                {lowSample ? (
+                  <p className="app-panel-muted flex items-start gap-2 px-3 py-2 text-[13px] text-gray-700">
+                    <AlertTriangle className="t-warn mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    Échantillon réduit ({integer.format(totalBands)} observations) : une tendance, pas une statistique.
                   </p>
                 ) : null}
-              </section>
+              </div>
             </div>
-          </>
+
+            <ZoneTitles titles={titles} colorOf={colorOf} styleOf={styleOf} />
+
+            <div className="grid items-start gap-[18px] xl:grid-cols-2">
+              <PhaseBreakdown phases={payload.byPhase} />
+              <ArrivalSectors cities={payload.topCities} dataStart={payload.dataStart} />
+            </div>
+
+            <WhoPlaysTheCircle members={ranked} selectedMemberId={memberId} onSelect={setMemberId} colorOf={colorOf} styleOf={styleOf} />
+          </div>
         ) : null}
       </div>
     </div>

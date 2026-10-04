@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { resolveMapName } from '@/lib/pubg-assets'
 import { matchDebriefPath } from '@/lib/match-links'
 import MapImage from '@/components/ui/MapImage'
+import { SlotBadge, comparatorSlot, slotInk, slotTint, type ComparatorSlot } from '@/components/comparator/ComparatorUi'
 
 type Props = {
   h2h: HeadToHeadStats
@@ -13,46 +14,43 @@ type Props = {
   selectedClanIds?: number[]
 }
 
-const SLOT_STYLES = [
-  {
-    name: 'P1',
-    badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]',
-    bgTint: 'bg-blue-500/10',
-    textTint: 'text-blue-500/80',
-    textColor: 'text-blue-500',
-  },
-  {
-    name: 'P2',
-    badgeClass: 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-[0_0_8px_rgba(249,115,22,0.3)]',
-    bgTint: 'bg-orange-500/10',
-    textTint: 'text-orange-500/80',
-    textColor: 'text-orange-500',
-  },
-  {
-    name: 'P3',
-    badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
-    bgTint: 'bg-emerald-500/10',
-    textTint: 'text-emerald-500/80',
-    textColor: 'text-emerald-500',
-  },
-]
+/** Score d'un duel : le camp en tête prend l'encre de son slot, l'autre reste neutre (chiffres héros Teko). */
+function DuelScore({ left, right, leftLeads, rightLeads, slotLeft, slotRight }: {
+  left: number
+  right: number
+  leftLeads: boolean
+  rightLeads: boolean
+  slotLeft: ComparatorSlot
+  slotRight: ComparatorSlot
+}) {
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <b className={`t-hero t-hero--md ${leftLeads ? '' : 'text-gray-900'}`} style={leftLeads ? { color: slotInk(slotLeft) } : undefined}>
+        {left}
+      </b>
+      <Minus className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+      <b className={`t-hero t-hero--md ${rightLeads ? '' : 'text-gray-900'}`} style={rightLeads ? { color: slotInk(slotRight) } : undefined}>
+        {right}
+      </b>
+    </div>
+  )
+}
 
 export default function HeadToHeadCard({ h2h, clanA, clanB, selectedClanIds }: Props) {
   const slotAIndex = selectedClanIds ? selectedClanIds.indexOf(clanA.clanId) : 0
   const slotBIndex = selectedClanIds ? selectedClanIds.indexOf(clanB.clanId) : 1
-  const slotA = SLOT_STYLES[slotAIndex !== -1 ? slotAIndex % SLOT_STYLES.length : 0]
-  const slotB = SLOT_STYLES[slotBIndex !== -1 ? slotBIndex % SLOT_STYLES.length : 1]
+  const slotA = comparatorSlot(slotAIndex !== -1 ? slotAIndex : 0)
+  const slotB = comparatorSlot(slotBIndex !== -1 ? slotBIndex : 1)
 
   if (h2h.commonMatchCount === 0) {
     return (
-      <article className="app-panel-muted flex flex-col items-center justify-center rounded-xl p-8 text-center border border-[var(--theme-ui-border)]">
-        <Swords className="mb-3 h-10 w-10 text-[var(--theme-ui-text-muted)] opacity-50" />
-        <h3 className="mb-1 font-bold text-[var(--theme-ui-text)]">
+      // État vide (charte §2) : bordure pointillée, rayon 14.
+      <article className="flex flex-col items-center justify-center gap-1 rounded-[14px] border border-dashed border-gray-200 p-8 text-center">
+        <Swords className="mb-2 h-10 w-10 text-gray-400" aria-hidden="true" />
+        <h3 className="t-card-title">
           {clanA.clanTag} vs {clanB.clanTag}
         </h3>
-        <p className="text-sm text-[var(--theme-ui-text-secondary)]">
-          Aucun match commun trouvé entre ces deux clans pour l&apos;instant.
-        </p>
+        <p className="t-body text-gray-700">Aucun match commun trouvé entre ces deux clans pour l&apos;instant.</p>
       </article>
     )
   }
@@ -61,7 +59,7 @@ export default function HeadToHeadCard({ h2h, clanA, clanB, selectedClanIds }: P
   const winDiff = h2h.matchesWonByA - h2h.matchesWonByB
   const killDiff = h2h.killsAOnB - h2h.killsBOnA
   const killDiffMatch = h2h.mostKillsInMatchA - h2h.mostKillsInMatchB
-  
+
   // Basic date formatter
   const formatDate = (isoString: string) => {
     const d = new Date(isoString)
@@ -69,162 +67,158 @@ export default function HeadToHeadCard({ h2h, clanA, clanB, selectedClanIds }: P
   }
 
   return (
-    <article className="app-panel-muted overflow-hidden rounded-xl border border-[var(--theme-ui-border)] shadow-sm">
-      {/* Header with VS and Slot Badges */}
-      <div className="relative flex items-stretch border-b border-[var(--theme-ui-border)]">
-        <div className={`flex flex-1 flex-col items-center justify-center ${slotA.bgTint} p-5 text-center`}>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className={`flex h-5 px-1.5 items-center justify-center rounded text-[11px] font-black uppercase border ${slotA.badgeClass}`}>
-              {slotA.name}
-            </span>
-            <span className={`text-xs font-bold uppercase tracking-widest ${slotA.textTint}`}>
-              {clanA.clanName}
-            </span>
+    <article className="app-panel-muted overflow-hidden">
+      {/* En-tête : les deux camps aux couleurs de leur slot, badge VS au centre */}
+      <div className="relative flex items-stretch border-b border-gray-200">
+        {[
+          { clan: clanA, slot: slotA },
+          { clan: clanB, slot: slotB },
+        ].map(({ clan, slot }) => (
+          <div
+            key={clan.clanId}
+            className="flex min-w-0 flex-1 flex-col items-center justify-center p-5 text-center"
+            style={{ backgroundColor: slotTint(slot, 10) }}
+          >
+            <div className="mb-1.5 flex min-w-0 max-w-full items-center gap-1.5">
+              <SlotBadge slot={slot} size="sm" />
+              <span className="truncate text-xs font-bold uppercase tracking-widest" style={{ color: slotInk(slot) }}>
+                {clan.clanName}
+              </span>
+            </div>
+            <span className="text-3xl font-black text-gray-900 sm:text-4xl">{clan.clanTag}</span>
           </div>
-          <span className="text-3xl sm:text-4xl font-black text-[var(--theme-ui-text)]">
-            {clanA.clanTag}
-          </span>
-        </div>
-        
+        ))}
+
         <div className="absolute inset-y-0 left-1/2 flex w-12 -translate-x-1/2 items-center justify-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--theme-bg-base)] text-sm font-black text-[var(--theme-ui-text-muted)] shadow-md border border-[var(--theme-ui-border)] z-10">
+          <div className="z-10 flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-sm font-black italic text-gray-500 shadow-md">
             VS
           </div>
         </div>
-
-        <div className={`flex flex-1 flex-col items-center justify-center ${slotB.bgTint} p-5 text-center`}>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className={`flex h-5 px-1.5 items-center justify-center rounded text-[11px] font-black uppercase border ${slotB.badgeClass}`}>
-              {slotB.name}
-            </span>
-            <span className={`text-xs font-bold uppercase tracking-widest ${slotB.textTint}`}>
-              {clanB.clanName}
-            </span>
-          </div>
-          <span className="text-3xl sm:text-4xl font-black text-[var(--theme-ui-text)]">
-            {clanB.clanTag}
-          </span>
-        </div>
       </div>
 
-      {/* Main Stats */}
-      <div className="grid grid-cols-3 divide-x divide-[var(--theme-ui-border)] border-b border-[var(--theme-ui-border)] bg-[var(--theme-bg-base)]">
-        {/* Placement Wins */}
-        <div className="p-4 text-center">
-          <div className="mb-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--theme-ui-text-muted)]">
-            <Trophy className="h-4 w-4" /> Meilleur Placement
+      {/* Scores des trois duels */}
+      <div className="grid grid-cols-3 divide-x divide-gray-200 border-b border-gray-200">
+        {/* Meilleur placement */}
+        <div className="flex flex-col items-center gap-3 p-3 text-center sm:p-4">
+          <div className="t-label flex items-center justify-center gap-1.5">
+            <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Meilleur Placement
           </div>
-          <div className="flex items-center justify-center gap-2">
-            <span className={winDiff > 0 ? `text-3xl font-black ${slotA.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.matchesWonByA}</span>
-            <Minus className="h-4 w-4 text-[var(--theme-ui-text-secondary)] opacity-50" />
-            <span className={winDiff < 0 ? `text-3xl font-black ${slotB.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.matchesWonByB}</span>
-          </div>
+          <DuelScore
+            left={h2h.matchesWonByA}
+            right={h2h.matchesWonByB}
+            leftLeads={winDiff > 0}
+            rightLeads={winDiff < 0}
+            slotLeft={slotA}
+            slotRight={slotB}
+          />
           {h2h.ties > 0 && (
-            <p className="mt-2 text-xs font-medium text-[var(--theme-ui-text-muted)]">
+            <p className="t-meta">
               {h2h.ties} match{h2h.ties > 1 ? 's' : ''} à égalité
             </p>
           )}
         </div>
 
-        {/* Most Kills Match */}
-        <div className="p-4 text-center">
-          <div className="mb-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--theme-ui-text-muted)]">
-            <Skull className="h-4 w-4" /> Plus de Kills
+        {/* Plus de kills dans un match */}
+        <div className="flex flex-col items-center gap-3 p-3 text-center sm:p-4">
+          <div className="t-label flex items-center justify-center gap-1.5">
+            <Skull className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Plus de Kills
           </div>
-          <div className="flex items-center justify-center gap-2">
-            <span className={killDiffMatch > 0 ? `text-3xl font-black ${slotA.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.mostKillsInMatchA}</span>
-            <Minus className="h-4 w-4 text-[var(--theme-ui-text-secondary)] opacity-50" />
-            <span className={killDiffMatch < 0 ? `text-3xl font-black ${slotB.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.mostKillsInMatchB}</span>
-          </div>
+          <DuelScore
+            left={h2h.mostKillsInMatchA}
+            right={h2h.mostKillsInMatchB}
+            leftLeads={killDiffMatch > 0}
+            rightLeads={killDiffMatch < 0}
+            slotLeft={slotA}
+            slotRight={slotB}
+          />
           {h2h.mostKillsTies > 0 && (
-            <p className="mt-2 text-xs font-medium text-[var(--theme-ui-text-muted)]">
+            <p className="t-meta">
               {h2h.mostKillsTies} match{h2h.mostKillsTies > 1 ? 's' : ''} à égalité
             </p>
           )}
         </div>
 
-        {/* Direct Kills */}
-        <div className="p-4 text-center">
-          <div className="mb-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[var(--theme-ui-text-muted)]">
-            <Crosshair className="h-4 w-4" /> Kills Directs
+        {/* Kills directs */}
+        <div className="flex flex-col items-center gap-3 p-3 text-center sm:p-4">
+          <div className="t-label flex items-center justify-center gap-1.5">
+            <Crosshair className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Kills Directs
           </div>
-          <div className="flex items-center justify-center gap-2">
-            <span className={killDiff > 0 ? `text-3xl font-black ${slotA.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.killsAOnB}</span>
-            <Minus className="h-4 w-4 text-[var(--theme-ui-text-secondary)] opacity-50" />
-            <span className={killDiff < 0 ? `text-3xl font-black ${slotB.textColor}` : "text-3xl font-bold text-[var(--theme-ui-text)]"}>{h2h.killsBOnA}</span>
-          </div>
-          <p className="mt-2 text-xs font-medium text-[var(--theme-ui-text-secondary)]">
-            {h2h.killsAOnB + h2h.killsBOnA === 0 
-              ? 'Aucun affrontement' 
-              : killDiff > 0 
+          <DuelScore
+            left={h2h.killsAOnB}
+            right={h2h.killsBOnA}
+            leftLeads={killDiff > 0}
+            rightLeads={killDiff < 0}
+            slotLeft={slotA}
+            slotRight={slotB}
+          />
+          <p className="t-meta">
+            {h2h.killsAOnB + h2h.killsBOnA === 0
+              ? 'Aucun affrontement'
+              : killDiff > 0
                 ? `Avantage ${clanA.clanTag}`
-                : killDiff < 0 
+                : killDiff < 0
                   ? `Avantage ${clanB.clanTag}`
                   : 'Égalité'}
           </p>
         </div>
       </div>
 
-      {/* Match History */}
-      <div className="p-5">
-        <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--theme-ui-text-muted)]">
-          <Calendar className="h-4 w-4" /> Derniers croisements (Total: {h2h.commonMatchCount})
+      {/* Derniers croisements */}
+      <div className="flex flex-col gap-3 p-5">
+        <h4 className="t-label flex items-center gap-2">
+          <Calendar className="h-3.5 w-3.5" aria-hidden="true" /> Derniers croisements (Total: {h2h.commonMatchCount})
         </h4>
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {h2h.matches.slice(0, 3).map((match) => {
             const linkClanId = match.winner === 'B' ? clanB.clanId : clanA.clanId
             return (
               <Link
                 key={match.squadMatchId}
                 href={matchDebriefPath(linkClanId, match.squadMatchId)}
-                className="group relative flex items-center justify-between overflow-hidden rounded-lg bg-[var(--theme-bg-base)] p-3 shadow-sm border border-[var(--theme-ui-border)] transition-all hover:border-blue-500/50"
+                className="group relative flex items-center justify-between overflow-hidden rounded-[10px] border border-gray-200 bg-white p-3 transition hover:border-[var(--theme-ui-accent-ring)]"
               >
-                {/* Background Map Image */}
-                <div className="absolute inset-0 z-0 opacity-10 transition-opacity group-hover:opacity-20 pointer-events-none">
+                {/* Carte en filigrane */}
+                <div className="pointer-events-none absolute inset-0 z-0 opacity-10 transition-opacity group-hover:opacity-20">
                   <MapImage mapKey={match.mapName} className="h-full w-full object-cover object-center" />
                 </div>
-                
-                {/* Left Side: Map & Date */}
-                <div className="relative z-10 flex items-center gap-3">
-                  <div>
-                    <div className="text-sm font-bold text-[var(--theme-ui-text)] group-hover:text-blue-500 transition-colors">
-                      {resolveMapName(match.mapName)}
-                    </div>
-                    <div className="text-xs font-medium text-[var(--theme-ui-text-secondary)]">
-                      {formatDate(match.createdAt)}
-                    </div>
-                  </div>
+
+                {/* Carte et date */}
+                <div className="relative z-10 flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-bold text-gray-900 transition-colors group-hover:text-[var(--theme-ui-accent-text)]">
+                    {resolveMapName(match.mapName)}
+                  </span>
+                  <span className="t-meta">{formatDate(match.createdAt)}</span>
                 </div>
-                
-                {/* Right Side: Placements & Kills */}
-                <div className="relative z-10 flex items-center gap-4 text-lg font-black tracking-tight">
-                  <div className="flex flex-col items-center">
-                    <span className={match.winner === 'A' ? 'text-blue-500' : 'text-[var(--theme-ui-text-muted)] opacity-70'}>
-                      #{match.bestPlacementA ?? '?'}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--theme-ui-text-muted)] mt-0.5">
-                      {match.totalKillsA ?? 0} Kills
-                    </span>
-                  </div>
-                  
-                  <span className="text-[var(--theme-ui-text-muted)] opacity-30 text-sm mb-4">-</span>
-                  
-                  <div className="flex flex-col items-center">
-                    <span className={match.winner === 'B' ? 'text-orange-500' : 'text-[var(--theme-ui-text-muted)] opacity-70'}>
-                      #{match.bestPlacementB ?? '?'}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--theme-ui-text-muted)] mt-0.5">
-                      {match.totalKillsB ?? 0} Kills
-                    </span>
-                  </div>
+
+                {/* Places et kills de chaque camp */}
+                <div className="relative z-10 flex shrink-0 items-center gap-4">
+                  {[
+                    { side: 'A' as const, slot: slotA, placement: match.bestPlacementA, kills: match.totalKillsA },
+                    { side: 'B' as const, slot: slotB, placement: match.bestPlacementB, kills: match.totalKillsB },
+                  ].map(({ side, slot, placement, kills }, index) => (
+                    <div key={side} className="flex items-center gap-4">
+                      {index === 1 ? (
+                        <span className="text-sm text-gray-400" aria-hidden="true">
+                          -
+                        </span>
+                      ) : null}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <b
+                          className={`t-hero t-hero--sm ${match.winner === side ? '' : 'text-gray-500'}`}
+                          style={match.winner === side ? { color: slotInk(slot) } : undefined}
+                        >
+                          #{placement ?? '?'}
+                        </b>
+                        <span className="t-label">{kills ?? 0} Kills</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </Link>
             )
           })}
           {h2h.matches.length > 3 && (
-            <p className="pt-2 text-center text-xs font-medium text-[var(--theme-ui-text-muted)] opacity-80">
-              + {h2h.matches.length - 3} autres matchs communs non affichés
-            </p>
+            <p className="t-meta pt-2 text-center">+ {h2h.matches.length - 3} autres matchs communs non affichés</p>
           )}
         </div>
       </div>

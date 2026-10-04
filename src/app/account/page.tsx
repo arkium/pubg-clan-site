@@ -1,12 +1,20 @@
 'use client'
 
-/* eslint-disable @next/next/no-img-element */
-
-import Link from 'next/link'
-import { UserCircle } from 'lucide-react'
+import { KeyRound, Save, UserRound, Users } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
+import {
+  AccountBanner,
+  AccountCard,
+  AvatarPicker,
+  FormStatus,
+  LinkedMembersList,
+  PasswordConfirmDialog,
+  TextField,
+  type AvatarSuggestion,
+} from '@/components/account/AccountSections'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 
 type ProfileMember = {
@@ -23,13 +31,6 @@ type ProfilePayload = {
   displayName: string | null
   avatarUrl: string | null
   members: ProfileMember[]
-}
-
-type AvatarSuggestion = {
-  id: string
-  label: string
-  url: string
-  fallbackUrl: string
 }
 
 const AVATAR_STYLES = [
@@ -53,6 +54,10 @@ function generateSeriesSeed() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+/**
+ * Mon compte — email, pseudo d'affichage, avatar, membres liés et mot de passe, selon la charte UI
+ * (docs/ui/index.html). Blocs de présentation : src/components/account/AccountSections.tsx.
+ */
 export default function AccountPage() {
   const router = useRouter()
   const { activeMemberId } = useAuthSession()
@@ -115,7 +120,7 @@ export default function AccountPage() {
             return
           }
 
-          throw new Error('error' in payload ? payload.error : 'Failed to load profile')
+          throw new Error('error' in payload ? payload.error : 'Chargement du profil impossible')
         }
 
         if (cancelled) {
@@ -129,7 +134,7 @@ export default function AccountPage() {
         setMembers(profile.members)
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load profile')
+          setError(loadError instanceof Error ? loadError.message : 'Chargement du profil impossible')
         }
       } finally {
         if (!cancelled) {
@@ -170,7 +175,7 @@ export default function AccountPage() {
         | { error?: string }
 
       if (!response.ok) {
-        throw new Error('error' in payload ? payload.error : 'Failed to update profile')
+        throw new Error('error' in payload ? payload.error : 'Mise à jour du profil impossible')
       }
 
       const profile = (payload as { profile: Pick<ProfilePayload, 'email' | 'displayName' | 'avatarUrl'> }).profile
@@ -179,7 +184,7 @@ export default function AccountPage() {
       setAvatarUrl(profile.avatarUrl ?? '')
       setSuccess('Profil mis à jour')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to update profile')
+      setError(saveError instanceof Error ? saveError.message : 'Mise à jour du profil impossible')
     } finally {
       setSaving(false)
     }
@@ -222,7 +227,7 @@ export default function AccountPage() {
       const payload = (await response.json()) as { success?: boolean; message?: string; error?: string }
 
       if (!response.ok) {
-        throw new Error(payload.error ?? 'Failed to update password')
+        throw new Error(payload.error ?? 'Mise à jour du mot de passe impossible')
       }
 
       setCurrentPassword('')
@@ -230,7 +235,7 @@ export default function AccountPage() {
       setConfirmPassword('')
       setPasswordSuccess(payload.message ?? 'Mot de passe mis à jour')
     } catch (submitError) {
-      setPasswordError(submitError instanceof Error ? submitError.message : 'Failed to update password')
+      setPasswordError(submitError instanceof Error ? submitError.message : 'Mise à jour du mot de passe impossible')
     } finally {
       setPasswordSaving(false)
     }
@@ -256,282 +261,140 @@ export default function AccountPage() {
     setShowPasswordConfirm(false)
   }
 
+  function markAvatarFailed(id: string) {
+    setFailedAvatarIds((current) => {
+      if (current[id]) {
+        return current
+      }
+      return {
+        ...current,
+        [id]: true,
+      }
+    })
+  }
+
   return (
-    <>
-      <main className="app-container app-main flex-1 space-y-4">
-        <header
-          className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-          style={{ backgroundImage: `url('/account.jpg')`, backgroundPosition: 'center top' }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-          <Link
-            href={dashboardHref}
-            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 sm:right-4 sm:top-4 sm:px-3 sm:py-1.5 sm:text-sm"
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    // Pas de bandeau de filtres : colonne `app-container app-main` ; le shell fournit déjà le <main>.
+    <div className="app-container app-main charte flex flex-1 flex-col gap-[18px]">
+      <AccountBanner dashboardHref={dashboardHref} />
+
+      {loading ? (
+        <div aria-busy="true" aria-label="Chargement du compte">
+          <CardSkeleton />
+        </div>
+      ) : null}
+
+      {!loading ? (
+        <>
+          <AccountCard
+            id="account-profile-title"
+            icon={UserRound}
+            title="Profil"
+            meta="Email de connexion, pseudo affiché sur le site et avatar."
+            testId="account-profile"
           >
-            Dashboard
-          </Link>
-          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <UserCircle className="h-4 w-4 text-cyan-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Mon compte</h1>
-            </div>
-            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-              Modifie ton email, ton pseudo d&apos;affichage et ton avatar.
-            </p>
-          </div>
-        </header>
-
-        {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
-        {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
-        {success ? <p className="mb-4 text-sm text-green-600">{success}</p> : null}
-
-        {!loading ? (
-          <>
-            <form onSubmit={(event) => void handleSubmit(event)} className="app-panel space-y-4 p-5">
-              <label className="block text-sm text-gray-700">
-                Email
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  autoComplete="email"
-                />
-              </label>
-
-              <label className="block text-sm text-gray-700">
-                Pseudo d&apos;affichage
-                <input
-                  type="text"
+            <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField label="Email" type="email" required value={email} onChange={setEmail} autoComplete="email" />
+                <TextField
+                  label="Pseudo d’affichage"
                   value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  onChange={setDisplayName}
                   autoComplete="nickname"
                   maxLength={60}
                 />
-              </label>
-
-              <label className="block text-sm text-gray-700">
-                Avatar URL
-                <input
-                  type="url"
-                  value={avatarUrl}
-                  onChange={(event) => setAvatarUrl(event.target.value)}
-                  className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="https://..."
-                  autoComplete="url"
-                />
-              </label>
-
-              {avatarUrl.trim() ? (
-                <div className="app-panel-muted p-3">
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-600">Aperçu avatar</p>
-                  <img
-                    src={avatarUrl}
-                    alt="Avatar"
-                    className="h-14 w-14 rounded-full border border-gray-300 object-cover"
-                  />
-                </div>
-              ) : null}
-
-              <div className="app-panel-muted p-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-600">Avatars proposés</p>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAvatarSeriesSeed(generateSeriesSeed())
-                        setFailedAvatarIds({})
-                      }}
-                      className="app-btn app-btn--xs app-btn--secondary"
-                    >
-                      Régénérer série
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAvatarUrl('')}
-                      className="app-btn app-btn--xs app-btn--secondary"
-                    >
-                      Retirer avatar
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                  {avatarSuggestions.map((suggestion) => {
-                    const resolvedUrl = failedAvatarIds[suggestion.id] ? suggestion.fallbackUrl : suggestion.url
-                    const selected = avatarUrl.trim() === resolvedUrl
-
-                    return (
-                      <button
-                        key={suggestion.id}
-                        type="button"
-                        onClick={() => setAvatarUrl(resolvedUrl)}
-                        className={`flex w-full items-center justify-center rounded-lg border p-1 transition ${
-                          selected
-                            ? 'border-gray-900 bg-gray-100'
-                            : 'border-gray-300 bg-white hover:border-gray-500'
-                        }`}
-                        title={`Choisir ${suggestion.label}`}
-                      >
-                        <img
-                          src={resolvedUrl}
-                          alt={`Avatar ${suggestion.label}`}
-                          className="block h-10 w-10 rounded object-cover"
-                          onError={() => {
-                            setFailedAvatarIds((current) => {
-                              if (current[suggestion.id]) {
-                                return current
-                              }
-                              return {
-                                ...current,
-                                [suggestion.id]: true,
-                              }
-                            })
-                          }}
-                        />
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {Object.keys(failedAvatarIds).length > 0 ? (
-                  <p className="mt-2 text-xs text-gray-600">
-                    Certains avatars externes sont indisponibles, fallback local appliqué automatiquement.
-                  </p>
-                ) : null}
               </div>
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="app-btn app-btn--md app-btn--primary"
-              >
-                {saving ? 'Enregistrement...' : 'Enregistrer'}
-              </button>
-            </form>
+              <AvatarPicker
+                avatarUrl={avatarUrl}
+                onAvatarUrlChange={setAvatarUrl}
+                suggestions={avatarSuggestions}
+                failedIds={failedAvatarIds}
+                onSuggestionError={markAvatarFailed}
+                onRegenerate={() => {
+                  setAvatarSeriesSeed(generateSeriesSeed())
+                  setFailedAvatarIds({})
+                }}
+              />
 
-            <section className="app-panel mt-6 p-5">
-              <h2 className="text-lg font-semibold text-gray-900">Membres liés (lecture seule)</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Le nom joueur PUBG n&apos;est pas modifiable ici.
-              </p>
-
-              <ul className="mt-4 space-y-2">
-                {activeMembers.map((member) => (
-                  <li key={member.memberId} className="rounded border border-gray-200 px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{member.displayName}</p>
-                      <p className="text-xs text-gray-600">
-                        PUBG: {member.pubgPlayerName} ({member.platformShard})
-                      </p>
-                    </div>
-                    <Link
-                      href={`/members/${member.memberId}/notifications`}
-                      className="text-xs font-medium text-blue-600 hover:text-blue-800"
-                    >
-                      Notifications
-                    </Link>
-                  </li>
-                ))}
-                {activeMembers.length === 0 ? (
-                  <li className="text-sm text-gray-600">Aucun membre actif lié.</li>
-                ) : null}
-              </ul>
-            </section>
-
-            <section className="app-panel mt-6 p-5">
-              <h2 className="text-lg font-semibold text-gray-900">Changer le mot de passe</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Renseigne ton mot de passe actuel puis choisis un nouveau mot de passe (8 caractères minimum).
-              </p>
-
-              <form onSubmit={(event) => void handlePasswordSubmit(event)} className="mt-4 space-y-4">
-                <label className="block text-sm text-gray-700">
-                  Mot de passe actuel
-                  <input
-                    type="password"
-                    required
-                    value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                    autoComplete="current-password"
-                  />
-                </label>
-
-                <label className="block text-sm text-gray-700">
-                  Nouveau mot de passe
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                    autoComplete="new-password"
-                  />
-                </label>
-
-                <label className="block text-sm text-gray-700">
-                  Confirmer le nouveau mot de passe
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                    autoComplete="new-password"
-                  />
-                </label>
-
-                {passwordError ? <p className="text-sm text-red-600">{passwordError}</p> : null}
-                {passwordSuccess ? <p className="text-sm text-green-600">{passwordSuccess}</p> : null}
-
-                <button
-                  type="submit"
-                  disabled={passwordSaving}
-                  className="app-btn app-btn--md app-btn--primary"
-                >
-                  {passwordSaving ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-200 pt-4">
+                <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary gap-1.5">
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                  {saving ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
-              </form>
-            </section>
-          </>
-        ) : null}
-      </main>
+                <FormStatus error={error} success={success} />
+              </div>
+            </form>
+          </AccountCard>
 
-      {showPasswordConfirm ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">
-          <div className="app-panel w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-gray-900">Confirmer la mise à jour</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Veux-tu vraiment changer ton mot de passe maintenant ?
-            </p>
+          <AccountCard
+            id="account-members-title"
+            icon={Users}
+            title="Membres liés"
+            meta="Lecture seule : le nom de joueur PUBG n’est pas modifiable ici."
+            testId="account-members"
+          >
+            <LinkedMembersList members={activeMembers} />
+          </AccountCard>
 
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={cancelPasswordConfirm}
-                disabled={passwordSaving}
-                className="app-btn app-btn--md app-btn--secondary"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitPasswordChange()}
-                disabled={passwordSaving}
-                className="app-btn app-btn--md app-btn--primary"
-              >
-                {passwordSaving ? 'Mise à jour...' : 'Confirmer'}
-              </button>
-            </div>
-          </div>
-        </div>
+          <AccountCard
+            id="account-password-title"
+            icon={KeyRound}
+            title="Changer le mot de passe"
+            meta="Renseigne ton mot de passe actuel puis choisis-en un nouveau (8 caractères minimum)."
+            testId="account-password"
+          >
+            <form onSubmit={(event) => void handlePasswordSubmit(event)} className="flex flex-col gap-4">
+              <TextField
+                label="Mot de passe actuel"
+                type="password"
+                required
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                autoComplete="current-password"
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <TextField
+                  label="Nouveau mot de passe"
+                  type="password"
+                  required
+                  minLength={8}
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  autoComplete="new-password"
+                />
+                <TextField
+                  label="Confirmer le nouveau mot de passe"
+                  type="password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              {/* Un seul bouton principal par écran (charte) : celui du profil ; celui-ci est secondaire. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-200 pt-4">
+                <button type="submit" disabled={passwordSaving} className="app-btn app-btn--md app-btn--secondary">
+                  {passwordSaving ? 'Mise à jour…' : 'Mettre à jour le mot de passe'}
+                </button>
+                <FormStatus error={passwordError} success={passwordSuccess} />
+              </div>
+            </form>
+          </AccountCard>
+        </>
       ) : null}
-    </>
+
+      {/* Dans le conteneur `.charte` : le bouton principal de la modale prend l'accent. */}
+      {showPasswordConfirm ? (
+        <PasswordConfirmDialog
+          saving={passwordSaving}
+          onCancel={cancelPasswordConfirm}
+          onConfirm={() => void submitPasswordChange()}
+        />
+      ) : null}
+    </div>
   )
 }

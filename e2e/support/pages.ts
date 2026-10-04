@@ -106,11 +106,12 @@ export function mockClanDirectory(api: ApiMock) {
         leagueSize: 29,
         clanOfMomentId: 3,
         activity: [
-          { clanId: CLAN_ID, games7: 25, wins7: 5, playedTonight: 3, lastMatchAt: hoursAgo(2), leagueRank: 3 },
-          { clanId: 2, games7: 10, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(30), leagueRank: 12 },
-          { clanId: 3, games7: 64, wins7: 7, playedTonight: 8, lastMatchAt: hoursAgo(1), leagueRank: 1 },
-          { clanId: 4, games7: 0, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(24 * 20), leagueRank: null },
-          { clanId: 99, games7: 4, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(50), leagueRank: null },
+          // Style de jeu (badge) : Démo Medic, Meute Fragger ; Témoin sans assez de parties analysées.
+          { clanId: CLAN_ID, games7: 25, wins7: 5, playedTonight: 3, lastMatchAt: hoursAgo(2), leagueRank: 3, style: { id: 'medic', score: 67, aggression: 48.4, support: 67, zoneDiscipline: 28.2, members: 4, matches: 146 } },
+          { clanId: 2, games7: 10, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(30), leagueRank: 12, style: null },
+          { clanId: 3, games7: 64, wins7: 7, playedTonight: 8, lastMatchAt: hoursAgo(1), leagueRank: 1, style: { id: 'fragger', score: 69.8, aggression: 69.8, support: 57.5, zoneDiscipline: 32.2, members: 15, matches: 1613 } },
+          { clanId: 4, games7: 0, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(24 * 20), leagueRank: null, style: null },
+          { clanId: 99, games7: 4, wins7: 0, playedTonight: 0, lastMatchAt: hoursAgo(50), leagueRank: null, style: null },
         ],
       },
     })

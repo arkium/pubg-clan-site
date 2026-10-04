@@ -377,7 +377,7 @@ par les membres de ce clan »). Voir [auth.md](auth.md) §7.
 | Totaux | Une ligne : clans, joueurs, parties, heures de jeu, kills, « depuis le début du suivi » (`quickStats` de `GET /api/clans`) |
 | Bandeau collant | Recherche par nom ou tag (crochets et casse ignorés) et tri Activité / Nom / Effectif / Parties (`DockingToolbar`) |
 | À la une | **Clan épinglé** : son clan pour un connecté (« Mon clan »), le clan mémorisé pour un visiteur (« Dernier clan consulté ») ; **Clan du moment** : le plus de top 1 sur 7 jours, au moins 5 parties, puis le meilleur taux (jamais le clan technique). Masqué pendant une recherche |
-| Clans actifs | Partie dans les 14 derniers jours ; carte compacte : image, pastille « ● N » (joueurs de la soirée), effectif, parties ensemble en 7 jours, dernière partie en relatif, top 1 en 7 jours et rang en Ligue (mois). Tri par activité par défaut : joueurs de la soirée, parties en 7 jours, dernière partie |
+| Clans actifs | Partie dans les 14 derniers jours ; carte compacte : image, pastille « ● N » (joueurs de la soirée), effectif, parties ensemble en 7 jours, dernière partie en relatif, **style de jeu** (badge, 2026-10-04), top 1 en 7 jours et rang en Ligue (mois). Tri par activité par défaut : joueurs de la soirée, parties en 7 jours, dernière partie |
 | En sommeil | Sans partie depuis 14 jours : liste repliée et grisée |
 
 **Décisions du 2026-09-26**
@@ -394,6 +394,25 @@ par les membres de ce clan »). Voir [auth.md](auth.md) §7.
 (`src/lib/clan-directory-service.ts`, logique pure dans `src/lib/clan-directory.ts`) : par clan, parties et top 1 sur 7
 jours glissants, joueurs de la soirée, dernière partie, rang en Ligue ; joueurs de la soirée tous clans confondus ; clan
 du moment. Aucune donnée nominative ; gardée 5 minutes (~180 ms à froid). `ClanSelector` est supprimé.
+
+**Style de jeu du clan (2026-10-04)** — badge `PlaystyleBadge` (`src/components/ui/PlaystyleBadge.tsx`) sur la carte
+compacte, le clan épinglé et le clan du moment : **Fragger** (viseur, `--game-neg`), **Medic** (cœur, `--game-sky`) ou
+**Ghost** (fantôme, `--game-pos`), avec les trois scores en infobulle. Règle (`clanStyleOf`, `src/lib/clan-directory.ts`) :
+moyenne des scores de ses membres dans `MemberTelemetryStats` (période `all-time`, comme le rôle de la fiche des
+membres), puis `dominantRole` — le plus haut des trois scores, comme pour un joueur. Ce sont les moyennes affichées par
+les trois jauges de « Style de jeu du clan » sur « Tous ». Pas de badge sous **20 parties** cumulées
+(`CLAN_STYLE_MIN_MATCHES`) ni sans score positif.
+
+Données : vérifié le 2026-10-04 (`scripts/measure-clan-playstyle.ts`, lecture seule) — `MemberTelemetryStats` est tenu à
+jour par le worker d'agrégats après chaque partie analysée (dernière mise à jour le jour même pour les clans actifs).
+Relevé : ATR **Medic** (support 67, agressivité 48, discipline de zone 28 ; 146 parties, 4 joueurs) ; 15 clans Medic, 13
+Fragger, Ghost seulement pour le clan technique ; TNT sans badge (1 partie). Les scores sont sur 0 à 100 et la
+discipline de zone ne domine pas d'office (11 à 54 en moyenne selon les clans).
+
+**Charte UI (2026-10-04)** : `.charte`, icône du bandeau à l'accent, recherche `app-toolbar-search` et tri à la hauteur
+de la ligne, cartes photo en `.app-on-photo` avec le nom en Teko, tag à l'accent, top 1 en or de jeu, tampon
+`app-stamp` « En feu cette semaine », chiffres du clan du moment en Teko, bouton « Ouvrir » `app-btn--primary`,
+titres de section `t-section-title`, plus de couleurs en dur (`#0b1120` → `bg-photo-fallback`, émeraude → `--game-pos`).
 
 ---
 

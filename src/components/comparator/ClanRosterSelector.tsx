@@ -13,13 +13,13 @@ import {
   ChevronUp,
   Gamepad2,
   Clock,
-  Sparkles,
   ArrowUpDown,
   Filter,
   Swords,
 } from 'lucide-react'
 
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { ComparatorSectionHeader, SlotBadge, comparatorSlot, slotTint } from '@/components/comparator/ComparatorUi'
 
 export type ClanSummary = {
   id: number
@@ -50,35 +50,14 @@ interface ClanRosterSelectorProps {
 type FilterCategory = 'all' | 'recent' | 'large' | 'selected'
 type SortField = 'activity' | 'name' | 'members' | 'matches'
 
-const SLOT_CONFIGS = [
-  {
-    name: 'Slot 1',
-    colorName: 'Bleu',
-    badgeClass: 'bg-blue-500/20 text-blue-400 border-blue-500/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]',
-    borderClass: 'border-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.35)] bg-blue-950/30',
-    activeSlotClass: 'border-blue-500 text-blue-400',
-    ringClass: 'ring-2 ring-blue-500/60',
-    accentDot: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]',
-  },
-  {
-    name: 'Slot 2',
-    colorName: 'Orange',
-    badgeClass: 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-[0_0_8px_rgba(249,115,22,0.3)]',
-    borderClass: 'border-orange-500 shadow-[0_0_18px_rgba(249,115,22,0.35)] bg-orange-950/30',
-    activeSlotClass: 'border-orange-500 text-orange-400',
-    ringClass: 'ring-2 ring-orange-500/60',
-    accentDot: 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]',
-  },
-  {
-    name: 'Slot 3',
-    colorName: 'Vert',
-    badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]',
-    borderClass: 'border-emerald-500 shadow-[0_0_18px_rgba(16,185,129,0.35)] bg-emerald-950/30',
-    activeSlotClass: 'border-emerald-500 text-emerald-400',
-    ringClass: 'ring-2 ring-emerald-500/60',
-    accentDot: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]',
-  },
+const SORT_FIELDS: Array<{ value: SortField; label: string }> = [
+  { value: 'activity', label: 'Dernière activité' },
+  { value: 'name', label: 'Nom (A-Z)' },
+  { value: 'members', label: 'Effectif (Membres)' },
+  { value: 'matches', label: 'Volume de matchs' },
 ]
+
+const THIRTY_DAYS_MS = 30 * 24 * 3600 * 1000
 
 function formatRelativeTime(dateStr: string | null | undefined): string {
   if (!dateStr) return 'Aucun match'
@@ -98,6 +77,64 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
   return `Il y a ${diffMonths} mois`
 }
 
+/** Tri du catalogue : menu maison (charte : jamais de `<select>` natif), déclencheur aux couleurs du rail. */
+function SortMenu({ value, onChange }: { value: SortField; onChange: (value: SortField) => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [open])
+
+  const current = SORT_FIELDS.find((option) => option.value === value) ?? SORT_FIELDS[0]
+  return (
+    // Étiré à la hauteur de la ligne : même hauteur que le segmented voisin.
+    <div ref={rootRef} className="relative flex shrink-0 self-stretch">
+      <button
+        type="button"
+        onClick={() => setOpen((state) => !state)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Trier les clans : ${current.label}`}
+        className="app-menu-trigger"
+      >
+        <ArrowUpDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="hidden text-gray-500 sm:inline">Tri :</span>
+        {current.label}
+        <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div role="menu" aria-label="Trier les clans" className="app-menu absolute right-0 top-full z-50 mt-1.5 w-[220px]">
+          {SORT_FIELDS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={option.value === value}
+              onClick={() => {
+                onChange(option.value)
+                setOpen(false)
+              }}
+              className={`app-menu__item ${option.value === value ? 'app-menu__item--active' : ''}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default function ClanRosterSelector({
   clans,
   selectedClanIds,
@@ -114,6 +151,9 @@ export default function ClanRosterSelector({
   const [sortField, setSortField] = useState<SortField>('activity')
   // Replié par défaut au chargement de la page
   const [isExpanded, setIsExpanded] = useState(false)
+  // Instant de référence de la visite (« actifs récents » = match dans les 30 derniers jours) : lu une fois, pas
+  // pendant le rendu.
+  const [now] = useState(() => Date.now())
   const searchInputRef = useRef<HTMLInputElement>(null)
   const prevSelectedCountRef = useRef(selectedClanIds.length)
 
@@ -144,25 +184,21 @@ export default function ClanRosterSelector({
   const statsCounts = useMemo(() => {
     let recent = 0
     let large = 0
-    const now = Date.now()
-    const thirtyDaysMs = 30 * 24 * 3600 * 1000
 
     for (const c of clans) {
       if (c.lastMatchAt) {
         const time = new Date(c.lastMatchAt).getTime()
-        if (now - time <= thirtyDaysMs) recent++
+        if (now - time <= THIRTY_DAYS_MS) recent++
       }
       if ((c.membersCount ?? 0) >= 10) large++
     }
 
     return { all: clans.length, recent, large }
-  }, [clans])
+  }, [clans, now])
 
   // Filtered and sorted clans
   const displayedClans = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const now = Date.now()
-    const thirtyDaysMs = 30 * 24 * 3600 * 1000
 
     let list = clans.filter((clan) => {
       // Search filter
@@ -180,7 +216,7 @@ export default function ClanRosterSelector({
       if (activeCategory === 'recent') {
         if (!clan.lastMatchAt) return false
         const time = new Date(clan.lastMatchAt).getTime()
-        return now - time <= thirtyDaysMs
+        return now - time <= THIRTY_DAYS_MS
       }
       if (activeCategory === 'large') {
         return (clan.membersCount ?? 0) >= 10
@@ -215,7 +251,7 @@ export default function ClanRosterSelector({
     })
 
     return list
-  }, [clans, searchQuery, activeCategory, sortField, selectedClanIds])
+  }, [clans, searchQuery, activeCategory, sortField, selectedClanIds, now])
 
   // Random selection
   const handleRandomSelect = () => {
@@ -233,32 +269,21 @@ export default function ClanRosterSelector({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 1. Header Card with Battle Slots & Centered Chevron Toggle */}
-      <div className="relative rounded-2xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface)] p-4 sm:p-5 shadow-sm">
-        {/* Top bar with Title & Quick Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[var(--theme-ui-border)]">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
-              <Swords className="h-4 w-4" />
-            </span>
-            <div>
-              <h2 className="text-sm sm:text-base font-bold uppercase tracking-wider text-[var(--theme-ui-text)]">
-                Arène de confrontation
-              </h2>
-              <p className="text-xs text-[var(--theme-ui-text-muted)]">
-                Sélectionne jusqu&apos;à {maxClans} clans à confronter ({selectedClanIds.length}/{maxClans})
-              </p>
-            </div>
-          </div>
-
+      {/* 1. Arène : titre, actions rapides, slots P1 / P2 / P3 séparés par le badge VS, bascule du catalogue. */}
+      <div className="app-panel relative flex flex-col gap-4 p-4 sm:p-5">
+        <ComparatorSectionHeader
+          icon={Swords}
+          title="Arène de confrontation"
+          subtitle={`Sélectionne jusqu'à ${maxClans} clans à confronter (${selectedClanIds.length}/${maxClans})`}
+        >
           <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-end">
             <button
               type="button"
               onClick={handleRandomSelect}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--theme-ui-text)] hover:bg-[var(--theme-ui-surface-strong)] hover:border-slate-400 transition"
+              className="app-btn app-btn--secondary app-btn--xs gap-1.5"
               title="Sélectionner 3 clans au hasard"
             >
-              <Dices className="h-4 w-4 text-amber-400" />
+              <Dices className="h-4 w-4" aria-hidden="true" />
               <span>Aléatoire</span>
             </button>
 
@@ -266,51 +291,53 @@ export default function ClanRosterSelector({
               <button
                 type="button"
                 onClick={onClearSelection}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 hover:border-red-500/50 transition"
+                className="app-btn app-btn--danger app-btn--xs gap-1.5"
                 title="Vider la sélection"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Effacer ({selectedClanIds.length})</span>
               </button>
             )}
           </div>
-        </div>
+        </ComparatorSectionHeader>
 
-        {/* The 3 Slots with VS Badges in between */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-4">
+        {/* Les slots, séparés par le badge VS (maquette #trading-cards : arène à 3 slots). */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {Array.from({ length: maxClans }).map((_, slotIndex) => {
             const clanId = selectedClanIds[slotIndex]
             const clan = clanId ? clanMap.get(clanId) : undefined
-            const slotConfig = SLOT_CONFIGS[slotIndex % SLOT_CONFIGS.length]
+            const slot = comparatorSlot(slotIndex)
             const isLast = slotIndex === maxClans - 1
+            const slotName = `Slot ${slotIndex + 1} (${slot.colorName})`
 
             return (
               <React.Fragment key={`slot-container-${slotIndex}`}>
-                {/* Slot Card */}
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   {clan ? (
                     <div
-                      className={`group relative flex items-center justify-between gap-3 rounded-xl border p-3.5 sm:p-4 transition-all ${slotConfig.borderClass}`}
+                      className="group relative flex items-center justify-between gap-3 rounded-[10px] border p-3.5 transition-all sm:p-4"
+                      style={{
+                        borderColor: slotTint(slot, 50),
+                        backgroundColor: slotTint(slot, 8),
+                        boxShadow: `0 0 12px ${slotTint(slot, 20)}`,
+                      }}
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl text-xs sm:text-sm font-black tracking-wider uppercase border ${slotConfig.badgeClass}`}
-                        >
-                          P{slotIndex + 1}
-                        </span>
+                        <SlotBadge slot={slot} size="arena" />
                         <div className="min-w-0">
                           <div className="flex items-baseline gap-1.5">
-                            <span className="font-mono text-base sm:text-lg font-black tracking-wide text-[var(--theme-ui-text)]">
+                            <span className="font-mono text-base font-black tracking-wide text-gray-900 sm:text-lg">
                               [{clan.tag}]
                             </span>
-                            <span className="truncate text-xs sm:text-sm font-semibold text-[var(--theme-ui-text-secondary)]">
-                              {clan.name}
-                            </span>
+                            <span className="truncate text-xs font-semibold text-gray-700 sm:text-sm">{clan.name}</span>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--theme-ui-text-muted)] font-medium">
-                            <span>👥 {clan.membersCount ?? 0} membres</span>
-                            <span>•</span>
-                            <span className="font-semibold">{slotConfig.name} ({slotConfig.colorName})</span>
+                          <div className="t-meta mt-0.5 flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                              {clan.membersCount ?? 0} membres
+                            </span>
+                            <span aria-hidden="true">•</span>
+                            <span className="truncate font-semibold">{slotName}</span>
                           </div>
                         </div>
                       </div>
@@ -318,39 +345,39 @@ export default function ClanRosterSelector({
                       <button
                         type="button"
                         onClick={() => onToggleClan(clan.id)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-[var(--theme-ui-text-muted)] hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 transition"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-50 hover:text-[var(--theme-ui-negative)]"
                         title={`Retirer ${clan.name}`}
+                        aria-label={`Retirer ${clan.name}`}
                       >
-                        <X className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <X className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                       </button>
                     </div>
                   ) : (
+                    // Slot vide (état vide de la charte : bordure pointillée) : ouvre le catalogue.
                     <button
                       type="button"
                       onClick={() => setIsExpanded(true)}
-                      className="w-full flex items-center justify-between rounded-xl border-2 border-dashed border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)]/50 p-3.5 sm:p-4 hover:border-slate-400 hover:bg-[var(--theme-ui-surface-soft)] transition cursor-pointer text-left group"
+                      className="group flex w-full cursor-pointer items-center justify-between rounded-[10px] border border-dashed border-gray-200 p-3.5 text-left transition hover:bg-gray-50 sm:p-4"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--theme-ui-border)] text-xs sm:text-sm font-bold text-[var(--theme-ui-text-muted)] group-hover:text-[var(--theme-ui-text)] transition">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-gray-200 text-xs font-bold text-gray-500 transition group-hover:text-gray-900 sm:h-10 sm:w-10 sm:text-sm">
                           P{slotIndex + 1}
                         </span>
                         <div>
-                          <div className="text-xs sm:text-sm font-bold text-[var(--theme-ui-text-muted)] group-hover:text-[var(--theme-ui-text)] transition">
-                            {slotConfig.name} ({slotConfig.colorName})
+                          <div className="text-xs font-bold text-gray-500 transition group-hover:text-gray-900 sm:text-sm">
+                            {slotName}
                           </div>
-                          <div className="text-xs text-[var(--theme-ui-text-muted)]/80 font-medium">
-                            + Choisir un clan rival
-                          </div>
+                          <div className="t-meta">+ Choisir un clan rival</div>
                         </div>
                       </div>
                     </button>
                   )}
                 </div>
 
-                {/* VS Badge between slots */}
+                {/* Badge VS entre deux slots (maquette #slots-esport) : neutre, aux couleurs du thème. */}
                 {!isLast && (
-                  <div className="flex items-center justify-center shrink-0 py-1 sm:py-0">
-                    <span className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-600/30 to-amber-600/20 border border-red-500/50 text-red-400 font-black text-xs sm:text-sm italic tracking-widest shadow-[0_0_12px_rgba(239,68,68,0.35)]">
+                  <div className="flex shrink-0 items-center justify-center py-1 sm:py-0">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-[11px] font-black italic tracking-widest text-gray-700 sm:h-8 sm:w-8 sm:text-xs">
                       VS
                     </span>
                   </div>
@@ -360,55 +387,50 @@ export default function ClanRosterSelector({
           })}
         </div>
 
-        {/* Centered Chevron Button to Expand / Collapse Roster Section */}
-        <div className="mt-4 pt-3 border-t border-[var(--theme-ui-border)] flex justify-center">
+        {/* Bascule du catalogue des clans. */}
+        <div className="flex justify-center border-t border-gray-200 pt-3">
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="group inline-flex items-center gap-2 rounded-full border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] px-5 py-2 text-xs sm:text-sm font-semibold text-[var(--theme-ui-text)] shadow-sm hover:border-blue-500 hover:bg-[var(--theme-ui-surface-strong)] hover:text-blue-400 transition-all duration-200"
+            className="app-btn app-btn--secondary app-btn--sm gap-2"
             aria-expanded={isExpanded}
             title={isExpanded ? 'Réduire le catalogue de clans' : 'Développer le catalogue de clans'}
           >
             <span>
               {isExpanded ? 'Masquer le catalogue des clans' : `Choisir / Modifier les clans (${clans.length})`}
             </span>
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--theme-ui-surface-strong)] group-hover:bg-blue-500/20 transition">
-              {isExpanded ? (
-                <ChevronUp className="h-3.5 w-3.5 text-[var(--theme-ui-text-muted)] group-hover:text-blue-400" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-[var(--theme-ui-text-muted)] group-hover:text-blue-400" />
-              )}
-            </span>
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>
 
-      {/* 2. Expandable Roster / Trading Cards Section */}
+      {/* 2. Catalogue des clans (cartes de sélection), déplié à la demande. */}
       {isExpanded && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface)] p-4 sm:p-5 shadow-sm animate-in fade-in duration-200">
-          {/* Controls: Primary Row (Category Pills + Loupe Button & Sort) + Expandable Search Row */}
+        <div className="app-panel flex flex-col gap-3 p-4 animate-in fade-in duration-200 sm:p-5">
+          {/* Contrôles : catégories (passent à la ligne, jamais de défilement horizontal), recherche et tri à la
+              hauteur du rail segmented. */}
           <div className="flex flex-col gap-3">
-            {/* Primary Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {/* Category Filter Chips */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-0.5 no-scrollbar">
-                <SegmentedControl<FilterCategory>
-                  options={[
-                    { value: 'all', label: `Tous (${statsCounts.all})` },
-                    { value: 'recent', label: `Actifs récents (${statsCounts.recent})`, icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
-                    { value: 'large', label: `Effectifs 10+ (${statsCounts.large})`, icon: <Users className="h-3.5 w-3.5" aria-hidden="true" /> },
-                    ...(selectedClanIds.length > 0
-                      ? [{ value: 'selected' as const, label: `Sélectionnés (${selectedClanIds.length})`, icon: <Check className="h-3.5 w-3.5" aria-hidden="true" /> }]
-                      : []),
-                  ]}
-                  value={activeCategory}
-                  onChange={setActiveCategory}
-                  className="shrink-0"
-                />
-              </div>
+            <div className="flex flex-wrap items-stretch justify-between gap-2">
+              <SegmentedControl<FilterCategory>
+                options={[
+                  { value: 'all', label: `Tous (${statsCounts.all})` },
+                  { value: 'recent', label: `Actifs récents (${statsCounts.recent})`, icon: <Flame className="h-3.5 w-3.5" aria-hidden="true" /> },
+                  { value: 'large', label: `Effectifs 10+ (${statsCounts.large})`, icon: <Users className="h-3.5 w-3.5" aria-hidden="true" /> },
+                  ...(selectedClanIds.length > 0
+                    ? [{ value: 'selected' as const, label: `Sélectionnés (${selectedClanIds.length})`, icon: <Check className="h-3.5 w-3.5" aria-hidden="true" /> }]
+                    : []),
+                ]}
+                value={activeCategory}
+                onChange={setActiveCategory}
+                wrap
+                className="max-w-full"
+              />
 
-              {/* Right Tools: Loupe Search Button + Sort Dropdown */}
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <div className="ml-auto flex items-stretch gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -418,51 +440,31 @@ export default function ClanRosterSelector({
                       return next
                     })
                   }}
-                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                    isSearchOpen || searchQuery
-                      ? 'border-blue-500 bg-blue-500/15 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.25)]'
-                      : 'border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)] hover:bg-[var(--theme-ui-surface-strong)]'
-                  }`}
+                  aria-expanded={isSearchOpen}
+                  className={`app-menu-trigger ${isSearchOpen || searchQuery ? 'app-menu-trigger--active' : ''}`}
                   title={isSearchOpen ? 'Masquer la recherche' : 'Rechercher un clan'}
                 >
-                  <Search className="h-4 w-4" />
+                  <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="hidden sm:inline">Recherche</span>
-                  {searchQuery && (
-                    <span className="flex h-2 w-2 rounded-full bg-blue-400" />
-                  )}
+                  <span className="sr-only sm:hidden">Rechercher un clan</span>
+                  {searchQuery && <span className="flex h-2 w-2 rounded-full bg-[var(--theme-ui-accent)]" aria-hidden="true" />}
                 </button>
 
-                {/* Sort Selector */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-[var(--theme-ui-text-muted)] flex items-center gap-1">
-                    <ArrowUpDown className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Tri :</span>
-                  </span>
-                  <select
-                    value={sortField}
-                    onChange={(e) => setSortField(e.target.value as SortField)}
-                    className="rounded-xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] px-3 py-2 text-xs sm:text-sm font-semibold text-[var(--theme-ui-text)] outline-none focus:border-blue-500 transition cursor-pointer"
-                  >
-                    <option value="activity">Dernière activité</option>
-                    <option value="name">Nom (A-Z)</option>
-                    <option value="members">Effectif (Membres)</option>
-                    <option value="matches">Volume de matchs</option>
-                  </select>
-                </div>
+                <SortMenu value={sortField} onChange={setSortField} />
               </div>
             </div>
 
-            {/* Expandable Search Input Row */}
+            {/* Champ de recherche (habillage du rail, anneau d'accent au focus). */}
             {(isSearchOpen || searchQuery) && (
-              <div className="relative w-full max-w-md animate-in fade-in slide-in-from-top-1 duration-150">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-400" />
+              <label className="app-toolbar-search w-full max-w-md animate-in fade-in slide-in-from-top-1 duration-150">
+                <Search className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
+                <span className="sr-only">Rechercher un clan</span>
                 <input
                   ref={searchInputRef}
-                  type="text"
+                  type="search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filtrer par nom ou tag ([RAF], BOFS)..."
-                  className="w-full rounded-xl border border-blue-500/60 bg-[var(--theme-ui-surface-soft)] py-2 pl-9 pr-9 text-xs sm:text-sm text-[var(--theme-ui-text)] placeholder-[var(--theme-ui-text-muted)] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition shadow-sm"
                 />
                 <button
                   type="button"
@@ -470,42 +472,38 @@ export default function ClanRosterSelector({
                     setSearchQuery('')
                     setIsSearchOpen(false)
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--theme-ui-text-muted)] hover:text-[var(--theme-ui-text)] p-0.5 rounded-lg hover:bg-slate-800 transition"
+                  className="rounded-md p-0.5 text-gray-500 transition hover:text-gray-900"
                   title="Fermer la recherche"
+                  aria-label="Fermer la recherche"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4 w-4" aria-hidden="true" />
                 </button>
-              </div>
+              </label>
             )}
           </div>
 
-          {/* Cards Grid */}
+          {/* Cartes des clans */}
           {loading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {Array.from({ length: 10 }).map((_, i) => (
-                <div
-                  key={`skeleton-${i}`}
-                  className="h-36 animate-pulse rounded-xl border border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)]"
-                />
+                <div key={`skeleton-${i}`} className="h-36 animate-pulse rounded-md bg-gray-100" />
               ))}
             </div>
           ) : error ? (
-            <div className="py-6 text-center text-sm text-red-500">{error}</div>
+            <div className="py-6 text-center text-sm text-[var(--theme-ui-negative)]">{error}</div>
           ) : displayedClans.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <Filter className="h-8 w-8 text-[var(--theme-ui-text-muted)] opacity-50 mb-2" />
-              <p className="text-sm font-medium text-[var(--theme-ui-text)]">Aucun clan trouvé</p>
-              <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
-                Essaie de modifier tes critères de recherche ou ton filtre actif.
-              </p>
+            <div className="flex flex-col items-center justify-center gap-0.5 py-10 text-center">
+              <Filter className="mb-1.5 h-8 w-8 text-gray-400" aria-hidden="true" />
+              <p className="t-body text-gray-900">Aucun clan trouvé</p>
+              <p className="t-meta">Essaie de modifier tes critères de recherche ou ton filtre actif.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {displayedClans.map((clan) => {
                 const selectedIndex = selectedClanIds.indexOf(clan.id)
                 const isSelected = selectedIndex !== -1
                 const disabled = !isSelected && selectedClanIds.length >= maxClans
-                const slotConfig = isSelected ? SLOT_CONFIGS[selectedIndex % SLOT_CONFIGS.length] : null
+                const slot = isSelected ? comparatorSlot(selectedIndex) : null
 
                 return (
                   <button
@@ -513,59 +511,65 @@ export default function ClanRosterSelector({
                     type="button"
                     onClick={() => onToggleClan(clan.id)}
                     disabled={disabled}
-                    className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border text-left transition-all duration-200 p-3.5 sm:p-4 ${
-                      isSelected && slotConfig
-                        ? `${slotConfig.borderClass} ${slotConfig.ringClass} transform -translate-y-1`
+                    aria-pressed={isSelected}
+                    className={`group relative flex flex-col justify-between overflow-hidden rounded-[14px] border p-3.5 text-left transition-all duration-200 sm:p-4 ${
+                      slot
+                        ? 'motion-safe:-translate-y-1'
                         : disabled
-                          ? 'cursor-not-allowed border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)]/40 opacity-40 grayscale-[25%]'
-                          : 'cursor-pointer border-[var(--theme-ui-border)] bg-[var(--theme-ui-surface-soft)] hover:-translate-y-1 hover:border-slate-400 hover:shadow-md'
+                          ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-45'
+                          : 'cursor-pointer border-gray-200 bg-gray-50 hover:bg-gray-50 hover:shadow-md motion-safe:hover:-translate-y-1'
                     }`}
+                    style={
+                      slot
+                        ? {
+                            borderColor: slotTint(slot, 60),
+                            backgroundColor: slotTint(slot, 8),
+                            boxShadow: `0 0 0 2px ${slotTint(slot, 45)}, 0 0 12px ${slotTint(slot, 20)}`,
+                          }
+                        : undefined
+                    }
                   >
-                    {/* Top status bar in card: Clan Tag on left, Slot indicator on right */}
-                    <div className="flex items-center justify-between gap-1 mb-2">
-                      <span className="font-mono text-lg sm:text-xl font-black tracking-wide text-[var(--theme-ui-text)] group-hover:text-blue-400 transition">
-                        [{clan.tag}]
-                      </span>
+                    {/* Tag du clan à gauche, slot à droite */}
+                    <div className="mb-2 flex items-center justify-between gap-1">
+                      <span className="font-mono text-lg font-black tracking-wide text-gray-900 sm:text-xl">[{clan.tag}]</span>
 
-                      {isSelected && slotConfig ? (
-                        <span
-                          className={`flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-black uppercase tracking-wider border ${slotConfig.badgeClass}`}
-                        >
-                          <Check className="h-3 w-3" />
-                          P{selectedIndex + 1}
-                        </span>
+                      {slot ? (
+                        <SlotBadge slot={slot} size="sm">
+                          <Check className="h-3 w-3" aria-hidden="true" />
+                          {slot.name}
+                        </SlotBadge>
                       ) : (
-                        <span className="h-4 w-4 rounded-full border border-[var(--theme-ui-border)] group-hover:border-blue-400 transition" />
+                        <span className="h-4 w-4 rounded-full border border-gray-200 transition group-hover:border-[var(--theme-ui-accent-ring)]" />
                       )}
                     </div>
 
-                    {/* Clan Name in center body */}
-                    <div className="my-1 min-h-[2.25rem] flex items-center">
+                    {/* Nom du clan */}
+                    <div className="my-1 flex min-h-[2.25rem] items-center">
                       <div
-                        className="text-xs sm:text-sm font-bold text-[var(--theme-ui-text-secondary)] group-hover:text-[var(--theme-ui-text)] transition line-clamp-2"
+                        className="line-clamp-2 text-xs font-bold text-gray-700 transition group-hover:text-gray-900 sm:text-sm"
                         title={clan.name}
                       >
                         {clan.name}
                       </div>
                     </div>
 
-                    {/* Footer Stats / Indicators */}
-                    <div className="mt-3 flex flex-col gap-1.5 border-t border-[var(--theme-ui-border)] pt-2.5 text-xs text-[var(--theme-ui-text-muted)]">
-                      <div className="flex items-center justify-between font-medium">
+                    {/* Effectif, matchs, dernière activité */}
+                    <div className="t-meta mt-3 flex flex-col gap-1.5 border-t border-gray-200 pt-2.5">
+                      <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
-                          <Users className="h-3.5 w-3.5 text-slate-400" />
+                          <Users className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
                           <span>{clan.membersCount ?? 0} membres</span>
                         </span>
                         {(clan.matchesCount ?? 0) > 0 && (
-                          <span className="flex items-center gap-1 font-semibold text-[var(--theme-ui-text-secondary)]">
-                            <Gamepad2 className="h-3.5 w-3.5 text-slate-400" />
+                          <span className="t-num flex items-center gap-1 font-semibold text-gray-700">
+                            <Gamepad2 className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
                             <span>{clan.matchesCount}</span>
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 truncate text-[11px]">
-                        <Clock className="h-3 w-3 shrink-0 text-slate-400" />
+                      <div className="flex items-center gap-1.5 truncate">
+                        <Clock className="h-3 w-3 shrink-0 text-gray-400" aria-hidden="true" />
                         <span className="truncate">{formatRelativeTime(clan.lastMatchAt)}</span>
                       </div>
                     </div>

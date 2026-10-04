@@ -22,6 +22,8 @@ test.beforeEach(({ api }) => {
 test.describe('liste', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/tournaments')
+    // Le shell remonte la page quand la session arrive (WebKit) : un clic fait avant serait perdu.
+    await page.waitForLoadState('networkidle')
     await expect(page.getByRole('heading', { level: 1, name: 'Tournois' })).toBeVisible()
     await expect(modeCards(page)).toBeVisible()
   })

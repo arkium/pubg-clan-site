@@ -21,14 +21,14 @@ test.beforeEach(async ({ api, page }) => {
 test('bandeau et totaux sur une ligne', async ({ page }) => {
   await expect(page.getByText('4 clans suivis')).toBeVisible()
   await expect(page.getByText('11 joueurs ont joué ce soir')).toBeVisible()
-  await expect(page.getByText('depuis le début du suivi')).toBeVisible()
+  await expect(page.getByText('depuis le début du suivi', { exact: true })).toBeVisible()
 })
 
 test('à la une : dernier clan consulté et clan du moment', async ({ page }) => {
   const featured = page.getByRole('region', { name: 'À la une' })
   await expect(featured.getByText('Dernier clan consulté')).toBeVisible()
   await expect(featured).toContainText('Clan Démo')
-  await expect(featured.getByRole('button', { name: 'Clan du moment : Clan Meute' })).toContainText('EN FEU CETTE SEMAINE')
+  await expect(featured.getByRole('button', { name: 'Clan du moment : Clan Meute' })).toContainText(/en feu cette semaine/i)
 })
 
 test('clans actifs triés par activité, puis par nom ; recherche par tag', async ({ page }) => {
@@ -40,6 +40,17 @@ test('clans actifs triés par activité, puis par nom ; recherche par tag', asyn
   await page.getByRole('searchbox', { name: 'Rechercher un clan' }).fill('[temo]')
   await expect(activeNames(page)).toHaveText(['Clan Témoin'])
   await expect(page.getByRole('region', { name: 'À la une' })).toHaveCount(0)
+})
+
+test('style de jeu du clan : badge sur la carte, avec les trois scores ; aucun sans assez de parties', async ({ page }) => {
+  const actives = page.getByRole('region', { name: 'Clans actifs' })
+  const demo = actives.getByRole('listitem').filter({ hasText: 'Clan Démo' })
+  await expect(demo.getByTestId('playstyle-badge')).toHaveAttribute('data-role', 'medic')
+  await expect(demo.getByTestId('playstyle-badge')).toContainText(/medic/i)
+  await expect(demo.getByTestId('playstyle-badge')).toHaveAttribute('title', /support 67 %/)
+  await expect(actives.getByRole('listitem').filter({ hasText: 'Clan Meute' }).getByTestId('playstyle-badge')).toHaveAttribute('data-role', 'fragger')
+  await expect(actives.getByRole('listitem').filter({ hasText: 'Clan Témoin' }).getByTestId('playstyle-badge')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'À la une' }).getByTestId('playstyle-badge').first()).toBeVisible()
 })
 
 test('clans en sommeil repliés, puis affichés', async ({ page }) => {

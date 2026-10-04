@@ -110,6 +110,12 @@ Libellés et textes des modes : **une seule source**, `TOURNAMENT_MODE_DESCRIPTI
   adaptée (« 7 clans en lice », « équipe mixte de 3 clans », « 30 kills », « escouade de Clan Démo »).
 - **« Comment ça marche ? »** : quatre lignes repliées, `TOURNAMENT_QUICK_GUIDE`. Le guide complet (7 fiches) ne vit
   plus que dans l'onglet Guide de l'administration (décision du 2026-09-27).
+- **Charte UI** (`docs/ui/index.html`, section « Tournois », 2026-10-04) : la page porte `.charte` ; titre du bandeau
+  d'image en `t-banner-title` (Teko), compteur « en direct » à l'accent dès qu'un tournoi se joue, neutre sinon ;
+  bandeau collant à une seule hauteur (`app-toolbar-search`, statut `self-stretch`). Docké sur mobile, le statut passe
+  dans un menu (`TournamentStatusMenu`) pour tenir sur une ligne avec la recherche. La hauteur du bandeau d'image ne
+  change pas. Restent hors charte : la page d'un tournoi (badges de phase en couleurs fixes) et `.tournament-place`
+  (10 px, à passer à 11 px dans `globals.css`).
 
 `GET /api/tournaments` (`src/lib/tournament-overview.ts`) classe par `computeTournamentModeStandings`, comme la page de
 détail ; l'ancienne version classait **toujours par clan**, d'où un clan « vainqueur » d'un tournoi solo. Chaque résumé

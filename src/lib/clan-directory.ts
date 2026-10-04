@@ -4,11 +4,42 @@
  */
 
 import { sessionDateOf } from '@/lib/match-sessions'
+import { dominantRole, type RosterRoleId } from '@/lib/member-roster'
 
 /** Sans partie depuis ce nombre de jours, un clan est « en sommeil ». */
 export const SLEEP_AFTER_DAYS = 14
 /** Parties minimales sur 7 jours pour prétendre au titre de clan du moment. */
 export const MOMENT_MIN_GAMES = 5
+
+/** Parties cumulées des membres (`MemberTelemetryStats.matchesPlayed`) en dessous desquelles un clan n'a pas de style. */
+export const CLAN_STYLE_MIN_MATCHES = 20
+
+/**
+ * Style de jeu d'un clan (badge de l'annuaire, 2026-10-04) : le rôle dominant des **moyennes** de ses membres — même
+ * calcul que les trois jauges de « Style de jeu du clan » (`playstyleRoles`) et même règle que le rôle d'un membre
+ * (`dominantRole`), sur la période `all-time` comme la fiche des membres. Scores de 0 à 100.
+ */
+export type ClanStyle = {
+  id: RosterRoleId
+  /** Score moyen du rôle retenu. */
+  score: number
+  aggression: number
+  support: number
+  zoneDiscipline: number
+  /** Membres ayant des stats de télémétrie, et leurs parties cumulées. */
+  members: number
+  matches: number
+}
+
+export type ClanStyleRow = { members: number; matches: number; aggression: number; support: number; zoneDiscipline: number }
+
+/** `null` sous `CLAN_STYLE_MIN_MATCHES` parties cumulées ou sans score positif : pas de badge plutôt qu'un style au hasard. */
+export function clanStyleOf(row: ClanStyleRow | null | undefined): ClanStyle | null {
+  if (!row || !Number.isFinite(row.matches) || row.matches < CLAN_STYLE_MIN_MATCHES) return null
+  const best = dominantRole({ aggression: row.aggression, support: row.support, zoneDiscipline: row.zoneDiscipline })
+  if (!best) return null
+  return { id: best.id, score: best.score, aggression: row.aggression, support: row.support, zoneDiscipline: row.zoneDiscipline, members: row.members, matches: row.matches }
+}
 
 export interface ClanActivity {
   clanId: number
@@ -19,6 +50,8 @@ export interface ClanActivity {
   lastMatchAt: string | null
   /** Rang en Ligue des clans (mois) ; `null` si le clan n'y figure pas. */
   leagueRank: number | null
+  /** Style de jeu dominant depuis le début du suivi ; `null` sans assez de parties analysées. */
+  style: ClanStyle | null
 }
 
 export interface ClanDirectoryPayload {

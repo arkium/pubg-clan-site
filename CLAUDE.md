@@ -192,6 +192,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Bande « Distinctions » | `DistinctionStrip` + `computeDistinctions` | `src/components/ui/DistinctionStrip.tsx`, `src/lib/distinctions.ts` |
 | Classement sur mobile (puces « Trier par ») | `MobileRankList` | `src/components/ui/MobileRankList.tsx` |
 | Mode d'un tournoi (couleur, icône, libellé) | `TournamentModeBadge`, `tournamentModeClass` + `@/lib/tournament-mode-display` | `src/components/tournaments/TournamentModeBadge.tsx` — docs/features/tournois.md |
+| Style de jeu d'un clan (Fragger / Medic / Ghost, icône) | `PlaystyleBadge` + `clanStyleOf` | `src/components/ui/PlaystyleBadge.tsx`, `src/lib/clan-directory.ts` — docs/features/clans.md §6 bis |
 
 **Règle :** Ne jamais réécrire ces composants inline dans une page. Ne pas écrire les classes `app-placement-badge*` directement.
 

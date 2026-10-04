@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { aggregateActivity, isSleeping, matchesQuery, pickClanOfMoment, relativeLastGame, sortDirectory } from './clan-directory'
+import { aggregateActivity, CLAN_STYLE_MIN_MATCHES, clanStyleOf, isSleeping, matchesQuery, pickClanOfMoment, relativeLastGame, sortDirectory } from './clan-directory'
 
 const NOW = new Date('2026-09-26T20:30:00.000Z') // samedi 22:30 à Paris
 
@@ -70,5 +70,21 @@ describe('clan-directory — tri, recherche, dates', () => {
     expect(relativeLastGame('2026-09-22T19:00:00.000Z', NOW)).toBe('mar.')
     expect(relativeLastGame('2026-09-02T19:00:00.000Z', NOW)).toBe('le 02/09')
     expect(relativeLastGame(null, NOW)).toBe('aucune partie')
+  })
+})
+
+describe('clan-directory — style de jeu du clan', () => {
+  it('rôle dominant des moyennes des membres : ATR (support 67) est Medic', () => {
+    // Relevé du 2026-10-04 (scripts/measure-clan-playstyle.ts) : 4 membres, 146 parties depuis le début du suivi.
+    expect(clanStyleOf({ members: 4, matches: 146, aggression: 48.4, support: 67, zoneDiscipline: 28.2 })).toMatchObject({ id: 'medic', score: 67, matches: 146 })
+    expect(clanStyleOf({ members: 15, matches: 1613, aggression: 69.8, support: 57.5, zoneDiscipline: 32.2 })?.id).toBe('fragger')
+    expect(clanStyleOf({ members: 21, matches: 3641, aggression: 40, support: 45, zoneDiscipline: 50 })?.id).toBe('ghost')
+  })
+
+  it('pas de badge sous le minimum de parties, ni sans score positif', () => {
+    expect(CLAN_STYLE_MIN_MATCHES).toBe(20)
+    expect(clanStyleOf({ members: 1, matches: 1, aggression: 100, support: 0, zoneDiscipline: 0 })).toBeNull()
+    expect(clanStyleOf({ members: 3, matches: 50, aggression: 0, support: 0, zoneDiscipline: 0 })).toBeNull()
+    expect(clanStyleOf(null)).toBeNull()
   })
 })

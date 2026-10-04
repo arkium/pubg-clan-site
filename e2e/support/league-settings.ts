@@ -1,7 +1,5 @@
-import type { Page } from '@playwright/test'
-
 import type { ApiMock } from './api'
-import { CLAN_ID } from './data'
+import { mockMemberSession } from './session'
 import { DEFAULT_LEAGUE_SETTINGS, type LeagueClan, type LeagueMatchRow, type LeagueSettings } from '@/lib/clan-league'
 import { LEAGUE_SETTINGS_BOUNDS, leaguePreview } from '@/lib/league-settings'
 
@@ -37,14 +35,7 @@ const ROWS: LeagueMatchRow[] = [
 
 export type LeagueSettingsCalls = { previews: LeagueSettings[]; saves: LeagueSettings[] }
 
-/**
- * `/settings/*` : le proxy serveur (src/proxy.ts) renvoie vers /login sans cookie de session, même en mode visiteur. Un
- * cookie factice suffit à passer : le proxy ne vérifie que sa présence, le rendu serveur le cherche en base (lecture
- * seule, aucune session trouvée) et la session réelle vient de `/api/auth/session`, simulée ici.
- */
-export async function withSessionCookie(page: Page, baseURL: string) {
-  await page.context().addCookies([{ name: 'pubg_clan_session', value: 'e2e-session-factice', url: baseURL }])
-}
+export { withSessionCookie } from './session'
 
 export function mockLeagueSettings(api: ApiMock, options: { superUser?: boolean } = {}): LeagueSettingsCalls {
   const superUser = options.superUser ?? true
@@ -60,19 +51,8 @@ export function mockLeagueSettings(api: ApiMock, options: { superUser?: boolean 
     defaults: DEFAULT_LEAGUE_SETTINGS,
     bounds: LEAGUE_SETTINGS_BOUNDS,
   })
+  mockMemberSession(api, { superUser })
   api
-    .on('GET', '/api/auth/mode', { body: { authDisabled: false } })
-    .on('GET', '/api/members/1', { body: { id: 1, displayName: 'Joueur Alpha', avatarUrl: null, clanId: CLAN_ID } })
-    .on('GET', '/api/auth/session', {
-      body: {
-        authenticated: true,
-        user: { email: 'admin@example.com', isSuperUser: superUser },
-        activeMemberId: 1,
-        permissions: [],
-        members: [{ memberId: 1, displayName: 'Joueur Alpha', clanId: CLAN_ID, clan: { id: CLAN_ID, name: 'Clan Démo', tag: 'DEMO' } }],
-        isSuperUser: superUser,
-      },
-    })
     .on('GET', '/api/settings/league', () => (superUser ? { body: state() } : { status: 403, body: { error: 'Forbidden' } }))
     .on('POST', '/api/settings/league/preview', (_url, request) => {
       const body = request.postDataJSON() as { settings: LeagueSettings; period: 'week' | 'month' | 'all'; matchType: 'official' }

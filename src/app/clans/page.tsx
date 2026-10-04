@@ -24,7 +24,7 @@ import { isSleeping, matchesQuery, sortDirectory, type ClanDirectoryPayload, typ
  * à 12e) : bandeau commun, totaux sur une ligne, clan épinglé et clan du moment, clans actifs triés par activité,
  * clans en sommeil repliés. Ouverte à tous (membres connectés compris, décision du 2026-09-26). Ouvrir un autre clan
  * que le sien suit la lecture des données : SuperUser, ou mode visiteur (lecture ouverte à tous) ; sinon, seul son clan
- * s'ouvre et les autres sont affichés sans lien.
+ * s'ouvre et les autres sont affichés sans lien. Charte UI le 2026-10-04 ; style de jeu de chaque clan (badge).
  */
 
 type ClanListItem = {
@@ -121,6 +121,7 @@ export default function ClansPage() {
         playedTonight: row?.playedTonight ?? 0,
         lastMatchAt: row?.lastMatchAt ?? null,
         leagueRank: row?.leagueRank ?? null,
+        style: row?.style ?? null,
       }
     })
   }, [clans, directory])
@@ -168,12 +169,13 @@ export default function ClansPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush game-ui flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter flex flex-col gap-3">
         <MatchesBanner
           image="/banner-frenchchicken-gg.jpg"
           icon={Users}
-          iconColor="#60a5fa"
+          iconColor="var(--theme-ui-accent)"
           title="Les clans"
           chips={[
             { text: `${totals.clans} clans suivis` },
@@ -183,7 +185,7 @@ export default function ClansPage() {
           ]}
         />
         {clans.length > 0 && (
-          <p className="app-panel flex flex-wrap gap-x-5 gap-y-1 px-3.5 py-2.5 text-[13px] tabular-nums text-gray-500">
+          <p className="app-panel t-num flex flex-wrap gap-x-5 gap-y-1 px-3.5 py-2.5 text-[13px] text-gray-500">
             {[
               [totals.clans, 'clans'],
               [totals.players, 'joueurs'],
@@ -202,24 +204,23 @@ export default function ClansPage() {
 
       <DockingToolbar ariaLabel="Recherche et tri des clans">
         {({ compact }) => (
-          <div className="flex w-full flex-wrap items-center gap-2.5">
-            <label className="flex h-9 min-w-[200px] flex-1 items-center gap-2 rounded-[9px] border border-gray-200 bg-gray-50 px-3">
-              <Search className="h-[15px] w-[15px] shrink-0 text-gray-500" aria-hidden="true" />
+          <div className="flex w-full flex-wrap items-stretch gap-2.5">
+            {/* Recherche de bandeau de la charte (`app-toolbar-search`) : hauteur de la ligne, comme le segmented voisin. */}
+            <label className="app-toolbar-search min-w-[200px] flex-1">
+              <Search className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
               <span className="sr-only">Rechercher un clan</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Nom ou tag : [RATZ], Meute…"
-                className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-gray-500"
-              />
+              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nom ou tag : [RATZ], Meute…" />
               {query && (
                 <button type="button" onClick={() => setQuery('')} aria-label="Effacer la recherche" className="text-gray-500 hover:text-gray-900">
                   <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               )}
             </label>
-            {!compact && <SegmentedControl options={SORT_OPTIONS} value={sort} onChange={setSort} size="sm" className="shrink-0" />}
+            {!compact && (
+              <div role="group" aria-label="Trier par" className="flex shrink-0 self-stretch">
+                <SegmentedControl options={SORT_OPTIONS} value={sort} onChange={setSort} />
+              </div>
+            )}
           </div>
         )}
       </DockingToolbar>
@@ -227,7 +228,7 @@ export default function ClansPage() {
       <div className="app-container app-gutter flex flex-col gap-6 pb-8">
         {error && (
           <div className="app-panel flex flex-wrap items-center gap-3 p-4 text-sm" role="alert">
-            <span style={{ color: 'var(--game-neg)' }}>{error}</span>
+            <span className="text-[var(--theme-ui-negative)]">{error}</span>
             <button
               type="button"
               onClick={() => {
@@ -235,8 +236,7 @@ export default function ClansPage() {
                 setError('')
                 setRetryToken((token) => token + 1)
               }}
-              className="text-xs font-semibold hover:underline"
-              style={{ color: 'var(--game-link)' }}
+              className="app-link text-xs font-semibold"
             >
               Réessayer
             </button>
@@ -273,7 +273,7 @@ export default function ClansPage() {
             <section className="flex flex-col gap-2.5" aria-label="Clans actifs">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: 'var(--game-pos)' }} aria-hidden="true" />
-                <h2 className="m-0 text-[17px] font-extrabold">Clans actifs</h2>
+                <h2 className="t-section-title m-0">Clans actifs</h2>
                 <span className="text-[13px] text-gray-500">
                   {active.length} clan{active.length > 1 ? 's' : ''} · partie dans les 14 derniers jours
                 </span>
@@ -303,7 +303,7 @@ export default function ClansPage() {
         <div className="flex justify-center">
           <Link
             href="/clans/mutations"
-            className="app-panel-muted inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-gray-700 hover:text-gray-900"
+            className="app-btn app-btn--secondary app-btn--md gap-2"
           >
             <History className="h-4 w-4" aria-hidden="true" />
             Historique des mouvements de clan

@@ -3,11 +3,10 @@
 import { Swords, Users, HeartPulse, Dna, Calendar } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import PeriodFilter from '@/components/ui/PeriodFilter'
-import TeamModeBadge from '@/components/ui/TeamModeBadge'
+import ToolbarGroup from '@/components/ui/ToolbarGroup'
 import ClanRosterSelector, { type ClanSummary } from '@/components/comparator/ClanRosterSelector'
 import ClanComparatorRadar from '@/components/comparator/ClanComparatorRadar'
 import GlobalPerformancesDominance from '@/components/comparator/GlobalPerformancesDominance'
@@ -16,6 +15,7 @@ import ModePerformancesCard from '@/components/comparator/ModePerformancesCard'
 import ClanPulseCards from '@/components/comparator/ClanPulseCards'
 import ClanDnaCards from '@/components/comparator/ClanDnaCards'
 import ClanActivityHeatmap from '@/components/comparator/ClanActivityHeatmap'
+import { ComparatorSectionHeader } from '@/components/comparator/ComparatorUi'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useClanComparator, type ClanComparatorEntry } from '@/hooks/useClanComparator'
@@ -38,21 +38,6 @@ function parseClanIds(value: string | null): number[] {
         .filter((v) => Number.isInteger(v) && v > 0)
     )
   ).slice(0, MAX_CLANS)
-}
-
-function formatPercent(value: number | undefined): string {
-  if (value === undefined) return '—'
-  return `${(value * 100).toFixed(1)} %`
-}
-
-function formatNumber(value: number | undefined): string {
-  if (value === undefined) return '—'
-  return value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
-}
-
-function formatMinutes(value: number | undefined): string {
-  if (value === undefined) return '—'
-  return `${Math.round(value / 60)} min`
 }
 
 function ComparatorContent() {
@@ -160,13 +145,17 @@ function ComparatorContent() {
 
   const clanByIndex = (id: number): ClanComparatorEntry | undefined =>
     comparatorClans.find((c) => c.clanId === id)
+  // Ordre de l'arène (P1, P2, P3) : l'API renvoie les clans par identifiant ; le radar colore par position.
+  const orderedClans = selectedClanIds.map(clanByIndex).filter((clan): clan is ClanComparatorEntry => Boolean(clan))
 
   const query = searchParams.toString()
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
-      <div className="app-container app-gutter space-y-4">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    // `.game-ui` : jetons --game-* (piste des barres comparées).
+    <div className="app-main-flush game-ui charte flex-1">
+      <div className="app-container app-gutter flex flex-col gap-4">
         {/* Invisible ici : enregistre la sélection courante pour que le retour depuis un match la restaure. */}
         <NavigationTrail
           currentLabel="Comparateur"
@@ -174,24 +163,25 @@ function ComparatorContent() {
           fallbackParent={null}
           hidden
         />
+        {/* Hauteur du bandeau inchangée : seul son contenu suit la charte (titre Teko, icône à l'accent). */}
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+          className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/comparateurclans.jpg')`, backgroundPosition: 'center 20%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Swords className="h-4 w-4 text-red-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Comparateur de clans</h1>
+              <Swords className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Comparateur de clans</h1>
             </div>
-            <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
+            <p className="mt-1 text-[11px] font-medium text-slate-200 drop-shadow-md sm:mt-2 sm:text-[13px]">
               Compare l&apos;activité, le style de jeu et les performances de jusqu&apos;à {MAX_CLANS} clans suivis.
             </p>
           </div>
         </header>
 
-        {/* Roster & Battle Arena Selector */}
-        <section>
+        {/* Arène de sélection (slots P1 / P2 / P3) et catalogue des clans. */}
+        <section aria-label="Sélection des clans">
           <ClanRosterSelector
             clans={clans}
             selectedClanIds={selectedClanIds}
@@ -205,42 +195,40 @@ function ComparatorContent() {
         </section>
       </div>
 
+      {/* Bandeau standard des pages à période : intitulé au repos seulement ; docké sur mobile, la période seule. */}
       <DockingToolbar ariaLabel="Période du comparateur">
-        <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+        {({ isSticky }) => (
+          <ToolbarGroup label="Période" showLabel={!isSticky}>
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+          </ToolbarGroup>
+        )}
       </DockingToolbar>
 
-      <div className="app-container app-gutter space-y-4">
+      <div className="app-container app-gutter flex flex-col gap-4 pb-8">
         {selectedClanIds.length === 0 ? (
-          <section className="app-panel p-8 text-center text-sm text-[var(--theme-ui-text-muted)]">
+          // État vide (charte §2) : bordure pointillée, rayon 14.
+          <section className="t-body rounded-[14px] border border-dashed border-gray-200 p-8 text-center text-gray-500">
             Sélectionne au moins un clan ci-dessus pour lancer la confrontation et afficher les statistiques.
           </section>
         ) : loading && comparatorClans.length === 0 ? (
           <CardSkeleton />
         ) : error ? (
-          <section className="app-panel p-6 text-sm text-red-600">{error}</section>
+          <section className="app-panel p-6 text-sm text-[var(--theme-ui-negative)]">{error}</section>
         ) : (
           // Rechargement : la comparaison précédente reste affichée, estompée (la page ne se replie pas).
-          <div aria-busy={loading} className={loading ? 'flex flex-col gap-6 opacity-60' : 'flex flex-col gap-6'}>
-            <ClanComparatorRadar clans={comparatorClans} />
+          <div aria-busy={loading} className={`flex flex-col gap-6 transition-opacity${loading ? ' opacity-60' : ''}`}>
+            <ClanComparatorRadar clans={orderedClans} />
 
             <GlobalPerformancesDominance clans={comparatorClans} selectedClanIds={selectedClanIds} />
 
             {selectedClanIds.length >= 2 ? (
-              <section className="app-panel overflow-hidden p-4 sm:p-6">
-                <div className="flex items-start gap-2.5 mb-4 pb-3 border-b border-[var(--theme-ui-border)]">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
-                    <Swords className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-bold text-[var(--theme-ui-text)]">
-                      Le &laquo; Derby &raquo; — Head-to-Head
-                    </h2>
-                    <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
-                      Confrontations directes entre clans suivis ayant partagé le même lobby PUBG (toutes périodes confondues).
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-4">
+              <section className="app-panel flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
+                <ComparatorSectionHeader
+                  icon={Swords}
+                  title={<>Le &laquo; Derby &raquo; — Head-to-Head</>}
+                  subtitle="Confrontations directes entre clans suivis ayant partagé le même lobby PUBG (toutes périodes confondues)."
+                />
+                <div className="flex flex-col gap-4">
                   {headToHead.map((h2h) => {
                     const clanA = clanByIndex(h2h.clanIdA)
                     const clanB = clanByIndex(h2h.clanIdB)
@@ -259,73 +247,41 @@ function ComparatorContent() {
               </section>
             ) : null}
 
-            <section className="app-panel overflow-hidden p-4 sm:p-6">
-              <div className="flex items-start gap-2.5 mb-4 pb-3 border-b border-[var(--theme-ui-border)]">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
-                  <Users className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-[var(--theme-ui-text)]">
-                    Performances par mode de jeu
-                  </h2>
-                  <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
-                    Efficacité comparée selon la taille d&apos;escouade (Duo, Trio, Squad) et spécialisation d&apos;équipe.
-                  </p>
-                </div>
-              </div>
+            <section className="app-panel flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
+              <ComparatorSectionHeader
+                icon={Users}
+                title="Performances par mode de jeu"
+                subtitle="Efficacité comparée selon la taille d'escouade (Duo, Trio, Squad) et spécialisation d'équipe."
+              />
               <ModePerformancesCard clans={selectedClanIds.map((id) => clanByIndex(id)!).filter(Boolean)} />
             </section>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <section className="app-panel overflow-hidden p-4 sm:p-6">
-                <div className="flex items-start gap-2.5 mb-4 pb-3 border-b border-[var(--theme-ui-border)]">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-400">
-                    <HeartPulse className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-bold text-[var(--theme-ui-text)]">
-                      Le &laquo; Pouls &raquo; — Activité et rythme
-                    </h2>
-                    <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
-                      Santé du roster actif, répartition des modes d&apos;escouade et régularité des sessions de jeu.
-                    </p>
-                  </div>
-                </div>
+              <section className="app-panel flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
+                <ComparatorSectionHeader
+                  icon={HeartPulse}
+                  title={<>Le &laquo; Pouls &raquo; — Activité et rythme</>}
+                  subtitle="Santé du roster actif, répartition des modes d'escouade et régularité des sessions de jeu."
+                />
                 <ClanPulseCards clans={comparatorClans} selectedClanIds={selectedClanIds} />
               </section>
 
-              <section className="app-panel overflow-hidden p-4 sm:p-6">
-                <div className="flex items-start gap-2.5 mb-4 pb-3 border-b border-[var(--theme-ui-border)]">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400">
-                    <Dna className="h-4 w-4" />
-                  </span>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-bold text-[var(--theme-ui-text)]">
-                      Le &laquo; ADN &raquo; — Style de jeu tactique
-                    </h2>
-                    <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
-                      Propension aux hot drops, durée de survie moyenne et entraide d&apos;équipe (revives / KO subis).
-                    </p>
-                  </div>
-                </div>
+              <section className="app-panel flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
+                <ComparatorSectionHeader
+                  icon={Dna}
+                  title={<>Le &laquo; ADN &raquo; — Style de jeu tactique</>}
+                  subtitle="Propension aux hot drops, durée de survie moyenne et entraide d'équipe (revives / KO subis)."
+                />
                 <ClanDnaCards clans={comparatorClans} selectedClanIds={selectedClanIds} />
               </section>
             </div>
 
-            <section className="app-panel overflow-hidden p-4 sm:p-6">
-              <div className="flex items-start gap-2.5 mb-4 pb-3 border-b border-[var(--theme-ui-border)]">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
-                  <Calendar className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-[var(--theme-ui-text)]">
-                    Heatmap d&apos;activité (Punchcard)
-                  </h2>
-                  <p className="text-xs text-[var(--theme-ui-text-muted)] mt-0.5">
-                    Créneaux horaires et jours de pointe où les clans disputent leurs parties PUBG.
-                  </p>
-                </div>
-              </div>
+            <section className="app-panel flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
+              <ComparatorSectionHeader
+                icon={Calendar}
+                title="Heatmap d'activité (Punchcard)"
+                subtitle="Créneaux horaires et jours de pointe où les clans disputent leurs parties PUBG."
+              />
               <ClanActivityHeatmap clans={selectedClanIds.map((id) => clanByIndex(id)!).filter(Boolean)} />
             </section>
           </div>

@@ -9,11 +9,14 @@ import {
   TournamentModeCards,
   TournamentPalmares,
   TournamentQuickGuide,
+  TournamentStatusMenu,
   UpcomingTournamentCard,
 } from '@/components/tournaments/TournamentListSections'
+import { TOURNAMENT_MODE_ICONS, tournamentModeClass } from '@/components/tournaments/TournamentModeBadge'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import {
@@ -34,6 +37,7 @@ import type { TournamentOverview } from '@/lib/tournament-overview'
  * Tournois — docs/features/tournois.md, « Pages joueurs » (maquette « Tournois », 2026-09-27). Le mode d'abord : les
  * quatre cartes de mode servent de légende et de filtre, le direct s'affiche en grand avec le classement en cours, puis
  * les tournois à venir et le palmarès, dont le vainqueur suit le mode (clan, équipe, joueur ou escouade).
+ * Charte UI : docs/ui/index.html, section « Tournois » (04/10/2026).
  */
 export default function TournamentsPage() {
   const { clanId } = useSelectedClan()
@@ -89,39 +93,52 @@ export default function TournamentsPage() {
   const shown = live.length + upcoming.length + finished.length
   const filtersActive = hasActiveTournamentFilters(filters)
   const update = (patch: Partial<TournamentListFilters>) => setFilters((current) => ({ ...current, ...patch }))
+  const ModeIcon = filters.mode ? TOURNAMENT_MODE_ICONS[filters.mode] : null
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         {/* Invisible : inscrit la liste dans la pile du fil d'Ariane, pour que « Retour » y ramène depuis un tournoi. */}
         <NavigationTrail currentLabel="Tournois" currentHref="/tournaments" fallbackParent={null} hidden />
 
+        {/* Hauteur du bandeau inchangée : seul son contenu suit la charte (titre Teko, photo `.app-on-photo`). */}
         <header
-          className="relative flex min-h-[11rem] flex-col justify-end overflow-hidden rounded-2xl bg-cover bg-[center_35%] sm:min-h-[14rem]"
-          style={{ backgroundImage: "url('/ClanLeaderboardTable.jpg')" }}
+          className="app-on-photo bg-hero-fallback relative flex min-h-[11rem] flex-col justify-end overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[14rem]"
+          style={{ backgroundImage: "url('/ClanLeaderboardTable.jpg')", backgroundPosition: 'center 35%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 to-slate-950/15 sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-slate-950/5" />
           <div className="relative z-10 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-5">
-            <div className="flex min-w-0 flex-col gap-2.5">
+            <div className="flex min-w-0 flex-col gap-2">
               <div className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-amber-400 sm:h-6 sm:w-6" aria-hidden />
-                <h1 className="text-lg font-black tracking-tight text-white drop-shadow sm:text-2xl">Tournois</h1>
+                <Trophy className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+                <h1 className="t-banner-title text-white drop-shadow-md">Tournois</h1>
               </div>
-              <div className="flex flex-wrap gap-1.5 text-xs font-bold text-white">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-400/70 bg-red-500/30 px-2.5 py-0.5">
-                  <span className="h-[7px] w-[7px] rounded-full bg-red-400 shadow-[0_0_0_3px_rgb(248_113_113/0.35)]" aria-hidden="true" />
+              <div className="flex flex-wrap gap-1.5 text-xs font-semibold text-white">
+                {/* « En direct » à l'accent (charte §1.2) dès qu'un tournoi se joue ; sinon neutre comme les autres. */}
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 ${
+                    phaseCounts.live > 0 ? 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)]' : 'border-white/25 bg-white/15'
+                  }`}
+                >
+                  {phaseCounts.live > 0 ? (
+                    <span
+                      className="h-[7px] w-[7px] rounded-full bg-[var(--theme-ui-accent)] shadow-[0_0_0_3px_var(--theme-ui-accent-soft)]"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   {phaseCounts.live} en direct
                 </span>
-                <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5">{phaseCounts.upcoming} à venir</span>
-                <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5">
+                <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">{phaseCounts.upcoming} à venir</span>
+                <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">
                   {phaseCounts.finished} terminé{phaseCounts.finished > 1 ? 's' : ''}
                 </span>
               </div>
             </div>
             {canManage && clanId ? (
               <Link href={`/clans/${clanId}/settings/tournaments`} className="app-btn app-btn--sm app-btn--secondary shrink-0">
-                <Settings className="mr-1.5 h-4 w-4" aria-hidden />
+                <Settings className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 Gérer les tournois de mon clan
               </Link>
             ) : null}
@@ -131,51 +148,60 @@ export default function TournamentsPage() {
 
       {/*
         Pas de période, mais le bandeau docke aussi sur mobile : exception décidée le 2026-09-27 pour les tournois
-        (docs/TODO/sticky.md §2) — la recherche et le statut restent à portée pendant la lecture du palmarès.
+        (docs/TODO/sticky.md §2) — la recherche et le statut restent à portée pendant la lecture du palmarès. Une seule
+        hauteur par ligne (recherche `app-toolbar-search`, contrôles `self-stretch`) ; docké sur mobile, le statut passe
+        en menu pour tenir sur une ligne avec la recherche.
       */}
       <DockingToolbar ariaLabel="Filtres des tournois">
-        {({ isSticky }) => (
-          <div className="flex w-full flex-wrap items-center gap-2">
-            <div className="relative min-w-[10rem] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden />
+        {({ isSticky, compact }) => (
+          <div className={`flex w-full items-center gap-2 ${compact ? 'flex-nowrap' : 'flex-wrap'}`}>
+            <label className={`app-toolbar-search flex-1 ${compact ? 'min-w-0' : 'min-w-[10rem]'}`}>
+              <Search className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
               <input
                 type="search"
                 value={filters.search}
                 onChange={(event) => update({ search: event.target.value })}
                 placeholder="Tournoi ou clan"
                 aria-label="Rechercher un tournoi ou un clan"
-                className="app-input w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-9 text-sm text-gray-900"
               />
               {filters.search ? (
                 <button
                   type="button"
                   onClick={() => update({ search: '' })}
                   aria-label="Effacer la recherche"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:text-gray-600"
+                  className="text-gray-500 hover:text-gray-900"
                 >
-                  <X className="h-4 w-4" aria-hidden />
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               ) : null}
-            </div>
-            <SegmentedControl
-              options={TOURNAMENT_STATUS_OPTIONS}
-              value={filters.status}
-              onChange={(status) => update({ status })}
-              wrap
-            />
-            {filters.mode ? (
+            </label>
+            {compact ? (
+              <TournamentStatusMenu value={filters.status} onChange={(status) => update({ status })} />
+            ) : (
+              <div role="group" aria-label="Statut" className="flex self-stretch">
+                <SegmentedControl
+                  options={TOURNAMENT_STATUS_OPTIONS}
+                  value={filters.status}
+                  onChange={(status) => update({ status })}
+                  wrap
+                />
+              </div>
+            )}
+            {filters.mode && ModeIcon ? (
+              // Filtre de mode actif (posé par les cartes de mode) : état actif en accent, icône à la couleur du mode.
               <button
                 type="button"
                 onClick={() => update({ mode: null })}
-                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900"
+                className={`${tournamentModeClass(filters.mode)} app-menu-trigger app-menu-trigger--active shrink-0 self-stretch`}
                 aria-label={`Retirer le filtre de mode ${TOURNAMENT_MODE_DISPLAY[filters.mode].label}`}
               >
-                Mode : {TOURNAMENT_MODE_DISPLAY[filters.mode].label}
-                <X className="h-3.5 w-3.5" aria-hidden />
+                <ModeIcon className="h-3.5 w-3.5 shrink-0 text-[var(--tmode)]" aria-hidden="true" />
+                {compact ? null : <span>Mode : {TOURNAMENT_MODE_DISPLAY[filters.mode].label}</span>}
+                <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               </button>
             ) : null}
             {!isSticky && filtersActive ? (
-              <span className="text-xs text-gray-500">
+              <span className="t-meta">
                 {shown} tournoi{shown > 1 ? 's' : ''} sur {tournaments.length}
               </span>
             ) : null}
@@ -183,9 +209,9 @@ export default function TournamentsPage() {
         )}
       </DockingToolbar>
 
-      <div className="app-container app-gutter flex flex-col gap-[18px]">
-        {loading ? <p className="text-sm text-gray-500">Chargement des tournois…</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      <div className="app-container app-gutter flex flex-col gap-4 pb-8 sm:gap-6">
+        {loading ? <CardSkeleton /> : null}
+        {error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
         {!loading && !error ? (
           <>
@@ -193,7 +219,7 @@ export default function TournamentsPage() {
 
             {shown === 0 ? (
               <section className="app-panel p-6 text-center">
-                <p className="text-sm text-gray-600">
+                <p className="t-body text-gray-600">
                   {tournaments.length === 0 ? 'Aucun tournoi pour l’instant.' : 'Aucun tournoi ne correspond à ces filtres.'}
                 </p>
                 {filtersActive ? (
@@ -209,7 +235,7 @@ export default function TournamentsPage() {
             ) : null}
 
             {live.length > 0 ? (
-              <section aria-label="En direct" className="flex flex-col gap-3">
+              <section aria-label="En direct" className="flex flex-col gap-3.5">
                 {live.map((tournament) => (
                   <LiveTournamentCard key={tournament.id} tournament={tournament} viewer={viewer} now={now} />
                 ))}
@@ -218,13 +244,13 @@ export default function TournamentsPage() {
 
             {upcoming.length > 0 ? (
               <section aria-labelledby="tournaments-upcoming" className="flex flex-col gap-2.5">
-                <div className="flex items-baseline gap-2">
-                  <h2 id="tournaments-upcoming" className="text-[17px] font-extrabold text-gray-900">À venir</h2>
-                  <span className="text-[13px] text-gray-500">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h2 id="tournaments-upcoming" className="t-section-title">À venir</h2>
+                  <span className="t-meta">
                     {upcoming.length} tournoi{upcoming.length > 1 ? 's' : ''}
                   </span>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
                   {upcoming.map((tournament) => (
                     <UpcomingTournamentCard key={tournament.id} tournament={tournament} now={now} />
                   ))}
@@ -234,9 +260,9 @@ export default function TournamentsPage() {
 
             {finished.length > 0 ? (
               <section aria-labelledby="tournaments-palmares" className="flex flex-col gap-2.5">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <h2 id="tournaments-palmares" className="text-[17px] font-extrabold text-gray-900">Palmarès</h2>
-                  <span className="text-[13px] text-gray-500">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h2 id="tournaments-palmares" className="t-section-title">Palmarès</h2>
+                  <span className="t-meta">
                     {finished.length} tournoi{finished.length > 1 ? 's' : ''} terminé{finished.length > 1 ? 's' : ''} · le
                     vainqueur suit le mode du tournoi
                   </span>

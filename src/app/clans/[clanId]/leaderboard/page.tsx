@@ -1,6 +1,6 @@
 'use client'
 
-import { Crown } from 'lucide-react'
+import { Crown, Info } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
@@ -65,14 +65,12 @@ function ToolbarGroup({ label, hint, showLabel, children }: { label: string; hin
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {showLabel ? (
-        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">
+        <span className="t-label flex items-center gap-1.5">
           {label}
           {hint ? (
-            <span
-              title={hint}
-              className="inline-grid h-3.5 w-3.5 place-items-center rounded-full border border-current text-[9px] normal-case"
-            >
-              <span aria-hidden="true">i</span>
+            // Icône plutôt qu'un « i » à 9 px (charte : 11 px minimum) ; le texte reste dans l'infobulle et pour les lecteurs d'écran.
+            <span title={hint} className="inline-flex">
+              <Info className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="sr-only">{hint}</span>
             </span>
           ) : null}
@@ -136,9 +134,10 @@ export default function LeaderboardPage() {
   if (!clanId) return null
 
   return (
-    // Le shell fournit déjà <main> : une page à bandeau n'en ouvre pas un second.
-    <div className="flex-1">
-      <div className="app-container app-gutter pt-8">
+    // Le shell fournit déjà <main> : une page à bandeau n'en ouvre pas un second (docs/TODO/sticky.md §4.A).
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush charte flex-1">
+      <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Classement"
           currentHref={`/clans/${clanId}/leaderboard`}
@@ -146,22 +145,20 @@ export default function LeaderboardPage() {
         />
         {/* Hauteur du bandeau inchangée (décision du 2026-09-26) : seul son contenu suit la maquette. */}
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
+          className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/leaderboard.jpg')`, backgroundPosition: 'center top' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Crown className="h-4 w-4 text-yellow-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-                Classement du clan
-              </h1>
+              <Crown className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Classement du clan</h1>
             </div>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-200 drop-shadow-md sm:mt-2 sm:gap-2.5 sm:text-[13px]">
               <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 font-semibold text-white">
                 {leaderboard.length} membres
               </span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--game-pos)]" aria-hidden="true" />
               <span>{formatSyncDate(lastUpdatedAt)}</span>
             </p>
           </div>
@@ -193,9 +190,9 @@ export default function LeaderboardPage() {
         )}
       </DockingToolbar>
 
-      <div className="app-container app-gutter pb-8">
+      <div className="app-container app-gutter">
         {loading && leaderboard.length === 0 ? <TableSkeleton className="mb-6" /> : null}
-        {error ? <p className="mb-6 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="app-panel mb-6 p-4 text-sm text-[var(--theme-ui-negative)]">{error}</p> : null}
 
         {/* Pendant un rechargement, le classement précédent reste affiché : la page ne se replie pas
             sous le bandeau et ne remonte pas quand on change de période. */}

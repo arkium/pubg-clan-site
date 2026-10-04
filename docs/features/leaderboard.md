@@ -83,18 +83,27 @@ La clé de période pour `PlayerStats` est calculée ainsi :
 
 ### 2.6 Colonnes du tableau
 
-| Colonne | Champ source |
-|---|---|
-| Kills | `totalKills` |
-| Matchs | `matchesPlayed` |
-| Damage | `totalDamage` |
-| K/M | `avgKillsPerGame` (formaté 2 décimales) |
-| Winner | `matchesWon` |
-| Win Rate | `winRate * 100` en pourcentage |
-| Solo | `soloKills` (décomposition mode clan) |
-| Duo clan | `duoClanKills` |
-| Trio clan | `trioClanKills` |
-| Squad clan | `squadClanKills` |
+| Colonne | Champ source | Affichée |
+|---|---|---|
+| Kills | `totalKills` | toujours |
+| Matchs | `matchesPlayed` | toujours |
+| K/M | `avgKillsPerGame` (2 décimales) | toujours |
+| Dégâts | `totalDamage` | toujours |
+| Top 1 | `matchesWon` | toujours |
+| Win rate | `winRate * 100` en pourcentage | toujours |
+| Duo · Trio · Squad | `duoClanKills` · `trioClanKills` · `squadClanKills` | mode « Tous » seulement, **à partir de 1 280 px** |
+| Temps | `timePlayedSeconds` | **à partir de 1 280 px** |
+| Jours actifs | `activeDays` | toujours |
+
+**Colonnes secondaires** (2026-10-04, charte « Tableau large ») : le tableau complet fait ≈ 920 px ; sous 1 280 px, la
+carte n'en offre que 710 à 740 (barre latérale comprise) et il défilait de côté. Kills par mode et temps de jeu y sont
+masqués (`hidden xl:table-cell`) ; ils restent dans le détail de la liste mobile. Sous 768 px : `MobileRankList`.
+
+**Charte UI** (2026-10-04) : la page porte `.charte` ([docs/ui/index.html](../ui/index.html#classement-joueurs)). Titre du
+bandeau en Teko, intitulés du bandeau de filtres en `t-label` (l'infobulle « i » à 9 px devient une icône), rails à
+40 px ; podium : valeur en Teko (`t-hero--md`), critère en `t-label t-accent` ; tendance des kills en `t-pos` / `t-neg` ;
+distinctions **paginées par chevrons** sur mobile (`ChevronPager`, 2 par page) au lieu d'un défilement horizontal.
+Captures de référence du classement régénérées (`visual.spec.ts`).
 
 ### 2.7 Top performers
 

@@ -42,6 +42,12 @@ const MODE_LABELS = { duo: 'Duo', trio: 'Trio', squad: 'Squad' } as const
 
 const TD = 'px-[9px] py-2.5 text-right tabular-nums text-gray-700 whitespace-nowrap'
 
+/**
+ * Colonnes secondaires (kills par mode, temps de jeu) : masquées sous 1 280 px (charte, « Tableau large »). Le tableau
+ * complet fait ≈ 920 px ; sous `xl`, la carte (barre latérale comprise) n'en offre que 710 à 740 — il défilait de côté.
+ */
+const SECONDARY = 'hidden xl:table-cell'
+
 interface LeaderboardProps {
   /** Lignes dans l'ordre d'affichage, avec leur rang (`rankLeaderboard`). */
   rows: RankedEntry[]
@@ -132,7 +138,7 @@ export default function Leaderboard({
   if (rows.length === 0) {
     return (
       <section className="app-panel p-6 text-center">
-        <p className="text-sm text-gray-500">
+        <p className="t-body text-gray-500">
           Aucune donnée pour cette période. Le classement est recalculé à partir des matchs importés.
         </p>
       </section>
@@ -166,8 +172,8 @@ export default function Leaderboard({
     <>
       <section className="app-table-shell hidden overflow-hidden md:block" aria-label="Classement">
         <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
-          <h2 className="text-base font-bold text-gray-900">Classement</h2>
-          <span className="text-xs text-gray-500">Cliquez sur un en-tête pour trier</span>
+          <h2 className="t-card-title">Classement</h2>
+          <span className="t-meta">Cliquez sur un en-tête pour trier</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full table-auto text-[13px]">
@@ -183,14 +189,16 @@ export default function Leaderboard({
                 <SortableTh {...th} column="winRate">Win rate</SortableTh>
                 {showModes
                   ? GROUPED_MODES.map((mode) => (
-                      <SortableTh key={mode} title={`Kills en ${MODE_LABELS[mode]}`}>
+                      <SortableTh key={mode} title={`Kills en ${MODE_LABELS[mode]}`} className={SECONDARY}>
                         <span className="flex justify-end">
                           <TeamModeBadge mode={mode} label={MODE_LABELS[mode]} size="xxs" className="shadow-none app-team-mode-badge--table-head" />
                         </span>
                       </SortableTh>
                     ))
                   : null}
-                <SortableTh {...th} column="timePlayed">Temps</SortableTh>
+                <SortableTh {...th} column="timePlayed" className={SECONDARY}>
+                  Temps
+                </SortableTh>
                 {/* Seul en-tête autorisé à passer sur deux lignes : le tableau tient dans la carte sans défilement. */}
                 <SortableTh {...th} column="activeDays" className="whitespace-normal! pr-3 leading-tight">
                   Jours actifs
@@ -221,7 +229,7 @@ export default function Leaderboard({
                       {formatInteger(entry.totalKills)}
                       {delta ? (
                         <span
-                          className={`ml-1 text-[11px] ${delta > 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                          className={`ml-1 text-[11px] ${delta > 0 ? 't-pos' : 't-neg'}`}
                           title={`${delta > 0 ? '+' : ''}${delta} kills par rapport à la semaine précédente`}
                         >
                           {delta > 0 ? '▲' : '▼'}
@@ -235,12 +243,12 @@ export default function Leaderboard({
                     <td className={TD} style={tint('winRate')}>{formatWinRate(entry.winRate)}</td>
                     {showModes
                       ? GROUPED_MODES.map((mode) => (
-                          <td key={mode} className={TD}>
+                          <td key={mode} className={`${TD} ${SECONDARY}`}>
                             {formatInteger(MODE_KILLS[mode](entry))}
                           </td>
                         ))
                       : null}
-                    <td className={`${TD} text-gray-500`} style={tint('timePlayed')}>{formatPlayTime(entry.timePlayedSeconds)}</td>
+                    <td className={`${TD} ${SECONDARY} text-gray-500`} style={tint('timePlayed')}>{formatPlayTime(entry.timePlayedSeconds)}</td>
                     <td className={`${TD} pr-3 text-gray-500`} style={tint('activeDays')}>{formatInteger(entry.activeDays)}</td>
                   </tr>
                 )
@@ -258,12 +266,12 @@ export default function Leaderboard({
                 <td className={`${TD} text-gray-900`}>{formatWinRate(totals.matches > 0 ? totals.wins / totals.matches : 0)}</td>
                 {showModes
                   ? GROUPED_MODES.map((mode) => (
-                      <td key={mode} className={`${TD} text-gray-900`}>
+                      <td key={mode} className={`${TD} ${SECONDARY} text-gray-900`}>
                         {formatInteger(totals[mode])}
                       </td>
                     ))
                   : null}
-                <td className={`${TD} text-gray-900`}>{formatPlayTime(totals.time)}</td>
+                <td className={`${TD} ${SECONDARY} text-gray-900`}>{formatPlayTime(totals.time)}</td>
                 <td className={`${TD} pr-3 text-gray-500`}>—</td>
               </tr>
             </tfoot>

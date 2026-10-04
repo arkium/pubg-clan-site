@@ -56,9 +56,13 @@ test.describe('ordinateur et tablette', () => {
     await expect(table(page).locator('tbody tr').last().getByRole('img', { name: /Rang 1/ })).toBeVisible()
   })
 
-  test('les colonnes Duo, Trio, Squad n’existent qu’en mode « Tous »', async ({ page }) => {
-    // En-têtes à icône : nom accessible « Logo Squad Squad » (TeamModeBadge).
-    await expect(header(page, /Squad/)).toBeVisible()
+  test('les colonnes Duo, Trio, Squad n’existent qu’en mode « Tous », et dès 1 280 px', async ({ page }, testInfo) => {
+    // En-têtes à icône : nom accessible « Logo Squad Squad » (TeamModeBadge). Colonnes secondaires masquées sous 1 280 px
+    // (charte, « Tableau large ») : sur tablette, le tableau tient dans la carte sans défiler de côté.
+    if (testInfo.project.name === 'chromium-desktop') await expect(header(page, /Squad/)).toBeVisible()
+    else await expect(header(page, /Squad/)).toHaveCount(0)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
     await toolbar(page).getByRole('button', { name: 'Squad', exact: true }).click()
     await expect(header(page, /Squad/)).toHaveCount(0)
     await expect(header(page, /Duo/)).toHaveCount(0)

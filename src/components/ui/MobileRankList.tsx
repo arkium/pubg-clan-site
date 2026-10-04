@@ -69,7 +69,7 @@ export default function MobileRankList<K extends string>({
     <div className="md:hidden">
       {/* Pas de défilement horizontal (règle du site) : les puces se paginent par chevrons, 3 par page. */}
       <div className="mb-2 flex flex-col gap-1.5" role="group" aria-label="Trier par">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500">Trier par</span>
+        <span className="t-label">Trier par</span>
         <ChevronPager
           ariaLabel="Critères de tri"
           pageSize={3}
@@ -134,7 +134,7 @@ export default function MobileRankList<K extends string>({
                     ))}
                   </div>
                   {row.href ? (
-                    <Link href={row.href} className="mt-2 inline-block text-xs font-semibold text-[var(--theme-ui-accent-text)] hover:underline">
+                    <Link href={row.href} className="app-link mt-2 inline-block text-xs font-semibold">
                       {linkLabel}
                     </Link>
                   ) : null}

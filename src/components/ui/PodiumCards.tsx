@@ -58,19 +58,18 @@ export default function PodiumCards({ entries, metricLabel }: { entries: PodiumE
             </span>
             <div className="min-w-0">
               {entry.href ? (
-                <Link href={entry.href} className="block truncate text-[15px] font-bold text-gray-900 hover:underline">
+                <Link href={entry.href} className="t-card-title block truncate hover:underline">
                   {entry.name}
                 </Link>
               ) : (
-                <p className="truncate text-[15px] font-bold text-gray-900">{entry.name}</p>
+                <p className="t-card-title truncate">{entry.name}</p>
               )}
-              <p className="mt-0.5 truncate text-xs text-gray-500">{entry.subline}</p>
+              <p className="t-meta mt-0.5 truncate">{entry.subline}</p>
             </div>
-            <div className="ml-auto text-right">
-              <p className="text-2xl font-bold leading-none tabular-nums text-gray-900">{entry.value}</p>
-              <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--theme-ui-accent)]">
-                {metricLabel}
-              </p>
+            {/* Valeur du critère en Teko (charte §3) ; libellé en texte d'accent (jamais le jaune plein en texte). */}
+            <div className="ml-auto flex shrink-0 flex-col items-end gap-1">
+              <p className="t-hero t-hero--md text-gray-900">{entry.value}</p>
+              <p className="t-label t-accent">{metricLabel}</p>
             </div>
           </div>
         </article>

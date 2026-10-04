@@ -71,7 +71,8 @@ function useTableSort<K extends string>(initial: K): {
 - Carte : `.app-panel`, padding 16×18, gap 14.
 - Ligne 1 : `RankCell size="md"` (médaille) à gauche, icônes de distinction 20 px à droite.
 - Ligne 2 : avatar 40 px (rayon 12, `app-avatar`) · nom 15 px 700 · sous-ligne 12 px muted « 30 matchs · 2,00 K/M » ·
-  valeur 24 px 700 `tabular-nums` + libellé 11 px uppercase en accent.
+  valeur en Teko `t-hero t-hero--md` (2026-10-04, était 24 px 700) + libellé `t-label t-accent` (texte d'accent, jamais le
+  jaune plein en texte).
 - Mobile : non affiché (la liste porte déjà le rang).
 
 ## `DistinctionStrip`
@@ -81,14 +82,16 @@ function useTableSort<K extends string>(initial: K): {
 
 - Libellé « Distinctions » 11 px uppercase muted, puis pastilles : hauteur 32, rayon plein, `.app-panel` sans ombre,
   padding 0 12 0 5, icône 22 px, libellé muted, nom 600, valeur 12 px `tabular-nums`.
-- Mobile : cartes 132 px en défilement horizontal (icône 20, libellé 11, nom 13/700, valeur 12).
+- Mobile (2026-10-04) : cartes **paginées par chevrons** sous 640 px (`ChevronPager`, 2 par page, chacune occupe la
+  moitié de la ligne), à la ligne de 640 à 767 px (132 px) — plus de défilement horizontal (charte, « Rangée de
+  cartes »). Icône 20, libellé 11, nom 13/700, valeur 12.
 
 ## Bandeau d'image de la page — contenu seulement
 
 **Hauteur inchangée** (`min-h-[10rem] sm:min-h-[13rem]`, rayon 16 px, voile actuel). Seul le bas du bandeau change :
 
-- Titre existant (icône `yellow-400`, blanc).
-- Méta : pastille « 24 membres » (fond blanc 14 %, bordure blanc 28 %) · point `emerald-400` 6 px · « Synchronisé le
+- Titre en Teko (`t-banner-title`, 2026-10-04), blanc, icône à l'accent (était `yellow-400`).
+- Méta : pastille « 24 membres » (fond blanc 14 %, bordure blanc 28 %) · point `--game-pos` 6 px (`.app-on-photo`) · « Synchronisé le
   21/09 à 22:00 ». Sur mobile, sur une ligne : « 24 membres · synchro 21/09 22:00 ».
 - Ces deux informations quittent le bandeau de filtres.
 

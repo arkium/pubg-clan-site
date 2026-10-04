@@ -52,6 +52,7 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Gérer les tournois': return <Swords className={className} />
       case 'Comparateur': return <BarChart2 className={className} />
       case 'Ligue': return <Trophy className={className} />
+      case 'Mortier': return <Crosshair className={className} />
 
       // ── Clan section ─────────────────────────────────────────────────────────
       case "Vue d'ensemble": return <LayoutDashboard className={className} />

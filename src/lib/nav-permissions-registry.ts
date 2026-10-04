@@ -94,6 +94,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'none',
     description: 'Tournois inter-clans globaux : gestion par le clan organisateur, classements partagés entre tous les clans.',
   },
+  {
+    navKey: 'primary.mortar',
+    section: 'nav-primary',
+    label: 'Mortier',
+    hrefTemplate: '/mortier',
+    defaultRole: 'none',
+    description: 'Entraînement au mortier (mesure à la grille, réglage de la distance, séries de 10 cibles) et guide ; classement des artilleurs du clan.',
+  },
 
   // --- Clan section nav ---
   {

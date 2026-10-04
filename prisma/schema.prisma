@@ -121,6 +121,7 @@ model ClanMember {
   sentInvites               MemberInvite[]              @relation("InviteSender")
   activeSessions            UserSession[]               @relation("SessionActiveMember")
   clanChanges               PlayerClanChange[]
+  mortarSeries              MortarSeries[]
 
   @@unique([pubgPlayerName, platformShard])
   @@index([clanId, lastMatchAt])
@@ -1061,6 +1062,31 @@ model MemberItemUseStat {
   @@index([memberId, matchDate])
   @@index([subCategory, matchDate])
   @@map("MemberItemUseStat")
+}
+
+/// Entraînement au mortier (`/mortier`, docs/features/mortier.md) : une série de dix cibles jouée par un membre
+/// connecté. La ligne naît au départ (`started`, graine tirée par le serveur) et passe à `finished` quand les tirs
+/// sont reçus : le score est recalculé côté serveur à partir de la graine, jamais repris du client. Une seule série
+/// `started` par membre (les précédentes sont supprimées au départ suivant). Les séries des visiteurs ne sont pas
+/// enregistrées.
+model MortarSeries {
+  id         String     @id @default(cuid())
+  memberId   Int
+  member     ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  difficulty String     @db.VarChar(10) // 'easy' | 'medium' | 'hard'
+  seed       String     @db.VarChar(32)
+  status     String     @default("started") @db.VarChar(10) // 'started' | 'finished'
+  // Score, renseigné à la fin de série : écart moyen absolu (m, au dixième), tirs au but, temps moyen par cible.
+  meanError  Float?
+  hits       Int?
+  avgTimeMs  Int?
+  shots      Json? // MortarShotResult[] — détail tir par tir
+  startedAt  DateTime   @default(now())
+  finishedAt DateTime?
+
+  @@index([memberId, difficulty, status])
+  @@index([difficulty, status])
+  @@map("MortarSeries")
 }
 
 model MemberThrowableStat {

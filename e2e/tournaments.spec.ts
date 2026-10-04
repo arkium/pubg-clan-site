@@ -261,6 +261,8 @@ test('tournoi à venir : état neutre, classement vide sans invitation à synchr
   signInAsMember(api)
   await page.goto(`/tournaments/${UPCOMING_TOURNAMENT_ID}`)
   await expect(page.getByRole('heading', { level: 1, name: 'Scrims du jeudi' })).toBeVisible()
+  // Le shell remonte la page quand la session arrive (WebKit) : attendre qu'elle soit stable avant de lire le classement.
+  await page.waitForLoadState('networkidle')
   await expect(phaseBadge(page)).toHaveText('À VENIR')
   await expect(phaseBadge(page)).not.toHaveClass(HARD_CODED_COLOR)
   const { background, accent } = await backgroundAndAccent(phaseBadge(page))

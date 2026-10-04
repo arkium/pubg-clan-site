@@ -413,6 +413,35 @@ Contrairement au scope clan, ces routes utilisent uniformément `requireSameClan
 
 ---
 
+## Entraînement au mortier — `/api/mortar/*`
+
+| Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
+|---|---|---|---|---|
+| POST | `/api/mortar/series` | Public ; série enregistrée si session avec membre actif | ✅ Pertinent | `{ difficulty }` → `MortarSeriesStart` : graine des dix cibles, tirée par le serveur — détail ci-dessous, voir [Mortier](../features/mortier.md) |
+| POST | `/api/mortar/series/[seriesId]/finish` | Session (cookie) + membre actif, propriétaire de la série | ✅ Pertinent | `{ shots }` → `MortarSeriesFinish` : score recalculé par le serveur à partir de la graine, record précédent — détail ci-dessous |
+| GET | `/api/mortar/leaderboard?clanId=&difficulty=` | Public ; ligne du lecteur si session | ✅ Pertinent | `MortarLeaderboard` : « Artilleurs du clan », dix premiers + ligne du lecteur — détail ci-dessous |
+
+Contrat partagé par les routes, la page et les tests e2e : `src/lib/mortar/mortar-api.ts` ; règles et calcul du score : `src/lib/mortar/mortar-game.ts` ; service Prisma (table `MortarSeries`) : `src/lib/mortar/mortar-service.ts`. Tests : `src/lib/mortar/mortar-route-contracts.test.ts`.
+
+### Détail — `POST /api/mortar/series`
+
+- **Body :** `{ difficulty: 'easy' | 'medium' | 'hard' }` — `400` sinon.
+- **Membre connecté (`activeMemberId`) :** ses séries encore `started` sont supprimées (une seule série ouverte par joueur), une ligne `MortarSeries` est créée avec une graine `crypto` de 10 caractères hexadécimaux → `201` `{ seriesId, seed, difficulty, recorded: true }`.
+- **Visiteur (ou compte sans membre actif) :** aucune écriture → `200` `{ seriesId: null, seed, difficulty, recorded: false }` ; la série se joue sans enregistrement.
+
+### Détail — `POST /api/mortar/series/[seriesId]/finish`
+
+- **Body :** `{ shots: Array<{ setting: number, timeMs: number }> }` — exactement dix tirs, réglages entiers de 121 à 700 m, temps de 0,3 s à 5 min (`validateMortarShots`). Tout autre champ (écart, score) est ignoré : le score est recalculé par `scoreMortarSeries(generateMortarTargets(seed, difficulty), shots, difficulty)` avec la graine gardée en base.
+- **Réponse :** `{ score, previousBest, isRecord, seriesCount }` — `previousBest` = meilleur `meanError` des séries terminées du joueur à cette difficulté avant celle-ci (`null` = première) ; `isRecord` = pas de précédent ou écart strictement meilleur ; `seriesCount` compte la série reçue.
+- **Erreurs** (`{ error, code }`) : `401` sans session ou sans membre actif ; `404` `not_found` série inconnue (remplacée par un départ plus récent, par exemple) ; `403` `forbidden` série d'un autre joueur ; `409` `finished` déjà terminée (aussi pour le second de deux envois simultanés), `expired` commencée il y a plus de 2 h ; `400` `invalid_shots`, ou `implausible_time` quand la somme des `timeMs` dépasse le temps écoulé côté serveur depuis le départ + 5 s.
+
+### Détail — `GET /api/mortar/leaderboard`
+
+- **Query :** `clanId` (entier > 0) et `difficulty` — `400` sinon.
+- **Réponse :** `{ clanId, difficulty, rows, viewer }` — membres **actifs** du clan ayant terminé au moins une série à cette difficulté ; par membre `series` (séries terminées) et `best` (meilleur écart moyen, m). Tri : `best` croissant, puis plus de séries, puis nom ; rangs 1..n. `rows` = les 10 premiers (`MORTAR_LEADERBOARD_SIZE`) ; `viewer` = ligne du membre actif de la session, même hors des dix premiers, sinon `null`. Une requête groupée (`groupBy` sur `MortarSeries`) + une lecture des noms.
+
+---
+
 ## Internal / Cron — `/api/internal/cron/*`
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |

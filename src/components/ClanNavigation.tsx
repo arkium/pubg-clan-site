@@ -417,6 +417,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         href: '/tournaments',
         tone: 'violet',
       },
+      // Entraînement au mortier (docs/features/mortier.md) : icône viseur (NavIcon, libellé « Mortier »).
+      { navKey: 'primary.mortar', label: 'Mortier', href: '/mortier', tone: 'brand' },
       !isVisitor
         ? { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' }
         : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },

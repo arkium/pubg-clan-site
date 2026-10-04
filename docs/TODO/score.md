@@ -90,3 +90,48 @@ Avant de considérer le travail terminé, à partir des données réelles :
 
 Ne pas ajouter de bonus ou de coefficient par mode (duo / trio / squad) : ce sera traité à
 part, une fois la nouvelle formule validée.
+
+---
+
+## État — implémenté le 2026-10-04
+
+Fait selon ce cahier des charges : `src/lib/clan-league.ts` (formule, constantes, `leagueTableBetween`),
+`src/lib/clan-league-service.ts` (filtre `matchType`, cache par période et type), route et page `/clans-leaderboard`
+(sélecteur de type, bloc « En qualification », explication), tests unitaires, service (Prisma simulé) et e2e. Détail :
+[ligue-clans.md](../features/ligue-clans.md) §1 bis.
+
+### Analyse de cohérence du cahier des charges
+
+1. **Une seule formule** : vérifié, `clanPowerScore` était déjà la seule. L'annuaire (`clan-directory-service`) et la
+   vitrine de la vue d'ensemble (`clan-showcase-service`) ne lisent que le **rang** via `computeClansLeaderboard('month')`
+   (type Normal) : rien à improviser. Ils n'affichent plus de rang pour un clan en qualification.
+2. **Texte public oublié** : la vitrine de l'accueil (`HomeShowcase`) décrivait le score par « win rate, dégâts, kills et
+   knocks » — corrigé (placement).
+3. **Seuils communs à tous les types** : 5 / 15 / 30 parties valent pour Normal, Ranked, Casual et Tournois. Mesuré le
+   2026-10-04, le mois ne classe que 3 clans en Ranked et **aucun** en Casual et en Tournois / Custom (0 / 10, 0 / 6
+   en qualification). À trancher : seuils par type, ou accepter des classements vides hors Normal.
+4. **Le placement pèse plus que prévu** : 48 à 51 % du score moyen selon la fenêtre (objectif 35-45 %), voir ci-dessous.
+5. **Kills et knocks presque sans effet** : 3 % et 1,3 % du score moyen (× 10 et × 5 contre ~500 dégâts). Gardés tels
+   quels (« comme aujourd'hui ») ; à revoir si on veut qu'ils comptent.
+6. **Début de semaine** : le lundi, très peu de clans ont 5 parties — le classement de la semaine part presque vide et se
+   remplit au fil des soirées (le bloc « En qualification » le montre).
+7. **Titres** : ils ne portent plus que sur les clans classés ; le minimum de 3 parties des titres
+   (`LEAGUE_TITLE_MIN_MATCHES`) devient sans effet (seuil ≥ 5), gardé si l'on baisse un seuil.
+8. **Types de partie** : Normal = `official`, Ranked = `competitive`, Casual = `casual` + `airoyale` (lobbies de bots, seul
+   type « casual » réellement présent en base), Tournois / Custom = `custom`. Les types `event` (284 parties sur 60
+   jours), `arcade` et `rumble` ne comptent dans aucun classement. `custom` mélange tournois, TDM et « normal-solo ».
+9. **`ClanMatchTypeFilter`** reçoit `competitive` ; les synergies écrites par le worker d'agrégats gardent leurs quatre
+   types (rien de nouveau n'est écrit en base) et les parties Ranked restent dans « Tous » des pages de clan.
+
+### Vérification (données réelles, lecture seule : `scripts/measure-league-score.ts`)
+
+1. **Moyennes, mois en cours** (1er-4 octobre, Normal, 1 384 lignes) : points de placement 2,41 · dégâts 529,5 · kills
+   3,60 · knocks 3,09 ; score moyen 1 182. Parts : placement **50,9 %**, dégâts 44,8 %, kills 3,0 %, knocks 1,3 %.
+   Septembre : 48,0 % ; tout l'historique : 49,9 %. **Hors fourchette** : coefficient proposé **≈ 170** (161 à 181 selon
+   la fenêtre) pour ramener le placement à 40 % — **non appliqué, décision attendue** (`PLACEMENT_WEIGHT`).
+2. **Classement du mois avant / après** : sortie complète du script. Exemples : FrenchDucks, 1er avant (11 parties,
+   6 120 points), passe en qualification (11 / 15) ; Les-Ratz, 2e avant, 1er après (123 parties) ; DEAD_NOOB 10e → 3e ;
+   KeepMoveSurvive 26e → 15e. En qualification : FrenchDucks 11/15, D32 10/15, ONCRAINTDEGUN 6/15, bastian-french 3/15,
+   NOZONE 1/15.
+3. **Tests** : 1 partie gagnée non classée, plus de parties = moins tiré vers la moyenne, 2e place qui rapporte — et le
+   filtre `matchType` (Ranked = `competitive` seul) côté service et e2e.

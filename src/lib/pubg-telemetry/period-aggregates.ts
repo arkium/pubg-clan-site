@@ -6,7 +6,12 @@ import { teamModeFromMemberCount } from '@/lib/team-mode'
 import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
 import { decodeJsonColumn } from '@/lib/pubg-telemetry/json-codec'
 
-const CLAN_SYNERGY_MATCH_TYPES: ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
+/**
+ * Types écrits pour les synergies (`ClanSynergyAggregate.matchType`) : inchangés depuis l'ajout de `competitive` à
+ * `ClanMatchTypeFilter` (2026-10-04, Ligue Inter-Clans) — les parties Ranked restent comptées dans `all`.
+ */
+type SynergyMatchType = Exclude<ClanMatchTypeFilter, 'competitive'>
+const CLAN_SYNERGY_MATCH_TYPES: SynergyMatchType[] = ['official', 'casual', 'custom', 'all']
 const CLAN_SYNERGY_TEAM_MODES: ClanTeamModeFilter[] = ['duo', 'trio', 'squad', 'all']
 
 type StatsPeriod = 'week' | 'month' | 'all'
@@ -562,7 +567,7 @@ async function recalculateTelemetryPeriodForClan(
   // matchTypeMatchesFilter ; le mode se déduit du nombre de SquadMember scopés
   // au clan, cf. teamModeFromMemberCount).
   const pairAggregatesByMatchType: Record<
-    ClanMatchTypeFilter,
+    SynergyMatchType,
     Record<ClanTeamModeFilter, Map<string, PairSynergyAggregate>>
   > = {
     official: { duo: new Map(), trio: new Map(), squad: new Map(), all: new Map() },
@@ -685,7 +690,7 @@ async function recalculateTelemetryPeriodForClan(
         }
 
         const pairKey = buildPairKey(leftMemberId, rightMemberId)
-        const applicableMatchTypes: ClanMatchTypeFilter[] = ['all']
+        const applicableMatchTypes: SynergyMatchType[] = ['all']
         for (const filter of ['official', 'casual', 'custom'] as const) {
           if (matchTypeMatchesFilter(snapshot.squadMatch.matchType, filter)) {
             applicableMatchTypes.push(filter)

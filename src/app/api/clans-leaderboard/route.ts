@@ -1,3 +1,4 @@
+import { parseLeagueMatchType } from '@/lib/clan-league'
 import { getClanLeague, type ClanLeaguePayload } from '@/lib/clan-league-service'
 import type { StandardPeriod } from '@/lib/period'
 
@@ -5,8 +6,9 @@ export type { ClanLeaderboardEntry } from '@/lib/clans-leaderboard'
 
 /**
  * Ligue Inter-Clans (`/clans-leaderboard`, docs/features/ligue-clans.md) : classement de la période au Power score,
- * rang sur la période précédente, clans sans partie, fil de la ligue et titres — calculés à la volée depuis les parties
- * officielles, 5 minutes en mémoire. Route publique, comme la page (vitrine de l'accueil).
+ * rang sur la période précédente, clans en qualification et sans partie, fil de la ligue et titres — calculés à la volée
+ * depuis les parties du type demandé (`?matchType=official|competitive|casual|custom`, Normal par défaut), 5 minutes
+ * en mémoire. Route publique, comme la page (vitrine de l'accueil).
  */
 export type ClansLeaderboardResponse = ClanLeaguePayload
 
@@ -16,8 +18,9 @@ function parsePeriod(value: string | null): StandardPeriod {
 
 export async function GET(request: Request) {
   try {
-    const period = parsePeriod(new URL(request.url).searchParams.get('period'))
-    return Response.json(await getClanLeague(period))
+    const searchParams = new URL(request.url).searchParams
+    const period = parsePeriod(searchParams.get('period'))
+    return Response.json(await getClanLeague(period, parseLeagueMatchType(searchParams.get('matchType'))))
   } catch (error) {
     console.error('Error fetching clans leaderboard:', error)
     return Response.json({ error: 'Failed to fetch clans leaderboard' }, { status: 500 })

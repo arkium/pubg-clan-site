@@ -15,6 +15,7 @@ import {
   DEBRIEF_MATCH_ID,
 } from './data'
 import { mockMemberProfile } from './members'
+import { parseLeagueMatchType } from '@/lib/clan-league'
 import { playstyleRows } from './stats'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
 
@@ -57,7 +58,9 @@ export function mockClanWeapons(api: ApiMock) {
 }
 
 export function mockClansLeaderboard(api: ApiMock) {
-  api.on('GET', '/api/clans-leaderboard', (url) => ({ body: clansLeaderboardResponse(periodOf(url)) }))
+  api.on('GET', '/api/clans-leaderboard', (url) => ({
+    body: clansLeaderboardResponse(periodOf(url), parseLeagueMatchType(url.searchParams.get('matchType'))),
+  }))
 }
 
 /** Vitrine publique de l'accueil : une seule API, publique. */

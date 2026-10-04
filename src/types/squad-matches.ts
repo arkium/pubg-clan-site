@@ -1,6 +1,7 @@
 export type SquadPeriod = 'week' | 'month' | 'month-1' | 'month-2' | 'all'
 
-export type ClanMatchTypeFilter = 'official' | 'casual' | 'custom' | 'all'
+/** `competitive` : parties classées (Ranked), séparées de `official` (matchmaking normal) depuis le 2026-10-04. */
+export type ClanMatchTypeFilter = 'official' | 'competitive' | 'casual' | 'custom' | 'all'
 
 export type ClanTeamModeFilter = 'all' | 'duo' | 'trio' | 'squad'
 

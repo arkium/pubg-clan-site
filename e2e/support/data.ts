@@ -1,4 +1,5 @@
 import type { ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
+import { LEAGUE_MIN_MATCHES, LEAGUE_PRIOR_MATCHES, clanPowerScore, clanRawScore, type LeagueMatchType } from '@/lib/clan-league'
 import type { HomeShowcasePayload } from '@/lib/home-showcase'
 import type { ClanMatchesResponse, SquadMatch } from '@/types/squad-matches'
 import { sessionDateOf } from '@/lib/match-sessions'
@@ -81,30 +82,38 @@ export function leaderboardResponse(period: LeaderboardPeriod): LeaderboardRespo
 }
 
 /**
- * Ligue Inter-Clans (e2e/clans-league.spec.ts) : 16 clans classés, 2 sans partie. « Clan Démo » (CLAN_ID, le clan
- * du membre connecté des tests) est 10e, en blue zone ; rang précédent fixé pour les flèches.
+ * Ligue Inter-Clans (e2e/clans-league.spec.ts) : 16 clans classés, 2 en qualification, 2 sans partie. « Clan Démo »
+ * (CLAN_ID, le clan du membre connecté des tests) est 10e, en blue zone ; rang précédent fixé pour les flèches. En
+ * « Ranked » (`matchType=competitive`), 4 clans classés seulement — le rechargement par type de partie se voit.
  */
-export function clansLeaderboardResponse(period: LeaderboardPeriod): ClansLeaderboardResponse {
+export function clansLeaderboardResponse(period: LeaderboardPeriod, matchType: LeagueMatchType = 'official'): ClansLeaderboardResponse {
   const factor = PERIOD_FACTOR[period]
   const previous = [2, 1, 5, 3, 4, 9, 6, 8, 7, 12, 10, 11, 14, 13, null, 15]
-  const standings = CALLSIGNS.slice(0, 16).map((callsign, index) => {
+  const leagueScore = 1100
+  const minMatches = LEAGUE_MIN_MATCHES[period]
+  const standings = CALLSIGNS.slice(0, matchType === 'competitive' ? 4 : 16).map((callsign, index) => {
     const mine = index === 9
     const winRate = 0.26 - index * 0.015
     const avgDamage = 420 - index * 12
     const avgKills = 3 - index * 0.1
     const avgKnocks = index === 4 ? 5.2 : 3.4 - index * 0.1
+    const avgPlacementPoints = 3.2 - index * 0.12
+    const matches = (40 - index) * factor
+    const rawScore = clanRawScore({ avgPlacementPoints, avgDamage, avgKills, avgKnocks })
     return {
       clanId: mine ? CLAN_ID : index + 2,
-      name: mine ? 'Clan Démo' : `Clan ${callsign}`,
+      name: mine ? 'Clan Démo' : `${matchType === 'competitive' ? 'Ranked' : 'Clan'} ${callsign}`,
       tag: mine ? 'DEMO' : callsign.slice(0, 4).toUpperCase(),
       imageUrl: null,
-      matches: (40 - index) * factor,
-      wins: Math.round((40 - index) * factor * winRate),
+      matches,
+      wins: Math.round(matches * winRate),
       winRate,
+      avgPlacementPoints,
       avgDamage,
       avgKills,
       avgKnocks,
-      powerScore: winRate * 10000 + avgDamage + avgKills * 10 + avgKnocks * 5,
+      rawScore,
+      powerScore: clanPowerScore({ matches, rawScore, leagueScore }),
       rank: index + 1,
       previousRank: period === 'all' ? null : previous[index],
       activeMembers: 20 - index,
@@ -112,9 +121,19 @@ export function clansLeaderboardResponse(period: LeaderboardPeriod): ClansLeader
   })
   return {
     period,
+    matchType,
     generatedAt: FIXED_DATE,
     lastMatchAt: FIXED_DATE,
     standings,
+    qualifying: [
+      { clanId: 42, name: 'Clan Novice', tag: 'NOV', imageUrl: null, matches: minMatches - 2, required: minMatches },
+      { clanId: 43, name: 'Clan Recrue', tag: 'REC', imageUrl: null, matches: 1, required: minMatches },
+    ],
+    scoring: {
+      minMatches,
+      priorMatches: LEAGUE_PRIOR_MATCHES,
+      league: { matches: 400, avgPlacementPoints: 2.1, avgDamage: 480, avgKills: 3.4, avgKnocks: 3, rawScore: leagueScore },
+    },
     withoutMatch: [
       { clanId: 40, name: 'Clan Endormi', tag: 'ZZZ', imageUrl: null },
       { clanId: 41, name: 'Clan Fantôme', tag: 'GHO', imageUrl: null },

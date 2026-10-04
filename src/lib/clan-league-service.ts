@@ -1,12 +1,19 @@
 import { Prisma } from '@prisma/client'
 
 import {
+  LEAGUE_MIN_MATCHES,
+  LEAGUE_PRIOR_MATCHES,
   leagueFeed,
+  leagueMatchTypeValues,
+  leagueTableBetween,
   leagueTitles,
   standingsBetween,
+  type LeagueAverage,
   type LeagueClan,
   type LeagueFeedEvent,
   type LeagueMatchRow,
+  type LeagueMatchType,
+  type LeagueQualifier,
   type LeagueStanding,
 } from '@/lib/clan-league'
 import { sessionDateOf } from '@/lib/match-sessions'
@@ -14,10 +21,11 @@ import { getPeriodRange, type StandardPeriod } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Ligue Inter-Clans calculée à la volée depuis les parties officielles (docs/features/ligue-clans.md) — plus depuis
- * `ClanComparatorCache`, qui ne gardait que la période en cours : les flèches (période précédente), le fil de la ligue
- * (soirée par soirée) et la meilleure remontée demandent des classements passés. Une requête groupée par clan et par
- * partie (≈ 21 000 lignes sur tout l'historique, 1,2 s mesurée le 2026-09-27), gardée 5 minutes en mémoire.
+ * Ligue Inter-Clans calculée à la volée depuis les parties d'un type (Normal, Ranked, Casual, Tournois / Custom ;
+ * docs/features/ligue-clans.md) — plus depuis `ClanComparatorCache`, qui ne gardait que la période en cours : les
+ * flèches (période précédente), le fil de la ligue (soirée par soirée) et la meilleure remontée demandent des
+ * classements passés. Une requête groupée par clan et par partie (≈ 21 000 lignes sur tout l'historique, 1,2 s mesurée
+ * le 2026-09-27), gardée 5 minutes en mémoire par période et par type.
  */
 
 export type LeagueEntry = LeagueStanding & {
@@ -29,19 +37,24 @@ export type LeagueEntry = LeagueStanding & {
 
 export type ClanLeaguePayload = {
   period: StandardPeriod
+  matchType: LeagueMatchType
   generatedAt: string
-  /** Dernière partie officielle prise en compte (fraîcheur réelle du classement). */
+  /** Dernière partie du type prise en compte (fraîcheur réelle du classement). */
   lastMatchAt: string | null
-  /** Clans classés (au moins une partie officielle sur la période), au Power score. */
+  /** Clans classés (au moins `minMatches` parties du type sur la période), au Power score. */
   standings: LeagueEntry[]
-  /** Clans suivis sans partie officielle sur la période : non classés. */
+  /** Clans qui ont joué sous le seuil : pas de rang, progression « 3 / 5 parties ». */
+  qualifying: LeagueQualifier[]
+  /** Clans suivis sans partie du type sur la période : non classés. */
   withoutMatch: LeagueClan[]
   feed: LeagueFeedEvent[]
   titles: ReturnType<typeof leagueTitles>
+  /** Règles de la période, pour l'explication du Power score affichée sur la page. */
+  scoring: { minMatches: number; priorMatches: number; league: LeagueAverage }
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000
-const cache = new Map<StandardPeriod, { expiresAt: number; payload: ClanLeaguePayload }>()
+const cache = new Map<string, { expiresAt: number; payload: ClanLeaguePayload }>()
 const FEED_DAYS = 7
 
 type RawRow = { clanId: number; matchId: string; createdAt: Date; placement: number; damage: number | null; kills: number | bigint | null; knocks: number | bigint | null }
@@ -54,8 +67,11 @@ async function loadLeagueClans(): Promise<LeagueClan[]> {
   return clans.map((clan) => ({ clanId: clan.id, name: clan.name, tag: clan.tag, imageUrl: clan.clanConfigs[0]?.value || null }))
 }
 
-/** Une ligne par clan et par partie officielle, stats des seuls membres actifs du clan (règle du comparateur). */
-export async function loadLeagueRows(since: Date | null): Promise<LeagueMatchRow[]> {
+/** Filtre SQL du type de partie (`leagueMatchTypeValues` : Casual couvre aussi les lobbies de bots `airoyale`). */
+const matchTypeSql = (matchType: LeagueMatchType) => Prisma.sql`sm.matchType IN (${Prisma.join(leagueMatchTypeValues(matchType))})`
+
+/** Une ligne par clan et par partie du type, stats des seuls membres actifs du clan (règle du comparateur). */
+export async function loadLeagueRows(since: Date | null, matchType: LeagueMatchType = 'official'): Promise<LeagueMatchRow[]> {
   const rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
     SELECT cm.clanId AS clanId, sm.id AS matchId, sm.createdAt AS createdAt, sm.placement AS placement,
            SUM(sq.damage) AS damage, SUM(sq.kills) AS kills, SUM(sq.knockouts) AS knocks
@@ -63,7 +79,7 @@ export async function loadLeagueRows(since: Date | null): Promise<LeagueMatchRow
     INNER JOIN SquadMatch sm ON sm.id = sq.squadMatchId
     INNER JOIN ClanMember cm ON cm.id = sq.memberId
     INNER JOIN Clan c ON c.id = cm.clanId
-    WHERE sm.matchType = 'official'
+    WHERE ${matchTypeSql(matchType)}
       AND cm.isActive = 1 AND cm.joinStatus = 'active'
       AND c.isActive = 1 AND c.pubgClanId IS NOT NULL
       ${since ? Prisma.sql`AND sm.createdAt >= ${since}` : Prisma.empty}
@@ -80,13 +96,13 @@ export async function loadLeagueRows(since: Date | null): Promise<LeagueMatchRow
   }))
 }
 
-async function loadActiveMembers(since: Date | null) {
+async function loadActiveMembers(since: Date | null, matchType: LeagueMatchType) {
   const rows = await prisma.$queryRaw<Array<{ clanId: number; players: bigint | number }>>(Prisma.sql`
     SELECT cm.clanId AS clanId, COUNT(DISTINCT sq.memberId) AS players
     FROM SquadMember sq
     INNER JOIN SquadMatch sm ON sm.id = sq.squadMatchId
     INNER JOIN ClanMember cm ON cm.id = sq.memberId
-    WHERE sm.matchType = 'official' AND cm.isActive = 1 AND cm.joinStatus = 'active'
+    WHERE ${matchTypeSql(matchType)} AND cm.isActive = 1 AND cm.joinStatus = 'active'
       ${since ? Prisma.sql`AND sm.createdAt >= ${since}` : Prisma.empty}
     GROUP BY cm.clanId
   `)
@@ -108,8 +124,9 @@ export function feedSessionDates(now: Date, days = FEED_DAYS) {
   return Array.from({ length: days + 1 }, (_, index) => new Date(base - (days - index) * 86_400_000).toISOString().slice(0, 10))
 }
 
-export async function getClanLeague(period: StandardPeriod, now = new Date()): Promise<ClanLeaguePayload> {
-  const cached = cache.get(period)
+export async function getClanLeague(period: StandardPeriod, matchType: LeagueMatchType = 'official', now = new Date()): Promise<ClanLeaguePayload> {
+  const cacheKey = `${period}:${matchType}`
+  const cached = cache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.payload
 
   const current = getPeriodRange(period, now)
@@ -120,16 +137,23 @@ export async function getClanLeague(period: StandardPeriod, now = new Date()): P
   const since =
     period === 'all' ? null : new Date(Math.min(current!.start.getTime(), previous!.start.getTime(), feedStart.getTime() - 86_400_000))
 
-  const [clans, rows, activeMembers] = await Promise.all([loadLeagueClans(), loadLeagueRows(since), loadActiveMembers(current?.start ?? null)])
+  const [clans, rows, activeMembers] = await Promise.all([
+    loadLeagueClans(),
+    loadLeagueRows(since, matchType),
+    loadActiveMembers(current?.start ?? null, matchType),
+  ])
 
-  const standings = standingsBetween(rows, clans, current?.start ?? null, null)
-  const previousStandings = previous ? standingsBetween(rows, clans, previous.start, previous.end) : null
+  // Même seuil pour la période, la période précédente et le fil : seuls les clans classés y figurent.
+  const minMatches = LEAGUE_MIN_MATCHES[period]
+  const { standings, qualifying, league } = leagueTableBetween(rows, clans, current?.start ?? null, null, minMatches)
+  const previousStandings = previous ? standingsBetween(rows, clans, previous.start, previous.end, minMatches) : null
   const previousRanks = previousStandings ? new Map(previousStandings.map((standing) => [standing.clanId, standing.rank])) : null
-  const ranked = new Set(standings.map((standing) => standing.clanId))
+  const played = new Set([...standings, ...qualifying].map((entry) => entry.clanId))
   const lastMatch = rows.reduce<Date | null>((latest, row) => (!latest || row.createdAt > latest ? row.createdAt : latest), null)
 
   const payload: ClanLeaguePayload = {
     period,
+    matchType,
     generatedAt: now.toISOString(),
     lastMatchAt: lastMatch?.toISOString() ?? null,
     standings: standings.map((standing) => ({
@@ -137,10 +161,12 @@ export async function getClanLeague(period: StandardPeriod, now = new Date()): P
       previousRank: previousRanks?.get(standing.clanId) ?? null,
       activeMembers: activeMembers.get(standing.clanId) ?? 0,
     })),
-    withoutMatch: clans.filter((clan) => !ranked.has(clan.clanId)).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
-    feed: leagueFeed(rows, clans, current?.start ?? null, sessionDates),
+    qualifying,
+    withoutMatch: clans.filter((clan) => !played.has(clan.clanId)).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
+    feed: leagueFeed(rows, clans, current?.start ?? null, sessionDates, minMatches),
     titles: leagueTitles(standings, previousRanks),
+    scoring: { minMatches, priorMatches: LEAGUE_PRIOR_MATCHES, league },
   }
-  cache.set(period, { expiresAt: Date.now() + CACHE_TTL_MS, payload })
+  cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload })
   return payload
 }

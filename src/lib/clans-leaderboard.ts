@@ -24,8 +24,9 @@ export type ClansLeaderboardPeriod = 'week' | 'month' | 'all'
 
 export { clanPowerScore } from '@/lib/clan-league'
 
+/** Classement Normal (parties officielles) : rang affiché par l'annuaire et la vitrine ; clans en qualification exclus. */
 export async function computeClansLeaderboard(period: ClansLeaderboardPeriod): Promise<ClanLeaderboardEntry[]> {
-  const league = await getClanLeague(period)
+  const league = await getClanLeague(period, 'official')
   return league.standings.map((entry) => ({
     clanId: entry.clanId,
     name: entry.name,

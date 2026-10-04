@@ -6,9 +6,10 @@ import { appHeader, dock, periodFilter, toolbar } from './support/layout'
 import { mockClansLeaderboard } from './support/pages'
 
 /**
- * Ligue Inter-Clans — docs/features/ligue-clans.md (maquette « Ligue clans », 2026-09-27). Podium en marches, fil de la
- * ligue, titres, classement par cercle (zone, blue zone repliée, sans partie), flèches par rapport à la période
- * précédente, pastille « Mon clan », bandeau sur une ligne aussi docké sur mobile.
+ * Ligue Inter-Clans — docs/features/ligue-clans.md (maquette « Ligue clans », 2026-09-27 ; Power score pondéré et type
+ * de partie, docs/TODO/score.md, 2026-10-04). Podium en marches, fil de la ligue, titres, classement par cercle (zone,
+ * blue zone repliée, en qualification, sans partie), flèches par rapport à la période précédente, pastille « Mon clan »,
+ * type de partie (menu à partir de 640 px, segmented au repos sur mobile), bandeau sur une ligne aussi docké sur mobile.
  */
 
 const isMobile = (testInfo: TestInfo) => ['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name)
@@ -18,13 +19,25 @@ async function expectNoHorizontalScroll(page: Page) {
   expect(overflow).toBeLessThanOrEqual(1)
 }
 
-async function chooseCriterion(page: Page, testInfo: TestInfo, label: string) {
-  if (isMobile(testInfo)) {
-    const cycle = toolbar(page).getByRole('button', { name: /^Critère :/ })
-    for (let step = 0; step < 5 && !((await cycle.getAttribute('aria-label')) ?? '').startsWith(`Critère : ${label}`); step += 1) await cycle.click()
-  } else {
-    await toolbar(page).getByRole('group', { name: 'Critère' }).getByRole('button', { name: label }).click()
+/** Segments à partir de 1 024 px (six critères), sinon le bouton qui passe au suivant. */
+async function chooseCriterion(page: Page, label: string) {
+  const segments = toolbar(page).getByRole('group', { name: 'Critère' })
+  if (await segments.isVisible()) {
+    await segments.getByRole('button', { name: label, exact: true }).click()
+    return
   }
+  const cycle = toolbar(page).getByRole('button', { name: /^Critère :/ })
+  for (let step = 0; step < 6 && !((await cycle.getAttribute('aria-label')) ?? '').startsWith(`Critère : ${label}`); step += 1) await cycle.click()
+}
+
+/** Menu à partir de 640 px, segmented au repos sur mobile. */
+async function chooseMatchType(page: Page, testInfo: TestInfo, label: string, short: string) {
+  if (isMobile(testInfo)) {
+    await toolbar(page).getByRole('group', { name: 'Type de partie' }).getByRole('button', { name: short }).click()
+    return
+  }
+  await toolbar(page).getByRole('button', { name: /^Type de partie :/ }).click()
+  await page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) }).click()
 }
 
 test.describe('Ligue Inter-Clans (visiteur)', () => {
@@ -35,11 +48,11 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
     await expect(page.getByTestId('podium-1')).toBeVisible()
   })
 
-  test('podium en marches 2-1-3 avec couronne, qui suit le critère', async ({ page }, testInfo) => {
+  test('podium en marches 2-1-3 avec couronne, qui suit le critère', async ({ page }) => {
     await expect(page.getByTestId('podium-1')).toContainText('Clan Alpha')
     await expect(page.getByTestId('podium-1').getByLabel('Premier')).toBeVisible()
     await expect(page.getByText('WINNER WINNER CHICKEN DINNER')).toBeVisible()
-    await chooseCriterion(page, testInfo, 'Knocks')
+    await chooseCriterion(page, 'Knocks')
     await expect(page.getByRole('region', { name: 'Podium · Knocks moyens' })).toBeVisible()
     await expect(page.getByTestId('podium-1')).toContainText('Clan Echo')
   })
@@ -59,23 +72,50 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
     await expect(page.getByRole('list', { name: 'Blue zone' })).toHaveCount(0)
     await page.getByRole('button', { name: /Blue zone/ }).click()
     await expect(page.getByRole('list', { name: 'Blue zone' }).getByRole('listitem')).toHaveCount(8)
-    await expect(page.getByRole('button', { name: /Sans partie/ })).toContainText('2 clans sans partie officielle cette semaine')
+    await expect(page.getByRole('button', { name: /Sans partie/ })).toContainText('2 clans sans partie normale cette semaine')
     await page.getByRole('button', { name: /Sans partie/ }).click()
     await expect(page.getByRole('list', { name: 'Clans sans partie' })).toContainText('Clan Endormi')
     await expectNoHorizontalScroll(page)
   })
 
-  test('flèches ▲▼ en Power score seulement, par rapport à la période précédente ; aucune pour « Tous »', async ({ page }, testInfo) => {
+  test('flèches ▲▼ en Power score seulement, par rapport à la période précédente ; aucune pour « Tous »', async ({ page }) => {
     const zone = page.getByRole('list', { name: 'Dans la zone' })
     await expect(zone.getByRole('listitem').first()).toContainText('▼1') // Clan Delta : 3e la semaine d'avant, 4e
     await expect(zone.getByRole('listitem').nth(2)).toContainText('▲3') // Clan Foxtrot : 9e → 6e
-    await chooseCriterion(page, testInfo, 'Dégâts')
+    await chooseCriterion(page, 'Dégâts')
     await expect(zone.getByRole('listitem').first()).not.toContainText(/[▲▼]/)
-    await chooseCriterion(page, testInfo, 'Power')
+    await chooseCriterion(page, 'Power')
     await periodFilter(page).getByRole('button', { name: 'Tous' }).click()
     await expect(page).toHaveURL(/[?&]period=all\b/)
     await expect(zone.getByRole('listitem').first()).not.toContainText(/[▲▼]/)
     await expect(page.getByRole('article', { name: 'Meilleure remontée' })).toHaveCount(0)
+  })
+
+  test('en qualification : sous le seuil, sans rang, avec la progression', async ({ page }) => {
+    const qualifying = page.getByRole('list', { name: 'Clans en qualification' })
+    await expect(qualifying.getByRole('listitem')).toHaveCount(2)
+    await expect(qualifying.getByRole('listitem').first()).toContainText('Clan Novice')
+    await expect(qualifying.getByRole('listitem').first()).toContainText('3 / 5 parties')
+    await expect(page.getByTestId('league-freshness')).toContainText('2 en qualification')
+  })
+
+  test('type de partie : Ranked recharge le classement (matchType=competitive), Normal par défaut', async ({ api, page }, testInfo) => {
+    expect(api.paramValues('/api/clans-leaderboard', 'matchType')).toContain('official')
+    await chooseMatchType(page, testInfo, 'Ranked', 'Ranked')
+    await expect.poll(() => api.paramValues('/api/clans-leaderboard', 'matchType')).toContain('competitive')
+    await expect(page.getByTestId('podium-1')).toContainText('Ranked Alpha')
+    await expect(page.getByTestId('league-freshness')).toContainText('Ranked · 4 clans classés')
+    await expect(page.getByRole('list', { name: 'Dans la zone' })).toHaveCount(1)
+    await expect(page.getByRole('list', { name: 'Dans la zone' }).getByRole('listitem')).toHaveCount(1)
+  })
+
+  test('explication du Power score : barème, pondération, seuil de la période', async ({ page }) => {
+    await page.getByRole('button', { name: /Comment le Power score est calculé/ }).click()
+    const help = page.getByTestId('power-score-help')
+    await expect(help).toContainText('points de placement × 250 + dégâts + kills × 10 + knocks × 5')
+    await expect(help).toContainText('1er 10 · 2e 6 · 3e 5')
+    await expect(help).toContainText('20 parties fictives')
+    await expect(help).toContainText('5 parties')
   })
 
   test('visiteur : pas de pastille « Mon clan » ; chaque clan ouvre sa vue d’ensemble', async ({ page }) => {
@@ -83,12 +123,15 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
     await expect(page.getByRole('link', { name: '4. Clan Delta' })).toHaveAttribute('href', '/clans/5/overview')
   })
 
-  test('bandeau docké sur une ligne, aussi sur mobile', async ({ page }) => {
+  test('bandeau docké sur une ligne, aussi sur mobile (le type de partie disparaît sur mobile une fois docké)', async ({ page }, testInfo) => {
+    await expectNoHorizontalScroll(page)
     await page.waitForLoadState('networkidle')
     await expect(appHeader(page)).toBeVisible()
     await dock(page)
     await expect(toolbar(page)).toHaveAttribute('data-docked', 'true')
     await expect(periodFilter(page)).toBeVisible()
+    if (isMobile(testInfo)) await expect(toolbar(page).getByRole('group', { name: 'Type de partie' })).toHaveCount(0)
+    else await expect(toolbar(page).getByRole('button', { name: /^Type de partie :/ })).toBeVisible()
     expect((await toolbar(page).boundingBox())!.height).toBeLessThan(80)
     await expectNoHorizontalScroll(page)
   })

@@ -319,8 +319,8 @@ function DinnerSection({
 
 /**
  * « Pourquoi atterrir ici » : les trois pages publiques qui font venir un clan (maquette, section sous « Rejoindre »).
- * Textes vérifiés contre les pages le 2026-09-27 : la Ligue classe au Power score (win rate, dégâts, kills, knocks) sur
- * la semaine, le mois ou depuis le début ; un tournoi compte tout seul ses parties personnalisées, sans inscription ;
+ * Textes vérifiés contre les pages le 2026-09-27 (Ligue revue le 2026-10-04) : la Ligue classe au Power score
+ * (placement, dégâts, kills, knocks ; Normal, Ranked, Casual ou tournois) sur la semaine, le mois ou depuis le début ; un tournoi compte tout seul ses parties personnalisées, sans inscription ;
  * le comparateur met des clans face à face (pas des joueurs, et sans mesure de précision).
  */
 function WhyLandSection() {
@@ -332,7 +332,7 @@ function WhyLandSection() {
       eyebrow: 'Ligue des clans FR',
       title: 'Les clans francophones.',
       accent: 'Un seul classement.',
-      text: 'Les clans FR réunis sur un même site, classés entre eux au Power score — win rate, dégâts, kills et knocks — sur la semaine, le mois ou depuis le début.',
+      text: 'Les clans FR réunis sur un même site, classés entre eux au Power score — placement, dégâts, kills et knocks — sur la semaine, le mois ou depuis le début.',
       href: '/clans-leaderboard',
       link: 'Voir la Ligue',
     },

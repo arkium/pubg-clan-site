@@ -7,6 +7,7 @@
 import { POSITION_METRIC_GRID_SIZE, type PositionMetric } from '@/lib/position-metric-cells'
 import { toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
 import { isInTacticalPhase, type TacticalPhase } from '@/lib/tactical-phase'
+import { vehicleTripFlags } from '@/lib/vehicle-trips'
 
 export type RawPositionTelemetryRow = {
   positionSamples?: unknown
@@ -143,10 +144,20 @@ export function aggregateRawPositionRows(input: {
       if (sample.role === 'reviver') add('revive_given', sample, member)
       else if (sample.role === 'revived') add('revive_received', sample, member)
     }
-    for (const sample of asRows(row.vehicleSamples)) {
-      const member = memberOf(sample)
-      if (member) add('vehicle', sample, member)
-    }
+    const vehicleSamples = asRows(row.vehicleSamples).flatMap((sample) => {
+      const x = toNumber(sample.x)
+      const y = toNumber(sample.y)
+      const memberKey = toKey(sample.memberKey)
+      const action: 'ride' | 'leave' | null = sample.action === 'ride' ? 'ride' : sample.action === 'leave' ? 'leave' : null
+      if (x === null || y === null || !memberKey || !action) return []
+      const teammateAboard = typeof sample.teammateAboard === 'boolean' ? sample.teammateAboard : undefined
+      return [{ sample, memberKey, action, vehicleType: sample.vehicleType, x, y, teammateAboard }]
+    })
+    const vehicleCounted = vehicleTripFlags(vehicleSamples, (memberKey) => memberOf({ memberKey }))
+    vehicleSamples.forEach((trip, index) => {
+      if (!vehicleCounted[index]) return
+      add(trip.action === 'ride' ? 'vehicle_ride' : 'vehicle_leave', trip.sample, memberOf(trip.sample)!)
+    })
   }
 
   return { cells: Array.from(cells.values()), memberCells: Array.from(memberCells.values()), memberPoints, phases }

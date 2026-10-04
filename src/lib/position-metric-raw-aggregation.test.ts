@@ -69,6 +69,33 @@ describe('aggregateRawPositionRows', () => {
     expect(memberPoints.size).toBe(2)
   })
 
+  it("compte des véhicules (pas des passagers), sans l'avion, le planeur, le ballon ni le mortier", () => {
+    const point = { phase: 1, x: 10_000, y: 10_000 }
+    const { cells, memberCells } = aggregateRawPositionRows({
+      rows: [{
+        vehicleSamples: [
+          { ...point, memberKey: 'account.a', action: 'ride', vehicleType: 'TransportAircraft' },
+          { ...point, memberKey: 'account.a', action: 'leave', vehicleType: 'TransportAircraft' },
+          { ...point, memberKey: 'account.a', action: 'ride', vehicleType: 'FlyingVehicle' },
+          { ...point, memberKey: 'account.a', action: 'ride', vehicleType: 'Mortar' },
+          // Une voiture, deux membres à bord (historique : déduit), puis un bateau seul.
+          { ...point, memberKey: 'account.a', action: 'ride', vehicleType: 'WheeledVehicle' },
+          { ...point, memberKey: 'account.b', action: 'ride', vehicleType: 'WheeledVehicle' },
+          { ...point, memberKey: 'account.b', action: 'leave', vehicleType: 'WheeledVehicle' },
+          { ...point, memberKey: 'account.a', action: 'leave', vehicleType: 'WheeledVehicle' },
+          { ...point, memberKey: 'account.b', action: 'ride', vehicleType: 'FloatingVehicle', teammateAboard: false },
+        ],
+      }],
+      mapName: MAP,
+      canonicalKeyByLowerKey: members,
+      requestedMemberKey: null,
+      phaseFilter: 'all',
+    })
+    expect(countOf(cells, 'vehicle_ride')).toBe(2)
+    expect(countOf(cells, 'vehicle_leave')).toBe(1)
+    expect(memberCells.filter((cell) => cell.metric === 'vehicle_ride').map((cell) => cell.memberKey).sort()).toEqual(['account.a', 'account.b'])
+  })
+
   it('renvoie des résultats vides pour une période sans match', () => {
     const empty = aggregateRawPositionRows({
       rows: [],

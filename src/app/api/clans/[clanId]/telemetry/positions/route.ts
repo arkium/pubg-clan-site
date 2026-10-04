@@ -6,6 +6,7 @@ import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { getMapLocations, type MapLocations } from '@/lib/map-location-service'
 import { buildMemberBreakdown, type MemberBreakdown, type MemberMetricCell } from '@/lib/positions-view'
 import { getPhaseLabels } from '@/lib/phase-label-service'
+import type { PositionMetric } from '@/lib/position-metric-cells'
 import {
   parseTacticalPhase,
   tacticalPhaseNumbers,
@@ -44,6 +45,8 @@ type HeatmapCell = {
 
 type HeatmapMember = {
   memberKey: string
+  /** Fiche ClanMember : la page colore le joueur selon son style de jeu (2026-10-04). */
+  memberId: number | null
   memberLabel: string
   points: number
 }
@@ -74,7 +77,9 @@ type SelectedHeatmapData = {
   knockoutsTaken: HeatmapCell[]
   revivesGiven: HeatmapCell[]
   revivesTaken: HeatmapCell[]
-  vehicles: HeatmapCell[]
+  /** Véhicules pris / laissés : un par véhicule, pas par passager (docs/features/positions.md §4.3). */
+  vehicleRides: HeatmapCell[]
+  vehicleLeaves: HeatmapCell[]
   safeZoneOverlay: SafeZoneOverlay | null
   /** « Qui … où » (2026-09-27) : totaux et villes de chaque membre, tout le clan, même carte, période et phase. */
   memberBreakdown: MemberBreakdown[]
@@ -241,25 +246,21 @@ export async function GET(
     const dateFilter = bounds
       ? Prisma.sql`AND sm.createdAt >= ${bounds.startDate} AND sm.createdAt <= ${bounds.endDate}`
       : Prisma.empty
-    const clanFilter = Prisma.sql`
-      AND EXISTS (
-        SELECT 1
-        FROM SquadMember sdm
-        INNER JOIN ClanMember cm ON cm.id = sdm.memberId
-        WHERE sdm.squadMatchId = sm.id
-          AND cm.clanId = ${parsedClanId}
-      )`
-
     // Deux sources additionnées : cellules persistées, et télémétrie brute des seuls matchs qui n'en ont pas.
+    // Le comptage part des membres du clan (ClanMember → SquadMember → SquadMatch, chemin indexé) : parti de toute la
+    // télémétrie, il parcourait tous les matchs de la base (`SquadMatch.createdAt` n'a pas d'index) — 15 à 17 s par
+    // appel, quelle que soit la période, mesuré le 2026-10-04 (scripts/measure-positions-raw-count.ts) ; 0,1 à 0,5 s
+    // ainsi, résultats identiques.
     const [persistedMapSummary, rawMatchCounts] = await Promise.all([
       loadPositionMetricMapSummary({ clanId: parsedClanId, bounds }),
       prisma.$queryRaw<MatchCountRow[]>(Prisma.sql`
-        SELECT sm.mapName, COUNT(*) AS matches
-        FROM SquadMatchTelemetry t
-        INNER JOIN SquadMatch sm ON sm.id = t.squadMatchId
-        WHERE t.status = 'success'
+        SELECT sm.mapName, COUNT(DISTINCT sm.id) AS matches
+        FROM ClanMember cm
+        INNER JOIN SquadMember sdm ON sdm.memberId = cm.id
+        INNER JOIN SquadMatch sm ON sm.id = sdm.squadMatchId
+        INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id AND t.status = 'success'
+        WHERE cm.clanId = ${parsedClanId}
           ${dateFilter}
-          ${clanFilter}
           AND ${WITHOUT_CELLS}
         GROUP BY sm.mapName
       `),
@@ -290,6 +291,7 @@ export async function GET(
       return member.pubgAccountId || member.pubgPlayerName || member.displayName || String(member.id)
     }
 
+    const memberIdByKey = new Map(clanMembers.map((member) => [canonicalMemberKey(member), member.id]))
     const labelByKey = new Map<string, string>()
     const canonicalKeyByLowerKey = new Map<string, string>()
     const clanMemberById = new Map(clanMembers.map((member) => [member.id, member]))
@@ -379,14 +381,17 @@ export async function GET(
       knockout_taken: new Map<string, HeatmapCell>(),
       revive_given: new Map<string, HeatmapCell>(),
       revive_received: new Map<string, HeatmapCell>(),
-      vehicle: new Map<string, HeatmapCell>(),
-    }
+      vehicle_ride: new Map<string, HeatmapCell>(),
+      vehicle_leave: new Map<string, HeatmapCell>(),
+    } satisfies Record<PositionMetric, Map<string, HeatmapCell>>
     const requestedMemberId = memberKey ? requestedMember?.id ?? -1 : null
     const persistedForMap = requestedMemberId === null
       ? persistedCells
       : persistedCells.filter((cell) => cell.memberId === requestedMemberId)
     for (const cell of [...persistedForMap, ...(rawAggregation?.cells ?? [])]) {
-      incrementCellWeighted(metricMaps[cell.metric], cell.xIndex, cell.yIndex, cell.count)
+      // Métrique inconnue ignorée : cellules `vehicle` d'avant la conversion (scripts/convert-vehicle-position-cells.ts).
+      const target: Map<string, HeatmapCell> | undefined = metricMaps[cell.metric]
+      if (target) incrementCellWeighted(target, cell.xIndex, cell.yIndex, cell.count)
     }
 
     const breakdownCells: MemberMetricCell[] = [
@@ -421,6 +426,7 @@ export async function GET(
     const memberOptions = Array.from(members.entries())
       .map(([entryMemberKey, points]) => ({
         memberKey: entryMemberKey,
+        memberId: memberIdByKey.get(entryMemberKey) ?? null,
         memberLabel: labelByKey.get(entryMemberKey) ?? entryMemberKey,
         points,
       }))
@@ -461,7 +467,8 @@ export async function GET(
       knockoutsTaken: sortCells(metricMaps.knockout_taken),
       revivesGiven: sortCells(metricMaps.revive_given),
       revivesTaken: sortCells(metricMaps.revive_received),
-      vehicles: sortCells(metricMaps.vehicle),
+      vehicleRides: sortCells(metricMaps.vehicle_ride),
+      vehicleLeaves: sortCells(metricMaps.vehicle_leave),
       safeZoneOverlay,
       memberBreakdown,
       note,

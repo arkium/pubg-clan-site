@@ -1,5 +1,6 @@
 import type { ApiMock } from './api'
 import { CLAN_ID, PLAYERS } from './data'
+import { playstyleRows } from './stats'
 
 import type { MapLocation } from '@/lib/map-location-service'
 import type { MemberBreakdown } from '@/lib/positions-view'
@@ -41,10 +42,12 @@ const CLAN_CELLS = {
   knockoutsTaken: [c(22, 16, 4)],
   revivesGiven: [c(18, 19, 3)],
   revivesTaken: [c(18, 19, 2), c(30, 23, 1)],
-  vehicles: [c(26, 11, 4), c(5, 35, 3)],
+  // Un par véhicule : 7 pris, 7 laissés — la tuile n'en compte que 7.
+  vehicleRides: [c(26, 11, 4), c(5, 35, 3)],
+  vehicleLeaves: [c(26, 11, 2), c(9, 11, 5)],
 }
 
-const KEYS = PLAYERS.slice(0, 6).map((player, index) => ({ memberKey: `account.${index + 1}`, memberLabel: player.displayName }))
+const KEYS = PLAYERS.slice(0, 6).map((player, index) => ({ memberKey: `account.${index + 1}`, memberId: player.memberId, memberLabel: player.displayName }))
 
 export function positionBreakdown(): MemberBreakdown[] {
   const kills = [7, 3, 2, 1, 0, 0]
@@ -100,4 +103,6 @@ export function positionsPayload(url: URL) {
 
 export function mockClanPositions(api: ApiMock) {
   api.on('GET', `/api/clans/${CLAN_ID}/telemetry/positions`, (url) => ({ body: positionsPayload(url) }))
+  // Couleur des joueurs : style de jeu du clan sur la période.
+  api.on('GET', `/api/clans/${CLAN_ID}/telemetry/playstyle`, { body: { ok: true, rows: playstyleRows() } })
 }

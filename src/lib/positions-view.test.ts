@@ -13,6 +13,7 @@ import {
   memberEventSummary,
   POSITION_EVENTS,
   positionEvent,
+  tileRoles,
   type MemberMetricCell,
 } from './positions-view'
 
@@ -37,6 +38,19 @@ describe('événements', () => {
     expect(eventTitle(positionEvent('revive'), 0)).toBe('Revives donnés')
     expect(eventTitle(positionEvent('kill'), 0)).toBe('Kills')
     expect(positionEvent('damage').dots).toBe(false)
+  })
+
+  it('véhicules : pris / laissés, une tuile qui compte les véhicules et non les deux sens', () => {
+    const vehicle = positionEvent('vehicle')
+    expect(vehicle.roles.map((role) => role.metric)).toEqual(['vehicle_ride', 'vehicle_leave'])
+    expect([eventTitle(vehicle, 0), eventTitle(vehicle, 1)]).toEqual(['Véhicules pris', 'Véhicules laissés'])
+    expect(tileRoles(vehicle).map((role) => role.metric)).toEqual(['vehicle_ride'])
+    expect(tileRoles(positionEvent('ko')).map((role) => role.metric)).toEqual(['knockout_dealt', 'knockout_taken'])
+  })
+
+  it('« le plus touché » seulement pour les sens subis', () => {
+    const victims = POSITION_EVENTS.flatMap((event) => event.roles.filter((role) => role.victim).map((role) => role.metric))
+    expect(victims).toEqual(['knockout_taken', 'damage_taken', 'revive_received', 'death'])
   })
 
   it('centre d’une cellule en % de la carte', () => {

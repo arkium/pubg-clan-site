@@ -213,14 +213,17 @@ export async function loadUnpersistedSafeZoneRows(input: {
   const dateFilter = input.bounds
     ? Prisma.sql`AND sm.createdAt >= ${input.bounds.startDate} AND sm.createdAt <= ${input.bounds.endDate}`
     : Prisma.empty
+  // Part des membres du clan (chemin indexé) au lieu de tous les matchs : `SquadMatch` n'a d'index ni sur la date ni
+  // sur la carte (2026-10-04, voir la route telemetry/positions).
   const matches = await client.$queryRaw<Array<{ id: string; mapName: string; createdAt: Date }>>(Prisma.sql`
-    SELECT sm.id, sm.mapName, sm.createdAt
-    FROM SquadMatch sm
-    INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
-    WHERE t.status = 'success'
+    SELECT DISTINCT sm.id, sm.mapName, sm.createdAt
+    FROM ClanMember cm
+    INNER JOIN SquadMember sdm ON sdm.memberId = cm.id
+    INNER JOIN SquadMatch sm ON sm.id = sdm.squadMatchId
+    INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id AND t.status = 'success'
+    WHERE cm.clanId = ${input.clanId}
       AND sm.mapName = ${input.mapName}
       ${dateFilter}
-      ${clanMatchFilter(input.clanId)}
       AND NOT EXISTS (SELECT 1 FROM SafeZonePhaseStat s WHERE s.squadMatchId = sm.id)
   `)
   if (matches.length === 0) return []

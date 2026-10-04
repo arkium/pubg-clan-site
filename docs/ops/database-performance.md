@@ -116,6 +116,17 @@ Cron `db_maintenance` (`DB_MAINTENANCE_CRON`, défaut `15 1 * * *`, `src/lib/db-
 
 Actif après déploiement uniquement : le déploiement de production tourne avec du code plus ancien.
 
+### 3.3 bis Cartographie tactique : une requête de 15 s réécrite (2026-10-04)
+
+Route `telemetry/positions` : 17 à 21 s par appel, dont 15 à 17 s pour une seule requête — comptage des matchs sans
+`PositionMetricCell` parti de `SquadMatchTelemetry`, clan filtré par `EXISTS`. `SquadMatch` n'a **pas d'index sur
+`createdAt`** (ni sur `mapName`) : tous les matchs de la base étaient parcourus. Réécrite pour partir de
+`ClanMember` (`ClanMember_clanId_lastMatchAt_idx` → `SquadMember_memberId_fkey` → clés primaires, `EXPLAIN` tout en
+`ref` / `eq_ref`) : 0,1 à 0,5 s, résultats identiques. **Aucun index ajouté** : le chemin indexé existait déjà. Règle à
+retenir : une requête « matchs d'un clan sur une période » part des membres du clan, jamais de `SquadMatch`.
+Mesures : `scripts/measure-positions-route.ts`, `scripts/measure-positions-raw-count.ts` (lecture seule) — détail dans
+[positions.md](../features/positions.md) §4.1.
+
 ### 3.4 Ce qui n'est volontairement PAS automatisé
 
 L'item « Auto-cleanup cron » du todo prévoyait de supprimer les jobs `queued` > 24 h, les jobs `failed` > 7 j et les captures de plus de 30 jours. Vérification faite, **les trois sont à écarter en l'état** :

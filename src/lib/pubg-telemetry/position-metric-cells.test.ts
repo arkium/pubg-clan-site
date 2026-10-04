@@ -125,11 +125,53 @@ describe('position metric cells', () => {
     const rows = buildPositionMetricCellRows(match, snapshot)
     expect(new Set(rows.map((row) => row.metric))).toEqual(new Set([
       'position', 'rotation', 'death', 'kill', 'shot', 'damage_dealt', 'damage_taken',
-      'knockout_dealt', 'knockout_taken', 'revive_given', 'revive_received', 'vehicle',
+      'knockout_dealt', 'knockout_taken', 'revive_given', 'revive_received', 'vehicle_ride',
     ]))
     expect(rows.find((row) => row.metric === 'shot')?.eventCount).toBe(7)
     expect(rows.find((row) => row.metric === 'damage_dealt')?.eventCount).toBe(13)
     expect(rows.find((row) => row.metric === 'damage_taken')?.eventCount).toBe(5)
+  })
+
+  it('keeps ground and water vehicles but drops the plane, gliders, the pickup balloon and mortars', () => {
+    const snapshot = emptySnapshot()
+    const point = { memberKey: 'kraken', phase: 0, timestampSeconds: 1, x: 1000, y: 1000 }
+    snapshot.vehicleSamples = [
+      { ...point, action: 'ride', vehicleType: 'TransportAircraft' },
+      { ...point, action: 'leave', vehicleType: 'TransportAircraft' },
+      { ...point, action: 'ride', vehicleType: 'FlyingVehicle' },
+      { ...point, action: 'ride', vehicleType: 'EmergencyPickup' },
+      { ...point, action: 'ride', vehicleType: 'Mortar' },
+      { ...point, action: 'ride', vehicleType: 'WheeledVehicle' },
+      { ...point, action: 'leave', vehicleType: 'WheeledVehicle' },
+      { ...point, action: 'ride', vehicleType: 'FloatingVehicle' },
+      { ...point, action: 'leave', vehicleType: 'FloatingVehicle' },
+    ]
+
+    const rows = buildPositionMetricCellRows(match, snapshot)
+    expect(rows.map((row) => [row.metric, row.eventCount])).toEqual([['vehicle_leave', 2], ['vehicle_ride', 2]])
+  })
+
+  it('counts vehicles, not passengers', () => {
+    const squad = {
+      ...match,
+      members: [
+        ...match.members,
+        { memberId: 43, member: { clanId: 1, pubgAccountId: 'account-43', pubgPlayerName: 'Moussaillon' } },
+      ],
+    }
+    const snapshot = emptySnapshot()
+    const point = { phase: 2, timestampSeconds: 1, y: 1000, vehicleType: 'WheeledVehicle' }
+    snapshot.vehicleSamples = [
+      { ...point, memberKey: 'kraken', action: 'ride', x: 1000, teammateAboard: false },
+      { ...point, memberKey: 'account-43', action: 'ride', x: 1000, teammateAboard: true },
+      { ...point, memberKey: 'account-43', action: 'leave', x: 1000, teammateAboard: true },
+      { ...point, memberKey: 'kraken', action: 'leave', x: 1000, teammateAboard: false },
+    ]
+
+    expect(buildPositionMetricCellRows(squad, snapshot).map((row) => [row.memberId, row.metric, row.eventCount])).toEqual([
+      [42, 'vehicle_leave', 1],
+      [42, 'vehicle_ride', 1],
+    ])
   })
 
   it('accepts stored JSON arrays and serialized historical values', () => {

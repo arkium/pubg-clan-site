@@ -21,7 +21,18 @@ export type PositionEvent = {
   /** Événement ponctuel (pastilles dimensionnées) ou volume (halo lumineux). */
   dots: boolean
   /** Deux sens (Infligés / Reçus…) : chaque sens a sa métrique ; sinon une seule. */
-  roles: Array<{ label: string; metric: PositionMetric; verb: string; description: string }>
+  roles: Array<{
+    label: string
+    metric: PositionMetric
+    verb: string
+    description: string
+    /** Titre propre au sens (« Véhicules pris ») au lieu de « événement + sens ». */
+    title?: string
+    /** Sens subi (reçus, morts) : la zone chaude nomme « le plus touché » au lieu du « roi du coin ». */
+    victim?: boolean
+  }>
+  /** Les sens décrivent les mêmes objets (une montée et une descente par véhicule) : la tuile ne compte que le premier. */
+  countFirstRoleOnly?: boolean
 }
 
 export const POSITION_EVENTS: PositionEvent[] = [
@@ -33,7 +44,7 @@ export const POSITION_EVENTS: PositionEvent[] = [
     dots: true,
     roles: [
       { label: 'Infligés', metric: 'knockout_dealt', verb: 'met à terre', description: 'position du joueur qui met à terre' },
-      { label: 'Reçus', metric: 'knockout_taken', verb: 'se fait mettre à terre', description: 'position du membre mis à terre' },
+      { label: 'Reçus', metric: 'knockout_taken', verb: 'se fait mettre à terre', description: 'position du membre mis à terre', victim: true },
     ],
   },
   {
@@ -43,7 +54,7 @@ export const POSITION_EVENTS: PositionEvent[] = [
     dots: false,
     roles: [
       { label: 'Infligés', metric: 'damage_dealt', verb: 'fait mal', description: 'là où le clan inflige des dégâts' },
-      { label: 'Reçus', metric: 'damage_taken', verb: 'prend cher', description: 'là où le clan encaisse' },
+      { label: 'Reçus', metric: 'damage_taken', verb: 'prend cher', description: 'là où le clan encaisse', victim: true },
     ],
   },
   { key: 'shot', label: 'Tirs', rgb: '192,132,252', dots: false, roles: [{ label: 'Tirs', metric: 'shot', verb: 'arrose', description: 'volume de tirs : plus c’est lumineux, plus ça tire' }] },
@@ -54,19 +65,34 @@ export const POSITION_EVENTS: PositionEvent[] = [
     dots: true,
     roles: [
       { label: 'Donnés', metric: 'revive_given', verb: 'relève', description: 'position du membre qui relève' },
-      { label: 'Reçus', metric: 'revive_received', verb: 'se fait relever', description: 'position du membre relevé' },
+      { label: 'Reçus', metric: 'revive_received', verb: 'se fait relever', description: 'position du membre relevé', victim: true },
     ],
   },
-  { key: 'vehicle', label: 'Véhicules', rgb: '34,211,238', dots: true, roles: [{ label: 'Véhicules', metric: 'vehicle', verb: 'prend la route', description: 'montées et descentes de véhicule' }] },
-  { key: 'death', label: 'Morts', rgb: '251,113,133', dots: true, roles: [{ label: 'Morts', metric: 'death', verb: 'tombe', description: 'là où les membres du clan meurent' }] },
+  {
+    key: 'vehicle',
+    label: 'Véhicules',
+    rgb: '34,211,238',
+    dots: true,
+    countFirstRoleOnly: true,
+    roles: [
+      { label: 'Montées', title: 'Véhicules pris', metric: 'vehicle_ride', verb: 'prend un véhicule', description: 'là où le clan prend un véhicule ou un bateau — un par véhicule, pas par passager' },
+      { label: 'Descentes', title: 'Véhicules laissés', metric: 'vehicle_leave', verb: 'laisse un véhicule', description: 'là où le dernier membre à bord descend' },
+    ],
+  },
+  { key: 'death', label: 'Morts', rgb: '251,113,133', dots: true, roles: [{ label: 'Morts', metric: 'death', verb: 'tombe', description: 'là où les membres du clan meurent', victim: true }] },
 ]
 
 export const positionEvent = (key: PositionEventKey) => POSITION_EVENTS.find((event) => event.key === key)!
 
-/** Libellé de l'événement et de son sens : « KO reçus », « Revives donnés », « Kills ». */
+/** Libellé de l'événement et de son sens : « KO reçus », « Revives donnés », « Kills », « Véhicules pris ». */
 export function eventTitle(event: PositionEvent, roleIndex: number) {
-  return event.roles.length > 1 ? `${event.label} ${event.roles[roleIndex].label.toLowerCase()}` : event.label
+  const role = event.roles[roleIndex]
+  if (role.title) return role.title
+  return event.roles.length > 1 ? `${event.label} ${role.label.toLowerCase()}` : event.label
 }
+
+/** Sens comptés par la tuile de l'événement. */
+export const tileRoles = (event: PositionEvent) => (event.countFirstRoleOnly ? event.roles.slice(0, 1) : event.roles)
 
 /** Centre d'une cellule de la grille, en % de la carte. */
 export function cellCenter(cell: Pick<HeatmapCell, 'xIndex' | 'yIndex'>, gridSize: number) {

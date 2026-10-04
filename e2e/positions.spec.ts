@@ -51,6 +51,19 @@ test.describe('Cartographie tactique', () => {
     await expect(role.getByRole('button', { name: 'Donnés' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  test('véhicules : la tuile compte les véhicules, Montées / Descentes sur la carte', async ({ page }) => {
+    const vehicles = events(page).getByRole('button', { name: /Véhicules/ })
+    await expect(vehicles).toContainText('7')
+    await vehicles.click()
+    const role = page.getByRole('group', { name: 'Sens de l’événement' })
+    await expect(role.getByRole('button', { name: 'Montées' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('event-legend')).toContainText('Véhicules pris')
+    await expect(page.getByRole('heading', { name: 'Qui prend un véhicule où' })).toBeVisible()
+    await role.getByRole('button', { name: 'Descentes' }).click()
+    await expect(page.getByTestId('event-legend')).toContainText('Véhicules laissés')
+    await expect(page.getByRole('heading', { name: 'Qui laisse un véhicule où' })).toBeVisible()
+  })
+
   test('épingles du top 5 : toucher zoome, « Toute la carte » revient', async ({ page }) => {
     await expect(pins(page)).toHaveCount(5)
     await expect(pins(page).first()).toHaveAccessibleName('1. Pochinki : 12')

@@ -843,3 +843,28 @@ describe('classement des équipes depuis LogMatchEnd', () => {
     expect(placementOf('account.late2')).toBe(14)
   })
 })
+
+describe('véhicules — qui est à bord', () => {
+  const ride = (accountId: string, teamId: number, fellowPassengers?: Array<{ accountId: string; teamId: number }>) => ({
+    _T: 'LogVehicleRide',
+    character: { accountId, teamId, location: { x: 1000, y: 2000 } },
+    vehicle: { vehicleType: 'WheeledVehicle' },
+    ...(fellowPassengers ? { fellowPassengers } : {}),
+  })
+
+  it('lit fellowPassengers : coéquipier à bord, adversaire ignoré, liste absente laissée à la déduction', () => {
+    const snapshot = parseTelemetrySnapshot([
+      ride('alpha', 1, []),
+      ride('bravo', 1, [{ accountId: 'alpha', teamId: 1 }]),
+      ride('charlie', 2, [{ accountId: 'alpha', teamId: 1 }]),
+      ride('delta', 3),
+    ])
+
+    expect(snapshot.vehicleSamples.map((sample) => [sample.memberKey, sample.teammateAboard])).toEqual([
+      ['alpha', false],
+      ['bravo', true],
+      ['charlie', false],
+      ['delta', undefined],
+    ])
+  })
+})

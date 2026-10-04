@@ -190,20 +190,17 @@ export async function loadRawPositionTelemetryRows(input: {
   // Deux étapes : sélectionner les matchs sans lire le JSON, puis lire le JSON des seuls matchs retenus. En une
   // requête, MariaDB part de tous les matchs du clan (toutes dates), lit leurs colonnes JSON et ne filtre carte et
   // période qu'ensuite — mesuré le 2026-09-16 : 9 s contre 3,4 à 4,7 s pour 151 matchs (clan 1, Erangel, septembre).
+  // Les matchs partent des membres du clan (ClanMember → SquadMember → SquadMatch, chemin indexé) : partis de tous
+  // les matchs, ils parcouraient toute la base (`SquadMatch.createdAt` n'a pas d'index — 2026-10-04).
   const matchIds = await client.$queryRaw<Array<{ squadMatchId: string }>>(Prisma.sql`
-    SELECT sm.id AS squadMatchId
-    FROM SquadMatch sm
-    INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
-    WHERE t.status = 'success'
+    SELECT DISTINCT sm.id AS squadMatchId
+    FROM ClanMember cm
+    INNER JOIN SquadMember sdm ON sdm.memberId = cm.id
+    INNER JOIN SquadMatch sm ON sm.id = sdm.squadMatchId
+    INNER JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id AND t.status = 'success'
+    WHERE cm.clanId = ${input.clanId}
       ${dateFilter}
       AND sm.mapName = ${input.mapName}
-      AND EXISTS (
-        SELECT 1
-        FROM SquadMember sdm
-        INNER JOIN ClanMember cm ON cm.id = sdm.memberId
-        WHERE sdm.squadMatchId = sm.id
-          AND cm.clanId = ${input.clanId}
-      )
       ${coverageFilter}
   `)
   if (matchIds.length === 0) return []

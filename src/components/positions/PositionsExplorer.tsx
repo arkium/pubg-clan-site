@@ -6,8 +6,9 @@ import { Car, ChevronLeft, ChevronRight, Crosshair, Crown, Flame, HeartPulse, Sk
 import { useMemo, useState, useSyncExternalStore, type RefObject } from 'react'
 
 import DropZoneMapViewport, { type DropZoneMapViewportHandle } from '@/components/drop-zones/DropZoneMapViewport'
-import { mapLabel } from '@/components/maps/MapToolbarControls'
-import { memberColor, spotBackgroundPosition } from '@/lib/drop-zones-view'
+import { mapLabel, PlaystyleLegend } from '@/components/maps/MapToolbarControls'
+import RankCell from '@/components/ui/RankCell'
+import { spotBackgroundPosition } from '@/lib/drop-zones-view'
 import type { MapLocation } from '@/lib/map-location-service'
 import { paginate } from '@/lib/pagination'
 import type { PositionMetric } from '@/lib/position-metric-cells'
@@ -21,6 +22,7 @@ import {
   locationCounts,
   memberEventSummary,
   POSITION_EVENTS,
+  tileRoles,
   totalOf,
   type HeatmapCell,
   type MemberBreakdown,
@@ -40,13 +42,13 @@ export type PositionsPayload = {
   selectedMap: string | null
   selectedMemberKey: string | null
   maps: Array<{ mapName: string; matches: number }>
-  members: Array<{ memberKey: string; memberLabel: string; points: number }>
+  members: Array<{ memberKey: string; memberId: number | null; memberLabel: string; points: number }>
   safeZoneOverlay: { x: number; y: number; r: number } | null
   memberBreakdown: MemberBreakdown[]
   options?: { mapLocations?: Record<string, MapLocation[]> }
 } & Record<CellField, HeatmapCell[]>
 
-type CellField = 'kills' | 'deaths' | 'shots' | 'damageDealt' | 'damageTaken' | 'knockoutsDealt' | 'knockoutsTaken' | 'revivesGiven' | 'revivesTaken' | 'vehicles'
+type CellField = 'kills' | 'deaths' | 'shots' | 'damageDealt' | 'damageTaken' | 'knockoutsDealt' | 'knockoutsTaken' | 'revivesGiven' | 'revivesTaken' | 'vehicleRides' | 'vehicleLeaves'
 
 /** Champ de la réponse qui porte les cellules d'une métrique. */
 export const CELL_FIELD: Partial<Record<PositionMetric, CellField>> = {
@@ -59,12 +61,14 @@ export const CELL_FIELD: Partial<Record<PositionMetric, CellField>> = {
   knockout_taken: 'knockoutsTaken',
   revive_given: 'revivesGiven',
   revive_received: 'revivesTaken',
-  vehicle: 'vehicles',
+  vehicle_ride: 'vehicleRides',
+  vehicle_leave: 'vehicleLeaves',
 }
 
 export const cellsOf = (payload: PositionsPayload, metric: PositionMetric) => payload[CELL_FIELD[metric]!] ?? []
 
 const EVENT_ICONS: Record<PositionEventKey, LucideIcon> = { kill: Crosshair, ko: Zap, damage: Flame, shot: Target, revive: HeartPulse, vehicle: Car, death: Skull }
+/** Épingles du top 5 sur la carte : or / argent / bronze (signature conservée, charte « Pages à carte »). */
 const RANK_COLORS = ['#fbbf24', '#cbd5e1', '#d97706']
 const integer = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 const decimal = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
@@ -85,7 +89,7 @@ export function EventPicker({ payload, value, onChange }: { payload: PositionsPa
       {POSITION_EVENTS.map((event) => {
         const Icon = EVENT_ICONS[event.key]
         const active = event.key === value
-        const count = event.roles.reduce((sum, role) => sum + totalOf(cellsOf(payload, role.metric)), 0)
+        const count = tileRoles(event).reduce((sum, role) => sum + totalOf(cellsOf(payload, role.metric)), 0)
         return (
           <button
             key={event.key}
@@ -181,7 +185,7 @@ export function PositionsMap({ viewportRef, payload, event, roleIndex, onRole, c
               </>
             ) : null}
             {zoom > 1 ? (
-              <button type="button" onClick={() => onSelectLocation(null)} className="absolute bottom-2.5 left-1/2 z-40 flex h-[30px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-cyan-600 px-3 text-xs font-extrabold text-white">
+              <button type="button" onClick={() => onSelectLocation(null)} className="map-overlay-active absolute bottom-2.5 left-1/2 z-40 flex h-[30px] -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-extrabold">
                 {selected ? `${selected.name} · ` : ''}Toute la carte
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -236,8 +240,8 @@ export function PositionsMap({ viewportRef, payload, event, roleIndex, onRole, c
                   left: `${city.location.xPct}%`,
                   top: `${city.location.yPct}%`,
                   width: `${city.location.radiusPct * 2}%`,
-                  border: active ? '2px solid #22d3ee' : '1.5px dashed rgba(255,255,255,.5)',
-                  backgroundColor: active ? 'rgba(34,211,238,.1)' : 'transparent',
+                  border: active ? '2px solid var(--theme-ui-accent)' : '1.5px dashed rgba(255,255,255,.5)',
+                  backgroundColor: active ? 'var(--theme-ui-accent-tint)' : 'transparent',
                 }}
               />
             )
@@ -251,11 +255,11 @@ export function PositionsMap({ viewportRef, payload, event, roleIndex, onRole, c
                   <span
                     key={`d:${cell.xIndex}:${cell.yIndex}`}
                     title={`${cell.count} ${eventTitle(event, roleIndex).toLowerCase()}`}
-                    className="absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[1.5px] border-slate-950/85 text-[9px] font-black text-[#020617]"
+                    className="absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[1.5px] border-slate-950/85 text-[11px] font-black leading-none text-[#020617]"
                     style={{ left: `${xPct}%`, top: `${yPct}%`, width: size, height: size, backgroundColor: rgb(event) }}
                     data-testid="event-dot"
                   >
-                    {cell.count > 1 && size >= 15 ? cell.count : ''}
+                    {cell.count > 1 && size >= 18 ? cell.count : ''}
                   </span>
                 )
               })
@@ -275,8 +279,8 @@ export function PositionsMap({ viewportRef, payload, event, roleIndex, onRole, c
               <span className="grid h-[18px] w-[18px] place-items-center rounded-full text-[11px] font-black text-[#020617]" style={{ backgroundColor: RANK_COLORS[index] ?? 'rgba(255,255,255,.7)' }}>
                 {index + 1}
               </span>
-              <span className="max-w-[84px] truncate text-[10px] font-bold sm:max-w-[150px] sm:text-xs">{city.location.name}</span>
-              <span className="text-[10px] font-extrabold tabular-nums sm:text-xs" style={{ color: RANK_COLORS[index] ?? 'rgba(255,255,255,.85)' }}>{city.count}</span>
+              <span className="max-w-[84px] truncate text-[11px] font-bold sm:max-w-[150px] sm:text-xs">{city.location.name}</span>
+              <span className="text-[11px] font-extrabold tabular-nums sm:text-xs" style={{ color: RANK_COLORS[index] ?? 'rgba(255,255,255,.85)' }}>{city.count}</span>
             </button>
           ))}
         </div>
@@ -306,8 +310,8 @@ export function PhasePicker({ value, onChange }: { value: TacticalPhase; onChang
   return (
     <section className="app-panel flex flex-col gap-2 px-3.5 py-3" aria-labelledby="phase-title">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h2 id="phase-title" className="whitespace-nowrap text-sm font-bold text-gray-900">Phase du cercle</h2>
-        <span className="text-xs text-gray-500">
+        <h2 id="phase-title" className="t-card-title whitespace-nowrap">Phase du cercle</h2>
+        <span className="t-meta">
           {value === 'all' ? 'filtre les événements selon l’avancée de la zone' : 'cercle blanc : zone moyenne de cette phase'}
         </span>
       </div>
@@ -321,7 +325,7 @@ export function PhasePicker({ value, onChange }: { value: TacticalPhase; onChang
               type="button"
               onClick={() => onChange(option.value)}
               aria-pressed={active}
-              className={`flex min-w-0 flex-col items-center gap-1.5 rounded-[10px] border px-1 py-2 ${active ? 'border-cyan-400 bg-cyan-400/10' : 'border-gray-200'}`}
+              className={`flex min-w-0 flex-col items-center gap-1.5 rounded-[10px] border px-1 py-2 ${active ? 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)]' : 'border-gray-200'}`}
             >
               <span className="relative grid h-7 w-7 place-items-center" aria-hidden="true">
                 <span className="absolute inset-0 rounded-full border-[1.5px] border-dashed border-gray-400 opacity-60" />
@@ -330,13 +334,13 @@ export function PhasePicker({ value, onChange }: { value: TacticalPhase; onChang
                   style={{
                     width: PHASE_RING[option.value],
                     height: PHASE_RING[option.value],
-                    borderColor: active ? '#22d3ee' : 'var(--theme-ui-text-secondary)',
-                    backgroundColor: active ? 'rgba(34,211,238,.18)' : 'transparent',
+                    borderColor: active ? 'var(--theme-ui-accent)' : 'var(--theme-ui-text-secondary)',
+                    backgroundColor: active ? 'var(--theme-ui-accent-soft)' : 'transparent',
                   }}
                 />
               </span>
               <b className={`text-xs text-gray-900 ${active ? 'font-extrabold' : 'font-semibold'}`}>{label.replace(' de partie', '')}</b>
-              <span className="truncate text-[10px] text-gray-500">{detail}</span>
+              <span className="max-w-full truncate text-[11px] text-gray-500">{detail}</span>
             </button>
           )
         })}
@@ -368,13 +372,13 @@ export function HotZoneCard({
 }) {
   if (!top) return null
   const Icon = EVENT_ICONS[event.key]
-  const victim = event.key === 'death' || (event.roles.length > 1 && roleIndex === 1)
+  const victim = event.roles[roleIndex].victim === true
   return (
     <button
       type="button"
       onClick={() => onSelect(top.location)}
       aria-label={`${title} : ${top.location.name}`}
-      className="relative flex flex-col gap-2.5 overflow-hidden rounded-2xl border bg-[#0b1220] p-4 text-left text-white"
+      className="app-on-photo bg-photo-fallback relative flex flex-col gap-2.5 overflow-hidden rounded-[14px] border p-4 text-left text-white"
       style={{
         borderColor: rgb(event, 0.6),
         backgroundImage: `url('/maps/pubg/${activeMap}.webp')`,
@@ -389,13 +393,13 @@ export function HotZoneCard({
         {title}
       </span>
       <span className="relative flex flex-col gap-0.5">
-        <b className="text-[28px] font-black leading-tight tracking-tight">{top.location.name}</b>
-        <span className="text-[13px] text-white/75">
+        <b className="t-hero t-hero--lg">{top.location.name}</b>
+        <span className="t-num text-[13px] text-white/75">
           {integer.format(top.count)} {eventTitle(event, roleIndex).toLowerCase()} · {integer.format(total > 0 ? (top.count / total) * 100 : 0)} % sur {mapLabel(activeMap)}
         </span>
       </span>
       {king ? (
-        <span className="relative inline-flex items-center gap-1.5 self-start rounded-md border border-amber-400/60 bg-amber-400/15 px-2.5 py-0.5 text-xs font-extrabold text-amber-200">
+        <span className="relative inline-flex items-center gap-1.5 self-start rounded-md border border-[var(--game-gold-ring)] bg-[var(--game-gold-soft)] px-2.5 py-0.5 text-xs font-extrabold text-[var(--game-gold)]">
           <Crown className="h-3.5 w-3.5" aria-hidden="true" />
           {victim ? 'Le plus touché' : 'Roi du coin'} : {king.name} ×{king.count}
         </span>
@@ -416,8 +420,8 @@ export function ForceReport({ kills, deaths, locations, gridSize, selectedLocati
   return (
     <section className="app-panel flex flex-col overflow-hidden" aria-labelledby="force-title">
       <div className="flex flex-col gap-0.5 px-4 pb-2 pt-3">
-        <h2 id="force-title" className="text-[15px] font-extrabold text-gray-900">Rapport de force</h2>
-        <span className="text-xs text-gray-500">Kills du clan contre morts du clan, par ville</span>
+        <h2 id="force-title" className="t-card-title">Rapport de force</h2>
+        <span className="t-meta">Kills du clan contre morts du clan, par ville</span>
       </div>
       {rows.length > 0 ? (
         <ul aria-label="Rapport de force par ville">
@@ -428,7 +432,7 @@ export function ForceReport({ kills, deaths, locations, gridSize, selectedLocati
                 <button
                   type="button"
                   onClick={() => onSelect(row.location)}
-                  className={`flex w-full flex-col gap-1.5 border-t border-gray-200 px-4 py-2 text-left hover:bg-gray-50 ${row.location.id === selectedLocationId ? 'bg-cyan-400/10' : ''}`}
+                  className={`flex w-full flex-col gap-1.5 border-t border-gray-200 px-4 py-2 text-left hover:bg-gray-50 ${row.location.id === selectedLocationId ? 'bg-[var(--theme-ui-accent-tint)] shadow-[inset_3px_0_0_var(--theme-ui-accent)]' : ''}`}
                 >
                   <span className="flex items-baseline gap-2">
                     <b className="min-w-0 flex-1 truncate text-[13px] text-gray-900">{row.location.name}</b>
@@ -437,12 +441,12 @@ export function ForceReport({ kills, deaths, locations, gridSize, selectedLocati
                     </span>
                   </span>
                   <span className="grid grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1.5 text-[11px] font-extrabold tabular-nums">
-                    <span className="text-right text-yellow-500">{row.kills}</span>
+                    <span className="t-pos text-right">{row.kills}</span>
                     <span className="flex h-2 gap-0.5 overflow-hidden rounded" aria-hidden="true">
-                      <span className="bg-yellow-400" style={{ width: `${row.killShare}%` }} />
-                      <span className="flex-1 bg-rose-400" />
+                      <span className="bg-[var(--game-pos)]" style={{ width: `${row.killShare}%` }} />
+                      <span className="flex-1 bg-[var(--game-neg)]" />
                     </span>
-                    <span className="text-rose-400">{row.deaths}</span>
+                    <span className="t-neg">{row.deaths}</span>
                   </span>
                 </button>
               </li>
@@ -450,11 +454,11 @@ export function ForceReport({ kills, deaths, locations, gridSize, selectedLocati
           })}
         </ul>
       ) : (
-        <p className="border-t border-gray-200 px-4 py-3 text-sm text-gray-500">Ni kill ni mort en ville sur cette carte.</p>
+        <p className="t-body border-t border-gray-200 px-4 py-3 text-gray-500">Ni kill ni mort en ville sur cette carte.</p>
       )}
       <span className="flex gap-3.5 border-t border-gray-200 px-4 pb-3 pt-2 text-[11px] text-gray-500">
-        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-yellow-400" aria-hidden="true" />kills</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-rose-400" aria-hidden="true" />morts</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-[var(--game-pos)]" aria-hidden="true" />kills</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-[var(--game-neg)]" aria-hidden="true" />morts</span>
       </span>
     </section>
   )
@@ -472,8 +476,8 @@ export function TopCities({ event, roleIndex, counts, selectedLocationId, onSele
   return (
     <section className="app-panel flex flex-col overflow-hidden" aria-labelledby="top-cities-title">
       <div className="flex flex-wrap items-baseline gap-2 px-4 pb-2 pt-3">
-        <h2 id="top-cities-title" className="text-[15px] font-extrabold text-gray-900">Top 5 · {eventTitle(event, roleIndex).toLowerCase()}</h2>
-        <span className="text-xs text-gray-500">{integer.format(inCity)} en ville · {integer.format(counts.outside)} hors ville</span>
+        <h2 id="top-cities-title" className="t-card-title">Top 5 · {eventTitle(event, roleIndex).toLowerCase()}</h2>
+        <span className="t-meta">{integer.format(inCity)} en ville · {integer.format(counts.outside)} hors ville</span>
       </div>
       {top5.length > 0 ? (
         <ol aria-label="Top 5 des villes">
@@ -483,21 +487,16 @@ export function TopCities({ event, roleIndex, counts, selectedLocationId, onSele
                 type="button"
                 onClick={() => onSelect(city.location)}
                 aria-pressed={city.location.id === selectedLocationId}
-                className={`grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 border-t border-gray-200 px-4 py-2 text-left hover:bg-gray-50 ${city.location.id === selectedLocationId ? 'bg-cyan-400/10 shadow-[inset_3px_0_0_#22d3ee]' : ''}`}
+                className={`grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 border-t border-gray-200 px-4 py-2 text-left hover:bg-gray-50 ${city.location.id === selectedLocationId ? 'bg-[var(--theme-ui-accent-tint)] shadow-[inset_3px_0_0_var(--theme-ui-accent)]' : ''}`}
               >
-                <span
-                  className="grid h-[22px] w-[22px] place-items-center rounded-full text-[11px] font-black"
-                  style={{ backgroundColor: RANK_COLORS[index] ?? 'var(--theme-ui-surface-strong)', color: index < 3 ? (index === 2 ? '#fff' : '#020617') : 'var(--theme-ui-text)' }}
-                >
-                  {index + 1}
-                </span>
+                <RankCell rank={index + 1} size="xs" />
                 <span className="flex min-w-0 flex-col gap-1">
                   <b className="truncate text-sm text-gray-900">{city.location.name}</b>
                   <span className="block h-[5px] max-w-[180px] overflow-hidden rounded-[3px] bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
                     <span className="block h-full" style={{ width: `${(city.count / top5[0].count) * 100}%`, backgroundColor: rgb(event) }} />
                   </span>
                 </span>
-                <span className="flex flex-col items-end tabular-nums">
+                <span className="t-num flex flex-col items-end">
                   <b className="text-base text-gray-900">{integer.format(city.count)}</b>
                   <span className="text-[11px] text-gray-500">{integer.format(city.share)} %</span>
                 </span>
@@ -506,7 +505,7 @@ export function TopCities({ event, roleIndex, counts, selectedLocationId, onSele
           ))}
         </ol>
       ) : (
-        <p className="border-t border-gray-200 px-4 py-3 text-sm text-gray-500">Aucun événement en ville sur cette carte.</p>
+        <p className="t-body border-t border-gray-200 px-4 py-3 text-gray-500">Aucun événement en ville sur cette carte.</p>
       )}
       <span className="border-t border-gray-200 px-4 pb-3 pt-2 text-[11px] text-gray-500">Touchez une ville pour zoomer dessus.</span>
     </section>
@@ -515,7 +514,7 @@ export function TopCities({ event, roleIndex, counts, selectedLocationId, onSele
 
 // ── Qui … où ────────────────────────────────────────────────────────────────────────────────────
 
-export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap, selectedMemberKey, onSelect }: {
+export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap, selectedMemberKey, onSelect, colorOf }: {
   event: PositionEvent
   roleIndex: number
   breakdown: MemberBreakdown[]
@@ -523,6 +522,8 @@ export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap,
   activeMap: string
   selectedMemberKey: string | null
   onSelect: (memberKey: string | null) => void
+  /** Couleur du style de jeu dominant du joueur sur la période (`usePlaystyleColors`) ; `null` : pastille neutre. */
+  colorOf: (memberKey: string) => string | null
 }) {
   const [page, setPage] = useState(1)
   const small = useIsSmall()
@@ -540,8 +541,8 @@ export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap,
   return (
     <section className="flex flex-col gap-2.5" aria-labelledby="who-title">
       <div className="flex items-center gap-2">
-        <h2 id="who-title" className="whitespace-nowrap text-[17px] font-extrabold text-gray-900">Qui {event.roles[roleIndex].verb} où</h2>
-        <span className="hidden truncate text-[13px] text-gray-500 sm:inline">{eventTitle(event, roleIndex)} · {mapLabel(activeMap)}</span>
+        <h2 id="who-title" className="t-section-title whitespace-nowrap">Qui {event.roles[roleIndex].verb} où</h2>
+        <span className="t-meta hidden truncate sm:inline">{eventTitle(event, roleIndex)} · {mapLabel(activeMap)}</span>
         {pageCount > 1 ? (
           <nav className="ml-auto flex items-center gap-1.5" aria-label="Pages des joueurs">
             <button type="button" className="app-pager-button" onClick={() => setPage(current - 1)} disabled={current === 1} aria-label="Joueurs précédents">
@@ -556,7 +557,7 @@ export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap,
       </div>
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-4" aria-label="Joueurs de la carte">
         {visible.map(({ member, summary }) => {
-          const color = memberColor(hashKey(member.memberKey))
+          const color = colorOf(member.memberKey)
           const selected = selectedMemberKey === member.memberKey
           return (
             <li key={member.memberKey} className="flex min-w-0">
@@ -566,10 +567,13 @@ export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap,
                 aria-pressed={selected}
                 aria-label={`${member.memberLabel} : filtrer la carte`}
                 className="app-panel flex w-full min-w-0 flex-col gap-2 px-3.5 py-3 text-left transition hover:border-[var(--theme-ui-accent-ring)]"
-                style={selected ? { borderColor: color, boxShadow: `0 0 0 3px ${color}40` } : undefined}
+                style={selected ? { borderColor: 'var(--theme-ui-accent-ring)', boxShadow: '0 0 0 3px var(--theme-ui-accent-soft)' } : undefined}
               >
                 <span className="flex min-w-0 items-center gap-2.5">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-black text-[#020617]" style={{ backgroundColor: color }}>
+                  <span
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-black"
+                    style={{ backgroundColor: color ?? 'var(--theme-ui-surface-strong)', color: color ? '#020617' : 'var(--theme-ui-text-secondary)' }}
+                  >
                     {member.memberLabel.replace(/^Joueur\s+/, '').charAt(0).toUpperCase()}
                   </span>
                   <span className="flex min-w-0 flex-col">
@@ -587,14 +591,9 @@ export function WhoDoesWhat({ event, roleIndex, breakdown, locations, activeMap,
           )
         })}
       </ul>
+      <PlaystyleLegend />
     </section>
   )
 }
 
-/** Couleur stable d'une clé de membre (compte PUBG ou pseudo) : même palette que les zones de drop. */
-export function hashKey(key: string) {
-  let hash = 0
-  for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) | 0
-  return Math.abs(hash)
-}
 

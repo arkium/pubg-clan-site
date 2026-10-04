@@ -136,7 +136,8 @@ Champs JSON de données parsées :
 - `trajectorySegments` — segments de trajectoire
 - `deathSamples`, `landingSamples`, `phaseSnapshots`
 - `killSamples`, `shotSamples`, `damageSamples`
-- `knockoutSamples`, `reviveSamples`, `vehicleSamples`
+- `knockoutSamples`, `reviveSamples`, `vehicleSamples` (montée / descente, type d'engin et, depuis le 2026-10-04,
+  `teammateAboard` : un coéquipier à bord — voir [positions.md](../features/positions.md) §4.3)
 
 `attemptCount` et `nextRetryAt` gèrent les retries. Les jobs bloqués en `running` depuis plus de 10 min sont récupérés automatiquement au démarrage du worker.
 

@@ -170,6 +170,11 @@ export type TelemetryVehicleSample = {
   timestampSeconds: number | null
   x: number
   y: number
+  /**
+   * Un coéquipier est déjà à bord (montée) ou y reste (descente), d'après `fellowPassengers` : compte les véhicules et
+   * non les passagers (`vehicleTripFlags`). Absent : télémétrie stockée avant le 2026-10-04, déduit à la lecture.
+   */
+  teammateAboard?: boolean
 }
 
 type ShotClusterAccum = {
@@ -632,6 +637,16 @@ function getReviverLocation(event: TelemetryEvent): { x: number; y: number } | n
 
 function getVehicleType(event: TelemetryEvent): string | null {
   return getFirstStringFromPaths(event, ['vehicle.vehicleType', 'vehicleType'])
+}
+
+/** Coéquipier (même `teamId`, autre joueur) parmi `fellowPassengers` ; `undefined` si la liste manque. */
+function hasTeammateAboard(event: TelemetryEvent, actorKey: string, actorTeamId: number | null | undefined) {
+  const passengers = getValueByPath(event, 'fellowPassengers')
+  if (!Array.isArray(passengers)) return undefined
+  if (typeof actorTeamId !== 'number') return false
+  return passengers.some((passenger) =>
+    getFirstNumberFromPaths(passenger, ['teamId']) === actorTeamId &&
+    getFirstStringFromPaths(passenger, ['accountId', 'name']) !== actorKey)
 }
 
 function isOutsideSafeZone(location: { x: number; y: number }, zone: ZoneState) {
@@ -1499,6 +1514,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
             timestampSeconds,
             x: vehicleLocation.x,
             y: vehicleLocation.y,
+            teammateAboard: hasTeammateAboard(event, actorKey, actorTeamId),
           })
         }
       }

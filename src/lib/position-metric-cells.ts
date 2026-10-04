@@ -4,6 +4,7 @@ import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import type { ParsedTelemetrySnapshot } from '@/lib/pubg-telemetry/parser'
 import { toMapPercent } from '@/lib/pubg-telemetry/position-heatmap'
+import { vehicleTripFlags } from '@/lib/vehicle-trips'
 
 export const POSITION_METRIC_GRID_SIZE = 40
 
@@ -18,7 +19,9 @@ export type PositionMetric =
   | 'knockout_taken'
   | 'revive_given'
   | 'revive_received'
-  | 'vehicle'
+  /** Véhicule pris / laissé : un par véhicule, pas par passager (`vehicleTripFlags`). Avant le 2026-10-04 : `vehicle`. */
+  | 'vehicle_ride'
+  | 'vehicle_leave'
   | 'death'
 
 export type PositionMetricMatch = {
@@ -60,10 +63,8 @@ function gridCell(mapName: string, x: number, y: number) {
   }
 }
 
-export function buildPositionMetricCellRows(
-  match: PositionMetricMatch,
-  snapshot: ParsedTelemetrySnapshot
-): PositionMetricCellRow[] {
+/** Membres du clan de l'escouade, par compte et par pseudo (minuscules). */
+function clanMemberByKey(match: PositionMetricMatch) {
   const memberByKey = new Map<string, { memberId: number; clanId: number }>()
   for (const squadMember of match.members) {
     const clanId = squadMember.member.clanId
@@ -74,6 +75,14 @@ export function buildPositionMetricCellRows(
     if (accountId) memberByKey.set(accountId, member)
     if (playerName) memberByKey.set(playerName, member)
   }
+  return memberByKey
+}
+
+export function buildPositionMetricCellRows(
+  match: PositionMetricMatch,
+  snapshot: ParsedTelemetrySnapshot
+): PositionMetricCellRow[] {
+  const memberByKey = clanMemberByKey(match)
 
   const rows = new Map<string, PositionMetricCellRow>()
   function add(input: {
@@ -134,7 +143,13 @@ export function buildPositionMetricCellRows(
   for (const sample of snapshot.reviveSamples) {
     add({ ...sample, metric: sample.role === 'reviver' ? 'revive_given' : 'revive_received' })
   }
-  for (const sample of snapshot.vehicleSamples) add({ ...sample, metric: 'vehicle' })
+  const vehicleCounted = vehicleTripFlags(snapshot.vehicleSamples, (memberKey) => {
+    const member = memberByKey.get(normalizeKey(memberKey) ?? '')
+    return member ? String(member.memberId) : null
+  })
+  snapshot.vehicleSamples.forEach((sample, index) => {
+    if (vehicleCounted[index]) add({ ...sample, metric: sample.action === 'ride' ? 'vehicle_ride' : 'vehicle_leave' })
+  })
 
   return Array.from(rows.values()).sort((left, right) =>
     left.memberId - right.memberId ||
@@ -145,6 +160,24 @@ export function buildPositionMetricCellRows(
   )
 }
 
+const POSITION_METRIC_MATCH_SELECT = {
+  id: true,
+  mapName: true,
+  createdAt: true,
+  members: {
+    select: {
+      memberId: true,
+      member: {
+        select: {
+          clanId: true,
+          pubgAccountId: true,
+          pubgPlayerName: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.SquadMatchSelect
+
 export async function persistPositionMetricCellsForMatch(
   squadMatchId: string,
   snapshot: ParsedTelemetrySnapshot,
@@ -152,23 +185,7 @@ export async function persistPositionMetricCellsForMatch(
 ) {
   const match = await client.squadMatch.findUnique({
     where: { id: squadMatchId },
-    select: {
-      id: true,
-      mapName: true,
-      createdAt: true,
-      members: {
-        select: {
-          memberId: true,
-          member: {
-            select: {
-              clanId: true,
-              pubgAccountId: true,
-              pubgPlayerName: true,
-            },
-          },
-        },
-      },
-    },
+    select: POSITION_METRIC_MATCH_SELECT,
   })
   if (!match) return 0
 
@@ -332,4 +349,133 @@ export async function backfillPositionMetricCells(input: {
   })
 
   return { matchesProcessed, rowsWritten, totalRows }
+}
+
+export type LegacyVehicleConversionPage = {
+  matches: number
+  /** Cellules et événements `vehicle` (une montée ou descente par passager, avion compris) remplacés. */
+  legacyCells: number
+  legacyEvents: number
+  /** Véhicules pris et laissés écrits à la place. */
+  rides: number
+  leaves: number
+  cellsWritten: number
+  lastSquadMatchId: string | null
+}
+
+/**
+ * Convertit les cellules `vehicle` d'avant le 2026-10-04 (une montée ou une descente **par passager**, avion compris)
+ * en `vehicle_ride` / `vehicle_leave` (une montée et une descente **par véhicule**, engins volants exclus), relues dans
+ * `vehicleSamples` avec la déduction de `vehicleTripFlags` — l'historique ne sait pas qui était à bord avec qui.
+ * Pages de matchs triées par identifiant (reprise par `after`). **Simulation par défaut** ; avec `write`, une
+ * transaction par page remplace les cellules `vehicle` de la page.
+ *
+ * Seuls les membres qui avaient des cellules `vehicle` en reçoivent, **avec le clan de ces cellules** : un recalcul
+ * depuis les membres actuels donnerait des véhicules aux membres rattachés au match après coup (sans positions ni
+ * kills pour ce match) et déplacerait ceux qui ont changé de clan. Ils servent en revanche à la déduction (ils étaient
+ * bien à bord). Idempotent : une fois convertis, les matchs n'ont plus de cellule `vehicle`.
+ */
+export async function convertLegacyVehiclePositionCells(input: {
+  clanId?: number
+  limit?: number
+  pageSize?: number
+  after?: string
+  write?: boolean
+  client?: PrismaClient
+  onPage?: (page: LegacyVehicleConversionPage) => void
+} = {}) {
+  const client = input.client ?? prisma
+  const pageSize = Math.max(1, Math.min(input.pageSize ?? 200, 1_000))
+  const limit = Math.max(1, input.limit ?? Number.MAX_SAFE_INTEGER)
+
+  const total: LegacyVehicleConversionPage = {
+    matches: 0,
+    legacyCells: 0,
+    legacyEvents: 0,
+    rides: 0,
+    leaves: 0,
+    cellsWritten: 0,
+    lastSquadMatchId: input.after ?? null,
+  }
+
+  while (total.matches < limit) {
+    const after = total.lastSquadMatchId
+    const ids = (await client.$queryRaw<Array<{ squadMatchId: string }>>(Prisma.sql`
+      SELECT DISTINCT c.squadMatchId
+      FROM PositionMetricCell c
+      WHERE c.metric = 'vehicle'
+        ${after ? Prisma.sql`AND c.squadMatchId > ${after}` : Prisma.empty}
+        ${input.clanId ? Prisma.sql`AND c.clanId = ${input.clanId}` : Prisma.empty}
+      ORDER BY c.squadMatchId ASC
+      LIMIT ${Math.min(pageSize, limit - total.matches)}
+    `)).map((row) => row.squadMatchId)
+    if (ids.length === 0) break
+
+    const [snapshots, matches, legacy] = await Promise.all([
+      client.squadMatchTelemetry.findMany({
+        where: { squadMatchId: { in: ids } },
+        select: { squadMatchId: true, vehicleSamples: true, vehicleSamplesGz: true },
+      }),
+      client.squadMatch.findMany({ where: { id: { in: ids } }, select: POSITION_METRIC_MATCH_SELECT }),
+      client.positionMetricCell.findMany({
+        where: { squadMatchId: { in: ids }, metric: 'vehicle' },
+        select: { squadMatchId: true, memberId: true, clanId: true, eventCount: true },
+      }),
+    ])
+
+    // Membre → clan des cellules d'origine, par match.
+    const legacyClan = new Map<string, number>()
+    for (const cell of legacy) legacyClan.set(`${cell.squadMatchId}:${cell.memberId}`, cell.clanId)
+
+    const rows: PositionMetricCellRow[] = []
+    const matchById = new Map(matches.map((match) => [match.id, match]))
+    for (const stored of snapshots) {
+      const match = matchById.get(stored.squadMatchId)
+      if (!match) continue
+      const snapshot = parseStoredPositionSnapshot({
+        positionSamples: null,
+        trajectorySegments: null,
+        deathSamples: null,
+        killSamples: null,
+        shotSamples: null,
+        damageSamples: null,
+        knockoutSamples: null,
+        reviveSamples: null,
+        vehicleSamples: stored.vehicleSamples,
+        vehicleSamplesGz: stored.vehicleSamplesGz,
+      })
+      for (const row of buildPositionMetricCellRows(match, snapshot)) {
+        const clanId = legacyClan.get(`${row.squadMatchId}:${row.memberId}`)
+        if (clanId !== undefined) rows.push({ ...row, clanId })
+      }
+    }
+
+    const page: LegacyVehicleConversionPage = {
+      matches: ids.length,
+      legacyCells: legacy.length,
+      legacyEvents: legacy.reduce((sum, cell) => sum + cell.eventCount, 0),
+      rides: rows.filter((row) => row.metric === 'vehicle_ride').reduce((sum, row) => sum + row.eventCount, 0),
+      leaves: rows.filter((row) => row.metric === 'vehicle_leave').reduce((sum, row) => sum + row.eventCount, 0),
+      cellsWritten: rows.length,
+      lastSquadMatchId: ids[ids.length - 1],
+    }
+
+    if (input.write) {
+      await client.$transaction([
+        client.positionMetricCell.deleteMany({ where: { squadMatchId: { in: ids }, metric: { in: ['vehicle', 'vehicle_ride', 'vehicle_leave'] } } }),
+        client.positionMetricCell.createMany({ data: rows }),
+      ])
+    }
+
+    total.matches += page.matches
+    total.legacyCells += page.legacyCells
+    total.legacyEvents += page.legacyEvents
+    total.rides += page.rides
+    total.leaves += page.leaves
+    total.cellsWritten += page.cellsWritten
+    total.lastSquadMatchId = page.lastSquadMatchId
+    input.onPage?.(page)
+  }
+
+  return total
 }

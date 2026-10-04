@@ -99,9 +99,9 @@ test.describe('soirée', () => {
   await page.waitForLoadState('networkidle')
     await page.reload()
     await expect(page.getByRole('heading', { level: 1, name: 'Samedi 26 septembre' })).toBeVisible()
-    const background = await page
-      .getByRole('region', { name: 'Plan de vol de la soirée' })
-      .evaluate((node) => getComputedStyle(node).backgroundColor)
-    expect(background).toBe('rgb(255, 255, 255)')
+    // Le thème se pose avec le shell, qui n'apparaît qu'une fois la session lue : sous charge, la page peut encore
+    // s'afficher sans lui. On attend la couleur au lieu de la lire une seule fois.
+    const plan = page.getByRole('region', { name: 'Plan de vol de la soirée' })
+    await expect.poll(() => plan.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 255, 255)')
   })
 })

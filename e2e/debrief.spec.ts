@@ -150,10 +150,7 @@ test('le thème clair s’applique au débriefing (plus de bloc sombre)', async 
   await page.waitForLoadState('networkidle')
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'Erangel' })).toBeVisible()
-  const background = await page
-    .getByRole('region', { name: 'Chronologie du match' })
-    .locator('.app-panel')
-    .last()
-    .evaluate((node) => getComputedStyle(node).backgroundColor)
-  expect(background).toBe('rgb(255, 255, 255)')
+  // Le thème se pose avec le shell (après lecture de la session) : on attend la couleur au lieu de la lire une fois.
+  const panel = page.getByRole('region', { name: 'Chronologie du match' }).locator('.app-panel').last()
+  await expect.poll(() => panel.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 255, 255)')
 })

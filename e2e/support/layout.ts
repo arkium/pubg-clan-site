@@ -15,6 +15,10 @@ export async function settle(page: Page) {
 
 /** Position de la sentinelle dans le document, moins la hauteur du header : le seuil de docking. */
 export async function dockingThreshold(page: Page) {
+  // Le shell (et son header) n'apparaît qu'une fois la session lue : avant, la page s'affiche sans lui, et un bandeau
+  // déjà visible ne suffit pas. Sous charge (suite complète), mesurer trop tôt échouait au hasard.
+  await expect(appHeader(page)).toBeVisible()
+  await expect(page.locator('[data-docking-sentinel]')).toHaveCount(1)
   return page.evaluate(() => {
     const sentinel = document.querySelector('[data-docking-sentinel]')
     const header = document.querySelector('[data-app-header]')
